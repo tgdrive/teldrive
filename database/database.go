@@ -1,11 +1,14 @@
 package database
 
 import (
+	"log"
 	"os"
 	"time"
 
+	"github.com/divyam234/teldrive-go/utils"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 	"gorm.io/gorm/schema"
 )
 
@@ -15,7 +18,18 @@ func InitDB() {
 
 	var err error
 
-	DB, err = gorm.Open(postgres.Open(os.Getenv("DATABASE_URL")), &gorm.Config{
+	newLogger := logger.New(
+		log.New(os.Stdout, "\r\n", log.LstdFlags),
+		logger.Config{
+			SlowThreshold:             time.Second,
+			LogLevel:                  logger.Silent,
+			IgnoreRecordNotFoundError: true,
+			ParameterizedQueries:      true,
+			Colorful:                  false,
+		},
+	)
+
+	DB, err = gorm.Open(postgres.Open(utils.GetConfig().DatabaseUrl), &gorm.Config{
 		NamingStrategy: schema.NamingStrategy{
 			TablePrefix:   "teldrive.",
 			SingularTable: false,
@@ -24,6 +38,7 @@ func InitDB() {
 		NowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
+		Logger: newLogger,
 	})
 	if err != nil {
 		panic(err)

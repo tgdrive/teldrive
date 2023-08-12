@@ -230,14 +230,29 @@ func (fs *FileService) GetFileStream(ctx context.Context) gin.HandlerFunc {
 
 	return func(c *gin.Context) {
 
-		fileID := c.Param("fileID")
-
-		tgClient := utils.GetTgClient()
-
-		tgClient.Workload++
-
 		w := c.Writer
 		r := c.Request
+		config := utils.GetConfig()
+
+		fileID := c.Param("fileID")
+
+		var tgClient *utils.Client
+
+		var err error
+		if config.MultiClient {
+			tgClient = utils.GetBotClient()
+			tgClient.Workload++
+
+		} else {
+			val, _ := c.Get("jwtUser")
+			jwtUser := val.(*types.JWTClaims)
+			userId, _ := strconv.Atoi(jwtUser.Subject)
+			tgClient, err = utils.GetAuthClient(jwtUser.TgSession, userId)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		}
 
 		res, err := cache.CachedFunction(fs.GetFileByID, fmt.Sprintf("files:%s", fileID))(c)
 
@@ -302,7 +317,9 @@ func (fs *FileService) GetFileStream(ctx context.Context) gin.HandlerFunc {
 		}
 
 		defer func() {
-			tgClient.Workload--
+			if config.MultiClient {
+				tgClient.Workload--
+			}
 		}()
 	}
 }

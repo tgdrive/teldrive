@@ -3,10 +3,11 @@ package routes
 import (
 	"context"
 	"net/http"
+	"os"
+	"strconv"
 
 	"github.com/divyam234/teldrive-go/database"
 	"github.com/divyam234/teldrive-go/services"
-	"github.com/divyam234/teldrive-go/utils"
 
 	"github.com/gin-gonic/gin"
 )
@@ -15,9 +16,10 @@ func addFileRoutes(rg *gin.RouterGroup) {
 
 	r := rg.Group("/files")
 	r.Use(Authmiddleware)
-	fileService := services.FileService{Db: database.DB, ChannelID: utils.GetConfig().ChannelID}
+	channelID, _ := strconv.ParseInt(os.Getenv("CHANNEL_ID"), 10, 64)
+	fileService := services.FileService{Db: database.DB, ChannelID: channelID}
 
-	r.GET("", func(c *gin.Context) {
+	r.GET("/", func(c *gin.Context) {
 		res, err := fileService.ListFiles(c)
 
 		if err != nil {
@@ -28,7 +30,7 @@ func addFileRoutes(rg *gin.RouterGroup) {
 		c.JSON(http.StatusOK, res)
 	})
 
-	r.POST("", func(c *gin.Context) {
+	r.POST("/", func(c *gin.Context) {
 
 		res, err := fileService.CreateFile(c)
 
