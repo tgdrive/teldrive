@@ -3,7 +3,7 @@ package schemas
 import (
 	"time"
 
-	"github.com/jackc/pgtype"
+	"github.com/divyam234/teldrive-go/models"
 )
 
 type PaginationQuery struct {
@@ -29,17 +29,17 @@ type FileQuery struct {
 }
 
 type FileIn struct {
-	Name      string  `json:"name" mapstructure:"name,omitempty"`
-	Type      string  `json:"type" mapstructure:"type,omitempty"`
-	Parts     *[]Part `json:"parts,omitempty" mapstructure:"parts,omitempty"`
-	MimeType  string  `json:"mimeType" mapstructure:"mime_type,omitempty"`
-	ChannelID int64   `json:"channelId,omitempty" mapstructure:"channel_id,omitempty"`
-	Path      string  `json:"path" mapstructure:"path,omitempty"`
-	Size      int64   `json:"size" mapstructure:"size,omitempty"`
-	Starred   *bool   `json:"starred" mapstructure:"starred,omitempty"`
-	Depth     int     `json:"depth,omitempty" mapstructure:"depth,omitempty"`
-	UserID    int     `json:"userId" mapstructure:"user_id,omitempty"`
-	ParentID  string  `json:"parentId" mapstructure:"parent_id,omitempty"`
+	Name      string        `json:"name" mapstructure:"name,omitempty"`
+	Type      string        `json:"type" mapstructure:"type,omitempty"`
+	Parts     *models.Parts `json:"parts,omitempty" mapstructure:"parts,omitempty"`
+	MimeType  string        `json:"mimeType" mapstructure:"mime_type,omitempty"`
+	ChannelID int64         `json:"channelId,omitempty" mapstructure:"channel_id,omitempty"`
+	Path      string        `json:"path" mapstructure:"path,omitempty"`
+	Size      int64         `json:"size" mapstructure:"size,omitempty"`
+	Starred   *bool         `json:"starred" mapstructure:"starred,omitempty"`
+	Depth     *int          `json:"depth,omitempty" mapstructure:"depth,omitempty"`
+	UserID    int           `json:"userId" mapstructure:"user_id,omitempty"`
+	ParentID  string        `json:"parentId" mapstructure:"parent_id,omitempty"`
 }
 
 type FileOut struct {
@@ -60,9 +60,5 @@ type FileResponse struct {
 }
 type FileOutFull struct {
 	FileOut
-	Parts pgtype.JSONB `json:"parts,omitempty"`
-}
-
-type Part struct {
-	ID int64 `json:"id"`
+	Parts models.Parts `json:"parts,omitempty"`
 }

@@ -2,6 +2,7 @@ package services
 
 import (
 	"bytes"
+	"context"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/hex"
@@ -9,9 +10,11 @@ import (
 	"math/big"
 	"net"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/divyam234/teldrive-go/types"
+	"github.com/divyam234/teldrive-go/utils"
 	"github.com/divyam234/teldrive-go/utils/auth"
 	"github.com/gin-gonic/gin"
 	"github.com/go-jose/go-jose/v3/jwt"
@@ -35,7 +38,7 @@ func Pack32BinaryIP4(ip4Address string) []byte {
 	return buf.Bytes()
 }
 
-func generateSessionKey(dcID int, serverAddress string, authKey []byte, port int) string {
+func generateTgSession(dcID int, serverAddress string, authKey []byte, port int) string {
 
 	dcIDByte := byte(dcID)
 	serverAddressBytes := Pack32BinaryIP4(serverAddress)
@@ -65,7 +68,7 @@ func GetUserSessionCookieName(c *gin.Context) string {
 	return cookieName
 }
 
-func (as *AuthService) SignIn(c *gin.Context) *types.AppError {
+func (as *AuthService) LogIn(c *gin.Context) *types.AppError {
 	dcMaps := map[int]string{
 		1: "149.154.175.53",
 		2: "149.154.167.51",
@@ -82,7 +85,7 @@ func (as *AuthService) SignIn(c *gin.Context) *types.AppError {
 
 	authBytes, _ := hex.DecodeString(session.AuthKey)
 
-	sessionData := generateSessionKey(session.DcID, dcMaps[session.DcID], authBytes, 443)
+	sessionData := generateTgSession(session.DcID, dcMaps[session.DcID], authBytes, 443)
 
 	jwtClaims := &types.JWTClaims{Claims: jwt.Claims{
 		Subject:  session.UserID,
@@ -130,4 +133,23 @@ func (as *AuthService) GetSession(c *gin.Context) *types.Session {
 	}
 	c.SetCookie(GetUserSessionCookieName(c), jweToken, as.SessionMaxAge, "/", c.Request.Host, false, false)
 	return session
+}
+
+func (as *AuthService) Logout(c *gin.Context) *types.AppError {
+	val, _ := c.Get("jwtUser")
+	jwtUser := val.(*types.JWTClaims)
+	userId, _ := strconv.Atoi(jwtUser.Subject)
+	tgClient, err, stop := utils.GetAuthClient(jwtUser.TgSession, userId)
+
+	if err != nil {
+		return &types.AppError{Error: err, Code: http.StatusInternalServerError}
+	}
+
+	_, err = tgClient.Tg.API().AuthLogOut(context.Background())
+	if err != nil {
+		return &types.AppError{Error: err, Code: http.StatusInternalServerError}
+	}
+	utils.StopClient(stop, userId)
+	c.SetCookie(GetUserSessionCookieName(c), "", -1, "/", c.Request.Host, false, false)
+	return nil
 }

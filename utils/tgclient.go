@@ -33,9 +33,9 @@ func getBotClient(appID int, appHash, clientName, sessionDir string) *telegram.C
 	}
 	options := telegram.Options{
 		SessionStorage: sessionStorage,
-		Middlewares: []telegram.Middleware{
-			ratelimit.New(rate.Every(time.Millisecond*100), 5),
-		},
+		// Middlewares: []telegram.Middleware{
+		// 	ratelimit.New(rate.Every(time.Millisecond*100), 5),
+		// },
 		NoUpdates: true,
 	}
 
@@ -104,10 +104,10 @@ func StartBotTgClients() {
 
 }
 
-func GetAuthClient(sessionStr string, userId int) (*Client, error) {
+func GetAuthClient(sessionStr string, userId int) (*Client, error, bg.StopFunc) {
 
 	if client, ok := clients[userId]; ok {
-		return client, nil
+		return client, nil, nil
 	}
 
 	ctx := context.Background()
@@ -115,7 +115,7 @@ func GetAuthClient(sessionStr string, userId int) (*Client, error) {
 	data, err := session.TelethonSession(sessionStr)
 
 	if err != nil {
-		return nil, err
+		return nil, err, nil
 	}
 
 	var (
@@ -124,7 +124,7 @@ func GetAuthClient(sessionStr string, userId int) (*Client, error) {
 	)
 
 	if err := loader.Save(ctx, data); err != nil {
-		return nil, err
+		return nil, err, nil
 	}
 
 	client := telegram.NewClient(config.AppId, config.AppHash, telegram.Options{
@@ -135,16 +135,16 @@ func GetAuthClient(sessionStr string, userId int) (*Client, error) {
 		NoUpdates: true,
 	})
 
-	_, err = bg.Connect(client)
+	stop, err := bg.Connect(client)
 
 	if err != nil {
-		return nil, err
+		return nil, err, nil
 	}
 
 	tguser, err := client.Self(ctx)
 
 	if err != nil {
-		return nil, err
+		return nil, err, nil
 	}
 
 	Logger.Info("started Client", zap.String("user", tguser.Username))
@@ -153,7 +153,7 @@ func GetAuthClient(sessionStr string, userId int) (*Client, error) {
 
 	clients[int(tguser.GetID())] = tgClient
 
-	return tgClient, nil
+	return tgClient, nil, stop
 }
 
 func GetBotClient() *Client {
@@ -164,4 +164,9 @@ func GetBotClient() *Client {
 		}
 	}
 	return smallest
+}
+
+func StopClient(stop bg.StopFunc, key int) {
+	stop()
+	delete(clients, key)
 }

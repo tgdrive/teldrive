@@ -16,12 +16,23 @@ func addAuthRoutes(rg *gin.RouterGroup) {
 
 	r.POST("/login", func(c *gin.Context) {
 
-		err := authService.SignIn(c)
+		err := authService.LogIn(c)
 
 		if err != nil {
 			c.AbortWithError(err.Code, err.Error)
 			return
 		}
+	})
+
+	r.GET("/logout", Authmiddleware, func(c *gin.Context) {
+
+		err := authService.Logout(c)
+
+		if err != nil {
+			c.AbortWithError(err.Code, err.Error)
+			return
+		}
+
 	})
 
 	r.GET("/session", func(c *gin.Context) {

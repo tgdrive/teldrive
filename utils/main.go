@@ -78,3 +78,7 @@ func GetChannelById(ctx context.Context, client *tg.Client, channelID int64) (*t
 func BoolPointer(b bool) *bool {
 	return &b
 }
+
+func IntPointer(b int) *int {
+	return &b
+}

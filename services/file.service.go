@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -22,7 +21,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/tg"
-	"github.com/jackc/pgtype"
 	"github.com/mitchellh/mapstructure"
 	range_parser "github.com/quantumsheep/range-parser"
 	"gorm.io/gorm"
@@ -35,6 +33,10 @@ type FileService struct {
 }
 
 func (fs *FileService) CreateFile(c *gin.Context) (*schemas.FileOut, *types.AppError) {
+
+	val, _ := c.Get("jwtUser")
+	jwtUser := val.(*types.JWTClaims)
+	userId, _ := strconv.Atoi(jwtUser.Subject)
 
 	var fileIn schemas.FileIn
 	if err := c.ShouldBindJSON(&fileIn); err != nil {
@@ -60,38 +62,23 @@ func (fs *FileService) CreateFile(c *gin.Context) (*schemas.FileOut, *types.AppE
 			fullPath = fileIn.Path + "/" + fileIn.Name
 		}
 		fileIn.Path = fullPath
-		fileIn.Depth = len(strings.Split(fileIn.Path, "/")) - 1
+		fileIn.Depth = utils.IntPointer(len(strings.Split(fileIn.Path, "/")) - 1)
 	} else if fileIn.Type == "file" {
 		fileIn.Path = ""
 		fileIn.ChannelID = fs.ChannelID
 	}
 
-	fileIn.UserID = 815607893
+	fileIn.UserID = userId
 	fileIn.Starred = utils.BoolPointer(false)
 
-	payload := map[string]interface{}{}
+	fileDb := mapFileInToFile(fileIn)
 
-	err := mapstructure.Decode(fileIn, &payload)
-
-	if err != nil {
-		return nil, &types.AppError{Error: err, Code: http.StatusBadRequest}
-	}
-
-	if payload["parts"] != nil {
-		parts, _ := json.Marshal(payload["parts"])
-		payload["parts"] = pgtype.JSONB{Bytes: parts, Status: pgtype.Present}
-	} else {
-		delete(payload, "parts")
-	}
-
-	if err := fs.Db.Model(&models.File{}).Create(&payload).Error; err != nil {
+	if err := fs.Db.Create(&fileDb).Error; err != nil {
 		return nil, &types.AppError{Error: errors.New("failed to create a file"), Code: http.StatusBadRequest}
 
 	}
 
-	res := schemas.FileOut{}
-
-	mapstructure.Decode(payload, &res)
+	res := mapFileToFileOut(fileDb)
 
 	return &res, nil
 }
@@ -108,15 +95,9 @@ func (fs *FileService) UpdateFile(c *gin.Context) (*schemas.FileOut, *types.AppE
 		return nil, &types.AppError{Error: errors.New("invalid request payload"), Code: http.StatusBadRequest}
 	}
 
-	payload := map[string]interface{}{}
+	fileDb := mapFileInToFile(fileUpdate)
 
-	err := mapstructure.Decode(fileUpdate, &payload)
-
-	if err != nil {
-		return nil, &types.AppError{Error: err, Code: http.StatusBadRequest}
-	}
-
-	if err := fs.Db.Model(&files).Clauses(clause.Returning{}).Where("id = ?", fileID).Updates(payload).Error; err != nil {
+	if err := fs.Db.Model(&files).Clauses(clause.Returning{}).Where("id = ?", fileID).Updates(fileDb).Error; err != nil {
 		return nil, &types.AppError{Error: errors.New("failed to update the file"), Code: http.StatusInternalServerError}
 	}
 
@@ -136,7 +117,7 @@ func (fs *FileService) GetFileByID(c *gin.Context) (*schemas.FileOutFull, error)
 
 	var file []schemas.FileOutFull
 
-	fs.Db.Model(&models.File{}).Where("id = ?", fileID).Find(&file)
+	fs.Db.Model(&models.File{}).Preload("FilePart").Where("id = ?", fileID).Find(&file)
 
 	if len(file) == 0 {
 		return nil, errors.New("file not found")
@@ -144,8 +125,6 @@ func (fs *FileService) GetFileByID(c *gin.Context) (*schemas.FileOutFull, error)
 
 	return &file[0], nil
 }
-
-// listFiles is the handler function for listing files based on the provided query parameters
 
 func (fs *FileService) ListFiles(c *gin.Context) (*schemas.FileResponse, *types.AppError) {
 
@@ -247,7 +226,7 @@ func (fs *FileService) GetFileStream(ctx context.Context) gin.HandlerFunc {
 			val, _ := c.Get("jwtUser")
 			jwtUser := val.(*types.JWTClaims)
 			userId, _ := strconv.Atoi(jwtUser.Subject)
-			tgClient, err = utils.GetAuthClient(jwtUser.TgSession, userId)
+			tgClient, err, _ = utils.GetAuthClient(jwtUser.TgSession, userId)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
@@ -328,7 +307,9 @@ func (fs *FileService) getParts(ctx context.Context, tgClient *telegram.Client, 
 
 	ids := []tg.InputMessageID{}
 
-	file.Parts.AssignTo(&ids)
+	for _, part := range file.Parts {
+		ids = append(ids, tg.InputMessageID{ID: int(part.ID)})
+	}
 
 	s := make([]tg.InputMessageClass, len(ids))
 
@@ -338,7 +319,7 @@ func (fs *FileService) getParts(ctx context.Context, tgClient *telegram.Client, 
 
 	api := tgClient.API()
 
-	res, err := cache.CachedFunction(utils.GetChannelById, fmt.Sprintf("channels:%s", strconv.FormatInt(fs.ChannelID, 10)))(ctx, api, fs.ChannelID)
+	res, err := cache.CachedFunction(utils.GetChannelById, fmt.Sprintf("channels:%d", fs.ChannelID))(ctx, api, fs.ChannelID)
 
 	if err != nil {
 		return nil, err
@@ -377,9 +358,24 @@ func mapFileToFileOut(file models.File) schemas.FileOut {
 		MimeType:  file.MimeType,
 		Path:      file.Path,
 		Size:      file.Size,
-		Starred:   &file.Starred,
+		Starred:   file.Starred,
 		ParentID:  file.ParentID,
 		UpdatedAt: file.UpdatedAt,
+	}
+}
+
+func mapFileInToFile(file schemas.FileIn) models.File {
+	return models.File{
+		Name:     file.Name,
+		Type:     file.Type,
+		MimeType: file.MimeType,
+		Path:     file.Path,
+		Size:     file.Size,
+		Starred:  file.Starred,
+		Depth:    file.Depth,
+		UserID:   file.UserID,
+		ParentID: file.ParentID,
+		FilePart: models.FilePart{Parts: file.Parts, ChannelID: file.ChannelID},
 	}
 }
 
