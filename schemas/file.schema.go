@@ -26,6 +26,8 @@ type FileQuery struct {
 	MimeType  string     `form:"mimeType" mapstructure:"mime_type,omitempty"`
 	ParentID  string     `form:"parentId" mapstructure:"parent_id,omitempty"`
 	UpdatedAt *time.Time `form:"updatedAt" mapstructure:"updated_at,omitempty"`
+	Status    string     `mapstructure:"status"`
+	UserId    int        `mapstructure:"user_id"`
 }
 
 type FileIn struct {
@@ -33,11 +35,12 @@ type FileIn struct {
 	Type      string        `json:"type" mapstructure:"type,omitempty"`
 	Parts     *models.Parts `json:"parts,omitempty" mapstructure:"parts,omitempty"`
 	MimeType  string        `json:"mimeType" mapstructure:"mime_type,omitempty"`
-	ChannelID int64         `json:"channelId,omitempty" mapstructure:"channel_id,omitempty"`
+	ChannelID *int64        `json:"channelId,omitempty" mapstructure:"channel_id,omitempty"`
 	Path      string        `json:"path" mapstructure:"path,omitempty"`
 	Size      int64         `json:"size" mapstructure:"size,omitempty"`
 	Starred   *bool         `json:"starred" mapstructure:"starred,omitempty"`
 	Depth     *int          `json:"depth,omitempty" mapstructure:"depth,omitempty"`
+	Status    string        `mapstructure:"status,omitempty"`
 	UserID    int           `json:"userId" mapstructure:"user_id,omitempty"`
 	ParentID  string        `json:"parentId" mapstructure:"parent_id,omitempty"`
 }
@@ -58,7 +61,14 @@ type FileResponse struct {
 	Results       []FileOut `json:"results"`
 	NextPageToken string    `json:"nextPageToken,omitempty"`
 }
+
 type FileOutFull struct {
 	FileOut
-	Parts models.Parts `json:"parts,omitempty"`
+	Parts     *models.Parts `json:"parts,omitempty"`
+	ChannelID *int64        `json:"channelId"`
+}
+
+type FileOperation struct {
+	Files       []string `json:"files"`
+	Destination string   `json:"destination,omitempty"`
 }

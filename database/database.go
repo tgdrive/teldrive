@@ -53,7 +53,4 @@ func InitDB() {
 		DB.Exec("select 1")
 	}()
 
-	// Auto-migrate the File struct to the database
-	//db.AutoMigrate(&File{})
-
 }

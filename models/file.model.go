@@ -7,26 +7,21 @@ import (
 )
 
 type File struct {
-	ID        string    `gorm:"type:text;primary_key;default:generate_uid(16)"`
-	Name      string    `gorm:"type:text"`
-	Type      string    `gorm:"type:text"`
-	MimeType  string    `gorm:"type:text"`
-	Path      string    `gorm:"index;type:text"`
+	ID        string    `gorm:"type:text;primaryKey;default:generate_uid(16)"`
+	Name      string    `gorm:"type:text;not null"`
+	Type      string    `gorm:"type:text;not null"`
+	MimeType  string    `gorm:"type:text;not null"`
+	Path      string    `gorm:"type:text;index"`
 	Size      int64     `gorm:"type:bigint"`
 	Starred   *bool     `gorm:"default:false"`
 	Depth     *int      `gorm:"type:integer"`
-	UserID    int       `gorm:"type:bigint"`
-	ParentID  string    `gorm:"index;type:text"`
-	FilePart  FilePart  `gorm:"foreignKey:FileId;references:id;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
+	UserID    int       `gorm:"type:bigint;not null"`
+	Status    string    `gorm:"type:text"`
+	ParentID  string    `gorm:"type:text;index"`
+	Parts     *Parts    `gorm:"type:jsonb"`
+	ChannelID *int64    `gorm:"type:bigint"`
 	CreatedAt time.Time `gorm:"default:timezone('utc'::text, now())"`
 	UpdatedAt time.Time `gorm:"default:timezone('utc'::text, now())"`
-}
-
-type FilePart struct {
-	ID        int    `gorm:"type:serial4;primary_key"`
-	FileId    string `gorm:"type:text"`
-	Parts     *Parts `gorm:"type:jsonb"`
-	ChannelID int64  `gorm:"type:bigint"`
 }
 
 type Parts []Part

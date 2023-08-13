@@ -3,6 +3,7 @@ package utils
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -39,6 +40,12 @@ func CamelToPascalCase(input string) string {
 	}
 
 	return result.String()
+}
+
+func CamelToSnake(input string) string {
+	re := regexp.MustCompile("([a-z0-9])([A-Z])")
+	snake := re.ReplaceAllString(input, "${1}_${2}")
+	return strings.ToLower(snake)
 }
 
 func GetField(v interface{}, field string) string {

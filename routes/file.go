@@ -1,7 +1,6 @@
 package routes
 
 import (
-	"context"
 	"net/http"
 
 	"github.com/divyam234/teldrive-go/database"
@@ -66,7 +65,31 @@ func addFileRoutes(rg *gin.RouterGroup) {
 
 	r.GET("/:fileID/:fileName", func(c *gin.Context) {
 
-		fileService.GetFileStream(context.Background())(c)
+		fileService.GetFileStream(c)
+	})
+
+	r.POST("/movefiles", func(c *gin.Context) {
+
+		res, err := fileService.MoveFiles(c)
+
+		if err != nil {
+			c.AbortWithError(err.Code, err.Error)
+			return
+		}
+
+		c.JSON(http.StatusOK, res)
+	})
+
+	r.POST("/deletefiles", func(c *gin.Context) {
+
+		res, err := fileService.DeleteFiles(c)
+
+		if err != nil {
+			c.AbortWithError(err.Code, err.Error)
+			return
+		}
+
+		c.JSON(http.StatusOK, res)
 	})
 
 }

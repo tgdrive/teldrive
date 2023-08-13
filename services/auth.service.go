@@ -13,14 +13,19 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/divyam234/teldrive-go/models"
+	"github.com/divyam234/teldrive-go/schemas"
 	"github.com/divyam234/teldrive-go/types"
 	"github.com/divyam234/teldrive-go/utils"
 	"github.com/divyam234/teldrive-go/utils/auth"
 	"github.com/gin-gonic/gin"
 	"github.com/go-jose/go-jose/v3/jwt"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type AuthService struct {
+	Db            *gorm.DB
 	SessionMaxAge int
 }
 
@@ -68,7 +73,7 @@ func GetUserSessionCookieName(c *gin.Context) string {
 	return cookieName
 }
 
-func (as *AuthService) LogIn(c *gin.Context) *types.AppError {
+func (as *AuthService) LogIn(c *gin.Context) (*schemas.Message, *types.AppError) {
 	dcMaps := map[int]string{
 		1: "149.154.175.53",
 		2: "149.154.167.51",
@@ -78,7 +83,7 @@ func (as *AuthService) LogIn(c *gin.Context) *types.AppError {
 	}
 	var session types.TgSession
 	if err := c.ShouldBindJSON(&session); err != nil {
-		return &types.AppError{Error: errors.New("invalid request payload"), Code: http.StatusBadRequest}
+		return nil, &types.AppError{Error: errors.New("invalid request payload"), Code: http.StatusBadRequest}
 	}
 
 	now := time.Now().UTC()
@@ -96,10 +101,26 @@ func (as *AuthService) LogIn(c *gin.Context) *types.AppError {
 	jweToken, err := auth.Encode(jwtClaims)
 
 	if err != nil {
-		return &types.AppError{Error: err, Code: http.StatusBadRequest}
+		return nil, &types.AppError{Error: err, Code: http.StatusBadRequest}
 	}
+
+	userId, _ := strconv.Atoi(session.UserID)
+	user := models.User{
+		UserId:    userId,
+		Name:      session.Name,
+		UserName:  session.UserName,
+		IsPremium: session.IsPremium,
+		TgSession: sessionData,
+	}
+	if err := as.Db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "user_id"}},
+		DoUpdates: clause.Assignments(map[string]interface{}{"tg_session": sessionData}),
+	}).Create(&user).Error; err != nil {
+		return nil, &types.AppError{Error: errors.New("failed to create or update user"), Code: http.StatusInternalServerError}
+	}
+
 	c.SetCookie(GetUserSessionCookieName(c), jweToken, as.SessionMaxAge, "/", c.Request.Host, false, false)
-	return nil
+	return &schemas.Message{Status: true, Message: "login success"}, nil
 }
 
 func (as *AuthService) GetSession(c *gin.Context) *types.Session {
@@ -135,21 +156,21 @@ func (as *AuthService) GetSession(c *gin.Context) *types.Session {
 	return session
 }
 
-func (as *AuthService) Logout(c *gin.Context) *types.AppError {
+func (as *AuthService) Logout(c *gin.Context) (*schemas.Message, *types.AppError) {
 	val, _ := c.Get("jwtUser")
 	jwtUser := val.(*types.JWTClaims)
 	userId, _ := strconv.Atoi(jwtUser.Subject)
 	tgClient, err, stop := utils.GetAuthClient(jwtUser.TgSession, userId)
 
 	if err != nil {
-		return &types.AppError{Error: err, Code: http.StatusInternalServerError}
+		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
 	}
 
 	_, err = tgClient.Tg.API().AuthLogOut(context.Background())
 	if err != nil {
-		return &types.AppError{Error: err, Code: http.StatusInternalServerError}
+		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
 	}
 	utils.StopClient(stop, userId)
 	c.SetCookie(GetUserSessionCookieName(c), "", -1, "/", c.Request.Host, false, false)
-	return nil
+	return &schemas.Message{Status: true, Message: "logout success"}, nil
 }
