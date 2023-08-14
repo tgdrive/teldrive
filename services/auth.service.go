@@ -5,8 +5,10 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/binary"
-	"encoding/hex"
+	"encoding/json"
 	"errors"
+	"fmt"
+	"log"
 	"math/big"
 	"net"
 	"net/http"
@@ -20,6 +22,11 @@ import (
 	"github.com/divyam234/teldrive-go/utils/auth"
 	"github.com/gin-gonic/gin"
 	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/gorilla/websocket"
+	"github.com/gotd/td/session"
+	tgauth "github.com/gotd/td/telegram/auth"
+	"github.com/gotd/td/telegram/auth/qrlogin"
+	"github.com/gotd/td/tg"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -27,6 +34,18 @@ import (
 type AuthService struct {
 	Db            *gorm.DB
 	SessionMaxAge int
+}
+
+type SessionData struct {
+	Version int
+	Data    session.Data
+}
+type SocketMessage struct {
+	AuthType      string `json:"authType"`
+	Message       string `json:"message"`
+	PhoneNo       string `json:"phoneNo,omitempty"`
+	PhoneCodeHash string `json:"phoneCodeHash,omitempty"`
+	PhoneCode     string `json:"phoneCode,omitempty"`
 }
 
 func IP4toInt(IPv4Address net.IP) int64 {
@@ -43,10 +62,18 @@ func Pack32BinaryIP4(ip4Address string) []byte {
 	return buf.Bytes()
 }
 
-func generateTgSession(dcID int, serverAddress string, authKey []byte, port int) string {
+func generateTgSession(dcID int, authKey []byte, port int) string {
+
+	dcMaps := map[int]string{
+		1: "149.154.175.53",
+		2: "149.154.167.51",
+		3: "149.154.175.100",
+		4: "149.154.167.91",
+		5: "91.108.56.130",
+	}
 
 	dcIDByte := byte(dcID)
-	serverAddressBytes := Pack32BinaryIP4(serverAddress)
+	serverAddressBytes := Pack32BinaryIP4(dcMaps[dcID])
 	portByte := make([]byte, 2)
 	binary.BigEndian.PutUint16(portByte, uint16(port))
 
@@ -74,13 +101,6 @@ func GetUserSessionCookieName(c *gin.Context) string {
 }
 
 func (as *AuthService) LogIn(c *gin.Context) (*schemas.Message, *types.AppError) {
-	dcMaps := map[int]string{
-		1: "149.154.175.53",
-		2: "149.154.167.51",
-		3: "149.154.175.100",
-		4: "149.154.167.91",
-		5: "91.108.56.130",
-	}
 	var session types.TgSession
 	if err := c.ShouldBindJSON(&session); err != nil {
 		return nil, &types.AppError{Error: errors.New("invalid request payload"), Code: http.StatusBadRequest}
@@ -88,15 +108,16 @@ func (as *AuthService) LogIn(c *gin.Context) (*schemas.Message, *types.AppError)
 
 	now := time.Now().UTC()
 
-	authBytes, _ := hex.DecodeString(session.AuthKey)
-
-	sessionData := generateTgSession(session.DcID, dcMaps[session.DcID], authBytes, 443)
-
 	jwtClaims := &types.JWTClaims{Claims: jwt.Claims{
-		Subject:  session.UserID,
+		Subject:  strconv.Itoa(session.UserID),
 		IssuedAt: jwt.NewNumericDate(now),
 		Expiry:   jwt.NewNumericDate(now.Add(time.Duration(as.SessionMaxAge) * time.Second)),
-	}, TgSession: sessionData, Name: session.Name, UserName: session.UserName, Bot: session.Bot, IsPremium: session.IsPremium}
+	}, TgSession: session.Sesssion,
+		Name:      session.Name,
+		UserName:  session.UserName,
+		Bot:       session.Bot,
+		IsPremium: session.IsPremium,
+	}
 
 	jweToken, err := auth.Encode(jwtClaims)
 
@@ -104,17 +125,16 @@ func (as *AuthService) LogIn(c *gin.Context) (*schemas.Message, *types.AppError)
 		return nil, &types.AppError{Error: err, Code: http.StatusBadRequest}
 	}
 
-	userId, _ := strconv.Atoi(session.UserID)
 	user := models.User{
-		UserId:    userId,
+		UserId:    session.UserID,
 		Name:      session.Name,
 		UserName:  session.UserName,
 		IsPremium: session.IsPremium,
-		TgSession: sessionData,
+		TgSession: session.Sesssion,
 	}
 	if err := as.Db.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "user_id"}},
-		DoUpdates: clause.Assignments(map[string]interface{}{"tg_session": sessionData}),
+		DoUpdates: clause.Assignments(map[string]interface{}{"tg_session": session.Sesssion}),
 	}).Create(&user).Error; err != nil {
 		return nil, &types.AppError{Error: errors.New("failed to create or update user"), Code: http.StatusInternalServerError}
 	}
@@ -166,11 +186,90 @@ func (as *AuthService) Logout(c *gin.Context) (*schemas.Message, *types.AppError
 		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
 	}
 
-	_, err = tgClient.Tg.API().AuthLogOut(context.Background())
-	if err != nil {
-		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
-	}
+	tgClient.Tg.API().AuthLogOut(c)
 	utils.StopClient(stop, userId)
 	c.SetCookie(GetUserSessionCookieName(c), "", -1, "/", c.Request.Host, false, false)
 	return &schemas.Message{Status: true, Message: "logout success"}, nil
+}
+
+func prepareSession(user *tg.User, data *session.Data) *types.TgSession {
+	sessionString := generateTgSession(data.DC, data.AuthKey, 443)
+	session := &types.TgSession{
+		Sesssion:  sessionString,
+		UserID:    int(user.ID),
+		Bot:       user.Bot,
+		UserName:  user.Username,
+		Name:      fmt.Sprintf("%s %s", user.FirstName, user.LastName),
+		IsPremium: user.Premium,
+	}
+	return session
+}
+
+func (as *AuthService) HandleQrCodeLogin(c *gin.Context) {
+	upgrader := websocket.Upgrader{
+		CheckOrigin: func(r *http.Request) bool {
+			return true
+		},
+	}
+	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	defer conn.Close()
+
+	dispatcher := tg.NewUpdateDispatcher()
+	loggedIn := qrlogin.OnLoginToken(dispatcher)
+	sessionStorage := &session.StorageMemory{}
+	tgClient, stop, _ := utils.GetNonAuthClient(dispatcher, sessionStorage)
+	defer stop()
+	for {
+		message := &SocketMessage{}
+		err := conn.ReadJSON(message)
+		if message.AuthType == "qr" {
+			authorization, err := tgClient.QR().Auth(c, loggedIn, func(ctx context.Context, token qrlogin.Token) error {
+				conn.WriteJSON(map[string]interface{}{"type": "auth", "payload": map[string]string{"token": token.URL()}})
+				return nil
+			})
+			if err != nil {
+				break
+			}
+			user, ok := authorization.User.AsNotEmpty()
+			if !ok {
+				break
+			}
+			res, _ := sessionStorage.LoadSession(c)
+			sessionData := &SessionData{}
+			json.Unmarshal(res, sessionData)
+			session := prepareSession(user, &sessionData.Data)
+			conn.WriteJSON(map[string]interface{}{"type": "auth", "payload": session, "message": "success"})
+		}
+		if message.AuthType == "phone" && message.Message == "sendcode" {
+			res, err := tgClient.Auth().SendCode(c, message.PhoneNo, tgauth.SendCodeOptions{})
+			if err != nil {
+				break
+			}
+			code := res.(*tg.AuthSentCode)
+			conn.WriteJSON(map[string]interface{}{"type": "auth", "payload": map[string]string{"phoneCodeHash": code.PhoneCodeHash}})
+		}
+		if message.AuthType == "phone" && message.Message == "signin" {
+			auth, err := tgClient.Auth().SignIn(c, message.PhoneNo, message.PhoneCode, message.PhoneCodeHash)
+			if err != nil {
+				break
+			}
+			user, ok := auth.User.AsNotEmpty()
+			if !ok {
+				break
+			}
+			res, _ := sessionStorage.LoadSession(c)
+			sessionData := &SessionData{}
+			json.Unmarshal(res, sessionData)
+			session := prepareSession(user, &sessionData.Data)
+			conn.WriteJSON(map[string]interface{}{"type": "auth", "payload": session, "message": "success"})
+		}
+		if err != nil {
+			log.Println(err)
+			return
+		}
+	}
 }

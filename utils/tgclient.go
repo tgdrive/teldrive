@@ -166,6 +166,25 @@ func GetBotClient() *Client {
 	return smallest
 }
 
+func GetNonAuthClient(handler telegram.UpdateHandler, storage telegram.SessionStorage) (*telegram.Client, bg.StopFunc, error) {
+
+	client := telegram.NewClient(config.AppId, config.AppHash, telegram.Options{
+		SessionStorage: storage,
+		Middlewares: []telegram.Middleware{
+			ratelimit.New(rate.Every(time.Millisecond*100), 5),
+		},
+		UpdateHandler: handler,
+	})
+
+	stop, err := bg.Connect(client)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return client, stop, nil
+}
+
 func StopClient(stop bg.StopFunc, key int) {
 	stop()
 	delete(clients, key)
