@@ -41,4 +41,6 @@ COPY --from=builder /go/bin/teldrive /go/bin/teldrive
 
 USER appuser:appuser
 
+EXPOSE 8080
+
 ENTRYPOINT ["/go/bin/teldrive"]
