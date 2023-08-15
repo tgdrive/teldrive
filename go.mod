@@ -1,4 +1,4 @@
-module github.com/divyam234/teldrive-go
+module github.com/divyam234/teldrive
 
 go 1.21
 

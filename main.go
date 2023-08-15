@@ -3,10 +3,10 @@ package main
 import (
 	"time"
 
-	"github.com/divyam234/teldrive-go/cache"
-	"github.com/divyam234/teldrive-go/database"
-	"github.com/divyam234/teldrive-go/routes"
-	"github.com/divyam234/teldrive-go/utils"
+	"github.com/divyam234/teldrive/cache"
+	"github.com/divyam234/teldrive/database"
+	"github.com/divyam234/teldrive/routes"
+	"github.com/divyam234/teldrive/utils"
 
 	"github.com/divyam234/cors"
 	"github.com/gin-gonic/gin"

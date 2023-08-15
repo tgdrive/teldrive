@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"os"
 
-	"github.com/divyam234/teldrive-go/types"
+	"github.com/divyam234/teldrive/types"
 	"github.com/go-jose/go-jose/v3"
 )
 

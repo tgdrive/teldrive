@@ -3,7 +3,7 @@ package database
 import (
 	"time"
 
-	"github.com/divyam234/teldrive-go/utils"
+	"github.com/divyam234/teldrive/utils"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"

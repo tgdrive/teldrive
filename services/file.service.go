@@ -11,12 +11,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/divyam234/teldrive-go/cache"
-	"github.com/divyam234/teldrive-go/models"
-	"github.com/divyam234/teldrive-go/schemas"
-	"github.com/divyam234/teldrive-go/utils"
+	"github.com/divyam234/teldrive/cache"
+	"github.com/divyam234/teldrive/models"
+	"github.com/divyam234/teldrive/schemas"
+	"github.com/divyam234/teldrive/utils"
 
-	"github.com/divyam234/teldrive-go/types"
+	"github.com/divyam234/teldrive/types"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gotd/td/telegram"

@@ -4,8 +4,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/divyam234/teldrive-go/services"
-	"github.com/divyam234/teldrive-go/utils/auth"
+	"github.com/divyam234/teldrive/services"
+	"github.com/divyam234/teldrive/utils/auth"
 	"github.com/gin-gonic/gin"
 	"github.com/go-jose/go-jose/v3/jwt"
 )

@@ -3,7 +3,7 @@ package routes
 import (
 	"net/http"
 
-	"github.com/divyam234/teldrive-go/services"
+	"github.com/divyam234/teldrive/services"
 
 	"github.com/gin-gonic/gin"
 )

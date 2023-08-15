@@ -3,7 +3,7 @@ package schemas
 import (
 	"time"
 
-	"github.com/divyam234/teldrive-go/models"
+	"github.com/divyam234/teldrive/models"
 )
 
 type PaginationQuery struct {
