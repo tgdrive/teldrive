@@ -45,7 +45,7 @@ jobs:
 
       - name: ${{ matrix.type }} Image Name
         id: imagename
-        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}/teldrive_api" >> $GITHUB_OUTPUT
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}/server" >> $GITHUB_OUTPUT
 
       - name: Build ${{ matrix.type }} Image
         uses: docker/build-push-action@v3
