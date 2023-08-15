@@ -1,0 +1,92 @@
+name: Build App
+
+on:
+
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: 'Deploy'
+        type: boolean
+        default: true
+        required: false
+      buildOnly:
+        description: 'Build Only'
+        type: boolean
+        default: true
+        required: false
+
+env:
+  DOCKER_BUILDKIT: 1
+
+
+jobs:
+   build_image:
+    name: Build Image
+    runs-on: ubuntu-latest
+
+    if: ${{ github.event.inputs.buildOnly == 'true' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: true
+          fetch-depth: 0
+      - name: Install buildx
+        uses: docker/setup-buildx-action@v2
+        with:
+          config: .github/buildkit.toml
+
+      - name: Login to Docker
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: ${{ matrix.type }} Image Name
+        id: imagename
+        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}/teldrive_api" >> $GITHUB_OUTPUT
+
+      - name: Build ${{ matrix.type }} Image
+        uses: docker/build-push-action@v3
+        with:
+          context: ./
+          pull: true
+          push: true
+          tags: ${{ steps.imagename.outputs.name }}:latest
+
+   deploy:
+    name: Deploy App
+    needs: [build_image]
+    if: |
+      always() && (github.event.inputs.deploy == 'true')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy
+        uses: appleboy/ssh-action@v0.1.10
+        env:
+         ENVSECRET: ${{secrets.ENVSECRET}}
+         API_HOST: ${{secrets.API_HOST}}
+         CERT: ${{secrets.CERT}}
+         CERT_KEY: ${{secrets.CERT_KEY}}
+        with:
+          host: ${{ secrets.HOST }}
+          username: ${{ secrets.USERNAME }}
+          envs: ENVSECRET,API_HOST,CERT,CERT_KEY
+          key: ${{ secrets.KEY }}
+          port: ${{ secrets.PORT }}
+          script: |
+           cd ~
+           docker rmi $(docker images -f "dangling=true" -q)
+           if [ -d "teldrive" ]; then
+           cd teldrive &&  docker compose down && cd ..
+           fi
+           rm -rf teldrive && git clone https://github.com/divyam234/teldrive
+           cd teldrive 
+           mkdir -p certs
+           python3 -c "import os;f=open('.env','w');f.write(os.environ['ENVSECRET']);"
+           python3 -c "import os;f=open('./certs/cert.pem','w');f.write(os.environ['CERT']);"
+           python3 -c "import os;f=open('./certs/key.pem','w');f.write(os.environ['CERT_KEY']);"
+           sed -i "s/\#HOST/${API_HOST}/g" nginx.conf
+           docker compose pull
+           docker compose up -d
