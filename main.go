@@ -45,5 +45,6 @@ func main() {
 
 	routes.GetRoutes(router)
 
+	//router.RunTLS(":8080", "./certs/cert.pem", "./certs/key.pem")
 	router.Run(":8080")
 }

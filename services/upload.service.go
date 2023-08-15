@@ -74,7 +74,7 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 		val, _ := c.Get("jwtUser")
 		jwtUser := val.(*types.JWTClaims)
 		userId, _ := strconv.Atoi(jwtUser.Subject)
-		tgClient, err, _ = utils.GetAuthClient(jwtUser.TgSession, userId)
+		tgClient, _, err = utils.GetAuthClient(jwtUser.TgSession, userId)
 		if err != nil {
 			return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
 		}

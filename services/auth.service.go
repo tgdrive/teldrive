@@ -138,8 +138,9 @@ func (as *AuthService) LogIn(c *gin.Context) (*schemas.Message, *types.AppError)
 	}).Create(&user).Error; err != nil {
 		return nil, &types.AppError{Error: errors.New("failed to create or update user"), Code: http.StatusInternalServerError}
 	}
-
-	c.SetCookie(GetUserSessionCookieName(c), jweToken, as.SessionMaxAge, "/", c.Request.Host, false, false)
+	isHttps := c.Request.URL.Scheme == "https"
+	c.SetSameSite(2)
+	c.SetCookie(GetUserSessionCookieName(c), jweToken, as.SessionMaxAge, "/", c.Request.Host, isHttps, true)
 	return &schemas.Message{Status: true, Message: "login success"}, nil
 }
 
@@ -172,7 +173,9 @@ func (as *AuthService) GetSession(c *gin.Context) *types.Session {
 	if err != nil {
 		return nil
 	}
-	c.SetCookie(GetUserSessionCookieName(c), jweToken, as.SessionMaxAge, "/", c.Request.Host, false, false)
+	isHttps := c.Request.URL.Scheme == "https"
+	c.SetSameSite(2)
+	c.SetCookie(GetUserSessionCookieName(c), jweToken, as.SessionMaxAge, "/", c.Request.Host, isHttps, true)
 	return session
 }
 
@@ -180,7 +183,7 @@ func (as *AuthService) Logout(c *gin.Context) (*schemas.Message, *types.AppError
 	val, _ := c.Get("jwtUser")
 	jwtUser := val.(*types.JWTClaims)
 	userId, _ := strconv.Atoi(jwtUser.Subject)
-	tgClient, err, stop := utils.GetAuthClient(jwtUser.TgSession, userId)
+	tgClient, stop, err := utils.GetAuthClient(jwtUser.TgSession, userId)
 
 	if err != nil {
 		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
@@ -188,7 +191,9 @@ func (as *AuthService) Logout(c *gin.Context) (*schemas.Message, *types.AppError
 
 	tgClient.Tg.API().AuthLogOut(c)
 	utils.StopClient(stop, userId)
-	c.SetCookie(GetUserSessionCookieName(c), "", -1, "/", c.Request.Host, false, false)
+	isHttps := c.Request.URL.Scheme == "https"
+	c.SetSameSite(2)
+	c.SetCookie(GetUserSessionCookieName(c), "", -1, "/", c.Request.Host, isHttps, true)
 	return &schemas.Message{Status: true, Message: "logout success"}, nil
 }
 

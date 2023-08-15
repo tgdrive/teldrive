@@ -21,6 +21,7 @@
 go.work
 
 sessions
+certs
 
 *.env
 *.env.example

@@ -26,6 +26,17 @@ type Client struct {
 
 var clients map[int]*Client
 
+func getDeviceConfig() telegram.DeviceConfig {
+	config := telegram.DeviceConfig{
+		DeviceModel:    "Desktop",
+		SystemVersion:  "Windows 11",
+		AppVersion:     "4.9.1 x64",
+		SystemLangCode: "en-US",
+		LangPack:       "tdesktop",
+		LangCode:       "en",
+	}
+	return config
+}
 func getBotClient(appID int, appHash, clientName, sessionDir string) *telegram.Client {
 
 	sessionStorage := &telegram.FileSessionStorage{
@@ -36,6 +47,7 @@ func getBotClient(appID int, appHash, clientName, sessionDir string) *telegram.C
 		// Middlewares: []telegram.Middleware{
 		// 	ratelimit.New(rate.Every(time.Millisecond*100), 5),
 		// },
+		Device:    getDeviceConfig(),
 		NoUpdates: true,
 	}
 
@@ -104,7 +116,7 @@ func StartBotTgClients() {
 
 }
 
-func GetAuthClient(sessionStr string, userId int) (*Client, error, bg.StopFunc) {
+func GetAuthClient(sessionStr string, userId int) (*Client, bg.StopFunc, error) {
 
 	if client, ok := clients[userId]; ok {
 		return client, nil, nil
@@ -115,7 +127,7 @@ func GetAuthClient(sessionStr string, userId int) (*Client, error, bg.StopFunc) 
 	data, err := session.TelethonSession(sessionStr)
 
 	if err != nil {
-		return nil, err, nil
+		return nil, nil, err
 	}
 
 	var (
@@ -124,7 +136,7 @@ func GetAuthClient(sessionStr string, userId int) (*Client, error, bg.StopFunc) 
 	)
 
 	if err := loader.Save(ctx, data); err != nil {
-		return nil, err, nil
+		return nil, nil, err
 	}
 
 	client := telegram.NewClient(config.AppId, config.AppHash, telegram.Options{
@@ -132,19 +144,20 @@ func GetAuthClient(sessionStr string, userId int) (*Client, error, bg.StopFunc) 
 		Middlewares: []telegram.Middleware{
 			ratelimit.New(rate.Every(time.Millisecond*100), 5),
 		},
+		Device:    getDeviceConfig(),
 		NoUpdates: true,
 	})
 
 	stop, err := bg.Connect(client)
 
 	if err != nil {
-		return nil, err, nil
+		return nil, nil, err
 	}
 
 	tguser, err := client.Self(ctx)
 
 	if err != nil {
-		return nil, err, nil
+		return nil, nil, err
 	}
 
 	Logger.Info("started Client", zap.String("user", tguser.Username))
@@ -153,7 +166,7 @@ func GetAuthClient(sessionStr string, userId int) (*Client, error, bg.StopFunc) 
 
 	clients[int(tguser.GetID())] = tgClient
 
-	return tgClient, nil, stop
+	return tgClient, stop, nil
 }
 
 func GetBotClient() *Client {
@@ -173,6 +186,7 @@ func GetNonAuthClient(handler telegram.UpdateHandler, storage telegram.SessionSt
 		Middlewares: []telegram.Middleware{
 			ratelimit.New(rate.Every(time.Millisecond*100), 5),
 		},
+		Device:        getDeviceConfig(),
 		UpdateHandler: handler,
 	})
 
