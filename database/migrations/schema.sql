@@ -7,41 +7,6 @@ create schema if not exists teldrive;
 set
 search_path = 'teldrive';
 
-create table if not exists files (
-id text primary key not null default generate_uid(16),
-name text not null,
-type text not null,
-mime_type text not null,
-path text null,
-size bigint null,
-starred bool not null,
-depth integer null,
-user_id bigint not null,
-parent_id text null,
-status text DEFAULT 'active'::text,
-channel_id bigint null,
-parts jsonb NULL,
-created_at timestamp not null default timezone('utc'::text,
-now()),
-updated_at timestamp not null default timezone('utc'::text,
-now()),
-constraint unique_file unique (name,
-parent_id)
-);
-
-create table if not exists files_parts (
-id serial primary key,
-file_id text,
-parts jsonb not null,
-channel_id bigint not null,
-constraint fk_file_id foreign key(file_id) references teldrive.files(id) on
-delete
-	set
-	null on
-	update
-		cascade
-);
-
 create or replace
 function generate_uid(size int) returns text as $$
 declare characters text := 'abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyz0123456789';
@@ -93,6 +58,55 @@ begin return res;
 end;
 
 $$;
+
+create table if not exists files (
+id text primary key not null default generate_uid(16),
+name text not null,
+type text not null,
+mime_type text not null,
+path text null,
+size bigint null,
+starred bool not null,
+depth integer null,
+user_id bigint not null,
+parent_id text null,
+status text DEFAULT 'active'::text,
+channel_id bigint null,
+parts jsonb NULL,
+created_at timestamp not null default timezone('utc'::text,
+now()),
+updated_at timestamp not null default timezone('utc'::text,
+now()),
+constraint unique_file unique (name,
+parent_id,user_id)
+);
+
+create table uploads (
+	id text not null primary key default generate_uid(16),
+	upload_id text not null,
+	name text not null,
+	part_no int4 not null,
+	part_id int4 not null,
+	total_parts int4 not null,
+	channel_id int8 not null,
+	size int8 not null,
+	created_at timestamp null default timezone('utc'::text,
+now())
+);
+
+create table teldrive.users (
+	user_id int4 not null primary key,
+	name text null,
+	user_name text null,
+	is_premium bool not null,
+	tg_session text not null,
+	settings jsonb null,
+	created_at timestamptz not null default timezone('utc'::text,
+now()),
+	updated_at timestamptz not null default timezone('utc'::text,
+now())
+);
+
 
 create or replace
 procedure update_size() language plpgsql as $$
@@ -262,9 +276,7 @@ end;
 
 $$;
 
-
-create collation if not exists numeric (provider = icu,
-locale = 'en@colnumeric=yes');
+create collation if not exists numeric (provider = icu, locale = 'en@colnumeric=yes');
 
 create index if not exists name_search_idx on
 files
@@ -283,9 +295,6 @@ files (path);
 
 create index if not exists parent_idx on
 files (parent_id);
-
-create index if not exists category_idx on
-files (category);
 
 create index if not exists starred_updated_at_idx on
 files (starred,

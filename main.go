@@ -9,7 +9,9 @@ import (
 	"github.com/divyam234/teldrive/utils"
 
 	"github.com/divyam234/cors"
+	"github.com/divyam234/teldrive/utils/cron"
 	"github.com/gin-gonic/gin"
+	"github.com/go-co-op/gocron"
 	"github.com/joho/godotenv"
 )
 
@@ -31,6 +33,12 @@ func main() {
 
 	utils.StartBotTgClients()
 
+	cron.FilesDeleteJob()
+
+	scheduler := gocron.NewScheduler(time.UTC)
+
+	scheduler.Every(4).Hours().Do(cron.FilesDeleteJob)
+
 	router.Use(cors.New(cors.Config{
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Length", "Content-Type"},
@@ -46,5 +54,6 @@ func main() {
 	routes.GetRoutes(router)
 
 	//router.RunTLS(":8080", "./certs/cert.pem", "./certs/key.pem")
+	scheduler.StartAsync()
 	router.Run(":8080")
 }

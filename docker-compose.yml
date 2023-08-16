@@ -1,0 +1,39 @@
+version: "3.8"
+
+services:
+  api:
+    image: ghcr.io/divyam234/teldrive/server:latest
+    restart: always
+    container_name: server
+    volumes:
+      - ./sessions:/app/sessions
+    env_file: .env
+    ports:
+      - 8080
+
+  client:
+    image: ghcr.io/divyam234/teldrive/client:latest
+    restart: always
+    container_name: client
+    ports:
+      - 3000
+
+  nginx:
+    image: nginx:alpine
+    restart: always
+    container_name: nginx
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+      - ./certs:/etc/nginx/certs:ro
+    ports:
+      - 80:80
+      - 443:443
+    depends_on:
+      - server
+      - client
+  migrate:
+    image: arigaio/atlas:latest
+    command: >
+      migrate apply --url #DBURL
+    volumes:
+      - ./database/migrations/:/migrations
