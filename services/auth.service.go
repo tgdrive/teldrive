@@ -28,7 +28,6 @@ import (
 	"github.com/gotd/td/telegram/auth/qrlogin"
 	"github.com/gotd/td/tg"
 	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 type AuthService struct {
@@ -132,12 +131,22 @@ func (as *AuthService) LogIn(c *gin.Context) (*schemas.Message, *types.AppError)
 		IsPremium: session.IsPremium,
 		TgSession: session.Sesssion,
 	}
-	if err := as.Db.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "user_id"}},
-		DoUpdates: clause.Assignments(map[string]interface{}{"tg_session": session.Sesssion}),
-	}).Create(&user).Error; err != nil {
+
+	var result []models.User
+
+	if err := as.Db.Model(&models.User{}).Where("user_id = ?", session.UserID).Find(&result).Error; err != nil {
 		return nil, &types.AppError{Error: errors.New("failed to create or update user"), Code: http.StatusInternalServerError}
 	}
+	if len(result) == 0 {
+		if err := as.Db.Create(&user).Error; err != nil {
+			return nil, &types.AppError{Error: errors.New("failed to create or update user"), Code: http.StatusInternalServerError}
+		}
+	} else {
+		if err := as.Db.Model(&models.User{}).Where("user_id = ?", session.UserID).Update("tg_session", session.Sesssion).Error; err != nil {
+			return nil, &types.AppError{Error: errors.New("failed to create or update user"), Code: http.StatusInternalServerError}
+		}
+	}
+
 	isHttps := c.Request.URL.Scheme == "https"
 	c.SetSameSite(2)
 	c.SetCookie(GetUserSessionCookieName(c), jweToken, as.SessionMaxAge, "/", c.Request.Host, isHttps, true)
@@ -232,27 +241,29 @@ func (as *AuthService) HandleQrCodeLogin(c *gin.Context) {
 		message := &SocketMessage{}
 		err := conn.ReadJSON(message)
 		if message.AuthType == "qr" {
-			authorization, err := tgClient.QR().Auth(c, loggedIn, func(ctx context.Context, token qrlogin.Token) error {
-				conn.WriteJSON(map[string]interface{}{"type": "auth", "payload": map[string]string{"token": token.URL()}})
-				return nil
-			})
-			if err != nil {
-				break
-			}
-			user, ok := authorization.User.AsNotEmpty()
-			if !ok {
-				break
-			}
-			res, _ := sessionStorage.LoadSession(c)
-			sessionData := &SessionData{}
-			json.Unmarshal(res, sessionData)
-			session := prepareSession(user, &sessionData.Data)
-			conn.WriteJSON(map[string]interface{}{"type": "auth", "payload": session, "message": "success"})
+			go func() {
+				authorization, err := tgClient.QR().Auth(c, loggedIn, func(ctx context.Context, token qrlogin.Token) error {
+					conn.WriteJSON(map[string]interface{}{"type": "auth", "payload": map[string]string{"token": token.URL()}})
+					return nil
+				})
+				if err != nil {
+					return
+				}
+				user, ok := authorization.User.AsNotEmpty()
+				if !ok {
+					return
+				}
+				res, _ := sessionStorage.LoadSession(c)
+				sessionData := &SessionData{}
+				json.Unmarshal(res, sessionData)
+				session := prepareSession(user, &sessionData.Data)
+				conn.WriteJSON(map[string]interface{}{"type": "auth", "payload": session, "message": "success"})
+			}()
 		}
 		if message.AuthType == "phone" && message.Message == "sendcode" {
 			res, err := tgClient.Auth().SendCode(c, message.PhoneNo, tgauth.SendCodeOptions{})
 			if err != nil {
-				break
+				return
 			}
 			code := res.(*tg.AuthSentCode)
 			conn.WriteJSON(map[string]interface{}{"type": "auth", "payload": map[string]string{"phoneCodeHash": code.PhoneCodeHash}})
@@ -260,11 +271,11 @@ func (as *AuthService) HandleQrCodeLogin(c *gin.Context) {
 		if message.AuthType == "phone" && message.Message == "signin" {
 			auth, err := tgClient.Auth().SignIn(c, message.PhoneNo, message.PhoneCode, message.PhoneCodeHash)
 			if err != nil {
-				break
+				return
 			}
 			user, ok := auth.User.AsNotEmpty()
 			if !ok {
-				break
+				return
 			}
 			res, _ := sessionStorage.LoadSession(c)
 			sessionData := &SessionData{}
