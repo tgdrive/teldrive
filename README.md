@@ -33,7 +33,7 @@ cd teldrive
 ```
 now create the `.env` file with your variables. and start your container:
 **If you are deploying without https replace nginx.conf with  nginx_nossl.conf
-in docker-compose.yml.It should look like this.Replace #DBURL with POSTGRES URL to RUN first time migrations**
+in docker-compose.yml.It should look like this.Replace #DBURL with POSTGRES URL to RUN first time migrations.Also add  ?search_path=public to postgres url at end so that migrations don't error out.**
 ```yml
 volumes:
       - ./nginx_nossl.conf:/etc/nginx/conf.d/default.conf
