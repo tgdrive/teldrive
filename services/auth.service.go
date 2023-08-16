@@ -141,6 +141,21 @@ func (as *AuthService) LogIn(c *gin.Context) (*schemas.Message, *types.AppError)
 		if err := as.Db.Create(&user).Error; err != nil {
 			return nil, &types.AppError{Error: errors.New("failed to create or update user"), Code: http.StatusInternalServerError}
 		}
+		//Create root folder on first login
+
+		file := &models.File{
+			Name:     "root",
+			Type:     "folder",
+			MimeType: "drive/folder",
+			Path:     "/",
+			Depth:    utils.IntPointer(0),
+			UserID:   session.UserID,
+			Status:   "active",
+			ParentID: "root",
+		}
+		if err := as.Db.Create(file).Error; err != nil {
+			return nil, &types.AppError{Error: errors.New("failed to create or update user"), Code: http.StatusInternalServerError}
+		}
 	} else {
 		if err := as.Db.Model(&models.User{}).Where("user_id = ?", session.UserID).Update("tg_session", session.Sesssion).Error; err != nil {
 			return nil, &types.AppError{Error: errors.New("failed to create or update user"), Code: http.StatusInternalServerError}
