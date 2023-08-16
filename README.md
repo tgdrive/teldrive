@@ -33,7 +33,7 @@ cd teldrive
 ```
 now create the `.env` file with your variables. and start your container:
 **If you are deploying without https replace nginx.conf with  nginx_nossl.conf
-in docker-compose.yml.It should look like this.Replace #DBURL with POSTGRES URL to RUN first time migrations.Also add  ?search_path=public to postgres url at end so that migrations don't error out.**
+in docker-compose.yml.It should look like below. Also Replace #DBURL with POSTGRES URL to RUN first time migrations and add  ?search_path=public to postgres url at end so that migrations don't error out.**
 ```yml
 volumes:
       - ./nginx_nossl.conf:/etc/nginx/conf.d/default.conf
@@ -60,6 +60,7 @@ MULTI_TOKEN1=55838383:yourfirstmulticlientbottokenhere
 MULTI_TOKEN2=55838383:yoursecondmulticlientbottokenhere
 MULTI_TOKEN3=55838383:yourthirdmulticlientbottokenhere
 ```
+**Multi Client Mode is recommended way to avoid flood errors and to enable max download speed if you are using downloaders like IDM and aria2c which use multiple connections to download files.**
 ### Mandatory Vars
 Before running the bot, you will need to set up the following mandatory variables:
 
@@ -71,7 +72,7 @@ Before running the bot, you will need to set up the following mandatory variable
 
 - `DATABASE_URL` : Connection String obtained from Postgres DB (you can use Neon db as free alternative fro postgres)
 
-- `CHANNEL_ID` :  This is the channel ID for the log channel where the bot will forward media messages and store these files to make the generated direct links work. To obtain a channel ID, create a new telegram channel (public or private), post something in the channel, forward the message to [@missrose_bot](https://telegram.dog/MissRose_bot) and **reply the forwarded message** with the /id command. Copy the forwarded channel ID and paste it into the this field.
+- `CHANNEL_ID` :  This is the channel ID for the log channel where app will store files . To obtain a channel ID, create a new telegram channel (public or private), post something in the channel, forward the message to [@missrose_bot](https://telegram.dog/MissRose_bot) and **reply the forwarded message** with the /id command. Copy the forwarded channel ID and paste it into the this field.
 
 ### Optional Vars
 In addition to the mandatory variables, you can also set the following optional variables:
@@ -99,7 +100,7 @@ you may also add as many as bots you want. (max limit is not tested yet)
 ## FAQ
 
 - How to get Postgres DB url ?
-> You spin up local postgres instance but its not recommended as there is lot of hassle in backup and transfering data.Recommended way is to use any free cloud postgres DB.I will recommend to use [Neon DB](https://neon.tech/).
+> You can spin up local postgres instance but its not recommended as there is lot of hassle in backup and transfering data.Recommended way is to use any free cloud postgres DB.I will recommend to use [Neon DB](https://neon.tech/).
 
 ## Contributing
 
