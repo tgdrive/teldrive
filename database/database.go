@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/divyam234/teldrive/utils"
-	"github.com/pressly/goose"
+	"github.com/pressly/goose/v3"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"

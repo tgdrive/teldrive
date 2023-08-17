@@ -131,6 +131,8 @@ github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZb
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/pressly/goose v2.7.0+incompatible h1:PWejVEv07LCerQEzMMeAtjuyCKbyprZ/LBa6K5P0OCQ=
 github.com/pressly/goose v2.7.0+incompatible/go.mod h1:m+QHWCqxR3k8D9l7qfzuC/djtlfzxr34mozWDYEu1z8=
+github.com/pressly/goose/v3 v3.15.0 h1:6tY5aDqFknY6VZkorFGgZtWygodZQxfmmEF4rqyJW9k=
+github.com/pressly/goose/v3 v3.15.0/go.mod h1:LlIo3zGccjb/YUgG+Svdb9Er14vefRdlDI7URCDrwYo=
 github.com/quantumsheep/range-parser v1.1.0 h1:k4f1F58f8FF54FBYc9dYBRM+8JkAxFo11gC3IeMH4rU=
 github.com/quantumsheep/range-parser v1.1.0/go.mod h1:acv4Vt2PvpGvRsvGju7Gk2ahKluZJsIUNR69W53J22I=
 github.com/robfig/cron/v3 v3.0.1 h1:WdRxkvbJztn8LMz/QEvLN5sBU+xKpSqwwUO1Pjr4qDs=
