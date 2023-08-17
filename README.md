@@ -31,9 +31,14 @@ First clone the repository
 git clone https://github.com/divyam234/teldrive
 cd teldrive
 ```
-now create the `.env` file with your variables. and start your container:
-**If you are deploying without https replace nginx.conf with  nginx_nossl.conf
-in docker-compose.yml.It should look like below. Also Replace #DBURL with POSTGRES URL to RUN first time migrations and add  ?search_path=public to postgres url at end so that migrations don't error out.**
+**Follow Below Steps**
+
+- Create the `.env` file with your variables and start your container.
+- **If you are deploying without https replace nginx.conf with  nginx_nossl.conf
+in docker-compose.yml**.
+- **Also Replace #DBURL with POSTGRES URL to RUN first time migrations and add  ?search_path=public to postgres url at end so that migrations don't error out**.
+
+**It should look like this below if you are not using https.**
 ```yml
 volumes:
       - ./nginx_nossl.conf:/etc/nginx/conf.d/default.conf
@@ -44,9 +49,31 @@ ports:
 docker compose up -d
 ```
 
+### Deploy without docker-compose
+First clone the repository
+```sh
+git clone https://github.com/divyam234/teldrive
+
+```
+**Follow Below Steps**
+
+- Fork UI Repo given above and Deploy it to Vercel.
+- Download release binary of teldrive from releases section.
+- .env file will be same as mentioned above..
+- You have to run migrations manually for first run for that you have to download altasgo from [here](https://atlasgo.io/getting-started).
+
+```shell
+atlas migrate apply \
+  --url postgres://root:pass@:5432/db1?search_path=public \
+  --dir file://database/migrations --allow-dirty
+```
+- Now run the teldrive executable from releases.
+
+- Finally change API URL from UI deployed on vercel to http://localhost:8080 in settings.
+
 ## Setting up things
 
-If you're locally hosting, create a file named `.env` in the root directory and add all the variables there.
+If you're locally or remotely hosting, create a file named `.env` in the root directory and add all the variables there.
 An example of `.env` file:
 
 ```sh
