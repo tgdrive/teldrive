@@ -17,7 +17,7 @@ services:
     container_name: client
     ports:
       - 3000
-
+      
   nginx:
     image: nginx:alpine
     restart: always
@@ -31,9 +31,3 @@ services:
     depends_on:
       - server
       - client
-  migrate:
-    image: arigaio/atlas:latest
-    command: >
-      migrate apply --url #DBURL --allow-dirty 
-    volumes:
-      - ./database/migrations/:/migrations

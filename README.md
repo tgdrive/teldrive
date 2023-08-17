@@ -36,7 +36,6 @@ cd teldrive
 - Create the `.env` file with your variables and start your container.
 - **If you are deploying without https replace nginx.conf with  nginx_nossl.conf
 in docker-compose.yml**.
-- **Also Replace #DBURL with POSTGRES URL to RUN first time migrations and add  ?search_path=public to postgres url at end so that migrations don't error out**.
 
 **It should look like this below if you are not using https.**
 ```yml
@@ -59,17 +58,20 @@ git clone https://github.com/divyam234/teldrive
 
 - Fork UI Repo given above and Deploy it to Vercel.
 - Download release binary of teldrive from releases section.
-- .env file will be same as mentioned above..
-- You have to run migrations manually for first run for that you have to download altasgo from [here](https://atlasgo.io/getting-started).
-
+- .env file will be same as mentioned above and additionally set variables mentioned below.As vercel app is hosted on https so we need local server also on https so that cookies works.
 ```shell
-atlas migrate apply \
-  --url postgres://root:pass@:5432/db1?search_path=public \
-  --dir file://database/migrations --allow-dirty
+HTTPS=true
+COOKIE_SAME_SITE=false
 ```
+- Generate https cert and key  for localhost using mkcert and put these in sslcerts directory where executable is present.
+
+- If you are using windows make sure to add cert as trusted using mkcert or manually.(You can see mkcert cli how to add that) 
+
+- Rename generated cert and key as cert.pem and key.pem respectively.
+
 - Now run the teldrive executable from releases.
 
-- Finally change API URL from UI deployed on vercel to http://localhost:8080 in settings.
+- Finally change API URL from UI deployed on vercel to https://localhost:8080 in settings.
 
 ## Setting up things
 
@@ -80,6 +82,8 @@ An example of `.env` file:
 API_ID=1234
 API_HASH=abc
 CHANNEL_ID=1234
+HTTPS=false
+COOKIE_SAME_SITE=true
 JWT_SECRET=abc
 DATABASE_URL=abc
 MULTI_CLIENT=true # true or false here
@@ -104,6 +108,9 @@ Before running the bot, you will need to set up the following mandatory variable
 ### Optional Vars
 In addition to the mandatory variables, you can also set the following optional variables:
 
+- `HTTPS` : Only needed when frontend is deployed on vercel.
+
+- `COOKIE_SAME_SITE` : Only needed when frontend is deployed on vercel.
 - `MULTI_CLIENT` : Enable or Disable Multi Token mode. If true you have pass atleast one Multi Token
 - `MULTI_TOKEN[1....]` : Recommended to add atleast 10-12 tokens
 ### For making use of Multi-Client support

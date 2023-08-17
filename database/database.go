@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/divyam234/teldrive/utils"
+	"github.com/pressly/goose"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -52,9 +53,21 @@ func InitDB() {
 	sqlDB.SetMaxOpenConns(100)
 
 	sqlDB.SetConnMaxLifetime(time.Hour)
-
+	migrate()
 	go func() {
 		DB.Exec(`create collation if not exists numeric (provider = icu, locale = 'en@colnumeric=yes');`)
+		migrate()
 	}()
 
+}
+
+func migrate() {
+
+	if err := goose.SetDialect("postgres"); err != nil {
+		panic(err)
+	}
+	db, _ := DB.DB()
+	if err := goose.Up(db, "database/migrations"); err != nil {
+		panic(err)
+	}
 }
