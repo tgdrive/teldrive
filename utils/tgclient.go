@@ -200,6 +200,8 @@ func GetNonAuthClient(handler telegram.UpdateHandler, storage telegram.SessionSt
 }
 
 func StopClient(stop bg.StopFunc, key int) {
-	stop()
+	if stop != nil {
+		stop()
+	}
 	delete(clients, key)
 }

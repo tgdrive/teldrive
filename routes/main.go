@@ -7,4 +7,5 @@ func GetRoutes(router *gin.Engine) {
 	addAuthRoutes(api)
 	addFileRoutes(api)
 	addUploadRoutes(api)
+	addUserRoutes(api)
 }
