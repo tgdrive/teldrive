@@ -35,7 +35,7 @@ now())
 );
 
 create table teldrive.users (
-	user_id int4 not null primary key,
+	user_id bigint not null primary key,
 	name text null,
 	user_name text null,
 	is_premium bool not null,
