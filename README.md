@@ -48,7 +48,7 @@ ports:
 docker compose up -d
 ```
 
-### Deploy without docker-compose
+### Deploy without docker-compose(Not working will be fixed later)
 First clone the repository
 ```sh
 git clone https://github.com/divyam234/teldrive
