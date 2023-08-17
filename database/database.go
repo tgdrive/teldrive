@@ -53,7 +53,6 @@ func InitDB() {
 	sqlDB.SetMaxOpenConns(100)
 
 	sqlDB.SetConnMaxLifetime(time.Hour)
-	migrate()
 	go func() {
 		DB.Exec(`create collation if not exists numeric (provider = icu, locale = 'en@colnumeric=yes');`)
 		migrate()
