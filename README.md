@@ -1,4 +1,4 @@
-<h1 align="center"> Telegram Drive</h1>
+<h1 align="center"> Fast Telegram Drive</h1>
  
 <details open="open">
   <summary>Table of Contents</summary>
