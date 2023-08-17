@@ -1,4 +1,4 @@
-<h1 align="center"> Telegram Drive</h1>
+<h1 align="center"> Fast Telegram Drive</h1>
  
 <details open="open">
   <summary>Table of Contents</summary>
@@ -6,8 +6,8 @@
     <li>
       <a href="#how-to-make-your-own">How to make your own</a>
       <ul>
-        <li><a href="prerequisites">Prerequisites</a></li>
         <li><a href="#deploy-using-docker-compose">Deploy using docker-compose</a></li>
+       <li><a href="#deploy-without-docker-compose">Deploy without docker-compose</a></li>
       </ul>
     </li>
     <li><a href="#setting-up-things">Setting up things</a></li>
