@@ -145,11 +145,12 @@ end;
 $$;
 
 create or replace
-procedure update_folder(
-folder_id text,
+function teldrive.update_folder(folder_id text,
 new_name text default null,
-new_path text default null
-) language plpgsql as $$
+new_path text default null)
+ returns setof teldrive.files
+ language plpgsql
+as $$
 declare folder record;
 
 path_items text [];
@@ -199,17 +200,24 @@ where
 	folder.name)
 );
 end loop;
-select * from teldrive.files where id = folder_id;
+
+return query
+select
+	*
+from
+	teldrive.files
+where
+	id = folder_id;
 end;
 
-$$;
+$$
+;
 
 create or replace
-procedure delete_files(file_ids text[],
-op text default 'bulk')
-    language plpgsql
-    as
-    $$
+procedure teldrive.delete_files(in file_ids text[],
+in op text default 'bulk')
+ language plpgsql
+as $$
     declare 
     rec record;
 
@@ -274,7 +282,8 @@ end loop;
 end if;
 end;
 
-$$;
+$$
+;
 
 create collation if not exists numeric (provider = icu, locale = 'en@colnumeric=yes');
 

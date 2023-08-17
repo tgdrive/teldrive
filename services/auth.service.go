@@ -87,16 +87,28 @@ func generateTgSession(dcID int, authKey []byte, port int) string {
 }
 
 func GetUserSessionCookieName(c *gin.Context) string {
-
-	isHttps := c.Request.URL.Scheme == "https"
+	config := utils.GetConfig()
 	var cookieName string
-	if isHttps {
+	if config.Https {
 		cookieName = "__Secure-user-session"
 	} else {
 		cookieName = "user-session"
 	}
 
 	return cookieName
+}
+
+func setCookie(c *gin.Context, key string, value string, age int) {
+
+	config := utils.GetConfig()
+
+	if config.CookieSameSite {
+		c.SetSameSite(2)
+	} else {
+		c.SetSameSite(4)
+	}
+	c.SetCookie(key, value, age, "/", c.Request.Host, config.Https, true)
+
 }
 
 func (as *AuthService) LogIn(c *gin.Context) (*schemas.Message, *types.AppError) {
@@ -161,10 +173,7 @@ func (as *AuthService) LogIn(c *gin.Context) (*schemas.Message, *types.AppError)
 			return nil, &types.AppError{Error: errors.New("failed to create or update user"), Code: http.StatusInternalServerError}
 		}
 	}
-
-	isHttps := c.Request.URL.Scheme == "https"
-	c.SetSameSite(2)
-	c.SetCookie(GetUserSessionCookieName(c), jweToken, as.SessionMaxAge, "/", c.Request.Host, isHttps, true)
+	setCookie(c, GetUserSessionCookieName(c), jweToken, as.SessionMaxAge)
 	return &schemas.Message{Status: true, Message: "login success"}, nil
 }
 
@@ -197,9 +206,7 @@ func (as *AuthService) GetSession(c *gin.Context) *types.Session {
 	if err != nil {
 		return nil
 	}
-	isHttps := c.Request.URL.Scheme == "https"
-	c.SetSameSite(2)
-	c.SetCookie(GetUserSessionCookieName(c), jweToken, as.SessionMaxAge, "/", c.Request.Host, isHttps, true)
+	setCookie(c, GetUserSessionCookieName(c), jweToken, as.SessionMaxAge)
 	return session
 }
 
@@ -215,9 +222,7 @@ func (as *AuthService) Logout(c *gin.Context) (*schemas.Message, *types.AppError
 
 	tgClient.Tg.API().AuthLogOut(c)
 	utils.StopClient(stop, userId)
-	isHttps := c.Request.URL.Scheme == "https"
-	c.SetSameSite(2)
-	c.SetCookie(GetUserSessionCookieName(c), "", -1, "/", c.Request.Host, isHttps, true)
+	setCookie(c, GetUserSessionCookieName(c), "", -1)
 	return &schemas.Message{Status: true, Message: "logout success"}, nil
 }
 

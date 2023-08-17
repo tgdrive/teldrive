@@ -53,7 +53,12 @@ func main() {
 
 	routes.GetRoutes(router)
 
-	//router.RunTLS(":8080", "./certs/cert.pem", "./certs/key.pem")
+	ok, _ := utils.PathExists("./sslcerts")
+	config := utils.GetConfig()
+	if ok && config.Https {
+		router.RunTLS(":8080", "./sslcerts/cert.pem", "./sslcerts/key.pem")
+	} else {
+		router.Run(":8080")
+	}
 	scheduler.StartAsync()
-	router.Run(":8080")
 }

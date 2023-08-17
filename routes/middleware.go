@@ -15,6 +15,8 @@ func Authmiddleware(c *gin.Context) {
 
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing session cookie"})
+		c.Abort()
+		return
 	}
 
 	now := time.Now().UTC()
@@ -23,10 +25,14 @@ func Authmiddleware(c *gin.Context) {
 
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		c.Abort()
+		return
 	}
 
 	if *jwePayload.Expiry < *jwt.NewNumericDate(now) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "token expired"})
+		c.Abort()
+		return
 	}
 
 	c.Set("jwtUser", jwePayload)
