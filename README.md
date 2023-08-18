@@ -79,8 +79,8 @@ If you're locally or remotely hosting, create a file named `.env` in the root di
 An example of `.env` file:
 
 ```sh
-API_ID=1234
-API_HASH=abc
+APP_ID=1234
+APP_HASH=abc
 CHANNEL_ID=1234
 HTTPS=false
 COOKIE_SAME_SITE=true
@@ -95,9 +95,9 @@ MULTI_TOKEN3=55838383:yourthirdmulticlientbottokenhere
 ### Mandatory Vars
 Before running the bot, you will need to set up the following mandatory variables:
 
-- `API_ID` : This is the API ID for your Telegram account, which can be obtained from my.telegram.org.
+- `APP_ID` : This is the APP ID for your Telegram account, which can be obtained from my.telegram.org.
 
-- `API_HASH` : This is the API hash for your Telegram account, which can also be obtained from my.telegram.org.
+- `APP_HASH` : This is the APP hash for your Telegram account, which can also be obtained from my.telegram.org.
 
 - `JWT_SECRET` : Used for signing jwt tokens
 
