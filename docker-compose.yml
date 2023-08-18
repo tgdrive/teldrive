@@ -6,7 +6,7 @@ services:
     restart: always
     container_name: server
     volumes:
-      - ./sessions:/app/sessions
+      - ./sessions:/app/sessions:rw
       - ./database:/app/database
     env_file: .env
     ports:
