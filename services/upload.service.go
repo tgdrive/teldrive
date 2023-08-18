@@ -145,6 +145,7 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 		ChannelID:  partUpload.ChannelID,
 		PartNo:     partUpload.PartNo,
 		TotalParts: partUpload.TotalParts,
+		Size:       partUpload.Size,
 	}
 
 	return out, nil

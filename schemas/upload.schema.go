@@ -13,6 +13,7 @@ type UploadPartOut struct {
 	PartNo     int    `json:"partNo"`
 	TotalParts int    `json:"totalParts"`
 	ChannelID  int64  `json:"channelId"`
+	Size       int64  `json:"size"`
 }
 
 type UploadOut struct {
