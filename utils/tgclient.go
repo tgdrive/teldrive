@@ -27,13 +27,14 @@ type Client struct {
 var clients map[int]*Client
 
 func getDeviceConfig() telegram.DeviceConfig {
+	appConfig := GetConfig()
 	config := telegram.DeviceConfig{
-		DeviceModel:    "Desktop",
-		SystemVersion:  "Windows 11",
-		AppVersion:     "4.9.1 x64",
-		SystemLangCode: "en-US",
-		LangPack:       "tdesktop",
-		LangCode:       "en",
+		DeviceModel:    appConfig.TgClientDeviceModel,
+		SystemVersion:  appConfig.TgClientSystemVersion,
+		AppVersion:     appConfig.TgClientAppVersion,
+		SystemLangCode: appConfig.TgClientSystemLangCode,
+		LangPack:       appConfig.TgClientLangPack,
+		LangCode:       appConfig.TgClientLangCode,
 	}
 	return config
 }
@@ -44,9 +45,9 @@ func getBotClient(appID int, appHash, clientName, sessionDir string) *telegram.C
 	}
 	options := telegram.Options{
 		SessionStorage: sessionStorage,
-		// Middlewares: []telegram.Middleware{
-		// 	ratelimit.New(rate.Every(time.Millisecond*100), 5),
-		// },
+		Middlewares: []telegram.Middleware{
+			ratelimit.New(rate.Every(time.Millisecond*100), 5),
+		},
 		Device:    getDeviceConfig(),
 		NoUpdates: true,
 	}

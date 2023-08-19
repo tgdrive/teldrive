@@ -86,18 +86,33 @@ HTTPS=false
 COOKIE_SAME_SITE=true
 JWT_SECRET=abc
 DATABASE_URL=abc
-MULTI_CLIENT=true # true or false here
+TG_CLIENT_DEVICE_MODEL="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36 Edg/115.0.1901.203" # Any valid  browser user agent here
+TG_CLIENT_SYSTEM_VERSION=Win32
+TG_CLIENT_APP_VERSION=2.1.9 K
+TG_CLIENT_LANG_CODE=en
+TG_CLIENT_SYSTEM_LANG_CODE=en
+TG_CLIENT_LANG_PACK=webk
+MULTI_CLIENT=false
 MULTI_TOKEN1=55838383:yourfirstmulticlientbottokenhere
 MULTI_TOKEN2=55838383:yoursecondmulticlientbottokenhere
 MULTI_TOKEN3=55838383:yourthirdmulticlientbottokenhere
 ```
+According to [Telegram TOS](https://core.telegram.org/api/obtaining_api_id#using-the-api-id): *all accounts that sign up or log in using unofficial Telegram API clients are automatically put under observation to avoid violations of the Terms of Service.So you can use APP_ID and APP_HASH from official K Telegram webclient from [here](https://github.com/morethanwords/tweb/blob/464bc4e76ff6417c7d996cca50c430d89d5d8175/src/config/app.ts#L36)*
+
+**Use strong JWT secret instead of pure guessable string.You can use openssl to generate it.**
+
+```bash
+$ openssl rand -base64 32
+```
+
+
 **Multi Client Mode is recommended way to avoid flood errors and to enable max download speed if you are using downloaders like IDM and aria2c which use multiple connections to download files.**
 ### Mandatory Vars
 Before running the bot, you will need to set up the following mandatory variables:
 
-- `APP_ID` : This is the APP ID for your Telegram account, which can be obtained from my.telegram.org.
+- `APP_ID` : Use official ones as mentioned above.
 
-- `APP_HASH` : This is the APP hash for your Telegram account, which can also be obtained from my.telegram.org.
+- `APP_HASH` : Use official ones as mentioned above.
 
 - `JWT_SECRET` : Used for signing jwt tokens
 
