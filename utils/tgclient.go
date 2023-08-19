@@ -43,13 +43,15 @@ func getBotClient(appID int, appHash, clientName, sessionDir string) *telegram.C
 	sessionStorage := &telegram.FileSessionStorage{
 		Path: filepath.Join(sessionDir, clientName+".json"),
 	}
+	middlewares := []telegram.Middleware{}
+	if config.RateLimit {
+		middlewares = append(middlewares, ratelimit.New(rate.Every(time.Millisecond*100), 5))
+	}
 	options := telegram.Options{
 		SessionStorage: sessionStorage,
-		Middlewares: []telegram.Middleware{
-			ratelimit.New(rate.Every(time.Millisecond*100), 5),
-		},
-		Device:    getDeviceConfig(),
-		NoUpdates: true,
+		Middlewares:    middlewares,
+		Device:         getDeviceConfig(),
+		NoUpdates:      true,
 	}
 
 	client := telegram.NewClient(appID, appHash, options)
@@ -139,14 +141,15 @@ func GetAuthClient(sessionStr string, userId int) (*Client, bg.StopFunc, error) 
 	if err := loader.Save(ctx, data); err != nil {
 		return nil, nil, err
 	}
-
+	middlewares := []telegram.Middleware{}
+	if config.RateLimit {
+		middlewares = append(middlewares, ratelimit.New(rate.Every(time.Millisecond*100), 5))
+	}
 	client := telegram.NewClient(config.AppId, config.AppHash, telegram.Options{
 		SessionStorage: storage,
-		Middlewares: []telegram.Middleware{
-			ratelimit.New(rate.Every(time.Millisecond*100), 5),
-		},
-		Device:    getDeviceConfig(),
-		NoUpdates: true,
+		Middlewares:    middlewares,
+		Device:         getDeviceConfig(),
+		NoUpdates:      true,
 	})
 
 	stop, err := bg.Connect(client)
@@ -181,14 +184,15 @@ func GetBotClient() *Client {
 }
 
 func GetNonAuthClient(handler telegram.UpdateHandler, storage telegram.SessionStorage) (*telegram.Client, bg.StopFunc, error) {
-
+	middlewares := []telegram.Middleware{}
+	if config.RateLimit {
+		middlewares = append(middlewares, ratelimit.New(rate.Every(time.Millisecond*100), 5))
+	}
 	client := telegram.NewClient(config.AppId, config.AppHash, telegram.Options{
 		SessionStorage: storage,
-		Middlewares: []telegram.Middleware{
-			ratelimit.New(rate.Every(time.Millisecond*100), 5),
-		},
-		Device:        getDeviceConfig(),
-		UpdateHandler: handler,
+		Middlewares:    middlewares,
+		Device:         getDeviceConfig(),
+		UpdateHandler:  handler,
 	})
 
 	stop, err := bg.Connect(client)

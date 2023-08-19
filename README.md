@@ -85,6 +85,7 @@ An example of `.env` file:
 APP_ID=1234
 APP_HASH=abc
 CHANNEL_ID=1234
+RATE_LIMIT=true
 HTTPS=false
 COOKIE_SAME_SITE=true
 JWT_SECRET=abc
@@ -125,7 +126,7 @@ Before running the bot, you will need to set up the following mandatory variable
 
 ### Optional Vars
 In addition to the mandatory variables, you can also set the following optional variables:
-
+- `RATE_LIMIT` : Rate Limit Calls to prevent flood errors
 - `HTTPS` : Only needed when frontend is deployed on vercel.
 
 - `COOKIE_SAME_SITE` : Only needed when frontend is deployed on vercel.
