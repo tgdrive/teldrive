@@ -1,4 +1,7 @@
 <h1 align="center"> Fast Telegram Drive</h1>
+
+[![Discord](https://img.shields.io/discord/1142377485737148479?label=discord&logo=discord&style=flat-square&logoColor=white)](https://discord.gg/hfTUKGU2C6)
+
  
 <details open="open">
   <summary>Table of Contents</summary>

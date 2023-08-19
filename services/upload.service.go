@@ -61,6 +61,14 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 
 	uploadId := c.Param("id")
 
+	var uploadPart []models.Upload
+
+	us.Db.Model(&models.Upload{}).Where("upload_id = ?", uploadId).Where("part_no = ?", uploadQuery.PartNo).Find(&uploadPart)
+
+	if len(uploadPart) == 1 {
+		out := mapSchema(&uploadPart[0])
+		return out, nil
+	}
 	config := utils.GetConfig()
 
 	var tgClient *utils.Client
@@ -138,15 +146,20 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 		return nil, &types.AppError{Error: errors.New("failed to upload part"), Code: http.StatusInternalServerError}
 	}
 
-	out := &schemas.UploadPartOut{
-		ID:         partUpload.ID,
-		Name:       partUpload.Name,
-		PartId:     partUpload.PartId,
-		ChannelID:  partUpload.ChannelID,
-		PartNo:     partUpload.PartNo,
-		TotalParts: partUpload.TotalParts,
-		Size:       partUpload.Size,
-	}
+	out := mapSchema(partUpload)
 
 	return out, nil
+}
+
+func mapSchema(in *models.Upload) *schemas.UploadPartOut {
+	out := &schemas.UploadPartOut{
+		ID:         in.ID,
+		Name:       in.Name,
+		PartId:     in.PartId,
+		ChannelID:  in.ChannelID,
+		PartNo:     in.PartNo,
+		TotalParts: in.TotalParts,
+		Size:       in.Size,
+	}
+	return out
 }
