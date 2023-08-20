@@ -6,7 +6,7 @@ require (
 	github.com/allegro/bigcache/v3 v3.1.0
 	github.com/divyam234/cors v1.4.2
 	github.com/gin-gonic/gin v1.9.1
-	github.com/go-co-op/gocron v1.31.1
+	github.com/go-co-op/gocron v1.32.0
 	github.com/go-jose/go-jose/v3 v3.0.0
 	github.com/gotd/contrib v0.19.0
 	github.com/gotd/td v0.84.0
@@ -22,7 +22,10 @@ require (
 	gorm.io/gorm v1.25.2
 )
 
-require github.com/robfig/cron/v3 v3.0.1 // indirect
+require (
+	github.com/google/uuid v1.3.0 // indirect
+	github.com/robfig/cron/v3 v3.0.1 // indirect
+)
 
 require (
 	github.com/bytedance/sonic v1.9.1 // indirect
