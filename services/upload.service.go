@@ -100,10 +100,6 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 
 	fileName := uploadQuery.Filename
 
-	if uploadQuery.TotalParts > 1 {
-		fileName = fmt.Sprintf("%s.part.%03d", fileName, uploadQuery.PartNo)
-	}
-
 	upload, err := u.Upload(c, uploader.NewUpload(fileName, file, fileSize))
 
 	if err != nil {

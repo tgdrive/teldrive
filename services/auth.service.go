@@ -31,8 +31,9 @@ import (
 )
 
 type AuthService struct {
-	Db            *gorm.DB
-	SessionMaxAge int
+	Db                *gorm.DB
+	SessionMaxAge     int
+	SessionCookieName string
 }
 
 type SessionData struct {
@@ -84,18 +85,6 @@ func generateTgSession(dcID int, authKey []byte, port int) string {
 
 	base64Encoded := base64.URLEncoding.EncodeToString(packet)
 	return "1" + base64Encoded
-}
-
-func GetUserSessionCookieName(c *gin.Context) string {
-	config := utils.GetConfig()
-	var cookieName string
-	if config.Https {
-		cookieName = "__Secure-user-session"
-	} else {
-		cookieName = "user-session"
-	}
-
-	return cookieName
 }
 
 func setCookie(c *gin.Context, key string, value string, age int) {
@@ -173,13 +162,13 @@ func (as *AuthService) LogIn(c *gin.Context) (*schemas.Message, *types.AppError)
 			return nil, &types.AppError{Error: errors.New("failed to create or update user"), Code: http.StatusInternalServerError}
 		}
 	}
-	setCookie(c, GetUserSessionCookieName(c), jweToken, as.SessionMaxAge)
+	setCookie(c, as.SessionCookieName, jweToken, as.SessionMaxAge)
 	return &schemas.Message{Status: true, Message: "login success"}, nil
 }
 
 func (as *AuthService) GetSession(c *gin.Context) *types.Session {
 
-	cookie, err := c.Request.Cookie(GetUserSessionCookieName(c))
+	cookie, err := c.Request.Cookie(as.SessionCookieName)
 
 	if err != nil {
 		return nil
@@ -206,7 +195,7 @@ func (as *AuthService) GetSession(c *gin.Context) *types.Session {
 	if err != nil {
 		return nil
 	}
-	setCookie(c, GetUserSessionCookieName(c), jweToken, as.SessionMaxAge)
+	setCookie(c, as.SessionCookieName, jweToken, as.SessionMaxAge)
 	return session
 }
 
@@ -222,7 +211,7 @@ func (as *AuthService) Logout(c *gin.Context) (*schemas.Message, *types.AppError
 
 	tgClient.Tg.API().AuthLogOut(c)
 	utils.StopClient(stop, userId)
-	setCookie(c, GetUserSessionCookieName(c), "", -1)
+	setCookie(c, as.SessionCookieName, "", -1)
 	return &schemas.Message{Status: true, Message: "logout success"}, nil
 }
 

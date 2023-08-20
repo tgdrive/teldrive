@@ -13,7 +13,7 @@ func addAuthRoutes(rg *gin.RouterGroup) {
 
 	r := rg.Group("/auth")
 
-	authService := services.AuthService{Db: database.DB, SessionMaxAge: 30 * 24 * 60 * 60}
+	authService := services.AuthService{Db: database.DB, SessionMaxAge: 30 * 24 * 60 * 60, SessionCookieName: "user-session"}
 
 	r.POST("/login", func(c *gin.Context) {
 

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"math"
 	"net/http"
 	"strconv"
@@ -22,6 +21,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/tg"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/mitchellh/mapstructure"
 	range_parser "github.com/quantumsheep/range-parser"
 	"gorm.io/gorm"
@@ -79,6 +79,10 @@ func (fs *FileService) CreateFile(c *gin.Context) (*schemas.FileOut, *types.AppE
 	fileDb := mapFileInToFile(fileIn)
 
 	if err := fs.Db.Create(&fileDb).Error; err != nil {
+		pgErr := err.(*pgconn.PgError)
+		if pgErr.Code == "23505" {
+			return nil, &types.AppError{Error: errors.New("file exists"), Code: http.StatusBadRequest}
+		}
 		return nil, &types.AppError{Error: errors.New("failed to create a file"), Code: http.StatusBadRequest}
 
 	}
@@ -163,12 +167,11 @@ func (fs *FileService) ListFiles(c *gin.Context) (*schemas.FileResponse, *types.
 
 	query := fs.Db.Model(&models.File{}).Limit(pagingParams.PerPage)
 
-	log.Println(fileQuery.Path)
 	if fileQuery.Op == "list" {
 		filters := []string{}
 		filters = setOrderFilter(&pagingParams, &sortingParams, filters)
 
-		if pathExists, message := fs.CheckIfPathExists(&fileQuery.Path); pathExists == false {
+		if pathExists, message := fs.CheckIfPathExists(&fileQuery.Path); !pathExists {
 			return nil, &types.AppError{Error: errors.New(message), Code: http.StatusNotFound}
 		}
 
@@ -233,6 +236,27 @@ func (fs *FileService) CheckIfPathExists(path *string) (bool, string) {
 		return false, "This directory doesn't exist."
 	}
 	return true, ""
+}
+
+func (fs *FileService) MakeDirectory(c *gin.Context) (*schemas.FileOut, *types.AppError) {
+
+	var payload schemas.MkDir
+
+	var files []models.File
+
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		return nil, &types.AppError{Error: errors.New("invalid request payload"), Code: http.StatusBadRequest}
+	}
+
+	userId := getAuthUserId(c)
+	if err := fs.Db.Raw("select * from teldrive.create_directories(?, ?)", userId, payload.Path).Scan(&files).Error; err != nil {
+		return nil, &types.AppError{Error: errors.New("failed to create directories"), Code: http.StatusInternalServerError}
+	}
+
+	file := mapFileToFileOut(files[0])
+
+	return &file, nil
+
 }
 
 func (fs *FileService) MoveFiles(c *gin.Context) (*schemas.Message, *types.AppError) {

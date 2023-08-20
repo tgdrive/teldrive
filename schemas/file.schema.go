@@ -72,3 +72,7 @@ type FileOperation struct {
 	Files       []string `json:"files"`
 	Destination string   `json:"destination,omitempty"`
 }
+
+type MkDir struct {
+	Path string `json:"path"`
+}
