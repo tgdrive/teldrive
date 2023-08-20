@@ -23,6 +23,7 @@ func main() {
 	router := gin.Default()
 
 	godotenv.Load()
+	godotenv.Load("teldrive.env")
 
 	utils.InitConfig()
 
