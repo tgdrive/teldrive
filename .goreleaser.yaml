@@ -1,5 +1,4 @@
 project_name: teldrive
-dist: .teldrive/dist
 env:
   - GO111MODULE=on
 builds:
@@ -12,7 +11,7 @@ builds:
       - -X {{ .ModulePath }}/pkg/consts.Version={{ .Version }}
       - -X {{ .ModulePath }}/pkg/consts.Commit={{ .ShortCommit }}
       - -X {{ .ModulePath }}/pkg/consts.CommitDate={{ .CommitDate }}
-    mod_timestamp: '{{ .CommitTimestamp }}'
+    mod_timestamp: "{{ .CommitTimestamp }}"
     goos:
       - linux
       - windows
@@ -27,9 +26,9 @@ builds:
       - 6
       - 7
 checksum:
-  name_template: '{{ .ProjectName }}_checksums.txt'
+  name_template: "{{ .ProjectName }}_checksums.txt"
 archives:
-  - name_template: '{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
+  - name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
     replacements:
       darwin: MacOS
       linux: Linux
@@ -49,13 +48,13 @@ changelog:
     - title: New Features
       regexp: "^.*feat[(\\w)]*:+.*$"
       order: 0
-    - title: 'Bug fixes'
+    - title: "Bug fixes"
       regexp: "^.*fix[(\\w)]*:+.*$"
       order: 1
-    - title: 'Documentation updates'
+    - title: "Documentation updates"
       regexp: "^.*docs[(\\w)]*:+.*$"
       order: 2
-    - title: 'Refactoring'
+    - title: "Refactoring"
       regexp: "^.*refactor[(\\w)]*:+.*$"
       order: 3
     - title: Others
