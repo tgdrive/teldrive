@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"math"
 	"net/http"
 	"strconv"
@@ -162,9 +163,14 @@ func (fs *FileService) ListFiles(c *gin.Context) (*schemas.FileResponse, *types.
 
 	query := fs.Db.Model(&models.File{}).Limit(pagingParams.PerPage)
 
+	log.Println(fileQuery.Path)
 	if fileQuery.Op == "list" {
 		filters := []string{}
 		filters = setOrderFilter(&pagingParams, &sortingParams, filters)
+
+		if res := fs.CheckIfPathExists(&fileQuery.Path); res == false {
+			return nil, &types.AppError{Error: errors.New("This directory doesn't exist."), Code: http.StatusNotFound}
+		}
 
 		query = query.Order("type DESC").Order(getOrder(sortingParams)).
 			Where(map[string]interface{}{"user_id": userId, "status": "active"}).
@@ -219,6 +225,16 @@ func (fs *FileService) ListFiles(c *gin.Context) (*schemas.FileResponse, *types.
 	return res, nil
 }
 
+func (fs *FileService) CheckIfPathExists(path *string) bool {
+	query := fs.Db.Model(&models.File{}).Select("id").Where("path = ?", path)
+	var results []schemas.FileOut
+	query.Find(&results)
+	if len(results) == 0 {
+		return false
+	}
+	return true
+}
+
 func (fs *FileService) MoveFiles(c *gin.Context) (*schemas.Message, *types.AppError) {
 
 	var payload schemas.FileOperation
@@ -228,6 +244,11 @@ func (fs *FileService) MoveFiles(c *gin.Context) (*schemas.Message, *types.AppEr
 	}
 
 	var destination models.File
+
+	if res := fs.CheckIfPathExists(&payload.Destination); res == false {
+		return nil, &types.AppError{Error: errors.New("This directory doesn't exist."), Code: http.StatusBadRequest}
+	}
+
 	if err := fs.Db.Model(&models.File{}).Select("id").Where("path = ?", payload.Destination).First(&destination).Error; errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, &types.AppError{Error: errors.New("destination not found"), Code: http.StatusNotFound}
 
