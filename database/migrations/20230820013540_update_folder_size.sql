@@ -43,7 +43,7 @@ $$ LANGUAGE plpgsql;
 -- +goose StatementEnd
 
 -- +goose StatementBegin
-CREATE TRIGGER update_folder_size_after_insert_or_update
+CREATE TRIGGER update_folder_size_after_insert_update_delete
 AFTER INSERT OR UPDATE OR DELETE ON teldrive.files
 FOR EACH ROW
 EXECUTE PROCEDURE teldrive.update_size_function();
@@ -52,9 +52,6 @@ EXECUTE PROCEDURE teldrive.update_size_function();
 
 -- +goose Down
 -- +goose StatementBegin
-
-DROP TRIGGER IF EXISTS update_folder_size_after_insert_or_update ON teldrive.files;
+DROP TRIGGER IF EXISTS update_folder_size_after_insert_update_delete ON teldrive.files;
 DROP FUNCTION IF EXISTS teldrive.update_size_function;
-ALTER TABLE teldrive.files
-DROP COLUMN IF EXISTS trigger_executed;
 -- +goose StatementEnd
