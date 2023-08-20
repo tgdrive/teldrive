@@ -168,8 +168,8 @@ func (fs *FileService) ListFiles(c *gin.Context) (*schemas.FileResponse, *types.
 		filters := []string{}
 		filters = setOrderFilter(&pagingParams, &sortingParams, filters)
 
-		if res := fs.CheckIfPathExists(&fileQuery.Path); res == false {
-			return nil, &types.AppError{Error: errors.New("This directory doesn't exist."), Code: http.StatusNotFound}
+		if pathExists, message := fs.CheckIfPathExists(&fileQuery.Path); pathExists == false {
+			return nil, &types.AppError{Error: errors.New(message), Code: http.StatusNotFound}
 		}
 
 		query = query.Order("type DESC").Order(getOrder(sortingParams)).
@@ -225,14 +225,14 @@ func (fs *FileService) ListFiles(c *gin.Context) (*schemas.FileResponse, *types.
 	return res, nil
 }
 
-func (fs *FileService) CheckIfPathExists(path *string) bool {
+func (fs *FileService) CheckIfPathExists(path *string) (bool, string) {
 	query := fs.Db.Model(&models.File{}).Select("id").Where("path = ?", path)
 	var results []schemas.FileOut
 	query.Find(&results)
 	if len(results) == 0 {
-		return false
+		return false, "This directory doesn't exist."
 	}
-	return true
+	return true, ""
 }
 
 func (fs *FileService) MoveFiles(c *gin.Context) (*schemas.Message, *types.AppError) {
@@ -245,8 +245,8 @@ func (fs *FileService) MoveFiles(c *gin.Context) (*schemas.Message, *types.AppEr
 
 	var destination models.File
 
-	if res := fs.CheckIfPathExists(&payload.Destination); res == false {
-		return nil, &types.AppError{Error: errors.New("This directory doesn't exist."), Code: http.StatusBadRequest}
+	if pathExists, message := fs.CheckIfPathExists(&payload.Destination); pathExists == false {
+		return nil, &types.AppError{Error: errors.New(message), Code: http.StatusBadRequest}
 	}
 
 	if err := fs.Db.Model(&models.File{}).Select("id").Where("path = ?", payload.Destination).First(&destination).Error; errors.Is(err, gorm.ErrRecordNotFound) {
