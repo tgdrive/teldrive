@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/divyam234/teldrive/cache"
@@ -56,9 +57,9 @@ func main() {
 	ok, _ := utils.PathExists("./sslcerts")
 	config := utils.GetConfig()
 	if ok && config.Https {
-		router.RunTLS(":8080", "./sslcerts/cert.pem", "./sslcerts/key.pem")
+		router.RunTLS(fmt.Sprintf(":%d", config.Port), "./sslcerts/cert.pem", "./sslcerts/key.pem")
 	} else {
-		router.Run(":8080")
+		router.Run(fmt.Sprintf(":%d", config.Port))
 	}
 	scheduler.StartAsync()
 }

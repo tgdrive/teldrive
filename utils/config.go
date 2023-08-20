@@ -22,6 +22,8 @@ type Config struct {
 	TgClientLangCode       string `envconfig:"TG_CLIENT_LANG_CODE" default:"en"`
 	TgClientSystemLangCode string `envconfig:"TG_CLIENT_SYSTEM_LANG_CODE" default:"en"`
 	TgClientLangPack       string `envconfig:"TG_CLIENT_LANG_PACK" default:"webk"`
+	RunMigrations          bool   `envconfig:"RUN_MIGRATIONS" default:"true"`
+	Port                   int    `envconfig:"PORT" default:"8080"`
 }
 
 var config Config

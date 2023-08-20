@@ -2,8 +2,6 @@ module github.com/divyam234/teldrive
 
 go 1.21
 
-toolchain go1.21.0
-
 require (
 	github.com/allegro/bigcache/v3 v3.1.0
 	github.com/divyam234/cors v1.4.2
@@ -28,7 +26,7 @@ require github.com/robfig/cron/v3 v3.0.1 // indirect
 
 require (
 	github.com/bytedance/sonic v1.9.1 // indirect
-	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
+	github.com/cenkalti/backoff/v4 v4.2.1
 	github.com/chenzhuoyu/base64x v0.0.0-20221115062448-fe3a3abad311 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.2 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect

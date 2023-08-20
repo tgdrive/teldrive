@@ -9,8 +9,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/gotd/contrib/bg"
+	"github.com/gotd/contrib/middleware/floodwait"
 	"github.com/gotd/contrib/middleware/ratelimit"
+	tdclock "github.com/gotd/td/clock"
 	"github.com/gotd/td/session"
 	"github.com/gotd/td/telegram"
 	"github.com/pkg/errors"
@@ -38,20 +41,31 @@ func getDeviceConfig() telegram.DeviceConfig {
 	}
 	return config
 }
+
+func reconnectionBackoff() backoff.BackOff {
+	_clock := tdclock.System
+	b := backoff.NewExponentialBackOff()
+	b.Multiplier = 1.1
+	b.MaxElapsedTime = time.Duration(120) * time.Second
+	b.Clock = _clock
+	return b
+}
+
 func getBotClient(appID int, appHash, clientName, sessionDir string) *telegram.Client {
 
 	sessionStorage := &telegram.FileSessionStorage{
 		Path: filepath.Join(sessionDir, clientName+".json"),
 	}
-	middlewares := []telegram.Middleware{}
-	if config.RateLimit {
-		middlewares = append(middlewares, ratelimit.New(rate.Every(time.Millisecond*100), 5))
-	}
+	middlewares := []telegram.Middleware{floodwait.NewSimpleWaiter()}
+
 	options := telegram.Options{
-		SessionStorage: sessionStorage,
-		Middlewares:    middlewares,
-		Device:         getDeviceConfig(),
-		NoUpdates:      true,
+		SessionStorage:      sessionStorage,
+		Middlewares:         middlewares,
+		ReconnectionBackoff: reconnectionBackoff,
+		RetryInterval:       5 * time.Second,
+		MaxRetries:          5,
+		Device:              getDeviceConfig(),
+		Clock:               tdclock.System,
 	}
 
 	client := telegram.NewClient(appID, appHash, options)
@@ -141,15 +155,15 @@ func GetAuthClient(sessionStr string, userId int) (*Client, bg.StopFunc, error) 
 	if err := loader.Save(ctx, data); err != nil {
 		return nil, nil, err
 	}
-	middlewares := []telegram.Middleware{}
-	if config.RateLimit {
-		middlewares = append(middlewares, ratelimit.New(rate.Every(time.Millisecond*100), 5))
-	}
+	middlewares := []telegram.Middleware{floodwait.NewSimpleWaiter()}
 	client := telegram.NewClient(config.AppId, config.AppHash, telegram.Options{
-		SessionStorage: storage,
-		Middlewares:    middlewares,
-		Device:         getDeviceConfig(),
-		NoUpdates:      true,
+		SessionStorage:      storage,
+		Middlewares:         middlewares,
+		ReconnectionBackoff: reconnectionBackoff,
+		RetryInterval:       5 * time.Second,
+		MaxRetries:          5,
+		Device:              getDeviceConfig(),
+		Clock:               tdclock.System,
 	})
 
 	stop, err := bg.Connect(client)

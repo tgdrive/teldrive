@@ -94,7 +94,7 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 
 	api := tgClient.Tg.API()
 
-	u := uploader.NewUploader(api).WithThreads(16).WithPartSize(512 * 1024)
+	u := uploader.NewUploader(api).WithThreads(8).WithPartSize(512 * 1024)
 
 	sender := message.NewSender(api).WithUploader(u)
 

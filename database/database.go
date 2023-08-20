@@ -55,7 +55,9 @@ func InitDB() {
 	sqlDB.SetConnMaxLifetime(time.Hour)
 	go func() {
 		DB.Exec(`create collation if not exists numeric (provider = icu, locale = 'en@colnumeric=yes');`)
-		migrate()
+		if utils.GetConfig().RunMigrations {
+			migrate()
+		}
 	}()
 
 }
