@@ -25,8 +25,8 @@ github.com/gin-contrib/sse v0.1.0/go.mod h1:RHrZQHXnP2xjPF+u1gW/2HnVO7nvIa9PG3Gm
 github.com/gin-gonic/gin v1.6.3/go.mod h1:75u5sXoLsGZoRN5Sgbi1eraJ4GU3++wFwWzhwvtwp4M=
 github.com/gin-gonic/gin v1.9.1 h1:4idEAncQnU5cB7BeOkPtxjfCSye0AAm1R0RVIqJ+Jmg=
 github.com/gin-gonic/gin v1.9.1/go.mod h1:hPrL7YrpYKXt5YId3A/Tnip5kqbEAP+KLuI3SUcPTeU=
-github.com/go-co-op/gocron v1.31.1 h1:LZAuBlU0t3SPGUMJGhrJ6VuCc3CsrYzkzicygvVWlfA=
-github.com/go-co-op/gocron v1.31.1/go.mod h1:39f6KNSGVOU1LO/ZOoZfcSxwlsJDQOKSu8erN0SH48Y=
+github.com/go-co-op/gocron v1.32.1 h1:h+StA6Qzlv+ImlCaLfA26rLN9eS/l4sO7oWmPUbRVIY=
+github.com/go-co-op/gocron v1.32.1/go.mod h1:UGz2oYvVS6PsqlwuOdo5L1Djsg/cQjxJ6T5ntkhp9Bg=
 github.com/go-faster/errors v0.6.1 h1:nNIPOBkprlKzkThvS/0YaX8Zs9KewLCOSFQS5BU06FI=
 github.com/go-faster/errors v0.6.1/go.mod h1:5MGV2/2T9yvlrbhe9pD9LO5Z/2zCSq2T8j+Jpi2LAyY=
 github.com/go-faster/jx v1.0.1 h1:NhSJEZtqj6KmXf63On7Hg7/sjUX+gotSc/eM6bZCZ00=
