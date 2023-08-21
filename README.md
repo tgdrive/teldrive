@@ -85,7 +85,6 @@ An example of `.env` file:
 APP_ID=1234
 APP_HASH=abc
 CHANNEL_ID=1234
-RATE_LIMIT=true
 HTTPS=false
 COOKIE_SAME_SITE=true
 JWT_SECRET=abc
