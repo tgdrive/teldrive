@@ -38,7 +38,7 @@ func addAuthRoutes(rg *gin.RouterGroup) {
 
 	})
 
-	r.GET("/ws", authService.HandleQrCodeLogin)
+	r.GET("/ws", authService.HandleMultipleLogin)
 
 	r.GET("/session", func(c *gin.Context) {
 

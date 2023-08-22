@@ -28,7 +28,7 @@ type JWTClaims struct {
 
 type TgSession struct {
 	Sesssion  string `json:"session"`
-	UserID    int    `json:"userId"`
+	UserID    int64  `json:"userId"`
 	Bot       bool   `json:"bot"`
 	UserName  string `json:"userName"`
 	Name      string `json:"name"`

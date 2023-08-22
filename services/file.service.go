@@ -33,10 +33,10 @@ type FileService struct {
 	ChannelID int64
 }
 
-func getAuthUserId(c *gin.Context) int {
+func getAuthUserId(c *gin.Context) int64 {
 	val, _ := c.Get("jwtUser")
 	jwtUser := val.(*types.JWTClaims)
-	userId, _ := strconv.Atoi(jwtUser.Subject)
+	userId, _ := strconv.ParseInt(jwtUser.Subject, 10, 64)
 	return userId
 }
 
@@ -160,7 +160,7 @@ func (fs *FileService) ListFiles(c *gin.Context) (*schemas.FileResponse, *types.
 	var fileQuery schemas.FileQuery
 	fileQuery.Op = "list"
 	fileQuery.Status = "active"
-	fileQuery.UserId = userId
+	fileQuery.UserID = userId
 	if err := c.ShouldBindQuery(&fileQuery); err != nil {
 		return nil, &types.AppError{Error: errors.New(""), Code: http.StatusBadRequest}
 	}

@@ -5,7 +5,7 @@ import (
 )
 
 type User struct {
-	UserId    int       `gorm:"type:bigint;primaryKey"`
+	UserId    int64     `gorm:"type:bigint;primaryKey"`
 	Name      string    `gorm:"type:text"`
 	UserName  string    `gorm:"type:text"`
 	IsPremium bool      `gorm:"type:bool"`

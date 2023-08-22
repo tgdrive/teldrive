@@ -27,7 +27,7 @@ type FileQuery struct {
 	ParentID  string     `form:"parentId" mapstructure:"parent_id,omitempty"`
 	UpdatedAt *time.Time `form:"updatedAt" mapstructure:"updated_at,omitempty"`
 	Status    string     `mapstructure:"status"`
-	UserId    int        `mapstructure:"user_id"`
+	UserID    int64      `mapstructure:"user_id"`
 }
 
 type FileIn struct {
@@ -41,7 +41,7 @@ type FileIn struct {
 	Starred   *bool         `json:"starred" mapstructure:"starred,omitempty"`
 	Depth     *int          `json:"depth,omitempty" mapstructure:"depth,omitempty"`
 	Status    string        `mapstructure:"status,omitempty"`
-	UserID    int           `json:"userId" mapstructure:"user_id,omitempty"`
+	UserID    int64         `json:"userId" mapstructure:"user_id,omitempty"`
 	ParentID  string        `json:"parentId" mapstructure:"parent_id,omitempty"`
 }
 

@@ -27,6 +27,7 @@ import (
 	tgauth "github.com/gotd/td/telegram/auth"
 	"github.com/gotd/td/telegram/auth/qrlogin"
 	"github.com/gotd/td/tg"
+	"github.com/gotd/td/tgerr"
 	"gorm.io/gorm"
 )
 
@@ -46,6 +47,7 @@ type SocketMessage struct {
 	PhoneNo       string `json:"phoneNo,omitempty"`
 	PhoneCodeHash string `json:"phoneCodeHash,omitempty"`
 	PhoneCode     string `json:"phoneCode,omitempty"`
+	Password      string `json:"password,omitempty"`
 }
 
 func IP4toInt(IPv4Address net.IP) int64 {
@@ -109,7 +111,7 @@ func (as *AuthService) LogIn(c *gin.Context) (*schemas.Message, *types.AppError)
 	now := time.Now().UTC()
 
 	jwtClaims := &types.JWTClaims{Claims: jwt.Claims{
-		Subject:  strconv.Itoa(session.UserID),
+		Subject:  strconv.FormatInt(session.UserID, 10),
 		IssuedAt: jwt.NewNumericDate(now),
 		Expiry:   jwt.NewNumericDate(now.Add(time.Duration(as.SessionMaxAge) * time.Second)),
 	}, TgSession: session.Sesssion,
@@ -219,7 +221,7 @@ func prepareSession(user *tg.User, data *session.Data) *types.TgSession {
 	sessionString := generateTgSession(data.DC, data.AuthKey, 443)
 	session := &types.TgSession{
 		Sesssion:  sessionString,
-		UserID:    int(user.ID),
+		UserID:    user.ID,
 		Bot:       user.Bot,
 		UserName:  user.Username,
 		Name:      fmt.Sprintf("%s %s", user.FirstName, user.LastName),
@@ -228,7 +230,7 @@ func prepareSession(user *tg.User, data *session.Data) *types.TgSession {
 	return session
 }
 
-func (as *AuthService) HandleQrCodeLogin(c *gin.Context) {
+func (as *AuthService) HandleMultipleLogin(c *gin.Context) {
 	upgrader := websocket.Upgrader{
 		CheckOrigin: func(r *http.Request) bool {
 			return true
@@ -255,11 +257,19 @@ func (as *AuthService) HandleQrCodeLogin(c *gin.Context) {
 					conn.WriteJSON(map[string]interface{}{"type": "auth", "payload": map[string]string{"token": token.URL()}})
 					return nil
 				})
+
+				if tgerr.Is(err, "SESSION_PASSWORD_NEEDED") {
+					conn.WriteJSON(map[string]interface{}{"type": "auth", "message": "2FA required"})
+					return
+				}
+
 				if err != nil {
+					conn.WriteJSON(map[string]interface{}{"type": "error", "message": err.Error()})
 					return
 				}
 				user, ok := authorization.User.AsNotEmpty()
 				if !ok {
+					conn.WriteJSON(map[string]interface{}{"type": "error", "message": errors.New("auth failed")})
 					return
 				}
 				res, _ := sessionStorage.LoadSession(c)
@@ -270,27 +280,60 @@ func (as *AuthService) HandleQrCodeLogin(c *gin.Context) {
 			}()
 		}
 		if message.AuthType == "phone" && message.Message == "sendcode" {
-			res, err := tgClient.Auth().SendCode(c, message.PhoneNo, tgauth.SendCodeOptions{})
-			if err != nil {
-				return
-			}
-			code := res.(*tg.AuthSentCode)
-			conn.WriteJSON(map[string]interface{}{"type": "auth", "payload": map[string]string{"phoneCodeHash": code.PhoneCodeHash}})
+			go func() {
+				res, err := tgClient.Auth().SendCode(c, message.PhoneNo, tgauth.SendCodeOptions{})
+				if err != nil {
+					conn.WriteJSON(map[string]interface{}{"type": "error", "message": err.Error()})
+					return
+				}
+				code := res.(*tg.AuthSentCode)
+				conn.WriteJSON(map[string]interface{}{"type": "auth", "payload": map[string]string{"phoneCodeHash": code.PhoneCodeHash}})
+			}()
 		}
 		if message.AuthType == "phone" && message.Message == "signin" {
-			auth, err := tgClient.Auth().SignIn(c, message.PhoneNo, message.PhoneCode, message.PhoneCodeHash)
-			if err != nil {
-				return
-			}
-			user, ok := auth.User.AsNotEmpty()
-			if !ok {
-				return
-			}
-			res, _ := sessionStorage.LoadSession(c)
-			sessionData := &SessionData{}
-			json.Unmarshal(res, sessionData)
-			session := prepareSession(user, &sessionData.Data)
-			conn.WriteJSON(map[string]interface{}{"type": "auth", "payload": session, "message": "success"})
+			go func() {
+				auth, err := tgClient.Auth().SignIn(c, message.PhoneNo, message.PhoneCode, message.PhoneCodeHash)
+
+				if errors.Is(err, tgauth.ErrPasswordAuthNeeded) {
+					conn.WriteJSON(map[string]interface{}{"type": "auth", "message": "2FA required"})
+					return
+				}
+
+				if err != nil {
+					conn.WriteJSON(map[string]interface{}{"type": "error", "message": err.Error()})
+					return
+				}
+				user, ok := auth.User.AsNotEmpty()
+				if !ok {
+					conn.WriteJSON(map[string]interface{}{"type": "error", "message": errors.New("auth failed")})
+					return
+				}
+				res, _ := sessionStorage.LoadSession(c)
+				sessionData := &SessionData{}
+				json.Unmarshal(res, sessionData)
+				session := prepareSession(user, &sessionData.Data)
+				conn.WriteJSON(map[string]interface{}{"type": "auth", "payload": session, "message": "success"})
+			}()
+		}
+
+		if message.AuthType == "2fa" && message.Password != "" {
+			go func() {
+				auth, err := tgClient.Auth().Password(c, message.Password)
+				if err != nil {
+					conn.WriteJSON(map[string]interface{}{"type": "error", "message": err.Error()})
+					return
+				}
+				user, ok := auth.User.AsNotEmpty()
+				if !ok {
+					conn.WriteJSON(map[string]interface{}{"type": "error", "message": errors.New("auth failed")})
+					return
+				}
+				res, _ := sessionStorage.LoadSession(c)
+				sessionData := &SessionData{}
+				json.Unmarshal(res, sessionData)
+				session := prepareSession(user, &sessionData.Data)
+				conn.WriteJSON(map[string]interface{}{"type": "auth", "payload": session, "message": "success"})
+			}()
 		}
 		if err != nil {
 			log.Println(err)
