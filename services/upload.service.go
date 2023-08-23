@@ -1,10 +1,10 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 
 	"github.com/divyam234/teldrive/cache"
 	"github.com/divyam234/teldrive/schemas"
@@ -69,64 +69,70 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 		out := mapSchema(&uploadPart[0])
 		return out, nil
 	}
-	config := utils.GetConfig()
 
-	var tgClient *utils.Client
-
-	var err error
-	if config.MultiClient {
-		tgClient = utils.GetBotClient()
-		tgClient.Workload++
-
-	} else {
-		val, _ := c.Get("jwtUser")
-		jwtUser := val.(*types.JWTClaims)
-		userId, _ := strconv.Atoi(jwtUser.Subject)
-		tgClient, _, err = utils.GetAuthClient(jwtUser.TgSession, userId)
-		if err != nil {
-			return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
-		}
-	}
+	client, idx := utils.GetUploadClient(c)
 
 	file := c.Request.Body
 
 	fileSize := c.Request.ContentLength
 
-	api := tgClient.Tg.API()
-
-	u := uploader.NewUploader(api).WithThreads(8).WithPartSize(512 * 1024)
-
-	sender := message.NewSender(api).WithUploader(u)
-
 	fileName := uploadQuery.Filename
 
-	upload, err := u.Upload(c, uploader.NewUpload(fileName, file, fileSize))
+	var msgId int
+
+	ctx := context.Background()
+
+	ctx, cancel := context.WithCancel(ctx)
+
+	defer func() {
+		if idx != -1 {
+			utils.Workloads[idx]--
+		}
+		cancel()
+	}()
+
+	err := client.Run(ctx, func(ctx context.Context) error {
+
+		api := client.API()
+
+		u := uploader.NewUploader(api).WithThreads(8).WithPartSize(512 * 1024)
+
+		upload, err := u.Upload(c, uploader.NewUpload(fileName, file, fileSize))
+
+		if err != nil {
+			return err
+		}
+
+		document := message.UploadedDocument(upload).Filename(fileName).ForceFile(true)
+
+		res, err := cache.CachedFunction(utils.GetChannelById, fmt.Sprintf("channels:%d", us.ChannelID))(c, client.API(), us.ChannelID)
+
+		if err != nil {
+			return err
+		}
+
+		channel := res.(*tg.Channel)
+
+		sender := message.NewSender(client.API())
+
+		target := sender.To(&tg.InputPeerChannel{ChannelID: channel.ID, AccessHash: channel.AccessHash})
+
+		res, err = target.Media(c, document)
+
+		if err != nil {
+			return err
+		}
+
+		updates := res.(*tg.Updates)
+
+		msgId = updates.Updates[0].(*tg.UpdateMessageID).ID
+
+		return nil
+	})
 
 	if err != nil {
 		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
 	}
-
-	document := message.UploadedDocument(upload).Filename(fileName).ForceFile(true)
-
-	res, err := cache.CachedFunction(utils.GetChannelById, fmt.Sprintf("channels:%d", us.ChannelID))(c, api, us.ChannelID)
-
-	if err != nil {
-		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
-	}
-
-	channel := res.(*tg.Channel)
-
-	target := sender.To(&tg.InputPeerChannel{ChannelID: channel.ID, AccessHash: channel.AccessHash})
-
-	res, err = target.Media(c, document)
-
-	if err != nil {
-		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
-	}
-
-	updates := res.(*tg.Updates)
-
-	msgId := updates.Updates[0].(*tg.UpdateMessageID).ID
 
 	partUpload := &models.Upload{
 		Name:       fileName,

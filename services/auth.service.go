@@ -23,6 +23,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-jose/go-jose/v3/jwt"
 	"github.com/gorilla/websocket"
+	"github.com/gotd/contrib/bg"
 	"github.com/gotd/td/session"
 	tgauth "github.com/gotd/td/telegram/auth"
 	"github.com/gotd/td/telegram/auth/qrlogin"
@@ -204,15 +205,15 @@ func (as *AuthService) GetSession(c *gin.Context) *types.Session {
 func (as *AuthService) Logout(c *gin.Context) (*schemas.Message, *types.AppError) {
 	val, _ := c.Get("jwtUser")
 	jwtUser := val.(*types.JWTClaims)
-	userId, _ := strconv.Atoi(jwtUser.Subject)
-	tgClient, stop, err := utils.GetAuthClient(jwtUser.TgSession, userId)
+	userId, _ := strconv.ParseInt(jwtUser.Subject, 10, 64)
 
-	if err != nil {
-		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
-	}
+	client, _ := utils.GetAuthClient(c, jwtUser.TgSession, userId)
 
-	tgClient.Tg.API().AuthLogOut(c)
-	utils.StopClient(stop, userId)
+	client.Run(c, func(ctx context.Context) error {
+		_, err := client.API().AuthLogOut(c)
+		return err
+	})
+
 	setCookie(c, as.SessionCookieName, "", -1)
 	return &schemas.Message{Status: true, Message: "logout success"}, nil
 }
@@ -246,8 +247,16 @@ func (as *AuthService) HandleMultipleLogin(c *gin.Context) {
 	dispatcher := tg.NewUpdateDispatcher()
 	loggedIn := qrlogin.OnLoginToken(dispatcher)
 	sessionStorage := &session.StorageMemory{}
-	tgClient, stop, _ := utils.GetNonAuthClient(dispatcher, sessionStorage)
+	tgClient := utils.GetNonAuthClient(dispatcher, sessionStorage)
+
+	stop, err := bg.Connect(tgClient)
+
 	defer stop()
+
+	if err != nil {
+		return
+	}
+
 	for {
 		message := &SocketMessage{}
 		err := conn.ReadJSON(message)
@@ -336,7 +345,6 @@ func (as *AuthService) HandleMultipleLogin(c *gin.Context) {
 			}()
 		}
 		if err != nil {
-			log.Println(err)
 			return
 		}
 	}

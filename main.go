@@ -33,7 +33,7 @@ func main() {
 
 	cache.CacheInit()
 
-	utils.StartBotTgClients()
+	utils.InitBotClients()
 
 	cron.FilesDeleteJob()
 

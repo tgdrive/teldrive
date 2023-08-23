@@ -15,7 +15,7 @@ type Result struct {
 	ID        string
 	Parts     models.Parts
 	TgSession string
-	UserId    int
+	UserId    int64
 	ChannelId int64
 }
 
@@ -56,17 +56,14 @@ func FilesDeleteJob() {
 	}
 
 	for _, file := range results {
-		client, stop, err := utils.GetAuthClient(file.TgSession, file.UserId)
+		client, err := utils.GetAuthClient(ctx, file.TgSession, file.UserId)
 		if err != nil {
 			break
 		}
-		if stop != nil {
-			defer func() {
-				utils.StopClient(stop, file.UserId)
-			}()
-		}
-
-		err = deleteTGMessage(ctx, client.Tg.API(), file)
+		err = client.Run(ctx, func(ctx context.Context) error {
+			err = deleteTGMessage(ctx, client.API(), file)
+			return err
+		})
 
 		if err == nil {
 			db.Where("id = ?", file.ID).Delete(&models.File{})

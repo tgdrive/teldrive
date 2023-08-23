@@ -304,27 +304,10 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 
 	w := c.Writer
 	r := c.Request
-	config := utils.GetConfig()
 
 	fileID := c.Param("fileID")
 
-	var tgClient *utils.Client
-
 	var err error
-	if config.MultiClient {
-		tgClient = utils.GetBotClient()
-		tgClient.Workload++
-
-	} else {
-		val, _ := c.Get("jwtUser")
-		jwtUser := val.(*types.JWTClaims)
-		userId, _ := strconv.Atoi(jwtUser.Subject)
-		tgClient, _, err = utils.GetAuthClient(jwtUser.TgSession, userId)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-	}
 
 	res, err := cache.CachedFunction(fs.GetFileByID, fmt.Sprintf("files:%s", fileID))(c)
 
@@ -365,34 +348,29 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 
 	w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", file.Name))
 
-	parts, err := fs.getParts(c, tgClient.Tg, file)
+	client, idx := utils.GetDownloadClient(c)
 
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	parts = rangedParts(parts, int64(start), int64(end))
+	defer func() {
+		utils.Workloads[idx]--
+	}()
 
 	ir, iw := io.Pipe()
-
+	parts, err := fs.getParts(c, client, file)
+	if err != nil {
+		return
+	}
+	parts = rangedParts(parts, int64(start), int64(end))
 	go func() {
 		defer iw.Close()
 		for _, part := range parts {
-			streamFilePart(c, tgClient.Tg, iw, &part, part.Start, part.End, 1024*1024)
+			streamFilePart(c, client, iw, &part, part.Start, part.End, 1024*1024)
 		}
 	}()
-
 	if r.Method != "HEAD" {
 		io.CopyN(w, ir, contentLength)
 
 	}
 
-	defer func() {
-		if config.MultiClient {
-			tgClient.Workload--
-		}
-	}()
 }
 
 func (fs *FileService) getParts(ctx context.Context, tgClient *telegram.Client, file *schemas.FileOutFull) ([]types.Part, error) {
