@@ -39,4 +39,4 @@ jobs:
           context: ./
           pull: true
           push: true
-          tags: ${{ steps.imagename.outputs.name }}:test
+          tags: ${{ steps.imagename.outputs.name }}:latest
