@@ -1,4 +1,10 @@
-FROM golang:alpine as builder
+FROM --platform=${BUILDPLATFORM:-linux/amd64} golang:alpine as builder
+
+ARG TARGETPLATFORM
+ARG BUILDPLATFORM
+ARG TARGETOS
+ARG TARGETARCH
+
 
 RUN apk update && apk add --no-cache git ca-certificates tzdata && update-ca-certificates
 
@@ -12,12 +18,12 @@ RUN go mod download && go mod verify
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
     -ldflags='-w -s -extldflags "-static"' -a \
     -o /app/teldrive .
 
 
-FROM scratch
+FROM --platform=${TARGETPLATFORM:-linux/amd64} scratch
 
 WORKDIR /app
 
