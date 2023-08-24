@@ -83,6 +83,7 @@ HTTPS=false
 COOKIE_SAME_SITE=true
 JWT_SECRET=abc
 DATABASE_URL=abc
+RATE_LIMIT=true
 TG_CLIENT_DEVICE_MODEL="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36 Edg/115.0.1901.203" # Any valid  browser user agent here
 TG_CLIENT_SYSTEM_VERSION=Win32
 TG_CLIENT_APP_VERSION=2.1.9 K

@@ -15,11 +15,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gotd/contrib/bg"
 	"github.com/gotd/contrib/middleware/floodwait"
+	"github.com/gotd/contrib/middleware/ratelimit"
 	tdclock "github.com/gotd/td/clock"
 	"github.com/gotd/td/session"
 	"github.com/gotd/td/telegram"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
+	"golang.org/x/time/rate"
 )
 
 var clients map[int64]*telegram.Client
@@ -54,7 +56,12 @@ func GetBotClient(clientName string) *telegram.Client {
 	sessionStorage := &telegram.FileSessionStorage{
 		Path: filepath.Join("sessions", clientName+".json"),
 	}
+
 	middlewares := []telegram.Middleware{floodwait.NewSimpleWaiter()}
+
+	if config.RateLimit {
+		middlewares = append(middlewares, ratelimit.New(rate.Every(time.Millisecond*100), 5))
+	}
 
 	options := telegram.Options{
 		SessionStorage:      sessionStorage,
@@ -88,7 +95,13 @@ func GetAuthClient(ctx context.Context, sessionStr string, userId int64) (*teleg
 	if err := loader.Save(ctx, data); err != nil {
 		return nil, err
 	}
+
 	middlewares := []telegram.Middleware{floodwait.NewSimpleWaiter()}
+
+	if config.RateLimit {
+		middlewares = append(middlewares, ratelimit.New(rate.Every(time.Millisecond*100), 5))
+	}
+
 	client := telegram.NewClient(config.AppId, config.AppHash, telegram.Options{
 		SessionStorage:      storage,
 		Middlewares:         middlewares,
