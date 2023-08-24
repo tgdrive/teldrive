@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   server:
-    image: ghcr.io/divyam234/teldrive/server:test
+    image: ghcr.io/divyam234/teldrive/server:latest
     restart: always
     container_name: server
     volumes:
