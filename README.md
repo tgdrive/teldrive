@@ -23,7 +23,6 @@
 
 ## Demo
 
-
 ![demo](./public/demo.png)
 
 [UI Repo ](https://github.com/divyam234/teldrive-ui)
@@ -34,22 +33,17 @@ First clone the repository
 git clone https://github.com/divyam234/teldrive
 cd teldrive
 ```
+
+
 **Follow Below Steps**
 
 - Create the `.env` file with your variables and start your container.
-- **If you are deploying without https replace nginx.conf with  nginx_nossl.conf
-in docker-compose.yml**.
 
-**It should look like this below if you are not using https.**
-```yml
-volumes:
-      - ./nginx_nossl.conf:/etc/nginx/conf.d/default.conf
-ports:
-    - 8000:8000
-```
 ```sh
 docker compose up -d
 ```
+
+**Uploads from ui will be slower due to limitations of browser use [Teldrive Uploader](https://github.com/divyam234/teldrive-upload) for faster uploads.Make sure to use Multi Client mode if you are using uploader.**
 
 ### Deploy without docker-compose(Not working will be fixed later)
 First clone the repository

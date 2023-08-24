@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   server:
-    image: ghcr.io/divyam234/teldrive/server:latest
+    image: ghcr.io/divyam234/teldrive/server:test
     restart: always
     container_name: server
     volumes:
@@ -19,16 +19,15 @@ services:
     ports:
       - 3000
       
-  nginx:
-    image: nginx:alpine
-    restart: always
-    container_name: nginx
+  haproxy:
+    image: haproxy:latest
     volumes:
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf
-      - ./certs:/etc/nginx/certs:ro
+    - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg
+    # ports:
+    #   - 80:80
+    #   - 443:443
     ports:
-      - 80:80
-      - 443:443
+      - 8000:8000
     depends_on:
-      - server
-      - client
+     - server
+     - client
