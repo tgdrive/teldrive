@@ -115,17 +115,25 @@ func GetAuthClient(ctx context.Context, sessionStr string, userId int64) (*teleg
 	return client, nil
 }
 
-func GetNonAuthClient(handler telegram.UpdateHandler, storage telegram.SessionStorage) *telegram.Client {
+func StartNonAuthClient(handler telegram.UpdateHandler, storage telegram.SessionStorage) (*telegram.Client, bg.StopFunc, error) {
+	middlewares := []telegram.Middleware{}
+	if config.RateLimit {
+		middlewares = append(middlewares, ratelimit.New(rate.Every(time.Millisecond*100), 5))
+	}
 	client := telegram.NewClient(config.AppId, config.AppHash, telegram.Options{
-		SessionStorage:      storage,
-		Device:              getDeviceConfig(),
-		UpdateHandler:       handler,
-		ReconnectionBackoff: reconnectionBackoff,
-		RetryInterval:       5 * time.Second,
-		MaxRetries:          5,
+		SessionStorage: storage,
+		Middlewares:    middlewares,
+		Device:         getDeviceConfig(),
+		UpdateHandler:  handler,
 	})
 
-	return client
+	stop, err := bg.Connect(client)
+
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return client, stop, nil
 }
 
 func startBotClient(ctx context.Context, client *telegram.Client, token string) (bg.StopFunc, error) {
