@@ -54,7 +54,7 @@ func GetBotClient(clientName string) *telegram.Client {
 
 	config := GetConfig()
 	sessionStorage := &telegram.FileSessionStorage{
-		Path: filepath.Join("sessions", clientName+".json"),
+		Path: filepath.Join(config.ExecDir, "sessions", clientName+".json"),
 	}
 
 	middlewares := []telegram.Middleware{floodwait.NewSimpleWaiter()}
@@ -186,9 +186,8 @@ func InitBotClients() {
 	Workloads = make(map[int]int)
 
 	if config.MultiClient {
-		sessionDir := "sessions"
 
-		if err := os.MkdirAll(sessionDir, 0700); err != nil {
+		if err := os.MkdirAll(filepath.Join(config.ExecDir, "sessions"), 0700); err != nil {
 			return
 		}
 

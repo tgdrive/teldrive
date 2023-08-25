@@ -1,6 +1,9 @@
 package utils
 
 import (
+	"path/filepath"
+
+	"github.com/joho/godotenv"
 	"github.com/kelseyhightower/envconfig"
 )
 
@@ -24,15 +27,23 @@ type Config struct {
 	TgClientLangPack       string `envconfig:"TG_CLIENT_LANG_PACK" default:"webk"`
 	RunMigrations          bool   `envconfig:"RUN_MIGRATIONS" default:"true"`
 	Port                   int    `envconfig:"PORT" default:"8080"`
+	ExecDir                string
 }
 
 var config Config
 
 func InitConfig() {
+
+	execDir := getExecutableDir()
+
+	godotenv.Load(filepath.Join(execDir, ".env"))
+
+	godotenv.Load(filepath.Join(execDir, "teldrive.env"))
 	err := envconfig.Process("", &config)
 	if err != nil {
 		panic(err)
 	}
+	config.ExecDir = execDir
 }
 
 func GetConfig() *Config {

@@ -3,6 +3,7 @@ package database
 import (
 	"log"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/divyam234/teldrive/utils"
@@ -64,11 +65,13 @@ func InitDB() {
 
 func migrate() {
 
+	config := utils.GetConfig()
+
 	if err := goose.SetDialect("postgres"); err != nil {
 		panic(err)
 	}
 	db, _ := DB.DB()
-	if err := goose.Up(db, "database/migrations"); err != nil {
+	if err := goose.Up(db, filepath.Join(config.ExecDir, "database", "migrations")); err != nil {
 		panic(err)
 	}
 }

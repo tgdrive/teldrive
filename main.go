@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/divyam234/teldrive/cache"
@@ -13,7 +14,6 @@ import (
 	"github.com/divyam234/teldrive/utils/cron"
 	"github.com/gin-gonic/gin"
 	"github.com/go-co-op/gocron"
-	"github.com/joho/godotenv"
 )
 
 func main() {
@@ -21,9 +21,6 @@ func main() {
 	gin.SetMode(gin.ReleaseMode)
 
 	router := gin.Default()
-
-	godotenv.Load()
-	godotenv.Load("teldrive.env")
 
 	utils.InitConfig()
 
@@ -55,10 +52,11 @@ func main() {
 
 	routes.GetRoutes(router)
 
-	ok, _ := utils.PathExists("./sslcerts")
 	config := utils.GetConfig()
+	certDir := filepath.Join(config.ExecDir, "sslcerts")
+	ok, _ := utils.PathExists(certDir)
 	if ok && config.Https {
-		router.RunTLS(fmt.Sprintf(":%d", config.Port), "./sslcerts/cert.pem", "./sslcerts/key.pem")
+		router.RunTLS(fmt.Sprintf(":%d", config.Port), filepath.Join(certDir, "cert.pem"), filepath.Join(certDir, "key.pem"))
 	} else {
 		router.Run(fmt.Sprintf(":%d", config.Port))
 	}

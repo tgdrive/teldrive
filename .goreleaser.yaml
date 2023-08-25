@@ -7,7 +7,7 @@ builds:
     flags:
       - -trimpath
     ldflags:
-      - -s -w
+      - -s -w -extldflags "-static"'
       - -X {{ .ModulePath }}/pkg/consts.Version={{ .Version }}
       - -X {{ .ModulePath }}/pkg/consts.Commit={{ .ShortCommit }}
       - -X {{ .ModulePath }}/pkg/consts.CommitDate={{ .CommitDate }}
