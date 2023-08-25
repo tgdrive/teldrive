@@ -168,20 +168,18 @@ func (fs *FileService) ListFiles(c *gin.Context) (*schemas.FileResponse, *types.
 	query := fs.Db.Model(&models.File{}).Limit(pagingParams.PerPage)
 
 	if fileQuery.Op == "list" {
-		filters := []string{}
-		filters = setOrderFilter(&pagingParams, &sortingParams, filters)
 
 		if pathExists, message := fs.CheckIfPathExists(&fileQuery.Path); !pathExists {
 			return nil, &types.AppError{Error: errors.New(message), Code: http.StatusNotFound}
 		}
 
-		query = query.Order("type DESC").Order(getOrder(sortingParams)).
+		setOrderFilter(query, &pagingParams, &sortingParams)
+
+		query.Order("type DESC").Order(getOrder(sortingParams)).
 			Where(map[string]interface{}{"user_id": userId, "status": "active"}).
-			Where("parent_id in (?)", fs.Db.Model(&models.File{}).Select("id").Where("path = ?", fileQuery.Path)).
-			Where(strings.Join(filters, " AND "))
+			Where("parent_id in (?)", fs.Db.Model(&models.File{}).Select("id").Where("path = ?", fileQuery.Path))
 
 	} else if fileQuery.Op == "find" {
-		filters := []string{}
 
 		filterQuery := map[string]interface{}{}
 
@@ -197,18 +195,17 @@ func (fs *FileService) ListFiles(c *gin.Context) (*schemas.FileResponse, *types.
 			delete(filterQuery, "updated_at")
 		}
 
-		filters = setOrderFilter(&pagingParams, &sortingParams, filters)
+		setOrderFilter(query, &pagingParams, &sortingParams)
 
-		query = query.Order("type DESC").Order(getOrder(sortingParams)).Where(filterQuery).
-			Where(filters)
+		query.Order("type DESC").Order(getOrder(sortingParams)).Where(filterQuery)
 
 	} else if fileQuery.Op == "search" {
-		filters := []string{
-			fmt.Sprintf("teldrive.get_tsquery('%s') @@ teldrive.get_tsvector(name)", fileQuery.Search),
-		}
-		filters = setOrderFilter(&pagingParams, &sortingParams, filters)
 
-		query = query.Order(getOrder(sortingParams)).Where(strings.Join(filters, " AND "))
+		query.Where("teldrive.get_tsquery(?) @@ teldrive.get_tsvector(name)", fileQuery.Search)
+
+		setOrderFilter(query, &pagingParams, &sortingParams)
+		query.Order(getOrder(sortingParams))
+
 	}
 
 	var results []schemas.FileOut
@@ -458,7 +455,7 @@ func mapFileToFileOutFull(file models.File) *schemas.FileOutFull {
 	}
 }
 
-func setOrderFilter(pagingParams *schemas.PaginationQuery, sortingParams *schemas.SortingQuery, filters []string) []string {
+func setOrderFilter(query *gorm.DB, pagingParams *schemas.PaginationQuery, sortingParams *schemas.SortingQuery) *gorm.DB {
 	if pagingParams.NextPageToken != "" {
 		sortColumn := sortingParams.Sort
 		if sortColumn == "name" {
@@ -470,13 +467,13 @@ func setOrderFilter(pagingParams *schemas.PaginationQuery, sortingParams *schema
 		tokenValue, err := base64.StdEncoding.DecodeString(pagingParams.NextPageToken)
 		if err == nil {
 			if sortingParams.Order == "asc" {
-				filters = append(filters, fmt.Sprintf("%s > '%s'", sortColumn, string(tokenValue)))
+				return query.Where(fmt.Sprintf("%s > ?", sortColumn), string(tokenValue))
 			} else {
-				filters = append(filters, fmt.Sprintf("%s < '%s'", sortColumn, string(tokenValue)))
+				return query.Where(fmt.Sprintf("%s < ?", sortColumn), string(tokenValue))
 			}
 		}
 	}
-	return filters
+	return query
 }
 
 func getOrder(sortingParams schemas.SortingQuery) string {
