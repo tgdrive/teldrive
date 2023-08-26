@@ -43,7 +43,9 @@ cd teldrive
 docker compose up -d
 ```
 
-**Uploads from ui will be slower due to limitations of browser use [Teldrive Uploader](https://github.com/divyam234/teldrive-upload) for faster uploads.Make sure to use Multi Client mode if you are using uploader.**
+- **Uploads from ui will be slower due to limitations of browser use [Teldrive Uploader](https://github.com/divyam234/teldrive-upload) for faster uploads.Make sure to use Multi Client mode if you are using uploader.**
+
+- **If you want to share download links with others make sure to use multi client mode with bots otherwise it will not work.**
 
 ### Deploy without docker-compose(Not working will be fixed later)
 First clone the repository
