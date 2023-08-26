@@ -86,7 +86,7 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 
 	defer func() {
 		if idx != -1 {
-			utils.Workloads[idx]--
+			utils.GetClientWorkload().Dec(idx)
 		}
 		cancel()
 	}()

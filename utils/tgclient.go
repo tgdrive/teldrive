@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -26,7 +27,54 @@ import (
 
 var clients map[int64]*telegram.Client
 
-var Workloads map[int]int
+type Workload struct {
+	mu        sync.Mutex
+	workloads map[int]int
+}
+
+func (w *Workload) Set(key int, value int) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.workloads[key] = value
+}
+
+func (w *Workload) Get(key int) int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.workloads[key]
+}
+
+func (w *Workload) Inc(key int) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.workloads[key]++
+}
+
+func (w *Workload) Dec(key int) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.workloads[key]--
+}
+
+func (w *Workload) GetMinIndex() int {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	smallest := w.workloads[0]
+	idx := 0
+	for i, workload := range clientWorkload.workloads {
+		if workload < smallest {
+			smallest = workload
+			idx = i
+		}
+	}
+	return idx
+}
+
+var clientWorkload *Workload
+
+func GetClientWorkload() *Workload {
+	return clientWorkload
+}
 
 func getDeviceConfig() telegram.DeviceConfig {
 	appConfig := GetConfig()
@@ -183,7 +231,8 @@ func InitBotClients() {
 	ctx := context.Background()
 
 	clients = make(map[int64]*telegram.Client)
-	Workloads = make(map[int]int)
+
+	clientWorkload = &Workload{workloads: make(map[int]int)}
 
 	if config.MultiClient {
 
@@ -205,7 +254,7 @@ func InitBotClients() {
 
 		for idx, key := range keysToSort {
 			client := GetBotClient(fmt.Sprintf("client%d", idx))
-			Workloads[idx] = 0
+			clientWorkload.Set(idx, 0)
 			clients[int64(idx)] = client
 			go func(k string) {
 				startBotClient(ctx, client, os.Getenv(k))
@@ -215,22 +264,10 @@ func InitBotClients() {
 	}
 }
 
-func getMinWorkloadIndex() int {
-	smallest := Workloads[0]
-	idx := 0
-	for i, workload := range Workloads {
-		if workload < smallest {
-			smallest = workload
-			idx = i
-		}
-	}
-	return idx
-}
-
 func GetUploadClient(c *gin.Context) (*telegram.Client, int) {
 	if config.MultiClient {
-		idx := getMinWorkloadIndex()
-		Workloads[idx]++
+		idx := clientWorkload.GetMinIndex()
+		clientWorkload.Inc(idx)
 		return GetBotClient(fmt.Sprintf("client%d", idx)), idx
 	} else {
 		val, _ := c.Get("jwtUser")
@@ -243,8 +280,8 @@ func GetUploadClient(c *gin.Context) (*telegram.Client, int) {
 
 func GetDownloadClient(c *gin.Context) (*telegram.Client, int) {
 	if config.MultiClient {
-		idx := getMinWorkloadIndex()
-		Workloads[idx]++
+		idx := clientWorkload.GetMinIndex()
+		clientWorkload.Inc(idx)
 		return clients[int64(idx)], idx
 	} else {
 		val, _ := c.Get("jwtUser")

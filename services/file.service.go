@@ -266,7 +266,7 @@ func (fs *FileService) MoveFiles(c *gin.Context) (*schemas.Message, *types.AppEr
 
 	var destination models.File
 
-	if pathExists, message := fs.CheckIfPathExists(&payload.Destination); pathExists == false {
+	if pathExists, message := fs.CheckIfPathExists(&payload.Destination); !pathExists {
 		return nil, &types.AppError{Error: errors.New(message), Code: http.StatusBadRequest}
 	}
 
@@ -343,12 +343,18 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 
 	w.Header().Set("Content-Length", strconv.FormatInt(contentLength, 10))
 
-	w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=\"%s\"", file.Name))
+	disposition := "inline"
+
+	if c.Query("d") == "1" {
+		disposition = "attachment"
+	}
+
+	w.Header().Set("Content-Disposition", fmt.Sprintf("%s; filename=\"%s\"", disposition, file.Name))
 
 	client, idx := utils.GetDownloadClient(c)
 
 	defer func() {
-		utils.Workloads[idx]--
+		utils.GetClientWorkload().Dec(idx)
 	}()
 
 	ir, iw := io.Pipe()
@@ -357,15 +363,15 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 		return
 	}
 	parts = rangedParts(parts, int64(start), int64(end))
-	go func() {
-		defer iw.Close()
-		for _, part := range parts {
-			streamFilePart(c, client, iw, &part, part.Start, part.End, 1024*1024)
-		}
-	}()
-	if r.Method != "HEAD" {
-		io.CopyN(w, ir, contentLength)
 
+	if r.Method != "HEAD" {
+		go func() {
+			defer iw.Close()
+			for _, part := range parts {
+				streamFilePart(c, client, iw, &part, part.Start, part.End, 1024*1024)
+			}
+		}()
+		io.CopyN(w, ir, contentLength)
 	}
 
 }
@@ -507,13 +513,25 @@ func chunk(ctx context.Context, tgClient *telegram.Client, part *types.Part, off
 	}
 }
 
+func totalParts(start, end, chunkSize int64) int {
+
+	totalBytes := end - start + 1
+	parts := totalBytes / chunkSize
+
+	if totalBytes%chunkSize != 0 {
+		parts++
+	}
+
+	return int(parts)
+}
+
 func streamFilePart(ctx context.Context, tgClient *telegram.Client, writer *io.PipeWriter, part *types.Part, start, end, chunkSize int64) error {
 
 	offset := start - (start % chunkSize)
 	firstPartCut := start - offset
 	lastPartCut := (end % chunkSize) + 1
 
-	partCount := int(math.Ceil(float64(end+1)/float64(chunkSize))) - int(math.Floor(float64(offset)/float64(chunkSize)))
+	partCount := totalParts(start, end, chunkSize)
 
 	currentPart := 1
 
