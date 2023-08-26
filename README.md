@@ -47,7 +47,7 @@ docker compose up -d
 
 - **If you want to share download links with others make sure to use multi client mode with bots otherwise it will not work.**
 
-### Deploy without docker-compose(Not working will be fixed later)
+### Deploy without docker-compose
 First clone the repository
 ```sh
 git clone https://github.com/divyam234/teldrive
@@ -55,7 +55,7 @@ git clone https://github.com/divyam234/teldrive
 ```
 **Follow Below Steps**
 
-- Fork UI Repo given above and Deploy it to Vercel.
+- Fork UI Repo given above and Deploy it to Vercel or just use https://teldrive.vercel.app.
 - Download release binary of teldrive from releases section.
 - .env file will be same as mentioned above and additionally set variables mentioned below.As vercel app is hosted on https so we need local server also on https so that cookies works.
 ```shell
@@ -67,7 +67,9 @@ COOKIE_SAME_SITE=false
 - If you are using windows make sure to add cert as trusted using mkcert or manually.(You can see mkcert cli how to add that) 
 
 - Rename generated cert and key as cert.pem and key.pem respectively.
-
+  
+- Make sure to add database migrations directory where where executable is present.
+  
 - Now run the teldrive executable from releases.
 
 - Finally change API URL from UI deployed on vercel to https://localhost:8080 in settings.
