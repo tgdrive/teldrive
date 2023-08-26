@@ -165,7 +165,8 @@ func (fs *FileService) ListFiles(c *gin.Context) (*schemas.FileResponse, *types.
 		return nil, &types.AppError{Error: errors.New(""), Code: http.StatusBadRequest}
 	}
 
-	query := fs.Db.Model(&models.File{}).Limit(pagingParams.PerPage)
+	query := fs.Db.Model(&models.File{}).Limit(pagingParams.PerPage).
+		Where(map[string]interface{}{"user_id": userId, "status": "active"})
 
 	if fileQuery.Op == "list" {
 
@@ -176,7 +177,6 @@ func (fs *FileService) ListFiles(c *gin.Context) (*schemas.FileResponse, *types.
 		setOrderFilter(query, &pagingParams, &sortingParams)
 
 		query.Order("type DESC").Order(getOrder(sortingParams)).
-			Where(map[string]interface{}{"user_id": userId, "status": "active"}).
 			Where("parent_id in (?)", fs.Db.Model(&models.File{}).Select("id").Where("path = ?", fileQuery.Path))
 
 	} else if fileQuery.Op == "find" {
