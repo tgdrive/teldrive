@@ -23,7 +23,7 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
     -o /app/teldrive .
 
 
-FROM --platform=${TARGETPLATFORM:-linux/amd64} scratch
+FROM --platform=${TARGETPLATFORM:-linux/amd64} busybox
 
 WORKDIR /app
 
