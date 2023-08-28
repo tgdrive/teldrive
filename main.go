@@ -31,9 +31,7 @@ func main() {
 	cache.CacheInit()
 
 	utils.InitBotClients()
-
-	cron.FilesDeleteJob()
-
+	
 	scheduler := gocron.NewScheduler(time.UTC)
 
 	scheduler.Every(1).Hours().Do(cron.FilesDeleteJob)
