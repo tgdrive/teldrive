@@ -3,6 +3,7 @@ package services
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -70,10 +71,10 @@ func (us *UserService) GetProfilePhoto(c *gin.Context) {
 			return err
 		}
 		peer := self.AsInputPeer()
-		if self.Photo == nil {
-			return nil
+		photo, ok := self.Photo.AsNotEmpty()
+		if !ok {
+			return errors.New("profile not found")
 		}
-		photo, _ := self.Photo.AsNotEmpty()
 		location := &tg.InputPeerPhotoFileLocation{Big: false, Peer: peer, PhotoID: photo.PhotoID}
 		buff, err := iterContent(c, client, location)
 		if err != nil {
@@ -88,7 +89,7 @@ func (us *UserService) GetProfilePhoto(c *gin.Context) {
 		return nil
 	})
 	if err != nil {
-		http.Error(c.Writer, err.Error(), http.StatusBadRequest)
+		c.AbortWithError(http.StatusNotFound, err)
 		return
 	}
 }
