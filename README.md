@@ -1,4 +1,7 @@
-<h1 align="center"> Fast Telegram Drive</h1>
+# Telegram Drive
+
+Telegram Drive is a powerful utility that enables you to create your own cloud storage service using Telegram as the backend.
+
 
 [![Discord](https://img.shields.io/discord/1142377485737148479?label=discord&logo=discord&style=flat-square&logoColor=white)](https://discord.gg/hfTUKGU2C6)
 
@@ -7,10 +10,12 @@
   <summary>Table of Contents</summary>
   <ol>
     <li>
-      <a href="#how-to-make-your-own">How to make your own</a>
       <ul>
+      <li>
+      <a href="#features">Features</a>
+    </li>
         <li><a href="#deploy-using-docker-compose">Deploy using docker-compose</a></li>
-       <li><a href="#deploy-without-docker-compose">Deploy without docker-compose</a></li>
+       <li><a href="#use-without-docker">Use without docker</a></li>
       </ul>
     </li>
     <li><a href="#setting-up-things">Setting up things</a></li>
@@ -21,6 +26,15 @@
   </ol>
 </details>
 
+## Features
+
+- **UI:** Based on Material You to create nice looking UI themes.
+- **Fast Downloads:** Get your files quickly with high-speed downloads.
+- **Fast Uploads:** Upload your files faster using multi bots.
+- **Multi-Client Support:** Avoid rate limits and maximize download speeds with multiple clients.
+- **Secure:** Your data is secured using Telegram's robust encryption.
+- **Flexible Deployment:** Use Docker Compose or deploy without Docker.
+- **Authentication:** Supports Phone, QR and 2FA login.
 ## Demo
 
 ![demo](./public/demo.png)
@@ -37,17 +51,17 @@ cd teldrive
 
 **Follow Below Steps**
 
-- Create the `.env` file with your variables and start your container.
+- Create the `.env` or `teldrive.env`  file with your variables and start your container.
 
 ```sh
 docker compose up -d
 ```
 
-- **Uploads from ui will be slower due to limitations of browser use [Teldrive Uploader](https://github.com/divyam234/teldrive-upload) for faster uploads.Make sure to use Multi Client mode if you are using uploader.**
+- **Uploads from UI will be slower due to limitations of browser use [Teldrive Uploader](https://github.com/divyam234/teldrive-upload) for faster uploads.Make sure to use Multi Client mode if you are using uploader.**
 
-- **If you want to share download links with others make sure to use multi client mode with bots otherwise it will not work.**
+- **If you intend to share download links with others, ensure that you enable multi-client mode with bots.**
 
-### Deploy without docker-compose
+### Use without docker
 First clone the repository
 ```sh
 git clone https://github.com/divyam234/teldrive
@@ -55,28 +69,28 @@ git clone https://github.com/divyam234/teldrive
 ```
 **Follow Below Steps**
 
-- Fork UI Repo given above and Deploy it to Vercel or just use https://teldrive.vercel.app.
-- Download release binary of teldrive from releases section.
-- .env file will be same as mentioned above and additionally set variables mentioned below.As vercel app is hosted on https so we need local server also on https so that cookies works.
+- Fork the UI Repository mentioned above and deploy it to Vercel, or simply use https://teldrive.vercel.app.
+- Download the release binary of Teldrive from the releases section.
+- Your `.env` file will remain the same as mentioned earlier. Additionally, set variables as specified below. Since the UI is hosted on HTTPS, we need a local server on HTTPS for cookies to function.
 ```shell
 HTTPS=true
 COOKIE_SAME_SITE=false
 ```
-- Generate https cert and key  for localhost using mkcert and put these in sslcerts directory where executable is present.
+- Generate HTTPS certificates for localhost using mkcert and place them in the sslcerts directory where the executable is located.
 
-- If you are using windows make sure to add cert as trusted using mkcert or manually.(You can see mkcert cli how to add that) 
+- If you are using Windows, ensure that you add the certificate as trusted using mkcert or manually (you can find instructions in the mkcert documentation).
 
 - Rename generated cert and key as cert.pem and key.pem respectively.
   
-- Make sure to add database migrations directory where where executable is present.
+- Make sure to add database migrations directory where executable is present.
   
-- Now run the teldrive executable from releases.
+- Now, run the Teldrive executable from the releases.
 
-- Finally change API URL from UI deployed on vercel to https://localhost:8080 in settings.
+- Finally, update the API URL in the UI deployed on Vercel to https://localhost:8080 in the settings.
 
 ## Setting up things
 
-If you're locally or remotely hosting, create a file named `.env` in the root directory and add all the variables there.
+If you're locally or remotely hosting, create a file named `.env` or `teldrive.env`  in the root directory and add all the variables there.
 An example of `.env` file:
 
 ```sh
@@ -88,7 +102,7 @@ COOKIE_SAME_SITE=true
 JWT_SECRET=abc
 DATABASE_URL=abc
 RATE_LIMIT=true
-TG_CLIENT_DEVICE_MODEL="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36 Edg/115.0.1901.203" # Any valid  browser user agent here
+TG_CLIENT_DEVICE_MODEL="Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/116.0" # Any valid  browser user agent here
 TG_CLIENT_SYSTEM_VERSION=Win32
 TG_CLIENT_APP_VERSION=2.1.9 K
 TG_CLIENT_LANG_CODE=en
@@ -108,7 +122,7 @@ $ openssl rand -base64 32
 ```
 
 
-**Multi Client Mode is recommended way to avoid flood errors and to enable max download speed if you are using downloaders like IDM and aria2c which use multiple connections to download files.**
+**Multi-Client Mode is recommended to avoid flood errors and enable maximum download speed, especially if you are using downloaders like IDM and aria2c which use multiple connections for downloads.**
 ### Mandatory Vars
 Before running the bot, you will need to set up the following mandatory variables:
 
@@ -150,7 +164,7 @@ you may also add as many as bots you want. (max limit is not tested yet)
 ## FAQ
 
 - How to get Postgres DB url ?
-> You can spin up local postgres instance but its not recommended as there is lot of hassle in backup and transfering data.Recommended way is to use any free cloud postgres DB.I will recommend to use [Neon DB](https://neon.tech/).
+> You can set up a local Postgres instance, but it's not recommended due to backup and data transfer hassles. The recommended approach is to use a free cloud-based Postgres DB like [Neon DB](https://neon.tech/).
 
 ## Contributing
 
