@@ -71,6 +71,9 @@ func (us *UserService) GetProfilePhoto(c *gin.Context) {
 			return err
 		}
 		peer := self.AsInputPeer()
+		if self.Photo == nil {
+			return nil
+		}
 		photo, ok := self.Photo.AsNotEmpty()
 		if !ok {
 			return errors.New("profile not found")
