@@ -76,3 +76,7 @@ type FileOperation struct {
 type MkDir struct {
 	Path string `json:"path"`
 }
+
+type FileShare struct {
+	ID string `json:"id"`
+}

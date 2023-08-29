@@ -10,11 +10,14 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/divyam234/teldrive/cache"
 	"github.com/divyam234/teldrive/models"
 	"github.com/divyam234/teldrive/schemas"
 	"github.com/divyam234/teldrive/utils"
+	"github.com/divyam234/teldrive/utils/files"
+	"github.com/go-jose/go-jose/v3/jwt"
 
 	"github.com/divyam234/teldrive/types"
 
@@ -84,7 +87,6 @@ func (fs *FileService) CreateFile(c *gin.Context) (*schemas.FileOut, *types.AppE
 			return nil, &types.AppError{Error: errors.New("file exists"), Code: http.StatusBadRequest}
 		}
 		return nil, &types.AppError{Error: errors.New("failed to create a file"), Code: http.StatusBadRequest}
-
 	}
 
 	res := mapFileToFileOut(fileDb)
@@ -254,6 +256,68 @@ func (fs *FileService) MakeDirectory(c *gin.Context) (*schemas.FileOut, *types.A
 
 	return &file, nil
 
+}
+
+func (fs *FileService) ShareFiles(c *gin.Context, session *types.Session) (*string, *types.AppError) {
+	var payload schemas.FileShare
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		return nil, &types.AppError{Error: errors.New("invalida request payload"), Code: http.StatusBadRequest}
+	}
+
+	now := time.Now().UTC()
+	twoDays := 2 * 24 * time.Hour
+
+	jwtClaimsFileSharing := &types.JWTClaimsFileSharing{Claims: jwt.Claims{
+		Subject:  strconv.FormatInt(session.UserID, 10),
+		IssuedAt: jwt.NewNumericDate(now),
+		Expiry:   jwt.NewNumericDate(now.Add(time.Duration(twoDays.Nanoseconds()) * time.Second)),
+	},
+		UserName: session.UserName,
+		FileID:   payload.ID,
+	}
+
+	jweToken, err := files.Encode(jwtClaimsFileSharing)
+	if err != nil {
+		return nil, &types.AppError{Error: err, Code: http.StatusBadRequest}
+	}
+
+	query := fs.Db.Model(&models.File{}).Select("id").Where("id = ?", payload.ID)
+	var results []schemas.FileOut
+	query.Find(&results)
+	if len(results) == 0 {
+		return nil, &types.AppError{Error: errors.New("this file does not exist"), Code: http.StatusInternalServerError}
+	}
+
+	tx := fs.Db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	var sharedToken models.SharedTokens
+	sharedToken.FileID = payload.ID
+	sharedToken.UserID = session.UserID
+	sharedToken.Token = jweToken
+
+	if err := fs.Db.Create(&sharedToken).Error; err != nil {
+		pgErr := err.(*pgconn.PgError)
+		if pgErr.Code == "23505" {
+			tx.Rollback()
+			return nil, &types.AppError{Error: errors.New("token exists"), Code: http.StatusBadRequest}
+		}
+		tx.Rollback()
+		return nil, &types.AppError{Error: errors.New("failed to store token"), Code: http.StatusBadRequest}
+	}
+
+	if err := fs.Db.Model(&models.File{}).Where("id = ?", payload.ID).UpdateColumn("shared_token_id", sharedToken.ID).Error; err != nil {
+		tx.Rollback()
+		return nil, &types.AppError{Error: errors.New("failed to set private token file"), Code: http.StatusInternalServerError}
+	}
+
+	tx.Commit()
+
+	return &sharedToken.FileID, nil
 }
 
 func (fs *FileService) MoveFiles(c *gin.Context) (*schemas.Message, *types.AppError) {

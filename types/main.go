@@ -20,10 +20,16 @@ type Part struct {
 type JWTClaims struct {
 	jwt.Claims
 	TgSession string `json:"tgSession"`
+	UserID    int64  `json:"userId"`
 	Name      string `json:"name"`
 	UserName  string `json:"userName"`
 	Bot       bool   `json:"bot"`
 	IsPremium bool   `json:"isPremium"`
+}
+type JWTClaimsFileSharing struct {
+	jwt.Claims
+	UserName string `json:"userName"`
+	FileID   string `json:"fileId"`
 }
 
 type TgSession struct {
@@ -36,6 +42,7 @@ type TgSession struct {
 }
 
 type Session struct {
+	UserID    int64  `json:"userId"`
 	Name      string `json:"name"`
 	UserName  string `json:"userName"`
 	IsPremium bool   `json:"isPremium"`

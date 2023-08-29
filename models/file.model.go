@@ -29,6 +29,15 @@ type Part struct {
 	ID int64 `json:"id"`
 }
 
+type SharedTokens struct {
+	ID        string    `gorm:"type:text;primaryKey;default:generate_uid(16)"`
+	Token     string    `gorm:"type:text;not null"`
+	FileID    string    `gorm:"type:text;not null"`
+	UserID    int64     `gorm:"type:bigint;not null"`
+	CreatedAt time.Time `gorm:"default:timezone('utc'::text, now())"`
+	UpdatedAt time.Time `gorm:"default:timezone('utc'::text, now())"`
+}
+
 func (a Parts) Value() (driver.Value, error) {
 	return json.Marshal(a)
 }

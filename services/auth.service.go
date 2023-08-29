@@ -115,6 +115,7 @@ func (as *AuthService) LogIn(c *gin.Context) (*schemas.Message, *types.AppError)
 		IssuedAt: jwt.NewNumericDate(now),
 		Expiry:   jwt.NewNumericDate(now.Add(time.Duration(as.SessionMaxAge) * time.Second)),
 	}, TgSession: session.Sesssion,
+		UserID:    session.UserID,
 		Name:      session.Name,
 		UserName:  session.UserName,
 		Bot:       session.Bot,
@@ -186,7 +187,7 @@ func (as *AuthService) GetSession(c *gin.Context) *types.Session {
 
 	newExpires := now.Add(time.Duration(as.SessionMaxAge) * time.Second)
 
-	session := &types.Session{Name: jwePayload.Name, UserName: jwePayload.UserName, Expires: newExpires.Format(time.RFC3339)}
+	session := &types.Session{UserID: jwePayload.UserID, Name: jwePayload.Name, UserName: jwePayload.UserName, Expires: newExpires.Format(time.RFC3339)}
 
 	jwePayload.IssuedAt = jwt.NewNumericDate(now)
 
