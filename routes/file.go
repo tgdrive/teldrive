@@ -80,7 +80,7 @@ func addFileRoutes(rg *gin.RouterGroup) {
 		c.JSON(http.StatusOK, res)
 	})
 
-	r.POST("/makekdir", func(c *gin.Context) {
+	r.POST("/makedir", func(c *gin.Context) {
 
 		res, err := fileService.MakeDirectory(c)
 
