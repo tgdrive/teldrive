@@ -7,21 +7,22 @@ import (
 )
 
 type File struct {
-	ID        string    `gorm:"type:text;primaryKey;default:generate_uid(16)"`
-	Name      string    `gorm:"type:text;not null"`
-	Type      string    `gorm:"type:text;not null"`
-	MimeType  string    `gorm:"type:text;not null"`
-	Path      string    `gorm:"type:text;index"`
-	Size      int64     `gorm:"type:bigint"`
-	Starred   *bool     `gorm:"default:false"`
-	Depth     *int      `gorm:"type:integer"`
-	UserID    int64     `gorm:"type:bigint;not null"`
-	Status    string    `gorm:"type:text"`
-	ParentID  string    `gorm:"type:text;index"`
-	Parts     *Parts    `gorm:"type:jsonb"`
-	ChannelID *int64    `gorm:"type:bigint"`
-	CreatedAt time.Time `gorm:"default:timezone('utc'::text, now())"`
-	UpdatedAt time.Time `gorm:"default:timezone('utc'::text, now())"`
+	ID         string    `gorm:"type:text;primaryKey;default:generate_uid(16)"`
+	Name       string    `gorm:"type:text;not null"`
+	Type       string    `gorm:"type:text;not null"`
+	MimeType   string    `gorm:"type:text;not null"`
+	Path       string    `gorm:"type:text;index"`
+	Size       int64     `gorm:"type:bigint"`
+	Starred    *bool     `gorm:"default:false"`
+	Depth      *int      `gorm:"type:integer"`
+	UserID     int64     `gorm:"type:bigint;not null"`
+	Status     string    `gorm:"type:text"`
+	ParentID   string    `gorm:"type:text;index"`
+	Parts      *Parts    `gorm:"type:jsonb"`
+	ChannelID  *int64    `gorm:"type:bigint"`
+	Visibility string    `gorm:"type:varchar(10);not null;default:'private'"`
+	CreatedAt  time.Time `gorm:"default:timezone('utc'::text, now())"`
+	UpdatedAt  time.Time `gorm:"default:timezone('utc'::text, now())"`
 }
 
 type Parts []Part
@@ -29,13 +30,12 @@ type Part struct {
 	ID int64 `json:"id"`
 }
 
-type SharedTokens struct {
-	ID        string    `gorm:"type:text;primaryKey;default:generate_uid(16)"`
-	Token     string    `gorm:"type:text;not null"`
-	FileID    string    `gorm:"type:text;not null"`
-	UserID    int64     `gorm:"type:bigint;not null"`
-	CreatedAt time.Time `gorm:"default:timezone('utc'::text, now())"`
-	UpdatedAt time.Time `gorm:"default:timezone('utc'::text, now())"`
+type SharedFile struct {
+	ID                 string    `gorm:"type:text;primaryKey;default:generate_uid(16)"`
+	FileID             string    `gorm:"type:text;not null"`
+	SharedWithUsername string    `gorm:"type:text"`
+	CreatedAt          time.Time `gorm:"default:timezone('utc'::text, now())"`
+	UpdatedAt          time.Time `gorm:"default:timezone('utc'::text, now())"`
 }
 
 func (a Parts) Value() (driver.Value, error) {

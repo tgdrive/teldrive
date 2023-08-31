@@ -46,15 +46,16 @@ type FileIn struct {
 }
 
 type FileOut struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	Type      string    `json:"type"`
-	MimeType  string    `json:"mimeType" mapstructure:"mime_type"`
-	Path      string    `json:"path,omitempty" mapstructure:"path,omitempty"`
-	Size      int64     `json:"size,omitempty" mapstructure:"size,omitempty"`
-	Starred   *bool     `json:"starred"`
-	ParentID  string    `json:"parentId,omitempty" mapstructure:"parent_id"`
-	UpdatedAt time.Time `json:"updatedAt,omitempty" mapstructure:"updated_at"`
+	ID         string    `json:"id"`
+	Name       string    `json:"name"`
+	Type       string    `json:"type"`
+	MimeType   string    `json:"mimeType" mapstructure:"mime_type"`
+	Path       string    `json:"path,omitempty" mapstructure:"path,omitempty"`
+	Size       int64     `json:"size,omitempty" mapstructure:"size,omitempty"`
+	Starred    *bool     `json:"starred"`
+	ParentID   string    `json:"parentId,omitempty" mapstructure:"parent_id"`
+	Visibility string    `json:"visibility,omitempty" mapstructure:"visibility"`
+	UpdatedAt  time.Time `json:"updatedAt,omitempty" mapstructure:"updated_at"`
 }
 
 type FileResponse struct {
@@ -78,5 +79,6 @@ type MkDir struct {
 }
 
 type FileShare struct {
-	ID string `json:"id"`
+	Visibility string   `json:"visibility,omitempty"`
+	Usernames  []string `json:"usernames,omitempty"`
 }

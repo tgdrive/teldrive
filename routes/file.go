@@ -68,9 +68,9 @@ func addFileRoutes(rg *gin.RouterGroup) {
 		fileService.GetFileStream(c)
 	})
 
-	r.POST("/sharefiles", func(c *gin.Context) {
+	r.POST("/sharefile/:fileID", func(c *gin.Context) {
 		session := authService.GetSession(c)
-		token, err := fileService.ShareFiles(c, session)
+		token, err := fileService.ShareFile(c, session)
 		if err != nil {
 			c.AbortWithError(err.Code, err.Error)
 			return

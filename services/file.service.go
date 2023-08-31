@@ -6,18 +6,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"math"
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/divyam234/teldrive/cache"
 	"github.com/divyam234/teldrive/models"
 	"github.com/divyam234/teldrive/schemas"
 	"github.com/divyam234/teldrive/utils"
-	"github.com/divyam234/teldrive/utils/files"
-	"github.com/go-jose/go-jose/v3/jwt"
 
 	"github.com/divyam234/teldrive/types"
 
@@ -124,7 +122,112 @@ func (fs *FileService) UpdateFile(c *gin.Context) (*schemas.FileOut, *types.AppE
 	file := mapFileToFileOut(files[0])
 
 	return &file, nil
+}
 
+func (fs *FileService) ShareFile(c *gin.Context, session *types.Session) (*string, *types.AppError) {
+	fileID := c.Param("fileID")
+	var payload schemas.FileShare
+
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		return nil, &types.AppError{Error: errors.New("invalida request payload"), Code: http.StatusBadRequest}
+	}
+	query := fs.Db.Model(&models.File{}).Select("id").Where("id = ?", fileID)
+	var results []schemas.FileOut
+	query.Find(&results)
+	if len(results) == 0 {
+		return nil, &types.AppError{Error: errors.New("this file does not exist"), Code: http.StatusInternalServerError}
+	}
+
+	tx := fs.Db.Begin()
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	var fileUpdate models.File
+	fileUpdate.Visibility = payload.Visibility
+
+	if err := fs.Db.Model(&fileUpdate).Clauses(clause.Returning{}).Where("id = ?", fileID).Updates(fileUpdate).Error; err != nil {
+		return nil, &types.AppError{Error: errors.New("failed to update the file"), Code: http.StatusInternalServerError}
+	}
+
+	log.Println(payload.Usernames, "mira")
+
+	err := fs.Db.Transaction(func(tx *gorm.DB) error {
+		var sharedFileCount int64
+		if err := tx.Model(&models.SharedFile{}).Where("file_id = ?", fileID).Count(&sharedFileCount).Error; err != nil {
+			return err
+		}
+
+		if sharedFileCount == 0 {
+			if len(payload.Usernames) != 0 {
+				// Crear nuevos registros para los usuarios compartidos
+				var sharedFiles []models.SharedFile
+				for _, frontendUser := range payload.Usernames {
+					sharedFiles = append(sharedFiles, models.SharedFile{
+						FileID:             fileID,
+						SharedWithUsername: frontendUser,
+					})
+				}
+				if err := tx.Create(&sharedFiles).Error; err != nil {
+					return err
+				}
+			}
+		} else {
+			var existingSharedUsers []string
+			err := tx.Model(&models.SharedFile{}).Select("shared_with_username").Where("file_id = ?", fileID).Pluck("shared_with_username", &existingSharedUsers).Error
+			if err != nil {
+				return err
+			}
+
+			var newSharedUsers []string
+			var removedSharedUsers []string
+
+			// Identificar nuevos usuarios y usuarios eliminados
+			for _, newUsername := range payload.Usernames {
+				if !utils.Contains(existingSharedUsers, newUsername) {
+					newSharedUsers = append(newSharedUsers, newUsername)
+				}
+			}
+			for _, existingUsername := range existingSharedUsers {
+				if !utils.Contains(payload.Usernames, existingUsername) {
+					removedSharedUsers = append(removedSharedUsers, existingUsername)
+				}
+			}
+			log.Println("new: ", newSharedUsers, "removed: ", removedSharedUsers)
+			// Agregar nuevos usuarios a la lista compartida
+			if len(newSharedUsers) > 0 {
+				// Construir el array de usernames en la consulta SQL
+				usernamesArray := "{" + strings.Join(newSharedUsers, ",") + "}"
+				err = tx.Exec("SELECT teldrive.add_shared_users(?, ?::text[])", fileID, usernamesArray).Error
+				if err != nil {
+					return err
+				}
+			}
+
+			// Eliminar usuarios que ya no están en la lista compartida
+			if len(removedSharedUsers) > 0 {
+				// Construir el array de usernames en la consulta SQL
+				usernamesArray := "{" + strings.Join(removedSharedUsers, ",") + "}"
+				err = tx.Exec("SELECT teldrive.remove_shared_users(?, ?::text[])", fileID, usernamesArray).Error
+				if err != nil {
+					return err
+				}
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		log.Println(err)
+		return nil, &types.AppError{Error: errors.New("failed to update shared usernames"), Code: http.StatusInternalServerError}
+	}
+
+	tx.Commit()
+
+	return &fileUpdate.Visibility, nil
 }
 
 func (fs *FileService) GetFileByID(c *gin.Context) (*schemas.FileOutFull, error) {
@@ -256,68 +359,6 @@ func (fs *FileService) MakeDirectory(c *gin.Context) (*schemas.FileOut, *types.A
 
 	return &file, nil
 
-}
-
-func (fs *FileService) ShareFiles(c *gin.Context, session *types.Session) (*string, *types.AppError) {
-	var payload schemas.FileShare
-	if err := c.ShouldBindJSON(&payload); err != nil {
-		return nil, &types.AppError{Error: errors.New("invalida request payload"), Code: http.StatusBadRequest}
-	}
-
-	now := time.Now().UTC()
-	twoDays := 2 * 24 * time.Hour
-
-	jwtClaimsFileSharing := &types.JWTClaimsFileSharing{Claims: jwt.Claims{
-		Subject:  strconv.FormatInt(session.UserID, 10),
-		IssuedAt: jwt.NewNumericDate(now),
-		Expiry:   jwt.NewNumericDate(now.Add(time.Duration(twoDays.Nanoseconds()) * time.Second)),
-	},
-		UserName: session.UserName,
-		FileID:   payload.ID,
-	}
-
-	jweToken, err := files.Encode(jwtClaimsFileSharing)
-	if err != nil {
-		return nil, &types.AppError{Error: err, Code: http.StatusBadRequest}
-	}
-
-	query := fs.Db.Model(&models.File{}).Select("id").Where("id = ?", payload.ID)
-	var results []schemas.FileOut
-	query.Find(&results)
-	if len(results) == 0 {
-		return nil, &types.AppError{Error: errors.New("this file does not exist"), Code: http.StatusInternalServerError}
-	}
-
-	tx := fs.Db.Begin()
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
-
-	var sharedToken models.SharedTokens
-	sharedToken.FileID = payload.ID
-	sharedToken.UserID = session.UserID
-	sharedToken.Token = jweToken
-
-	if err := fs.Db.Create(&sharedToken).Error; err != nil {
-		pgErr := err.(*pgconn.PgError)
-		if pgErr.Code == "23505" {
-			tx.Rollback()
-			return nil, &types.AppError{Error: errors.New("token exists"), Code: http.StatusBadRequest}
-		}
-		tx.Rollback()
-		return nil, &types.AppError{Error: errors.New("failed to store token"), Code: http.StatusBadRequest}
-	}
-
-	if err := fs.Db.Model(&models.File{}).Where("id = ?", payload.ID).UpdateColumn("shared_token_id", sharedToken.ID).Error; err != nil {
-		tx.Rollback()
-		return nil, &types.AppError{Error: errors.New("failed to set private token file"), Code: http.StatusInternalServerError}
-	}
-
-	tx.Commit()
-
-	return &sharedToken.FileID, nil
 }
 
 func (fs *FileService) MoveFiles(c *gin.Context) (*schemas.Message, *types.AppError) {

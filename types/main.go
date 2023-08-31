@@ -26,11 +26,6 @@ type JWTClaims struct {
 	Bot       bool   `json:"bot"`
 	IsPremium bool   `json:"isPremium"`
 }
-type JWTClaimsFileSharing struct {
-	jwt.Claims
-	UserName string `json:"userName"`
-	FileID   string `json:"fileId"`
-}
 
 type TgSession struct {
 	Sesssion  string `json:"session"`
