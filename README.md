@@ -35,6 +35,7 @@ Telegram Drive is a powerful utility that enables you to create your own cloud s
 - **Secure:** Your data is secured using Telegram's robust encryption.
 - **Flexible Deployment:** Use Docker Compose or deploy without Docker.
 - **Authentication:** Supports Phone, QR and 2FA login.
+- **Rclone:** Supports almost all rclone operations.
 ## Demo
 
 ![demo](./public/demo.png)
