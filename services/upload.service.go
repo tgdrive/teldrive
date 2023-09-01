@@ -134,6 +134,10 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
 	}
 
+	if msgId == 0 {
+		return nil, &types.AppError{Error: errors.New("failed to upload part"), Code: http.StatusInternalServerError}
+	}
+
 	partUpload := &models.Upload{
 		Name:       fileName,
 		UploadId:   uploadId,
