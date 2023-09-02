@@ -30,7 +30,7 @@ func Authmiddleware(c *gin.Context) {
 		fileVisibility := fileService.CheckFileVisibility(c.DefaultQuery("fileId", c.Param("fileID")))
 		accessFromPublic := c.DefaultQuery("accessFromPublic", "")
 
-		if fileVisibility == "public" && accessFromPublic == "true" {
+		if (fileVisibility == "public" && accessFromPublic == "true") || (c.FullPath() == "/api/files/:fileID/:fileName" && fileVisibility == "public") {
 			c.Set("fileVisibility", fileVisibility)
 			c.Next()
 			return
