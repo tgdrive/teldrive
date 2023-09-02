@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"math"
 	"net/http"
 	"strconv"
@@ -261,14 +260,11 @@ func (fs *FileService) ListFiles(c *gin.Context) (*schemas.FileResponse, *types.
 	}
 
 	fileVisibility := c.GetString("fileVisibility")
-	log.Println(fileQuery.SharedWithUsername, "<-SharedWithUsername")
-	log.Println(fileQuery.AccessFromPublic, "<-AccessFromPublic")
 	var userId int64
 	if !fileQuery.AccessFromPublic {
 		userId = getAuthUserId(c)
 		fileQuery.UserID = userId
 	}
-	log.Println(userId, "<-UserID")
 
 	query := fs.Db.Model(&models.File{}).Limit(pagingParams.PerPage).
 		Select("teldrive.files.*, array_agg(teldrive.shared_files.shared_with_username) AS shared_with_usernames").
