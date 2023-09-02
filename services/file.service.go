@@ -292,19 +292,21 @@ func (fs *FileService) ListFiles(c *gin.Context) (*schemas.FileResponse, *types.
 				Where("status = ?", "active").
 				Where("parent_sf.file_id IS NULL OR parent_sf.shared_with_username IS NULL")
 		} else {
-			subQueryPath := fs.Db.Model(&models.File{}).
-				Select("path").
-				Where("id = ?", fileQuery.FileID)
+			subQueryFile := fs.Db.Model(&models.File{}).Select("path, type").Where("id = ?", fileQuery.FileID)
+			var file models.File
+			subQueryFile.First(&file)
 
-			var filePath string
-			subQueryPath.First(&filePath)
+			if file.Type == "folder" {
+				subQueryIds := fs.Db.Model(&models.File{}).Select("id").Where("path like '%' || (?)", file.Path)
+				var fileIDs []string
+				subQueryIds.Pluck("id", &fileIDs)
 
-			subQueryIds := fs.Db.Model(&models.File{}).Select("id").Where("path like '%' || (?)", filePath)
-			var fileIDs []string
-			subQueryIds.Pluck("id", &fileIDs)
+				query.
+					Where("parent_id in (?)", fileIDs)
+			} else {
+				query.Where("teldrive.files.id = ?", fileQuery.FileID)
+			}
 
-			query.
-				Where("parent_id in (?)", fileIDs)
 		}
 	} else if fileQuery.Op == "list" {
 		if pathExists, message := fs.CheckIfPathExists(&fileQuery.Path); !pathExists {
@@ -353,7 +355,7 @@ func (fs *FileService) ListFiles(c *gin.Context) (*schemas.FileResponse, *types.
 
 	for _, file := range files {
 		result := mapFileWithUsernamesToFileOut(file)
-		if file.SharedWithUsernames != "{NULL}" {
+		if file.SharedWithUsernames != "{NULL}" && file.SharedWithUsernames != "" {
 			usernames := strings.Split(strings.Trim(file.SharedWithUsernames, "{}"), ",")
 			result.SharedWithUsernames = &usernames
 		}
@@ -392,7 +394,9 @@ func (fs *FileService) ListFiles(c *gin.Context) (*schemas.FileResponse, *types.
 					})
 				}
 			}
-			result.PathChain = &pathIDs
+			if pathIDs != nil {
+				result.PathChain = &pathIDs
+			}
 		}
 
 		results = append(results, result)
