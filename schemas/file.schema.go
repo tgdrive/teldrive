@@ -17,17 +17,19 @@ type SortingQuery struct {
 }
 
 type FileQuery struct {
-	Name      string     `form:"name" mapstructure:"name,omitempty"`
-	Search    string     `form:"search" mapstructure:"search,omitempty"`
-	Type      string     `form:"type" mapstructure:"type,omitempty"`
-	Path      string     `form:"path" mapstructure:"path,omitempty"`
-	Op        string     `form:"op" mapstructure:"op,omitempty"`
-	Starred   *bool      `form:"starred" mapstructure:"starred,omitempty"`
-	MimeType  string     `form:"mimeType" mapstructure:"mime_type,omitempty"`
-	ParentID  string     `form:"parentId" mapstructure:"parent_id,omitempty"`
-	UpdatedAt *time.Time `form:"updatedAt" mapstructure:"updated_at,omitempty"`
-	Status    string     `mapstructure:"status"`
-	UserID    int64      `mapstructure:"user_id"`
+	FileID             string     `form:"fileId" mapstructure:"file_id,omitempty"`
+	Name               string     `form:"name" mapstructure:"name,omitempty"`
+	Search             string     `form:"search" mapstructure:"search,omitempty"`
+	Type               string     `form:"type" mapstructure:"type,omitempty"`
+	Path               string     `form:"path" mapstructure:"path,omitempty"`
+	Op                 string     `form:"op" mapstructure:"op,omitempty"`
+	Starred            *bool      `form:"starred" mapstructure:"starred,omitempty"`
+	MimeType           string     `form:"mimeType" mapstructure:"mime_type,omitempty"`
+	ParentID           string     `form:"parentId" mapstructure:"parent_id,omitempty"`
+	SharedWithUsername string     `form:"sharedWithUsername" mapstructure:"shared_with_username,omitempty"`
+	UpdatedAt          *time.Time `form:"updatedAt" mapstructure:"updated_at,omitempty"`
+	Status             string     `mapstructure:"status"`
+	UserID             int64      `mapstructure:"user_id"`
 }
 
 type FileIn struct {
@@ -46,16 +48,18 @@ type FileIn struct {
 }
 
 type FileOut struct {
-	ID         string    `json:"id"`
-	Name       string    `json:"name"`
-	Type       string    `json:"type"`
-	MimeType   string    `json:"mimeType" mapstructure:"mime_type"`
-	Path       string    `json:"path,omitempty" mapstructure:"path,omitempty"`
-	Size       int64     `json:"size,omitempty" mapstructure:"size,omitempty"`
-	Starred    *bool     `json:"starred"`
-	ParentID   string    `json:"parentId,omitempty" mapstructure:"parent_id"`
-	Visibility string    `json:"visibility,omitempty" mapstructure:"visibility"`
-	UpdatedAt  time.Time `json:"updatedAt,omitempty" mapstructure:"updated_at"`
+	ID                  string    `json:"id"`
+	Name                string    `json:"name"`
+	Type                string    `json:"type"`
+	MimeType            string    `json:"mimeType" mapstructure:"mime_type"`
+	Path                string    `json:"path,omitempty" mapstructure:"path,omitempty"`
+	Size                int64     `json:"size,omitempty" mapstructure:"size,omitempty"`
+	Starred             *bool     `json:"starred"`
+	ParentID            string    `json:"parentId,omitempty" mapstructure:"parent_id"`
+	Visibility          string    `json:"visibility,omitempty" mapstructure:"visibility"`
+	SharedWithUsernames *[]string `json:"sharedWithUsernames,omitempty" mapstructure:"shared_with_usernames"`
+	PathChain           *[]PathID `json:"pathChain,omitempty" mapstructure:"path_chain"`
+	UpdatedAt           time.Time `json:"updatedAt,omitempty" mapstructure:"updated_at"`
 }
 
 type FileResponse struct {
@@ -79,6 +83,11 @@ type MkDir struct {
 }
 
 type FileShare struct {
-	Visibility string   `json:"visibility,omitempty"`
-	Usernames  []string `json:"usernames,omitempty"`
+	Visibility         string   `json:"visibility,omitempty"`
+	SharedWithUsername []string `json:"sharedWithUsername,omitempty"`
+}
+
+type PathID struct {
+	Path string `json:"path,omitempty"`
+	ID   string `json:"id,omitempty"`
 }
