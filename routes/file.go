@@ -67,6 +67,9 @@ func addFileRoutes(rg *gin.RouterGroup) {
 	r.GET("/:fileID/:fileName", func(c *gin.Context) {
 		fileService.GetFileStream(c)
 	})
+	r.GET("/checkFileVisibility/:fileID", func(c *gin.Context) {
+		c.JSON(http.StatusOK, c.GetString("fileVisibility"))
+	})
 
 	r.POST("/sharefile/:fileID", func(c *gin.Context) {
 		session := authService.GetSession(c)

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"math"
 	"net/http"
 	"strconv"
@@ -239,8 +240,6 @@ func (fs *FileService) GetFileByID(c *gin.Context) (*schemas.FileOutFull, error)
 
 func (fs *FileService) ListFiles(c *gin.Context) (*schemas.FileResponse, *types.AppError) {
 
-	userId := getAuthUserId(c)
-
 	var pagingParams schemas.PaginationQuery
 	pagingParams.PerPage = 200
 	if err := c.ShouldBindQuery(&pagingParams); err != nil {
@@ -257,10 +256,19 @@ func (fs *FileService) ListFiles(c *gin.Context) (*schemas.FileResponse, *types.
 	var fileQuery schemas.FileQuery
 	fileQuery.Op = "list"
 	fileQuery.Status = "active"
-	fileQuery.UserID = userId
 	if err := c.ShouldBindQuery(&fileQuery); err != nil {
 		return nil, &types.AppError{Error: errors.New(""), Code: http.StatusBadRequest}
 	}
+
+	fileVisibility := c.GetString("fileVisibility")
+	log.Println(fileQuery.SharedWithUsername, "<-SharedWithUsername")
+	log.Println(fileQuery.AccessFromPublic, "<-AccessFromPublic")
+	var userId int64
+	if !fileQuery.AccessFromPublic {
+		userId = getAuthUserId(c)
+		fileQuery.UserID = userId
+	}
+	log.Println(userId, "<-UserID")
 
 	query := fs.Db.Model(&models.File{}).Limit(pagingParams.PerPage).
 		Select("teldrive.files.*, array_agg(teldrive.shared_files.shared_with_username) AS shared_with_usernames").
@@ -268,10 +276,16 @@ func (fs *FileService) ListFiles(c *gin.Context) (*schemas.FileResponse, *types.
 		Where(map[string]interface{}{"user_id": userId, "status": "active"}).Group("teldrive.files.id")
 
 	if fileQuery.Op == "shared" {
-		query = fs.Db.Model(&models.File{}).Limit(pagingParams.PerPage).
-			Select("teldrive.files.*").
-			Joins("INNER JOIN teldrive.shared_files sf ON teldrive.files.id = sf.file_id AND sf.shared_with_username = ?", fileQuery.SharedWithUsername).
-			Where("status = ?", "active")
+		if fileVisibility == "public" && fileQuery.AccessFromPublic {
+			query = fs.Db.Model(&models.File{}).Limit(pagingParams.PerPage).
+				Select("teldrive.files.*").
+				Where("status = ?", "active").Where("visibility = ?", "public")
+		} else {
+			query = fs.Db.Model(&models.File{}).Limit(pagingParams.PerPage).
+				Select("teldrive.files.*").
+				Joins("INNER JOIN teldrive.shared_files sf ON teldrive.files.id = sf.file_id AND sf.shared_with_username = ?", fileQuery.SharedWithUsername).
+				Where("status = ?", "active")
+		}
 
 		setOrderFilter(query, &pagingParams, &sortingParams)
 
@@ -409,6 +423,12 @@ func (fs *FileService) CheckIfPathExists(path *string) (bool, string) {
 		return false, "This directory doesn't exist."
 	}
 	return true, ""
+}
+func (fs *FileService) CheckFileVisibility(fileID string) string {
+	query := fs.Db.Model(&models.File{}).Select("visibility").Where("id = ?", fileID)
+	var result models.File
+	query.First(&result)
+	return result.Visibility
 }
 
 func (fs *FileService) MakeDirectory(c *gin.Context) (*schemas.FileOut, *types.AppError) {

@@ -27,6 +27,7 @@ type FileQuery struct {
 	MimeType           string     `form:"mimeType" mapstructure:"mime_type,omitempty"`
 	ParentID           string     `form:"parentId" mapstructure:"parent_id,omitempty"`
 	SharedWithUsername string     `form:"sharedWithUsername" mapstructure:"shared_with_username,omitempty"`
+	AccessFromPublic   bool       `form:"accessFromPublic" mapstructure:"access_from_public,omitempty"`
 	UpdatedAt          *time.Time `form:"updatedAt" mapstructure:"updated_at,omitempty"`
 	Status             string     `mapstructure:"status"`
 	UserID             int64      `mapstructure:"user_id"`
