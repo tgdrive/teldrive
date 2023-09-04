@@ -513,25 +513,13 @@ func chunk(ctx context.Context, tgClient *telegram.Client, part *types.Part, off
 	}
 }
 
-func totalParts(start, end, chunkSize int64) int {
-
-	totalBytes := end - start + 1
-	parts := totalBytes / chunkSize
-
-	if totalBytes%chunkSize != 0 {
-		parts++
-	}
-
-	return int(parts)
-}
-
 func streamFilePart(ctx context.Context, tgClient *telegram.Client, writer *io.PipeWriter, part *types.Part, start, end, chunkSize int64) error {
 
 	offset := start - (start % chunkSize)
 	firstPartCut := start - offset
 	lastPartCut := (end % chunkSize) + 1
 
-	partCount := totalParts(start, end, chunkSize)
+	partCount := int(math.Ceil(float64(end+1)/float64(chunkSize))) - int(math.Floor(float64(offset)/float64(chunkSize)))
 
 	currentPart := 1
 
