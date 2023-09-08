@@ -57,7 +57,7 @@ cd teldrive
 ```sh
 docker compose up -d
 ```
-
+- **Go to http://localhost:8080**
 - **Uploads from UI will be slower due to limitations of browser use [Teldrive Uploader](https://github.com/divyam234/teldrive-upload) for faster uploads.Make sure to use Multi Client mode if you are using uploader.**
 
 - **If you intend to share download links with others, ensure that you enable multi-client mode with bots.**
@@ -118,7 +118,7 @@ Before running the bot, you will need to set up the following mandatory variable
 ### Optional Vars
 In addition to the mandatory variables, you can also set the following optional variables:
 - `HTTPS` : Only needed when frontend is deployed on vercel.
-- `PORT` : Chnage listen port default is 8080
+- `PORT` : Change listen port default is 8080
 - `ALLOWED_USERS` : Allow certian telgram usernames including yours to access app.Enter comma seperated telegram usernames here.Needed when your instance is on public cloud and you want to restrict other people to login.
 - `COOKIE_SAME_SITE` : Only needed when frontend is deployed on vercel.
 - `MULTI_CLIENT` : Enable or Disable Multi Token mode. If true you have pass atleast one Multi Token
