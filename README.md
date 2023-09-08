@@ -118,6 +118,7 @@ Before running the bot, you will need to set up the following mandatory variable
 ### Optional Vars
 In addition to the mandatory variables, you can also set the following optional variables:
 - `HTTPS` : Only needed when frontend is deployed on vercel.
+- `PORT` : Chnage listen port default is 8080
 - `ALLOWED_USERS` : Allow certian telgram usernames including yours to access app.Enter comma seperated telegram usernames here.Needed when your instance is on public cloud and you want to restrict other people to login.
 - `COOKIE_SAME_SITE` : Only needed when frontend is deployed on vercel.
 - `MULTI_CLIENT` : Enable or Disable Multi Token mode. If true you have pass atleast one Multi Token
