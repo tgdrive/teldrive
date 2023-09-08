@@ -1,9 +1,9 @@
 package database
 
 import (
+	"embed"
 	"log"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/divyam234/teldrive/utils"
@@ -14,6 +14,8 @@ import (
 	"gorm.io/gorm/schema"
 )
 
+//go:embed migrations/*.sql
+var embedMigrations embed.FS
 var DB *gorm.DB
 
 func InitDB() {
@@ -65,13 +67,13 @@ func InitDB() {
 
 func migrate() {
 
-	config := utils.GetConfig()
+	goose.SetBaseFS(embedMigrations)
 
 	if err := goose.SetDialect("postgres"); err != nil {
 		panic(err)
 	}
 	db, _ := DB.DB()
-	if err := goose.Up(db, filepath.Join(config.ExecDir, "database", "migrations")); err != nil {
+	if err := goose.Up(db, "migrations"); err != nil {
 		panic(err)
 	}
 }

@@ -10,7 +10,7 @@ services:
       - ./database:/app/database
     env_file: .env
     ports:
-      - 8080
+      - 8000:8000
 
   client:
     image: ghcr.io/divyam234/teldrive/client:latest
@@ -18,16 +18,3 @@ services:
     container_name: client
     ports:
       - 3000
-      
-  haproxy:
-    image: haproxy:latest
-    volumes:
-    - ./haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg
-    # ports:
-    #   - 80:80
-    #   - 443:443
-    ports:
-      - 8000:8000
-    depends_on:
-     - server
-     - client

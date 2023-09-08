@@ -8,7 +8,9 @@ import (
 	"github.com/divyam234/teldrive/cache"
 	"github.com/divyam234/teldrive/database"
 	"github.com/divyam234/teldrive/routes"
+	"github.com/divyam234/teldrive/ui"
 	"github.com/divyam234/teldrive/utils"
+	"github.com/gin-contrib/gzip"
 
 	"github.com/divyam234/cors"
 	"github.com/divyam234/teldrive/utils/cron"
@@ -22,6 +24,8 @@ func main() {
 
 	router := gin.Default()
 
+	router.Use(gzip.Gzip(gzip.DefaultCompression))
+
 	utils.InitConfig()
 
 	utils.InitializeLogger()
@@ -31,7 +35,7 @@ func main() {
 	cache.CacheInit()
 
 	utils.InitBotClients()
-	
+
 	scheduler := gocron.NewScheduler(time.UTC)
 
 	scheduler.Every(1).Hours().Do(cron.FilesDeleteJob)
@@ -48,7 +52,9 @@ func main() {
 
 	router.Use(gin.ErrorLogger())
 
-	routes.GetRoutes(router)
+	routes.AddRoutes(router)
+
+	ui.AddRoutes(router)
 
 	config := utils.GetConfig()
 	certDir := filepath.Join(config.ExecDir, "sslcerts")

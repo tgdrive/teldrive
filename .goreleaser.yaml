@@ -2,6 +2,9 @@ project_name: teldrive
 env:
   - GO111MODULE=on
 builds:
+    hooks:
+      pre:
+        - make pre-ui &&  make ui
   - env:
       - CGO_ENABLED=0
     flags:
