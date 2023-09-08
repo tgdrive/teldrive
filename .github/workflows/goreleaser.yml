@@ -16,6 +16,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
+          submodules: true
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
