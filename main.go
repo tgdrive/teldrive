@@ -5,13 +5,13 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/divyam234/teldrive/cache"
-	"github.com/divyam234/teldrive/database"
-	"github.com/divyam234/teldrive/routes"
-	"github.com/divyam234/teldrive/utils"
+	"github.com/Wargasmz/teldrive/cache"
+	"github.com/Wargasmz/teldrive/database"
+	"github.com/Wargasmz/teldrive/routes"
+	"github.com/Wargasmz/teldrive/utils"
 
-	"github.com/divyam234/cors"
-	"github.com/divyam234/teldrive/utils/cron"
+	"github.com/Wargasmz/cors"
+	"github.com/Wargasmz/teldrive/utils/cron"
 	"github.com/gin-gonic/gin"
 	"github.com/go-co-op/gocron"
 )
