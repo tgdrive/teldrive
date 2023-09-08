@@ -3,7 +3,7 @@
 Telegram Drive is a powerful utility that enables you to create your own cloud storage service using Telegram as the backend.
 
 
-[![Discord](https://img.shields.io/discord/1142377485737148479?label=discord&logo=discord&style=flat-square&logoColor=white)](https://discord.gg/hfTUKGU2C6)
+[![Discord](https://img.shields.io/discord/1142377485737148479?label=discord&logo=discord&style=flat-square&logoColor=white)](https://discord.gg/J2gVAZnHfP)
 
  
 <details open="open">
