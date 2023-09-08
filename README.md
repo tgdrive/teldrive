@@ -63,31 +63,14 @@ docker compose up -d
 - **If you intend to share download links with others, ensure that you enable multi-client mode with bots.**
 
 ### Use without docker
-First clone the repository
-```sh
-git clone https://github.com/divyam234/teldrive
 
-```
 **Follow Below Steps**
 
-- Fork the UI Repository mentioned above and deploy it to Vercel, or simply use https://teldrive.vercel.app.
 - Download the release binary of Teldrive from the releases section.
-- Your `.env` file will remain the same as mentioned earlier. Additionally, set variables as specified below. Since the UI is hosted on HTTPS, we need a local server on HTTPS for cookies to function.
-```shell
-HTTPS=true
-COOKIE_SAME_SITE=false
-```
-- Generate HTTPS certificates for localhost using mkcert and place them in the sslcerts directory where the executable is located.
 
-- If you are using Windows, ensure that you add the certificate as trusted using mkcert or manually (you can find instructions in the mkcert documentation).
-
-- Rename generated cert and key as cert.pem and key.pem respectively.
+- Add same env  file as above.
   
-- Make sure to add database migrations directory where executable is present.
-  
-- Now, run the Teldrive executable from the releases.
-
-- Finally, update the API URL in the UI deployed on Vercel to https://localhost:8080 in the settings.
+- Now, run the Teldrive executable binary directly.
 
 ## Setting up things
 
@@ -104,15 +87,10 @@ JWT_SECRET=abc
 DATABASE_URL=abc
 RATE_LIMIT=true
 TG_CLIENT_DEVICE_MODEL="Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/116.0" # Any valid  browser user agent here
-TG_CLIENT_SYSTEM_VERSION=Win32
-TG_CLIENT_APP_VERSION=2.1.9 K
-TG_CLIENT_LANG_CODE=en
-TG_CLIENT_SYSTEM_LANG_CODE=en
-TG_CLIENT_LANG_PACK=webk
 MULTI_CLIENT=false
-MULTI_TOKEN1=55838383:yourfirstmulticlientbottokenhere
-MULTI_TOKEN2=55838383:yoursecondmulticlientbottokenhere
-MULTI_TOKEN3=55838383:yourthirdmulticlientbottokenhere
+MULTI_TOKEN1=""
+MULTI_TOKEN2=""
+MULTI_TOKEN3=""
 ```
 According to [Telegram TOS](https://core.telegram.org/api/obtaining_api_id#using-the-api-id): *all accounts that sign up or log in using unofficial Telegram API clients are automatically put under observation to avoid violations of the Terms of Service.So you can use APP_ID and APP_HASH from official K Telegram webclient from [here](https://github.com/morethanwords/tweb/blob/464bc4e76ff6417c7d996cca50c430d89d5d8175/src/config/app.ts#L36)*
 
