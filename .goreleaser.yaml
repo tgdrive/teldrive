@@ -1,10 +1,12 @@
 project_name: teldrive
 env:
   - GO111MODULE=on
+
+before:
+  hooks:
+  - make pre-ui
+  - make ui
 builds:
-    hooks:
-      pre:
-        - make pre-ui &&  make ui
   - env:
       - CGO_ENABLED=0
     flags:
