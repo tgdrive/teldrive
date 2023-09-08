@@ -102,10 +102,30 @@ func setCookie(c *gin.Context, key string, value string, age int) {
 
 }
 
+func checkUserIsAllowed(userName string) bool {
+	config := utils.GetConfig()
+	found := false
+	if len(config.AllowedUsers) > 0 {
+		for _, user := range config.AllowedUsers {
+			if user == userName {
+				found = true
+				break
+			}
+		}
+	} else {
+		found = true
+	}
+	return found
+}
+
 func (as *AuthService) LogIn(c *gin.Context) (*schemas.Message, *types.AppError) {
 	var session types.TgSession
 	if err := c.ShouldBindJSON(&session); err != nil {
 		return nil, &types.AppError{Error: errors.New("invalid request payload"), Code: http.StatusBadRequest}
+	}
+
+	if !checkUserIsAllowed(session.UserName) {
+		return nil, &types.AppError{Error: errors.New("user not allowed"), Code: http.StatusUnauthorized}
 	}
 
 	now := time.Now().UTC()
@@ -276,7 +296,12 @@ func (as *AuthService) HandleMultipleLogin(c *gin.Context) {
 				}
 				user, ok := authorization.User.AsNotEmpty()
 				if !ok {
-					conn.WriteJSON(map[string]interface{}{"type": "error", "message": errors.New("auth failed")})
+					conn.WriteJSON(map[string]interface{}{"type": "error", "message": "auth failed"})
+					return
+				}
+				if !checkUserIsAllowed(user.Username) {
+					conn.WriteJSON(map[string]interface{}{"type": "error", "message": "user not allowed"})
+					tgClient.API().AuthLogOut(c)
 					return
 				}
 				res, _ := sessionStorage.LoadSession(c)
@@ -312,7 +337,12 @@ func (as *AuthService) HandleMultipleLogin(c *gin.Context) {
 				}
 				user, ok := auth.User.AsNotEmpty()
 				if !ok {
-					conn.WriteJSON(map[string]interface{}{"type": "error", "message": errors.New("auth failed")})
+					conn.WriteJSON(map[string]interface{}{"type": "error", "message": "auth failed"})
+					return
+				}
+				if !checkUserIsAllowed(user.Username) {
+					conn.WriteJSON(map[string]interface{}{"type": "error", "message": "user not allowed"})
+					tgClient.API().AuthLogOut(c)
 					return
 				}
 				res, _ := sessionStorage.LoadSession(c)
@@ -332,7 +362,12 @@ func (as *AuthService) HandleMultipleLogin(c *gin.Context) {
 				}
 				user, ok := auth.User.AsNotEmpty()
 				if !ok {
-					conn.WriteJSON(map[string]interface{}{"type": "error", "message": errors.New("auth failed")})
+					conn.WriteJSON(map[string]interface{}{"type": "error", "message": "auth failed"})
+					return
+				}
+				if !checkUserIsAllowed(user.Username) {
+					conn.WriteJSON(map[string]interface{}{"type": "error", "message": "user not allowed"})
+					tgClient.API().AuthLogOut(c)
 					return
 				}
 				res, _ := sessionStorage.LoadSession(c)
