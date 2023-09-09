@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"net/http"
 	"path/filepath"
 	"time"
 
@@ -52,14 +51,6 @@ func main() {
 	}))
 
 	router.Use(gin.ErrorLogger())
-
-	router.Use(func(c *gin.Context) {
-		path := c.Request.URL.Path
-		if path == "" || path == "/" {
-			c.Redirect(http.StatusMovedPermanently, "/my-drive")
-		}
-		c.Next()
-	})
 
 	routes.AddRoutes(router)
 
