@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"mime"
 	"path/filepath"
 	"time"
 
@@ -49,6 +50,8 @@ func main() {
 		},
 		MaxAge: 12 * time.Hour,
 	}))
+
+	mime.AddExtensionType(".js", "application/javascript")
 
 	router.Use(gin.ErrorLogger())
 
