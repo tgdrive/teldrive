@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"errors"
@@ -11,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/dhowden/tag"
 	"github.com/divyam234/teldrive/cache"
 	"github.com/divyam234/teldrive/models"
 	"github.com/divyam234/teldrive/schemas"
@@ -376,6 +378,147 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 
 }
 
+func getSongMetadata(fs *FileService, c *gin.Context) *tag.Metadata {
+
+	w := c.Writer
+
+	fileID := c.Param("fileID")
+
+	var err error
+
+	res, err := cache.CachedFunction(fs.GetFileByID, fmt.Sprintf("files:%s", fileID))(c)
+
+	if err != nil {
+		// Manejo de error si es necesario
+		return nil
+	}
+
+	file := res.(*schemas.FileOutFull)
+
+	client, idx := utils.GetDownloadClient(c)
+
+	defer func() {
+		utils.GetClientWorkload().Dec(idx)
+	}()
+
+	ir, iw := io.Pipe()
+
+	var start, end, interval int64
+	var buffers []bytes.Buffer
+	var metadata *tag.Metadata
+
+	start = 0
+	end = file.Size - 1
+	interval = 1024 * 1024
+
+	for start < end {
+		nextEnd := start + interval
+
+		if nextEnd > end {
+			nextEnd = end
+		}
+
+		parts, err := fs.getParts(c, client, file)
+		if err != nil {
+			return nil
+		}
+
+		parts = rangedParts(parts, int64(start), int64(nextEnd))
+
+		go func() {
+			defer iw.Close()
+			for _, part := range parts {
+				streamFilePart(c, client, iw, &part, part.Start, part.End, 1024*1024)
+			}
+		}()
+
+		var buffer bytes.Buffer
+		_, errc := io.Copy(&buffer, ir)
+		if errc != nil {
+			return nil
+		}
+		buffers = append(buffers, buffer)
+
+		var combinedBuffer bytes.Buffer
+		for _, buffer := range buffers {
+			combinedBuffer.Write(buffer.Bytes())
+		}
+
+		readSeeker := bytes.NewReader(combinedBuffer.Bytes())
+
+		meta, err := tag.ReadFrom(readSeeker)
+		if err == nil {
+			metadata = &meta
+			break
+		}
+
+		start = nextEnd
+	}
+
+	if metadata == nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return nil
+	}
+
+	return metadata
+
+	// picture := (*metadata).Picture()
+
+	// w.Header().Set("Content-Type", picture.MIMEType)
+	// w.Write(picture.Data)
+
+}
+
+func (fs *FileService) GetSongMainMetadata(c *gin.Context) (*schemas.SongMetadata, *types.AppError) {
+	fileID := c.Param("fileID")
+	res, err := cache.CachedFunction(getSongMetadata, fmt.Sprintf("getSongMetadata:%s", fileID))(fs, c)
+
+	if err != nil {
+		return nil, &types.AppError{Error: errors.New("failed to get song metadata"), Code: http.StatusBadRequest}
+	}
+
+	metadata := *(res.(*tag.Metadata))
+
+	songMetadata := schemas.SongMetadata{
+		Title:  metadata.Title(),
+		Artist: metadata.Artist(),
+		Cover: schemas.Cover{
+			Extension: metadata.Picture().Ext,
+			Type:      metadata.Picture().Type,
+		},
+	}
+
+	return &songMetadata, nil
+
+}
+
+func (fs *FileService) GetSongCoverStream(c *gin.Context) {
+
+	w := c.Writer
+
+	fileID := c.Param("fileID")
+	res, err := cache.CachedFunction(getSongMetadata, fmt.Sprintf("getSongMetadata:%s", fileID))(fs, c)
+
+	if err != nil {
+		return
+	}
+
+	metadata := *(res.(*tag.Metadata))
+	fileName := c.Param("coverName")
+
+	disposition := "inline"
+
+	if c.Query("d") == "1" {
+		disposition = "attachment"
+	}
+
+	w.Header().Set("Content-Type", metadata.Picture().MIMEType)
+	w.Header().Set("Content-Disposition", fmt.Sprintf("%s; filename=\"%s\"", disposition, fileName))
+
+	w.Write(metadata.Picture().Data)
+
+}
+
 func (fs *FileService) getParts(ctx context.Context, tgClient *telegram.Client, file *schemas.FileOutFull) ([]types.Part, error) {
 
 	ids := []tg.InputMessageID{}
@@ -552,6 +695,48 @@ func streamFilePart(ctx context.Context, tgClient *telegram.Client, writer *io.P
 	}
 
 	return nil
+}
+
+func getFilePart(ctx context.Context, tgClient *telegram.Client, writer *io.PipeWriter, part *types.Part, start, end, chunkSize int64) ([]byte, error) {
+
+	var result []byte
+	offset := start - (start % chunkSize)
+	firstPartCut := start - offset
+	lastPartCut := (end % chunkSize) + 1
+
+	partCount := int(math.Ceil(float64(end+1)/float64(chunkSize))) - int(math.Floor(float64(offset)/float64(chunkSize)))
+
+	currentPart := 1
+
+	for {
+		r, _ := chunk(ctx, tgClient, part, offset, chunkSize)
+
+		if len(r) == 0 {
+			break
+		} else if partCount == 1 {
+			r = r[firstPartCut:lastPartCut]
+
+		} else if currentPart == 1 {
+			r = r[firstPartCut:]
+
+		} else if currentPart == partCount {
+			r = r[:lastPartCut]
+
+		}
+
+		result = append(result, r...)
+
+		currentPart++
+
+		offset += chunkSize
+
+		if currentPart > partCount {
+			break
+		}
+
+	}
+
+	return result, nil
 }
 
 func rangedParts(parts []types.Part, start, end int64) []types.Part {

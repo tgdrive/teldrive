@@ -23,6 +23,7 @@ require (
 )
 
 require (
+	github.com/dhowden/tag v0.0.0-20230630033851-978a0926ee25 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 )

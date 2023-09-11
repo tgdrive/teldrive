@@ -76,3 +76,14 @@ type FileOperation struct {
 type MkDir struct {
 	Path string `json:"path"`
 }
+
+type SongMetadata struct {
+	Title  string `json:"title"`
+	Artist string `json:"artist"`
+	Cover  Cover  `json:"cover"`
+}
+
+type Cover struct {
+	Extension string `json:"extension"`
+	Type      string `json:"type"`
+}
