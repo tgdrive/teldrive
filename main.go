@@ -39,7 +39,9 @@ func main() {
 
 	scheduler := gocron.NewScheduler(time.UTC)
 
-	scheduler.Every(1).Hours().Do(cron.FilesDeleteJob)
+	scheduler.Every(1).Hour().Do(cron.FilesDeleteJob)
+
+	scheduler.StartAsync()
 
 	router.Use(cors.New(cors.Config{
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"},
@@ -67,5 +69,4 @@ func main() {
 	} else {
 		router.Run(fmt.Sprintf(":%d", config.Port))
 	}
-	scheduler.StartAsync()
 }
