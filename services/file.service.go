@@ -195,7 +195,10 @@ func (fs *FileService) ListFiles(c *gin.Context) (*schemas.FileResponse, *types.
 			delete(filterQuery, "updated_at")
 		}
 
-		setOrderFilter(query, &pagingParams, &sortingParams)
+		if filterQuery["path"] != "" && filterQuery["name"] != "" {
+			query.Where("parent_id in (?)", fs.Db.Model(&models.File{}).Select("id").Where("path = ?", filterQuery["path"]))
+			delete(filterQuery, "path")
+		}
 
 		query.Order("type DESC").Order(getOrder(sortingParams)).Where(filterQuery)
 
