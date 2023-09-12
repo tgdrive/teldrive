@@ -195,7 +195,7 @@ func (fs *FileService) ListFiles(c *gin.Context) (*schemas.FileResponse, *types.
 			delete(filterQuery, "updated_at")
 		}
 
-		if filterQuery["path"] != "" && filterQuery["name"] != "" {
+		if filterQuery["path"] != nil && filterQuery["name"] != nil {
 			query.Where("parent_id in (?)", fs.Db.Model(&models.File{}).Select("id").Where("path = ?", filterQuery["path"]))
 			delete(filterQuery, "path")
 		}
