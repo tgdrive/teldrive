@@ -378,114 +378,33 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 
 }
 
-func getSongMetadata(fs *FileService, c *gin.Context) *tag.Metadata {
-
-	w := c.Writer
-
-	fileID := c.Param("fileID")
-
-	var err error
-
-	res, err := cache.CachedFunction(fs.GetFileByID, fmt.Sprintf("files:%s", fileID))(c)
-
-	if err != nil {
-		// Manejo de error si es necesario
-		return nil
-	}
-
-	file := res.(*schemas.FileOutFull)
-
-	client, idx := utils.GetDownloadClient(c)
-
-	defer func() {
-		utils.GetClientWorkload().Dec(idx)
-	}()
-
-	ir, iw := io.Pipe()
-
-	var start, end, interval int64
-	var buffers []bytes.Buffer
-	var metadata *tag.Metadata
-
-	start = 0
-	end = file.Size - 1
-	interval = 1024 * 1024
-
-	for start < end {
-		nextEnd := start + interval
-
-		if nextEnd > end {
-			nextEnd = end
-		}
-
-		parts, err := fs.getParts(c, client, file)
-		if err != nil {
-			return nil
-		}
-
-		parts = rangedParts(parts, int64(start), int64(nextEnd))
-
-		go func() {
-			defer iw.Close()
-			for _, part := range parts {
-				streamFilePart(c, client, iw, &part, part.Start, part.End, 1024*1024)
-			}
-		}()
-
-		var buffer bytes.Buffer
-		_, errc := io.Copy(&buffer, ir)
-		if errc != nil {
-			return nil
-		}
-		buffers = append(buffers, buffer)
-
-		var combinedBuffer bytes.Buffer
-		for _, buffer := range buffers {
-			combinedBuffer.Write(buffer.Bytes())
-		}
-
-		readSeeker := bytes.NewReader(combinedBuffer.Bytes())
-
-		meta, err := tag.ReadFrom(readSeeker)
-		if err == nil {
-			metadata = &meta
-			break
-		}
-
-		start = nextEnd
-	}
-
-	if metadata == nil {
-		w.WriteHeader(http.StatusBadRequest)
-		return nil
-	}
-
-	return metadata
-
-	// picture := (*metadata).Picture()
-
-	// w.Header().Set("Content-Type", picture.MIMEType)
-	// w.Write(picture.Data)
-
-}
-
 func (fs *FileService) GetSongMainMetadata(c *gin.Context) (*schemas.SongMetadata, *types.AppError) {
-	fileID := c.Param("fileID")
-	res, err := cache.CachedFunction(getSongMetadata, fmt.Sprintf("getSongMetadata:%s", fileID))(fs, c)
+	res, err := fs.getSongFullMetadata(c)
 
 	if err != nil {
-		return nil, &types.AppError{Error: errors.New("failed to get song metadata"), Code: http.StatusBadRequest}
+		switch err {
+		case tag.ErrNoTagsFound:
+			songMetadata := schemas.SongMetadata{
+				Title:  "Unknown title",
+				Artist: "Unknown artist",
+			}
+			return &songMetadata, nil
+		default:
+			return nil, &types.AppError{Error: errors.New("failed to get song metadata"), Code: http.StatusBadRequest}
+		}
 	}
 
-	metadata := *(res.(*tag.Metadata))
-
+	metadata := *res
+	picture := metadata.Picture()
 	songMetadata := schemas.SongMetadata{
 		Title:  metadata.Title(),
 		Artist: metadata.Artist(),
-		Cover: schemas.Cover{
-			Extension: metadata.Picture().Ext,
-			Type:      metadata.Picture().Type,
-		},
+	}
+	if picture != nil {
+		songMetadata.Cover = &schemas.SongCover{
+			Extension: (*picture).Ext,
+			Type:      (*picture).Type,
+		}
 	}
 
 	return &songMetadata, nil
@@ -496,14 +415,21 @@ func (fs *FileService) GetSongCoverStream(c *gin.Context) {
 
 	w := c.Writer
 
-	fileID := c.Param("fileID")
-	res, err := cache.CachedFunction(getSongMetadata, fmt.Sprintf("getSongMetadata:%s", fileID))(fs, c)
+	res, err := fs.getSongFullMetadata(c)
 
 	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	metadata := *(res.(*tag.Metadata))
+	metadata := *res
+	picture := metadata.Picture()
+
+	if picture == nil {
+		http.Error(w, "picture not found", http.StatusNotFound)
+		return
+	}
+
 	fileName := c.Param("coverName")
 
 	disposition := "inline"
@@ -512,10 +438,10 @@ func (fs *FileService) GetSongCoverStream(c *gin.Context) {
 		disposition = "attachment"
 	}
 
-	w.Header().Set("Content-Type", metadata.Picture().MIMEType)
+	w.Header().Set("Content-Type", picture.MIMEType)
 	w.Header().Set("Content-Disposition", fmt.Sprintf("%s; filename=\"%s\"", disposition, fileName))
 
-	w.Write(metadata.Picture().Data)
+	w.Write(picture.Data)
 
 }
 
@@ -564,6 +490,67 @@ func (fs *FileService) getParts(ctx context.Context, tgClient *telegram.Client, 
 		parts = append(parts, types.Part{Location: location, Start: 0, End: document.Size - 1, Size: document.Size})
 	}
 	return parts, nil
+}
+
+func (fs *FileService) getSongFullMetadata(c *gin.Context) (*tag.Metadata, error) {
+
+	fileID := c.Param("fileID")
+
+	res, err := cache.CachedFunction(fs.GetFileByID, fmt.Sprintf("files:%s", fileID))(c)
+
+	if err != nil {
+		return nil, err
+	}
+
+	file := res.(*schemas.FileOutFull)
+
+	client, idx := utils.GetDownloadClient(c)
+
+	defer func() {
+		utils.GetClientWorkload().Dec(idx)
+	}()
+
+	var start, end, interval int64
+	var songMetadata *tag.Metadata
+	start = 0
+	end = file.Size - 1
+	interval = 1024 * 1024
+
+	parts, err := fs.getParts(c, client, file)
+	if err != nil {
+		return nil, err
+	}
+	var filePart []byte
+
+	for start < end {
+		nextEnd := start + interval
+
+		if nextEnd > end {
+			nextEnd = end
+		}
+
+		parts = rangedParts(parts, int64(start), int64(nextEnd))
+
+		for _, part := range parts {
+			filePart = append(filePart, getFilePart(c, client, &part, part.Start, part.End, 1024*1024)...)
+		}
+
+		readSeeker := bytes.NewReader(filePart)
+		metadata, err := tag.ReadFrom(readSeeker)
+		if err != nil {
+			if err == io.EOF {
+				return nil, err
+			}
+			start = nextEnd
+			continue
+		} else {
+			songMetadata = &metadata
+			break
+		}
+	}
+
+	return songMetadata, nil
+
 }
 
 func mapFileToFileOut(file models.File) schemas.FileOut {
@@ -697,9 +684,9 @@ func streamFilePart(ctx context.Context, tgClient *telegram.Client, writer *io.P
 	return nil
 }
 
-func getFilePart(ctx context.Context, tgClient *telegram.Client, writer *io.PipeWriter, part *types.Part, start, end, chunkSize int64) ([]byte, error) {
+func getFilePart(ctx context.Context, tgClient *telegram.Client, part *types.Part, start, end, chunkSize int64) []byte {
 
-	var result []byte
+	var filePart []byte
 	offset := start - (start % chunkSize)
 	firstPartCut := start - offset
 	lastPartCut := (end % chunkSize) + 1
@@ -724,7 +711,7 @@ func getFilePart(ctx context.Context, tgClient *telegram.Client, writer *io.Pipe
 
 		}
 
-		result = append(result, r...)
+		filePart = append(filePart, r...)
 
 		currentPart++
 
@@ -736,7 +723,7 @@ func getFilePart(ctx context.Context, tgClient *telegram.Client, writer *io.Pipe
 
 	}
 
-	return result, nil
+	return filePart
 }
 
 func rangedParts(parts []types.Part, start, end int64) []types.Part {
