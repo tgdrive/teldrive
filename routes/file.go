@@ -67,9 +67,9 @@ func addFileRoutes(rg *gin.RouterGroup) {
 
 		fileService.GetFileStream(c)
 	})
-	r.GET("/songMetadata/:fileID", func(c *gin.Context) {
+	r.GET("/audioMetadata/:fileID", func(c *gin.Context) {
 
-		res, err := fileService.GetSongMainMetadata(c)
+		res, err := fileService.GetAudioMainMetadata(c)
 		if err != nil {
 			c.AbortWithError(err.Code, err.Error)
 			return
@@ -77,9 +77,9 @@ func addFileRoutes(rg *gin.RouterGroup) {
 
 		c.JSON(http.StatusOK, res)
 	})
-	r.GET("/songCover/:fileID/:coverName", func(c *gin.Context) {
+	r.GET("/audioCoverArt/:fileID/:coverName", func(c *gin.Context) {
 
-		fileService.GetSongCoverStream(c)
+		fileService.GetAudioCoverStream(c)
 	})
 
 	r.POST("/movefiles", func(c *gin.Context) {

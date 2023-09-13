@@ -77,13 +77,13 @@ type MkDir struct {
 	Path string `json:"path"`
 }
 
-type SongMetadata struct {
-	Title  string     `json:"title"`
-	Artist string     `json:"artist"`
-	Cover  *SongCover `json:"cover,omitempty"`
+type AudioMetadata struct {
+	Title  string      `json:"title"`
+	Artist string      `json:"artist"`
+	Cover  *AudioCover `json:"cover,omitempty"`
 }
 
-type SongCover struct {
+type AudioCover struct {
 	Extension string `json:"extension,omitempty"`
 	Type      string `json:"type,omitempty"`
 }

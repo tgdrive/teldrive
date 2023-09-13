@@ -381,44 +381,44 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 
 }
 
-func (fs *FileService) GetSongMainMetadata(c *gin.Context) (*schemas.SongMetadata, *types.AppError) {
-	res, err := fs.getSongFullMetadata(c)
+func (fs *FileService) GetAudioMainMetadata(c *gin.Context) (*schemas.AudioMetadata, *types.AppError) {
+	res, err := fs.getAudioFullMetadata(c)
 
 	if err != nil {
 		switch err {
 		case tag.ErrNoTagsFound:
-			songMetadata := schemas.SongMetadata{
+			audioMetadata := schemas.AudioMetadata{
 				Title:  "Unknown title",
 				Artist: "Unknown artist",
 			}
-			return &songMetadata, nil
+			return &audioMetadata, nil
 		default:
-			return nil, &types.AppError{Error: errors.New("failed to get song metadata"), Code: http.StatusBadRequest}
+			return nil, &types.AppError{Error: errors.New("failed to get audio metadata"), Code: http.StatusBadRequest}
 		}
 	}
 
 	metadata := *res
 	picture := metadata.Picture()
-	songMetadata := schemas.SongMetadata{
+	audioMetadata := schemas.AudioMetadata{
 		Title:  metadata.Title(),
 		Artist: metadata.Artist(),
 	}
 	if picture != nil {
-		songMetadata.Cover = &schemas.SongCover{
+		audioMetadata.Cover = &schemas.AudioCover{
 			Extension: (*picture).Ext,
 			Type:      (*picture).Type,
 		}
 	}
 
-	return &songMetadata, nil
+	return &audioMetadata, nil
 
 }
 
-func (fs *FileService) GetSongCoverStream(c *gin.Context) {
+func (fs *FileService) GetAudioCoverStream(c *gin.Context) {
 
 	w := c.Writer
 
-	res, err := fs.getSongFullMetadata(c)
+	res, err := fs.getAudioFullMetadata(c)
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -495,7 +495,7 @@ func (fs *FileService) getParts(ctx context.Context, tgClient *telegram.Client, 
 	return parts, nil
 }
 
-func (fs *FileService) getSongFullMetadata(c *gin.Context) (*tag.Metadata, error) {
+func (fs *FileService) getAudioFullMetadata(c *gin.Context) (*tag.Metadata, error) {
 
 	fileID := c.Param("fileID")
 
@@ -514,7 +514,7 @@ func (fs *FileService) getSongFullMetadata(c *gin.Context) (*tag.Metadata, error
 	}()
 
 	var start, end, interval int64
-	var songMetadata *tag.Metadata
+	var audioMetadata *tag.Metadata
 	start = 0
 	end = file.Size - 1
 	interval = 1024 * 1024
@@ -547,12 +547,12 @@ func (fs *FileService) getSongFullMetadata(c *gin.Context) (*tag.Metadata, error
 			start = nextEnd
 			continue
 		} else {
-			songMetadata = &metadata
+			audioMetadata = &metadata
 			break
 		}
 	}
 
-	return songMetadata, nil
+	return audioMetadata, nil
 
 }
 
