@@ -29,13 +29,8 @@ Telegram Drive is a powerful utility that enables you to create your own cloud s
 ## Features
 
 - **UI:** Based on Material You to create nice looking UI themes.
-- **Fast Downloads:** Get your files quickly with high-speed downloads.
-- **Fast Uploads:** Upload your files faster using multi bots.
-- **Multi-Client Support:** Avoid rate limits and maximize download speeds with multiple clients.
 - **Secure:** Your data is secured using Telegram's robust encryption.
 - **Flexible Deployment:** Use Docker Compose or deploy without Docker.
-- **Authentication:** Supports Phone, QR and 2FA login.
-- **Rclone:** Supports almost all rclone operations.
 ## Demo
 
 ![demo](./public/demo.png)
@@ -92,7 +87,6 @@ MULTI_TOKEN1=""
 MULTI_TOKEN2=""
 MULTI_TOKEN3=""
 ```
-According to [Telegram TOS](https://core.telegram.org/api/obtaining_api_id#using-the-api-id): *all accounts that sign up or log in using unofficial Telegram API clients are automatically put under observation to avoid violations of the Terms of Service.So you can use APP_ID and APP_HASH from official K Telegram webclient from [here](https://github.com/morethanwords/tweb/blob/464bc4e76ff6417c7d996cca50c430d89d5d8175/src/config/app.ts#L36)*
 
 **Use strong JWT secret instead of pure guessable string.You can use openssl to generate it.**
 
