@@ -35,7 +35,7 @@ var config Config
 
 func InitConfig() {
 
-	execDir := ""
+	execDir := getExecutableDir()
 
 	godotenv.Load(filepath.Join(execDir, ".env"))
 
