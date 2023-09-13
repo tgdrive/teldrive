@@ -95,7 +95,7 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 
 		api := client.API()
 
-		u := uploader.NewUploader(api).WithThreads(8).WithPartSize(512 * 1024)
+		u := uploader.NewUploader(api).WithThreads(10).WithPartSize(512 * 1024)
 
 		upload, err := u.Upload(c, uploader.NewUpload(fileName, file, fileSize))
 
