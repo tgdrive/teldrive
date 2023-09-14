@@ -107,7 +107,7 @@ Before running the bot, you will need to set up the following mandatory variable
 
 - `DATABASE_URL` : Connection String obtained from Postgres DB (you can use Neon db as free alternative fro postgres)
 
-- `CHANNEL_ID` :  This is the channel ID for the log channel where app will store files . To obtain a channel ID, create a new telegram channel (public or private), post something in the channel, forward the message to [@missrose_bot](https://telegram.dog/MissRose_bot) and **reply the forwarded message** with the /id command. Copy the forwarded channel ID and paste it into the this field.
+- `CHANNEL_ID` :  This is the channel ID for the log channel where app will store files . To obtain a channel ID, create a new telegram channel (public or private), post something in the channel, forward the message to [@JsonDumpBot](https://t.me/JsonDumpBot) . Copy the forwarded channel ID and paste it into the this field and remove -100 from the start.
 
 ### Optional Vars
 In addition to the mandatory variables, you can also set the following optional variables:
