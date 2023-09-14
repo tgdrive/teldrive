@@ -353,7 +353,13 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 
 	contentLength := end - start + 1
 
-	w.Header().Set("Content-Type", file.MimeType)
+	mimeType := file.MimeType
+
+	if mimeType == "" {
+		mimeType = "application/octet-stream"
+	}
+
+	w.Header().Set("Content-Type", mimeType)
 
 	w.Header().Set("Content-Length", strconv.FormatInt(contentLength, 10))
 	w.Header().Set("E-Tag", md5.FromString(file.ID+strconv.FormatInt(file.Size, 10)))
