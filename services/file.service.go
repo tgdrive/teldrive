@@ -10,11 +10,13 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/divyam234/teldrive/cache"
 	"github.com/divyam234/teldrive/models"
 	"github.com/divyam234/teldrive/schemas"
 	"github.com/divyam234/teldrive/utils"
+	"github.com/divyam234/teldrive/utils/md5"
 
 	"github.com/divyam234/teldrive/types"
 
@@ -318,6 +320,15 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 
 	file := res.(*schemas.FileOutFull)
 
+	ifModifiedSinceHeader := r.Header.Get("If-Modified-Since")
+	if ifModifiedSinceHeader != "" {
+		ifModifiedSinceTime, err := time.Parse(http.TimeFormat, ifModifiedSinceHeader)
+		if err == nil && file.UpdatedAt.Before(ifModifiedSinceTime.Add(1*time.Second)) {
+			w.WriteHeader(http.StatusNotModified)
+			return
+		}
+	}
+
 	w.Header().Set("Accept-Ranges", "bytes")
 
 	var start, end int64
@@ -345,6 +356,8 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 	w.Header().Set("Content-Type", file.MimeType)
 
 	w.Header().Set("Content-Length", strconv.FormatInt(contentLength, 10))
+	w.Header().Set("E-Tag", md5.FromString(file.ID+strconv.FormatInt(file.Size, 10)))
+	w.Header().Set("Last-Modified", file.UpdatedAt.UTC().Format(http.TimeFormat))
 
 	disposition := "inline"
 
