@@ -20,6 +20,8 @@ type Config struct {
 	AllowedUsers           []string `envconfig:"ALLOWED_USERS"`
 	DatabaseUrl            string   `envconfig:"DATABASE_URL" required:"true"`
 	RateLimit              bool     `envconfig:"RATE_LIMIT" default:"true"`
+	RateBurst              int      `envconfig:"RATE_BURST" default:"5"`
+	Rate                   int      `envconfig:"RATE" default:"100"`
 	TgClientDeviceModel    string   `envconfig:"TG_CLIENT_DEVICE_MODEL" required:"true"`
 	TgClientSystemVersion  string   `envconfig:"TG_CLIENT_SYSTEM_VERSION" default:"Win32"`
 	TgClientAppVersion     string   `envconfig:"TG_CLIENT_APP_VERSION" default:"2.1.9 K"`

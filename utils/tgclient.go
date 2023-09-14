@@ -108,7 +108,7 @@ func GetBotClient(clientName string) *telegram.Client {
 	middlewares := []telegram.Middleware{floodwait.NewSimpleWaiter()}
 
 	if config.RateLimit {
-		middlewares = append(middlewares, ratelimit.New(rate.Every(time.Millisecond*100), 5))
+		middlewares = append(middlewares, ratelimit.New(rate.Every(time.Millisecond*time.Duration(config.Rate)), config.RateBurst))
 	}
 
 	options := telegram.Options{
