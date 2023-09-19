@@ -14,7 +14,6 @@ type Config struct {
 	AppHash                string   `envconfig:"APP_HASH" required:"true"`
 	ChannelID              int64    `envconfig:"CHANNEL_ID" required:"true"`
 	JwtSecret              string   `envconfig:"JWT_SECRET" required:"true"`
-	MultiClient            bool     `envconfig:"MULTI_CLIENT" default:"false"`
 	Https                  bool     `envconfig:"HTTPS" default:"false"`
 	CookieSameSite         bool     `envconfig:"COOKIE_SAME_SITE" default:"true"`
 	AllowedUsers           []string `envconfig:"ALLOWED_USERS"`
@@ -22,7 +21,7 @@ type Config struct {
 	RateLimit              bool     `envconfig:"RATE_LIMIT" default:"true"`
 	RateBurst              int      `envconfig:"RATE_BURST" default:"5"`
 	Rate                   int      `envconfig:"RATE" default:"100"`
-	TgClientDeviceModel    string   `envconfig:"TG_CLIENT_DEVICE_MODEL" required:"true"`
+	TgClientDeviceModel    string   `envconfig:"TG_CLIENT_DEVICE_MODEL" default:"Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/116.0"`
 	TgClientSystemVersion  string   `envconfig:"TG_CLIENT_SYSTEM_VERSION" default:"Win32"`
 	TgClientAppVersion     string   `envconfig:"TG_CLIENT_APP_VERSION" default:"2.1.9 K"`
 	TgClientLangCode       string   `envconfig:"TG_CLIENT_LANG_CODE" default:"en"`
@@ -38,8 +37,6 @@ var config Config
 func InitConfig() {
 
 	execDir := getExecutableDir()
-
-	godotenv.Load(filepath.Join(execDir, ".env"))
 
 	godotenv.Load(filepath.Join(execDir, "teldrive.env"))
 	err := envconfig.Process("", &config)

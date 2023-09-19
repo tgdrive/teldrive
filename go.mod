@@ -15,6 +15,8 @@ require (
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/pkg/errors v0.9.1
 	github.com/quantumsheep/range-parser v1.1.0
+	github.com/thoas/go-funk v0.9.3
+	go.etcd.io/bbolt v1.3.7
 	go.uber.org/zap v1.25.0
 	golang.org/x/exp v0.0.0-20230811145659-89c5cff77bcb
 	golang.org/x/time v0.3.0
@@ -23,6 +25,7 @@ require (
 )
 
 require (
+	github.com/gin-contrib/pprof v1.4.0 // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 )

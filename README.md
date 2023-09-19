@@ -3,7 +3,9 @@
 Telegram Drive is a powerful utility that enables you to create your own cloud storage service using Telegram as the backend.
 
 
-[![Discord](https://img.shields.io/discord/1142377485737148479?label=discord&logo=discord&style=flat-square&logoColor=white)](https://discord.gg/J2gVAZnHfP)
+[![Discord](https://img.shields.io/discord/1142377485737148479?label=discord&logo=discord&style=flat-square&logoColor=white)](https://discord.gg/J2gVAZnHfP) 
+
+**Click on icon to join Discord Server for better support**
 
  
 <details open="open">
@@ -47,15 +49,15 @@ cd teldrive
 
 **Follow Below Steps**
 
-- Create the `.env` or `teldrive.env`  file with your variables and start your container.
+- Create the `teldrive.env`  file with your variables and start your container.
 
 ```sh
 docker compose up -d
 ```
 - **Go to http://localhost:8080**
-- **Uploads from UI will be slower due to limitations of browser use [Teldrive Uploader](https://github.com/divyam234/teldrive-upload) for faster uploads.Make sure to use Multi Client mode if you are using uploader.**
+- **Uploads from UI will be slower due to limitations of browser use [Teldrive Uploader](https://github.com/divyam234/teldrive-upload) for faster uploads.Make sure to use Multi Bots mode if you are using uploader.**
 
-- **If you intend to share download links with others, ensure that you enable multi-client mode with bots.**
+- **If you intend to share download links with others, ensure that you enable multi bots mode with bots.**
 
 ### Use without docker
 
@@ -69,8 +71,8 @@ docker compose up -d
 
 ## Setting up things
 
-If you're locally or remotely hosting, create a file named `.env` or `teldrive.env`  in the root directory and add all the variables there.
-An example of `.env` file:
+If you're locally or remotely hosting, create a file named `teldrive.env`  in the root directory and add all the variables there.
+An example of `teldrive.env` file:
 
 ```sh
 APP_ID=1234
@@ -81,21 +83,24 @@ COOKIE_SAME_SITE=true
 JWT_SECRET=abc
 DATABASE_URL=abc
 RATE_LIMIT=true
-TG_CLIENT_DEVICE_MODEL="Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/116.0" # Any valid  browser user agent here
-MULTI_CLIENT=false
-MULTI_TOKEN1=""
-MULTI_TOKEN2=""
-MULTI_TOKEN3=""
-```
 
-**Use strong JWT secret instead of pure guessable string.You can use openssl to generate it.**
+```
+> **Warning**
+>Default Channel can be selected through UI make sure to set it from account settings on first login.<br>
+>Use strong JWT secret instead of pure guessable string.You can use openssl to generate it.<br>
 
 ```bash
-$ openssl rand -base64 32
+$ openssl rand -hex 32
 ```
 
+**Multi Bots Mode is recommended to avoid flood errors and enable maximum download speed, especially if you are using downloaders like IDM and aria2c which use multiple connections for downloads.**
 
-**Multi-Client Mode is recommended to avoid flood errors and enable maximum download speed, especially if you are using downloaders like IDM and aria2c which use multiple connections for downloads.**
+> **Note**
+> What it multi bots feature and what it does? <br>
+> This feature shares the Telegram API requests between other bots to avoid getting floodwaited (A kind of rate limiting that Telegram does in the backend to avoid flooding their servers) and to make the server handle more requests. <br>
+
+To enable multi bots, generate new bot tokens from BotFather and add it through UI on first login. 
+
 ### Mandatory Vars
 Before running the bot, you will need to set up the following mandatory variables:
 
@@ -107,34 +112,16 @@ Before running the bot, you will need to set up the following mandatory variable
 
 - `DATABASE_URL` : Connection String obtained from Postgres DB (you can use Neon db as free alternative fro postgres)
 
-- `CHANNEL_ID` : This is the channel ID for the log channel where app will store files . To obtain a channel ID, create a new telegram channel (public or private), post something in the channel, forward the message to [@JsonDumpBot](https://t.me/JsonDumpBot) . Copy the forwarded channel ID and paste it into the this field and remove -100 from the start.
-
 ### Optional Vars
 In addition to the mandatory variables, you can also set the following optional variables:
-- `HTTPS` : Only needed when frontend is deployed on vercel.
+- `HTTPS` : Only needed when frontend is on other domain.
 - `PORT` : Change listen port default is 8080
 - `ALLOWED_USERS` : Allow certain telegram usernames including yours to access the app.Enter comma seperated telegram usernames here.Its needed when your instance is on public cloud and you want to restrict other people to access you app.
 - `COOKIE_SAME_SITE` : Only needed when frontend is deployed on vercel.
-- `MULTI_CLIENT` : Enable or Disable Multi Token mode. If true you have pass atleast one Multi Token
-- `MULTI_TOKEN[1....]` : Recommended to add atleast 10-12 tokens
-### For making use of Multi-Client support
-
-> **Note**
-> What it multi-client feature and what it does? <br>
-> This feature shares the Telegram API requests between other bots to avoid getting floodwaited (A kind of rate limiting that Telegram does in the backend to avoid flooding their servers) and to make the server handle more requests. <br>
-
-To enable multi-client, generate new bot tokens and add it as your environmental variables with the following key names. 
-
-`MULTI_TOKEN1`: Add your first bot token here.
-
-`MULTI_TOKEN2`: Add your second bot token here.
-
-you may also add as many as bots you want. (max limit is not tested yet)
-`MULTI_TOKEN3`, `MULTI_TOKEN4`, etc.
+### For making use of Multi Bots support
 
 > **Warning**
-> Don't forget to add all these bots to the `CHANNEL_ID` as admin for the proper functioning
-
+>Bots will be auto added as admin in channel if you set them from UI if it fails somehow add it manually.
 ## FAQ
 
 - How to get Postgres DB url ?

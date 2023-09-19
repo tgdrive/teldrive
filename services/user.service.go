@@ -7,65 +7,48 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"sync"
 
+	"github.com/divyam234/teldrive/database"
+	"github.com/divyam234/teldrive/models"
+	"github.com/divyam234/teldrive/schemas"
 	"github.com/divyam234/teldrive/types"
-	"github.com/divyam234/teldrive/utils"
+	"github.com/divyam234/teldrive/utils/kv"
+	"github.com/divyam234/teldrive/utils/tgc"
 	"github.com/gotd/td/telegram"
+	"github.com/gotd/td/telegram/message/peer"
+	"github.com/gotd/td/telegram/query"
 	"github.com/gotd/td/tg"
+	"github.com/thoas/go-funk"
+	"go.etcd.io/bbolt"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type UserService struct {
+	Db *gorm.DB
 }
 
-func getChunk(ctx context.Context, tgClient *telegram.Client, location tg.InputFileLocationClass, offset int64, limit int) ([]byte, error) {
-
-	req := &tg.UploadGetFileRequest{
-		Offset:   offset,
-		Limit:    int(limit),
-		Location: location,
-	}
-
-	r, err := tgClient.API().UploadGetFile(ctx, req)
-
-	if err != nil {
-		return nil, err
-	}
-
-	switch result := r.(type) {
-	case *tg.UploadFile:
-		return result.Bytes, nil
-	default:
-		return nil, fmt.Errorf("unexpected type %T", r)
-	}
-}
-
-func iterContent(ctx context.Context, tgClient *telegram.Client, location tg.InputFileLocationClass) (*bytes.Buffer, error) {
-	offset := int64(0)
-	limit := 1024 * 1024
-	buff := &bytes.Buffer{}
-	for {
-		r, err := getChunk(ctx, tgClient, location, offset, limit)
-		if err != nil {
-			return buff, err
-		}
-		if len(r) == 0 {
-			break
-		}
-		buff.Write(r)
-		offset += int64(limit)
-	}
-	return buff, nil
+type BotInfo struct {
+	Id         int64
+	UserName   string
+	AccessHash int64
+	Token      string
 }
 
 func (us *UserService) GetProfilePhoto(c *gin.Context) {
-	val, _ := c.Get("jwtUser")
-	jwtUser := val.(*types.JWTClaims)
-	userId, _ := strconv.ParseInt(jwtUser.Subject, 10, 64)
-	client, _ := utils.GetAuthClient(c, jwtUser.TgSession, userId)
+	_, session := getUserAuth(c)
 
-	err := client.Run(c, func(ctx context.Context) error {
+	client, err := tgc.UserLogin(session)
+
+	if err != nil {
+		c.AbortWithError(http.StatusInternalServerError, err)
+		return
+	}
+
+	err = tgc.RunWithAuth(c, client, "", func(ctx context.Context) error {
 		self, err := client.Self(c)
 		if err != nil {
 			return err
@@ -95,4 +78,243 @@ func (us *UserService) GetProfilePhoto(c *gin.Context) {
 		c.AbortWithError(http.StatusNotFound, err)
 		return
 	}
+}
+
+func (us *UserService) Stats(c *gin.Context) (*schemas.AccountStats, *types.AppError) {
+	userId, _ := getUserAuth(c)
+	var res []schemas.AccountStats
+	if err := us.Db.Raw("select * from teldrive.account_stats(?);", userId).Scan(&res).Error; err != nil {
+		return nil, &types.AppError{Error: errors.New("failed to get stats"), Code: http.StatusInternalServerError}
+	}
+	return &res[0], nil
+}
+
+func (us *UserService) GetBots(c *gin.Context) ([]string, *types.AppError) {
+	tokens, err := GetBotsToken(c)
+
+	if err != nil {
+		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
+	}
+	return tokens, nil
+}
+
+func (us *UserService) UpdateChannel(c *gin.Context) (*schemas.Message, *types.AppError) {
+	userId, _ := getUserAuth(c)
+
+	var payload schemas.Channel
+
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		return nil, &types.AppError{Error: errors.New("invalid request payload"), Code: http.StatusBadRequest}
+	}
+
+	channel := &models.Channel{ChannelID: payload.ChannelID, ChannelName: payload.ChannelName, UserID: userId,
+		Selected: true}
+
+	if err := us.Db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "channel_id"}},
+		DoUpdates: clause.Assignments(map[string]interface{}{"selected": true}),
+	}).Create(channel).Error; err != nil {
+		return nil, &types.AppError{Error: errors.New("failed to update channel"),
+			Code: http.StatusInternalServerError}
+	}
+	us.Db.Model(&models.Channel{}).Where("channel_id != ?", payload.ChannelID).Update("selected", false)
+	key := kv.Key("users", strconv.FormatInt(userId, 10), "channel")
+	database.KV.Delete(key)
+	//add bots as admin if channel is changed in background
+	go func() {
+		userId, session := getUserAuth(c)
+		client, _ := tgc.UserLogin(session)
+		var botsTokens []string
+		us.Db.Model(&models.Bot{}).Where("user_id = ?", userId).Pluck("token", &botsTokens)
+		if len(botsTokens) > 0 {
+			us.addBots(c, client, userId, payload.ChannelID, botsTokens)
+		}
+
+	}()
+	return &schemas.Message{Status: true, Message: "channel updated"}, nil
+}
+
+func (us *UserService) ListChannels(c *gin.Context) (interface{}, *types.AppError) {
+	_, session := getUserAuth(c)
+	client, _ := tgc.UserLogin(session)
+
+	channels := make(map[int64]*schemas.Channel)
+
+	client.Run(c, func(ctx context.Context) error {
+
+		dialogs, _ := query.GetDialogs(client.API()).BatchSize(100).Collect(ctx)
+
+		for _, dialog := range dialogs {
+			if !dialog.Deleted() {
+				for _, channel := range dialog.Entities.Channels() {
+					_, exists := channels[channel.ID]
+					if !exists && channel.Creator {
+						channels[channel.ID] = &schemas.Channel{ChannelID: channel.ID, ChannelName: channel.Title}
+					}
+				}
+			}
+		}
+		return nil
+
+	})
+
+	return funk.Values(channels), nil
+}
+
+func (us *UserService) AddBots(c *gin.Context) (*schemas.Message, *types.AppError) {
+	userId, session := getUserAuth(c)
+	client, _ := tgc.UserLogin(session)
+
+	var botsTokens []string
+
+	if err := c.ShouldBindJSON(&botsTokens); err != nil {
+		return nil, &types.AppError{Error: errors.New("invalid request payload"), Code: http.StatusBadRequest}
+	}
+
+	if len(botsTokens) == 0 {
+		return &schemas.Message{Status: true, Message: "no bots to add"}, nil
+	}
+
+	channelId, _ := GetDefaultChannel(c, userId)
+
+	return us.addBots(c, client, userId, channelId, botsTokens)
+
+}
+
+func (us *UserService) RevokeBotSession(c *gin.Context) (*schemas.Message, *types.AppError) {
+
+	pattern := []byte("botsession:")
+
+	err := database.BoltDB.Update(func(tx *bbolt.Tx) error {
+
+		bucket := tx.Bucket([]byte("teldrive"))
+		if bucket == nil {
+			return errors.New("bucket not found")
+		}
+
+		c := bucket.Cursor()
+
+		for key, _ := c.First(); key != nil; key, _ = c.Next() {
+			if bytes.HasPrefix(key, pattern) {
+				if err := c.Delete(); err != nil {
+					return err
+				}
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, &types.AppError{Error: errors.New("failed to revoke session"),
+			Code: http.StatusInternalServerError}
+	}
+
+	return &schemas.Message{Status: true, Message: "session revoked"}, nil
+
+}
+
+func (us *UserService) addBots(c context.Context, client *telegram.Client, userId int64, channelId int64, botsTokens []string) (*schemas.Message, *types.AppError) {
+
+	botInfo := []BotInfo{}
+
+	var wg sync.WaitGroup
+
+	err := tgc.RunWithAuth(c, client, "", func(ctx context.Context) error {
+
+		channel, err := GetChannelById(ctx, client, channelId, strconv.FormatInt(userId, 10))
+		if err != nil {
+			return err
+		}
+
+		if err != nil {
+			return err
+
+		}
+		botInfoChannel := make(chan *BotInfo, len(botsTokens))
+
+		waitChan := make(chan struct{}, 6)
+
+		for _, token := range botsTokens {
+			waitChan <- struct{}{}
+			wg.Add(1)
+			go func(t string) {
+				info, err := getBotInfo(c, t)
+				if err != nil {
+					return
+				}
+				botPeerClass, err := peer.DefaultResolver(client.API()).ResolveDomain(ctx, info.UserName)
+				if err != nil {
+					return
+				}
+				botPeer := botPeerClass.(*tg.InputPeerUser)
+				info.AccessHash = botPeer.AccessHash
+				defer func() {
+					<-waitChan
+					wg.Done()
+				}()
+				if err == nil {
+					botInfoChannel <- info
+				}
+			}(token)
+		}
+
+		wg.Wait()
+		close(botInfoChannel)
+		for result := range botInfoChannel {
+			botInfo = append(botInfo, *result)
+		}
+
+		if len(botsTokens) == len(botInfo) {
+			users := funk.Map(botInfo, func(info BotInfo) tg.InputUser {
+				return tg.InputUser{UserID: info.Id, AccessHash: info.AccessHash}
+			})
+			botsToAdd := users.([]tg.InputUser)
+			for _, user := range botsToAdd {
+				payload := &tg.ChannelsEditAdminRequest{
+					Channel: channel,
+					UserID:  tg.InputUserClass(&user),
+					AdminRights: tg.ChatAdminRights{
+						ChangeInfo:     true,
+						PostMessages:   true,
+						EditMessages:   true,
+						DeleteMessages: true,
+						BanUsers:       true,
+						InviteUsers:    true,
+						PinMessages:    true,
+						ManageCall:     true,
+						Other:          true,
+						ManageTopics:   true,
+					},
+					Rank: "bot",
+				}
+				client.API().ChannelsEditAdmin(ctx, payload)
+			}
+		} else {
+			return errors.New("failed to fetch bots")
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
+	}
+
+	payload := []models.Bot{}
+
+	for _, info := range botInfo {
+		payload = append(payload, models.Bot{UserID: userId, Token: info.Token, BotID: info.Id,
+			BotUserName: info.UserName,
+		})
+	}
+
+	if err := us.Db.Clauses(clause.OnConflict{DoNothing: true}).Create(&payload).Error; err != nil {
+		return nil, &types.AppError{Error: errors.New("failed to add bots"), Code: http.StatusInternalServerError}
+	}
+
+	key := kv.Key("users", strconv.FormatInt(userId, 10), "bots")
+	database.KV.Delete(key)
+
+	return &schemas.Message{Status: true, Message: "bots added"}, nil
+
 }

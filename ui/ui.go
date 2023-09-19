@@ -8,6 +8,7 @@ import (
 	"path"
 	"strings"
 
+	"github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/contrib/static"
 	"github.com/gin-gonic/gin"
 )
@@ -24,6 +25,7 @@ func AddRoutes(router gin.IRouter) {
 		isImg, _ := path.Match("/img/*", c.Request.URL.Path)
 		if isStatic || isImg {
 			c.Writer.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+			gzip.Gzip(gzip.DefaultCompression)(c)
 		} else {
 			c.Writer.Header().Set("Cache-Control", "public, max-age=0, s-maxage=0, must-revalidate")
 		}
