@@ -15,6 +15,7 @@ type Part struct {
 	Size     int64
 	Start    int64
 	End      int64
+	Length   int64
 }
 
 type JWTClaims struct {
@@ -24,6 +25,7 @@ type JWTClaims struct {
 	UserName  string `json:"userName"`
 	Bot       bool   `json:"bot"`
 	IsPremium bool   `json:"isPremium"`
+	Hash      string `json:"hash"`
 }
 
 type TgSession struct {
@@ -39,5 +41,6 @@ type Session struct {
 	Name      string `json:"name"`
 	UserName  string `json:"userName"`
 	IsPremium bool   `json:"isPremium"`
+	Hash      string `json:"hash"`
 	Expires   string `json:"expires"`
 }

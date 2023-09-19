@@ -5,7 +5,6 @@ import (
 
 	"github.com/divyam234/teldrive/database"
 	"github.com/divyam234/teldrive/services"
-	"github.com/divyam234/teldrive/utils"
 
 	"github.com/gin-gonic/gin"
 )
@@ -13,10 +12,9 @@ import (
 func addFileRoutes(rg *gin.RouterGroup) {
 
 	r := rg.Group("/files")
-	r.Use(Authmiddleware)
-	fileService := services.FileService{Db: database.DB, ChannelID: utils.GetConfig().ChannelID}
+	fileService := services.FileService{Db: database.DB}
 
-	r.GET("", func(c *gin.Context) {
+	r.GET("", Authmiddleware, func(c *gin.Context) {
 		res, err := fileService.ListFiles(c)
 
 		if err != nil {
@@ -27,7 +25,7 @@ func addFileRoutes(rg *gin.RouterGroup) {
 		c.JSON(http.StatusOK, res)
 	})
 
-	r.POST("", func(c *gin.Context) {
+	r.POST("", Authmiddleware, func(c *gin.Context) {
 
 		res, err := fileService.CreateFile(c)
 
@@ -39,7 +37,7 @@ func addFileRoutes(rg *gin.RouterGroup) {
 		c.JSON(http.StatusOK, res)
 	})
 
-	r.GET("/:fileID", func(c *gin.Context) {
+	r.GET("/:fileID", Authmiddleware, func(c *gin.Context) {
 
 		res, err := fileService.GetFileByID(c)
 
@@ -51,7 +49,7 @@ func addFileRoutes(rg *gin.RouterGroup) {
 		c.JSON(http.StatusOK, res)
 	})
 
-	r.PATCH("/:fileID", func(c *gin.Context) {
+	r.PATCH("/:fileID", Authmiddleware, func(c *gin.Context) {
 
 		res, err := fileService.UpdateFile(c)
 
@@ -68,7 +66,7 @@ func addFileRoutes(rg *gin.RouterGroup) {
 		fileService.GetFileStream(c)
 	})
 
-	r.POST("/movefiles", func(c *gin.Context) {
+	r.POST("/movefiles", Authmiddleware, func(c *gin.Context) {
 
 		res, err := fileService.MoveFiles(c)
 
@@ -80,7 +78,7 @@ func addFileRoutes(rg *gin.RouterGroup) {
 		c.JSON(http.StatusOK, res)
 	})
 
-	r.POST("/makedir", func(c *gin.Context) {
+	r.POST("/makedir", Authmiddleware, func(c *gin.Context) {
 
 		res, err := fileService.MakeDirectory(c)
 
@@ -92,7 +90,7 @@ func addFileRoutes(rg *gin.RouterGroup) {
 		c.JSON(http.StatusOK, res)
 	})
 
-	r.POST("/deletefiles", func(c *gin.Context) {
+	r.POST("/deletefiles", Authmiddleware, func(c *gin.Context) {
 
 		res, err := fileService.DeleteFiles(c)
 

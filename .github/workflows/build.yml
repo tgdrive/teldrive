@@ -31,15 +31,17 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Image Name
-        id: imagename
-        run: echo "name=ghcr.io/${GITHUB_REPOSITORY,,}/server" >> $GITHUB_OUTPUT
+      - name: Set Vars
+        id: vars
+        run: |
+          echo "TAG=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
+          echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}/server" >> $GITHUB_ENV
 
       - name: Build Image
         uses: docker/build-push-action@v3
         with:
           context: ./
-          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          platforms: linux/amd64,linux/arm64
           pull: true
           push: true
-          tags: ${{ steps.imagename.outputs.name }}:latest
+          tags:  ${{ env.IMAGE_NAME }}:${{ env.TAG }} , ${{ env.IMAGE_NAME }}:latest

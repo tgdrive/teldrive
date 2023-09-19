@@ -3,17 +3,19 @@ package services
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
+	"strconv"
+	"strings"
 
-	"github.com/divyam234/teldrive/cache"
+	"github.com/divyam234/teldrive/mapper"
 	"github.com/divyam234/teldrive/schemas"
-	"github.com/divyam234/teldrive/utils"
+	"github.com/divyam234/teldrive/utils/tgc"
 
 	"github.com/divyam234/teldrive/types"
 
 	"github.com/divyam234/teldrive/models"
 	"github.com/gin-gonic/gin"
+	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/telegram/message"
 	"github.com/gotd/td/telegram/uploader"
 	"github.com/gotd/td/tg"
@@ -21,8 +23,7 @@ import (
 )
 
 type UploadService struct {
-	Db        *gorm.DB
-	ChannelID int64
+	Db *gorm.DB
 }
 
 func (us *UploadService) GetUploadFileById(c *gin.Context) (*schemas.UploadOut, *types.AppError) {
@@ -66,11 +67,9 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 	us.Db.Model(&models.Upload{}).Where("upload_id = ?", uploadId).Where("part_no = ?", uploadQuery.PartNo).Find(&uploadPart)
 
 	if len(uploadPart) == 1 {
-		out := mapSchema(&uploadPart[0])
+		out := mapper.MapUploadSchema(&uploadPart[0])
 		return out, nil
 	}
-
-	client, idx := utils.GetUploadClient(c)
 
 	file := c.Request.Body
 
@@ -85,17 +84,52 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 	ctx, cancel := context.WithCancel(ctx)
 
 	defer func() {
-		if idx != -1 {
-			utils.GetClientWorkload().Dec(idx)
-		}
 		cancel()
 	}()
 
-	err := client.Run(ctx, func(ctx context.Context) error {
+	userId, session := getUserAuth(c)
+
+	tokens, err := GetBotsToken(userId)
+
+	if err != nil {
+		return nil, &types.AppError{Error: errors.New("failed to fetch bots"), Code: http.StatusInternalServerError}
+	}
+
+	var client *telegram.Client
+
+	var token string
+
+	var channelUser string
+
+	if len(tokens) == 0 {
+		client, _ = tgc.UserLogin(session)
+		channelUser = strconv.FormatInt(userId, 10)
+	} else {
+		tgc.Workers.Set(tokens)
+		token = tgc.Workers.Next()
+		client, _ = tgc.BotLogin(token)
+		channelUser = strings.Split(token, ":")[0]
+	}
+
+	var out *schemas.UploadPartOut
+
+	err = tgc.RunWithAuth(ctx, client, token, func(ctx context.Context) error {
+
+		channelId, err := GetDefaultChannel(ctx, userId)
+
+		if err != nil {
+			return err
+		}
+
+		channel, err := GetChannelById(ctx, client, channelId, channelUser)
+
+		if err != nil {
+			return err
+		}
 
 		api := client.API()
 
-		u := uploader.NewUploader(api).WithThreads(10).WithPartSize(512 * 1024)
+		u := uploader.NewUploader(api).WithThreads(16).WithPartSize(512 * 1024)
 
 		upload, err := u.Upload(c, uploader.NewUpload(fileName, file, fileSize))
 
@@ -105,19 +139,12 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 
 		document := message.UploadedDocument(upload).Filename(fileName).ForceFile(true)
 
-		res, err := cache.CachedFunction(utils.GetChannelById, fmt.Sprintf("channels:%d", us.ChannelID))(c, client.API(), us.ChannelID)
-
-		if err != nil {
-			return err
-		}
-
-		channel := res.(*tg.Channel)
-
 		sender := message.NewSender(client.API())
 
-		target := sender.To(&tg.InputPeerChannel{ChannelID: channel.ID, AccessHash: channel.AccessHash})
+		target := sender.To(&tg.InputPeerChannel{ChannelID: channel.ChannelID,
+			AccessHash: channel.AccessHash})
 
-		res, err = target.Media(c, document)
+		res, err := target.Media(c, document)
 
 		if err != nil {
 			return err
@@ -127,6 +154,26 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 
 		msgId = updates.Updates[0].(*tg.UpdateMessageID).ID
 
+		if msgId == 0 {
+			return errors.New("failed to upload part")
+		}
+
+		partUpload := &models.Upload{
+			Name:       fileName,
+			UploadId:   uploadId,
+			PartId:     msgId,
+			ChannelID:  channelId,
+			Size:       fileSize,
+			PartNo:     uploadQuery.PartNo,
+			TotalParts: uploadQuery.TotalParts,
+		}
+
+		if err := us.Db.Create(partUpload).Error; err != nil {
+			return errors.New("failed to upload part")
+		}
+
+		out = mapper.MapUploadSchema(partUpload)
+
 		return nil
 	})
 
@@ -134,38 +181,5 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
 	}
 
-	if msgId == 0 {
-		return nil, &types.AppError{Error: errors.New("failed to upload part"), Code: http.StatusInternalServerError}
-	}
-
-	partUpload := &models.Upload{
-		Name:       fileName,
-		UploadId:   uploadId,
-		PartId:     msgId,
-		ChannelID:  us.ChannelID,
-		Size:       fileSize,
-		PartNo:     uploadQuery.PartNo,
-		TotalParts: uploadQuery.TotalParts,
-	}
-
-	if err := us.Db.Create(partUpload).Error; err != nil {
-		return nil, &types.AppError{Error: errors.New("failed to upload part"), Code: http.StatusInternalServerError}
-	}
-
-	out := mapSchema(partUpload)
-
 	return out, nil
-}
-
-func mapSchema(in *models.Upload) *schemas.UploadPartOut {
-	out := &schemas.UploadPartOut{
-		ID:         in.ID,
-		Name:       in.Name,
-		PartId:     in.PartId,
-		ChannelID:  in.ChannelID,
-		PartNo:     in.PartNo,
-		TotalParts: in.TotalParts,
-		Size:       in.Size,
-	}
-	return out
 }

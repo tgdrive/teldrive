@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/divyam234/teldrive/utils"
 	"github.com/divyam234/teldrive/utils/auth"
 	"github.com/gin-gonic/gin"
 	"github.com/go-jose/go-jose/v3/jwt"
@@ -12,9 +11,6 @@ import (
 
 func Authmiddleware(c *gin.Context) {
 
-	if c.FullPath() == "/api/files/:fileID/:fileName" && utils.GetConfig().MultiClient {
-		c.Next()
-	}
 	cookie, err := c.Request.Cookie("user-session")
 
 	if err != nil {

@@ -1,8 +1,6 @@
 package utils
 
 import (
-	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -11,7 +9,6 @@ import (
 
 	"reflect"
 
-	"github.com/gotd/td/tg"
 	"golang.org/x/exp/constraints"
 
 	"unicode"
@@ -63,25 +60,6 @@ func GetField(v interface{}, field string) string {
 	default:
 		return ""
 	}
-}
-
-func GetChannelById(ctx context.Context, client *tg.Client, channelID int64) (*tg.Channel, error) {
-	inputChannel := &tg.InputChannel{
-		ChannelID:  channelID,
-		AccessHash: 0,
-	}
-	channels, err := client.ChannelsGetChannels(ctx, []tg.InputChannelClass{inputChannel})
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch channel: %w", err)
-	}
-
-	if len(channels.GetChats()) == 0 {
-		return nil, fmt.Errorf("no channels found")
-	}
-
-	channel := channels.GetChats()[0].(*tg.Channel)
-	return channel, nil
 }
 
 func BoolPointer(b bool) *bool {

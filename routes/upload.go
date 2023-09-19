@@ -5,7 +5,6 @@ import (
 
 	"github.com/divyam234/teldrive/database"
 	"github.com/divyam234/teldrive/services"
-	"github.com/divyam234/teldrive/utils"
 
 	"github.com/gin-gonic/gin"
 )
@@ -15,7 +14,7 @@ func addUploadRoutes(rg *gin.RouterGroup) {
 	r := rg.Group("/uploads")
 	r.Use(Authmiddleware)
 
-	uploadService := services.UploadService{Db: database.DB, ChannelID: utils.GetConfig().ChannelID}
+	uploadService := services.UploadService{Db: database.DB}
 
 	r.GET("/:id", func(c *gin.Context) {
 

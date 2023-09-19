@@ -4,10 +4,13 @@ import (
 	"embed"
 	"log"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/divyam234/teldrive/utils"
+	"github.com/divyam234/teldrive/utils/kv"
 	"github.com/pressly/goose/v3"
+	"go.etcd.io/bbolt"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -17,6 +20,8 @@ import (
 //go:embed migrations/*.sql
 var embedMigrations embed.FS
 var DB *gorm.DB
+var BoltDB *bbolt.DB
+var KV kv.KV
 
 func InitDB() {
 
@@ -63,6 +68,19 @@ func InitDB() {
 		}
 	}()
 
+	config := utils.GetConfig()
+	BoltDB, err = bbolt.Open(filepath.Join(config.ExecDir, "teldrive.db"), 0666, &bbolt.Options{
+		Timeout:    time.Second,
+		NoGrowSync: false,
+	})
+	if err != nil {
+		panic(err)
+	}
+	KV, err = kv.New(kv.Options{Bucket: "teldrive", DB: BoltDB})
+
+	if err != nil {
+		panic(err)
+	}
 }
 
 func migrate() {
