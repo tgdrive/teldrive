@@ -6,7 +6,7 @@ require (
 	github.com/allegro/bigcache/v3 v3.1.0
 	github.com/divyam234/cors v1.4.2
 	github.com/gin-gonic/gin v1.9.1
-	github.com/go-co-op/gocron v1.32.1
+	github.com/go-co-op/gocron v1.34.0
 	github.com/go-jose/go-jose/v3 v3.0.0
 	github.com/gotd/contrib v0.19.0
 	github.com/gotd/td v0.85.0
@@ -25,7 +25,7 @@ require (
 )
 
 require (
-	github.com/google/uuid v1.3.0 // indirect
+	github.com/google/uuid v1.3.1 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 )
 
