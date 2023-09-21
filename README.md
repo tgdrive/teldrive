@@ -44,6 +44,7 @@ First clone the repository
 ```sh
 git clone https://github.com/divyam234/teldrive
 cd teldrive
+touch teldrive.db
 ```
 
 
