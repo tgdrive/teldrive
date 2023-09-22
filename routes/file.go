@@ -61,6 +61,11 @@ func addFileRoutes(rg *gin.RouterGroup) {
 		c.JSON(http.StatusOK, res)
 	})
 
+	r.HEAD("/:fileID/:fileName", func(c *gin.Context) {
+
+		fileService.GetFileStream(c)
+	})
+
 	r.GET("/:fileID/:fileName", func(c *gin.Context) {
 
 		fileService.GetFileStream(c)
