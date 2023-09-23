@@ -8,7 +8,7 @@ ui:
 
 .PHONY: sync-ui
 sync-ui:
-	git submodule update --remote --rebase
+	git submodule update --init --recursive --remote
 	
 
 .PHONY: teldrive
