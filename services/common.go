@@ -138,29 +138,20 @@ func rangedParts(parts []types.Part, start, end int64) []types.Part {
 func GetChannelById(ctx context.Context, client *telegram.Client, channelID int64, userID string) (*tg.InputChannel, error) {
 
 	channel := &tg.InputChannel{}
-
-	key := kv.Key("channels", strconv.FormatInt(channelID, 10), userID)
-
-	err := kv.GetValue(database.KV, key, channel)
+	inputChannel := &tg.InputChannel{
+		ChannelID: channelID,
+	}
+	channels, err := client.API().ChannelsGetChannels(ctx, []tg.InputChannelClass{inputChannel})
 
 	if err != nil {
-		inputChannel := &tg.InputChannel{
-			ChannelID: channelID,
-		}
-		channels, err := client.API().ChannelsGetChannels(ctx, []tg.InputChannelClass{inputChannel})
-
-		if err != nil {
-			return nil, err
-		}
-
-		if len(channels.GetChats()) == 0 {
-			return nil, errors.New("no channels found")
-		}
-
-		channel = channels.GetChats()[0].(*tg.Channel).AsInput()
-
-		kv.SetValue(database.KV, key, channel)
+		return nil, err
 	}
+
+	if len(channels.GetChats()) == 0 {
+		return nil, errors.New("no channels found")
+	}
+
+	channel = channels.GetChats()[0].(*tg.Channel).AsInput()
 	return channel, nil
 }
 

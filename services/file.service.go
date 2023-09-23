@@ -1,7 +1,6 @@
 package services
 
 import (
-	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -21,7 +20,6 @@ import (
 	"github.com/divyam234/teldrive/utils/md5"
 	"github.com/divyam234/teldrive/utils/reader"
 	"github.com/divyam234/teldrive/utils/tgc"
-	"github.com/gotd/td/telegram"
 
 	"github.com/divyam234/teldrive/types"
 
@@ -413,32 +411,37 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 		return
 	}
 
-	var client *telegram.Client
+	if len(tokens) == 0 {
+		http.Error(w, "bots not found", http.StatusBadRequest)
+		return
+	}
 
 	var token string
 	var channelUser string
 
-	if len(tokens) == 0 {
-		client, _ = tgc.UserLogin(jwtUser.TgSession)
-		channelUser = jwtUser.Subject
-	} else {
-		tgc.Workers.Set(tokens)
-		token = tgc.Workers.Next()
-		client, _ = tgc.BotLogin(token)
-		channelUser = strings.Split(token, ":")[0]
+	limit := utils.Min(len(tokens), 10)
+
+	tgc.StreamWorkers.Set(tokens[:limit])
+
+	client, err := tgc.StreamWorkers.Next()
+
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 
+	channelUser = strings.Split(token, ":")[0]
+
 	if r.Method != "HEAD" {
-		tgc.RunWithAuth(c, client, token, func(ctx context.Context) error {
-			parts, err := getParts(c, client, file, channelUser)
-			if err != nil {
-				return err
-			}
-			parts = rangedParts(parts, start, end)
-			r, _ := reader.NewLinearReader(c, client, parts)
-			io.CopyN(w, r, contentLength)
-			return nil
-		})
+
+		parts, err := getParts(c, client.Tg, file, channelUser)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		parts = rangedParts(parts, start, end)
+		r, _ := reader.NewLinearReader(c, client.Tg, parts)
+		io.CopyN(w, r, contentLength)
 	}
 }
 

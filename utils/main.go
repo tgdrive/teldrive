@@ -21,6 +21,13 @@ func Max[T constraints.Ordered](a, b T) T {
 	return b
 }
 
+func Min[T constraints.Ordered](a, b T) T {
+	if a > b {
+		return b
+	}
+	return a
+}
+
 func CamelToPascalCase(input string) string {
 	var result strings.Builder
 	upperNext := true
