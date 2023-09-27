@@ -28,6 +28,7 @@ type Config struct {
 	TgClientLangPack       string   `envconfig:"TG_CLIENT_LANG_PACK" default:"webk"`
 	RunMigrations          bool     `envconfig:"RUN_MIGRATIONS" default:"true"`
 	Port                   int      `envconfig:"PORT" default:"8080"`
+	LazyStreamBots         bool     `envconfig:"LAZY_STREAM_BOTS" default:"true"`
 	ExecDir                string
 }
 

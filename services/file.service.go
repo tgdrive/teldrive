@@ -1,6 +1,7 @@
 package services
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -9,7 +10,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/divyam234/teldrive/database"
 	"github.com/divyam234/teldrive/mapper"
@@ -20,6 +20,7 @@ import (
 	"github.com/divyam234/teldrive/utils/md5"
 	"github.com/divyam234/teldrive/utils/reader"
 	"github.com/divyam234/teldrive/utils/tgc"
+	"github.com/gotd/td/telegram"
 
 	"github.com/divyam234/teldrive/types"
 
@@ -349,16 +350,7 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 		kv.SetValue(database.KV, key, file)
 	}
 
-	ifModifiedSinceHeader := r.Header.Get("If-Modified-Since")
-	if ifModifiedSinceHeader != "" {
-		ifModifiedSinceTime, err := time.Parse(http.TimeFormat, ifModifiedSinceHeader)
-		if err == nil && file.UpdatedAt.Before(ifModifiedSinceTime.Add(1*time.Second)) {
-			w.WriteHeader(http.StatusNotModified)
-			return
-		}
-	}
-
-	w.Header().Set("Accept-Ranges", "bytes")
+	c.Header("Accept-Ranges", "bytes")
 
 	var start, end int64
 
@@ -376,7 +368,7 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 		}
 		start = ranges[0].Start
 		end = ranges[0].End
-		w.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, file.Size))
+		c.Header("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, file.Size))
 		w.WriteHeader(http.StatusPartialContent)
 	}
 
@@ -388,11 +380,11 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 		mimeType = "application/octet-stream"
 	}
 
-	w.Header().Set("Content-Type", mimeType)
+	c.Header("Content-Type", mimeType)
 
-	w.Header().Set("Content-Length", strconv.FormatInt(contentLength, 10))
-	w.Header().Set("E-Tag", md5.FromString(file.ID+strconv.FormatInt(file.Size, 10)))
-	w.Header().Set("Last-Modified", file.UpdatedAt.UTC().Format(http.TimeFormat))
+	c.Header("Content-Length", strconv.FormatInt(contentLength, 10))
+	c.Header("E-Tag", md5.FromString(file.ID+strconv.FormatInt(file.Size, 10)))
+	c.Header("Last-Modified", file.UpdatedAt.UTC().Format(http.TimeFormat))
 
 	disposition := "inline"
 
@@ -400,7 +392,7 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 		disposition = "attachment"
 	}
 
-	w.Header().Set("Content-Disposition", fmt.Sprintf("%s; filename=\"%s\"", disposition, file.Name))
+	c.Header("Content-Disposition", fmt.Sprintf("%s; filename=\"%s\"", disposition, file.Name))
 
 	userID, _ := strconv.ParseInt(jwtUser.Subject, 10, 64)
 
@@ -411,38 +403,63 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 		return
 	}
 
-	if len(tokens) == 0 {
-		http.Error(w, "bots not found", http.StatusBadRequest)
-		return
-	}
+	config := utils.GetConfig()
 
 	var token string
+
 	var channelUser string
 
-	limit := utils.Min(len(tokens), 10)
+	if config.LazyStreamBots || len(tokens) == 0 {
+		var client *telegram.Client
+		if len(tokens) == 0 {
+			client, _ = tgc.UserLogin(jwtUser.TgSession)
+			channelUser = jwtUser.Subject
+		} else {
+			tgc.Workers.Set(tokens)
+			token = tgc.Workers.Next()
+			client, _ = tgc.BotLogin(token)
+			channelUser = strings.Split(token, ":")[0]
+		}
+		if r.Method != "HEAD" {
+			tgc.RunWithAuth(c, client, token, func(ctx context.Context) error {
+				parts, err := getParts(c, client, file, channelUser)
+				if err != nil {
+					return err
+				}
+				parts = rangedParts(parts, start, end)
+				r, _ := reader.NewLinearReader(c, client, parts)
+				io.CopyN(w, r, contentLength)
+				return nil
+			})
+		}
 
-	tgc.StreamWorkers.Set(tokens[:limit])
+	} else {
+		limit := utils.Min(len(tokens), 10)
 
-	client, err := tgc.StreamWorkers.Next()
+		tgc.StreamWorkers.Set(tokens[:limit])
 
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
+		client, err := tgc.StreamWorkers.Next()
 
-	channelUser = strings.Split(token, ":")[0]
-
-	if r.Method != "HEAD" {
-
-		parts, err := getParts(c, client.Tg, file, channelUser)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		parts = rangedParts(parts, start, end)
-		r, _ := reader.NewLinearReader(c, client.Tg, parts)
-		io.CopyN(w, r, contentLength)
+
+		channelUser = strings.Split(token, ":")[0]
+
+		if r.Method != "HEAD" {
+
+			parts, err := getParts(c, client.Tg, file, channelUser)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			parts = rangedParts(parts, start, end)
+			r, _ := reader.NewLinearReader(c, client.Tg, parts)
+			io.CopyN(w, r, contentLength)
+		}
 	}
+
 }
 
 func setOrderFilter(query *gorm.DB, pagingParams *schemas.PaginationQuery, sortingParams *schemas.SortingQuery) *gorm.DB {

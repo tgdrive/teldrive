@@ -13,4 +13,4 @@ sync-ui:
 
 .PHONY: teldrive
 teldrive:
-	go build -ldflags "-s -w"
+	go build -trimpath -ldflags "-s -w -extldflags=-static"

@@ -124,17 +124,6 @@ func (us *UserService) UpdateChannel(c *gin.Context) (*schemas.Message, *types.A
 	key := kv.Key("users", strconv.FormatInt(userId, 10), "channel")
 	database.KV.Delete(key)
 	kv.SetValue(database.KV, key, payload.ChannelID)
-	//add bots as admin if channel is changed in background
-	go func() {
-		userId, session := getUserAuth(c)
-		client, _ := tgc.UserLogin(session)
-		var botsTokens []string
-		us.Db.Model(&models.Bot{}).Where("user_id = ?", userId).Pluck("token", &botsTokens)
-		if len(botsTokens) > 0 {
-			us.addBots(c, client, userId, payload.ChannelID, botsTokens)
-		}
-
-	}()
 	return &schemas.Message{Status: true, Message: "channel updated"}, nil
 }
 
@@ -152,7 +141,7 @@ func (us *UserService) ListChannels(c *gin.Context) (interface{}, *types.AppErro
 			if !dialog.Deleted() {
 				for _, channel := range dialog.Entities.Channels() {
 					_, exists := channels[channel.ID]
-					if !exists && channel.Creator {
+					if !exists && channel.AdminRights.AddAdmins {
 						channels[channel.ID] = &schemas.Channel{ChannelID: channel.ID, ChannelName: channel.Title}
 					}
 				}
