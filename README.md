@@ -84,6 +84,7 @@ COOKIE_SAME_SITE=true
 JWT_SECRET=abc
 DATABASE_URL=abc
 RATE_LIMIT=true
+LAZY_STREAM_BOTS=false
 
 ```
 > **Warning**
@@ -118,7 +119,11 @@ In addition to the mandatory variables, you can also set the following optional 
 - `HTTPS` : Only needed when frontend is on other domain.
 - `PORT` : Change listen port default is 8080
 - `ALLOWED_USERS` : Allow certain telegram usernames including yours to access the app.Enter comma seperated telegram usernames here.Its needed when your instance is on public cloud and you want to restrict other people to access you app.
-- `COOKIE_SAME_SITE` : Only needed when frontend is deployed on vercel.
+- `COOKIE_SAME_SITE` : Only needed when frontend is on other domain.
+
+- `LAZY_STREAM_BOTS` : If set to true start Bot session and close immediately when stream or download request is over otherwise run bots forever till server stops.
+
+- `BG_BOTS_LIMIT` : If LAZY_STREAM_BOTS is set to false it start atmost BG_BOTS_LIMIT no of bots in background to prevent connection recreation on every request(Default is 10).
 ### For making use of Multi Bots support
 
 > **Warning**

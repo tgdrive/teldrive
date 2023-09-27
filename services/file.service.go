@@ -396,7 +396,7 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 
 	userID, _ := strconv.ParseInt(jwtUser.Subject, 10, 64)
 
-	tokens, err := GetBotsToken(userID)
+	tokens, err := GetBotsToken(c, userID)
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -434,7 +434,7 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 		}
 
 	} else {
-		limit := utils.Min(len(tokens), 10)
+		limit := utils.Min(len(tokens), config.BgBotsLimit)
 
 		tgc.StreamWorkers.Set(tokens[:limit])
 

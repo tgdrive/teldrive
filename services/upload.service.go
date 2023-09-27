@@ -89,7 +89,7 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 
 	userId, session := getUserAuth(c)
 
-	tokens, err := GetBotsToken(userId)
+	tokens, err := GetBotsToken(c, userId)
 
 	if err != nil {
 		return nil, &types.AppError{Error: errors.New("failed to fetch bots"), Code: http.StatusInternalServerError}

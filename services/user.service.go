@@ -91,7 +91,7 @@ func (us *UserService) Stats(c *gin.Context) (*schemas.AccountStats, *types.AppE
 
 func (us *UserService) GetBots(c *gin.Context) ([]string, *types.AppError) {
 	userID, _ := getUserAuth(c)
-	tokens, err := GetBotsToken(userID)
+	tokens, err := GetBotsToken(c, userID)
 
 	if err != nil {
 		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
@@ -175,6 +175,27 @@ func (us *UserService) AddBots(c *gin.Context) (*schemas.Message, *types.AppErro
 	}
 
 	return us.addBots(c, client, userId, channelId, botsTokens)
+
+}
+
+func (us *UserService) RemoveBots(c *gin.Context) (*schemas.Message, *types.AppError) {
+	userID, _ := getUserAuth(c)
+
+	channelId, err := GetDefaultChannel(c, userID)
+
+	if err != nil {
+		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
+	}
+
+	if err := us.Db.Where("user_id = ?", userID).Where("channel_id = ?", channelId).
+		Delete(&models.Bot{}).Error; err != nil {
+		return nil, &types.AppError{Error: errors.New("failed to delete bots"), Code: http.StatusInternalServerError}
+	}
+	key := kv.Key("users", strconv.FormatInt(userID, 10), strconv.FormatInt(channelId, 10), "bots")
+
+	database.KV.Delete(key)
+
+	return &schemas.Message{Status: true, Message: "bots deleted"}, nil
 
 }
 
@@ -334,11 +355,11 @@ func (us *UserService) addBots(c context.Context, client *telegram.Client, userI
 
 	for _, info := range botInfo {
 		payload = append(payload, models.Bot{UserID: userId, Token: info.Token, BotID: info.Id,
-			BotUserName: info.UserName,
+			BotUserName: info.UserName, ChannelID: channelId,
 		})
 	}
 
-	key := kv.Key("users", strconv.FormatInt(userId, 10), "bots")
+	key := kv.Key("users", strconv.FormatInt(userId, 10), strconv.FormatInt(channelId, 10), "bots")
 	database.KV.Delete(key)
 
 	if err := us.Db.Clauses(clause.OnConflict{DoNothing: true}).Create(&payload).Error; err != nil {

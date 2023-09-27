@@ -73,6 +73,18 @@ func addUserRoutes(rg *gin.RouterGroup) {
 		c.JSON(http.StatusCreated, res)
 	})
 
+	r.DELETE("/bots", func(c *gin.Context) {
+
+		res, err := userService.RemoveBots(c)
+
+		if err != nil {
+			c.AbortWithError(err.Code, err.Error)
+			return
+		}
+
+		c.JSON(http.StatusOK, res)
+	})
+
 	r.GET("/bots/revoke", func(c *gin.Context) {
 
 		res, err := userService.RevokeBotSession(c)

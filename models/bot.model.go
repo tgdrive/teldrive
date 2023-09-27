@@ -5,4 +5,5 @@ type Bot struct {
 	UserID      int64  `gorm:"type:bigint"`
 	BotID       int64  `gorm:"type:bigint"`
 	BotUserName string `gorm:"type:text"`
+	ChannelID   int64  `gorm:"type:bigint"`
 }

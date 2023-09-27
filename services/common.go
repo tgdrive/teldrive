@@ -181,15 +181,22 @@ func GetDefaultChannel(ctx context.Context, userID int64) (int64, error) {
 	return channelID, nil
 }
 
-func GetBotsToken(userID int64) ([]string, error) {
+func GetBotsToken(ctx context.Context, userID int64) ([]string, error) {
 	var bots []string
 
-	key := kv.Key("users", strconv.FormatInt(userID, 10), "bots")
-
-	err := kv.GetValue(database.KV, key, &bots)
+	channelId, err := GetDefaultChannel(ctx, userID)
 
 	if err != nil {
-		if err := database.DB.Model(&models.Bot{}).Where("user_id = ?", userID).Pluck("token", &bots).Error; err != nil {
+		return nil, err
+	}
+
+	key := kv.Key("users", strconv.FormatInt(userID, 10), strconv.FormatInt(channelId, 10), "bots")
+
+	err = kv.GetValue(database.KV, key, &bots)
+
+	if err != nil {
+		if err := database.DB.Model(&models.Bot{}).Where("user_id = ?", userID).
+			Where("channel_id = ?", channelId).Pluck("token", &bots).Error; err != nil {
 			return nil, err
 		}
 		kv.SetValue(database.KV, key, &bots)

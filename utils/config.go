@@ -29,6 +29,7 @@ type Config struct {
 	RunMigrations          bool     `envconfig:"RUN_MIGRATIONS" default:"true"`
 	Port                   int      `envconfig:"PORT" default:"8080"`
 	LazyStreamBots         bool     `envconfig:"LAZY_STREAM_BOTS" default:"true"`
+	BgBotsLimit            int      `envconfig:"BG_BOTS_LIMIT" default:"10"`
 	ExecDir                string
 }
 
