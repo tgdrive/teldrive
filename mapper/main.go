@@ -31,7 +31,7 @@ func MapFileInToFile(file schemas.FileIn) models.File {
 		UserID:    file.UserID,
 		ParentID:  file.ParentID,
 		Parts:     file.Parts,
-		ChannelID: file.ChannelID,
+		ChannelID: &file.ChannelID,
 		Status:    file.Status,
 	}
 }

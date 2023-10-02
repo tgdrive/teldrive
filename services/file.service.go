@@ -65,14 +65,18 @@ func (fs *FileService) CreateFile(c *gin.Context) (*schemas.FileOut, *types.AppE
 		fileIn.Depth = utils.IntPointer(len(strings.Split(fileIn.Path, "/")) - 1)
 	} else if fileIn.Type == "file" {
 		fileIn.Path = ""
-
-		channelId, err := GetDefaultChannel(c, userId)
-
-		if err != nil {
-			return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
+		var channelId int64
+		var err error
+		if fileIn.ChannelID == 0 {
+			channelId, err = GetDefaultChannel(c, userId)
+			if err != nil {
+				return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
+			}
+		} else {
+			channelId = fileIn.ChannelID
 		}
 
-		fileIn.ChannelID = &channelId
+		fileIn.ChannelID = channelId
 	}
 
 	fileIn.UserID = userId

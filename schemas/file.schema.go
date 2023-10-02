@@ -35,7 +35,7 @@ type FileIn struct {
 	Type      string        `json:"type" mapstructure:"type,omitempty"`
 	Parts     *models.Parts `json:"parts,omitempty" mapstructure:"parts,omitempty"`
 	MimeType  string        `json:"mimeType" mapstructure:"mime_type,omitempty"`
-	ChannelID *int64        `json:"channelId,omitempty" mapstructure:"channel_id,omitempty"`
+	ChannelID int64         `json:"channelId" mapstructure:"channel_id,omitempty"`
 	Path      string        `json:"path" mapstructure:"path,omitempty"`
 	Size      int64         `json:"size" mapstructure:"size,omitempty"`
 	Starred   *bool         `json:"starred" mapstructure:"starred,omitempty"`
