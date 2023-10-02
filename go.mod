@@ -5,7 +5,7 @@ go 1.21
 require (
 	github.com/divyam234/cors v1.4.2
 	github.com/gin-gonic/gin v1.9.1
-	github.com/go-co-op/gocron v1.34.2
+	github.com/go-co-op/gocron v1.35.0
 	github.com/go-jose/go-jose/v3 v3.0.0
 	github.com/gotd/contrib v0.19.0
 	github.com/gotd/td v0.88.0
