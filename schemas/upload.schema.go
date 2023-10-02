@@ -4,6 +4,7 @@ type UploadQuery struct {
 	Filename   string `form:"fileName"`
 	PartNo     int    `form:"partNo,omitempty"`
 	TotalParts int    `form:"totalparts"`
+	ChannelID  int64  `form:"channelId"`
 }
 
 type UploadPartOut struct {

@@ -115,10 +115,15 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 
 	err = tgc.RunWithAuth(ctx, client, token, func(ctx context.Context) error {
 
-		channelId, err := GetDefaultChannel(ctx, userId)
+		var channelId int64
 
-		if err != nil {
-			return err
+		if uploadQuery.ChannelID == 0 {
+			channelId, err = GetDefaultChannel(ctx, userId)
+			if err != nil {
+				return err
+			}
+		} else {
+			channelId = uploadQuery.ChannelID
 		}
 
 		channel, err := GetChannelById(ctx, client, channelId, channelUser)
