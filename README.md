@@ -7,7 +7,8 @@ Telegram Drive is a powerful utility that enables you to create your own cloud s
 
 **Click on icon to join Discord Server for better support**
 
- 
+[Read Wiki for FAQ](https://github.com/divyam234/teldrive/wiki).
+
 <details open="open">
   <summary>Table of Contents</summary>
   <ol>
@@ -136,6 +137,3 @@ In addition to the mandatory variables, you can also set the following optional 
 ## Contributing
 
 Feel free to contribute to this project if you have any further ideas.
-
-[Read Wiki Here](https://github.com/divyam234/teldrive/wiki).
-
