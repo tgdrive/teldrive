@@ -137,4 +137,5 @@ In addition to the mandatory variables, you can also set the following optional 
 
 Feel free to contribute to this project if you have any further ideas.
 
+[Read Wiki Here](https://github.com/divyam234/teldrive/wiki).
 
