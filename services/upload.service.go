@@ -75,17 +75,13 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 
 	fileSize := c.Request.ContentLength
 
+	if fileSize == 0 {
+		return nil, &types.AppError{Error: errors.New("filesize must be greater than zero"), Code: http.StatusBadRequest}
+	}
+
 	fileName := uploadQuery.Filename
 
 	var msgId int
-
-	ctx := context.Background()
-
-	ctx, cancel := context.WithCancel(ctx)
-
-	defer func() {
-		cancel()
-	}()
 
 	userId, session := getUserAuth(c)
 
@@ -113,7 +109,7 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 
 	var out *schemas.UploadPartOut
 
-	err = tgc.RunWithAuth(ctx, client, token, func(ctx context.Context) error {
+	err = tgc.RunWithAuth(c, client, token, func(ctx context.Context) error {
 
 		var channelId int64
 
