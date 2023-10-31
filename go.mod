@@ -5,7 +5,7 @@ go 1.21
 require (
 	github.com/divyam234/cors v1.4.2
 	github.com/gin-gonic/gin v1.9.1
-	github.com/go-co-op/gocron v1.35.2
+	github.com/go-co-op/gocron v1.35.3
 	github.com/go-jose/go-jose/v3 v3.0.0
 	github.com/gotd/contrib v0.19.0
 	github.com/gotd/td v0.88.0
@@ -15,17 +15,17 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/quantumsheep/range-parser v1.1.0
 	github.com/thoas/go-funk v0.9.3
-	go.etcd.io/bbolt v1.3.7
+	go.etcd.io/bbolt v1.3.8
 	go.uber.org/zap v1.26.0
 	golang.org/x/exp v0.0.0-20230811145659-89c5cff77bcb
 	golang.org/x/time v0.3.0
-	gorm.io/driver/postgres v1.5.2
+	gorm.io/driver/postgres v1.5.4
 	gorm.io/gorm v1.25.5
 )
 
 require (
 	github.com/chenzhuoyu/iasm v0.9.0 // indirect
-	github.com/google/uuid v1.3.1 // indirect
+	github.com/google/uuid v1.4.0 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 )
 
@@ -69,7 +69,7 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/arch v0.5.0 // indirect
-	golang.org/x/crypto v0.13.0 // indirect
+	golang.org/x/crypto v0.14.0 // indirect
 	golang.org/x/net v0.15.0 // indirect
 	golang.org/x/sync v0.3.0 // indirect
 	golang.org/x/sys v0.13.0 // indirect
