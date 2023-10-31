@@ -17,9 +17,10 @@ begin
     path_parts := string_to_array(regexp_replace(long_path, '^/+', ''), '/');
    
     path_so_far := '';
+
     depth_dir := 0;
 
-    SELECT id  into  current_directory_id FROM teldrive.files WHERE parent_id='root';
+    SELECT id  into  current_directory_id FROM teldrive.files WHERE parent_id='root' AND user_id=tg_id;
 
 
     FOR directory_name IN SELECT unnest(path_parts) LOOP

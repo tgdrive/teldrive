@@ -33,6 +33,8 @@ func main() {
 
 	scheduler.Every(1).Hour().Do(cron.FilesDeleteJob)
 
+	scheduler.Every(12).Hour().Do(cron.UploadCleanJob)
+
 	scheduler.StartAsync()
 
 	router.Use(cors.New(cors.Config{

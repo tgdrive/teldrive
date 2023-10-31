@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/divyam234/teldrive/mapper"
 	"github.com/divyam234/teldrive/schemas"
@@ -29,7 +30,9 @@ type UploadService struct {
 func (us *UploadService) GetUploadFileById(c *gin.Context) (*schemas.UploadOut, *types.AppError) {
 	uploadId := c.Param("id")
 	parts := []schemas.UploadPartOut{}
-	if err := us.Db.Model(&models.Upload{}).Order("part_no").Where("upload_id = ?", uploadId).Find(&parts).Error; err != nil {
+	if err := us.Db.Model(&models.Upload{}).Order("part_no").Where("upload_id = ?", uploadId).
+		Where("created_at >= ?", time.Now().UTC().AddDate(0, 0, -15)).
+		Find(&parts).Error; err != nil {
 		return nil, &types.AppError{Error: errors.New("failed to fetch from db"), Code: http.StatusInternalServerError}
 	}
 
@@ -74,10 +77,6 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 	file := c.Request.Body
 
 	fileSize := c.Request.ContentLength
-
-	if fileSize == 0 {
-		return nil, &types.AppError{Error: errors.New("filesize must be greater than zero"), Code: http.StatusBadRequest}
-	}
 
 	fileName := uploadQuery.Filename
 
