@@ -7,7 +7,7 @@ import (
 type Upload struct {
 	ID         string    `gorm:"type:text;primary_key;default:generate_uid(16)"`
 	UploadId   string    `gorm:"type:text"`
-	UserId     string    `gorm:"type:bigint"`
+	UserId     int64     `gorm:"type:bigint"`
 	Name       string    `gorm:"type:text"`
 	PartNo     int       `gorm:"type:integer"`
 	TotalParts int       `gorm:"type:integer"`

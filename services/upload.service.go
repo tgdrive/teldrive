@@ -63,11 +63,15 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 		return nil, &types.AppError{Error: errors.New("filename missing"), Code: http.StatusBadRequest}
 	}
 
+	userId, session := getUserAuth(c)
+
 	uploadId := c.Param("id")
 
 	var uploadPart []models.Upload
 
-	us.Db.Model(&models.Upload{}).Where("upload_id = ?", uploadId).Where("part_no = ?", uploadQuery.PartNo).Find(&uploadPart)
+	us.Db.Model(&models.Upload{}).Where("upload_id = ?", uploadId).Where("part_no = ?", uploadQuery.PartNo).
+		Where("user_id = ?", userId).
+		Find(&uploadPart)
 
 	if len(uploadPart) == 1 {
 		out := mapper.MapUploadSchema(&uploadPart[0])
@@ -81,8 +85,6 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 	fileName := uploadQuery.Filename
 
 	var msgId int
-
-	userId, session := getUserAuth(c)
 
 	tokens, err := GetBotsToken(c, userId)
 
@@ -166,6 +168,7 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 			Size:       fileSize,
 			PartNo:     uploadQuery.PartNo,
 			TotalParts: uploadQuery.TotalParts,
+			UserId:     userId,
 		}
 
 		if err := us.Db.Create(partUpload).Error; err != nil {
