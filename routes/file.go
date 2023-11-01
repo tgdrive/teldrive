@@ -107,4 +107,16 @@ func addFileRoutes(rg *gin.RouterGroup) {
 		c.JSON(http.StatusOK, res)
 	})
 
+	r.POST("/movedir", Authmiddleware, func(c *gin.Context) {
+
+		res, err := fileService.MoveDirectory(c)
+
+		if err != nil {
+			c.AbortWithError(err.Code, err.Error)
+			return
+		}
+
+		c.JSON(http.StatusOK, res)
+	})
+
 }

@@ -73,6 +73,11 @@ type FileOperation struct {
 	Destination string   `json:"destination,omitempty"`
 }
 
+type DirMove struct {
+	Source      string `json:"source"`
+	Destination string `json:"destination"`
+}
+
 type MkDir struct {
 	Path string `json:"path"`
 }

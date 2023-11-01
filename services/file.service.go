@@ -306,6 +306,23 @@ func (fs *FileService) DeleteFiles(c *gin.Context) (*schemas.Message, *types.App
 	return &schemas.Message{Status: true, Message: "files deleted"}, nil
 }
 
+func (fs *FileService) MoveDirectory(c *gin.Context) (*schemas.Message, *types.AppError) {
+
+	var payload schemas.DirMove
+
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		return nil, &types.AppError{Error: errors.New("invalid request payload"), Code: http.StatusBadRequest}
+	}
+
+	userId, _ := getUserAuth(c)
+
+	if err := fs.Db.Exec("select * from teldrive.move_directory(? , ? , ?)", payload.Source, payload.Destination, userId).Error; err != nil {
+		return nil, &types.AppError{Error: errors.New("failed to move directory"), Code: http.StatusInternalServerError}
+	}
+
+	return &schemas.Message{Status: true, Message: "directory moved"}, nil
+}
+
 func (fs *FileService) GetFileStream(c *gin.Context) {
 
 	w := c.Writer
