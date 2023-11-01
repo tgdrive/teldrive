@@ -175,15 +175,16 @@ func (fs *FileService) ListFiles(c *gin.Context) (*schemas.FileResponse, *types.
 		return nil, &types.AppError{Error: errors.New("invalid params"), Code: http.StatusBadRequest}
 	}
 
+	if fileQuery.Path != "" {
+		if err := fs.CheckIfPathExists(fileQuery.Path); err != nil {
+			return nil, &types.AppError{Error: err, Code: http.StatusNotFound}
+		}
+	}
+
 	query := fs.Db.Model(&models.File{}).Limit(pagingParams.PerPage).
 		Where(map[string]interface{}{"user_id": userId, "status": "active"})
 
 	if fileQuery.Op == "list" {
-
-		if pathExists, message := fs.CheckIfPathExists(&fileQuery.Path); !pathExists {
-			return nil, &types.AppError{Error: errors.New(message), Code: http.StatusNotFound}
-		}
-
 		setOrderFilter(query, &pagingParams, &sortingParams)
 
 		query.Order("type DESC").Order(getOrder(sortingParams)).
@@ -238,14 +239,13 @@ func (fs *FileService) ListFiles(c *gin.Context) (*schemas.FileResponse, *types.
 	return res, nil
 }
 
-func (fs *FileService) CheckIfPathExists(path *string) (bool, string) {
-	query := fs.Db.Model(&models.File{}).Select("id").Where("path = ?", path)
-	var results []schemas.FileOut
-	query.Find(&results)
-	if len(results) == 0 {
-		return false, "This directory doesn't exist."
+func (fs *FileService) CheckIfPathExists(path string) error {
+
+	if err := fs.Db.Model(&models.File{}).Select("id").Where("path = ?", path).First(&models.File{}).Error; errors.Is(err, gorm.ErrRecordNotFound) {
+		return errors.New("path not found")
+
 	}
-	return true, ""
+	return nil
 }
 
 func (fs *FileService) MakeDirectory(c *gin.Context) (*schemas.FileOut, *types.AppError) {
@@ -278,10 +278,6 @@ func (fs *FileService) MoveFiles(c *gin.Context) (*schemas.Message, *types.AppEr
 	}
 
 	var destination models.File
-
-	if pathExists, message := fs.CheckIfPathExists(&payload.Destination); !pathExists {
-		return nil, &types.AppError{Error: errors.New(message), Code: http.StatusBadRequest}
-	}
 
 	if err := fs.Db.Model(&models.File{}).Select("id").Where("path = ?", payload.Destination).First(&destination).Error; errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, &types.AppError{Error: errors.New("destination not found"), Code: http.StatusNotFound}
