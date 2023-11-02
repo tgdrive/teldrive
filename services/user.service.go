@@ -13,7 +13,7 @@ import (
 	"github.com/divyam234/teldrive/models"
 	"github.com/divyam234/teldrive/schemas"
 	"github.com/divyam234/teldrive/types"
-	"github.com/divyam234/teldrive/utils/kv"
+	"github.com/divyam234/teldrive/utils/cache"
 	"github.com/divyam234/teldrive/utils/tgc"
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/telegram/message/peer"
@@ -121,9 +121,8 @@ func (us *UserService) UpdateChannel(c *gin.Context) (*schemas.Message, *types.A
 	us.Db.Model(&models.Channel{}).Where("channel_id != ?", payload.ChannelID).
 		Where("user_id = ?", userId).Update("selected", false)
 
-	key := kv.Key("users", strconv.FormatInt(userId, 10), "channel")
-	database.KV.Delete(key)
-	kv.SetValue(database.KV, key, payload.ChannelID)
+	key := fmt.Sprintf("users:channel:%d", userId)
+	cache.GetCache().Set(key, payload.ChannelID, 0)
 	return &schemas.Message{Status: true, Message: "channel updated"}, nil
 }
 
@@ -191,9 +190,8 @@ func (us *UserService) RemoveBots(c *gin.Context) (*schemas.Message, *types.AppE
 		Delete(&models.Bot{}).Error; err != nil {
 		return nil, &types.AppError{Error: errors.New("failed to delete bots"), Code: http.StatusInternalServerError}
 	}
-	key := kv.Key("users", strconv.FormatInt(userID, 10), strconv.FormatInt(channelId, 10), "bots")
 
-	database.KV.Delete(key)
+	cache.GetCache().Delete(fmt.Sprintf("users:bots:%d:%d", userID, channelId))
 
 	return &schemas.Message{Status: true, Message: "bots deleted"}, nil
 
@@ -229,39 +227,6 @@ func (us *UserService) RevokeBotSession(c *gin.Context) (*schemas.Message, *type
 	}
 
 	return &schemas.Message{Status: true, Message: "session revoked"}, nil
-
-}
-
-func (us *UserService) ClearCache(c *gin.Context) (*schemas.Message, *types.AppError) {
-
-	pattern := []byte("users")
-
-	err := database.BoltDB.Update(func(tx *bbolt.Tx) error {
-
-		bucket := tx.Bucket([]byte("teldrive"))
-		if bucket == nil {
-			return errors.New("bucket not found")
-		}
-
-		c := bucket.Cursor()
-
-		for key, _ := c.First(); key != nil; key, _ = c.Next() {
-			if bytes.HasPrefix(key, pattern) {
-				if err := c.Delete(); err != nil {
-					return err
-				}
-			}
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		return nil, &types.AppError{Error: errors.New("failed to clear cache"),
-			Code: http.StatusInternalServerError}
-	}
-
-	return &schemas.Message{Status: true, Message: "cache cleared"}, nil
 
 }
 
@@ -359,8 +324,7 @@ func (us *UserService) addBots(c context.Context, client *telegram.Client, userI
 		})
 	}
 
-	key := kv.Key("users", strconv.FormatInt(userId, 10), strconv.FormatInt(channelId, 10), "bots")
-	database.KV.Delete(key)
+	cache.GetCache().Delete(fmt.Sprintf("users:bots:%d:%d", userId, channelId))
 
 	if err := us.Db.Clauses(clause.OnConflict{DoNothing: true}).Create(&payload).Error; err != nil {
 		return nil, &types.AppError{Error: errors.New("failed to add bots"), Code: http.StatusInternalServerError}

@@ -12,6 +12,7 @@ import (
 	"github.com/divyam234/teldrive/utils"
 
 	"github.com/divyam234/cors"
+	"github.com/divyam234/teldrive/utils/cache"
 	"github.com/divyam234/teldrive/utils/cron"
 	"github.com/gin-gonic/gin"
 	"github.com/go-co-op/gocron"
@@ -28,6 +29,8 @@ func main() {
 	utils.InitializeLogger()
 
 	database.InitDB()
+
+	cache.InitCache()
 
 	scheduler := gocron.NewScheduler(time.UTC)
 

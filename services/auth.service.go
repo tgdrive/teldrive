@@ -16,13 +16,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/divyam234/teldrive/database"
 	"github.com/divyam234/teldrive/models"
 	"github.com/divyam234/teldrive/schemas"
 	"github.com/divyam234/teldrive/types"
 	"github.com/divyam234/teldrive/utils"
 	"github.com/divyam234/teldrive/utils/auth"
-	"github.com/divyam234/teldrive/utils/kv"
 	"github.com/divyam234/teldrive/utils/tgc"
 	"github.com/gin-gonic/gin"
 	"github.com/go-jose/go-jose/v3/jwt"
@@ -145,9 +143,8 @@ func (as *AuthService) LogIn(c *gin.Context) (*schemas.Message, *types.AppError)
 		IsPremium: session.IsPremium,
 	}
 
-	tokenBytes, _ := json.Marshal(jwtClaims)
-	md5hash := md5.Sum(tokenBytes)
-	hexToken := hex.EncodeToString(md5hash[:])
+	tokenhash := md5.Sum([]byte(session.Sesssion))
+	hexToken := hex.EncodeToString(tokenhash[:])
 	jwtClaims.Hash = hexToken
 
 	jweToken, err := auth.Encode(jwtClaims)
@@ -168,7 +165,7 @@ func (as *AuthService) LogIn(c *gin.Context) (*schemas.Message, *types.AppError)
 
 	if err := as.Db.Model(&models.User{}).Where("user_id = ?", session.UserID).
 		Find(&result).Error; err != nil {
-		return nil, &types.AppError{Error: errors.New("failed to create or update user"),
+		return nil, &types.AppError{Error: errors.New("failed to find user"),
 			Code: http.StatusInternalServerError}
 	}
 	if len(result) == 0 {
@@ -192,17 +189,16 @@ func (as *AuthService) LogIn(c *gin.Context) (*schemas.Message, *types.AppError)
 			return nil, &types.AppError{Error: errors.New("failed to create or update user"),
 				Code: http.StatusInternalServerError}
 		}
-	} else {
-		if err := as.Db.Model(&models.User{}).Where("user_id = ?", session.UserID).
-			Update("tg_session", session.Sesssion).Error; err != nil {
-			return nil, &types.AppError{Error: errors.New("failed to create or update user"),
-				Code: http.StatusInternalServerError}
-		}
 	}
 
 	setCookie(c, as.SessionCookieName, jweToken, as.SessionMaxAge)
 
-	database.KV.Set(kv.Key("sessions", hexToken), tokenBytes)
+	//create session
+
+	if err := as.Db.Create(&models.Session{UserId: session.UserID, Hash: hexToken, Session: session.Sesssion}).Error; err != nil {
+		return nil, &types.AppError{Error: errors.New("failed to create  user session"),
+			Code: http.StatusInternalServerError}
+	}
 
 	return &schemas.Message{Status: true, Message: "login success"}, nil
 }
@@ -254,7 +250,7 @@ func (as *AuthService) Logout(c *gin.Context) (*schemas.Message, *types.AppError
 	})
 
 	setCookie(c, as.SessionCookieName, "", -1)
-	database.KV.Delete(kv.Key("sessions", jwtUser.Hash))
+	as.Db.Where("session = ?", jwtUser.TgSession).Delete(&models.Session{})
 	return &schemas.Message{Status: true, Message: "logout success"}, nil
 }
 

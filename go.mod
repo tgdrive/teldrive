@@ -3,6 +3,7 @@ module github.com/divyam234/teldrive
 go 1.21
 
 require (
+	github.com/coocood/freecache v1.2.4
 	github.com/divyam234/cors v1.4.2
 	github.com/gin-gonic/gin v1.9.1
 	github.com/go-co-op/gocron v1.35.3
@@ -24,6 +25,7 @@ require (
 )
 
 require (
+	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/chenzhuoyu/iasm v0.9.0 // indirect
 	github.com/google/uuid v1.4.0 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect

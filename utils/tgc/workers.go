@@ -56,19 +56,19 @@ func (w *streamWorkers) Set(bots []string) {
 	}
 }
 
-func (w *streamWorkers) Next() (*Client, error) {
+func (w *streamWorkers) Next() (*Client, int, error) {
 	w.Lock()
 	defer w.Unlock()
 	w.index = (w.index + 1) % len(w.clients)
 	if w.clients[w.index].Status == "idle" {
 		stop, err := bg.Connect(w.clients[w.index].Tg)
 		if err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		w.clients[w.index].Stop = stop
 		w.clients[w.index].Status = "running"
 	}
-	return w.clients[w.index], nil
+	return w.clients[w.index], w.index, nil
 }
 
 var StreamWorkers = &streamWorkers{}

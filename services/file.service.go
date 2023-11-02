@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -11,12 +10,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/divyam234/teldrive/database"
 	"github.com/divyam234/teldrive/mapper"
 	"github.com/divyam234/teldrive/models"
 	"github.com/divyam234/teldrive/schemas"
 	"github.com/divyam234/teldrive/utils"
-	"github.com/divyam234/teldrive/utils/kv"
+	"github.com/divyam234/teldrive/utils/cache"
 	"github.com/divyam234/teldrive/utils/md5"
 	"github.com/divyam234/teldrive/utils/reader"
 	"github.com/divyam234/teldrive/utils/tgc"
@@ -128,8 +126,9 @@ func (fs *FileService) UpdateFile(c *gin.Context) (*schemas.FileOut, *types.AppE
 
 	file := mapper.MapFileToFileOut(files[0])
 
-	key := kv.Key("files", fileID)
-	database.KV.Delete(key)
+	key := fmt.Sprintf("files:%s", fileID)
+
+	cache.GetCache().Delete(key)
 
 	return &file, nil
 
@@ -337,34 +336,26 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 		return
 	}
 
-	data, err := database.KV.Get(kv.Key("sessions", authHash))
+	session, err := GetSessionByHash(authHash)
 
 	if err != nil {
 		http.Error(w, "hash missing relogin", http.StatusBadRequest)
 		return
 	}
 
-	jwtUser := &types.JWTClaims{}
-
-	err = json.Unmarshal(data, jwtUser)
-
-	if err != nil {
-		http.Error(w, "invalid hash", http.StatusBadRequest)
-		return
-	}
-
 	file := &schemas.FileOutFull{}
 
-	key := kv.Key("files", fileID)
+	key := fmt.Sprintf("files:%s", fileID)
 
-	err = kv.GetValue(database.KV, key, file)
+	err = cache.GetCache().Get(key, file)
+
 	if err != nil {
 		file, err = fs.GetFileByID(c)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		kv.SetValue(database.KV, key, file)
+		cache.GetCache().Set(key, file, 0)
 	}
 
 	c.Header("Accept-Ranges", "bytes")
@@ -411,9 +402,7 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 
 	c.Header("Content-Disposition", fmt.Sprintf("%s; filename=\"%s\"", disposition, file.Name))
 
-	userID, _ := strconv.ParseInt(jwtUser.Subject, 10, 64)
-
-	tokens, err := GetBotsToken(c, userID)
+	tokens, err := GetBotsToken(c, session.UserId)
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -429,8 +418,8 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 	if config.LazyStreamBots || len(tokens) == 0 {
 		var client *telegram.Client
 		if len(tokens) == 0 {
-			client, _ = tgc.UserLogin(jwtUser.TgSession)
-			channelUser = jwtUser.Subject
+			client, _ = tgc.UserLogin(session.Session)
+			channelUser = strconv.FormatInt(session.UserId, 10)
 		} else {
 			tgc.Workers.Set(tokens)
 			token = tgc.Workers.Next()
@@ -455,14 +444,14 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 
 		tgc.StreamWorkers.Set(tokens[:limit])
 
-		client, err := tgc.StreamWorkers.Next()
+		client, index, err := tgc.StreamWorkers.Next()
 
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		channelUser = strings.Split(token, ":")[0]
+		channelUser = strings.Split(tokens[index], ":")[0]
 
 		if r.Method != "HEAD" {
 

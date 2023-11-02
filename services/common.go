@@ -12,7 +12,7 @@ import (
 	"github.com/divyam234/teldrive/schemas"
 	"github.com/divyam234/teldrive/types"
 	"github.com/divyam234/teldrive/utils"
-	"github.com/divyam234/teldrive/utils/kv"
+	"github.com/divyam234/teldrive/utils/cache"
 	"github.com/divyam234/teldrive/utils/tgc"
 	"github.com/gin-gonic/gin"
 	"github.com/gotd/td/telegram"
@@ -20,6 +20,12 @@ import (
 	"github.com/pkg/errors"
 	"github.com/thoas/go-funk"
 )
+
+func CopyList[T any](list []T) []T {
+	newList := make([]T, len(list))
+	copy(newList, list)
+	return newList
+}
 
 func getChunk(ctx context.Context, tgClient *telegram.Client, location tg.InputFileLocationClass, offset int64, limit int64) ([]byte, error) {
 
@@ -84,6 +90,16 @@ func getBotInfo(ctx context.Context, token string) (*BotInfo, error) {
 
 func getParts(ctx context.Context, client *telegram.Client, file *schemas.FileOutFull, userID string) ([]types.Part, error) {
 
+	parts := []types.Part{}
+
+	key := fmt.Sprintf("messages:%s:%s", file.ID, userID)
+
+	err := cache.GetCache().Get(key, &parts)
+
+	if err == nil {
+		return parts, nil
+	}
+
 	ids := funk.Map(*file.Parts, func(part models.Part) tg.InputMessageClass {
 		return tg.InputMessageClass(&tg.InputMessageID{ID: int(part.ID)})
 	})
@@ -104,8 +120,6 @@ func getParts(ctx context.Context, client *telegram.Client, file *schemas.FileOu
 
 	messages := res.(*tg.MessagesChannelMessages)
 
-	parts := []types.Part{}
-
 	for _, message := range messages.Messages {
 		item := message.(*tg.Message)
 		media := item.Media.(*tg.MessageMediaDocument)
@@ -113,6 +127,7 @@ func getParts(ctx context.Context, client *telegram.Client, file *schemas.FileOu
 		location := document.AsInputDocumentFileLocation()
 		parts = append(parts, types.Part{Location: location, Start: 0, End: document.Size - 1, Size: document.Size})
 	}
+	cache.GetCache().Set(key, &parts, 3600)
 	return parts, nil
 }
 
@@ -124,7 +139,7 @@ func rangedParts(parts []types.Part, start, end int64) []types.Part {
 
 	endPartNumber := int64(math.Ceil(float64(end) / float64(chunkSize)))
 
-	partsToDownload := parts[startPartNumber:endPartNumber]
+	partsToDownload := CopyList(parts[startPartNumber:endPartNumber])
 	partsToDownload[0].Start = start % chunkSize
 	partsToDownload[len(partsToDownload)-1].End = end % chunkSize
 
@@ -159,19 +174,21 @@ func GetDefaultChannel(ctx context.Context, userID int64) (int64, error) {
 
 	var channelID int64
 
-	key := kv.Key("users", strconv.FormatInt(userID, 10), "channel")
+	key := fmt.Sprintf("users:channel:%d", userID)
 
-	err := kv.GetValue(database.KV, key, &channelID)
+	err := cache.GetCache().Get(key, &channelID)
 
-	if err != nil {
-		var channelIds []int64
-		database.DB.Model(&models.Channel{}).Where("user_id = ?", userID).Where("selected = ?", true).
-			Pluck("channel_id", &channelIds)
+	if err == nil {
+		return channelID, nil
+	}
 
-		if len(channelIds) == 1 {
-			channelID = channelIds[0]
-			kv.SetValue(database.KV, key, &channelID)
-		}
+	var channelIds []int64
+	database.DB.Model(&models.Channel{}).Where("user_id = ?", userID).Where("selected = ?", true).
+		Pluck("channel_id", &channelIds)
+
+	if len(channelIds) == 1 {
+		channelID = channelIds[0]
+		cache.GetCache().Set(key, channelID, 0)
 	}
 
 	if channelID == 0 {
@@ -190,18 +207,42 @@ func GetBotsToken(ctx context.Context, userID int64) ([]string, error) {
 		return nil, err
 	}
 
-	key := kv.Key("users", strconv.FormatInt(userID, 10), strconv.FormatInt(channelId, 10), "bots")
+	key := fmt.Sprintf("users:bots:%d:%d", userID, channelId)
 
-	err = kv.GetValue(database.KV, key, &bots)
+	err = cache.GetCache().Get(key, &bots)
 
-	if err != nil {
-		if err := database.DB.Model(&models.Bot{}).Where("user_id = ?", userID).
-			Where("channel_id = ?", channelId).Pluck("token", &bots).Error; err != nil {
-			return nil, err
-		}
-		kv.SetValue(database.KV, key, &bots)
+	if err == nil {
+		return bots, nil
 	}
 
+	if err := database.DB.Model(&models.Bot{}).Where("user_id = ?", userID).
+		Where("channel_id = ?", channelId).Pluck("token", &bots).Error; err != nil {
+		return nil, err
+	}
+
+	cache.GetCache().Set(key, &bots, 0)
 	return bots, nil
+
+}
+
+func GetSessionByHash(hash string) (*models.Session, error) {
+
+	var session models.Session
+
+	key := fmt.Sprintf("sessions:%s", hash)
+
+	err := cache.GetCache().Get(key, &session)
+
+	if err == nil {
+		return &session, nil
+	}
+
+	if err := database.DB.Model(&models.Session{}).Where("hash = ?", hash).First(&session).Error; err != nil {
+		return nil, err
+	}
+
+	cache.GetCache().Set(key, &session, 0)
+
+	return &session, nil
 
 }

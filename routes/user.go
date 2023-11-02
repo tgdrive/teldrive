@@ -96,15 +96,4 @@ func addUserRoutes(rg *gin.RouterGroup) {
 
 		c.JSON(http.StatusOK, res)
 	})
-
-	r.DELETE("/cache", func(c *gin.Context) {
-		res, err := userService.ClearCache(c)
-
-		if err != nil {
-			c.AbortWithError(err.Code, err.Error)
-			return
-		}
-
-		c.JSON(http.StatusOK, res)
-	})
 }
