@@ -52,7 +52,10 @@ func (r *linearReader) Read(p []byte) (n int, err error) {
 		r.buffer = r.next()
 		if len(r.buffer) == 0 {
 			r.pos++
-			r.next = r.partStream()
+			if r.pos < len(r.parts) {
+				r.next = r.partStream()
+			}
+
 		}
 		r.i = 0
 	}
