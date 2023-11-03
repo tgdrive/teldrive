@@ -15,7 +15,7 @@ type linearReader struct {
 	parts         []types.Part
 	pos           int
 	client        *telegram.Client
-	next          func() []byte
+	next          func() ([]byte, error)
 	buffer        []byte
 	bytesread     int64
 	chunkSize     int64
@@ -49,11 +49,20 @@ func (r *linearReader) Read(p []byte) (n int, err error) {
 	}
 
 	if r.i >= int64(len(r.buffer)) {
-		r.buffer = r.next()
+		r.buffer, err = r.next()
+		if err != nil {
+			return 0, err
+		}
 		if len(r.buffer) == 0 {
 			r.pos++
-			if r.pos < len(r.parts) {
+			if r.pos == len(r.parts) {
+				return 0, io.EOF
+			} else {
 				r.next = r.partStream()
+				r.buffer, err = r.next()
+				if err != nil {
+					return 0, err
+				}
 			}
 
 		}
@@ -91,7 +100,7 @@ func (r *linearReader) chunk(offset int64, limit int64) ([]byte, error) {
 	}
 }
 
-func (r *linearReader) partStream() func() []byte {
+func (r *linearReader) partStream() func() ([]byte, error) {
 
 	start := r.parts[r.pos].Start
 	end := r.parts[r.pos].End
@@ -105,16 +114,20 @@ func (r *linearReader) partStream() func() []byte {
 
 	currentPart := 1
 
-	readData := func() []byte {
+	readData := func() ([]byte, error) {
 
 		if currentPart > partCount {
-			return make([]byte, 0)
+			return make([]byte, 0), nil
 		}
 
-		res, _ := r.chunk(offset, r.chunkSize)
+		res, err := r.chunk(offset, r.chunkSize)
+
+		if err != nil {
+			return nil, err
+		}
 
 		if len(res) == 0 {
-			return res
+			return res, nil
 		} else if partCount == 1 {
 			res = res[firstPartCut:lastPartCut]
 
@@ -130,7 +143,7 @@ func (r *linearReader) partStream() func() []byte {
 
 		offset += r.chunkSize
 
-		return res
+		return res, nil
 
 	}
 	return readData
