@@ -4,7 +4,7 @@ Telegram Drive 是一个强大的工具，它允许您使用 Telegram 作为后�
 
 [![Discord](https://img.shields.io/discord/1142377485737148479?label=discord&logo=discord&style=flat-square&logoColor=white)](https://discord.gg/J2gVAZnHfP) 
 
-**点击图标加入 Discord 服务器以获得更好的支持**
+**点击图标加入 Discord 服务器以获得更好的支持（该渠道由原作者提供）**
 
 [阅读 Wiki 了解常见问题](https://github.com/divyam234/teldrive/wiki).
 
@@ -14,19 +14,20 @@ Telegram Drive 是一个强大的工具，它允许您使用 Telegram 作为后�
     <li>
       <ul>
       <li>
-      <a href="#features">特点</a>
+      <a href="#特点">特点</a>
     </li>
-        <li><a href="#deploy-using-docker-compose">使用 docker-compose 部署</a></li>
-       <li><a href="#use-without-docker">无需 Docker 使用</a></li>
+        <li><a href="#使用-docker-compose-部署">使用 docker-compose 部署</a></li>
+       <li><a href="#无需-docker-使用">无需 Docker 使用</a></li>
       </ul>
     </li>
-    <li><a href="#setting-up-things">设置事项</a></li>
+    <li><a href="#设置事项">设置事项</a></li>
     <ul>
-      <li><a href="#mandatory-vars">必需变量</a></li>
-      <li><a href="#optional-vars">可选变量</a></li>
+      <li><a href="#必需变量">必需变量</a></li>
+      <li><a href="#可选变量">可选变量</a></li>
     </ul>
   </ol>
 </details>
+
 
 ## 特点
 
@@ -43,6 +44,7 @@ Telegram Drive 是一个强大的工具，它允许您使用 Telegram 作为后�
 
 
 ### 使用 docker-compose 部署
+
 首先克隆仓库
 ```sh
 git clone https://github.com/divyam234/teldrive
