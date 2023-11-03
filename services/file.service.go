@@ -433,7 +433,7 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 					return err
 				}
 				parts = rangedParts(parts, start, end)
-				r, _ := reader.NewLinearReader(c, client, parts)
+				r, _ := reader.NewLinearReader(c, client, parts, contentLength)
 				io.CopyN(w, r, contentLength)
 				return nil
 			})
@@ -461,7 +461,7 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 				return
 			}
 			parts = rangedParts(parts, start, end)
-			r, _ := reader.NewLinearReader(c, client.Tg, parts)
+			r, _ := reader.NewLinearReader(c, client.Tg, parts, contentLength)
 			io.CopyN(w, r, contentLength)
 		}
 	}

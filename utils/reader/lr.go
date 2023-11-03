@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"sync"
 
 	"github.com/divyam234/teldrive/types"
 	"github.com/gotd/td/telegram"
@@ -12,29 +11,30 @@ import (
 )
 
 type linearReader struct {
-	ctx       context.Context
-	parts     []types.Part
-	pos       int
-	client    *telegram.Client
-	next      func() []byte
-	buffer    []byte
-	bytesread int64
-	chunkSize int64
-	i         int64
-	mu        sync.Mutex
+	ctx           context.Context
+	parts         []types.Part
+	pos           int
+	client        *telegram.Client
+	next          func() []byte
+	buffer        []byte
+	bytesread     int64
+	chunkSize     int64
+	i             int64
+	contentLength int64
 }
 
 func (*linearReader) Close() error {
 	return nil
 }
 
-func NewLinearReader(ctx context.Context, client *telegram.Client, parts []types.Part) (io.ReadCloser, error) {
+func NewLinearReader(ctx context.Context, client *telegram.Client, parts []types.Part, contentLength int64) (io.ReadCloser, error) {
 
 	r := &linearReader{
-		ctx:       ctx,
-		parts:     parts,
-		client:    client,
-		chunkSize: int64(1024 * 1024),
+		ctx:           ctx,
+		parts:         parts,
+		client:        client,
+		chunkSize:     int64(1024 * 1024),
+		contentLength: contentLength,
 	}
 
 	r.next = r.partStream()
@@ -43,13 +43,16 @@ func NewLinearReader(ctx context.Context, client *telegram.Client, parts []types
 }
 
 func (r *linearReader) Read(p []byte) (n int, err error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+
+	if r.bytesread == r.contentLength {
+		return 0, io.EOF
+	}
 
 	if r.i >= int64(len(r.buffer)) {
 		r.buffer = r.next()
-		if len(r.buffer) == 0 && r.pos == len(r.parts)-1 {
-			return 0, io.EOF
+		if len(r.buffer) == 0 {
+			r.pos++
+			r.next = r.partStream()
 		}
 		r.i = 0
 	}
@@ -60,11 +63,6 @@ func (r *linearReader) Read(p []byte) (n int, err error) {
 
 	r.bytesread += int64(n)
 
-	if r.bytesread == r.parts[r.pos].Length && r.pos < len(r.parts)-1 {
-		r.pos++
-		r.next = r.partStream()
-		r.bytesread = 0
-	}
 	return n, nil
 }
 
@@ -91,8 +89,6 @@ func (r *linearReader) chunk(offset int64, limit int64) ([]byte, error) {
 }
 
 func (r *linearReader) partStream() func() []byte {
-	r.mu.Lock()
-	defer r.mu.Unlock()
 
 	start := r.parts[r.pos].Start
 	end := r.parts[r.pos].End
