@@ -168,11 +168,11 @@ func (as *AuthService) LogIn(c *gin.Context) (*schemas.Message, *types.AppError)
 		return nil, &types.AppError{Error: errors.New("failed to find user"),
 			Code: http.StatusInternalServerError}
 	}
-	if len(result) == 0 {
-		if err := as.Db.Create(&user).Error; err != nil {
-			return nil, &types.AppError{Error: errors.New("failed to create or update user"),
-				Code: http.StatusInternalServerError}
-		}
+//	if len(result) == 0 {
+//		if err := as.Db.Create(&user).Error; err != nil {
+//			return nil, &types.AppError{Error: errors.New("failed to create or update user"),
+//				Code: http.StatusInternalServerError}
+//		}
 		//Create root folder on first login
 
 		file := &models.File{
