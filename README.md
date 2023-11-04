@@ -79,13 +79,9 @@ An example of `teldrive.env` file:
 ```sh
 APP_ID=1234
 APP_HASH=abc
-CHANNEL_ID=1234
 HTTPS=false
-COOKIE_SAME_SITE=true
 JWT_SECRET=abc
 DATABASE_URL=abc
-RATE_LIMIT=true
-LAZY_STREAM_BOTS=false
 
 ```
 > **Warning**
