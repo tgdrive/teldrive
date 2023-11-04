@@ -158,7 +158,6 @@ func (as *AuthService) LogIn(c *gin.Context) (*schemas.Message, *types.AppError)
 		Name:      session.Name,
 		UserName:  session.UserName,
 		IsPremium: session.IsPremium,
-		TgSession: session.Sesssion,
 	}
 
 	var result []models.User
@@ -186,7 +185,7 @@ func (as *AuthService) LogIn(c *gin.Context) (*schemas.Message, *types.AppError)
 			ParentID: "root",
 		}
 		if err := as.Db.Create(file).Error; err != nil {
-			return nil, &types.AppError{Error: errors.New("failed to create or update user"),
+			return nil, &types.AppError{Error: errors.New("failed to create root folder"),
 				Code: http.StatusInternalServerError}
 		}
 	}

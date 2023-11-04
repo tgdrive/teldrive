@@ -84,7 +84,9 @@ BEGIN
 END;
 $$;
 
-CREATE OR REPLACE FUNCTION teldrive.move_directory(src text, dest text,user_id bigint) RETURNS VOID AS $$
+drop function if exists teldrive.move_directory;
+
+CREATE OR REPLACE FUNCTION teldrive.move_directory(src text, dest text,u_id bigint) RETURNS VOID AS $$
 DECLARE
     src_parent TEXT;
     src_base TEXT;
@@ -94,11 +96,11 @@ DECLARE
     src_id text;
 BEGIN
 	
-    IF NOT EXISTS (SELECT 1 FROM teldrive.files WHERE path = src) THEN
+    IF NOT EXISTS (SELECT 1 FROM teldrive.files WHERE path = src and user_id = u_id) THEN
         RAISE EXCEPTION 'source directory not found';
     END IF;
    
-    IF EXISTS (SELECT 1 FROM teldrive.files WHERE path = dest) THEN
+    IF EXISTS (SELECT 1 FROM teldrive.files WHERE path = dest and user_id = u_id) THEN
         RAISE EXCEPTION 'destination directory exists';
     END IF;
    
@@ -107,17 +109,17 @@ BEGIN
     SELECT parent, base INTO dest_parent, dest_base FROM teldrive.split_path(dest);
    
     IF src_parent != dest_parent then
-      select id into dest_id from teldrive.create_directories(user_id,dest);
-      update teldrive.files set parent_id = dest_id where parent_id = (select id from teldrive.files where path = src) and id != dest_id;
+      select id into dest_id from teldrive.create_directories(u_id,dest);
+      update teldrive.files set parent_id = dest_id where parent_id = (select id from teldrive.files where path = src) and id != dest_id and user_id = u_id;
       
       IF POSITION(CONCAT(src,'/') IN dest) = 0 then
-         delete from teldrive.files where path = src;
+         delete from teldrive.files where path = src and user_id = u_id;
       END IF;
      
     END IF;
 
     IF src_base != dest_base and src_parent = dest_parent then
-       select id into src_id from teldrive.files where path = src;
+       select id into src_id from teldrive.files where path = src and user_id = u_id;
        perform from teldrive.update_folder(src_id,dest_base);
     END IF;
 
