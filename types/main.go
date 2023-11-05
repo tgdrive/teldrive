@@ -12,10 +12,8 @@ type AppError struct {
 
 type Part struct {
 	Location *tg.InputDocumentFileLocation
-	Size     int64
 	Start    int64
 	End      int64
-	Length   int64
 }
 
 type JWTClaims struct {

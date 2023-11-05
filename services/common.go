@@ -4,14 +4,12 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"math"
 	"strconv"
 
 	"github.com/divyam234/teldrive/database"
 	"github.com/divyam234/teldrive/models"
 	"github.com/divyam234/teldrive/schemas"
 	"github.com/divyam234/teldrive/types"
-	"github.com/divyam234/teldrive/utils"
 	"github.com/divyam234/teldrive/utils/cache"
 	"github.com/divyam234/teldrive/utils/tgc"
 	"github.com/gin-gonic/gin"
@@ -20,12 +18,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/thoas/go-funk"
 )
-
-func CopyList[T any](list []T) []T {
-	newList := make([]T, len(list))
-	copy(newList, list)
-	return newList
-}
 
 func getChunk(ctx context.Context, tgClient *telegram.Client, location tg.InputFileLocationClass, offset int64, limit int64) ([]byte, error) {
 
@@ -125,29 +117,59 @@ func getParts(ctx context.Context, client *telegram.Client, file *schemas.FileOu
 		media := item.Media.(*tg.MessageMediaDocument)
 		document := media.Document.(*tg.Document)
 		location := document.AsInputDocumentFileLocation()
-		parts = append(parts, types.Part{Location: location, Start: 0, End: document.Size - 1, Size: document.Size})
+		parts = append(parts, types.Part{Location: location, Start: 0, End: document.Size - 1})
 	}
 	cache.GetCache().Set(key, &parts, 3600)
 	return parts, nil
 }
 
-func rangedParts(parts []types.Part, start, end int64) []types.Part {
+func rangedParts(parts []types.Part, startByte, endByte int64) []types.Part {
 
-	chunkSize := parts[0].Size
+	chunkSize := parts[0].End + 1
 
-	startPartNumber := utils.Max(int64(math.Ceil(float64(start)/float64(chunkSize)))-1, 0)
+	numParts := int64(len(parts))
 
-	endPartNumber := int64(math.Ceil(float64(end) / float64(chunkSize)))
+	validParts := []types.Part{}
 
-	partsToDownload := CopyList(parts[startPartNumber:endPartNumber])
-	partsToDownload[0].Start = start % chunkSize
-	partsToDownload[len(partsToDownload)-1].End = end % chunkSize
+	firstChunk := max(startByte/chunkSize, 0)
 
-	for i, part := range partsToDownload {
-		partsToDownload[i].Length = part.End - part.Start + 1
+	lastChunk := min(endByte/chunkSize, numParts)
+
+	startInFirstChunk := startByte % chunkSize
+
+	endInLastChunk := endByte % chunkSize
+
+	if firstChunk == lastChunk {
+		validParts = append(validParts, types.Part{
+			Location: parts[firstChunk].Location,
+			Start:    startInFirstChunk,
+			End:      endInLastChunk,
+		})
+	} else {
+		validParts = append(validParts, types.Part{
+			Location: parts[firstChunk].Location,
+			Start:    startInFirstChunk,
+			End:      parts[firstChunk].End,
+		})
+
+		// Add valid parts from any chunks in between.
+		for i := firstChunk + 1; i < lastChunk; i++ {
+			validParts = append(validParts, types.Part{
+				Location: parts[firstChunk].Location,
+				Start:    0,
+				End:      parts[firstChunk].End,
+			})
+		}
+
+		// Add valid parts from the last chunk.
+		validParts = append(validParts, types.Part{
+			Location: parts[firstChunk].Location,
+			Start:    0,
+			End:      endInLastChunk,
+		})
 	}
 
-	return partsToDownload
+	return validParts
 }
 
 func GetChannelById(ctx context.Context, client *telegram.Client, channelID int64, userID string) (*tg.InputChannel, error) {
