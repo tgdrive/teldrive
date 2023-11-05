@@ -10,6 +10,7 @@ import (
 
 	"github.com/divyam234/teldrive/mapper"
 	"github.com/divyam234/teldrive/schemas"
+	"github.com/divyam234/teldrive/utils"
 	"github.com/divyam234/teldrive/utils/tgc"
 
 	"github.com/divyam234/teldrive/types"
@@ -30,8 +31,9 @@ type UploadService struct {
 func (us *UploadService) GetUploadFileById(c *gin.Context) (*schemas.UploadOut, *types.AppError) {
 	uploadId := c.Param("id")
 	parts := []schemas.UploadPartOut{}
+	config := utils.GetConfig()
 	if err := us.Db.Model(&models.Upload{}).Order("part_no").Where("upload_id = ?", uploadId).
-		Where("created_at >= ?", time.Now().UTC().AddDate(0, 0, -15)).
+		Where("created_at >= ?", time.Now().UTC().AddDate(0, 0, -config.UploadRetention)).
 		Find(&parts).Error; err != nil {
 		return nil, &types.AppError{Error: errors.New("failed to fetch from db"), Code: http.StatusInternalServerError}
 	}

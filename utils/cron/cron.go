@@ -10,6 +10,7 @@ import (
 	"github.com/divyam234/teldrive/database"
 	"github.com/divyam234/teldrive/models"
 	"github.com/divyam234/teldrive/services"
+	"github.com/divyam234/teldrive/utils"
 	"github.com/divyam234/teldrive/utils/tgc"
 	"github.com/gotd/td/tg"
 )
@@ -175,6 +176,7 @@ func FilesDeleteJob() {
 func UploadCleanJob() {
 	db := database.DB
 	ctx, cancel := context.WithCancel(context.Background())
+	config := utils.GetConfig()
 
 	defer cancel()
 
@@ -183,12 +185,11 @@ func UploadCleanJob() {
 		Select("JSONB_AGG(jsonb_build_object('id',uploads.id,'partId',uploads.part_id)) as files", "uploads.channel_id", "uploads.user_id", "s.session").
 		Joins("left join teldrive.users as u  on u.user_id = uploads.user_id").
 		Joins("left join (select * from teldrive.sessions order by created_at desc limit 1) as s on s.user_id = uploads.user_id").
-		Where("uploads.created_at < ?", time.Now().UTC().AddDate(0, 0, -15)).
+		Where("uploads.created_at < ?", time.Now().UTC().AddDate(0, 0, -config.UploadRetention)).
 		Group("uploads.channel_id").Group("uploads.user_id").Group("s.session").
 		Scan(&upResults).Error; err != nil {
 		return
 	}
-
 	for _, row := range upResults {
 		cleanUploadsMessages(ctx, row)
 	}
