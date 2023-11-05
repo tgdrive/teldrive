@@ -57,7 +57,7 @@ touch teldrive.db
 docker compose up -d
 ```
 - **Go to http://localhost:8080**
-- **Uploads from UI will be slower due to limitations of browser use [Teldrive Uploader](https://github.com/divyam234/teldrive-upload) for faster uploads.Make sure to use Multi Bots mode if you are using uploader.**
+- **Uploads from UI will be slower due to limitations of browser use [Rclone](https://github.com/divyam234/rclone) for faster uploads.Make sure to use Multi Bots mode if you are using uploader.**
 
 - **If you intend to share download links with others, ensure that you enable multi bots mode with bots.**
 
