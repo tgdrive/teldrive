@@ -69,24 +69,11 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 
 	uploadId := c.Param("id")
 
-	var uploadPart []models.Upload
-
-	us.Db.Model(&models.Upload{}).Where("upload_id = ?", uploadId).Where("part_no = ?", uploadQuery.PartNo).
-		Where("user_id = ?", userId).
-		Find(&uploadPart)
-
-	if len(uploadPart) == 1 {
-		out := mapper.MapUploadSchema(&uploadPart[0])
-		return out, nil
-	}
-
 	file := c.Request.Body
 
 	fileSize := c.Request.ContentLength
 
 	fileName := uploadQuery.Filename
-
-	var msgId int
 
 	tokens, err := GetBotsToken(c, userId)
 
@@ -156,16 +143,16 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 
 		updates := res.(*tg.Updates)
 
-		msgId = updates.Updates[0].(*tg.UpdateMessageID).ID
+		message, ok := updates.Updates[1].(*tg.UpdateNewChannelMessage).Message.(*tg.Message)
 
-		if msgId == 0 {
+		if !ok {
 			return errors.New("failed to upload part")
 		}
 
 		partUpload := &models.Upload{
 			Name:       fileName,
 			UploadId:   uploadId,
-			PartId:     msgId,
+			PartId:     message.ID,
 			ChannelID:  channelId,
 			Size:       fileSize,
 			PartNo:     uploadQuery.PartNo,
