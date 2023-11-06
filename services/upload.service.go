@@ -145,7 +145,7 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 
 		message, ok := updates.Updates[1].(*tg.UpdateNewChannelMessage).Message.(*tg.Message)
 
-		if !ok {
+		if !ok || message.ID == 0 {
 			return errors.New("failed to upload part")
 		}
 
