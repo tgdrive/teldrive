@@ -6,7 +6,6 @@ services:
     restart: always
     container_name: teldrive
     volumes:
-      - ./sessions:/app/sessions:rw
       - ./teldrive.db:/app/teldrive.db:rw
     env_file: teldrive.env
     ports:
