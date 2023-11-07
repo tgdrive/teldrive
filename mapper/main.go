@@ -45,13 +45,12 @@ func MapFileToFileOutFull(file models.File) *schemas.FileOutFull {
 
 func MapUploadSchema(in *models.Upload) *schemas.UploadPartOut {
 	out := &schemas.UploadPartOut{
-		ID:         in.ID,
-		Name:       in.Name,
-		PartId:     in.PartId,
-		ChannelID:  in.ChannelID,
-		PartNo:     in.PartNo,
-		TotalParts: in.TotalParts,
-		Size:       in.Size,
+		ID:        in.ID,
+		Name:      in.Name,
+		PartId:    in.PartId,
+		ChannelID: in.ChannelID,
+		PartNo:    in.PartNo,
+		Size:      in.Size,
 	}
 	return out
 }

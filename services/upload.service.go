@@ -50,6 +50,36 @@ func (us *UploadService) DeleteUploadFile(c *gin.Context) *types.AppError {
 	return nil
 }
 
+func (us *UploadService) CreateUploadPart(c *gin.Context) (*schemas.UploadPartOut, *types.AppError) {
+
+	userId, _ := getUserAuth(c)
+
+	var payload schemas.UploadPart
+
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		return nil, &types.AppError{Error: errors.New("invalid request payload"), Code: http.StatusBadRequest}
+	}
+
+	partUpload := &models.Upload{
+		Name:       payload.Name,
+		UploadId:   payload.UploadId,
+		PartId:     payload.PartId,
+		ChannelID:  payload.ChannelID,
+		Size:       payload.Size,
+		PartNo:     payload.PartNo,
+		TotalParts: 1,
+		UserId:     userId,
+	}
+
+	if err := us.Db.Create(partUpload).Error; err != nil {
+		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
+	}
+
+	out := mapper.MapUploadSchema(partUpload)
+
+	return out, nil
+}
+
 func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *types.AppError) {
 
 	var uploadQuery schemas.UploadQuery

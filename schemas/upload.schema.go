@@ -8,15 +8,23 @@ type UploadQuery struct {
 }
 
 type UploadPartOut struct {
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	PartId     int    `json:"partId"`
-	PartNo     int    `json:"partNo"`
-	TotalParts int    `json:"totalParts"`
-	ChannelID  int64  `json:"channelId"`
-	Size       int64  `json:"size"`
+	ID        string `json:"id"`
+	Name      string `json:"name"`
+	PartId    int    `json:"partId"`
+	PartNo    int    `json:"partNo"`
+	ChannelID int64  `json:"channelId"`
+	Size      int64  `json:"size"`
 }
 
 type UploadOut struct {
 	Parts []UploadPartOut `json:"parts"`
+}
+
+type UploadPart struct {
+	Name      string `json:"name"`
+	UploadId  string `json:"uploadId"`
+	PartId    int    `json:"partId"`
+	PartNo    int    `json:"partNo"`
+	ChannelID int64  `json:"channelId"`
+	Size      int64  `json:"size"`
 }

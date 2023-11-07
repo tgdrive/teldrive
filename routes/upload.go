@@ -16,6 +16,18 @@ func addUploadRoutes(rg *gin.RouterGroup) {
 
 	uploadService := services.UploadService{Db: database.DB}
 
+	r.POST("/parts", func(c *gin.Context) {
+
+		res, err := uploadService.CreateUploadPart(c)
+
+		if err != nil {
+			c.AbortWithError(err.Code, err.Error)
+			return
+		}
+
+		c.JSON(http.StatusOK, res)
+	})
+
 	r.GET("/:id", func(c *gin.Context) {
 
 		res, err := uploadService.GetUploadFileById(c)
