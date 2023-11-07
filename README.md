@@ -84,6 +84,10 @@ JWT_SECRET=abc
 DATABASE_URL=postgres://<db username>:<db password>@<db host>/<db name>
 
 ```
+When used with `docker-compose.postgres.yml`:
+```
+DATABASE_URL=postgres://teldrive:secret@db/teldrive
+```
 
 > **Warning**
 > Default Channel can be selected through UI make sure to set it from account settings on first login.<br>
