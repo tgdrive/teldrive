@@ -24,8 +24,8 @@ func (w *BotWorkers) Set(bots []string) {
 func (w *BotWorkers) Next() string {
 	w.Lock()
 	defer w.Unlock()
-	item := w.bots[w.index]
 	w.index = (w.index + 1) % len(w.bots)
+	item := w.bots[w.index]
 	return item
 }
 
