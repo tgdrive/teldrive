@@ -1,0 +1,29 @@
+version: "3.8"
+
+services:
+  server:
+    image: ghcr.io/divyam234/teldrive/server
+    restart: always
+    container_name: teldrive
+    volumes:
+      - ./teldrive.db:/app/teldrive.db:rw
+    env_file: teldrive.env
+    ports:
+      - 8080:8080
+  db:
+    image: postgres:15
+    container_name: teldrive_db
+    restart: always
+    environment:
+      - POSTGRES_USER=teldrive
+      - POSTGRES_PASSWORD=secret
+    volumes:
+      - teldrive_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "teldrive"]
+      interval: 10s
+      start_period: 30s
+
+volumes:
+  teldrive_db:
+  
