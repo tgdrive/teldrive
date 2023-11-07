@@ -129,7 +129,7 @@ In addition to the mandatory variables, you can also set the following optional 
 
 - `COOKIE_SAME_SITE` : Only needed when frontend is on other domain (Default true).
 
-- `LAZY_STREAM_BOTS` : If set to true start Bot session and close immediately when stream or download request is over otherwise run bots forever till server stops (Default true).
+- `LAZY_STREAM_BOTS` : If set to true start Bot session and close immediately when stream or download request is over otherwise run bots forever till server stops (Default false).
 
 - `BG_BOTS_LIMIT` : If LAZY_STREAM_BOTS is set to false it start atmost BG_BOTS_LIMIT no of bots in background to prevent connection recreation on every request (Default 5).
 
