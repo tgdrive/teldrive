@@ -155,15 +155,15 @@ func rangedParts(parts []types.Part, startByte, endByte int64) []types.Part {
 		// Add valid parts from any chunks in between.
 		for i := firstChunk + 1; i < lastChunk; i++ {
 			validParts = append(validParts, types.Part{
-				Location: parts[firstChunk].Location,
+				Location: parts[i].Location,
 				Start:    0,
-				End:      parts[firstChunk].End,
+				End:      parts[i].End,
 			})
 		}
 
 		// Add valid parts from the last chunk.
 		validParts = append(validParts, types.Part{
-			Location: parts[firstChunk].Location,
+			Location: parts[lastChunk].Location,
 			Start:    0,
 			End:      endInLastChunk,
 		})
