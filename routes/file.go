@@ -119,4 +119,16 @@ func addFileRoutes(rg *gin.RouterGroup) {
 		c.JSON(http.StatusOK, res)
 	})
 
+	r.POST("/copy", Authmiddleware, func(c *gin.Context) {
+
+		res, err := fileService.CopyFile(c)
+
+		if err != nil {
+			c.AbortWithError(err.Code, err.Error)
+			return
+		}
+
+		c.JSON(http.StatusOK, res)
+	})
+
 }

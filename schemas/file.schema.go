@@ -81,3 +81,9 @@ type DirMove struct {
 type MkDir struct {
 	Path string `json:"path"`
 }
+
+type Copy struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Destination string `json:"destination"`
+}

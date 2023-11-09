@@ -2,7 +2,9 @@ package services
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/base64"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -19,6 +21,7 @@ import (
 	"github.com/divyam234/teldrive/utils/reader"
 	"github.com/divyam234/teldrive/utils/tgc"
 	"github.com/gotd/td/telegram"
+	"github.com/gotd/td/tg"
 
 	"github.com/divyam234/teldrive/types"
 
@@ -32,6 +35,36 @@ import (
 
 type FileService struct {
 	Db *gorm.DB
+}
+
+type Buffer struct {
+	Buf []byte
+}
+
+func (b *Buffer) Long() (int64, error) {
+	v, err := b.Uint64()
+	if err != nil {
+		return 0, err
+	}
+	return int64(v), nil
+}
+func (b *Buffer) Uint64() (uint64, error) {
+	const size = 8
+	if len(b.Buf) < size {
+		return 0, io.ErrUnexpectedEOF
+	}
+	v := binary.LittleEndian.Uint64(b.Buf)
+	b.Buf = b.Buf[size:]
+	return v, nil
+}
+
+func RandInt64() (int64, error) {
+	var buf [8]byte
+	if _, err := io.ReadFull(rand.Reader, buf[:]); err != nil {
+		return 0, err
+	}
+	b := &Buffer{Buf: buf[:]}
+	return b.Long()
 }
 
 func (fs *FileService) CreateFile(c *gin.Context) (*schemas.FileOut, *types.AppError) {
@@ -265,6 +298,115 @@ func (fs *FileService) MakeDirectory(c *gin.Context) (*schemas.FileOut, *types.A
 	file := mapper.MapFileToFileOut(files[0])
 
 	return &file, nil
+
+}
+
+func (fs *FileService) CopyFile(c *gin.Context) (*schemas.FileOut, *types.AppError) {
+
+	var payload schemas.Copy
+
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		return nil, &types.AppError{Error: errors.New("invalid request payload"), Code: http.StatusBadRequest}
+	}
+
+	userId, session := getUserAuth(c)
+
+	client, _ := tgc.UserLogin(session)
+
+	var res []models.File
+
+	fs.Db.Model(&models.File{}).Where("id = ?", payload.ID).Find(&res)
+
+	file := res[0]
+
+	newIds := models.Parts{}
+
+	channelID, err := GetDefaultChannel(c, userId)
+
+	if err != nil {
+		return nil, &types.AppError{Error: err, Code: http.StatusBadRequest}
+	}
+
+	err = tgc.RunWithAuth(c, client, "", func(ctx context.Context) error {
+		user := strconv.FormatInt(userId, 10)
+		messages, err := getTGMessages(c, client, *file.Parts, *file.ChannelID, user)
+		if err != nil {
+			return err
+		}
+
+		channel, err := GetChannelById(c, client, channelID, user)
+		if err != nil {
+			return err
+		}
+		for _, message := range messages.Messages {
+			item := message.(*tg.Message)
+			media := item.Media.(*tg.MessageMediaDocument)
+			document := media.Document.(*tg.Document)
+
+			id, _ := RandInt64()
+			request := tg.MessagesSendMediaRequest{
+				Silent:   true,
+				Peer:     &tg.InputPeerChannel{ChannelID: channel.ChannelID, AccessHash: channel.AccessHash},
+				Media:    &tg.InputMediaDocument{ID: document.AsInput()},
+				RandomID: id,
+			}
+			res, err := client.API().MessagesSendMedia(c, &request)
+
+			if err != nil {
+				return err
+			}
+
+			updates := res.(*tg.Updates)
+
+			var msg *tg.Message
+
+			for _, update := range updates.Updates {
+				channelMsg, ok := update.(*tg.UpdateNewChannelMessage)
+				if ok {
+					msg = channelMsg.Message.(*tg.Message)
+					break
+				}
+
+			}
+			newIds = append(newIds, models.Part{ID: int64(msg.ID)})
+
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, &types.AppError{Error: err, Code: http.StatusBadRequest}
+	}
+
+	var destRes []models.File
+
+	if err := fs.Db.Raw("select * from teldrive.create_directories(?, ?)", userId, payload.Destination).Scan(&destRes).Error; err != nil {
+		return nil, &types.AppError{Error: errors.New("failed to create destination"), Code: http.StatusInternalServerError}
+	}
+
+	dest := destRes[0]
+
+	dbFile := models.File{}
+
+	dbFile.Name = payload.Name
+	dbFile.Size = file.Size
+	dbFile.Type = file.Type
+	dbFile.MimeType = file.MimeType
+	dbFile.Parts = &newIds
+	dbFile.UserID = userId
+	dbFile.Starred = utils.BoolPointer(false)
+	dbFile.Status = "active"
+	dbFile.ParentID = dest.ID
+	dbFile.ChannelID = &channelID
+
+	if err := fs.Db.Create(&dbFile).Error; err != nil {
+		return nil, &types.AppError{Error: errors.New("failed to copy file"), Code: http.StatusBadRequest}
+
+	}
+
+	out := mapper.MapFileToFileOut(dbFile)
+
+	return &out, nil
 
 }
 

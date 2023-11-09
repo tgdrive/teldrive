@@ -80,23 +80,13 @@ func getBotInfo(ctx context.Context, token string) (*BotInfo, error) {
 	return &BotInfo{Id: user.ID, UserName: user.Username, Token: token}, nil
 }
 
-func getParts(ctx context.Context, client *telegram.Client, file *schemas.FileOutFull, userID string) ([]types.Part, error) {
+func getTGMessages(ctx context.Context, client *telegram.Client, parts models.Parts, channelID int64, userID string) (*tg.MessagesChannelMessages, error) {
 
-	parts := []types.Part{}
-
-	key := fmt.Sprintf("messages:%s:%s", file.ID, userID)
-
-	err := cache.GetCache().Get(key, &parts)
-
-	if err == nil {
-		return parts, nil
-	}
-
-	ids := funk.Map(*file.Parts, func(part models.Part) tg.InputMessageClass {
+	ids := funk.Map(parts, func(part models.Part) tg.InputMessageClass {
 		return tg.InputMessageClass(&tg.InputMessageID{ID: int(part.ID)})
 	})
 
-	channel, err := GetChannelById(ctx, client, *file.ChannelID, userID)
+	channel, err := GetChannelById(ctx, client, channelID, userID)
 
 	if err != nil {
 		return nil, err
@@ -111,6 +101,27 @@ func getParts(ctx context.Context, client *telegram.Client, file *schemas.FileOu
 	}
 
 	messages := res.(*tg.MessagesChannelMessages)
+
+	return messages, nil
+}
+
+func getParts(ctx context.Context, client *telegram.Client, file *schemas.FileOutFull, userID string) ([]types.Part, error) {
+
+	parts := []types.Part{}
+
+	key := fmt.Sprintf("messages:%s:%s", file.ID, userID)
+
+	err := cache.GetCache().Get(key, &parts)
+
+	if err == nil {
+		return parts, nil
+	}
+
+	messages, err := getTGMessages(ctx, client, *file.Parts, *file.ChannelID, userID)
+
+	if err != nil {
+		return nil, err
+	}
 
 	for _, message := range messages.Messages {
 		item := message.(*tg.Message)
