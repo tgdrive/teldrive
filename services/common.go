@@ -80,13 +80,13 @@ func getBotInfo(ctx context.Context, token string) (*BotInfo, error) {
 	return &BotInfo{Id: user.ID, UserName: user.Username, Token: token}, nil
 }
 
-func getTGMessages(ctx context.Context, client *telegram.Client, parts models.Parts, channelID int64, userID string) (*tg.MessagesChannelMessages, error) {
+func getTGMessages(ctx context.Context, client *telegram.Client, parts models.Parts, channelId int64, userID string) (*tg.MessagesChannelMessages, error) {
 
 	ids := funk.Map(parts, func(part models.Part) tg.InputMessageClass {
 		return tg.InputMessageClass(&tg.InputMessageID{ID: int(part.ID)})
 	})
 
-	channel, err := GetChannelById(ctx, client, channelID, userID)
+	channel, err := GetChannelById(ctx, client, channelId, userID)
 
 	if err != nil {
 		return nil, err
@@ -183,11 +183,11 @@ func rangedParts(parts []types.Part, startByte, endByte int64) []types.Part {
 	return validParts
 }
 
-func GetChannelById(ctx context.Context, client *telegram.Client, channelID int64, userID string) (*tg.InputChannel, error) {
+func GetChannelById(ctx context.Context, client *telegram.Client, channelId int64, userID string) (*tg.InputChannel, error) {
 
 	channel := &tg.InputChannel{}
 	inputChannel := &tg.InputChannel{
-		ChannelID: channelID,
+		ChannelID: channelId,
 	}
 	channels, err := client.API().ChannelsGetChannels(ctx, []tg.InputChannelClass{inputChannel})
 
@@ -205,14 +205,14 @@ func GetChannelById(ctx context.Context, client *telegram.Client, channelID int6
 
 func GetDefaultChannel(ctx context.Context, userID int64) (int64, error) {
 
-	var channelID int64
+	var channelId int64
 
 	key := fmt.Sprintf("users:channel:%d", userID)
 
-	err := cache.GetCache().Get(key, &channelID)
+	err := cache.GetCache().Get(key, &channelId)
 
 	if err == nil {
-		return channelID, nil
+		return channelId, nil
 	}
 
 	var channelIds []int64
@@ -220,29 +220,23 @@ func GetDefaultChannel(ctx context.Context, userID int64) (int64, error) {
 		Pluck("channel_id", &channelIds)
 
 	if len(channelIds) == 1 {
-		channelID = channelIds[0]
-		cache.GetCache().Set(key, channelID, 0)
+		channelId = channelIds[0]
+		cache.GetCache().Set(key, channelId, 0)
 	}
 
-	if channelID == 0 {
-		return channelID, errors.New("default channel not set")
+	if channelId == 0 {
+		return channelId, errors.New("default channel not set")
 	}
 
-	return channelID, nil
+	return channelId, nil
 }
 
-func GetBotsToken(ctx context.Context, userID int64) ([]string, error) {
+func GetBotsToken(ctx context.Context, userID, channelId int64) ([]string, error) {
 	var bots []string
-
-	channelId, err := GetDefaultChannel(ctx, userID)
-
-	if err != nil {
-		return nil, err
-	}
 
 	key := fmt.Sprintf("users:bots:%d:%d", userID, channelId)
 
-	err = cache.GetCache().Get(key, &bots)
+	err := cache.GetCache().Get(key, &bots)
 
 	if err == nil {
 		return bots, nil

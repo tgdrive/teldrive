@@ -31,6 +31,7 @@ type Config struct {
 	LazyStreamBots         bool     `envconfig:"LAZY_STREAM_BOTS" default:"false"`
 	BgBotsLimit            int      `envconfig:"BG_BOTS_LIMIT" default:"5"`
 	UploadRetention        int      `envconfig:"UPLOAD_RETENTION" default:"15"`
+	DisableStreamBots      bool     `envconfig:"DISABLE_STREAM_BOTS" default:"false"`
 	ExecDir                string
 }
 

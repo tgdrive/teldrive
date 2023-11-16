@@ -20,7 +20,6 @@ import (
 	"github.com/divyam234/teldrive/utils/md5"
 	"github.com/divyam234/teldrive/utils/reader"
 	"github.com/divyam234/teldrive/utils/tgc"
-	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/tg"
 
 	"github.com/divyam234/teldrive/types"
@@ -321,20 +320,14 @@ func (fs *FileService) CopyFile(c *gin.Context) (*schemas.FileOut, *types.AppErr
 
 	newIds := models.Parts{}
 
-	channelID, err := GetDefaultChannel(c, userId)
-
-	if err != nil {
-		return nil, &types.AppError{Error: err, Code: http.StatusBadRequest}
-	}
-
-	err = tgc.RunWithAuth(c, client, "", func(ctx context.Context) error {
+	err := tgc.RunWithAuth(c, client, "", func(ctx context.Context) error {
 		user := strconv.FormatInt(userId, 10)
 		messages, err := getTGMessages(c, client, *file.Parts, *file.ChannelID, user)
 		if err != nil {
 			return err
 		}
 
-		channel, err := GetChannelById(c, client, channelID, user)
+		channel, err := GetChannelById(c, client, *file.ChannelID, user)
 		if err != nil {
 			return err
 		}
@@ -397,7 +390,7 @@ func (fs *FileService) CopyFile(c *gin.Context) (*schemas.FileOut, *types.AppErr
 	dbFile.Starred = utils.BoolPointer(false)
 	dbFile.Status = "active"
 	dbFile.ParentID = dest.ID
-	dbFile.ChannelID = &channelID
+	dbFile.ChannelID = file.ChannelID
 
 	if err := fs.Db.Create(&dbFile).Error; err != nil {
 		return nil, &types.AppError{Error: errors.New("failed to copy file"), Code: http.StatusBadRequest}
@@ -474,14 +467,14 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 	authHash := c.Query("hash")
 
 	if authHash == "" {
-		http.Error(w, "misssing hash", http.StatusBadRequest)
+		http.Error(w, "misssing hash param", http.StatusBadRequest)
 		return
 	}
 
 	session, err := GetSessionByHash(authHash)
 
 	if err != nil {
-		http.Error(w, "hash missing relogin", http.StatusBadRequest)
+		http.Error(w, "invalid hash", http.StatusBadRequest)
 		return
 	}
 
@@ -533,7 +526,7 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 	c.Header("Content-Type", mimeType)
 
 	c.Header("Content-Length", strconv.FormatInt(contentLength, 10))
-	c.Header("E-Tag", md5.FromString(file.ID+strconv.FormatInt(file.Size, 10)))
+	c.Header("E-Tag", fmt.Sprintf("\"%s\"", md5.FromString(file.ID+strconv.FormatInt(file.Size, 10))))
 	c.Header("Last-Modified", file.UpdatedAt.UTC().Format(http.TimeFormat))
 
 	disposition := "inline"
@@ -544,7 +537,7 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 
 	c.Header("Content-Disposition", fmt.Sprintf("%s; filename=\"%s\"", disposition, file.Name))
 
-	tokens, err := GetBotsToken(c, session.UserId)
+	tokens, err := GetBotsToken(c, session.UserId, *file.ChannelID)
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -553,21 +546,13 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 
 	config := utils.GetConfig()
 
-	var token string
+	var token, channelUser string
 
-	var channelUser string
-
-	if config.LazyStreamBots || len(tokens) == 0 {
-		var client *telegram.Client
-		if len(tokens) == 0 {
-			client, _ = tgc.UserLogin(session.Session)
-			channelUser = strconv.FormatInt(session.UserId, 10)
-		} else {
-			tgc.Workers.Set(tokens)
-			token = tgc.Workers.Next()
-			client, _ = tgc.BotLogin(token)
-			channelUser = strings.Split(token, ":")[0]
-		}
+	if config.LazyStreamBots {
+		tgc.Workers.Set(tokens, *file.ChannelID)
+		token = tgc.Workers.Next(*file.ChannelID)
+		client, _ := tgc.BotLogin(token)
+		channelUser = strings.Split(token, ":")[0]
 		if r.Method != "HEAD" {
 			tgc.RunWithAuth(c, client, token, func(ctx context.Context) error {
 				parts, err := getParts(c, client, file, channelUser)
@@ -575,36 +560,49 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 					return err
 				}
 				parts = rangedParts(parts, start, end)
-				r, _ := reader.NewLinearReader(c, client, parts, contentLength)
-				io.CopyN(w, r, contentLength)
+				lr, _ := reader.NewLinearReader(c, client, parts, contentLength)
+				io.CopyN(w, lr, contentLength)
 				return nil
 			})
 		}
 
 	} else {
-		limit := utils.Min(len(tokens), config.BgBotsLimit)
 
-		tgc.StreamWorkers.Set(tokens[:limit])
+		var client *tgc.Client
 
-		client, index, err := tgc.StreamWorkers.Next()
+		if config.DisableStreamBots || len(tokens) == 0 {
+			tgClient, _ := tgc.UserLogin(session.Session)
+			client, err = tgc.StreamWorkers.UserWorker(tgClient)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			channelUser = strconv.FormatInt(session.UserId, 10)
+		} else {
+			var index int
+			limit := utils.Min(len(tokens), config.BgBotsLimit)
 
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
+			tgc.StreamWorkers.Set(tokens[:limit], *file.ChannelID)
+
+			client, index, err = tgc.StreamWorkers.Next(*file.ChannelID)
+
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			channelUser = strings.Split(tokens[index], ":")[0]
+
 		}
 
-		channelUser = strings.Split(tokens[index], ":")[0]
-
 		if r.Method != "HEAD" {
-
 			parts, err := getParts(c, client.Tg, file, channelUser)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 			parts = rangedParts(parts, start, end)
-			r, _ := reader.NewLinearReader(c, client.Tg, parts, contentLength)
-			io.CopyN(w, r, contentLength)
+			lr, _ := reader.NewLinearReader(c, client.Tg, parts, contentLength)
+			io.CopyN(w, lr, contentLength)
 		}
 	}
 

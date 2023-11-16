@@ -91,7 +91,20 @@ func (us *UserService) Stats(c *gin.Context) (*schemas.AccountStats, *types.AppE
 
 func (us *UserService) GetBots(c *gin.Context) ([]string, *types.AppError) {
 	userID, _ := getUserAuth(c)
-	tokens, err := GetBotsToken(c, userID)
+	var (
+		channelId int64
+		err       error
+	)
+	if c.Param("channelId") != "" {
+		channelId, _ = strconv.ParseInt(c.Param("channelId"), 10, 64)
+	} else {
+		channelId, err = GetDefaultChannel(c, userID)
+		if err != nil {
+			return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
+		}
+	}
+
+	tokens, err := GetBotsToken(c, userID, channelId)
 
 	if err != nil {
 		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}

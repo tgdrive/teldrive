@@ -82,7 +82,15 @@ func (us *UploadService) CreateUploadPart(c *gin.Context) (*schemas.UploadPartOu
 
 func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *types.AppError) {
 
-	var uploadQuery schemas.UploadQuery
+	var (
+		uploadQuery schemas.UploadQuery
+		channelId   int64
+		err         error
+		client      *telegram.Client
+		token       string
+		channelUser string
+		out         *schemas.UploadPartOut
+	)
 
 	uploadQuery.PartNo = 1
 	uploadQuery.TotalParts = 1
@@ -105,42 +113,32 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 
 	fileName := uploadQuery.Filename
 
-	tokens, err := GetBotsToken(c, userId)
+	if uploadQuery.ChannelID == 0 {
+		channelId, err = GetDefaultChannel(c, userId)
+		if err != nil {
+			return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
+		}
+	} else {
+		channelId = uploadQuery.ChannelID
+	}
+
+	tokens, err := GetBotsToken(c, userId, channelId)
 
 	if err != nil {
 		return nil, &types.AppError{Error: errors.New("failed to fetch bots"), Code: http.StatusInternalServerError}
 	}
 
-	var client *telegram.Client
-
-	var token string
-
-	var channelUser string
-
 	if len(tokens) == 0 {
 		client, _ = tgc.UserLogin(session)
 		channelUser = strconv.FormatInt(userId, 10)
 	} else {
-		tgc.Workers.Set(tokens)
-		token = tgc.Workers.Next()
+		tgc.Workers.Set(tokens, channelId)
+		token = tgc.Workers.Next(channelId)
 		client, _ = tgc.BotLogin(token)
 		channelUser = strings.Split(token, ":")[0]
 	}
 
-	var out *schemas.UploadPartOut
-
 	err = tgc.RunWithAuth(c, client, token, func(ctx context.Context) error {
-
-		var channelId int64
-
-		if uploadQuery.ChannelID == 0 {
-			channelId, err = GetDefaultChannel(ctx, userId)
-			if err != nil {
-				return err
-			}
-		} else {
-			channelId = uploadQuery.ChannelID
-		}
 
 		channel, err := GetChannelById(ctx, client, channelId, channelUser)
 
@@ -150,7 +148,7 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 
 		api := client.API()
 
-		u := uploader.NewUploader(api).WithThreads(16).WithPartSize(512 * 1024)
+		u := uploader.NewUploader(api).WithThreads(8).WithPartSize(512 * 1024)
 
 		upload, err := u.Upload(c, uploader.NewUpload(fileName, file, fileSize))
 
