@@ -6,7 +6,7 @@ require (
 	github.com/coocood/freecache v1.2.4
 	github.com/divyam234/cors v1.4.2
 	github.com/gin-gonic/gin v1.9.1
-	github.com/go-co-op/gocron v1.35.3
+	github.com/go-co-op/gocron v1.36.0
 	github.com/go-jose/go-jose/v3 v3.0.1
 	github.com/gotd/contrib v0.19.0
 	github.com/gotd/td v0.89.0
@@ -41,7 +41,7 @@ require (
 	github.com/gin-contrib/gzip v0.0.6
 	github.com/gin-contrib/sse v0.1.0 // indirect
 	github.com/gin-gonic/contrib v0.0.0-20221130124618-7e01895a63f2
-	github.com/go-faster/errors v0.6.1 // indirect
+	github.com/go-faster/errors v0.6.1
 	github.com/go-faster/jx v1.1.0 // indirect
 	github.com/go-faster/xor v1.0.0 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
