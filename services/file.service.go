@@ -310,7 +310,7 @@ func (fs *FileService) CopyFile(c *gin.Context) (*schemas.FileOut, *types.AppErr
 
 	userId, session := getUserAuth(c)
 
-	client, _ := tgc.UserLogin(session)
+	client, _ := tgc.UserLogin(c, session)
 
 	var res []models.File
 
@@ -551,7 +551,7 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 	if config.LazyStreamBots {
 		tgc.Workers.Set(tokens, *file.ChannelID)
 		token = tgc.Workers.Next(*file.ChannelID)
-		client, _ := tgc.BotLogin(token)
+		client, _ := tgc.BotLogin(c, token)
 		channelUser = strings.Split(token, ":")[0]
 		if r.Method != "HEAD" {
 			tgc.RunWithAuth(c, client, token, func(ctx context.Context) error {
@@ -571,7 +571,7 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 		var client *tgc.Client
 
 		if config.DisableStreamBots || len(tokens) == 0 {
-			tgClient, _ := tgc.UserLogin(session.Session)
+			tgClient, _ := tgc.UserLogin(c, session.Session)
 			client, err = tgc.StreamWorkers.UserWorker(tgClient)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)

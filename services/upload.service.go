@@ -129,12 +129,12 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 	}
 
 	if len(tokens) == 0 {
-		client, _ = tgc.UserLogin(session)
+		client, _ = tgc.UserLogin(c, session)
 		channelUser = strconv.FormatInt(userId, 10)
 	} else {
 		tgc.Workers.Set(tokens, channelId)
 		token = tgc.Workers.Next(channelId)
-		client, _ = tgc.BotLogin(token)
+		client, _ = tgc.BotLogin(c, token)
 		channelUser = strings.Split(token, ":")[0]
 	}
 
@@ -148,7 +148,7 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 
 		api := client.API()
 
-		u := uploader.NewUploader(api).WithThreads(8).WithPartSize(512 * 1024)
+		u := uploader.NewUploader(api).WithThreads(16).WithPartSize(512 * 1024)
 
 		upload, err := u.Upload(c, uploader.NewUpload(fileName, file, fileSize))
 

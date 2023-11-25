@@ -8,6 +8,8 @@ import (
 	"github.com/divyam234/teldrive/database"
 	"github.com/divyam234/teldrive/utils"
 	"github.com/divyam234/teldrive/utils/kv"
+	"github.com/divyam234/teldrive/utils/recovery"
+	"github.com/divyam234/teldrive/utils/retry"
 	"github.com/gotd/contrib/middleware/floodwait"
 	"github.com/gotd/contrib/middleware/ratelimit"
 	tdclock "github.com/gotd/td/clock"
@@ -27,8 +29,17 @@ func deviceConfig(appConfig *utils.Config) telegram.DeviceConfig {
 	}
 	return config
 }
+func NewDefaultMiddlewares(ctx context.Context) ([]telegram.Middleware, error) {
+	_clock := tdclock.System
 
-func New(handler telegram.UpdateHandler, storage session.Storage, middlewares ...telegram.Middleware) *telegram.Client {
+	return []telegram.Middleware{
+		recovery.New(ctx, Backoff(_clock)),
+		retry.New(5),
+		floodwait.NewSimpleWaiter(),
+	}, nil
+}
+
+func New(ctx context.Context, handler telegram.UpdateHandler, storage session.Storage, middlewares ...telegram.Middleware) *telegram.Client {
 
 	_clock := tdclock.System
 
@@ -42,17 +53,12 @@ func New(handler telegram.UpdateHandler, storage session.Storage, middlewares ..
 
 	opts := telegram.Options{
 		ReconnectionBackoff: func() backoff.BackOff {
-			b := backoff.NewExponentialBackOff()
-
-			b.Multiplier = 1.1
-			b.MaxElapsedTime = time.Duration(120) * time.Second
-			b.Clock = _clock
-			return b
+			return Backoff(_clock)
 		},
 		Device:         deviceConfig(config),
 		SessionStorage: storage,
-		RetryInterval:  5 * time.Second,
-		MaxRetries:     5,
+		RetryInterval:  time.Second,
+		MaxRetries:     10,
 		DialTimeout:    10 * time.Second,
 		Middlewares:    middlewares,
 		Clock:          _clock,
@@ -63,13 +69,13 @@ func New(handler telegram.UpdateHandler, storage session.Storage, middlewares ..
 	return telegram.NewClient(config.AppId, config.AppHash, opts)
 }
 
-func NoLogin(handler telegram.UpdateHandler, storage session.Storage) *telegram.Client {
-	middlewares := []telegram.Middleware{floodwait.NewSimpleWaiter()}
+func NoLogin(ctx context.Context, handler telegram.UpdateHandler, storage session.Storage) *telegram.Client {
+	middlewares, _ := NewDefaultMiddlewares(ctx)
 	middlewares = append(middlewares, ratelimit.New(rate.Every(time.Millisecond*100), 5))
-	return New(handler, storage, middlewares...)
+	return New(ctx, handler, storage, middlewares...)
 }
 
-func UserLogin(sessionStr string) (*telegram.Client, error) {
+func UserLogin(ctx context.Context, sessionStr string) (*telegram.Client, error) {
 	data, err := session.TelethonSession(sessionStr)
 
 	if err != nil {
@@ -84,15 +90,31 @@ func UserLogin(sessionStr string) (*telegram.Client, error) {
 	if err := loader.Save(context.TODO(), data); err != nil {
 		return nil, err
 	}
-	middlewares := []telegram.Middleware{floodwait.NewSimpleWaiter()}
-	middlewares = append(middlewares, ratelimit.New(rate.Every(time.Millisecond*100), 5))
-	return New(nil, storage, middlewares...), nil
+	middlewares, _ := NewDefaultMiddlewares(ctx)
+	config := utils.GetConfig()
+	if config.RateLimit {
+		middlewares = append(middlewares, ratelimit.New(rate.Every(time.Millisecond*time.Duration(config.Rate)), config.RateBurst))
+
+	}
+
+	return New(ctx, nil, storage, middlewares...), nil
 }
 
-func BotLogin(token string) (*telegram.Client, error) {
+func BotLogin(ctx context.Context, token string) (*telegram.Client, error) {
 	config := utils.GetConfig()
 	storage := kv.NewSession(database.KV, kv.Key("botsession", token))
-	middlewares := []telegram.Middleware{floodwait.NewSimpleWaiter()}
-	middlewares = append(middlewares, ratelimit.New(rate.Every(time.Millisecond*time.Duration(config.Rate)), config.RateBurst))
-	return New(nil, storage, middlewares...), nil
+	middlewares, _ := NewDefaultMiddlewares(ctx)
+	if config.RateLimit {
+		middlewares = append(middlewares, ratelimit.New(rate.Every(time.Millisecond*time.Duration(config.Rate)), config.RateBurst))
+
+	}
+	return New(ctx, nil, storage, middlewares...), nil
+}
+func Backoff(_clock tdclock.Clock) backoff.BackOff {
+	b := backoff.NewExponentialBackOff()
+
+	b.Multiplier = 1.1
+	b.MaxElapsedTime = time.Duration(120) * time.Second
+	b.Clock = _clock
+	return b
 }

@@ -41,7 +41,7 @@ type BotInfo struct {
 func (us *UserService) GetProfilePhoto(c *gin.Context) {
 	_, session := getUserAuth(c)
 
-	client, err := tgc.UserLogin(session)
+	client, err := tgc.UserLogin(c, session)
 
 	if err != nil {
 		c.AbortWithError(http.StatusInternalServerError, err)
@@ -141,7 +141,7 @@ func (us *UserService) UpdateChannel(c *gin.Context) (*schemas.Message, *types.A
 
 func (us *UserService) ListChannels(c *gin.Context) (interface{}, *types.AppError) {
 	_, session := getUserAuth(c)
-	client, _ := tgc.UserLogin(session)
+	client, _ := tgc.UserLogin(c, session)
 
 	channels := make(map[int64]*schemas.Channel)
 
@@ -168,7 +168,7 @@ func (us *UserService) ListChannels(c *gin.Context) (interface{}, *types.AppErro
 
 func (us *UserService) AddBots(c *gin.Context) (*schemas.Message, *types.AppError) {
 	userId, session := getUserAuth(c)
-	client, _ := tgc.UserLogin(session)
+	client, _ := tgc.UserLogin(c, session)
 
 	var botsTokens []string
 

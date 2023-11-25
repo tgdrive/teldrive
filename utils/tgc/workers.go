@@ -1,6 +1,7 @@
 package tgc
 
 import (
+	"context"
 	"sync"
 
 	"github.com/gotd/contrib/bg"
@@ -58,7 +59,7 @@ func (w *streamWorkers) Set(bots []string, channelId int64) {
 		w.currIdx = make(map[int64]int)
 		w.bots[channelId] = bots
 		for _, token := range bots {
-			client, _ := BotLogin(token)
+			client, _ := BotLogin(context.TODO(), token)
 			w.clients[channelId] = append(w.clients[channelId], &Client{Tg: client, Status: "idle"})
 		}
 		w.currIdx[channelId] = 0

@@ -241,7 +241,7 @@ func (as *AuthService) GetSession(c *gin.Context) *types.Session {
 func (as *AuthService) Logout(c *gin.Context) (*schemas.Message, *types.AppError) {
 	val, _ := c.Get("jwtUser")
 	jwtUser := val.(*types.JWTClaims)
-	client, _ := tgc.UserLogin(jwtUser.TgSession)
+	client, _ := tgc.UserLogin(c, jwtUser.TgSession)
 
 	tgc.RunWithAuth(c, client, "", func(ctx context.Context) error {
 		_, err := client.API().AuthLogOut(c)
@@ -281,7 +281,7 @@ func (as *AuthService) HandleMultipleLogin(c *gin.Context) {
 	dispatcher := tg.NewUpdateDispatcher()
 	loggedIn := qrlogin.OnLoginToken(dispatcher)
 	sessionStorage := &session.StorageMemory{}
-	tgClient := tgc.NoLogin(dispatcher, sessionStorage)
+	tgClient := tgc.NoLogin(c, dispatcher, sessionStorage)
 
 	err = tgClient.Run(c, func(ctx context.Context) error {
 		for {

@@ -67,7 +67,7 @@ func deleteTGMessages(ctx context.Context, result Result) error {
 
 	db := database.DB
 
-	client, err := tgc.UserLogin(result.Session)
+	client, err := tgc.UserLogin(ctx, result.Session)
 
 	if err != nil {
 		return err
@@ -112,7 +112,7 @@ func cleanUploadsMessages(ctx context.Context, result UploadResult) error {
 
 	db := database.DB
 
-	client, err := tgc.UserLogin(result.Session)
+	client, err := tgc.UserLogin(ctx, result.Session)
 
 	if err != nil {
 		return err
