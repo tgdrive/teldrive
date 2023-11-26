@@ -92,11 +92,7 @@ func UserLogin(ctx context.Context, sessionStr string) (*telegram.Client, error)
 	}
 	middlewares, _ := NewDefaultMiddlewares(ctx)
 	config := utils.GetConfig()
-	if config.RateLimit {
-		middlewares = append(middlewares, ratelimit.New(rate.Every(time.Millisecond*time.Duration(config.Rate)), config.RateBurst))
-
-	}
-
+	middlewares = append(middlewares, ratelimit.New(rate.Every(time.Millisecond*time.Duration(config.Rate)), config.RateBurst))
 	return New(ctx, nil, storage, middlewares...), nil
 }
 
