@@ -206,8 +206,13 @@ func (fs *FileService) ListFiles(c *gin.Context) (*schemas.FileResponse, *types.
 		return nil, &types.AppError{Error: errors.New("invalid params"), Code: http.StatusBadRequest}
 	}
 
+	var (
+		pathId string
+		err    error
+	)
 	if fileQuery.Path != "" {
-		if err := fs.CheckIfPathExists(fileQuery.Path); err != nil {
+		pathId, err = fs.getPathId(fileQuery.Path)
+		if err != nil {
 			return nil, &types.AppError{Error: err, Code: http.StatusNotFound}
 		}
 	}
@@ -219,7 +224,7 @@ func (fs *FileService) ListFiles(c *gin.Context) (*schemas.FileResponse, *types.
 		setOrderFilter(query, &pagingParams, &sortingParams)
 
 		query.Order("type DESC").Order(getOrder(sortingParams)).
-			Where("parent_id in (?)", fs.Db.Model(&models.File{}).Select("id").Where("path = ?", fileQuery.Path))
+			Where("parent_id = ?", pathId)
 
 	} else if fileQuery.Op == "find" {
 
@@ -238,9 +243,11 @@ func (fs *FileService) ListFiles(c *gin.Context) (*schemas.FileResponse, *types.
 		}
 
 		if filterQuery["path"] != nil && filterQuery["name"] != nil {
-			query.Where("parent_id in (?)", fs.Db.Model(&models.File{}).Select("id").Where("path = ?", filterQuery["path"]))
+			query.Where("parent_id = ?", pathId)
 			delete(filterQuery, "path")
 		}
+
+		setOrderFilter(query, &pagingParams, &sortingParams)
 
 		query.Order("type DESC").Order(getOrder(sortingParams)).Where(filterQuery)
 
@@ -270,13 +277,15 @@ func (fs *FileService) ListFiles(c *gin.Context) (*schemas.FileResponse, *types.
 	return res, nil
 }
 
-func (fs *FileService) CheckIfPathExists(path string) error {
+func (fs *FileService) getPathId(path string) (string, error) {
 
-	if err := fs.Db.Model(&models.File{}).Select("id").Where("path = ?", path).First(&models.File{}).Error; errors.Is(err, gorm.ErrRecordNotFound) {
-		return errors.New("path not found")
+	var file models.File
+
+	if err := fs.Db.Model(&models.File{}).Select("id").Where("path = ?", path).First(&file).Error; errors.Is(err, gorm.ErrRecordNotFound) {
+		return "", errors.New("path not found")
 
 	}
-	return nil
+	return file.ID, nil
 }
 
 func (fs *FileService) MakeDirectory(c *gin.Context) (*schemas.FileOut, *types.AppError) {

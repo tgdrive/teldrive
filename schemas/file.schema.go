@@ -31,18 +31,18 @@ type FileQuery struct {
 }
 
 type FileIn struct {
-	Name      string        `json:"name" mapstructure:"name,omitempty"`
-	Type      string        `json:"type" mapstructure:"type,omitempty"`
-	Parts     *models.Parts `json:"parts,omitempty" mapstructure:"parts,omitempty"`
-	MimeType  string        `json:"mimeType" mapstructure:"mime_type,omitempty"`
-	ChannelID int64         `json:"channelId" mapstructure:"channel_id,omitempty"`
-	Path      string        `json:"path" mapstructure:"path,omitempty"`
-	Size      int64         `json:"size" mapstructure:"size,omitempty"`
-	Starred   *bool         `json:"starred" mapstructure:"starred,omitempty"`
-	Depth     *int          `json:"depth,omitempty" mapstructure:"depth,omitempty"`
-	Status    string        `mapstructure:"status,omitempty"`
-	UserID    int64         `json:"userId" mapstructure:"user_id,omitempty"`
-	ParentID  string        `json:"parentId" mapstructure:"parent_id,omitempty"`
+	Name      string        `json:"name"`
+	Type      string        `json:"type"`
+	Parts     *models.Parts `json:"parts,omitempty"`
+	MimeType  string        `json:"mimeType"`
+	ChannelID int64         `json:"channelId"`
+	Path      string        `json:"path"`
+	Size      int64         `json:"size"`
+	Starred   *bool         `json:"starred"`
+	Depth     *int          `json:"depth,omitempty"`
+	Status    string        `json:"status,omitempty"`
+	UserID    int64         `json:"userId"`
+	ParentID  string        `json:"parentId"`
 }
 
 type FileOut struct {
