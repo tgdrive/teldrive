@@ -11,6 +11,11 @@ import (
 	"github.com/gotd/td/tgerr"
 )
 
+var internalErrors = []string{
+	"Timedout",
+	"No workers running",
+}
+
 type retry struct {
 	max    int
 	errors []string
@@ -38,8 +43,7 @@ func (r retry) Handle(next tg.Invoker) telegram.InvokeFunc {
 
 func New(max int, errors ...string) telegram.Middleware {
 	return retry{
-		max: max,
-		errors: append(errors,
-			"Timedout"),
+		max:    max,
+		errors: append(errors, internalErrors...),
 	}
 }

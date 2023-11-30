@@ -30,10 +30,9 @@ func deviceConfig(appConfig *utils.Config) telegram.DeviceConfig {
 	return config
 }
 func NewDefaultMiddlewares(ctx context.Context) ([]telegram.Middleware, error) {
-	_clock := tdclock.System
 
 	return []telegram.Middleware{
-		recovery.New(ctx, Backoff(_clock)),
+		recovery.New(ctx, Backoff(tdclock.System)),
 		retry.New(5),
 		floodwait.NewSimpleWaiter(),
 	}, nil
