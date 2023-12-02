@@ -65,7 +65,7 @@ type UpdateFile struct {
 	Name      string    `json:"name,omitempty"`
 	Type      string    `json:"type,omitempty"`
 	Path      string    `json:"path,omitempty"`
-	Starred   bool      `json:"starred,omitempty"`
+	Starred   *bool     `json:"starred,omitempty"`
 	ParentID  string    `json:"parentId,omitempty"`
 	UpdatedAt time.Time `json:"updatedAt,omitempty"`
 }

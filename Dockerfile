@@ -24,7 +24,7 @@ RUN make pre-ui &&  make ui
 
 RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build \
     -ldflags='-w -s -extldflags "-static"' -a \
-    -o /app/teldrive .
+    -o /app/teldrive cmd/teldrive/main.go
 
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} busybox

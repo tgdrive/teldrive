@@ -4,7 +4,6 @@ import (
 	"crypto/md5"
 	"fmt"
 	"io"
-	"os"
 )
 
 func FromBytes(data []byte) string {
@@ -15,16 +14,6 @@ func FromBytes(data []byte) string {
 func FromString(str string) string {
 	data := []byte(str)
 	return FromBytes(data)
-}
-
-func FromFilePath(filePath string) (string, error) {
-	f, err := os.Open(filePath)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-
-	return FromReader(f)
 }
 
 func FromReader(src io.Reader) (string, error) {

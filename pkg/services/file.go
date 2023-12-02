@@ -79,10 +79,21 @@ func (fs *FileService) CreateFile(c *gin.Context) (*schemas.FileOut, *types.AppE
 			}
 		}
 		fileDB.ChannelID = utils.Int64Pointer(channelId)
-	}
+		fileDB.MimeType = fileIn.MimeType
+		parts := models.Parts{}
+		for _, part := range fileIn.Parts {
+			parts = append(parts, models.Part{
+				ID: part.ID,
+			})
 
+		}
+		fileDB.Parts = &parts
+		fileDB.Starred = false
+		fileDB.Size = &fileIn.Size
+	}
+	fileDB.Name = fileIn.Name
+	fileDB.Type = fileIn.Type
 	fileDB.UserID = userId
-	fileDB.Starred = false
 	fileDB.Status = "active"
 
 	if err := fs.Db.Create(&fileDB).Error; err != nil {
@@ -94,7 +105,7 @@ func (fs *FileService) CreateFile(c *gin.Context) (*schemas.FileOut, *types.AppE
 
 	}
 
-	res := mapper.ToFileOut(&fileDB)
+	res := mapper.ToFileOut(fileDB)
 
 	return &res, nil
 }
@@ -125,7 +136,7 @@ func (fs *FileService) UpdateFile(c *gin.Context) (*schemas.FileOut, *types.AppE
 		return nil, &types.AppError{Error: errors.New("file not updated"), Code: http.StatusInternalServerError}
 	}
 
-	file := mapper.ToFileOut(&files[0])
+	file := mapper.ToFileOut(files[0])
 
 	key := fmt.Sprintf("files:%s", fileID)
 
@@ -147,7 +158,7 @@ func (fs *FileService) GetFileByID(c *gin.Context) (*schemas.FileOutFull, error)
 		return nil, errors.New("file not found")
 	}
 
-	return mapper.ToFileOutFull(&file[0]), nil
+	return mapper.ToFileOutFull(file[0]), nil
 }
 
 func (fs *FileService) ListFiles(c *gin.Context) (*schemas.FileResponse, *types.AppError) {
@@ -278,7 +289,7 @@ func (fs *FileService) MakeDirectory(c *gin.Context) (*schemas.FileOut, *types.A
 			Code: http.StatusInternalServerError}
 	}
 
-	file := mapper.ToFileOut(&files[0])
+	file := mapper.ToFileOut(files[0])
 
 	return &file, nil
 
@@ -300,7 +311,7 @@ func (fs *FileService) CopyFile(c *gin.Context) (*schemas.FileOut, *types.AppErr
 
 	fs.Db.Model(&models.File{}).Where("id = ?", payload.ID).Find(&res)
 
-	file := mapper.ToFileOutFull(&res[0])
+	file := mapper.ToFileOutFull(res[0])
 
 	newIds := models.Parts{}
 
@@ -381,7 +392,7 @@ func (fs *FileService) CopyFile(c *gin.Context) (*schemas.FileOut, *types.AppErr
 
 	}
 
-	out := mapper.ToFileOut(&dbFile)
+	out := mapper.ToFileOut(dbFile)
 
 	return &out, nil
 
