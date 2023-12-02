@@ -6,6 +6,7 @@ require (
 	github.com/coocood/freecache v1.2.4
 	github.com/divyam234/cors v1.4.2
 	github.com/gin-gonic/gin v1.9.1
+	github.com/go-co-op/gocron v1.36.0
 	github.com/go-jose/go-jose/v3 v3.0.1
 	github.com/gotd/contrib v0.19.0
 	github.com/gotd/td v0.89.0
@@ -26,7 +27,6 @@ require (
 require (
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/chenzhuoyu/iasm v0.9.1 // indirect
-	github.com/go-co-op/gocron v1.36.0 // indirect
 	github.com/google/uuid v1.4.0 // indirect
 	github.com/jackc/puddle/v2 v2.2.1 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect

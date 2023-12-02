@@ -40,27 +40,21 @@ type AuthService struct {
 	SessionCookieName string
 }
 
-type SessionData struct {
-	Version int
-	Data    session.Data
-}
-type SocketMessage struct {
-	AuthType      string `json:"authType"`
-	Message       string `json:"message"`
-	PhoneNo       string `json:"phoneNo,omitempty"`
-	PhoneCodeHash string `json:"phoneCodeHash,omitempty"`
-	PhoneCode     string `json:"phoneCode,omitempty"`
-	Password      string `json:"password,omitempty"`
+func NewAuthService(db *gorm.DB) *AuthService {
+	return &AuthService{
+		Db:                db,
+		SessionMaxAge:     30 * 24 * 60 * 60,
+		SessionCookieName: "user-session"}
 }
 
-func IP4toInt(IPv4Address net.IP) int64 {
+func ip4toInt(IPv4Address net.IP) int64 {
 	IPv4Int := big.NewInt(0)
 	IPv4Int.SetBytes(IPv4Address.To4())
 	return IPv4Int.Int64()
 }
 
-func Pack32BinaryIP4(ip4Address string) []byte {
-	ipv4Decimal := IP4toInt(net.ParseIP(ip4Address))
+func pack32BinaryIP4(ip4Address string) []byte {
+	ipv4Decimal := ip4toInt(net.ParseIP(ip4Address))
 
 	buf := new(bytes.Buffer)
 	binary.Write(buf, binary.BigEndian, uint32(ipv4Decimal))
@@ -78,7 +72,7 @@ func generateTgSession(dcID int, authKey []byte, port int) string {
 	}
 
 	dcIDByte := byte(dcID)
-	serverAddressBytes := Pack32BinaryIP4(dcMaps[dcID])
+	serverAddressBytes := pack32BinaryIP4(dcMaps[dcID])
 	portByte := make([]byte, 2)
 	binary.BigEndian.PutUint16(portByte, uint16(port))
 
@@ -286,7 +280,7 @@ func (as *AuthService) HandleMultipleLogin(c *gin.Context) {
 
 	err = tgClient.Run(c, func(ctx context.Context) error {
 		for {
-			message := &SocketMessage{}
+			message := &types.SocketMessage{}
 			err := conn.ReadJSON(message)
 
 			if err != nil {
@@ -319,7 +313,7 @@ func (as *AuthService) HandleMultipleLogin(c *gin.Context) {
 						return
 					}
 					res, _ := sessionStorage.LoadSession(c)
-					sessionData := &SessionData{}
+					sessionData := &types.SessionData{}
 					json.Unmarshal(res, sessionData)
 					session := prepareSession(user, &sessionData.Data)
 					conn.WriteJSON(map[string]interface{}{"type": "auth", "payload": session, "message": "success"})
@@ -360,7 +354,7 @@ func (as *AuthService) HandleMultipleLogin(c *gin.Context) {
 						return
 					}
 					res, _ := sessionStorage.LoadSession(c)
-					sessionData := &SessionData{}
+					sessionData := &types.SessionData{}
 					json.Unmarshal(res, sessionData)
 					session := prepareSession(user, &sessionData.Data)
 					conn.WriteJSON(map[string]interface{}{"type": "auth", "payload": session, "message": "success"})
@@ -385,7 +379,7 @@ func (as *AuthService) HandleMultipleLogin(c *gin.Context) {
 						return
 					}
 					res, _ := sessionStorage.LoadSession(c)
-					sessionData := &SessionData{}
+					sessionData := &types.SessionData{}
 					json.Unmarshal(res, sessionData)
 					session := prepareSession(user, &sessionData.Data)
 					conn.WriteJSON(map[string]interface{}{"type": "auth", "payload": session, "message": "success"})

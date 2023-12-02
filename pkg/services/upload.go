@@ -28,6 +28,10 @@ type UploadService struct {
 	Db *gorm.DB
 }
 
+func NewUploadService(db *gorm.DB) *UploadService {
+	return &UploadService{Db: db}
+}
+
 func (us *UploadService) GetUploadFileById(c *gin.Context) (*schemas.UploadOut, *types.AppError) {
 	uploadId := c.Param("id")
 	parts := []schemas.UploadPartOut{}

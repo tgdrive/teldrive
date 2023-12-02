@@ -7,8 +7,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func (uc *Controller) Stats(c *gin.Context) {
-	res, err := uc.UserService.Stats(c)
+func (uc *Controller) GetStats(c *gin.Context) {
+	res, err := uc.UserService.GetStats(c)
 	if err != nil {
 		httputil.NewError(c, err.Code, err.Error)
 		return
@@ -59,16 +59,6 @@ func (uc *Controller) AddBots(c *gin.Context) {
 
 func (uc *Controller) RemoveBots(c *gin.Context) {
 	res, err := uc.UserService.RemoveBots(c)
-	if err != nil {
-		httputil.NewError(c, err.Code, err.Error)
-		return
-	}
-
-	c.JSON(http.StatusOK, res)
-}
-
-func (uc *Controller) RevokeBotSession(c *gin.Context) {
-	res, err := uc.UserService.RevokeBotSession(c)
 	if err != nil {
 		httputil.NewError(c, err.Code, err.Error)
 		return

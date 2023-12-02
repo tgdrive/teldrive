@@ -53,13 +53,12 @@ func InitRouter() *gin.Engine {
 		{
 			users.Use(middleware.Authmiddleware)
 			users.GET("/profile", c.GetProfilePhoto)
-			users.GET("/stats", c.Stats)
+			users.GET("/stats", c.GetStats)
 			users.GET("/bots", c.GetBots)
 			users.GET("/channels", c.ListChannels)
 			users.PATCH("/channels", c.UpdateChannel)
 			users.POST("/bots", c.AddBots)
 			users.DELETE("/bots", c.RemoveBots)
-			users.DELETE("/bots/session", c.RevokeBotSession)
 		}
 	}
 

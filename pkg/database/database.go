@@ -20,7 +20,6 @@ import (
 //go:embed migrations/*.sql
 var embedMigrations embed.FS
 var DB *gorm.DB
-var BoltDB *bbolt.DB
 var KV kv.KV
 
 func InitDB() {
@@ -69,14 +68,14 @@ func InitDB() {
 		}
 	}()
 
-	BoltDB, err = bbolt.Open(filepath.Join(config.ExecDir, "teldrive.db"), 0666, &bbolt.Options{
+	boltDB, err := bbolt.Open(filepath.Join(config.ExecDir, "teldrive.db"), 0666, &bbolt.Options{
 		Timeout:    time.Second,
 		NoGrowSync: false,
 	})
 	if err != nil {
 		panic(err)
 	}
-	KV, err = kv.New(kv.Options{Bucket: "teldrive", DB: BoltDB})
+	KV, err = kv.New(kv.Options{Bucket: "teldrive", DB: boltDB})
 
 	if err != nil {
 		panic(err)

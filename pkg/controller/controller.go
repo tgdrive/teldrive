@@ -14,12 +14,9 @@ type Controller struct {
 
 func NewController() *Controller {
 	return &Controller{
-		FileService:   &services.FileService{Db: database.DB},
-		UserService:   &services.UserService{Db: database.DB},
-		UploadService: &services.UploadService{Db: database.DB},
-		AuthService: &services.AuthService{
-			Db:                database.DB,
-			SessionMaxAge:     30 * 24 * 60 * 60,
-			SessionCookieName: "user-session"},
+		FileService:   services.NewFileService(database.DB),
+		UserService:   services.NewUserService(database.DB),
+		UploadService: services.NewUploadService(database.DB),
+		AuthService:   services.NewAuthService(database.DB),
 	}
 }

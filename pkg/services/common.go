@@ -98,7 +98,7 @@ func getUserAuth(c *gin.Context) (int64, string) {
 	return userId, jwtUser.TgSession
 }
 
-func getBotInfo(ctx context.Context, token string) (*BotInfo, error) {
+func getBotInfo(ctx context.Context, token string) (*types.BotInfo, error) {
 	client, _ := tgc.BotLogin(ctx, token)
 	var user *tg.User
 	err := tgc.RunWithAuth(ctx, client, token, func(ctx context.Context) error {
@@ -109,7 +109,7 @@ func getBotInfo(ctx context.Context, token string) (*BotInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &BotInfo{Id: user.ID, UserName: user.Username, Token: token}, nil
+	return &types.BotInfo{Id: user.ID, UserName: user.Username, Token: token}, nil
 }
 
 func getTGMessages(ctx context.Context, client *telegram.Client, parts []schemas.Part, channelId int64, userID string) (*tg.MessagesChannelMessages, error) {

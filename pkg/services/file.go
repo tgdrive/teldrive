@@ -35,6 +35,10 @@ type FileService struct {
 	Db *gorm.DB
 }
 
+func NewFileService(db *gorm.DB) *FileService {
+	return &FileService{Db: db}
+}
+
 func (fs *FileService) CreateFile(c *gin.Context) (*schemas.FileOut, *types.AppError) {
 	userId, _ := getUserAuth(c)
 	var fileIn schemas.CreateFile

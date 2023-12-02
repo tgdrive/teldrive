@@ -1,7 +1,6 @@
 package services
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -11,7 +10,6 @@ import (
 
 	"github.com/divyam234/teldrive/internal/cache"
 	"github.com/divyam234/teldrive/internal/tgc"
-	"github.com/divyam234/teldrive/pkg/database"
 	"github.com/divyam234/teldrive/pkg/models"
 	"github.com/divyam234/teldrive/pkg/schemas"
 	"github.com/divyam234/teldrive/pkg/types"
@@ -20,7 +18,6 @@ import (
 	"github.com/gotd/td/telegram/query"
 	"github.com/gotd/td/tg"
 	"github.com/thoas/go-funk"
-	"go.etcd.io/bbolt"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -31,11 +28,8 @@ type UserService struct {
 	Db *gorm.DB
 }
 
-type BotInfo struct {
-	Id         int64
-	UserName   string
-	AccessHash int64
-	Token      string
+func NewUserService(db *gorm.DB) *UserService {
+	return &UserService{Db: db}
 }
 
 func (us *UserService) GetProfilePhoto(c *gin.Context) {
@@ -80,7 +74,7 @@ func (us *UserService) GetProfilePhoto(c *gin.Context) {
 	}
 }
 
-func (us *UserService) Stats(c *gin.Context) (*schemas.AccountStats, *types.AppError) {
+func (us *UserService) GetStats(c *gin.Context) (*schemas.AccountStats, *types.AppError) {
 	userId, _ := getUserAuth(c)
 	var res []schemas.AccountStats
 	if err := us.Db.Raw("select * from teldrive.account_stats(?);", userId).Scan(&res).Error; err != nil {
@@ -210,42 +204,9 @@ func (us *UserService) RemoveBots(c *gin.Context) (*schemas.Message, *types.AppE
 
 }
 
-func (us *UserService) RevokeBotSession(c *gin.Context) (*schemas.Message, *types.AppError) {
-
-	pattern := []byte("botsession:")
-
-	err := database.BoltDB.Update(func(tx *bbolt.Tx) error {
-
-		bucket := tx.Bucket([]byte("teldrive"))
-		if bucket == nil {
-			return errors.New("bucket not found")
-		}
-
-		c := bucket.Cursor()
-
-		for key, _ := c.First(); key != nil; key, _ = c.Next() {
-			if bytes.HasPrefix(key, pattern) {
-				if err := c.Delete(); err != nil {
-					return err
-				}
-			}
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		return nil, &types.AppError{Error: errors.New("failed to revoke session"),
-			Code: http.StatusInternalServerError}
-	}
-
-	return &schemas.Message{Message: "session revoked"}, nil
-
-}
-
 func (us *UserService) addBots(c context.Context, client *telegram.Client, userId int64, channelId int64, botsTokens []string) (*schemas.Message, *types.AppError) {
 
-	botInfo := []BotInfo{}
+	botInfo := []types.BotInfo{}
 
 	var wg sync.WaitGroup
 
@@ -260,7 +221,7 @@ func (us *UserService) addBots(c context.Context, client *telegram.Client, userI
 			return err
 
 		}
-		botInfoChannel := make(chan *BotInfo, len(botsTokens))
+		botInfoChannel := make(chan *types.BotInfo, len(botsTokens))
 
 		waitChan := make(chan struct{}, 6)
 
@@ -295,7 +256,7 @@ func (us *UserService) addBots(c context.Context, client *telegram.Client, userI
 		}
 
 		if len(botsTokens) == len(botInfo) {
-			users := funk.Map(botInfo, func(info BotInfo) tg.InputUser {
+			users := funk.Map(botInfo, func(info types.BotInfo) tg.InputUser {
 				return tg.InputUser{UserID: info.Id, AccessHash: info.AccessHash}
 			})
 			botsToAdd := users.([]tg.InputUser)
