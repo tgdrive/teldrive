@@ -1,13 +1,10 @@
 package api
 
 import (
-	"github.com/divyam234/teldrive/docs"
 	"github.com/divyam234/teldrive/pkg/controller"
 	"github.com/divyam234/teldrive/pkg/middleware"
 	"github.com/divyam234/teldrive/ui"
 	"github.com/gin-gonic/gin"
-	swaggerfiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 func InitRouter() *gin.Engine {
@@ -20,8 +17,6 @@ func InitRouter() *gin.Engine {
 	// 	r.Use(middleware.Security())
 	// }
 	r.Use(middleware.Cors())
-
-	docs.SwaggerInfo.BasePath = "/api"
 
 	c := controller.NewController()
 
@@ -70,7 +65,7 @@ func InitRouter() *gin.Engine {
 			users.DELETE("/bots/session", c.RevokeBotSession)
 		}
 	}
-	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerfiles.Handler))
+
 	ui.AddRoutes(r)
 
 	return r
