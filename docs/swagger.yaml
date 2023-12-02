@@ -1,0 +1,453 @@
+basePath: /api
+definitions:
+  httputil.HTTPError:
+    properties:
+      code:
+        example: 400
+        type: integer
+      message:
+        example: status bad request
+        type: string
+    type: object
+  schemas.AccountStats:
+    properties:
+      channelId:
+        type: integer
+      channelName:
+        type: string
+      totalFiles:
+        type: integer
+      totalSize:
+        type: integer
+    type: object
+  schemas.Channel:
+    properties:
+      channelId:
+        type: integer
+      channelName:
+        type: string
+    type: object
+  schemas.Message:
+    properties:
+      message:
+        type: string
+    type: object
+  schemas.Session:
+    properties:
+      expires:
+        type: string
+      hash:
+        type: string
+      isPremium:
+        type: boolean
+      name:
+        type: string
+      userName:
+        type: string
+    type: object
+  schemas.TgSession:
+    properties:
+      bot:
+        type: boolean
+      isPremium:
+        type: boolean
+      name:
+        type: string
+      session:
+        type: string
+      userId:
+        type: integer
+      userName:
+        type: string
+    type: object
+  schemas.UploadOut:
+    properties:
+      parts:
+        items:
+          $ref: '#/definitions/schemas.UploadPartOut'
+        type: array
+    type: object
+  schemas.UploadPart:
+    properties:
+      channelId:
+        type: integer
+      name:
+        type: string
+      partId:
+        type: integer
+      partNo:
+        type: integer
+      size:
+        type: integer
+      uploadId:
+        type: string
+    type: object
+  schemas.UploadPartOut:
+    properties:
+      channelId:
+        type: integer
+      id:
+        type: string
+      name:
+        type: string
+      partId:
+        type: integer
+      partNo:
+        type: integer
+      size:
+        type: integer
+    type: object
+externalDocs:
+  description: OpenAPI
+  url: https://swagger.io/resources/open-api/
+host: localhost:5000
+info:
+  contact:
+    email: support@swagger.io
+    name: API Support
+    url: http://www.swagger.io/support
+  description: This is a sample server celler server.
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://swagger.io/terms/
+  title: Swagger Example API
+  version: "1.0"
+paths:
+  /auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Log in to the application with Telegram session details
+      parameters:
+      - description: Telegram Session Details
+        in: body
+        name: session
+        required: true
+        schema:
+          $ref: '#/definitions/schemas.TgSession'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/schemas.Message'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.HTTPError'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httputil.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.HTTPError'
+      summary: Log in to the application
+      tags:
+      - auth
+  /auth/logout:
+    post:
+      description: Log out from the application and invalidate the session
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/schemas.Message'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.HTTPError'
+      summary: Log out from the application
+      tags:
+      - auth
+  /auth/session:
+    get:
+      description: Get detailed information about the user's session.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/schemas.Session'
+      summary: Get user session information
+      tags:
+      - auth
+  /uploads/{id}:
+    delete:
+      description: Delete an uploaded file by its ID
+      parameters:
+      - description: Upload ID
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/schemas.Message'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.HTTPError'
+      summary: Delete an uploaded file
+      tags:
+      - uploads
+    get:
+      description: Get details of an uploaded file by its ID
+      parameters:
+      - description: Upload ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/schemas.UploadOut'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.HTTPError'
+      summary: Get information about an uploaded file
+      tags:
+      - uploads
+    post:
+      consumes:
+      - application/octet-stream
+      description: Upload a file in parts to a channel
+      parameters:
+      - description: Upload ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: File Name
+        in: query
+        name: filename
+        required: true
+        type: string
+      - description: Channel ID
+        in: query
+        name: channelId
+        type: integer
+      - description: Part Number
+        in: query
+        name: partNo
+        type: integer
+      - description: Total Parts
+        in: query
+        name: totalParts
+        type: integer
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/schemas.UploadPartOut'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.HTTPError'
+      summary: Upload a file
+      tags:
+      - uploads
+  /uploads/parts:
+    post:
+      consumes:
+      - application/json
+      description: Create a new upload part for a file
+      parameters:
+      - description: Upload Part
+        in: body
+        name: part
+        required: true
+        schema:
+          $ref: '#/definitions/schemas.UploadPart'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/schemas.UploadPartOut'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.HTTPError'
+      summary: Create a new upload part
+      tags:
+      - uploads
+  /users/bots:
+    delete:
+      description: Remove bots from the authenticated user's default channel
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/schemas.Message'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.HTTPError'
+      summary: Remove bots from user's channel
+      tags:
+      - users
+    post:
+      consumes:
+      - application/json
+      description: Add bots to the authenticated user's default channel
+      parameters:
+      - description: Bot Tokens
+        in: body
+        name: botsTokens
+        required: true
+        schema:
+          type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/schemas.Message'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.HTTPError'
+      summary: Add bots to user's channel
+      tags:
+      - users
+  /users/bots/{channelId}:
+    get:
+      description: Get the list of bots associated with the authenticated user and
+        a specific channel
+      parameters:
+      - description: Channel ID
+        in: path
+        name: channelId
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Bot Tokens
+          schema:
+            items:
+              type: string
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.HTTPError'
+      summary: Get user's bots for a channel
+      tags:
+      - users
+  /users/bots/session:
+    delete:
+      description: Revoke all bot sessions associated with the authenticated user
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/schemas.Message'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.HTTPError'
+      summary: Revoke user's bot session
+      tags:
+      - users
+  /users/channel:
+    put:
+      consumes:
+      - application/json
+      description: Update the selected channel for the authenticated user
+      parameters:
+      - description: Update Channel
+        in: body
+        name: channel
+        required: true
+        schema:
+          $ref: '#/definitions/schemas.Channel'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/schemas.Message'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.HTTPError'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.HTTPError'
+      summary: Update user's selected channel
+      tags:
+      - users
+  /users/channels:
+    get:
+      description: Get the list of channels associated with the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Channel List
+          schema:
+            items:
+              $ref: '#/definitions/schemas.Channel'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.HTTPError'
+      summary: List user's channels
+      tags:
+      - users
+  /users/stats:
+    get:
+      description: Get statistics related to the authenticated user's account
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/schemas.AccountStats'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.HTTPError'
+      summary: Get user's account statistics
+      tags:
+      - users
+securityDefinitions:
+  JwtAuth:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"
