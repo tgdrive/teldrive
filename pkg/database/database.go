@@ -61,10 +61,9 @@ func InitDB() {
 	}
 	sqlDB.SetMaxIdleConns(25)
 	sqlDB.SetMaxOpenConns(25)
+	sqlDB.SetConnMaxIdleTime(10 * time.Minute)
 
-	sqlDB.SetConnMaxLifetime(time.Hour)
 	go func() {
-		DB.Exec(`create collation if not exists numeric (provider = icu, locale = 'en@colnumeric=yes');`)
 		if config.RunMigrations {
 			migrate()
 		}

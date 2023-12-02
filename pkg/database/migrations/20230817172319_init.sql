@@ -1,66 +1,55 @@
 -- +goose Up
-create extension if not exists pgcrypto;
 
-create extension if not exists btree_gin;
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
 
-create schema if not exists teldrive;
+CREATE EXTENSION IF NOT EXISTS btree_gin;
 
-create collation if not exists numeric (provider = icu, locale = 'en@colnumeric=yes');
+CREATE SCHEMA IF NOT EXISTS teldrive;
+
+CREATE COLLATION IF NOT EXISTS numeric (PROVIDER = ICU, LOCALE = 'en@colnumeric=yes');
 
 -- +goose StatementBegin
-create or replace
-function teldrive.generate_uid(size int) returns text language plpgsql as $$
-declare characters text := 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 
-bytes bytea := gen_random_bytes(size);
+CREATE OR REPLACE
+FUNCTION teldrive.generate_uid(size INT) RETURNS TEXT LANGUAGE PLPGSQL AS $$
+DECLARE
+    characters TEXT := 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    bytes BYTEA := gen_random_bytes(size);
+    l INT := LENGTH(characters);
+    i INT := 0;
+    output TEXT := '';
+BEGIN
+    WHILE i < size LOOP
+        output := output || SUBSTR(characters, GET_BYTE(bytes, i) % l + 1, 1);
+        i := i + 1;
+    END LOOP;
+    RETURN output;
+END;
+$$;
 
-l int := length(characters);
+CREATE OR REPLACE
+FUNCTION teldrive.get_tsvector(t TEXT) RETURNS TSVECTOR LANGUAGE PLPGSQL IMMUTABLE AS $$
+DECLARE
+    res TSVECTOR := to_tsvector(regexp_replace(t, '[^A-Za-z0-9 ]', ' ', 'g'));
+BEGIN
+    RETURN res;
+END;
+$$;
 
-i int := 0;
-
-output text := '';
-
-begin while i < size loop output := output || substr(characters,
-get_byte(bytes,
-i) % l + 1,
-1);
-
-i := i + 1;
-end loop;
-
-return output;
-end;
-
+CREATE OR REPLACE
+FUNCTION teldrive.get_tsquery(t TEXT) RETURNS TSQUERY LANGUAGE PLPGSQL IMMUTABLE AS $$
+DECLARE
+    res TSQUERY := CONCAT(plainto_tsquery(regexp_replace(t, '[^A-Za-z0-9 ]', ' ', 'g')), ':*')::TSQUERY;
+BEGIN
+    RETURN res;
+END;
 $$;
 -- +goose StatementEnd
 
+
+-- +goose Down
 -- +goose StatementBegin
-create or replace
-function teldrive.get_tsvector(t text) returns tsvector language plpgsql immutable as $$
-declare res tsvector := to_tsvector(regexp_replace(t,
-'[^A-Za-z0-9 ]',
-' ',
-'g'));
-
-begin return res;
-end;
-
-$$;
--- +goose StatementEnd
-
--- +goose StatementBegin
-create or replace
-function teldrive.get_tsquery(t text) returns tsquery language plpgsql immutable as $$
-declare res tsquery = concat(
-plainto_tsquery(regexp_replace(t,
-'[^A-Za-z0-9 ]',
-' ',
-'g')),
-':*'
-)::tsquery;
-
-begin return res;
-end;
-
-$$;
+DROP FUNCTION IF EXISTS teldrive.generate_uid;
+DROP FUNCTION IF EXISTS teldrive.get_tsvector;
+DROP FUNCTION IF EXISTS  teldrive.get_tsquery;
 -- +goose StatementEnd

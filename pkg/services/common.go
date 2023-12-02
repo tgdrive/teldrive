@@ -114,7 +114,7 @@ func getBotInfo(ctx context.Context, token string) (*BotInfo, error) {
 
 func getTGMessages(ctx context.Context, client *telegram.Client, parts []schemas.Part, channelId int64, userID string) (*tg.MessagesChannelMessages, error) {
 
-	ids := funk.Map(parts, func(part models.Part) tg.InputMessageClass {
+	ids := funk.Map(parts, func(part schemas.Part) tg.InputMessageClass {
 		return tg.InputMessageClass(&tg.InputMessageID{ID: int(part.ID)})
 	})
 

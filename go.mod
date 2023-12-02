@@ -26,7 +26,10 @@ require (
 require (
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/chenzhuoyu/iasm v0.9.1 // indirect
+	github.com/go-co-op/gocron v1.36.0 // indirect
+	github.com/google/uuid v1.4.0 // indirect
 	github.com/jackc/puddle/v2 v2.2.1 // indirect
+	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/sethvargo/go-retry v0.2.4 // indirect
 	golang.org/x/tools v0.16.0 // indirect
 )

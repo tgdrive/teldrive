@@ -13,9 +13,6 @@ func InitRouter() *gin.Engine {
 
 	r.Use(gin.Logger())
 
-	// if gin.Mode() == gin.ReleaseMode {
-	// 	r.Use(middleware.Security())
-	// }
 	r.Use(middleware.Cors())
 
 	c := controller.NewController()
@@ -54,7 +51,7 @@ func InitRouter() *gin.Engine {
 		}
 		users := api.Group("/users")
 		{
-			uploads.Use(middleware.Authmiddleware)
+			users.Use(middleware.Authmiddleware)
 			users.GET("/profile", c.GetProfilePhoto)
 			users.GET("/stats", c.Stats)
 			users.GET("/bots", c.GetBots)
