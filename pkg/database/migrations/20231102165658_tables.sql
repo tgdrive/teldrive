@@ -1,5 +1,4 @@
 -- +goose Up
--- +goose StatementBegin
 
 CREATE TABLE IF NOT EXISTS teldrive.files (
 	id text NOT NULL DEFAULT teldrive.generate_uid(16) PRIMARY KEY,
@@ -39,7 +38,7 @@ CREATE TABLE IF NOT EXISTS teldrive.uploads (
 	total_parts int NOT NULL,
 	channel_id bigint NOT NULL,
 	"size" bigint NOT NULL,
-	created_at timestamp DEFAULT timezone('utc'::text, now()),
+	created_at timestamp DEFAULT timezone('utc'::text, now())
 );
 
 
@@ -77,13 +76,10 @@ CREATE INDEX IF NOT EXISTS parent_name_numeric_idx ON teldrive.files USING btree
 CREATE INDEX IF NOT EXISTS path_idx ON teldrive.files USING btree (path);
 CREATE INDEX IF NOT EXISTS starred_updated_at_idx ON teldrive.files USING btree (starred, updated_at DESC);
 CREATE INDEX IF NOT EXISTS status_idx ON teldrive.files USING btree (status);
-CREATE UNIQUE IF NOT EXISTS INDEX unique_file ON teldrive.files USING btree (name, parent_id, user_id) WHERE (status = 'active'::text);
+CREATE UNIQUE INDEX IF NOT EXISTS unique_file ON teldrive.files USING btree (name, parent_id, user_id) WHERE (status = 'active'::text);
 CREATE INDEX IF NOT EXISTS user_id_idx ON teldrive.files USING btree (user_id);
 
--- +goose StatementEnd
-
 -- +goose Down
--- +goose StatementBegin
 
 DROP INDEX IF EXISTS name_numeric_idx ;
 DROP INDEX IF EXISTS name_search_idx ;
@@ -101,4 +97,3 @@ DROP TABLE IF EXISTS teldrive.users;
 DROP TABLE IF EXISTS teldrive.channels;
 DROP TABLE IF EXISTS teldrive.bots;
 DROP TABLE IF EXISTS teldrive.sessions;
--- +goose StatementEnd
