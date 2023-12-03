@@ -6,12 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"strconv"
 	"strings"
 
 	cnf "github.com/divyam234/teldrive/config"
 	"github.com/divyam234/teldrive/internal/cache"
+	"github.com/divyam234/teldrive/internal/http_range"
 	"github.com/divyam234/teldrive/internal/md5"
 	"github.com/divyam234/teldrive/internal/reader"
 	"github.com/divyam234/teldrive/internal/tgc"
@@ -26,7 +28,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/mitchellh/mapstructure"
-	range_parser "github.com/quantumsheep/range-parser"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -499,9 +500,18 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 		end = file.Size - 1
 		w.WriteHeader(http.StatusOK)
 	} else {
-		ranges, err := range_parser.Parse(file.Size, r.Header.Get("Range"))
+		ranges, err := http_range.ParseRange(rangeHeader, file.Size)
+		if err == http_range.ErrNoOverlap {
+			w.Header().Set("Content-Range", fmt.Sprintf("bytes */%d", file.Size))
+			http.Error(w, http_range.ErrNoOverlap.Error(), http.StatusRequestedRangeNotSatisfiable)
+			return
+		}
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if len(ranges) > 1 {
+			http.Error(w, "multiple ranges are not supported", http.StatusRequestedRangeNotSatisfiable)
 			return
 		}
 		start = ranges[0].Start
@@ -530,7 +540,7 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 		disposition = "attachment"
 	}
 
-	c.Header("Content-Disposition", fmt.Sprintf("%s; filename=\"%s\"", disposition, file.Name))
+	c.Header("Content-Disposition", mime.FormatMediaType(disposition, map[string]string{"filename": file.Name}))
 
 	tokens, err := getBotsToken(c, session.UserId, file.ChannelID)
 
@@ -605,12 +615,7 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 
 func setOrderFilter(query *gorm.DB, pagingParams *schemas.PaginationQuery, sortingParams *schemas.SortingQuery) *gorm.DB {
 	if pagingParams.NextPageToken != "" {
-		sortColumn := sortingParams.Sort
-		if sortColumn == "name" {
-			sortColumn = "name collate numeric"
-		} else {
-			sortColumn = utils.CamelToSnake(sortingParams.Sort)
-		}
+		sortColumn := utils.CamelToSnake(sortingParams.Sort)
 
 		tokenValue, err := base64.StdEncoding.DecodeString(pagingParams.NextPageToken)
 		if err == nil {
@@ -624,11 +629,9 @@ func setOrderFilter(query *gorm.DB, pagingParams *schemas.PaginationQuery, sorti
 	return query
 }
 
-func getOrder(sortingParams schemas.SortingQuery) string {
+func getOrder(sortingParams schemas.SortingQuery) clause.OrderByColumn {
 	sortColumn := utils.CamelToSnake(sortingParams.Sort)
-	if sortingParams.Sort == "name" {
-		sortColumn = "name collate numeric"
-	}
 
-	return fmt.Sprintf("%s %s", sortColumn, strings.ToUpper(sortingParams.Order))
+	return clause.OrderByColumn{Column: clause.Column{Name: sortColumn},
+		Desc: sortingParams.Order == "desc"}
 }

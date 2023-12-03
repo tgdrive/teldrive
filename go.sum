@@ -207,8 +207,6 @@ github.com/pressly/goose/v3 v3.16.0 h1:xMJUsZdHLqSnCqESyKSqEfcYVYsUuup1nrOhaEFft
 github.com/pressly/goose/v3 v3.16.0/go.mod h1:JwdKVnmCRhnF6XLQs2mHEQtucFD49cQBdRM4UiwkxsM=
 github.com/prometheus/procfs v0.12.0 h1:jluTpSng7V9hY0O2R9DzzJHYb2xULk9VTR1V1R/k6Bo=
 github.com/prometheus/procfs v0.12.0/go.mod h1:pcuDEFsWDnvcgNzo4EEweacyhjeA9Zk3cnaOZAZEfOo=
-github.com/quantumsheep/range-parser v1.1.0 h1:k4f1F58f8FF54FBYc9dYBRM+8JkAxFo11gC3IeMH4rU=
-github.com/quantumsheep/range-parser v1.1.0/go.mod h1:acv4Vt2PvpGvRsvGju7Gk2ahKluZJsIUNR69W53J22I=
 github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec h1:W09IVJc94icq4NjY3clb7Lk8O1qJ8BdBEF8z0ibU0rE=
 github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec/go.mod h1:qqbHyh8v60DhA7CoWK5oRCqLrMHRGoxYCSS9EjAz6Eo=
 github.com/robfig/cron/v3 v3.0.1 h1:WdRxkvbJztn8LMz/QEvLN5sBU+xKpSqwwUO1Pjr4qDs=

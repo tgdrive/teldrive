@@ -16,8 +16,6 @@ func Authmiddleware(c *gin.Context) {
 
 	cookie, err := c.Request.Cookie("user-session")
 
-	token = cookie.Value
-
 	if err != nil {
 		authHeader := c.GetHeader("Authorization")
 		bearerToken := strings.Split(authHeader, "Bearer ")
@@ -27,6 +25,8 @@ func Authmiddleware(c *gin.Context) {
 			return
 		}
 		token = bearerToken[1]
+	} else {
+		token = cookie.Value
 	}
 
 	now := time.Now().UTC()

@@ -14,7 +14,6 @@ require (
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/pkg/errors v0.9.1
-	github.com/quantumsheep/range-parser v1.1.0
 	github.com/thoas/go-funk v0.9.3
 	go.etcd.io/bbolt v1.3.8
 	go.uber.org/zap v1.26.0
