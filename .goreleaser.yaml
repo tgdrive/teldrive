@@ -9,9 +9,8 @@ before:
 builds:
   - env:
       - CGO_ENABLED=0
-    main: 
-      - cmd/teldrive/main.go
-      
+    
+    main: cmd/teldrive/main.go
     flags:
       - -trimpath
     ldflags:
