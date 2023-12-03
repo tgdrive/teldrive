@@ -159,13 +159,11 @@ func (as *AuthService) LogIn(c *gin.Context) (*schemas.Message, *types.AppError)
 
 	if err := as.Db.Model(&models.User{}).Where("user_id = ?", session.UserID).
 		Find(&result).Error; err != nil {
-		return nil, &types.AppError{Error: errors.New("failed to find user"),
-			Code: http.StatusInternalServerError}
+		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
 	}
 	if len(result) == 0 {
 		if err := as.Db.Create(&user).Error; err != nil {
-			return nil, &types.AppError{Error: errors.New("failed to create or update user"),
-				Code: http.StatusInternalServerError}
+			return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
 		}
 		//Create root folder on first login
 
@@ -180,8 +178,7 @@ func (as *AuthService) LogIn(c *gin.Context) (*schemas.Message, *types.AppError)
 			ParentID: "root",
 		}
 		if err := as.Db.Create(file).Error; err != nil {
-			return nil, &types.AppError{Error: errors.New("failed to create root folder"),
-				Code: http.StatusInternalServerError}
+			return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
 		}
 	}
 
@@ -190,8 +187,7 @@ func (as *AuthService) LogIn(c *gin.Context) (*schemas.Message, *types.AppError)
 	//create session
 
 	if err := as.Db.Create(&models.Session{UserId: session.UserID, Hash: hexToken, Session: session.Sesssion}).Error; err != nil {
-		return nil, &types.AppError{Error: errors.New("failed to create  user session"),
-			Code: http.StatusInternalServerError}
+		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
 	}
 
 	return &schemas.Message{Message: "login success"}, nil

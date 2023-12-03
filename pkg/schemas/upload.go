@@ -7,7 +7,6 @@ type UploadQuery struct {
 }
 
 type UploadPartOut struct {
-	ID        string `json:"id"`
 	Name      string `json:"name"`
 	PartId    int    `json:"partId"`
 	PartNo    int    `json:"partNo"`

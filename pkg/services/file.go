@@ -54,7 +54,7 @@ func (fs *FileService) CreateFile(c *gin.Context) (*schemas.FileOut, *types.AppE
 	if fileIn.Path != "" {
 		var parent models.File
 		if err := fs.Db.Where("type = ? AND path = ?", "folder", fileIn.Path).First(&parent).Error; err != nil {
-			return nil, &types.AppError{Error: errors.New("parent directory not found"), Code: http.StatusNotFound}
+			return nil, &types.AppError{Error: err, Code: http.StatusNotFound}
 		}
 		fileDB.ParentID = parent.ID
 	}
@@ -125,11 +125,11 @@ func (fs *FileService) UpdateFile(c *gin.Context) (*schemas.FileOut, *types.AppE
 
 	if fileUpdate.Type == "folder" && fileUpdate.Name != "" {
 		if err := fs.Db.Raw("select * from teldrive.update_folder(?, ?)", fileID, fileUpdate.Name).Scan(&files).Error; err != nil {
-			return nil, &types.AppError{Error: errors.New("failed to update the folder"), Code: http.StatusInternalServerError}
+			return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
 		}
 	} else {
 		if err := fs.Db.Model(&files).Clauses(clause.Returning{}).Where("id = ?", fileID).Updates(fileUpdate).Error; err != nil {
-			return nil, &types.AppError{Error: errors.New("failed to update the file"), Code: http.StatusInternalServerError}
+			return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
 		}
 	}
 
@@ -286,8 +286,7 @@ func (fs *FileService) MakeDirectory(c *gin.Context) (*schemas.FileOut, *types.A
 	userId, _ := getUserAuth(c)
 	if err := fs.Db.Raw("select * from teldrive.create_directories(?, ?)", userId, payload.Path).
 		Scan(&files).Error; err != nil {
-		return nil, &types.AppError{Error: errors.New("failed to create directory"),
-			Code: http.StatusInternalServerError}
+		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
 	}
 
 	file := mapper.ToFileOut(files[0])
@@ -370,7 +369,7 @@ func (fs *FileService) CopyFile(c *gin.Context) (*schemas.FileOut, *types.AppErr
 	var destRes []models.File
 
 	if err := fs.Db.Raw("select * from teldrive.create_directories(?, ?)", userId, payload.Destination).Scan(&destRes).Error; err != nil {
-		return nil, &types.AppError{Error: errors.New("failed to create destination"), Code: http.StatusInternalServerError}
+		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
 	}
 
 	dest := destRes[0]
@@ -389,7 +388,7 @@ func (fs *FileService) CopyFile(c *gin.Context) (*schemas.FileOut, *types.AppErr
 	dbFile.ChannelID = &file.ChannelID
 
 	if err := fs.Db.Create(&dbFile).Error; err != nil {
-		return nil, &types.AppError{Error: errors.New("failed to copy file"), Code: http.StatusInternalServerError}
+		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
 
 	}
 
@@ -410,12 +409,12 @@ func (fs *FileService) MoveFiles(c *gin.Context) (*schemas.Message, *types.AppEr
 	var destination models.File
 
 	if err := fs.Db.Model(&models.File{}).Select("id").Where("path = ?", payload.Destination).First(&destination).Error; errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, &types.AppError{Error: errors.New("destination not found"), Code: http.StatusNotFound}
+		return nil, &types.AppError{Error: err, Code: http.StatusNotFound}
 
 	}
 
 	if err := fs.Db.Model(&models.File{}).Where("id IN ?", payload.Files).UpdateColumn("parent_id", destination.ID).Error; err != nil {
-		return nil, &types.AppError{Error: errors.New("move failed"), Code: http.StatusInternalServerError}
+		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
 	}
 
 	return &schemas.Message{Message: "files moved"}, nil
@@ -426,11 +425,11 @@ func (fs *FileService) DeleteFiles(c *gin.Context) (*schemas.Message, *types.App
 	var payload schemas.FileOperation
 
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		return nil, &types.AppError{Error: errors.New("invalid request payload"), Code: http.StatusBadRequest}
+		return nil, &types.AppError{Error: err, Code: http.StatusBadRequest}
 	}
 
 	if err := fs.Db.Exec("call teldrive.delete_files($1)", payload.Files).Error; err != nil {
-		return nil, &types.AppError{Error: errors.New("failed to delete files"), Code: http.StatusInternalServerError}
+		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
 	}
 
 	return &schemas.Message{Message: "files deleted"}, nil
@@ -441,13 +440,13 @@ func (fs *FileService) MoveDirectory(c *gin.Context) (*schemas.Message, *types.A
 	var payload schemas.DirMove
 
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		return nil, &types.AppError{Error: errors.New("invalid request payload"), Code: http.StatusBadRequest}
+		return nil, &types.AppError{Error: err, Code: http.StatusBadRequest}
 	}
 
 	userId, _ := getUserAuth(c)
 
 	if err := fs.Db.Exec("select * from teldrive.move_directory(? , ? , ?)", payload.Source, payload.Destination, userId).Error; err != nil {
-		return nil, &types.AppError{Error: errors.New("failed to move directory"), Code: http.StatusInternalServerError}
+		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
 	}
 
 	return &schemas.Message{Message: "directory moved"}, nil

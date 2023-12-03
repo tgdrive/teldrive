@@ -81,8 +81,8 @@ type FileOperation struct {
 }
 
 type DirMove struct {
-	Source      string `json:"source"`
-	Destination string `json:"destination"`
+	Source      string `json:"source" binding:"required"`
+	Destination string `json:"destination" binding:"required"`
 }
 
 type MkDir struct {

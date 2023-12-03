@@ -78,7 +78,7 @@ func (us *UserService) GetStats(c *gin.Context) (*schemas.AccountStats, *types.A
 	userId, _ := getUserAuth(c)
 	var res []schemas.AccountStats
 	if err := us.Db.Raw("select * from teldrive.account_stats(?);", userId).Scan(&res).Error; err != nil {
-		return nil, &types.AppError{Error: errors.New("failed to get stats"), Code: http.StatusInternalServerError}
+		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
 	}
 	return &res[0], nil
 }
@@ -112,7 +112,7 @@ func (us *UserService) UpdateChannel(c *gin.Context) (*schemas.Message, *types.A
 	var payload schemas.Channel
 
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		return nil, &types.AppError{Error: errors.New("invalid request payload"), Code: http.StatusBadRequest}
+		return nil, &types.AppError{Error: err, Code: http.StatusBadRequest}
 	}
 
 	channel := &models.Channel{ChannelID: payload.ChannelID, ChannelName: payload.ChannelName, UserID: userId,
@@ -167,7 +167,7 @@ func (us *UserService) AddBots(c *gin.Context) (*schemas.Message, *types.AppErro
 	var botsTokens []string
 
 	if err := c.ShouldBindJSON(&botsTokens); err != nil {
-		return nil, &types.AppError{Error: errors.New("invalid request payload"), Code: http.StatusBadRequest}
+		return nil, &types.AppError{Error: err, Code: http.StatusBadRequest}
 	}
 
 	if len(botsTokens) == 0 {
@@ -195,7 +195,7 @@ func (us *UserService) RemoveBots(c *gin.Context) (*schemas.Message, *types.AppE
 
 	if err := us.Db.Where("user_id = ?", userID).Where("channel_id = ?", channelId).
 		Delete(&models.Bot{}).Error; err != nil {
-		return nil, &types.AppError{Error: errors.New("failed to delete bots"), Code: http.StatusInternalServerError}
+		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
 	}
 
 	cache.GetCache().Delete(fmt.Sprintf("users:bots:%d:%d", userID, channelId))
@@ -301,7 +301,7 @@ func (us *UserService) addBots(c context.Context, client *telegram.Client, userI
 	cache.GetCache().Delete(fmt.Sprintf("users:bots:%d:%d", userId, channelId))
 
 	if err := us.Db.Clauses(clause.OnConflict{DoNothing: true}).Create(&payload).Error; err != nil {
-		return nil, &types.AppError{Error: errors.New("failed to add bots"), Code: http.StatusInternalServerError}
+		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
 	}
 
 	return &schemas.Message{Message: "bots added"}, nil

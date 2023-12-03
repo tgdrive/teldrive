@@ -39,7 +39,7 @@ func (us *UploadService) GetUploadFileById(c *gin.Context) (*schemas.UploadOut, 
 	if err := us.Db.Model(&models.Upload{}).Order("part_no").Where("upload_id = ?", uploadId).
 		Where("created_at >= ?", time.Now().UTC().AddDate(0, 0, -config.UploadRetention)).
 		Find(&parts).Error; err != nil {
-		return nil, &types.AppError{Error: errors.New("failed to fetch from db"), Code: http.StatusInternalServerError}
+		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
 	}
 
 	return &schemas.UploadOut{Parts: parts}, nil
@@ -48,7 +48,7 @@ func (us *UploadService) GetUploadFileById(c *gin.Context) (*schemas.UploadOut, 
 func (us *UploadService) DeleteUploadFile(c *gin.Context) (*schemas.Message, *types.AppError) {
 	uploadId := c.Param("id")
 	if err := us.Db.Where("upload_id = ?", uploadId).Delete(&models.Upload{}).Error; err != nil {
-		return nil, &types.AppError{Error: errors.New("failed to delete upload"), Code: http.StatusInternalServerError}
+		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
 	}
 
 	return &schemas.Message{Message: "upload deleted"}, nil
@@ -61,7 +61,7 @@ func (us *UploadService) CreateUploadPart(c *gin.Context) (*schemas.UploadPartOu
 	var payload schemas.UploadPart
 
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		return nil, &types.AppError{Error: errors.New("invalid request payload"), Code: http.StatusBadRequest}
+		return nil, &types.AppError{Error: err, Code: http.StatusBadRequest}
 	}
 
 	partUpload := &models.Upload{
@@ -101,10 +101,6 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 		return nil, &types.AppError{Error: err, Code: http.StatusBadRequest}
 	}
 
-	if uploadQuery.Filename == "" {
-		return nil, &types.AppError{Error: errors.New("filename missing"), Code: http.StatusBadRequest}
-	}
-
 	userId, session := getUserAuth(c)
 
 	uploadId := c.Param("id")
@@ -127,7 +123,7 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 	tokens, err := getBotsToken(c, userId, channelId)
 
 	if err != nil {
-		return nil, &types.AppError{Error: errors.New("failed to fetch bots"), Code: http.StatusInternalServerError}
+		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
 	}
 
 	if len(tokens) == 0 {
@@ -199,7 +195,7 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 		}
 
 		if err := us.Db.Create(partUpload).Error; err != nil {
-			return errors.New("failed to upload part")
+			return err
 		}
 
 		out = mapper.ToUploadOut(partUpload)
