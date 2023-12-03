@@ -1,10 +1,9 @@
 package schemas
 
 type UploadQuery struct {
-	Filename   string `form:"fileName"`
-	PartNo     int    `form:"partNo,omitempty"`
-	TotalParts int    `form:"totalparts"`
-	ChannelID  int64  `form:"channelId"`
+	Filename  string `form:"fileName" binding:"required`
+	PartNo    int    `form:"partNo" binding:"required`
+	ChannelID int64  `form:"channelId" binding:"required`
 }
 
 type UploadPartOut struct {

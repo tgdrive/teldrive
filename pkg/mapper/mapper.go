@@ -40,7 +40,6 @@ func ToFileOutFull(file models.File) *schemas.FileOutFull {
 
 func ToUploadOut(in *models.Upload) *schemas.UploadPartOut {
 	out := &schemas.UploadPartOut{
-		ID:        in.ID,
 		Name:      in.Name,
 		PartId:    in.PartId,
 		ChannelID: in.ChannelID,

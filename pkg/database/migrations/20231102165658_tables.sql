@@ -29,16 +29,15 @@ CREATE TABLE IF NOT EXISTS teldrive.users (
 
 
 CREATE TABLE IF NOT EXISTS teldrive.uploads (
-	id text NOT NULL DEFAULT teldrive.generate_uid(16) PRIMARY KEY,
 	upload_id text NOT NULL,
 	"name" text NOT NULL,
     user_id bigint,
 	part_no int NOT NULL,
 	part_id int NOT NULL,
-	total_parts int NOT NULL,
 	channel_id bigint NOT NULL,
 	"size" bigint NOT NULL,
-	created_at timestamp DEFAULT timezone('utc'::text, now())
+	created_at timestamp DEFAULT timezone('utc'::text, now()),
+	PRIMARY KEY(upload_id, part_no),
 );
 
 
@@ -88,7 +87,7 @@ DROP INDEX IF EXISTS parent_name_numeric_idx ;
 DROP INDEX IF EXISTS path_idx ;
 DROP INDEX IF EXISTS starred_updated_at_idx ;
 DROP INDEX IF EXISTS status_idx ;
-DROP UNIQUE IF EXISTS INDEX unique_file;
+DROP INDEX IF EXISTS unique_file;
 DROP INDEX IF EXISTS user_id_idx;
 
 DROP TABLE IF EXISTS teldrive.files;

@@ -65,14 +65,13 @@ func (us *UploadService) CreateUploadPart(c *gin.Context) (*schemas.UploadPartOu
 	}
 
 	partUpload := &models.Upload{
-		Name:       payload.Name,
-		UploadId:   payload.UploadId,
-		PartId:     payload.PartId,
-		ChannelID:  payload.ChannelID,
-		Size:       payload.Size,
-		PartNo:     payload.PartNo,
-		TotalParts: 1,
-		UserId:     userId,
+		Name:      payload.Name,
+		UploadId:  payload.UploadId,
+		PartId:    payload.PartId,
+		ChannelID: payload.ChannelID,
+		Size:      payload.Size,
+		PartNo:    payload.PartNo,
+		UserId:    userId,
 	}
 
 	if err := us.Db.Create(partUpload).Error; err != nil {
@@ -97,7 +96,6 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 	)
 
 	uploadQuery.PartNo = 1
-	uploadQuery.TotalParts = 1
 
 	if err := c.ShouldBindQuery(&uploadQuery); err != nil {
 		return nil, &types.AppError{Error: err, Code: http.StatusBadRequest}
@@ -191,14 +189,13 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 		}
 
 		partUpload := &models.Upload{
-			Name:       fileName,
-			UploadId:   uploadId,
-			PartId:     message.ID,
-			ChannelID:  channelId,
-			Size:       fileSize,
-			PartNo:     uploadQuery.PartNo,
-			TotalParts: uploadQuery.TotalParts,
-			UserId:     userId,
+			Name:      fileName,
+			UploadId:  uploadId,
+			PartId:    message.ID,
+			ChannelID: channelId,
+			Size:      fileSize,
+			PartNo:    uploadQuery.PartNo,
+			UserId:    userId,
 		}
 
 		if err := us.Db.Create(partUpload).Error; err != nil {

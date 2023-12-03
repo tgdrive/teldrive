@@ -8,7 +8,7 @@ DECLARE
 BEGIN
     FOR rec IN
         SELECT id
-        FROM files
+        FROM teldrive.files
         WHERE type = 'folder'
         ORDER BY depth DESC
     LOOP
@@ -26,43 +26,56 @@ END;
 $$;
 
 
-CREATE OR REPLACE PROCEDURE teldrive.delete_files(IN file_ids TEXT[], IN op TEXT DEFAULT 'bulk') LANGUAGE PLPGSQL AS $$
+CREATE OR REPLACE PROCEDURE teldrive.delete_files(
+  IN file_ids TEXT[],
+  IN op TEXT DEFAULT 'bulk'
+) LANGUAGE plpgsql
+AS $$
 DECLARE
-    rec RECORD;
+  rec RECORD;
 BEGIN
-    IF op = 'bulk' THEN
-        FOR rec IN
-            SELECT id, type
-            FROM teldrive.files
-            WHERE id = ANY (file_ids)
-        LOOP
-            IF rec.type = 'folder' THEN
-                CALL teldrive.delete_files(ARRAY[rec.id], 'single');
-            END IF;
+  IF op = 'bulk' THEN
+      FOR rec IN
+          SELECT
+              id,
+              type
+          FROM
+              teldrive.files
+          WHERE
+              id = ANY (file_ids)
+      LOOP
+          IF rec.type = 'folder' THEN
+              CALL teldrive.delete_files(ARRAY[rec.id], 'single');
+              DELETE FROM teldrive.files WHERE id = rec.id;
+          ELSE
+             UPDATE teldrive.files SET status = 'pending_deletion' WHERE id = rec.id;
 
-            DELETE FROM teldrive.files
-            WHERE id = rec.id;
-        END LOOP;
-    ELSE
-        FOR rec IN
-            SELECT id, type
-            FROM teldrive.files
-            WHERE parent_id = file_ids[1]
-        LOOP
-            IF rec.type = 'folder' THEN
-                CALL teldrive.delete_files(ARRAY[rec.id], 'single');
-            END IF;
-
-            DELETE FROM teldrive.files
-            WHERE id = rec.id;
-        END LOOP;
-    END IF;
+          END IF;
+      END LOOP;
+  ELSE
+      FOR rec IN
+          SELECT
+              id,
+              type
+          FROM
+              teldrive.files
+          WHERE
+              parent_id = file_ids[1]
+      LOOP
+          IF rec.type = 'folder' THEN
+              CALL teldrive.delete_files(ARRAY[rec.id], 'single');
+              DELETE FROM teldrive.files WHERE id = rec.id;
+          ELSE
+             UPDATE teldrive.files SET status = 'pending_deletion' WHERE id = rec.id;  
+          END IF;
+      END LOOP;
+  END IF;
 END;
 $$;
 
 
 CREATE OR REPLACE FUNCTION teldrive.create_directories(
-    IN tg_id BIGINT,
+    IN u_id BIGINT,
     IN long_path TEXT
 ) RETURNS SETOF teldrive.files AS $$
 DECLARE
@@ -80,7 +93,7 @@ BEGIN
 
     SELECT id INTO current_directory_id
     FROM teldrive.files
-    WHERE parent_id = 'root' AND user_id = tg_id;
+    WHERE parent_id = 'root' AND user_id = u_id;
 
     FOR directory_name IN SELECT unnest(path_parts) LOOP
         path_so_far := CONCAT(path_so_far, '/', directory_name);
@@ -90,11 +103,11 @@ BEGIN
         FROM teldrive.files
         WHERE parent_id = current_directory_id
           AND "name" = directory_name
-          AND "user_id" = tg_id;
+          AND "user_id" = u_id;
 
         IF new_directory_id IS NULL THEN
             INSERT INTO teldrive.files ("name", "type", mime_type, parent_id, "user_id", starred, "depth", "path")
-            VALUES (directory_name, 'folder', 'teldrive/folder', current_directory_id, tg_id, false, depth_dir, path_so_far)
+            VALUES (directory_name, 'folder', 'drive/folder', current_directory_id, u_id, false, depth_dir, path_so_far)
             RETURNING id INTO new_directory_id;
         END IF;
 
@@ -234,18 +247,19 @@ $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION teldrive.account_stats(
     IN u_id BIGINT
-)  RETURNS TABLE (total_size BIGINT, total_files BIGINT, ch_id BIGINT,ch_name TEXT ) AS $$
+)  RETURNS TABLE (total_size BIGINT, total_files BIGINT, channel_id BIGINT, channel_name TEXT ) AS $$
 DECLARE
     total_size BIGINT;
     total_files BIGINT;
-    ch_id BIGINT;
-    ch_name TEXT;
+    channel_id BIGINT;
+    channel_name TEXT;
 BEGIN
-    SELECT COUNT(*), SUM(size) into total_files,total_size FROM teldrive.files WHERE user_id=u_id AND type= 'file' and status='active';
-    SELECT channel_id ,channel_name into ch_id,ch_name FROM teldrive.channels WHERE selected=TRUE AND user_id=u_id;
-    RETURN QUERY SELECT total_size,total_files,ch_id,ch_name;
+    SELECT COUNT(*), coalesce(SUM(size),0) into total_files,total_size FROM teldrive.files WHERE user_id=u_id AND type= 'file' and status='active';
+    SELECT c.channel_id ,c.channel_name into channel_id, channel_name FROM teldrive.channels c  WHERE selected=TRUE AND user_id=u_id;
+    RETURN QUERY SELECT total_size,total_files,channel_id,channel_name;
 END;
 $$ LANGUAGE plpgsql;
+
 
 
 -- +goose StatementEnd

@@ -12,6 +12,7 @@ import (
 	"github.com/divyam234/teldrive/pkg/database"
 	"github.com/divyam234/teldrive/pkg/models"
 	"github.com/divyam234/teldrive/pkg/services"
+	"github.com/go-co-op/gocron"
 	"github.com/gotd/td/tg"
 )
 
@@ -150,7 +151,7 @@ func cleanUploadsMessages(ctx context.Context, result UploadResult) error {
 	return nil
 }
 
-func FilesDeleteJob() {
+func filesDeleteJob() {
 	db := database.DB
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -173,7 +174,7 @@ func FilesDeleteJob() {
 	}
 }
 
-func UploadCleanJob() {
+func uploadCleanJob() {
 	db := database.DB
 	ctx, cancel := context.WithCancel(context.Background())
 	config := cnf.GetConfig()
@@ -193,4 +194,20 @@ func UploadCleanJob() {
 	for _, row := range upResults {
 		cleanUploadsMessages(ctx, row)
 	}
+}
+
+func folderSizeUpdate() {
+	database.DB.Exec("call teldrive.update_size();")
+}
+
+func StartCronJobs() {
+	scheduler := gocron.NewScheduler(time.UTC)
+
+	scheduler.Every(1).Hour().Do(filesDeleteJob)
+
+	scheduler.Every(12).Hour().Do(uploadCleanJob)
+
+	scheduler.Every(2).Hour().Do(folderSizeUpdate)
+
+	scheduler.StartAsync()
 }
