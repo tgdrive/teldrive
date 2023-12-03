@@ -89,7 +89,7 @@ When used with `docker-compose.postgres.yml`:
 DATABASE_URL=postgres://teldrive:secret@db/teldrive
 ```
 
-> **Warning**
+> [!IMPORTANT]
 > Default Channel can be selected through UI make sure to set it from account settings on first login.<br>
 > Use strong JWT secret instead of pure guessable string.You can use openssl to generate it.<br>
 
@@ -99,7 +99,7 @@ $ openssl rand -hex 32
 
 **Multi Bots Mode is recommended to avoid flood errors and enable maximum download speed, especially if you are using downloaders like IDM and aria2c which use multiple connections for downloads.**
 
-> **Note**
+> [!NOTE]
 > What it multi bots feature and what it does? <br>
 > This feature shares the Telegram API requests between other bots to avoid getting floodwaited (A kind of rate limiting that Telegram does in the backend to avoid flooding their servers) and to make the server handle more requests. <br>
 
@@ -137,7 +137,7 @@ In addition to the mandatory variables, you can also set the following optional 
 
 ### For making use of Multi Bots support
 
-> **Warning**
+> [!WARNING]
 > Bots will be auto added as admin in channel if you set them from UI if it fails somehow add it manually.
 
 ## FAQ
