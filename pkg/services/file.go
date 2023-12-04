@@ -499,7 +499,7 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 		end = file.Size - 1
 		w.WriteHeader(http.StatusOK)
 	} else {
-		ranges, err := http_range.ParseRange(rangeHeader, file.Size)
+		ranges, err := http_range.Parse(rangeHeader, file.Size)
 		if err == http_range.ErrNoOverlap {
 			w.Header().Set("Content-Range", fmt.Sprintf("bytes */%d", file.Size))
 			http.Error(w, http_range.ErrNoOverlap.Error(), http.StatusRequestedRangeNotSatisfiable)
