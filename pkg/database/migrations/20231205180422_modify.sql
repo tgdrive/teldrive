@@ -6,9 +6,11 @@ ALTER TABLE teldrive.uploads DROP COLUMN IF EXISTS id;
 
 ALTER TABLE teldrive.uploads DROP CONSTRAINT IF EXISTS uploads_pk;
 
+ALTER TABLE teldrive.uploads DROP CONSTRAINT IF EXISTS uploads_pkey;
+
 ALTER TABLE teldrive.uploads DROP CONSTRAINT IF EXISTS part_id_greater_than_zero;
 
-ALTER TABLE teldrive.uploads ADD CONSTRAINT uploads_pk PRIMARY KEY (part_id);
+ALTER TABLE teldrive.uploads ADD CONSTRAINT uploads_pkey PRIMARY KEY (part_id);
 
 ALTER TABLE teldrive.uploads ADD CONSTRAINT  part_id_greater_than_zero CHECK (part_id > 0);
 
