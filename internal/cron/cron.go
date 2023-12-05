@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	cnf "github.com/divyam234/teldrive/config"
+	"github.com/divyam234/teldrive/config"
 	"github.com/divyam234/teldrive/internal/tgc"
 	"github.com/divyam234/teldrive/pkg/database"
 	"github.com/divyam234/teldrive/pkg/models"
@@ -33,17 +33,13 @@ func (a *Files) Scan(value interface{}) error {
 	return nil
 }
 
-type UpFiles []UpFile
-type UpFile struct {
-	ID     string `json:"id"`
-	PartID int    `json:"partId"`
-}
+type UpParts []int
 
-func (a UpFiles) Value() (driver.Value, error) {
+func (a UpParts) Value() (driver.Value, error) {
 	return json.Marshal(a)
 }
 
-func (a *UpFiles) Scan(value interface{}) error {
+func (a *UpParts) Scan(value interface{}) error {
 	if err := json.Unmarshal(value.([]byte), &a); err != nil {
 		return err
 	}
@@ -58,7 +54,7 @@ type Result struct {
 }
 
 type UploadResult struct {
-	Files     UpFiles
+	Parts     UpParts
 	Session   string
 	UserId    int64
 	ChannelId int64
@@ -119,15 +115,6 @@ func cleanUploadsMessages(ctx context.Context, result UploadResult) error {
 		return err
 	}
 
-	ids := []int{}
-
-	fileIds := []string{}
-
-	for _, file := range result.Files {
-		fileIds = append(fileIds, file.ID)
-		ids = append(ids, file.PartID)
-
-	}
 	err = tgc.RunWithAuth(ctx, client, "", func(ctx context.Context) error {
 
 		channel, err := services.GetChannelById(ctx, client, result.ChannelId, strconv.FormatInt(result.UserId, 10))
@@ -136,16 +123,20 @@ func cleanUploadsMessages(ctx context.Context, result UploadResult) error {
 			return err
 		}
 
-		messageDeleteRequest := tg.ChannelsDeleteMessagesRequest{Channel: channel, ID: ids}
-
+		messageDeleteRequest := tg.ChannelsDeleteMessagesRequest{Channel: channel, ID: result.Parts}
 		_, err = client.API().ChannelsDeleteMessages(ctx, &messageDeleteRequest)
 		if err != nil {
 			return err
 		}
 		return nil
 	})
+	parts := []int{}
+	for _, id := range result.Parts {
+		parts = append(parts, id)
+	}
+
 	if err == nil {
-		db.Where("id = any($1)", fileIds).Delete(&models.Upload{})
+		db.Where("part_id = any($1)", parts).Delete(&models.Upload{})
 	}
 
 	return nil
@@ -177,16 +168,16 @@ func filesDeleteJob() {
 func uploadCleanJob() {
 	db := database.DB
 	ctx, cancel := context.WithCancel(context.Background())
-	config := cnf.GetConfig()
+	c := config.GetConfig()
 
 	defer cancel()
 
 	var upResults []UploadResult
 	if err := db.Model(&models.Upload{}).
-		Select("JSONB_AGG(jsonb_build_object('id',uploads.id,'partId',uploads.part_id)) as files", "uploads.channel_id", "uploads.user_id", "s.session").
+		Select("JSONB_AGG(uploads.part_id) as parts", "uploads.channel_id", "uploads.user_id", "s.session").
 		Joins("left join teldrive.users as u  on u.user_id = uploads.user_id").
 		Joins("left join (select * from teldrive.sessions order by created_at desc limit 1) as s on s.user_id = uploads.user_id").
-		Where("uploads.created_at < ?", time.Now().UTC().AddDate(0, 0, -config.UploadRetention)).
+		Where("uploads.created_at < ?", time.Now().UTC().AddDate(0, 0, -c.UploadRetention)).
 		Group("uploads.channel_id").Group("uploads.user_id").Group("s.session").
 		Scan(&upResults).Error; err != nil {
 		return

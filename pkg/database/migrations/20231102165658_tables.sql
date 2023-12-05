@@ -33,11 +33,11 @@ CREATE TABLE IF NOT EXISTS teldrive.uploads (
 	"name" text NOT NULL,
     user_id bigint,
 	part_no int NOT NULL,
-	part_id int NOT NULL,
+	part_id int NOT NULL PRIMARY KEY,
 	channel_id bigint NOT NULL,
 	"size" bigint NOT NULL,
 	created_at timestamp DEFAULT timezone('utc'::text, now()),
-	PRIMARY KEY(upload_id, part_no)
+	CONSTRAINT part_id_greater_than_zero CHECK (part_id > 0)
 );
 
 
