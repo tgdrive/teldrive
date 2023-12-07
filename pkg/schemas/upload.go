@@ -3,7 +3,7 @@ package schemas
 type UploadQuery struct {
 	Filename  string `form:"fileName" binding:"required"`
 	PartNo    int    `form:"partNo" binding:"required"`
-	ChannelID int64  `form:"channelId" binding:"required"`
+	ChannelID int64  `form:"channelId"`
 	Encrypted bool   `form:"encrypted"`
 }
 
