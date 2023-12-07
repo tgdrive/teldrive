@@ -140,7 +140,7 @@ In addition to the mandatory variables, you can also set the following optional 
 - `ENCRYPTION_SALT` : Salt for Encryption.
 
 > [!WARNING]
-> Keep your Passoword and Salt safe once generated teldrive uses same encryption as of rclone internally 
+> Keep your Password and Salt safe once generated , teldrive uses same encryption as of rclone internally 
 so you don't need to enable crypt in rclone.Enabling crypt in rclone makes UI reduntant so encrypting files
 in teldrive internally is better way to encrypt files instead of enabling in rclone.To encrypt files see more 
 about teldrive rclone config.
