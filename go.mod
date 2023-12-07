@@ -27,6 +27,7 @@ require (
 	github.com/chenzhuoyu/iasm v0.9.1 // indirect
 	github.com/google/uuid v1.4.0 // indirect
 	github.com/jackc/puddle/v2 v2.2.1 // indirect
+	github.com/rfjakob/eme v1.1.2 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/sethvargo/go-retry v0.2.4 // indirect
 )

@@ -15,6 +15,7 @@ type Part struct {
 	Location *tg.InputDocumentFileLocation
 	Start    int64
 	End      int64
+	Size     int64
 }
 
 type JWTClaims struct {

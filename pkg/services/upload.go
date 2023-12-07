@@ -9,6 +9,7 @@ import (
 	"time"
 
 	cnf "github.com/divyam234/teldrive/config"
+	"github.com/divyam234/teldrive/internal/crypt"
 	"github.com/divyam234/teldrive/internal/tgc"
 	"github.com/divyam234/teldrive/pkg/mapper"
 	"github.com/divyam234/teldrive/pkg/schemas"
@@ -105,7 +106,7 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 
 	uploadId := c.Param("id")
 
-	file := c.Request.Body
+	fileStream := c.Request.Body
 
 	fileSize := c.Request.ContentLength
 
@@ -144,11 +145,19 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 			return err
 		}
 
+		config := cnf.GetConfig()
+
+		if uploadQuery.Encrypted {
+			cipher, _ := crypt.NewCipher(config.EncryptionKey, config.EncryptionSalt)
+			fileSize = cipher.EncryptedSize(fileSize)
+			fileStream, _ = cipher.EncryptData(fileStream)
+		}
+
 		api := client.API()
 
 		u := uploader.NewUploader(api).WithThreads(16).WithPartSize(512 * 1024)
 
-		upload, err := u.Upload(c, uploader.NewUpload(fileName, file, fileSize))
+		upload, err := u.Upload(c, uploader.NewUpload(fileName, fileStream, fileSize))
 
 		if err != nil {
 			return err

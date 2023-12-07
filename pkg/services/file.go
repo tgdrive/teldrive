@@ -13,6 +13,7 @@ import (
 
 	cnf "github.com/divyam234/teldrive/config"
 	"github.com/divyam234/teldrive/internal/cache"
+	"github.com/divyam234/teldrive/internal/crypt"
 	"github.com/divyam234/teldrive/internal/http_range"
 	"github.com/divyam234/teldrive/internal/md5"
 	"github.com/divyam234/teldrive/internal/reader"
@@ -96,6 +97,7 @@ func (fs *FileService) CreateFile(c *gin.Context) (*schemas.FileOut, *types.AppE
 	fileDB.Type = fileIn.Type
 	fileDB.UserID = userId
 	fileDB.Status = "active"
+	fileDB.Encrypted = fileIn.Encrypted
 
 	if err := fs.Db.Create(&fileDB).Error; err != nil {
 		pgErr := err.(*pgconn.PgError)
@@ -550,7 +552,15 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 
 	config := cnf.GetConfig()
 
-	var token, channelUser string
+	var (
+		token, channelUser string
+		cipher             *crypt.Cipher
+		lr                 io.ReadCloser
+	)
+
+	if file.Encrypted {
+		cipher, _ = crypt.NewCipher(config.EncryptionKey, config.EncryptionSalt)
+	}
 
 	if config.LazyStreamBots {
 		tgc.Workers.Set(tokens, file.ChannelID)
@@ -559,12 +569,16 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 		channelUser = strings.Split(token, ":")[0]
 		if r.Method != "HEAD" {
 			tgc.RunWithAuth(c, client, token, func(ctx context.Context) error {
-				parts, err := getParts(c, client, file, channelUser)
+				parts, err := getParts(c, cipher, client, file, channelUser)
 				if err != nil {
 					return err
 				}
 				parts = rangedParts(parts, start, end)
-				lr, _ := reader.NewLinearReader(c, client, parts, contentLength)
+				if file.Encrypted {
+					lr, _ = reader.NewDecryptedReader(c, client, parts, cipher, contentLength)
+				} else {
+					lr, _ = reader.NewLinearReader(c, client, parts, contentLength)
+				}
 				io.CopyN(w, lr, contentLength)
 				return nil
 			})
@@ -599,13 +613,20 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 		}
 
 		if r.Method != "HEAD" {
-			parts, err := getParts(c, client.Tg, file, channelUser)
+			parts, err := getParts(c, cipher, client.Tg, file, channelUser)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
+
 			parts = rangedParts(parts, start, end)
-			lr, _ := reader.NewLinearReader(c, client.Tg, parts, contentLength)
+
+			if file.Encrypted {
+				lr, _ = reader.NewDecryptedReader(c, client.Tg, parts, cipher, contentLength)
+			} else {
+				lr, _ = reader.NewLinearReader(c, client.Tg, parts, contentLength)
+			}
+
 			io.CopyN(w, lr, contentLength)
 		}
 	}

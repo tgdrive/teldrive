@@ -11,6 +11,8 @@ func InitRouter() *gin.Engine {
 
 	r := gin.Default()
 
+	r.Use(gin.Recovery())
+
 	r.Use(middleware.Cors())
 
 	c := controller.NewController()

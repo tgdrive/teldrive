@@ -15,6 +15,7 @@ type File struct {
 	Size      *int64    `gorm:"type:bigint"`
 	Starred   bool      `gorm:"default:false"`
 	Depth     *int      `gorm:"type:integer"`
+	Encrypted bool      `gorm:"default:false"`
 	UserID    int64     `gorm:"type:bigint;not null"`
 	Status    string    `gorm:"type:text"`
 	ParentID  string    `gorm:"type:text;index"`

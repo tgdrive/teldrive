@@ -10,43 +10,39 @@ import (
 	"github.com/gotd/td/tg"
 )
 
-type linearReader struct {
-	ctx           context.Context
-	parts         []types.Part
-	pos           int
-	client        *telegram.Client
-	next          func() ([]byte, error)
-	buffer        []byte
-	bytesread     int64
-	chunkSize     int64
-	i             int64
-	contentLength int64
+type tgReader struct {
+	ctx       context.Context
+	client    *telegram.Client
+	location  *tg.InputDocumentFileLocation
+	start     int64
+	end       int64
+	next      func() ([]byte, error)
+	buffer    []byte
+	bytesread int64
+	chunkSize int64
+	i         int64
 }
 
-func (*linearReader) Close() error {
-	return nil
-}
+func NewTGReader(
+	ctx context.Context,
+	client *telegram.Client,
+	part types.Part,
 
-func NewLinearReader(ctx context.Context, client *telegram.Client, parts []types.Part, contentLength int64) (io.ReadCloser, error) {
+) (io.ReadCloser, error) {
 
-	r := &linearReader{
-		ctx:           ctx,
-		parts:         parts,
-		client:        client,
-		chunkSize:     int64(1024 * 1024),
-		contentLength: contentLength,
+	r := &tgReader{
+		ctx:       ctx,
+		location:  part.Location,
+		client:    client,
+		start:     part.Start,
+		end:       part.End,
+		chunkSize: int64(1024 * 1024),
 	}
-
 	r.next = r.partStream()
-
 	return r, nil
 }
 
-func (r *linearReader) Read(p []byte) (n int, err error) {
-
-	if r.bytesread == r.contentLength {
-		return 0, io.EOF
-	}
+func (r *tgReader) Read(p []byte) (n int, err error) {
 
 	if r.i >= int64(len(r.buffer)) {
 		r.buffer, err = r.next()
@@ -54,36 +50,35 @@ func (r *linearReader) Read(p []byte) (n int, err error) {
 			return 0, err
 		}
 		if len(r.buffer) == 0 {
-			r.pos++
-			if r.pos == len(r.parts) {
-				return 0, io.EOF
-			} else {
-				r.next = r.partStream()
-				r.buffer, err = r.next()
-				if err != nil {
-					return 0, err
-				}
+			r.next = r.partStream()
+			r.buffer, err = r.next()
+			if err != nil {
+				return 0, err
 			}
 
 		}
 		r.i = 0
 	}
-
 	n = copy(p, r.buffer[r.i:])
-
 	r.i += int64(n)
-
 	r.bytesread += int64(n)
 
+	if r.bytesread == r.end-r.start+1 {
+		return n, io.EOF
+	}
 	return n, nil
 }
 
-func (r *linearReader) chunk(offset int64, limit int64) ([]byte, error) {
+func (*tgReader) Close() error {
+	return nil
+}
+
+func (r *tgReader) chunk(offset int64, limit int64) ([]byte, error) {
 
 	req := &tg.UploadGetFileRequest{
 		Offset:   offset,
 		Limit:    int(limit),
-		Location: r.parts[r.pos].Location,
+		Location: r.location,
 	}
 
 	res, err := r.client.API().UploadGetFile(r.ctx, req)
@@ -100,51 +95,38 @@ func (r *linearReader) chunk(offset int64, limit int64) ([]byte, error) {
 	}
 }
 
-func (r *linearReader) partStream() func() ([]byte, error) {
+func (r *tgReader) partStream() func() ([]byte, error) {
 
-	start := r.parts[r.pos].Start
-	end := r.parts[r.pos].End
+	start := r.start
+	end := r.end
 	offset := start - (start % r.chunkSize)
 
 	firstPartCut := start - offset
-
 	lastPartCut := (end % r.chunkSize) + 1
-
 	partCount := int((end - offset + r.chunkSize) / r.chunkSize)
-
 	currentPart := 1
 
 	readData := func() ([]byte, error) {
-
 		if currentPart > partCount {
 			return make([]byte, 0), nil
 		}
-
 		res, err := r.chunk(offset, r.chunkSize)
-
 		if err != nil {
 			return nil, err
 		}
-
 		if len(res) == 0 {
 			return res, nil
 		} else if partCount == 1 {
 			res = res[firstPartCut:lastPartCut]
-
 		} else if currentPart == 1 {
 			res = res[firstPartCut:]
-
 		} else if currentPart == partCount {
 			res = res[:lastPartCut]
-
 		}
 
 		currentPart++
-
 		offset += r.chunkSize
-
 		return res, nil
-
 	}
 	return readData
 }

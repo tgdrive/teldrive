@@ -10,6 +10,7 @@ import (
 	"strconv"
 
 	"github.com/divyam234/teldrive/internal/cache"
+	"github.com/divyam234/teldrive/internal/crypt"
 	"github.com/divyam234/teldrive/internal/tgc"
 	"github.com/divyam234/teldrive/pkg/database"
 	"github.com/divyam234/teldrive/pkg/models"
@@ -137,7 +138,7 @@ func getTGMessages(ctx context.Context, client *telegram.Client, parts []schemas
 	return messages, nil
 }
 
-func getParts(ctx context.Context, client *telegram.Client, file *schemas.FileOutFull, userID string) ([]types.Part, error) {
+func getParts(ctx context.Context, cipher *crypt.Cipher, client *telegram.Client, file *schemas.FileOutFull, userID string) ([]types.Part, error) {
 
 	parts := []types.Part{}
 
@@ -160,7 +161,12 @@ func getParts(ctx context.Context, client *telegram.Client, file *schemas.FileOu
 		media := item.Media.(*tg.MessageMediaDocument)
 		document := media.Document.(*tg.Document)
 		location := document.AsInputDocumentFileLocation()
-		parts = append(parts, types.Part{Location: location, Start: 0, End: document.Size - 1})
+		end := document.Size - 1
+		if cipher != nil {
+			end, _ = cipher.DecryptedSize(document.Size)
+			end -= 1
+		}
+		parts = append(parts, types.Part{Location: location, Start: 0, End: end, Size: document.Size})
 	}
 	cache.GetCache().Set(key, &parts, 3600)
 	return parts, nil
@@ -187,12 +193,14 @@ func rangedParts(parts []types.Part, startByte, endByte int64) []types.Part {
 			Location: parts[firstChunk].Location,
 			Start:    startInFirstChunk,
 			End:      endInLastChunk,
+			Size:     parts[firstChunk].Size,
 		})
 	} else {
 		validParts = append(validParts, types.Part{
 			Location: parts[firstChunk].Location,
 			Start:    startInFirstChunk,
 			End:      parts[firstChunk].End,
+			Size:     parts[firstChunk].Size,
 		})
 
 		// Add valid parts from any chunks in between.
@@ -201,6 +209,7 @@ func rangedParts(parts []types.Part, startByte, endByte int64) []types.Part {
 				Location: parts[i].Location,
 				Start:    0,
 				End:      parts[i].End,
+				Size:     parts[i].Size,
 			})
 		}
 
@@ -209,6 +218,7 @@ func rangedParts(parts []types.Part, startByte, endByte int64) []types.Part {
 			Location: parts[lastChunk].Location,
 			Start:    0,
 			End:      endInLastChunk,
+			Size:     parts[lastChunk].Size,
 		})
 	}
 

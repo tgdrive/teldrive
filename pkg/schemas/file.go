@@ -41,6 +41,7 @@ type CreateFile struct {
 	Path      string `json:"path" binding:"required"`
 	Size      int64  `json:"size"`
 	ParentID  string `json:"parentId"`
+	Encrypted bool   `json:"encrypted"`
 }
 
 type FileOut struct {
@@ -59,6 +60,7 @@ type FileOutFull struct {
 	FileOut
 	Parts     []Part `json:"parts,omitempty"`
 	ChannelID int64  `json:"channelId"`
+	Encrypted bool   `json:"encrypted"`
 }
 
 type UpdateFile struct {

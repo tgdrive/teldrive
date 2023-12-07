@@ -31,7 +31,7 @@ Telegram Drive is a powerful utility that enables you to create your own cloud s
 ## Features
 
 - **UI:** Based on Material You to create nice looking UI themes.
-- **Secure:** Your data is secured using Telegram's robust encryption.
+- **Secure:** Your data is secured using robust encryption.
 - **Flexible Deployment:** Use Docker Compose or deploy without Docker.
 
 ## Demo
@@ -134,6 +134,16 @@ In addition to the mandatory variables, you can also set the following optional 
 - `BG_BOTS_LIMIT` : If LAZY_STREAM_BOTS is set to false it start atmost BG_BOTS_LIMIT no of bots in background to prevent connection recreation on every request (Default 5).
 
 - `UPLOAD_RETENTION` : No of days to keep incomplete uploads parts in channel afterwards these parts are deleted (Default 15).
+
+- `ENCRYPTION_KEY`  : Password for Encryption.
+
+- `ENCRYPTION_SALT` : Salt for Encryption.
+
+> [!WARNING]
+> Keep your Passoword and Salt safe once generated teldrive uses same encryption as of rclone internally 
+so you don't need to enable crypt in rclone.Enabling crypt in rclone makes UI reduntant so encrypting files
+in teldrive internally is better way to encrypt files instead of enabling in rclone.To encrypt files see more 
+about teldrive rclone config.
 
 ### For making use of Multi Bots support
 
