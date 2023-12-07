@@ -46,6 +46,7 @@ func ToUploadOut(in *models.Upload) *schemas.UploadPartOut {
 		ChannelID: in.ChannelID,
 		PartNo:    in.PartNo,
 		Size:      in.Size,
+		Encrypted: in.Encrypted,
 	}
 	return out
 }

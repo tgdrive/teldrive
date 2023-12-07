@@ -201,6 +201,7 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 			Size:      fileSize,
 			PartNo:    uploadQuery.PartNo,
 			UserId:    userId,
+			Encrypted: uploadQuery.Encrypted,
 		}
 
 		if err := us.Db.Create(partUpload).Error; err != nil {

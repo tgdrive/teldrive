@@ -10,6 +10,7 @@ type Upload struct {
 	Name      string    `gorm:"type:text"`
 	PartNo    int       `gorm:"type:integer"`
 	PartId    int       `gorm:"type:integer"`
+	Encrypted bool      `gorm:"default:false"`
 	ChannelID int64     `gorm:"type:bigint"`
 	Size      int64     `gorm:"type:bigint"`
 	CreatedAt time.Time `gorm:"default:timezone('utc'::text, now())"`
