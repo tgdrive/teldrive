@@ -6,7 +6,7 @@ require (
 	github.com/coocood/freecache v1.2.4
 	github.com/divyam234/cors v1.4.2
 	github.com/gin-gonic/gin v1.9.1
-	github.com/go-co-op/gocron v1.36.0
+	github.com/go-co-op/gocron v1.36.1
 	github.com/go-jose/go-jose/v3 v3.0.1
 	github.com/gotd/contrib v0.19.0
 	github.com/gotd/td v0.90.0
@@ -27,7 +27,6 @@ require (
 	github.com/chenzhuoyu/iasm v0.9.1 // indirect
 	github.com/google/uuid v1.4.0 // indirect
 	github.com/jackc/puddle/v2 v2.2.1 // indirect
-	github.com/rfjakob/eme v1.1.2 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/sethvargo/go-retry v0.2.4 // indirect
 )
@@ -73,7 +72,7 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/arch v0.6.0 // indirect
-	golang.org/x/crypto v0.16.0 // indirect
+	golang.org/x/crypto v0.16.0
 	golang.org/x/net v0.19.0 // indirect
 	golang.org/x/sync v0.5.0 // indirect
 	golang.org/x/sys v0.15.0 // indirect
