@@ -23,6 +23,16 @@ type tgReader struct {
 	i         int64
 }
 
+func calculateChunkSize(start, end int64) int64 {
+	chunkSize := int64(1024 * 1024)
+
+	for chunkSize > 1024 && chunkSize > (end-start) {
+		chunkSize /= 2
+	}
+
+	return chunkSize
+}
+
 func NewTGReader(
 	ctx context.Context,
 	client *telegram.Client,
@@ -36,7 +46,7 @@ func NewTGReader(
 		client:    client,
 		start:     part.Start,
 		end:       part.End,
-		chunkSize: int64(1024 * 1024),
+		chunkSize: calculateChunkSize(part.Start, part.End),
 	}
 	r.next = r.partStream()
 	return r, nil
@@ -79,6 +89,7 @@ func (r *tgReader) chunk(offset int64, limit int64) ([]byte, error) {
 		Offset:   offset,
 		Limit:    int(limit),
 		Location: r.location,
+		Precise:  true,
 	}
 
 	res, err := r.client.API().UploadGetFile(r.ctx, req)
@@ -101,13 +112,13 @@ func (r *tgReader) partStream() func() ([]byte, error) {
 	end := r.end
 	offset := start - (start % r.chunkSize)
 
-	firstPartCut := start - offset
-	lastPartCut := (end % r.chunkSize) + 1
-	partCount := int((end - offset + r.chunkSize) / r.chunkSize)
+	leftCut := start - offset
+	rightCut := (end % r.chunkSize) + 1
+	totalParts := int((end - offset + r.chunkSize) / r.chunkSize)
 	currentPart := 1
 
-	readData := func() ([]byte, error) {
-		if currentPart > partCount {
+	return func() ([]byte, error) {
+		if currentPart > totalParts {
 			return make([]byte, 0), nil
 		}
 		res, err := r.chunk(offset, r.chunkSize)
@@ -116,17 +127,16 @@ func (r *tgReader) partStream() func() ([]byte, error) {
 		}
 		if len(res) == 0 {
 			return res, nil
-		} else if partCount == 1 {
-			res = res[firstPartCut:lastPartCut]
+		} else if totalParts == 1 {
+			res = res[leftCut:rightCut]
 		} else if currentPart == 1 {
-			res = res[firstPartCut:]
-		} else if currentPart == partCount {
-			res = res[:lastPartCut]
+			res = res[leftCut:]
+		} else if currentPart == totalParts {
+			res = res[:rightCut]
 		}
 
 		currentPart++
 		offset += r.chunkSize
 		return res, nil
 	}
-	return readData
 }

@@ -27,21 +27,11 @@ const (
 )
 
 var (
-	ErrorBadDecryptUTF8          = errors.New("bad decryption - utf-8 invalid")
-	ErrorBadDecryptControlChar   = errors.New("bad decryption - contains control chars")
-	ErrorNotAMultipleOfBlocksize = errors.New("not a multiple of blocksize")
-	ErrorTooShortAfterDecode     = errors.New("too short after base32 decode")
-	ErrorTooLongAfterDecode      = errors.New("too long after base32 decode")
-	ErrorEncryptedFileTooShort   = errors.New("file is too short to be encrypted")
-	ErrorEncryptedFileBadHeader  = errors.New("file has truncated block header")
-	ErrorEncryptedBadMagic       = errors.New("not an encrypted file - bad magic string")
-	ErrorEncryptedBadBlock       = errors.New("failed to authenticate decrypted block - bad password?")
-	ErrorBadBase32Encoding       = errors.New("bad base32 filename encoding")
-	ErrorFileClosed              = errors.New("file already closed")
-	ErrorNotAnEncryptedFile      = errors.New("not an encrypted file - does not match suffix")
-	ErrorBadSeek                 = errors.New("Seek beyond end of file")
-	ErrorSuffixMissingDot        = errors.New("suffix config setting should include a '.'")
-	defaultSalt                  = []byte{0xA8, 0x0D, 0xF4, 0x3A, 0x8F, 0xBD, 0x03, 0x08, 0xA7, 0xCA, 0xB8, 0x3E, 0x58, 0x1F, 0x86, 0xB1}
+	ErrorEncryptedFileTooShort  = errors.New("file is too short to be encrypted")
+	ErrorEncryptedFileBadHeader = errors.New("file has truncated block header")
+	ErrorEncryptedBadMagic      = errors.New("not an encrypted file - bad magic string")
+	ErrorFileClosed             = errors.New("file already closed")
+	ErrorBadSeek                = errors.New("Seek beyond end of file")
 )
 
 var (
@@ -90,19 +80,12 @@ func NewCipher(password, salt string) (*Cipher, error) {
 
 func (c *Cipher) Key(password, salt string) (err error) {
 	const keySize = len(c.dataKey) + len(c.nameKey) + len(c.nameTweak)
-	var saltBytes = defaultSalt
-	if salt != "" {
-		saltBytes = []byte(salt)
+	saltBytes := []byte(salt)
+	key, err := scrypt.Key([]byte(password), saltBytes, 16384, 8, 1, keySize)
+	if err != nil {
+		return err
 	}
-	var key []byte
-	if password == "" {
-		key = make([]byte, keySize)
-	} else {
-		key, err = scrypt.Key([]byte(password), saltBytes, 16384, 8, 1, keySize)
-		if err != nil {
-			return err
-		}
-	}
+
 	copy(c.dataKey[:], key)
 	copy(c.nameKey[:], key[len(c.dataKey):])
 	copy(c.nameTweak[:], key[len(c.dataKey)+len(c.nameKey):])
@@ -133,11 +116,13 @@ func (n *nonce) fromReader(in io.Reader) error {
 	return nil
 }
 
-func (n *nonce) fromBuf(buf []byte) {
+func (n *nonce) fromBuf(buf []byte) error {
 	read := copy((*n)[:], buf)
+
 	if read != fileNonceSize {
-		panic("buffer to short to read nonce")
+		return errors.New("buffer to short to read nonce")
 	}
+	return nil
 }
 
 func (n *nonce) carry(i int) {
@@ -289,7 +274,10 @@ func (c *Cipher) newDecrypter(rc io.ReadCloser) (*decrypter, error) {
 		return nil, fh.finishAndClose(ErrorEncryptedBadMagic)
 	}
 
-	fh.nonce.fromBuf(readBuf[fileMagicSize:])
+	err = fh.nonce.fromBuf(readBuf[fileMagicSize:])
+	if err != nil {
+		return nil, err
+	}
 	fh.initialNonce = fh.nonce
 	return fh, nil
 }
