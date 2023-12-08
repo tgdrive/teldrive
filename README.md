@@ -4,7 +4,7 @@ Telegram Drive is a powerful utility that enables you to create your own cloud s
 
 [![Discord](https://img.shields.io/discord/1142377485737148479?label=discord&logo=discord&style=flat-square&logoColor=white)](https://discord.gg/J2gVAZnHfP)
 
-**Click on icon to join Discord Server for better support**
+**Click on icon to join Discord Server for  more advanced configurations for uploads and better support**
 
 [Read Wiki for FAQ](https://github.com/divyam234/teldrive/wiki).
 
