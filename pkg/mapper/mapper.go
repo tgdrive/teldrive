@@ -27,7 +27,8 @@ func ToFileOutFull(file models.File) *schemas.FileOutFull {
 	parts := []schemas.Part{}
 	for _, part := range *file.Parts {
 		parts = append(parts, schemas.Part{
-			ID: part.ID,
+			ID:   part.ID,
+			Salt: part.Salt,
 		})
 	}
 
@@ -47,6 +48,7 @@ func ToUploadOut(in *models.Upload) *schemas.UploadPartOut {
 		PartNo:    in.PartNo,
 		Size:      in.Size,
 		Encrypted: in.Encrypted,
+		Salt:      in.Salt,
 	}
 	return out
 }

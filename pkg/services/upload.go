@@ -2,6 +2,9 @@ package services
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"errors"
 	"net/http"
 	"strconv"
@@ -25,12 +28,28 @@ import (
 	"gorm.io/gorm"
 )
 
+const saltLength = 32
+
 type UploadService struct {
 	Db *gorm.DB
 }
 
 func NewUploadService(db *gorm.DB) *UploadService {
 	return &UploadService{Db: db}
+}
+
+func generateRandomSalt() (string, error) {
+	randomBytes := make([]byte, saltLength)
+	_, err := rand.Read(randomBytes)
+	if err != nil {
+		return "", err
+	}
+
+	hasher := sha256.New()
+	hasher.Write(randomBytes)
+	hashedSalt := base64.URLEncoding.EncodeToString(hasher.Sum(nil))
+
+	return hashedSalt, nil
 }
 
 func (us *UploadService) GetUploadFileById(c *gin.Context) (*schemas.UploadOut, *types.AppError) {
@@ -147,9 +166,14 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 
 		config := cnf.GetConfig()
 
+		var salt string
+
 		if uploadQuery.Encrypted {
-			cipher, _ := crypt.NewCipher(config.EncryptionKey, config.EncryptionSalt)
-			fileSize = cipher.EncryptedSize(fileSize)
+
+			//gen random Salt
+			salt, _ = generateRandomSalt()
+			cipher, _ := crypt.NewCipher(config.EncryptionKey, salt)
+			fileSize = crypt.EncryptedSize(fileSize)
 			fileStream, _ = cipher.EncryptData(fileStream)
 		}
 
@@ -202,6 +226,7 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 			PartNo:    uploadQuery.PartNo,
 			UserId:    userId,
 			Encrypted: uploadQuery.Encrypted,
+			Salt:      salt,
 		}
 
 		if err := us.Db.Create(partUpload).Error; err != nil {

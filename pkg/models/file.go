@@ -27,7 +27,8 @@ type File struct {
 
 type Parts []Part
 type Part struct {
-	ID int64 `json:"id"`
+	ID   int64  `json:"id"`
+	Salt string `json:"salt,omitempty"`
 }
 
 func (a Parts) Value() (driver.Value, error) {

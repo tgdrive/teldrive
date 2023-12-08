@@ -13,7 +13,6 @@ import (
 
 	cnf "github.com/divyam234/teldrive/config"
 	"github.com/divyam234/teldrive/internal/cache"
-	"github.com/divyam234/teldrive/internal/crypt"
 	"github.com/divyam234/teldrive/internal/http_range"
 	"github.com/divyam234/teldrive/internal/md5"
 	"github.com/divyam234/teldrive/internal/reader"
@@ -85,7 +84,8 @@ func (fs *FileService) CreateFile(c *gin.Context) (*schemas.FileOut, *types.AppE
 		parts := models.Parts{}
 		for _, part := range fileIn.Parts {
 			parts = append(parts, models.Part{
-				ID: part.ID,
+				ID:   part.ID,
+				Salt: part.Salt,
 			})
 
 		}
@@ -554,13 +554,8 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 
 	var (
 		token, channelUser string
-		cipher             *crypt.Cipher
 		lr                 io.ReadCloser
 	)
-
-	if file.Encrypted {
-		cipher, _ = crypt.NewCipher(config.EncryptionKey, config.EncryptionSalt)
-	}
 
 	if config.LazyStreamBots {
 		tgc.Workers.Set(tokens, file.ChannelID)
@@ -569,13 +564,13 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 		channelUser = strings.Split(token, ":")[0]
 		if r.Method != "HEAD" {
 			tgc.RunWithAuth(c, client, token, func(ctx context.Context) error {
-				parts, err := getParts(c, cipher, client, file, channelUser)
+				parts, err := getParts(c, client, file, channelUser)
 				if err != nil {
 					return err
 				}
 				parts = rangedParts(parts, start, end)
 				if file.Encrypted {
-					lr, _ = reader.NewDecryptedReader(c, client, parts, cipher, contentLength)
+					lr, _ = reader.NewDecryptedReader(c, client, parts, contentLength)
 				} else {
 					lr, _ = reader.NewLinearReader(c, client, parts, contentLength)
 				}
@@ -613,7 +608,7 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 		}
 
 		if r.Method != "HEAD" {
-			parts, err := getParts(c, cipher, client.Tg, file, channelUser)
+			parts, err := getParts(c, client.Tg, file, channelUser)
 			if err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
@@ -622,7 +617,7 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 			parts = rangedParts(parts, start, end)
 
 			if file.Encrypted {
-				lr, _ = reader.NewDecryptedReader(c, client.Tg, parts, cipher, contentLength)
+				lr, _ = reader.NewDecryptedReader(c, client.Tg, parts, contentLength)
 			} else {
 				lr, _ = reader.NewLinearReader(c, client.Tg, parts, contentLength)
 			}

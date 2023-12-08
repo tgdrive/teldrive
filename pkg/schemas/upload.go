@@ -14,6 +14,7 @@ type UploadPartOut struct {
 	ChannelID int64  `json:"channelId"`
 	Size      int64  `json:"size"`
 	Encrypted bool   `json:"encrypted"`
+	Salt      string `json:"salt"`
 }
 
 type UploadOut struct {

@@ -34,7 +34,6 @@ type Config struct {
 	UploadRetention        int      `envconfig:"UPLOAD_RETENTION" default:"15"`
 	DisableStreamBots      bool     `envconfig:"DISABLE_STREAM_BOTS" default:"false"`
 	EncryptionKey          string   `envconfig:"ENCRYPTION_KEY"`
-	EncryptionSalt         string   `envconfig:"ENCRYPTION_SALT"`
 	ExecDir                string
 }
 

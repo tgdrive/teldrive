@@ -16,6 +16,7 @@ type Part struct {
 	Start    int64
 	End      int64
 	Size     int64
+	Salt     string
 }
 
 type JWTClaims struct {

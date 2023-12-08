@@ -15,7 +15,8 @@ type SortingQuery struct {
 }
 
 type Part struct {
-	ID int64 `json:"id"`
+	ID   int64  `json:"id"`
+	Salt string `json:"salt"`
 }
 
 type FileQuery struct {

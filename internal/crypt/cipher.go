@@ -533,7 +533,7 @@ func (c *Cipher) DecryptDataSeek(ctx context.Context, open OpenRangeSeek, offset
 	return out, nil
 }
 
-func (c *Cipher) EncryptedSize(size int64) int64 {
+func EncryptedSize(size int64) int64 {
 	blocks, residue := size/blockDataSize, size%blockDataSize
 	encryptedSize := int64(fileHeaderSize) + blocks*(blockHeaderSize+blockDataSize)
 	if residue != 0 {
@@ -542,7 +542,7 @@ func (c *Cipher) EncryptedSize(size int64) int64 {
 	return encryptedSize
 }
 
-func (c *Cipher) DecryptedSize(size int64) (int64, error) {
+func DecryptedSize(size int64) (int64, error) {
 	size -= int64(fileHeaderSize)
 	if size < 0 {
 		return 0, ErrorEncryptedFileTooShort

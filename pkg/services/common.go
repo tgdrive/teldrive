@@ -138,7 +138,7 @@ func getTGMessages(ctx context.Context, client *telegram.Client, parts []schemas
 	return messages, nil
 }
 
-func getParts(ctx context.Context, cipher *crypt.Cipher, client *telegram.Client, file *schemas.FileOutFull, userID string) ([]types.Part, error) {
+func getParts(ctx context.Context, client *telegram.Client, file *schemas.FileOutFull, userID string) ([]types.Part, error) {
 
 	parts := []types.Part{}
 
@@ -156,17 +156,22 @@ func getParts(ctx context.Context, cipher *crypt.Cipher, client *telegram.Client
 		return nil, err
 	}
 
-	for _, message := range messages.Messages {
+	for i, message := range messages.Messages {
 		item := message.(*tg.Message)
 		media := item.Media.(*tg.MessageMediaDocument)
 		document := media.Document.(*tg.Document)
 		location := document.AsInputDocumentFileLocation()
 		end := document.Size - 1
-		if cipher != nil {
-			end, _ = cipher.DecryptedSize(document.Size)
+		if file.Encrypted {
+			end, _ = crypt.DecryptedSize(document.Size)
 			end -= 1
 		}
-		parts = append(parts, types.Part{Location: location, Start: 0, End: end, Size: document.Size})
+		parts = append(parts, types.Part{
+			Location: location,
+			End:      end,
+			Size:     document.Size,
+			Salt:     file.Parts[i].Salt,
+		})
 	}
 	cache.GetCache().Set(key, &parts, 3600)
 	return parts, nil
@@ -189,37 +194,26 @@ func rangedParts(parts []types.Part, startByte, endByte int64) []types.Part {
 	endInLastChunk := endByte % chunkSize
 
 	if firstChunk == lastChunk {
-		validParts = append(validParts, types.Part{
-			Location: parts[firstChunk].Location,
-			Start:    startInFirstChunk,
-			End:      endInLastChunk,
-			Size:     parts[firstChunk].Size,
-		})
+		part := parts[firstChunk]
+		part.Start = startInFirstChunk
+		part.End = endInLastChunk
+		validParts = append(validParts, part)
 	} else {
-		validParts = append(validParts, types.Part{
-			Location: parts[firstChunk].Location,
-			Start:    startInFirstChunk,
-			End:      parts[firstChunk].End,
-			Size:     parts[firstChunk].Size,
-		})
-
+		part := parts[firstChunk]
+		part.Start = startInFirstChunk
+		validParts = append(validParts, part)
 		// Add valid parts from any chunks in between.
 		for i := firstChunk + 1; i < lastChunk; i++ {
-			validParts = append(validParts, types.Part{
-				Location: parts[i].Location,
-				Start:    0,
-				End:      parts[i].End,
-				Size:     parts[i].Size,
-			})
+			part := parts[i]
+			part.Start = 0
+			validParts = append(validParts, part)
 		}
 
 		// Add valid parts from the last chunk.
-		validParts = append(validParts, types.Part{
-			Location: parts[lastChunk].Location,
-			Start:    0,
-			End:      endInLastChunk,
-			Size:     parts[lastChunk].Size,
-		})
+		endPart := parts[lastChunk]
+		endPart.Start = 0
+		endPart.End = endInLastChunk
+		validParts = append(validParts, endPart)
 	}
 
 	return validParts
