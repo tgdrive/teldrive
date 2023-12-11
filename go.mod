@@ -9,7 +9,7 @@ require (
 	github.com/go-co-op/gocron v1.36.1
 	github.com/go-jose/go-jose/v3 v3.0.1
 	github.com/gotd/contrib v0.19.0
-	github.com/gotd/td v0.90.0
+	github.com/gotd/td v0.91.0
 	github.com/joho/godotenv v1.5.1
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/mitchellh/mapstructure v1.5.0
