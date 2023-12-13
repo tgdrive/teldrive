@@ -6,7 +6,7 @@ require (
 	github.com/coocood/freecache v1.2.4
 	github.com/divyam234/cors v1.4.2
 	github.com/gin-gonic/gin v1.9.1
-	github.com/go-co-op/gocron v1.36.1
+	github.com/go-co-op/gocron v1.37.0
 	github.com/go-jose/go-jose/v3 v3.0.1
 	github.com/gotd/contrib v0.19.0
 	github.com/gotd/td v0.91.0
