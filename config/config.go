@@ -29,10 +29,11 @@ type Config struct {
 	TgClientLangPack       string   `envconfig:"TG_CLIENT_LANG_PACK" default:"webk"`
 	RunMigrations          bool     `envconfig:"RUN_MIGRATIONS" default:"true"`
 	Port                   int      `envconfig:"PORT" default:"8080"`
-	LazyStreamBots         bool     `envconfig:"LAZY_STREAM_BOTS" default:"false"`
 	BgBotsLimit            int      `envconfig:"BG_BOTS_LIMIT" default:"5"`
 	UploadRetention        int      `envconfig:"UPLOAD_RETENTION" default:"15"`
 	DisableStreamBots      bool     `envconfig:"DISABLE_STREAM_BOTS" default:"false"`
+	Dev                    bool     `envconfig:"DEV" default:"false"`
+	LogSql                 bool     `envconfig:"LOG_SQL" default:"false"`
 	EncryptionKey          string   `envconfig:"ENCRYPTION_KEY"`
 	ExecDir                string
 }

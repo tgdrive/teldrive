@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
-	cnf "github.com/divyam234/teldrive/config"
+	"github.com/divyam234/teldrive/config"
 	"github.com/divyam234/teldrive/internal/kv"
 	"github.com/divyam234/teldrive/internal/recovery"
 	"github.com/divyam234/teldrive/internal/retry"
@@ -18,7 +18,8 @@ import (
 	"golang.org/x/time/rate"
 )
 
-func deviceConfig(appConfig *cnf.Config) telegram.DeviceConfig {
+func deviceConfig() telegram.DeviceConfig {
+	appConfig := config.GetConfig()
 	config := telegram.DeviceConfig{
 		DeviceModel:    appConfig.TgClientDeviceModel,
 		SystemVersion:  appConfig.TgClientSystemVersion,
@@ -42,8 +43,6 @@ func New(ctx context.Context, handler telegram.UpdateHandler, storage session.St
 
 	_clock := tdclock.System
 
-	config := cnf.GetConfig()
-
 	noUpdates := true
 
 	if handler != nil {
@@ -54,7 +53,7 @@ func New(ctx context.Context, handler telegram.UpdateHandler, storage session.St
 		ReconnectionBackoff: func() backoff.BackOff {
 			return Backoff(_clock)
 		},
-		Device:         deviceConfig(config),
+		Device:         deviceConfig(),
 		SessionStorage: storage,
 		RetryInterval:  time.Second,
 		MaxRetries:     10,
@@ -65,7 +64,7 @@ func New(ctx context.Context, handler telegram.UpdateHandler, storage session.St
 		UpdateHandler:  handler,
 	}
 
-	return telegram.NewClient(config.AppId, config.AppHash, opts)
+	return telegram.NewClient(config.GetConfig().AppId, config.GetConfig().AppHash, opts)
 }
 
 func NoLogin(ctx context.Context, handler telegram.UpdateHandler, storage session.Storage) *telegram.Client {
@@ -90,17 +89,15 @@ func UserLogin(ctx context.Context, sessionStr string) (*telegram.Client, error)
 		return nil, err
 	}
 	middlewares, _ := NewDefaultMiddlewares(ctx)
-	config := cnf.GetConfig()
-	middlewares = append(middlewares, ratelimit.New(rate.Every(time.Millisecond*time.Duration(config.Rate)), config.RateBurst))
+	middlewares = append(middlewares, ratelimit.New(rate.Every(time.Millisecond*time.Duration(config.GetConfig().Rate)), config.GetConfig().RateBurst))
 	return New(ctx, nil, storage, middlewares...), nil
 }
 
 func BotLogin(ctx context.Context, token string) (*telegram.Client, error) {
-	config := cnf.GetConfig()
 	storage := kv.NewSession(database.KV, kv.Key("botsession", token))
 	middlewares, _ := NewDefaultMiddlewares(ctx)
-	if config.RateLimit {
-		middlewares = append(middlewares, ratelimit.New(rate.Every(time.Millisecond*time.Duration(config.Rate)), config.RateBurst))
+	if config.GetConfig().RateLimit {
+		middlewares = append(middlewares, ratelimit.New(rate.Every(time.Millisecond*time.Duration(config.GetConfig().Rate)), config.GetConfig().RateBurst))
 
 	}
 	return New(ctx, nil, storage, middlewares...), nil

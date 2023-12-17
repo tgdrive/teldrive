@@ -5,17 +5,17 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
-	"errors"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
-	cnf "github.com/divyam234/teldrive/config"
+	"github.com/divyam234/teldrive/config"
 	"github.com/divyam234/teldrive/internal/crypt"
 	"github.com/divyam234/teldrive/internal/tgc"
 	"github.com/divyam234/teldrive/pkg/mapper"
 	"github.com/divyam234/teldrive/pkg/schemas"
+	"go.uber.org/zap"
 
 	"github.com/divyam234/teldrive/pkg/types"
 
@@ -31,11 +31,14 @@ import (
 const saltLength = 32
 
 type UploadService struct {
-	Db *gorm.DB
+	Db     *gorm.DB
+	log    *zap.Logger
+	worker *tgc.UploadWorker
 }
 
-func NewUploadService(db *gorm.DB) *UploadService {
-	return &UploadService{Db: db}
+func NewUploadService(db *gorm.DB, logger *zap.Logger) *UploadService {
+	return &UploadService{Db: db, log: logger.Named("uploads"),
+		worker: &tgc.UploadWorker{}}
 }
 
 func generateRandomSalt() (string, error) {
@@ -52,14 +55,18 @@ func generateRandomSalt() (string, error) {
 	return hashedSalt, nil
 }
 
+func (us *UploadService) logAndReturn(context string, err error, errCode int) *types.AppError {
+	us.log.Error(context, zap.Error(err))
+	return &types.AppError{Error: err, Code: errCode}
+}
+
 func (us *UploadService) GetUploadFileById(c *gin.Context) (*schemas.UploadOut, *types.AppError) {
 	uploadId := c.Param("id")
 	parts := []schemas.UploadPartOut{}
-	config := cnf.GetConfig()
 	if err := us.Db.Model(&models.Upload{}).Order("part_no").Where("upload_id = ?", uploadId).
-		Where("created_at >= ?", time.Now().UTC().AddDate(0, 0, -config.UploadRetention)).
+		Where("created_at >= ?", time.Now().UTC().AddDate(0, 0, -config.GetConfig().UploadRetention)).
 		Find(&parts).Error; err != nil {
-		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
+		return nil, us.logAndReturn("get upload", err, http.StatusInternalServerError)
 	}
 
 	return &schemas.UploadOut{Parts: parts}, nil
@@ -68,7 +75,7 @@ func (us *UploadService) GetUploadFileById(c *gin.Context) (*schemas.UploadOut, 
 func (us *UploadService) DeleteUploadFile(c *gin.Context) (*schemas.Message, *types.AppError) {
 	uploadId := c.Param("id")
 	if err := us.Db.Where("upload_id = ?", uploadId).Delete(&models.Upload{}).Error; err != nil {
-		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
+		return nil, us.logAndReturn("delete upload", err, http.StatusInternalServerError)
 	}
 
 	return &schemas.Message{Message: "upload deleted"}, nil
@@ -104,13 +111,13 @@ func (us *UploadService) CreateUploadPart(c *gin.Context) (*schemas.UploadPartOu
 }
 
 func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *types.AppError) {
-
 	var (
 		uploadQuery schemas.UploadQuery
 		channelId   int64
 		err         error
 		client      *telegram.Client
 		token       string
+		index       int
 		channelUser string
 		out         *schemas.UploadPartOut
 	)
@@ -118,7 +125,7 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 	uploadQuery.PartNo = 1
 
 	if err := c.ShouldBindQuery(&uploadQuery); err != nil {
-		return nil, &types.AppError{Error: err, Code: http.StatusBadRequest}
+		return nil, us.logAndReturn("UploadFile", err, http.StatusBadRequest)
 	}
 
 	userId, session := getUserAuth(c)
@@ -129,12 +136,10 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 
 	fileSize := c.Request.ContentLength
 
-	fileName := uploadQuery.Filename
-
 	if uploadQuery.ChannelID == 0 {
 		channelId, err = GetDefaultChannel(c, userId)
 		if err != nil {
-			return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
+			return nil, us.logAndReturn("uploadFile", err, http.StatusInternalServerError)
 		}
 	} else {
 		channelId = uploadQuery.ChannelID
@@ -143,20 +148,25 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 	tokens, err := getBotsToken(c, userId, channelId)
 
 	if err != nil {
-		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
+		return nil, us.logAndReturn("uploadFile", err, http.StatusInternalServerError)
 	}
 
 	if len(tokens) == 0 {
 		client, _ = tgc.UserLogin(c, session)
 		channelUser = strconv.FormatInt(userId, 10)
 	} else {
-		tgc.Workers.Set(tokens, channelId)
-		token = tgc.Workers.Next(channelId)
+		us.worker.Set(tokens, channelId)
+		token, index = us.worker.Next(channelId)
 		client, _ = tgc.BotLogin(c, token)
 		channelUser = strings.Split(token, ":")[0]
 	}
 
-	err = tgc.RunWithAuth(c, client, token, func(ctx context.Context) error {
+	us.log.Debug("uploading file", zap.String("fileName", uploadQuery.FileName),
+		zap.String("partName", uploadQuery.PartName),
+		zap.String("bot", channelUser), zap.Int("botNo", index),
+		zap.Int("chunkNo", uploadQuery.PartNo), zap.Int64("partSize", fileSize))
+
+	err = tgc.RunWithAuth(c, us.log, client, token, func(ctx context.Context) error {
 
 		channel, err := GetChannelById(ctx, client, channelId, channelUser)
 
@@ -164,15 +174,13 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 			return err
 		}
 
-		config := cnf.GetConfig()
-
 		var salt string
 
 		if uploadQuery.Encrypted {
 
 			//gen random Salt
 			salt, _ = generateRandomSalt()
-			cipher, _ := crypt.NewCipher(config.EncryptionKey, salt)
+			cipher, _ := crypt.NewCipher(config.GetConfig().EncryptionKey, salt)
 			fileSize = crypt.EncryptedSize(fileSize)
 			fileStream, _ = cipher.EncryptData(fileStream)
 		}
@@ -181,13 +189,13 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 
 		u := uploader.NewUploader(api).WithThreads(16).WithPartSize(512 * 1024)
 
-		upload, err := u.Upload(c, uploader.NewUpload(fileName, fileStream, fileSize))
+		upload, err := u.Upload(c, uploader.NewUpload(uploadQuery.PartName, fileStream, fileSize))
 
 		if err != nil {
 			return err
 		}
 
-		document := message.UploadedDocument(upload).Filename(fileName).ForceFile(true)
+		document := message.UploadedDocument(upload).Filename(uploadQuery.PartName).ForceFile(true)
 
 		sender := message.NewSender(client.API())
 
@@ -210,15 +218,10 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 				message = channelMsg.Message.(*tg.Message)
 				break
 			}
-
-		}
-
-		if message.ID == 0 {
-			return errors.New("failed to upload part")
 		}
 
 		partUpload := &models.Upload{
-			Name:      fileName,
+			Name:      uploadQuery.PartName,
 			UploadId:  uploadId,
 			PartId:    message.ID,
 			ChannelID: channelId,
@@ -239,8 +242,12 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 	})
 
 	if err != nil {
-		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
+		return nil, us.logAndReturn("uploadFile", err, http.StatusInternalServerError)
 	}
+
+	us.log.Debug("upload finished", zap.String("fileName", uploadQuery.FileName),
+		zap.String("partName", uploadQuery.PartName),
+		zap.Int("chunkNo", uploadQuery.PartNo))
 
 	return out, nil
 }

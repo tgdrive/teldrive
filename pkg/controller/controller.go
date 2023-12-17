@@ -3,6 +3,7 @@ package controller
 import (
 	"github.com/divyam234/teldrive/pkg/database"
 	"github.com/divyam234/teldrive/pkg/services"
+	"go.uber.org/zap"
 )
 
 type Controller struct {
@@ -12,11 +13,11 @@ type Controller struct {
 	AuthService   *services.AuthService
 }
 
-func NewController() *Controller {
+func NewController(logger *zap.Logger) *Controller {
 	return &Controller{
-		FileService:   services.NewFileService(database.DB),
-		UserService:   services.NewUserService(database.DB),
-		UploadService: services.NewUploadService(database.DB),
-		AuthService:   services.NewAuthService(database.DB),
+		FileService:   services.NewFileService(database.DB, logger),
+		UserService:   services.NewUserService(database.DB, logger),
+		UploadService: services.NewUploadService(database.DB, logger),
+		AuthService:   services.NewAuthService(database.DB, logger),
 	}
 }

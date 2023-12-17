@@ -28,3 +28,4 @@ sslcerts
 *.env.local
 *.env.staging
 *.db
+logs

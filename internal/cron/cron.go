@@ -14,6 +14,7 @@ import (
 	"github.com/divyam234/teldrive/pkg/services"
 	"github.com/go-co-op/gocron"
 	"github.com/gotd/td/tg"
+	"go.uber.org/zap"
 )
 
 type Files []File
@@ -60,7 +61,7 @@ type UploadResult struct {
 	ChannelId int64
 }
 
-func deleteTGMessages(ctx context.Context, result Result) error {
+func deleteTGMessages(ctx context.Context, logger *zap.Logger, result Result) error {
 
 	db := database.DB
 
@@ -82,7 +83,7 @@ func deleteTGMessages(ctx context.Context, result Result) error {
 
 	}
 
-	err = tgc.RunWithAuth(ctx, client, "", func(ctx context.Context) error {
+	err = tgc.RunWithAuth(ctx, logger, client, "", func(ctx context.Context) error {
 
 		channel, err := services.GetChannelById(ctx, client, result.ChannelId, strconv.FormatInt(result.UserId, 10))
 
@@ -102,10 +103,10 @@ func deleteTGMessages(ctx context.Context, result Result) error {
 		db.Where("id = any($1)", fileIds).Delete(&models.File{})
 	}
 
-	return nil
+	return err
 }
 
-func cleanUploadsMessages(ctx context.Context, result UploadResult) error {
+func cleanUploadsMessages(ctx context.Context, logger *zap.Logger, result UploadResult) error {
 
 	db := database.DB
 
@@ -115,7 +116,7 @@ func cleanUploadsMessages(ctx context.Context, result UploadResult) error {
 		return err
 	}
 
-	err = tgc.RunWithAuth(ctx, client, "", func(ctx context.Context) error {
+	err = tgc.RunWithAuth(ctx, logger, client, "", func(ctx context.Context) error {
 
 		channel, err := services.GetChannelById(ctx, client, result.ChannelId, strconv.FormatInt(result.UserId, 10))
 
@@ -139,10 +140,10 @@ func cleanUploadsMessages(ctx context.Context, result UploadResult) error {
 		db.Where("part_id = any($1)", parts).Delete(&models.Upload{})
 	}
 
-	return nil
+	return err
 }
 
-func filesDeleteJob() {
+func filesDeleteJob(logger *zap.Logger) {
 	db := database.DB
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -161,11 +162,16 @@ func filesDeleteJob() {
 	}
 
 	for _, row := range results {
-		deleteTGMessages(ctx, row)
+		err := deleteTGMessages(ctx, logger, row)
+		if err != nil {
+			logger.Error("failed to clean pending files", zap.Int64("user", row.UserId), zap.Error(err))
+		}
+		logger.Info("cleaned pending files", zap.Int64("user", row.UserId),
+			zap.Int64("channel", row.ChannelId))
 	}
 }
 
-func uploadCleanJob() {
+func uploadCleanJob(logger *zap.Logger) {
 	db := database.DB
 	ctx, cancel := context.WithCancel(context.Background())
 	c := config.GetConfig()
@@ -183,22 +189,29 @@ func uploadCleanJob() {
 		return
 	}
 	for _, row := range upResults {
-		cleanUploadsMessages(ctx, row)
+		err := cleanUploadsMessages(ctx, logger, row)
+		if err != nil {
+			logger.Error("failed to clean orpahan file parts", zap.Int64("user", row.UserId), zap.Error(err))
+		}
+		logger.Info("cleaned orpahan file parts", zap.Int64("user", row.UserId),
+			zap.Int64("channel", row.ChannelId))
 	}
 }
 
-func folderSizeUpdate() {
+func folderSizeUpdate(logger *zap.Logger) {
 	database.DB.Exec("call teldrive.update_size();")
+	logger.Info("updates folder sizes")
+
 }
 
-func StartCronJobs() {
+func StartCronJobs(logger *zap.Logger) {
 	scheduler := gocron.NewScheduler(time.UTC)
 
-	scheduler.Every(1).Hour().Do(filesDeleteJob)
+	scheduler.Every(1).Hour().Do(filesDeleteJob, logger)
 
-	scheduler.Every(12).Hour().Do(uploadCleanJob)
+	scheduler.Every(12).Hour().Do(uploadCleanJob, logger)
 
-	scheduler.Every(2).Hour().Do(folderSizeUpdate)
+	scheduler.Every(2).Hour().Do(folderSizeUpdate, logger)
 
 	scheduler.StartAsync()
 }

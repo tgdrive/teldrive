@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	cnf "github.com/divyam234/teldrive/config"
+	"github.com/divyam234/teldrive/config"
 	"github.com/divyam234/teldrive/internal/kv"
 	"github.com/pressly/goose/v3"
 	"go.etcd.io/bbolt"
@@ -26,20 +26,24 @@ func InitDB() {
 
 	var err error
 
+	logLevel := logger.Silent
+
+	if config.GetConfig().LogSql {
+		logLevel = logger.Info
+
+	}
+
 	newLogger := logger.New(
 		log.New(os.Stdout, "\r\n", log.LstdFlags),
 		logger.Config{
-			SlowThreshold:             time.Second,
-			LogLevel:                  logger.Silent,
-			IgnoreRecordNotFoundError: true,
-			ParameterizedQueries:      true,
-			Colorful:                  false,
+			SlowThreshold:        time.Second,
+			LogLevel:             logLevel,
+			ParameterizedQueries: true,
+			Colorful:             true,
 		},
 	)
 
-	config := cnf.GetConfig()
-
-	DB, err = gorm.Open(postgres.Open(config.DatabaseUrl), &gorm.Config{
+	DB, err = gorm.Open(postgres.Open(config.GetConfig().DatabaseUrl), &gorm.Config{
 		NamingStrategy: schema.NamingStrategy{
 			TablePrefix:   "teldrive.",
 			SingularTable: false,
@@ -63,12 +67,12 @@ func InitDB() {
 	sqlDB.SetConnMaxIdleTime(10 * time.Minute)
 
 	go func() {
-		if config.RunMigrations {
+		if config.GetConfig().RunMigrations {
 			migrate()
 		}
 	}()
 
-	boltDB, err := bbolt.Open(filepath.Join(config.ExecDir, "teldrive.db"), 0666, &bbolt.Options{
+	boltDB, err := bbolt.Open(filepath.Join(config.GetConfig().ExecDir, "teldrive.db"), 0666, &bbolt.Options{
 		Timeout:    time.Second,
 		NoGrowSync: false,
 	})

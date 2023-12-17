@@ -18,6 +18,7 @@ import (
 	"github.com/gotd/td/telegram/query"
 	"github.com/gotd/td/tg"
 	"github.com/thoas/go-funk"
+	"go.uber.org/zap"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -25,11 +26,12 @@ import (
 )
 
 type UserService struct {
-	Db *gorm.DB
+	Db  *gorm.DB
+	log *zap.Logger
 }
 
-func NewUserService(db *gorm.DB) *UserService {
-	return &UserService{Db: db}
+func NewUserService(db *gorm.DB, logger *zap.Logger) *UserService {
+	return &UserService{Db: db, log: logger.Named("users")}
 }
 
 func (us *UserService) GetProfilePhoto(c *gin.Context) {
@@ -42,7 +44,7 @@ func (us *UserService) GetProfilePhoto(c *gin.Context) {
 		return
 	}
 
-	err = tgc.RunWithAuth(c, client, "", func(ctx context.Context) error {
+	err = tgc.RunWithAuth(c, us.log, client, "", func(ctx context.Context) error {
 		self, err := client.Self(c)
 		if err != nil {
 			return err
@@ -210,7 +212,7 @@ func (us *UserService) addBots(c context.Context, client *telegram.Client, userI
 
 	var wg sync.WaitGroup
 
-	err := tgc.RunWithAuth(c, client, "", func(ctx context.Context) error {
+	err := tgc.RunWithAuth(c, us.log, client, "", func(ctx context.Context) error {
 
 		channel, err := GetChannelById(ctx, client, channelId, strconv.FormatInt(userId, 10))
 		if err != nil {
@@ -229,7 +231,7 @@ func (us *UserService) addBots(c context.Context, client *telegram.Client, userI
 			waitChan <- struct{}{}
 			wg.Add(1)
 			go func(t string) {
-				info, err := getBotInfo(c, t)
+				info, err := getBotInfo(c, us.log, t)
 				if err != nil {
 					return
 				}

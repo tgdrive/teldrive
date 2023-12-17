@@ -11,7 +11,7 @@ import (
 	"strconv"
 	"strings"
 
-	cnf "github.com/divyam234/teldrive/config"
+	"github.com/divyam234/teldrive/config"
 	"github.com/divyam234/teldrive/internal/cache"
 	"github.com/divyam234/teldrive/internal/http_range"
 	"github.com/divyam234/teldrive/internal/md5"
@@ -22,6 +22,7 @@ import (
 	"github.com/divyam234/teldrive/pkg/models"
 	"github.com/divyam234/teldrive/pkg/schemas"
 	"github.com/gotd/td/tg"
+	"go.uber.org/zap"
 
 	"github.com/divyam234/teldrive/pkg/types"
 
@@ -32,19 +33,41 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+const (
+	updateFileContext    = "file update"
+	getFileByIDContext   = "getting file by ID"
+	listFilesContext     = "listing files"
+	getPathIDContext     = "getting path ID"
+	makeDirectoryContext = "making directory"
+	copyFileContext      = "copying file"
+	moveFilesContext     = "moving files"
+	deleteFilesContext   = "deleting files"
+	moveDirectoryContext = "moving directory"
+	bindJSONContext      = "binding JSON"
+	bindQueryContext     = "binding query"
+)
+
 type FileService struct {
-	Db *gorm.DB
+	Db     *gorm.DB
+	log    *zap.Logger
+	worker *tgc.StreamWorker
 }
 
-func NewFileService(db *gorm.DB) *FileService {
-	return &FileService{Db: db}
+func NewFileService(db *gorm.DB, logger *zap.Logger) *FileService {
+	return &FileService{Db: db, log: logger.Named("files"),
+		worker: &tgc.StreamWorker{}}
+}
+
+func (fs *FileService) logAndReturn(context string, err error, errCode int) *types.AppError {
+	fs.log.Error(context, zap.Error(err))
+	return &types.AppError{Error: err, Code: errCode}
 }
 
 func (fs *FileService) CreateFile(c *gin.Context) (*schemas.FileOut, *types.AppError) {
 	userId, _ := getUserAuth(c)
 	var fileIn schemas.CreateFile
 	if err := c.ShouldBindJSON(&fileIn); err != nil {
-		return nil, &types.AppError{Error: err, Code: http.StatusBadRequest}
+		return nil, fs.logAndReturn(bindJSONContext, err, http.StatusBadRequest)
 	}
 
 	var fileDB models.File
@@ -54,7 +77,7 @@ func (fs *FileService) CreateFile(c *gin.Context) (*schemas.FileOut, *types.AppE
 	if fileIn.Path != "" {
 		var parent models.File
 		if err := fs.Db.Where("type = ? AND path = ?", "folder", fileIn.Path).First(&parent).Error; err != nil {
-			return nil, &types.AppError{Error: err, Code: http.StatusNotFound}
+			return nil, fs.logAndReturn(bindJSONContext, err, http.StatusInternalServerError)
 		}
 		fileDB.ParentID = parent.ID
 	}
@@ -76,7 +99,7 @@ func (fs *FileService) CreateFile(c *gin.Context) (*schemas.FileOut, *types.AppE
 		if fileIn.ChannelID == 0 {
 			channelId, err = GetDefaultChannel(c, userId)
 			if err != nil {
-				return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
+				return nil, fs.logAndReturn("default channel", err, http.StatusInternalServerError)
 			}
 		}
 		fileDB.ChannelID = utils.Int64Pointer(channelId)
@@ -102,10 +125,9 @@ func (fs *FileService) CreateFile(c *gin.Context) (*schemas.FileOut, *types.AppE
 	if err := fs.Db.Create(&fileDB).Error; err != nil {
 		pgErr := err.(*pgconn.PgError)
 		if pgErr.Code == "23505" {
-			return nil, &types.AppError{Error: errors.New("file exists"), Code: http.StatusInternalServerError}
+			return nil, fs.logAndReturn("file exists", err, http.StatusInternalServerError)
 		}
-		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
-
+		return nil, fs.logAndReturn("file create", err, http.StatusInternalServerError)
 	}
 
 	res := mapper.ToFileOut(fileDB)
@@ -127,16 +149,16 @@ func (fs *FileService) UpdateFile(c *gin.Context) (*schemas.FileOut, *types.AppE
 
 	if fileUpdate.Type == "folder" && fileUpdate.Name != "" {
 		if err := fs.Db.Raw("select * from teldrive.update_folder(?, ?)", fileID, fileUpdate.Name).Scan(&files).Error; err != nil {
-			return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
+			return nil, fs.logAndReturn(updateFileContext, err, http.StatusInternalServerError)
 		}
 	} else {
 		if err := fs.Db.Model(&files).Clauses(clause.Returning{}).Where("id = ?", fileID).Updates(fileUpdate).Error; err != nil {
-			return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
+			return nil, fs.logAndReturn(updateFileContext, err, http.StatusInternalServerError)
 		}
 	}
 
 	if len(files) == 0 {
-		return nil, &types.AppError{Error: errors.New("file not updated"), Code: http.StatusInternalServerError}
+		return nil, fs.logAndReturn(updateFileContext, errors.New("update failed"), http.StatusInternalServerError)
 	}
 
 	file := mapper.ToFileOut(files[0])
@@ -149,8 +171,7 @@ func (fs *FileService) UpdateFile(c *gin.Context) (*schemas.FileOut, *types.AppE
 
 }
 
-func (fs *FileService) GetFileByID(c *gin.Context) (*schemas.FileOutFull, error) {
-
+func (fs *FileService) GetFileByID(c *gin.Context) (*schemas.FileOutFull, *types.AppError) {
 	fileID := c.Param("fileID")
 
 	var file []models.File
@@ -158,14 +179,14 @@ func (fs *FileService) GetFileByID(c *gin.Context) (*schemas.FileOutFull, error)
 	fs.Db.Model(&models.File{}).Where("id = ?", fileID).Find(&file)
 
 	if len(file) == 0 {
-		return nil, errors.New("file not found")
+		err := errors.New("file not found")
+		return nil, fs.logAndReturn(getFileByIDContext, err, http.StatusNotFound)
 	}
 
 	return mapper.ToFileOutFull(file[0]), nil
 }
 
 func (fs *FileService) ListFiles(c *gin.Context) (*schemas.FileResponse, *types.AppError) {
-
 	userId, _ := getUserAuth(c)
 
 	var (
@@ -181,15 +202,15 @@ func (fs *FileService) ListFiles(c *gin.Context) (*schemas.FileResponse, *types.
 	fileQuery.UserID = userId
 
 	if err := c.ShouldBindQuery(&pagingParams); err != nil {
-		return nil, &types.AppError{Error: err, Code: http.StatusBadRequest}
+		return nil, fs.logAndReturn(listFilesContext, err, http.StatusBadRequest)
 	}
 
 	if err := c.ShouldBindQuery(&sortingParams); err != nil {
-		return nil, &types.AppError{Error: err, Code: http.StatusBadRequest}
+		return nil, fs.logAndReturn(listFilesContext, err, http.StatusBadRequest)
 	}
 
 	if err := c.ShouldBindQuery(&fileQuery); err != nil {
-		return nil, &types.AppError{Error: err, Code: http.StatusBadRequest}
+		return nil, fs.logAndReturn(listFilesContext, err, http.StatusBadRequest)
 	}
 
 	var (
@@ -199,7 +220,7 @@ func (fs *FileService) ListFiles(c *gin.Context) (*schemas.FileResponse, *types.
 	if fileQuery.Path != "" {
 		pathId, err = fs.getPathId(fileQuery.Path)
 		if err != nil {
-			return nil, &types.AppError{Error: err, Code: http.StatusNotFound}
+			return nil, fs.logAndReturn(listFilesContext, err, http.StatusNotFound)
 		}
 	}
 
@@ -219,7 +240,7 @@ func (fs *FileService) ListFiles(c *gin.Context) (*schemas.FileResponse, *types.
 		err := mapstructure.Decode(fileQuery, &filterQuery)
 
 		if err != nil {
-			return nil, &types.AppError{Error: err, Code: http.StatusBadRequest}
+			return nil, fs.logAndReturn(listFilesContext, err, http.StatusBadRequest)
 		}
 
 		delete(filterQuery, "op")
@@ -243,7 +264,6 @@ func (fs *FileService) ListFiles(c *gin.Context) (*schemas.FileResponse, *types.
 
 		setOrderFilter(query, &pagingParams, &sortingParams)
 		query.Order(getOrder(sortingParams))
-
 	}
 
 	var results []schemas.FileOut
@@ -276,33 +296,29 @@ func (fs *FileService) getPathId(path string) (string, error) {
 }
 
 func (fs *FileService) MakeDirectory(c *gin.Context) (*schemas.FileOut, *types.AppError) {
-
 	var payload schemas.MkDir
-
 	var files []models.File
 
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		return nil, &types.AppError{Error: err, Code: http.StatusBadRequest}
+		return nil, fs.logAndReturn(makeDirectoryContext, err, http.StatusBadRequest)
 	}
 
 	userId, _ := getUserAuth(c)
 	if err := fs.Db.Raw("select * from teldrive.create_directories(?, ?)", userId, payload.Path).
 		Scan(&files).Error; err != nil {
-		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
+		return nil, fs.logAndReturn(makeDirectoryContext, err, http.StatusInternalServerError)
 	}
 
 	file := mapper.ToFileOut(files[0])
 
 	return &file, nil
-
 }
 
 func (fs *FileService) CopyFile(c *gin.Context) (*schemas.FileOut, *types.AppError) {
-
 	var payload schemas.Copy
 
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		return nil, &types.AppError{Error: err, Code: http.StatusBadRequest}
+		return nil, fs.logAndReturn(copyFileContext, err, http.StatusBadRequest)
 	}
 
 	userId, session := getUserAuth(c)
@@ -317,7 +333,7 @@ func (fs *FileService) CopyFile(c *gin.Context) (*schemas.FileOut, *types.AppErr
 
 	newIds := models.Parts{}
 
-	err := tgc.RunWithAuth(c, client, "", func(ctx context.Context) error {
+	err := tgc.RunWithAuth(c, fs.log, client, "", func(ctx context.Context) error {
 		user := strconv.FormatInt(userId, 10)
 		messages, err := getTGMessages(c, client, file.Parts, file.ChannelID, user)
 		if err != nil {
@@ -365,13 +381,13 @@ func (fs *FileService) CopyFile(c *gin.Context) (*schemas.FileOut, *types.AppErr
 	})
 
 	if err != nil {
-		return nil, &types.AppError{Error: err, Code: http.StatusBadRequest}
+		return nil, fs.logAndReturn(copyFileContext, err, http.StatusBadRequest)
 	}
 
 	var destRes []models.File
 
 	if err := fs.Db.Raw("select * from teldrive.create_directories(?, ?)", userId, payload.Destination).Scan(&destRes).Error; err != nil {
-		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
+		return nil, fs.logAndReturn(copyFileContext, err, http.StatusInternalServerError)
 	}
 
 	dest := destRes[0]
@@ -390,72 +406,65 @@ func (fs *FileService) CopyFile(c *gin.Context) (*schemas.FileOut, *types.AppErr
 	dbFile.ChannelID = &file.ChannelID
 
 	if err := fs.Db.Create(&dbFile).Error; err != nil {
-		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
-
+		return nil, fs.logAndReturn(copyFileContext, err, http.StatusInternalServerError)
 	}
 
 	out := mapper.ToFileOut(dbFile)
 
 	return &out, nil
-
 }
 
 func (fs *FileService) MoveFiles(c *gin.Context) (*schemas.Message, *types.AppError) {
-
 	var payload schemas.FileOperation
 
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		return nil, &types.AppError{Error: err, Code: http.StatusBadRequest}
+		return nil, fs.logAndReturn(moveFilesContext, err, http.StatusBadRequest)
 	}
 
 	var destination models.File
 
 	if err := fs.Db.Model(&models.File{}).Select("id").Where("path = ?", payload.Destination).First(&destination).Error; errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, &types.AppError{Error: err, Code: http.StatusNotFound}
-
+		return nil, fs.logAndReturn(moveFilesContext, err, http.StatusNotFound)
 	}
 
 	if err := fs.Db.Model(&models.File{}).Where("id IN ?", payload.Files).UpdateColumn("parent_id", destination.ID).Error; err != nil {
-		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
+		return nil, fs.logAndReturn(moveFilesContext, err, http.StatusInternalServerError)
 	}
 
 	return &schemas.Message{Message: "files moved"}, nil
 }
 
 func (fs *FileService) DeleteFiles(c *gin.Context) (*schemas.Message, *types.AppError) {
-
 	var payload schemas.FileOperation
 
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		return nil, &types.AppError{Error: err, Code: http.StatusBadRequest}
+		return nil, fs.logAndReturn(deleteFilesContext, err, http.StatusBadRequest)
 	}
 
 	if err := fs.Db.Exec("call teldrive.delete_files($1)", payload.Files).Error; err != nil {
-		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
+		return nil, fs.logAndReturn(deleteFilesContext, err, http.StatusInternalServerError)
 	}
 
 	return &schemas.Message{Message: "files deleted"}, nil
 }
 
 func (fs *FileService) MoveDirectory(c *gin.Context) (*schemas.Message, *types.AppError) {
-
 	var payload schemas.DirMove
 
 	if err := c.ShouldBindJSON(&payload); err != nil {
-		return nil, &types.AppError{Error: err, Code: http.StatusBadRequest}
+		return nil, fs.logAndReturn(moveDirectoryContext, err, http.StatusBadRequest)
 	}
 
 	userId, _ := getUserAuth(c)
 
 	if err := fs.Db.Exec("select * from teldrive.move_directory(? , ? , ?)", payload.Source, payload.Destination, userId).Error; err != nil {
-		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
+		return nil, fs.logAndReturn(moveDirectoryContext, err, http.StatusInternalServerError)
 	}
 
 	return &schemas.Message{Message: "directory moved"}, nil
 }
 
 func (fs *FileService) GetFileStream(c *gin.Context) {
-
 	w := c.Writer
 	r := c.Request
 
@@ -464,7 +473,7 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 	authHash := c.Query("hash")
 
 	if authHash == "" {
-		http.Error(w, "misssing hash param", http.StatusBadRequest)
+		http.Error(w, "missing hash param", http.StatusBadRequest)
 		return
 	}
 
@@ -480,11 +489,12 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 	key := fmt.Sprintf("files:%s", fileID)
 
 	err = cache.GetCache().Get(key, file)
+	var appErr *types.AppError
 
 	if err != nil {
-		file, err = fs.GetFileByID(c)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+		file, appErr = fs.GetFileByID(c)
+		if appErr != nil {
+			http.Error(w, appErr.Error.Error(), http.StatusBadRequest)
 			return
 		}
 		cache.GetCache().Set(key, file, 0)
@@ -518,6 +528,7 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 		start = ranges[0].Start
 		end = ranges[0].End
 		c.Header("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, file.Size))
+
 		w.WriteHeader(http.StatusPartialContent)
 	}
 
@@ -546,86 +557,68 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 	tokens, err := getBotsToken(c, session.UserId, file.ChannelID)
 
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		fs.log.Error("failed to get bots", zap.Error(err))
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	config := cnf.GetConfig()
-
 	var (
-		token, channelUser string
-		lr                 io.ReadCloser
+		channelUser string
+		lr          io.ReadCloser
 	)
 
-	if config.LazyStreamBots {
-		tgc.Workers.Set(tokens, file.ChannelID)
-		token = tgc.Workers.Next(file.ChannelID)
-		client, _ := tgc.BotLogin(c, token)
-		channelUser = strings.Split(token, ":")[0]
-		if r.Method != "HEAD" {
-			tgc.RunWithAuth(c, client, token, func(ctx context.Context) error {
-				parts, err := getParts(c, client, file, channelUser)
-				if err != nil {
-					return err
-				}
-				parts = rangedParts(parts, start, end)
-				if file.Encrypted {
-					lr, _ = reader.NewDecryptedReader(c, client, parts, contentLength)
-				} else {
-					lr, _ = reader.NewLinearReader(c, client, parts, contentLength)
-				}
-				io.CopyN(w, lr, contentLength)
-				return nil
-			})
+	var client *tgc.Client
+
+	if config.GetConfig().DisableStreamBots || len(tokens) == 0 {
+		tgClient, _ := tgc.UserLogin(c, session.Session)
+		client, err = fs.worker.UserWorker(tgClient)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
+		channelUser = strconv.FormatInt(session.UserId, 10)
+
+		fs.log.Debug("requesting file", zap.String("name", file.Name),
+			zap.String("user", channelUser), zap.Int64("start", start),
+			zap.Int64("end", end), zap.Int64("fileSize", file.Size))
 
 	} else {
+		var index int
+		limit := min(len(tokens), config.GetConfig().BgBotsLimit)
 
-		var client *tgc.Client
+		fs.worker.Set(tokens[:limit], file.ChannelID)
 
-		if config.DisableStreamBots || len(tokens) == 0 {
-			tgClient, _ := tgc.UserLogin(c, session.Session)
-			client, err = tgc.StreamWorkers.UserWorker(tgClient)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			channelUser = strconv.FormatInt(session.UserId, 10)
-		} else {
-			var index int
-			limit := min(len(tokens), config.BgBotsLimit)
+		client, index, err = fs.worker.Next(file.ChannelID)
 
-			tgc.StreamWorkers.Set(tokens[:limit], file.ChannelID)
-
-			client, index, err = tgc.StreamWorkers.Next(file.ChannelID)
-
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-			channelUser = strings.Split(tokens[index], ":")[0]
-
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
-
-		if r.Method != "HEAD" {
-			parts, err := getParts(c, client.Tg, file, channelUser)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
-
-			parts = rangedParts(parts, start, end)
-
-			if file.Encrypted {
-				lr, _ = reader.NewDecryptedReader(c, client.Tg, parts, contentLength)
-			} else {
-				lr, _ = reader.NewLinearReader(c, client.Tg, parts, contentLength)
-			}
-
-			io.CopyN(w, lr, contentLength)
-		}
+		channelUser = strings.Split(tokens[index], ":")[0]
+		fs.log.Debug("requesting file", zap.String("name", file.Name),
+			zap.String("bot", channelUser), zap.Int("botNo", index), zap.Int64("start", start),
+			zap.Int64("end", end), zap.Int64("fileSize", file.Size))
 	}
 
+	if r.Method != "HEAD" {
+		parts, err := getParts(c, client.Tg, file, channelUser)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		parts = rangedParts(parts, start, end)
+
+		if file.Encrypted {
+			lr, _ = reader.NewDecryptedReader(c, client.Tg, parts, contentLength)
+		} else {
+			lr, _ = reader.NewLinearReader(c, client.Tg, parts, contentLength)
+		}
+
+		if _, err := io.CopyN(w, lr, contentLength); err != nil {
+			fs.log.Debug("closed file stream", zap.Error(err))
+		}
+	}
 }
 
 func setOrderFilter(query *gorm.DB, pagingParams *schemas.PaginationQuery, sortingParams *schemas.SortingQuery) *gorm.DB {

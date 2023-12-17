@@ -21,6 +21,7 @@ import (
 	"github.com/gotd/td/tg"
 	"github.com/pkg/errors"
 	"github.com/thoas/go-funk"
+	"go.uber.org/zap"
 )
 
 type buffer struct {
@@ -99,10 +100,10 @@ func getUserAuth(c *gin.Context) (int64, string) {
 	return userId, jwtUser.TgSession
 }
 
-func getBotInfo(ctx context.Context, token string) (*types.BotInfo, error) {
+func getBotInfo(ctx context.Context, logger *zap.Logger, token string) (*types.BotInfo, error) {
 	client, _ := tgc.BotLogin(ctx, token)
 	var user *tg.User
-	err := tgc.RunWithAuth(ctx, client, token, func(ctx context.Context) error {
+	err := tgc.RunWithAuth(ctx, logger, client, token, func(ctx context.Context) error {
 		user, _ = client.Self(ctx)
 		return nil
 	})

@@ -8,13 +8,13 @@ import (
 	"github.com/gotd/td/telegram"
 )
 
-type BotWorkers struct {
+type UploadWorker struct {
 	mu      sync.Mutex
 	bots    map[int64][]string
 	currIdx map[int64]int
 }
 
-func (w *BotWorkers) Set(bots []string, channelId int64) {
+func (w *UploadWorker) Set(bots []string, channelId int64) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	_, ok := w.bots[channelId]
@@ -26,15 +26,13 @@ func (w *BotWorkers) Set(bots []string, channelId int64) {
 	}
 }
 
-func (w *BotWorkers) Next(channelId int64) string {
+func (w *UploadWorker) Next(channelId int64) (string, int) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	index := w.currIdx[channelId]
 	w.currIdx[channelId] = (index + 1) % len(w.bots[channelId])
-	return w.bots[channelId][index]
+	return w.bots[channelId][index], index
 }
-
-var Workers = &BotWorkers{}
 
 type Client struct {
 	Tg     *telegram.Client
@@ -42,14 +40,14 @@ type Client struct {
 	Status string
 }
 
-type streamWorkers struct {
+type StreamWorker struct {
 	mu      sync.Mutex
 	bots    map[int64][]string
 	clients map[int64][]*Client
 	currIdx map[int64]int
 }
 
-func (w *streamWorkers) Set(bots []string, channelId int64) {
+func (w *StreamWorker) Set(bots []string, channelId int64) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	_, ok := w.bots[channelId]
@@ -67,7 +65,7 @@ func (w *streamWorkers) Set(bots []string, channelId int64) {
 
 }
 
-func (w *streamWorkers) Next(channelId int64) (*Client, int, error) {
+func (w *StreamWorker) Next(channelId int64) (*Client, int, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	index := w.currIdx[channelId]
@@ -84,7 +82,7 @@ func (w *streamWorkers) Next(channelId int64) (*Client, int, error) {
 	return nextClient, index, nil
 }
 
-func (w *streamWorkers) UserWorker(client *telegram.Client) (*Client, error) {
+func (w *StreamWorker) UserWorker(client *telegram.Client) (*Client, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
@@ -108,5 +106,3 @@ func (w *streamWorkers) UserWorker(client *telegram.Client) (*Client, error) {
 	}
 	return nextClient, nil
 }
-
-var StreamWorkers = &streamWorkers{}

@@ -16,7 +16,7 @@ import (
 	"strconv"
 	"time"
 
-	cnf "github.com/divyam234/teldrive/config"
+	"github.com/divyam234/teldrive/config"
 	"github.com/divyam234/teldrive/internal/auth"
 	"github.com/divyam234/teldrive/internal/tgc"
 	"github.com/divyam234/teldrive/internal/utils"
@@ -31,6 +31,7 @@ import (
 	"github.com/gotd/td/telegram/auth/qrlogin"
 	"github.com/gotd/td/tg"
 	"github.com/gotd/td/tgerr"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -38,13 +39,15 @@ type AuthService struct {
 	Db                *gorm.DB
 	SessionMaxAge     int
 	SessionCookieName string
+	log               *zap.Logger
 }
 
-func NewAuthService(db *gorm.DB) *AuthService {
+func NewAuthService(db *gorm.DB, logger *zap.Logger) *AuthService {
 	return &AuthService{
 		Db:                db,
 		SessionMaxAge:     30 * 24 * 60 * 60,
-		SessionCookieName: "user-session"}
+		SessionCookieName: "user-session",
+		log:               logger.Named("auth")}
 }
 
 func ip4toInt(IPv4Address net.IP) int64 {
@@ -88,22 +91,21 @@ func generateTgSession(dcID int, authKey []byte, port int) string {
 
 func setCookie(c *gin.Context, key string, value string, age int) {
 
-	config := cnf.GetConfig()
-
-	if config.CookieSameSite {
+	if config.GetConfig().CookieSameSite {
 		c.SetSameSite(2)
 	} else {
 		c.SetSameSite(4)
 	}
-	c.SetCookie(key, value, age, "/", c.Request.Host, config.Https, true)
+
+	c.SetCookie(key, value, age, "/", "", config.GetConfig().Https, true)
 
 }
 
 func checkUserIsAllowed(userName string) bool {
-	config := cnf.GetConfig()
 	found := false
-	if len(config.AllowedUsers) > 0 {
-		for _, user := range config.AllowedUsers {
+	allowedUsers := config.GetConfig().AllowedUsers
+	if len(allowedUsers) > 0 {
+		for _, user := range allowedUsers {
 			if user == userName {
 				found = true
 				break
@@ -234,7 +236,7 @@ func (as *AuthService) Logout(c *gin.Context) (*schemas.Message, *types.AppError
 	jwtUser := val.(*types.JWTClaims)
 	client, _ := tgc.UserLogin(c, jwtUser.TgSession)
 
-	tgc.RunWithAuth(c, client, "", func(ctx context.Context) error {
+	tgc.RunWithAuth(c, as.log, client, "", func(ctx context.Context) error {
 		_, err := client.API().AuthLogOut(c)
 		return err
 	})

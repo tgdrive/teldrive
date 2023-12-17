@@ -30,7 +30,7 @@ func (fc *Controller) UpdateFile(c *gin.Context) {
 func (fc *Controller) GetFileByID(c *gin.Context) {
 	res, err := fc.FileService.GetFileByID(c)
 	if err != nil {
-		httputil.NewError(c, http.StatusNotFound, err)
+		httputil.NewError(c, http.StatusNotFound, err.Error)
 		return
 	}
 

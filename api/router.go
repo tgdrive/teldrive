@@ -1,21 +1,27 @@
 package api
 
 import (
+	"time"
+
 	"github.com/divyam234/teldrive/pkg/controller"
 	"github.com/divyam234/teldrive/pkg/middleware"
 	"github.com/divyam234/teldrive/ui"
+	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
-func InitRouter() *gin.Engine {
+func InitRouter(logger *zap.Logger) *gin.Engine {
 
-	r := gin.Default()
+	r := gin.New()
 
-	r.Use(gin.Recovery())
+	r.Use(ginzap.Ginzap(logger, time.RFC3339, true))
+
+	r.Use(ginzap.RecoveryWithZap(logger, true))
 
 	r.Use(middleware.Cors())
 
-	c := controller.NewController()
+	c := controller.NewController(logger)
 
 	api := r.Group("/api")
 	{
