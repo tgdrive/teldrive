@@ -59,10 +59,8 @@ docker compose up -d
 ```
 
 - **Go to http://localhost:8080**
-- **Uploads from UI will be slower due to limitations of browser use [Rclone](https://github.com/divyam234/rclone) for faster uploads.Make sure to use Multi Bots mode if you are using uploader.**
-
-- **If you intend to share download links with others, ensure that you enable multi bots mode with bots.**
-
+- **Uploads from UI will be slower due to limitations of browser use [Rclone](https://github.com/divyam234/rclone) for faster uploads.Make sure to add bots.**
+- 
 ### Use without docker
 
 **Follow Below Steps**
@@ -129,7 +127,7 @@ In addition to the mandatory variables, you can also set the following optional 
 
 - `COOKIE_SAME_SITE` : Only needed when frontend is on other domain (Default true).
 
-- `BG_BOTS_LIMIT` : If LAZY_STREAM_BOTS is set to false it start atmost BG_BOTS_LIMIT no of bots in background to prevent connection recreation on every request (Default 5).
+- `BG_BOTS_LIMIT` : Start atmost BG_BOTS_LIMIT no of bots in background to prevent connection recreation on every request (Default 5).
 
 - `UPLOAD_RETENTION` : No of days to keep incomplete uploads parts in channel afterwards these parts are deleted (Default 15).
 
