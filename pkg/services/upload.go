@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -128,6 +129,16 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 		return nil, us.logAndReturn("UploadFile", err, http.StatusBadRequest)
 	}
 
+	var encryptedKey string
+
+	if uploadQuery.Encrypted {
+		encryptedKey = config.GetConfig().EncryptionKey
+
+		if encryptedKey == "" {
+			return nil, us.logAndReturn("UploadFile", errors.New("encryption key not set"), http.StatusInternalServerError)
+		}
+	}
+
 	userId, session := getUserAuth(c)
 
 	uploadId := c.Param("id")
@@ -180,7 +191,7 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 
 			//gen random Salt
 			salt, _ = generateRandomSalt()
-			cipher, _ := crypt.NewCipher(config.GetConfig().EncryptionKey, salt)
+			cipher, _ := crypt.NewCipher(encryptedKey, salt)
 			fileSize = crypt.EncryptedSize(fileSize)
 			fileStream, _ = cipher.EncryptData(fileStream)
 		}
