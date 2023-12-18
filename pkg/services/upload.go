@@ -147,6 +147,8 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 
 	fileSize := c.Request.ContentLength
 
+	defer c.Request.Body.Close()
+
 	if uploadQuery.ChannelID == 0 {
 		channelId, err = GetDefaultChannel(c, userId)
 		if err != nil {
