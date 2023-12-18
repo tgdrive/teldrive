@@ -404,6 +404,7 @@ func (fs *FileService) CopyFile(c *gin.Context) (*schemas.FileOut, *types.AppErr
 	dbFile.Status = "active"
 	dbFile.ParentID = dest.ID
 	dbFile.ChannelID = &file.ChannelID
+	dbFile.Encrypted = file.Encrypted
 
 	if err := fs.Db.Create(&dbFile).Error; err != nil {
 		return nil, fs.logAndReturn(copyFileContext, err, http.StatusInternalServerError)
