@@ -28,6 +28,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/mitchellh/mapstructure"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -139,6 +140,8 @@ func (fs *FileService) UpdateFile(c *gin.Context) (*schemas.FileOut, *types.AppE
 
 	fileID := c.Param("fileID")
 
+	userId, _ := getUserAuth(c)
+
 	var fileUpdate schemas.UpdateFile
 
 	var files []models.File
@@ -148,7 +151,7 @@ func (fs *FileService) UpdateFile(c *gin.Context) (*schemas.FileOut, *types.AppE
 	}
 
 	if fileUpdate.Type == "folder" && fileUpdate.Name != "" {
-		if err := fs.Db.Raw("select * from teldrive.update_folder(?, ?)", fileID, fileUpdate.Name).Scan(&files).Error; err != nil {
+		if err := fs.Db.Raw("select * from teldrive.update_folder(?, ?, ?)", fileID, fileUpdate.Name, userId).Scan(&files).Error; err != nil {
 			return nil, fs.logAndReturn(updateFileContext, err, http.StatusInternalServerError)
 		}
 	} else {
@@ -421,15 +424,16 @@ func (fs *FileService) MoveFiles(c *gin.Context) (*schemas.Message, *types.AppEr
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		return nil, fs.logAndReturn(moveFilesContext, err, http.StatusBadRequest)
 	}
+	userId, _ := getUserAuth(c)
 
-	var destination models.File
-
-	if err := fs.Db.Model(&models.File{}).Select("id").Where("path = ?", payload.Destination).First(&destination).Error; errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, fs.logAndReturn(moveFilesContext, err, http.StatusNotFound)
+	items := pgtype.Array[string]{
+		Elements: payload.Files,
+		Valid:    true,
+		Dims:     []pgtype.ArrayDimension{{Length: 1, LowerBound: 1}},
 	}
 
-	if err := fs.Db.Model(&models.File{}).Where("id IN ?", payload.Files).UpdateColumn("parent_id", destination.ID).Error; err != nil {
-		return nil, fs.logAndReturn(moveFilesContext, err, http.StatusInternalServerError)
+	if err := fs.Db.Exec("select * from teldrive.move_items(? , ? , ?)", items, payload.Destination, userId).Error; err != nil {
+		return nil, fs.logAndReturn(moveDirectoryContext, err, http.StatusInternalServerError)
 	}
 
 	return &schemas.Message{Message: "files moved"}, nil

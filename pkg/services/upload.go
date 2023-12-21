@@ -246,6 +246,10 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 		}
 
 		if err := us.Db.Create(partUpload).Error; err != nil {
+			//delete uploaded part if upload fails
+			if message.ID != 0 {
+				api.ChannelsDeleteMessages(ctx, &tg.ChannelsDeleteMessagesRequest{Channel: channel, ID: []int{message.ID}})
+			}
 			return err
 		}
 
