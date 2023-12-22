@@ -21,6 +21,14 @@ jobs:
         uses: actions/setup-go@v4
         with:
           go-version: 1.21
+
+      - name: Set Vars
+        run: |
+         COMMIT=$(git rev-parse --short "${GITHUB_SHA}")
+         LINK="https://github.com/${GITHUB_REPOSITORY,,}/commit/${GITHUB_SHA}"
+         INFO="{ \"version\": \"${GITHUB_REF_NAME}\", \"commit\": \"${COMMIT}\", \"link\": \"${LINK}\"}"
+         echo "$INFO" > ./ui/teldrive-ui/version.json
+      
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v4
         with:

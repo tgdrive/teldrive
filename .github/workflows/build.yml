@@ -32,10 +32,12 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set Vars
-        id: vars
         run: |
-          echo "TAG=${GITHUB_REF#refs/*/}" >> $GITHUB_ENV
-          echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}/server" >> $GITHUB_ENV
+         echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}/server" >> $GITHUB_ENV
+         COMMIT=$(git rev-parse --short "${GITHUB_SHA}")
+         LINK="https://github.com/${GITHUB_REPOSITORY,,}/commit/${GITHUB_SHA}"
+         INFO="{ \"version\": \"${GITHUB_REF_NAME}\", \"commit\": \"${COMMIT}\", \"link\": \"${LINK}\"}"
+         echo "$INFO" > ./ui/teldrive-ui/version.json
 
       - name: Build Image
         uses: docker/build-push-action@v3
@@ -44,4 +46,4 @@ jobs:
           platforms: linux/amd64,linux/arm64
           pull: true
           push: true
-          tags:  ${{ env.IMAGE_NAME }}:${{ env.TAG }} , ${{ env.IMAGE_NAME }}:latest
+          tags:  ${{ env.IMAGE_NAME }}:${{ github.ref_name }} , ${{ env.IMAGE_NAME }}:latest
