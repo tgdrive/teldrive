@@ -263,7 +263,8 @@ func (fs *FileService) ListFiles(c *gin.Context) (*schemas.FileResponse, *types.
 
 	} else if fileQuery.Op == "search" {
 
-		query.Where("teldrive.get_tsquery(?) @@ teldrive.get_tsvector(name)", fileQuery.Search)
+		query.Where("teldrive.get_tsquery(?) @@ teldrive.get_tsvector(name)", fileQuery.Search).
+			Select("*,(select path from teldrive.files as f where f.id = files.parent_id) as parent_path")
 
 		setOrderFilter(query, &pagingParams, &sortingParams)
 		query.Order(getOrder(sortingParams))
@@ -271,7 +272,7 @@ func (fs *FileService) ListFiles(c *gin.Context) (*schemas.FileResponse, *types.
 
 	var results []schemas.FileOut
 
-	query.Find(&results)
+	query.Scan(&results)
 
 	token := ""
 

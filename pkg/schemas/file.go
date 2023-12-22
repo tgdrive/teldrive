@@ -46,15 +46,16 @@ type CreateFile struct {
 }
 
 type FileOut struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	Type      string    `json:"type"`
-	MimeType  string    `json:"mimeType"`
-	Path      string    `json:"path,omitempty"`
-	Size      int64     `json:"size,omitempty"`
-	Starred   bool      `json:"starred"`
-	ParentID  string    `json:"parentId,omitempty"`
-	UpdatedAt time.Time `json:"updatedAt,omitempty"`
+	ID         string    `json:"id"`
+	Name       string    `json:"name"`
+	Type       string    `json:"type"`
+	MimeType   string    `json:"mimeType"`
+	Path       string    `json:"path,omitempty"`
+	Size       int64     `json:"size,omitempty"`
+	Starred    bool      `json:"starred"`
+	ParentID   string    `json:"parentId,omitempty"`
+	ParentPath string    `json:"parentPath,omitempty"`
+	UpdatedAt  time.Time `json:"updatedAt,omitempty"`
 }
 
 type FileOutFull struct {
