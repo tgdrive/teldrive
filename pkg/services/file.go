@@ -273,7 +273,7 @@ func (fs *FileService) ListFiles(c *gin.Context) (*schemas.FileResponse, *types.
 		query.Select("*,(select path from teldrive.files as f where f.id = files.parent_id) as parent_path")
 	}
 
-	var results []schemas.FileOut
+	results := []schemas.FileOut{}
 
 	query.Scan(&results)
 
