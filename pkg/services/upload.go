@@ -184,6 +184,7 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 		channel, err := GetChannelById(ctx, client, channelId, channelUser)
 
 		if err != nil {
+			us.log.Error("channel", zap.Error(err))
 			return err
 		}
 

@@ -215,7 +215,9 @@ func (us *UserService) addBots(c context.Context, client *telegram.Client, userI
 	err := tgc.RunWithAuth(c, us.log, client, "", func(ctx context.Context) error {
 
 		channel, err := GetChannelById(ctx, client, channelId, strconv.FormatInt(userId, 10))
+
 		if err != nil {
+			us.log.Error("channel", zap.Error(err))
 			return err
 		}
 
@@ -237,6 +239,7 @@ func (us *UserService) addBots(c context.Context, client *telegram.Client, userI
 				}
 				botPeerClass, err := peer.DefaultResolver(client.API()).ResolveDomain(ctx, info.UserName)
 				if err != nil {
+					us.log.Error("bot add", zap.Error(err))
 					return
 				}
 				botPeer := botPeerClass.(*tg.InputPeerUser)
@@ -280,7 +283,12 @@ func (us *UserService) addBots(c context.Context, client *telegram.Client, userI
 					},
 					Rank: "bot",
 				}
-				client.API().ChannelsEditAdmin(ctx, payload)
+				_, err := client.API().ChannelsEditAdmin(ctx, payload)
+				if err != nil {
+					us.log.Error("bot add", zap.Error(err))
+					return err
+				}
+
 			}
 		} else {
 			return errors.New("failed to fetch bots")

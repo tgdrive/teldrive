@@ -82,20 +82,17 @@ func (w *StreamWorker) Next(channelId int64) (*Client, int, error) {
 	return nextClient, index, nil
 }
 
-func (w *StreamWorker) UserWorker(client *telegram.Client) (*Client, error) {
+func (w *StreamWorker) UserWorker(client *telegram.Client, userId int64) (*Client, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	//for user login channelId not needed so we use 1 here
-	channelId := int64(1)
-
-	_, ok := w.clients[channelId]
+	_, ok := w.clients[userId]
 
 	if !ok {
 		w.clients = make(map[int64][]*Client)
-		w.clients[channelId] = append(w.clients[channelId], &Client{Tg: client, Status: "idle"})
+		w.clients[userId] = append(w.clients[userId], &Client{Tg: client, Status: "idle"})
 	}
-	nextClient := w.clients[channelId][0]
+	nextClient := w.clients[userId][0]
 	if nextClient.Status == "idle" {
 		stop, err := bg.Connect(nextClient.Tg)
 		if err != nil {

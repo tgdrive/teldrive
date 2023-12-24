@@ -77,7 +77,7 @@ func (fs *FileService) CreateFile(c *gin.Context) (*schemas.FileOut, *types.AppE
 
 	if fileIn.Path != "" {
 		var parent models.File
-		if err := fs.Db.Where("type = ? AND path = ?", "folder", fileIn.Path).First(&parent).Error; err != nil {
+		if err := fs.Db.Where("type = ? AND path = ? AND user_id = ?", "folder", fileIn.Path, userId).First(&parent).Error; err != nil {
 			return nil, fs.logAndReturn(bindJSONContext, err, http.StatusInternalServerError)
 		}
 		fileDB.ParentID = parent.ID
@@ -221,7 +221,7 @@ func (fs *FileService) ListFiles(c *gin.Context) (*schemas.FileResponse, *types.
 		err    error
 	)
 	if fileQuery.Path != "" {
-		pathId, err = fs.getPathId(fileQuery.Path)
+		pathId, err = fs.getPathId(fileQuery.Path, userId)
 		if err != nil {
 			return nil, fs.logAndReturn(listFilesContext, err, http.StatusNotFound)
 		}
@@ -290,11 +290,11 @@ func (fs *FileService) ListFiles(c *gin.Context) (*schemas.FileResponse, *types.
 	return res, nil
 }
 
-func (fs *FileService) getPathId(path string) (string, error) {
+func (fs *FileService) getPathId(path string, userId int64) (string, error) {
 
 	var file models.File
 
-	if err := fs.Db.Model(&models.File{}).Select("id").Where("path = ?", path).
+	if err := fs.Db.Model(&models.File{}).Select("id").Where("path = ?", path).Where("user_id = ?", userId).
 		First(&file).Error; errors.Is(err, gorm.ErrRecordNotFound) {
 		return "", errors.New("path not found")
 
@@ -349,6 +349,7 @@ func (fs *FileService) CopyFile(c *gin.Context) (*schemas.FileOut, *types.AppErr
 
 		channel, err := GetChannelById(c, client, file.ChannelID, user)
 		if err != nil {
+			fs.log.Error("channel", zap.Error(err))
 			return err
 		}
 		for _, message := range messages.Messages {
@@ -580,7 +581,7 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 
 	if config.GetConfig().DisableStreamBots || len(tokens) == 0 {
 		tgClient, _ := tgc.UserLogin(c, session.Session)
-		client, err = fs.worker.UserWorker(tgClient)
+		client, err = fs.worker.UserWorker(tgClient, session.UserId)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
