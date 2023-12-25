@@ -60,7 +60,6 @@ docker compose up -d
 
 - **Go to http://localhost:8080**
 - **Uploads from UI will be slower due to limitations of browser use [Rclone](https://github.com/divyam234/rclone) for faster uploads.Make sure to add bots.**
-- 
 ### Use without docker
 
 **Follow Below Steps**
@@ -94,6 +93,7 @@ DATABASE_URL=postgres://teldrive:secret@db/teldrive
 ```bash
 $ openssl rand -hex 32
 ```
+Or generate from here https://generate-secret.vercel.app/32
 
 **Multi Bots Mode is recommended to avoid flood errors and enable maximum download speed, especially if you are using downloaders like IDM and aria2c which use multiple connections for downloads.**
 
