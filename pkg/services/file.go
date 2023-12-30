@@ -76,11 +76,12 @@ func (fs *FileService) CreateFile(c *gin.Context) (*schemas.FileOut, *types.AppE
 	fileIn.Path = strings.TrimSpace(fileIn.Path)
 
 	if fileIn.Path != "" {
-		var parent models.File
-		if err := fs.Db.Where("type = ? AND path = ? AND user_id = ?", "folder", fileIn.Path, userId).First(&parent).Error; err != nil {
-			return nil, fs.logAndReturn(bindJSONContext, err, http.StatusInternalServerError)
+
+		pathId, err := fs.getPathId(fileIn.Path, userId)
+		if err != nil {
+			return nil, fs.logAndReturn(listFilesContext, err, http.StatusNotFound)
 		}
-		fileDB.ParentID = parent.ID
+		fileDB.ParentID = pathId
 	}
 
 	if fileIn.Type == "folder" {
@@ -583,6 +584,7 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 		tgClient, _ := tgc.UserLogin(c, session.Session)
 		client, err = fs.worker.UserWorker(tgClient, session.UserId)
 		if err != nil {
+			fs.log.Error("file stream", zap.Error(err))
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -601,6 +603,7 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 		client, index, err = fs.worker.Next(file.ChannelID)
 
 		if err != nil {
+			fs.log.Error("file stream", zap.Error(err))
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -613,6 +616,7 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 	if r.Method != "HEAD" {
 		parts, err := getParts(c, client.Tg, file, channelUser)
 		if err != nil {
+			fs.log.Error("file stream", zap.Error(err))
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}

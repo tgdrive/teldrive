@@ -36,10 +36,11 @@ func InitDB() {
 	newLogger := logger.New(
 		log.New(os.Stdout, "\r\n", log.LstdFlags),
 		logger.Config{
-			SlowThreshold:        time.Second,
-			LogLevel:             logLevel,
-			ParameterizedQueries: true,
-			Colorful:             true,
+			SlowThreshold:             time.Second,
+			LogLevel:                  logLevel,
+			ParameterizedQueries:      true,
+			Colorful:                  true,
+			IgnoreRecordNotFoundError: true,
 		},
 	)
 
