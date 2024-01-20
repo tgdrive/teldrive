@@ -56,7 +56,7 @@ CREATE TABLE IF NOT EXISTS teldrive.bots (
 	bot_id bigint NOT NULL,
 	channel_id bigint NULL,
 	FOREIGN KEY (user_id) REFERENCES teldrive.users(user_id),
-    CONSTRAINT btoken_user_un  UNIQUE (user_id,token)
+    CONSTRAINT btoken_user_channel_un  UNIQUE (user_id,token,channel_id)
 );
 
 CREATE TABLE IF NOT EXISTS teldrive.sessions (
