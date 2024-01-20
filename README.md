@@ -98,9 +98,8 @@ Or generate from here https://generate-secret.vercel.app/32
 **Multi Bots Mode is recommended to avoid flood errors and enable maximum download speed, especially if you are using downloaders like IDM and aria2c which use multiple connections for downloads.**
 
 > [!IMPORTANT]
-> Teldrive supports image thumbnail previews resizing of images on the fly.To enable this you have to deploy seperate image resize service from here https://github.com/divyam234/image-resize.<br>
-
-> After deploying this service add its url in teldrive UI settigs in **Resize Host** field. <br>
+> Teldrive supports image thumbnail resizing on the fly.To enable this you have to deploy seperate image resize service from here https://github.com/divyam234/image-resize.<br>
+> After deploying this service add its url in teldrive UI settings in **Resize Host** field. <br>
 
 > [!NOTE]
 > What it multi bots feature and what it does? <br>
