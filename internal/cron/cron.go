@@ -200,7 +200,7 @@ func uploadCleanJob(logger *zap.Logger) {
 
 func folderSizeUpdate(logger *zap.Logger) {
 	database.DB.Exec("call teldrive.update_size();")
-	logger.Info("updates folder sizes")
+	logger.Info("updated folder sizes")
 
 }
 
