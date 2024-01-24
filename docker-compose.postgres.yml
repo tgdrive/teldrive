@@ -10,6 +10,9 @@ services:
     env_file: teldrive.env
     ports:
       - 8080:8080
+    depends_on:
+      db:
+        condition: service_healthy
   db:
     image: postgres:15
     container_name: teldrive_db
