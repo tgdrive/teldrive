@@ -629,9 +629,7 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 			lr, _ = reader.NewLinearReader(c, client.Tg, parts, contentLength)
 		}
 
-		if _, err := io.CopyN(w, lr, contentLength); err != nil {
-			fs.log.Debug("closed file stream", zap.Error(err))
-		}
+		io.CopyN(w, lr, contentLength)
 	}
 }
 

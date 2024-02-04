@@ -11,13 +11,8 @@ builds:
       - CGO_ENABLED=0
     
     main: cmd/teldrive/main.go
-    flags:
-      - -trimpath
-    ldflags:
-      - -s -w -extldflags "-static"
-      - -X {{ .ModulePath }}/pkg/consts.Version={{ .Version }}
-      - -X {{ .ModulePath }}/pkg/consts.Commit={{ .ShortCommit }}
-      - -X {{ .ModulePath }}/pkg/consts.CommitDate={{ .CommitDate }}
+    flags: -trimpath
+    ldflags: "-extldflags -static -s -w"
     mod_timestamp: "{{ .CommitTimestamp }}"
     goos:
       - linux
@@ -30,7 +25,7 @@ builds:
 checksum:
   name_template: "{{ .ProjectName }}_checksums.txt"
 archives:
-  - name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+  - name_template: "{{ .ProjectName }}-{{ .Tag }}-{{ .Os }}-{{ .Arch }}"
     format_overrides:
       - goos: windows
         format: zip
