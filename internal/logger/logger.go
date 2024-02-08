@@ -2,6 +2,7 @@ package logger
 
 import (
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/divyam234/teldrive/config"
@@ -36,7 +37,7 @@ func InitLogger() *zap.Logger {
 	fileEncoder := zapcore.NewJSONEncoder(fileEncoderConfig)
 
 	fileWriter := zapcore.AddSync(&lumberjack.Logger{
-		Filename:   "logs/teldrive.log",
+		Filename:   filepath.Join(config.GetConfig().ExecDir, "logs", "teldrive.log"),
 		MaxSize:    10,
 		MaxBackups: 3,
 		MaxAge:     7,
