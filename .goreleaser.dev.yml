@@ -17,23 +17,13 @@ builds:
     goos:
       - linux
       - windows
-      - darwin
     goarch:
       - amd64
-      - arm
-      - arm64
 dockers:
   - image_templates:
-      - "gcr.io/{{ .Env.GITHUB_ACTOR }}/{{ .ProjectName }}/server:{{ .Tag }}"
-      - "gcr.io/{{ .Env.GITHUB_ACTOR }}/{{ .ProjectName }}/server:latest"
+      - "ghcr.io/{{ .Env.GITHUB_ACTOR }}/{{ .ProjectName }}:{{ .Tag }}"
     use: buildx
     dockerfile: Dockerfile
-    goos:
-      - linux
-      - windows
-    goarch:
-      - amd64
-      - arm64
 
 checksum:
   name_template: "{{ .ProjectName }}_checksums.txt"
@@ -43,9 +33,6 @@ archives:
     format_overrides:
       - goos: windows
         format: zip
-    files:
-      - README*.md
-      - LICENSE
 
 changelog:
   sort: asc
@@ -56,3 +43,5 @@ changelog:
       - 'README'
       - Merge pull request
       - Merge branch
+release:
+  draft: true

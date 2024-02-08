@@ -2,17 +2,17 @@ FRONTEND_DIR := ui/teldrive-ui
 BUILD_DIR := bin
 APP_NAME := teldrive
 
-GIT_VERSION := $(shell git describe --tags --abbrev=0)
+GIT_VERSION := $(shell git describe --tags --abbrev=0 --exclude='*dev*')
 GIT_COMMIT := $(shell git rev-parse --short HEAD)
 GIT_LINK := $(shell git remote get-url origin)
-
+GIT_DEV_TAG := $(shell git describe --tags --abbrev=0 --match='*-dev')
 ENV_FILE := $(FRONTEND_DIR)/.env
 
 GOOS ?= $(shell go env GOOS)
 GOARCH ?= $(shell go env GOARCH)
 
-.PHONY: all build run clean frontend backend run sync-ui tag-and-push retag
-
+.PHONY: all build run clean frontend backend run sync-ui tag-and-push retag dev-tag dev-retag
+ 
 all: build
 
 ifdef ComSpec
@@ -76,3 +76,15 @@ minor-version:
 	@echo "Minoring version..."
 	git tag -a $(shell semver -i minor $(GIT_VERSION)) -m "Release $(shell semver -i minor $(GIT_VERSION))"
 	git push origin $(shell semver -i minor $(GIT_VERSION))
+
+dev-patch:
+	@echo "Patching version..."
+	git tag $(shell semver -i patch $(GIT_DEV_TAG))
+	git push origin $(shell semver -i patch $(GIT_DEV_TAG))
+	
+dev-retag:
+	@echo "Retagging..."
+	git tag -d $(GIT_DEV_TAG)
+	git push --delete origin $(GIT_DEV_TAG)
+	git tag $(GIT_DEV_TAG)
+	git push origin $(GIT_DEV_TAG)

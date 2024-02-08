@@ -1,0 +1,58 @@
+project_name: teldrive
+env:
+  - GO111MODULE=on
+
+before:
+  hooks:
+  - make frontend
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+      
+    main: cmd/teldrive/main.go
+    flags: -trimpath
+    ldflags: "-extldflags -static -s -w"
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm
+      - arm64
+dockers:
+  - image_templates:
+      - "ghcr.io/{{ .Env.GITHUB_ACTOR }}/{{ .ProjectName }}/server:{{ .Tag }}"
+      - "ghcr.io/{{ .Env.GITHUB_ACTOR }}/{{ .ProjectName }}/server:latest"
+    use: buildx
+    dockerfile: Dockerfile
+    goos:
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+checksum:
+  name_template: "{{ .ProjectName }}_checksums.txt"
+  
+archives:
+  - name_template: "{{ .ProjectName }}-{{ .Tag }}-{{ .Os }}-{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - README*.md
+      - LICENSE
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - 'README'
+      - Merge pull request
+      - Merge branch
