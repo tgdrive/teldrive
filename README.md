@@ -1,10 +1,6 @@
 # Telegram Drive
 
-Telegram Drive is a powerful utility that enables you to create your own cloud storage service using Telegram as the backend.
-
-[![Discord](https://img.shields.io/discord/1142377485737148479?label=discord&logo=discord&style=flat-square&logoColor=white)](https://discord.gg/J2gVAZnHfP)
-
-**Click on icon to join Discord Server for  more advanced configurations for uploads and better support**
+Telegram Drive is a powerful utility that enables you to organise your telegram files and much more.
 
 ## Features
 
@@ -12,7 +8,14 @@ Telegram Drive is a powerful utility that enables you to create your own cloud s
 - **Secure:** Your data is secured using robust encryption.
 - **Flexible Deployment:** Use Docker Compose or deploy without Docker.
 
-## Demo
+## Advantages Over Alternative Solutions
+
+- **Exceptional Speed:** Teldrive stands out among similar tools, thanks to its implementation in Go, a language known for its efficiency. Its performance surpasses alternatives written in Python and other languages, with the exception of Rust.
+
+- **Enhanced Management Capabilities:** Teldrive not only excels in speed but also offers an intuitive user interface for efficient file interaction which other tool lacks. Its compatibility with Rclone further enhances file management.
+
+> [!IMPORTANT]
+> Teldrive functions as a wrapper over your Telegram account, simplifying file access. However, users must adhere to the limitations imposed by the Telegram API. Teldrive is not responsible for any consequences arising from non-compliance with these API limits.You will be banned instantly if you misuse telegram API.
 
 ![demo](./public/demo.png)
 
@@ -20,12 +23,56 @@ Telegram Drive is a powerful utility that enables you to create your own cloud s
 
 ### Deploy using docker-compose
 
-First clone the repository
+```docker
+version: "3.8"
 
-```sh
-git clone https://github.com/divyam234/teldrive
-cd teldrive
-touch teldrive.db
+services:
+  server:
+    image: ghcr.io/divyam234/teldrive/server
+    restart: always
+    container_name: teldrive
+    volumes:
+      - ./teldrive.db:/app/teldrive.db:rw
+      - ./logs:/app/logs:rw
+    env_file: teldrive.env
+    ports:
+      - 8080:8080
+
+```
+
+***People Who want to use local Postgres instance***
+```docker
+version: "3.8"
+
+services:
+  server:
+    image: ghcr.io/divyam234/teldrive/server
+    restart: always
+    container_name: teldrive
+    volumes:
+      - ./teldrive.db:/app/teldrive.db:rw
+    env_file: teldrive.env
+    ports:
+      - 8080:8080
+    depends_on:
+      db:
+        condition: service_healthy
+  db:
+    image: postgres:15
+    container_name: teldrive_db
+    restart: always
+    environment:
+      - POSTGRES_USER=teldrive
+      - POSTGRES_PASSWORD=secret
+    volumes:
+      - teldrive_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "teldrive"]
+      interval: 10s
+      start_period: 30s
+
+volumes:
+  teldrive_db:
 ```
 
 **Follow Below Steps**
@@ -33,6 +80,7 @@ touch teldrive.db
 - Create the `teldrive.env` file with your variables and start your container.See how to fill env file below.
 
 ```sh
+touch teldrive.db
 docker compose up -d
 ```
 - **Go to http://localhost:8080**
@@ -56,6 +104,10 @@ APP_ID=1234
 APP_HASH=abc
 JWT_SECRET=abc
 DATABASE_URL=postgres://<db username>:<db password>@<db host>/<db name>
+```
+When used with local postgres instance above:
+```
+DATABASE_URL=postgres://POSTGRES_USER:POSTGRES_PASSWORD@db/teldrive
 ```
 **Generate JWT**
 ```bash
@@ -83,7 +135,7 @@ You can generate secret from [here](https://generate-secret.vercel.app/32).
 
 | Variable           | Default Value | Required | Description                                                                               |
 |--------------------|---------------|----------|-------------------------------------------------------------------------------------------|
-| `HTTPS`            | false         | NO       | Needed for cross domain setupNeeded for cross domain setup.                        |
+| `HTTPS`            | false         | NO       | Needed for cross domain setup.                        |
 | `PORT`             | 8080          | NO       | Change default listen port.                                                      |
 | `ALLOWED_USERS`    |               | NO       | Allow certain Telegram usernames, including yours, to access the app.                      |
 | `COOKIE_SAME_SITE` | true          | NO       | Needed for cross domain setup.                         |
