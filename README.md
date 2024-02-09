@@ -153,7 +153,7 @@ so you don't need to enable crypt in rclone.**Teldrive generates random salt for
 ### For making use of Multi Bots
 
 > [!WARNING]
-> Bots will be auto added as admin in channel if you set them from UI if it fails somehow add it manually.For newly logged session you have to wait 20-30 min to add bots to telegram channel.
+> Bots will be auto added as admin in channel if you set them from UI if it fails somehow add it manually.For newly logged session you have to wait 20-30 min to add bots to telegram channel.**FRESH_CHANGE_ADMINS_FORBIDDEN** error  will be thrown if you try to add bots before that time frame.
 
 ### Rclone Config Example
 ```conf
