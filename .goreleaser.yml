@@ -22,18 +22,6 @@ builds:
       - amd64
       - arm
       - arm64
-dockers:
-  - image_templates:
-      - "ghcr.io/{{ .Env.GITHUB_ACTOR }}/{{ .ProjectName }}/server:{{ .Tag }}"
-      - "ghcr.io/{{ .Env.GITHUB_ACTOR }}/{{ .ProjectName }}/server:latest"
-    use: buildx
-    dockerfile: Dockerfile
-    goos:
-      - linux
-      - windows
-    goarch:
-      - amd64
-      - arm64
 
 checksum:
   name_template: "{{ .ProjectName }}_checksums.txt"
@@ -46,6 +34,34 @@ archives:
     files:
       - README*.md
       - LICENSE
+dockers:
+  - image_templates:
+      - "ghcr.io/{{ .Env.GITHUB_ACTOR }}/{{ .ProjectName }}:{{ .Tag }}-amd64"
+    use: buildx
+    dockerfile: goreleaser.dockerfile
+    build_flag_templates:
+    - "--pull"
+    - "--platform=linux/amd64"
+
+  - image_templates:
+      - "ghcr.io/{{ .Env.GITHUB_ACTOR }}/{{ .ProjectName }}:{{ .Tag }}-arm64"
+      - "ghcr.io/{{ .Env.GITHUB_ACTOR }}/{{ .ProjectName }}:latest"
+    use: buildx
+    dockerfile: goreleaser.dockerfile
+    goarch: arm64
+    build_flag_templates:
+    - "--pull"
+    - --platform=linux/arm64/v8
+
+docker_manifests:
+  - name_template: "ghcr.io/{{ .Env.GITHUB_ACTOR }}/{{ .ProjectName }}:{{ .Tag }}"
+    image_templates:
+      - "ghcr.io/{{ .Env.GITHUB_ACTOR }}/{{ .ProjectName }}:{{ .Tag }}-amd64"
+      - "ghcr.io/{{ .Env.GITHUB_ACTOR }}/{{ .ProjectName }}:{{ .Tag }}-arm64"
+  - name_template: "ghcr.io/{{ .Env.GITHUB_ACTOR }}/{{ .ProjectName }}:latest"
+    image_templates:
+      - "ghcr.io/{{ .Env.GITHUB_ACTOR }}/{{ .ProjectName }}:{{ .Tag }}-amd64"
+      - "ghcr.io/{{ .Env.GITHUB_ACTOR }}/{{ .ProjectName }}:{{ .Tag }}-arm64"
 
 changelog:
   sort: asc
@@ -53,6 +69,7 @@ changelog:
     exclude:
       - '^docs:'
       - '^test:'
+      - '^ci:'
       - 'README'
       - Merge pull request
       - Merge branch

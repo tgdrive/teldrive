@@ -32,7 +32,14 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
       
+      - name: Set env
+        run: |
+          echo "GORELEASER_PREVIOUS_TAG=$(git tag --sort=committerdate | grep -E  '[0-9]+\.[0-9]+\.[0-9]+$' | tail -2 | head -1)" >> $GITHUB_ENV
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v5
         with:

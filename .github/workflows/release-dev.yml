@@ -32,7 +32,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      
+          
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v5
         with:
