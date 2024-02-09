@@ -19,12 +19,7 @@ builds:
       - windows
     goarch:
       - amd64
-dockers:
-  - image_templates:
-      - "ghcr.io/{{ .Env.GITHUB_ACTOR }}/{{ .ProjectName }}:{{ .Tag }}"
-    use: buildx
-    dockerfile: goreleaser.Dockerfile
-
+      
 checksum:
   name_template: "{{ .ProjectName }}_checksums.txt"
   

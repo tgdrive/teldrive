@@ -39,8 +39,8 @@ dockers:
       - "ghcr.io/{{ .Env.GITHUB_ACTOR }}/{{ .ProjectName }}:{{ .Tag }}-amd64"
     use: buildx
     dockerfile: goreleaser.dockerfile
+    skip_push: true
     build_flag_templates:
-    - "--pull"
     - "--platform=linux/amd64"
 
   - image_templates:
@@ -49,8 +49,8 @@ dockers:
     use: buildx
     dockerfile: goreleaser.dockerfile
     goarch: arm64
+    skip_push: true
     build_flag_templates:
-    - "--pull"
     - --platform=linux/arm64/v8
 
 docker_manifests:
