@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/divyam234/teldrive/pkg/httputil"
+	"github.com/divyam234/teldrive/pkg/schemas"
 	"github.com/gin-gonic/gin"
 )
 
@@ -14,7 +15,14 @@ func (ac *Controller) GetSession(c *gin.Context) {
 }
 
 func (ac *Controller) LogIn(c *gin.Context) {
-	res, err := ac.AuthService.LogIn(c)
+
+	var session schemas.TgSession
+	if err := c.ShouldBindJSON(&session); err != nil {
+		httputil.NewError(c, http.StatusBadRequest, err)
+		return
+	}
+
+	res, err := ac.AuthService.LogIn(c, &session)
 	if err != nil {
 		httputil.NewError(c, err.Code, err.Error)
 		return

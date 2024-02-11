@@ -4,7 +4,6 @@ import (
 	"context"
 	"io"
 
-	"github.com/divyam234/teldrive/config"
 	"github.com/divyam234/teldrive/internal/crypt"
 	"github.com/divyam234/teldrive/pkg/types"
 	"github.com/gotd/td/telegram"
@@ -18,21 +17,22 @@ type decrpytedReader struct {
 	reader        io.ReadCloser
 	bytesread     int64
 	contentLength int64
-	config        *config.Config
+	encryptionKey string
 }
 
 func NewDecryptedReader(
 	ctx context.Context,
 	client *telegram.Client,
 	parts []types.Part,
-	contentLength int64) (io.ReadCloser, error) {
+	contentLength int64,
+	encryptionKey string) (io.ReadCloser, error) {
 
 	r := &decrpytedReader{
 		ctx:           ctx,
 		parts:         parts,
 		client:        client,
 		contentLength: contentLength,
-		config:        config.GetConfig(),
+		encryptionKey: encryptionKey,
 	}
 	res, err := r.nextPart()
 
@@ -80,7 +80,7 @@ func (r *decrpytedReader) Close() (err error) {
 
 func (r *decrpytedReader) nextPart() (io.ReadCloser, error) {
 
-	cipher, _ := crypt.NewCipher(r.config.EncryptionKey, r.parts[r.pos].Salt)
+	cipher, _ := crypt.NewCipher(r.encryptionKey, r.parts[r.pos].Salt)
 
 	return cipher.DecryptDataSeek(r.ctx,
 		func(ctx context.Context,

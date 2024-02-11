@@ -4,36 +4,27 @@ import (
 	"time"
 )
 
-type PaginationQuery struct {
-	PerPage       int    `form:"perPage"`
-	NextPageToken string `form:"nextPageToken"`
-}
-
-type SortingQuery struct {
-	Sort  string `form:"sort"`
-	Order string `form:"order"`
-}
-
 type Part struct {
 	ID   int64  `json:"id"`
 	Salt string `json:"salt"`
 }
 
 type FileQuery struct {
-	Name      string     `form:"name" mapstructure:"name,omitempty"`
-	Search    string     `form:"search" mapstructure:"search,omitempty"`
-	Type      string     `form:"type" mapstructure:"type,omitempty"`
-	Path      string     `form:"path" mapstructure:"path,omitempty"`
-	Op        string     `form:"op" mapstructure:"op,omitempty"`
-	Starred   *bool      `form:"starred" mapstructure:"starred,omitempty"`
-	MimeType  string     `form:"mimeType" mapstructure:"mime_type,omitempty"`
-	ParentID  string     `form:"parentId" mapstructure:"parent_id,omitempty"`
-	UpdatedAt *time.Time `form:"updatedAt" mapstructure:"updated_at,omitempty"`
-	Status    string     `mapstructure:"status"`
-	UserID    int64      `mapstructure:"user_id"`
+	Name          string     `form:"name"`
+	Search        string     `form:"search"`
+	Type          string     `form:"type"`
+	Path          string     `form:"path"`
+	Op            string     `form:"op"`
+	Starred       *bool      `form:"starred"`
+	ParentID      string     `form:"parentId"`
+	UpdatedAt     *time.Time `form:"updatedAt"`
+	Sort          string     `form:"sort"`
+	Order         string     `form:"order"`
+	PerPage       int        `form:"perPage"`
+	NextPageToken string     `form:"nextPageToken"`
 }
 
-type CreateFile struct {
+type FileIn struct {
 	Name      string `json:"name" binding:"required"`
 	Type      string `json:"type" binding:"required"`
 	Parts     []Part `json:"parts,omitempty"`
@@ -59,13 +50,13 @@ type FileOut struct {
 }
 
 type FileOutFull struct {
-	FileOut
+	*FileOut
 	Parts     []Part `json:"parts,omitempty"`
 	ChannelID int64  `json:"channelId"`
 	Encrypted bool   `json:"encrypted"`
 }
 
-type UpdateFile struct {
+type FileUpdate struct {
 	Name      string    `json:"name,omitempty"`
 	Type      string    `json:"type,omitempty"`
 	Path      string    `json:"path,omitempty"`
@@ -75,7 +66,7 @@ type UpdateFile struct {
 }
 
 type FileResponse struct {
-	Results       []FileOut `json:"results"`
+	Files         []FileOut `json:"results"`
 	NextPageToken string    `json:"nextPageToken,omitempty"`
 }
 

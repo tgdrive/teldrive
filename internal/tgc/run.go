@@ -3,14 +3,16 @@ package tgc
 import (
 	"context"
 
+	"github.com/divyam234/teldrive/pkg/logging"
 	"github.com/gotd/td/telegram"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
-func RunWithAuth(ctx context.Context, logger *zap.Logger, client *telegram.Client, token string, f func(ctx context.Context) error) error {
+func RunWithAuth(ctx context.Context, client *telegram.Client, token string, f func(ctx context.Context) error) error {
 	return client.Run(ctx, func(ctx context.Context) error {
 		status, err := client.Auth().Status(ctx)
+		logger := logging.FromContext(ctx)
 		if err != nil {
 			return err
 		}

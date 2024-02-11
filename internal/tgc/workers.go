@@ -4,6 +4,8 @@ import (
 	"context"
 	"sync"
 
+	"github.com/divyam234/teldrive/internal/config"
+	"github.com/divyam234/teldrive/internal/kv"
 	"github.com/gotd/contrib/bg"
 	"github.com/gotd/td/telegram"
 )
@@ -34,6 +36,10 @@ func (w *UploadWorker) Next(channelId int64) (string, int) {
 	return w.bots[channelId][index], index
 }
 
+func NewUploadWorker() *UploadWorker {
+	return &UploadWorker{}
+}
+
 type Client struct {
 	Tg     *telegram.Client
 	Stop   bg.StopFunc
@@ -45,6 +51,8 @@ type StreamWorker struct {
 	bots    map[int64][]string
 	clients map[int64][]*Client
 	currIdx map[int64]int
+	cnf     *config.TelegramConfig
+	kv      kv.KV
 }
 
 func (w *StreamWorker) Set(bots []string, channelId int64) {
@@ -57,7 +65,7 @@ func (w *StreamWorker) Set(bots []string, channelId int64) {
 		w.currIdx = make(map[int64]int)
 		w.bots[channelId] = bots
 		for _, token := range bots {
-			client, _ := BotLogin(context.TODO(), token)
+			client, _ := BotClient(context.TODO(), w.kv, w.cnf, token)
 			w.clients[channelId] = append(w.clients[channelId], &Client{Tg: client, Status: "idle"})
 		}
 		w.currIdx[channelId] = 0
@@ -102,4 +110,8 @@ func (w *StreamWorker) UserWorker(client *telegram.Client, userId int64) (*Clien
 		nextClient.Status = "running"
 	}
 	return nextClient, nil
+}
+
+func NewStreamWorker(cnf *config.Config, kv kv.KV) *StreamWorker {
+	return &StreamWorker{cnf: &cnf.Telegram, kv: kv}
 }

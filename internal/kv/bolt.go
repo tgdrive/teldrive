@@ -1,6 +1,10 @@
 package kv
 
 import (
+	"path/filepath"
+	"time"
+
+	"github.com/divyam234/teldrive/internal/utils"
 	"go.etcd.io/bbolt"
 )
 
@@ -35,4 +39,20 @@ func (b *Bolt) Delete(key string) error {
 	return b.db.Update(func(tx *bbolt.Tx) error {
 		return tx.Bucket(b.bucket).Delete([]byte(key))
 	})
+}
+
+func NewBoltKV() KV {
+	boltDB, err := bbolt.Open(filepath.Join(utils.ExecutableDir(), "teldrive.db"), 0666, &bbolt.Options{
+		Timeout:    time.Second,
+		NoGrowSync: false,
+	})
+	if err != nil {
+		panic(err)
+	}
+	kv, err := New(Options{Bucket: "teldrive", DB: boltDB})
+	if err != nil {
+		panic(err)
+	}
+
+	return kv
 }

@@ -9,7 +9,10 @@ import (
 	"sync"
 
 	"github.com/divyam234/teldrive/internal/cache"
+	"github.com/divyam234/teldrive/internal/config"
+	"github.com/divyam234/teldrive/internal/kv"
 	"github.com/divyam234/teldrive/internal/tgc"
+	"github.com/divyam234/teldrive/pkg/logging"
 	"github.com/divyam234/teldrive/pkg/models"
 	"github.com/divyam234/teldrive/pkg/schemas"
 	"github.com/divyam234/teldrive/pkg/types"
@@ -26,25 +29,25 @@ import (
 )
 
 type UserService struct {
-	Db  *gorm.DB
-	log *zap.Logger
+	db  *gorm.DB
+	cnf *config.Config
+	kv  kv.KV
 }
 
-func NewUserService(db *gorm.DB, logger *zap.Logger) *UserService {
-	return &UserService{Db: db, log: logger.Named("users")}
+func NewUserService(db *gorm.DB, cnf *config.Config, kv kv.KV) *UserService {
+	return &UserService{db: db, cnf: cnf, kv: kv}
 }
-
 func (us *UserService) GetProfilePhoto(c *gin.Context) {
-	_, session := getUserAuth(c)
+	_, session := GetUserAuth(c)
 
-	client, err := tgc.UserLogin(c, session)
+	client, err := tgc.AuthClient(c, &us.cnf.Telegram, session)
 
 	if err != nil {
 		c.AbortWithError(http.StatusInternalServerError, err)
 		return
 	}
 
-	err = tgc.RunWithAuth(c, us.log, client, "", func(ctx context.Context) error {
+	err = tgc.RunWithAuth(c, client, "", func(ctx context.Context) error {
 		self, err := client.Self(c)
 		if err != nil {
 			return err
@@ -77,16 +80,16 @@ func (us *UserService) GetProfilePhoto(c *gin.Context) {
 }
 
 func (us *UserService) GetStats(c *gin.Context) (*schemas.AccountStats, *types.AppError) {
-	userId, _ := getUserAuth(c)
+	userId, _ := GetUserAuth(c)
 	var res []schemas.AccountStats
-	if err := us.Db.Raw("select * from teldrive.account_stats(?);", userId).Scan(&res).Error; err != nil {
+	if err := us.db.Raw("select * from teldrive.account_stats(?);", userId).Scan(&res).Error; err != nil {
 		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
 	}
 	return &res[0], nil
 }
 
 func (us *UserService) GetBots(c *gin.Context) ([]string, *types.AppError) {
-	userID, _ := getUserAuth(c)
+	userID, _ := GetUserAuth(c)
 	var (
 		channelId int64
 		err       error
@@ -94,13 +97,13 @@ func (us *UserService) GetBots(c *gin.Context) ([]string, *types.AppError) {
 	if c.Param("channelId") != "" {
 		channelId, _ = strconv.ParseInt(c.Param("channelId"), 10, 64)
 	} else {
-		channelId, err = GetDefaultChannel(c, userID)
+		channelId, err = GetDefaultChannel(c, us.db, userID)
 		if err != nil {
 			return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
 		}
 	}
 
-	tokens, err := getBotsToken(c, userID, channelId)
+	tokens, err := getBotsToken(c, us.db, userID, channelId)
 
 	if err != nil {
 		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
@@ -109,7 +112,10 @@ func (us *UserService) GetBots(c *gin.Context) ([]string, *types.AppError) {
 }
 
 func (us *UserService) UpdateChannel(c *gin.Context) (*schemas.Message, *types.AppError) {
-	userId, _ := getUserAuth(c)
+
+	cache := cache.FromContext(c)
+
+	userId, _ := GetUserAuth(c)
 
 	var payload schemas.Channel
 
@@ -120,24 +126,24 @@ func (us *UserService) UpdateChannel(c *gin.Context) (*schemas.Message, *types.A
 	channel := &models.Channel{ChannelID: payload.ChannelID, ChannelName: payload.ChannelName, UserID: userId,
 		Selected: true}
 
-	if err := us.Db.Clauses(clause.OnConflict{
+	if err := us.db.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "channel_id"}},
 		DoUpdates: clause.Assignments(map[string]interface{}{"selected": true}),
 	}).Create(channel).Error; err != nil {
 		return nil, &types.AppError{Error: errors.New("failed to update channel"),
 			Code: http.StatusInternalServerError}
 	}
-	us.Db.Model(&models.Channel{}).Where("channel_id != ?", payload.ChannelID).
+	us.db.Model(&models.Channel{}).Where("channel_id != ?", payload.ChannelID).
 		Where("user_id = ?", userId).Update("selected", false)
 
 	key := fmt.Sprintf("users:channel:%d", userId)
-	cache.GetCache().Set(key, payload.ChannelID, 0)
+	cache.Set(key, payload.ChannelID, 0)
 	return &schemas.Message{Message: "channel updated"}, nil
 }
 
 func (us *UserService) ListChannels(c *gin.Context) (interface{}, *types.AppError) {
-	_, session := getUserAuth(c)
-	client, _ := tgc.UserLogin(c, session)
+	_, session := GetUserAuth(c)
+	client, _ := tgc.AuthClient(c, &us.cnf.Telegram, session)
 
 	channels := make(map[int64]*schemas.Channel)
 
@@ -163,8 +169,8 @@ func (us *UserService) ListChannels(c *gin.Context) (interface{}, *types.AppErro
 }
 
 func (us *UserService) AddBots(c *gin.Context) (*schemas.Message, *types.AppError) {
-	userId, session := getUserAuth(c)
-	client, _ := tgc.UserLogin(c, session)
+	userId, session := GetUserAuth(c)
+	client, _ := tgc.AuthClient(c, &us.cnf.Telegram, session)
 
 	var botsTokens []string
 
@@ -176,7 +182,7 @@ func (us *UserService) AddBots(c *gin.Context) (*schemas.Message, *types.AppErro
 		return &schemas.Message{Message: "no bots to add"}, nil
 	}
 
-	channelId, err := GetDefaultChannel(c, userId)
+	channelId, err := GetDefaultChannel(c, us.db, userId)
 
 	if err != nil {
 		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
@@ -187,20 +193,23 @@ func (us *UserService) AddBots(c *gin.Context) (*schemas.Message, *types.AppErro
 }
 
 func (us *UserService) RemoveBots(c *gin.Context) (*schemas.Message, *types.AppError) {
-	userID, _ := getUserAuth(c)
 
-	channelId, err := GetDefaultChannel(c, userID)
+	cache := cache.FromContext(c)
+
+	userID, _ := GetUserAuth(c)
+
+	channelId, err := GetDefaultChannel(c, us.db, userID)
 
 	if err != nil {
 		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
 	}
 
-	if err := us.Db.Where("user_id = ?", userID).Where("channel_id = ?", channelId).
+	if err := us.db.Where("user_id = ?", userID).Where("channel_id = ?", channelId).
 		Delete(&models.Bot{}).Error; err != nil {
 		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
 	}
 
-	cache.GetCache().Delete(fmt.Sprintf("users:bots:%d:%d", userID, channelId))
+	cache.Delete(fmt.Sprintf("users:bots:%d:%d", userID, channelId))
 
 	return &schemas.Message{Message: "bots deleted"}, nil
 
@@ -212,12 +221,16 @@ func (us *UserService) addBots(c context.Context, client *telegram.Client, userI
 
 	var wg sync.WaitGroup
 
-	err := tgc.RunWithAuth(c, us.log, client, "", func(ctx context.Context) error {
+	logger := logging.FromContext(c)
+
+	cache := cache.FromContext(c)
+
+	err := tgc.RunWithAuth(c, client, "", func(ctx context.Context) error {
 
 		channel, err := GetChannelById(ctx, client, channelId, strconv.FormatInt(userId, 10))
 
 		if err != nil {
-			us.log.Error("channel", zap.Error(err))
+			logger.Error("error", zap.Error(err))
 			return err
 		}
 
@@ -233,13 +246,13 @@ func (us *UserService) addBots(c context.Context, client *telegram.Client, userI
 			waitChan <- struct{}{}
 			wg.Add(1)
 			go func(t string) {
-				info, err := getBotInfo(c, us.log, t)
+				info, err := getBotInfo(c, us.kv, &us.cnf.Telegram, t)
 				if err != nil {
 					return
 				}
 				botPeerClass, err := peer.DefaultResolver(client.API()).ResolveDomain(ctx, info.UserName)
 				if err != nil {
-					us.log.Error("bot add", zap.Error(err))
+					logger.Error("error", zap.Error(err))
 					return
 				}
 				botPeer := botPeerClass.(*tg.InputPeerUser)
@@ -285,7 +298,7 @@ func (us *UserService) addBots(c context.Context, client *telegram.Client, userI
 				}
 				_, err := client.API().ChannelsEditAdmin(ctx, payload)
 				if err != nil {
-					us.log.Error("bot add", zap.Error(err))
+					logger.Error("error", zap.Error(err))
 					return err
 				}
 
@@ -308,9 +321,9 @@ func (us *UserService) addBots(c context.Context, client *telegram.Client, userI
 		})
 	}
 
-	cache.GetCache().Delete(fmt.Sprintf("users:bots:%d:%d", userId, channelId))
+	cache.Delete(fmt.Sprintf("users:bots:%d:%d", userId, channelId))
 
-	if err := us.Db.Clauses(clause.OnConflict{DoNothing: true}).Create(&payload).Error; err != nil {
+	if err := us.db.Clauses(clause.OnConflict{DoNothing: true}).Create(&payload).Error; err != nil {
 		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
 	}
 

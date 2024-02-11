@@ -1,41 +1,35 @@
 package main
 
 import (
-	"fmt"
-	"mime"
+	"log"
+	"os"
 
-	"github.com/divyam234/teldrive/api"
-	"github.com/divyam234/teldrive/internal/cron"
-	"github.com/divyam234/teldrive/internal/logger"
-	"github.com/divyam234/teldrive/pkg/database"
-
-	"github.com/divyam234/teldrive/config"
-	"github.com/divyam234/teldrive/internal/cache"
-	"github.com/gin-gonic/gin"
+	"github.com/spf13/cobra"
 )
 
+var configFile string
+
+const versionString = "1.1.0"
+
+var rootCmd = &cobra.Command{
+	Use:               "teldrive [command]",
+	Short:             "Teledrive",
+	Example:           "teldrive run",
+	Version:           versionString,
+	CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
+	Run: func(cmd *cobra.Command, args []string) {
+		cmd.Help()
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(runCmd)
+	runCmd.PersistentFlags().StringVarP(&configFile, "config", "", "", "config file path")
+}
+
 func main() {
-
-	config.InitConfig()
-
-	if config.GetConfig().Dev {
-		gin.SetMode(gin.DebugMode)
-	} else {
-		gin.SetMode(gin.ReleaseMode)
+	if err := rootCmd.Execute(); err != nil {
+		log.Printf("failed to execute command. err: %v", err)
+		os.Exit(1)
 	}
-
-	log := logger.InitLogger()
-
-	database.InitDB()
-
-	cache.InitCache()
-
-	cron.StartCronJobs(log)
-
-	mime.AddExtensionType(".js", "application/javascript")
-
-	r := api.InitRouter(log)
-
-	r.Run(fmt.Sprintf(":%d", config.GetConfig().Port))
-
 }

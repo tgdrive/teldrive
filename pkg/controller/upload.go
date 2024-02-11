@@ -27,16 +27,6 @@ func (uc *Controller) DeleteUploadFile(c *gin.Context) {
 	c.JSON(http.StatusOK, res)
 }
 
-func (uc *Controller) CreateUploadPart(c *gin.Context) {
-	res, err := uc.UploadService.CreateUploadPart(c)
-	if err != nil {
-		httputil.NewError(c, err.Code, err.Error)
-		return
-	}
-
-	c.JSON(http.StatusCreated, res)
-}
-
 func (uc *Controller) UploadFile(c *gin.Context) {
 	res, err := uc.UploadService.UploadFile(c)
 	if err != nil {

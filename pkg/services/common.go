@@ -10,9 +10,10 @@ import (
 	"strconv"
 
 	"github.com/divyam234/teldrive/internal/cache"
+	"github.com/divyam234/teldrive/internal/config"
 	"github.com/divyam234/teldrive/internal/crypt"
+	"github.com/divyam234/teldrive/internal/kv"
 	"github.com/divyam234/teldrive/internal/tgc"
-	"github.com/divyam234/teldrive/pkg/database"
 	"github.com/divyam234/teldrive/pkg/models"
 	"github.com/divyam234/teldrive/pkg/schemas"
 	"github.com/divyam234/teldrive/pkg/types"
@@ -21,7 +22,7 @@ import (
 	"github.com/gotd/td/tg"
 	"github.com/pkg/errors"
 	"github.com/thoas/go-funk"
-	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 type buffer struct {
@@ -93,17 +94,17 @@ func iterContent(ctx context.Context, tgClient *telegram.Client, location tg.Inp
 	return buff, nil
 }
 
-func getUserAuth(c *gin.Context) (int64, string) {
+func GetUserAuth(c *gin.Context) (int64, string) {
 	val, _ := c.Get("jwtUser")
 	jwtUser := val.(*types.JWTClaims)
 	userId, _ := strconv.ParseInt(jwtUser.Subject, 10, 64)
 	return userId, jwtUser.TgSession
 }
 
-func getBotInfo(ctx context.Context, logger *zap.Logger, token string) (*types.BotInfo, error) {
-	client, _ := tgc.BotLogin(ctx, token)
+func getBotInfo(ctx context.Context, KV kv.KV, config *config.TelegramConfig, token string) (*types.BotInfo, error) {
+	client, _ := tgc.BotClient(ctx, KV, config, token)
 	var user *tg.User
-	err := tgc.RunWithAuth(ctx, logger, client, token, func(ctx context.Context) error {
+	err := tgc.RunWithAuth(ctx, client, token, func(ctx context.Context) error {
 		user, _ = client.Self(ctx)
 		return nil
 	})
@@ -140,12 +141,12 @@ func getTGMessages(ctx context.Context, client *telegram.Client, parts []schemas
 }
 
 func getParts(ctx context.Context, client *telegram.Client, file *schemas.FileOutFull, userID string) ([]types.Part, error) {
-
+	cache := cache.FromContext(ctx)
 	parts := []types.Part{}
 
 	key := fmt.Sprintf("messages:%s:%s", file.ID, userID)
 
-	err := cache.GetCache().Get(key, &parts)
+	err := cache.Get(key, &parts)
 
 	if err == nil {
 		return parts, nil
@@ -174,7 +175,7 @@ func getParts(ctx context.Context, client *telegram.Client, file *schemas.FileOu
 			Salt:     file.Parts[i].Salt,
 		})
 	}
-	cache.GetCache().Set(key, &parts, 3600)
+	cache.Set(key, &parts, 3600)
 	return parts, nil
 }
 
@@ -240,25 +241,24 @@ func GetChannelById(ctx context.Context, client *telegram.Client, channelId int6
 	return channel, nil
 }
 
-func GetDefaultChannel(ctx context.Context, userID int64) (int64, error) {
-
+func GetDefaultChannel(ctx context.Context, db *gorm.DB, userID int64) (int64, error) {
+	cache := cache.FromContext(ctx)
 	var channelId int64
-
 	key := fmt.Sprintf("users:channel:%d", userID)
 
-	err := cache.GetCache().Get(key, &channelId)
+	err := cache.Get(key, &channelId)
 
 	if err == nil {
 		return channelId, nil
 	}
 
 	var channelIds []int64
-	database.DB.Model(&models.Channel{}).Where("user_id = ?", userID).Where("selected = ?", true).
+	db.Model(&models.Channel{}).Where("user_id = ?", userID).Where("selected = ?", true).
 		Pluck("channel_id", &channelIds)
 
 	if len(channelIds) == 1 {
 		channelId = channelIds[0]
-		cache.GetCache().Set(key, channelId, 0)
+		cache.Set(key, channelId, 0)
 	}
 
 	if channelId == 0 {
@@ -268,44 +268,44 @@ func GetDefaultChannel(ctx context.Context, userID int64) (int64, error) {
 	return channelId, nil
 }
 
-func getBotsToken(ctx context.Context, userID, channelId int64) ([]string, error) {
+func getBotsToken(ctx context.Context, db *gorm.DB, userID, channelId int64) ([]string, error) {
+	cache := cache.FromContext(ctx)
 	var bots []string
 
 	key := fmt.Sprintf("users:bots:%d:%d", userID, channelId)
 
-	err := cache.GetCache().Get(key, &bots)
+	err := cache.Get(key, &bots)
 
 	if err == nil {
 		return bots, nil
 	}
 
-	if err := database.DB.Model(&models.Bot{}).Where("user_id = ?", userID).
+	if err := db.Model(&models.Bot{}).Where("user_id = ?", userID).
 		Where("channel_id = ?", channelId).Pluck("token", &bots).Error; err != nil {
 		return nil, err
 	}
 
-	cache.GetCache().Set(key, &bots, 0)
+	cache.Set(key, &bots, 0)
 	return bots, nil
 
 }
 
-func getSessionByHash(hash string) (*models.Session, error) {
-
+func getSessionByHash(db *gorm.DB, cache *cache.Cache, hash string) (*models.Session, error) {
 	var session models.Session
 
 	key := fmt.Sprintf("sessions:%s", hash)
 
-	err := cache.GetCache().Get(key, &session)
+	err := cache.Get(key, &session)
 
 	if err == nil {
 		return &session, nil
 	}
 
-	if err := database.DB.Model(&models.Session{}).Where("hash = ?", hash).First(&session).Error; err != nil {
+	if err := db.Model(&models.Session{}).Where("hash = ?", hash).First(&session).Error; err != nil {
 		return nil, err
 	}
 
-	cache.GetCache().Set(key, &session, 0)
+	cache.Set(key, &session, 0)
 
 	return &session, nil
 

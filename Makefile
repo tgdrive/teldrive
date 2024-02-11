@@ -36,14 +36,14 @@ endif
 
 backend:
 	@echo "Building backend for $(GOOS)/$(GOARCH)..."
-	GOOS=$(GOOS) GOARCH=$(GOARCH) go build -trimpath -ldflags "-s -w -extldflags=-static" -o $(BUILD_DIR)/$(APP_NAME)$(BINARY_EXTENSION) ./cmd/teldrive
+	go build -trimpath -ldflags "-s -w -extldflags=-static" -o $(BUILD_DIR)/$(APP_NAME)$(BINARY_EXTENSION) ./cmd/teldrive
 
 build: frontend backend
 	@echo "Building complete."
 
 run:
 	@echo "Running $(APP_NAME)..."
-	$(BUILD_DIR)/$(APP_NAME)
+	$(BUILD_DIR)/$(APP_NAME) run
 
 clean:
 	@echo "Cleaning up..."

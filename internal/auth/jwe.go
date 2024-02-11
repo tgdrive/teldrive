@@ -2,17 +2,16 @@ package auth
 
 import (
 	"encoding/json"
-	"os"
 
 	"github.com/divyam234/teldrive/pkg/types"
 	"github.com/go-jose/go-jose/v3"
 )
 
-func Encode(payload *types.JWTClaims) (string, error) {
+func Encode(secret string, payload *types.JWTClaims) (string, error) {
 
 	rcpt := jose.Recipient{
 		Algorithm: jose.PBES2_HS256_A128KW,
-		Key:       os.Getenv("JWT_SECRET"),
+		Key:       secret,
 	}
 
 	enc, err := jose.NewEncrypter(jose.A128CBC_HS256, rcpt, nil)
@@ -37,13 +36,13 @@ func Encode(payload *types.JWTClaims) (string, error) {
 	return jweToken, nil
 }
 
-func Decode(token string) (*types.JWTClaims, error) {
+func Decode(secret string, token string) (*types.JWTClaims, error) {
 	jwe, err := jose.ParseEncrypted(token)
 	if err != nil {
 		return nil, err
 	}
 
-	decryptedData, err := jwe.Decrypt(os.Getenv("JWT_SECRET"))
+	decryptedData, err := jwe.Decrypt(secret)
 
 	if err != nil {
 		return nil, err

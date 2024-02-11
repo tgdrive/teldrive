@@ -2,6 +2,7 @@ package utils
 
 import (
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -72,4 +73,11 @@ func PathExists(path string) (bool, error) {
 		return false, nil
 	}
 	return false, err
+}
+
+func ExecutableDir() string {
+
+	path, _ := os.Executable()
+
+	return filepath.Dir(path)
 }
