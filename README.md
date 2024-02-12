@@ -75,7 +75,6 @@ services:
 - Create the `config.toml` file with your values and start your container. See how to fill file below.
 
 ```toml
-#config.toml
 [db]
 data-source = "postgres://<db username>:<db password>@<db host>/<db name>"
 
