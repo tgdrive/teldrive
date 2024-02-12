@@ -51,7 +51,7 @@ type StreamWorker struct {
 	bots    map[int64][]string
 	clients map[int64][]*Client
 	currIdx map[int64]int
-	cnf     *config.TelegramConfig
+	cnf     *config.TGConfig
 	kv      kv.KV
 }
 
@@ -113,5 +113,5 @@ func (w *StreamWorker) UserWorker(client *telegram.Client, userId int64) (*Clien
 }
 
 func NewStreamWorker(cnf *config.Config, kv kv.KV) *StreamWorker {
-	return &StreamWorker{cnf: &cnf.Telegram, kv: kv}
+	return &StreamWorker{cnf: &cnf.TG, kv: kv}
 }

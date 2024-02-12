@@ -26,7 +26,7 @@ func defaultMiddlewares(ctx context.Context) ([]telegram.Middleware, error) {
 	}, nil
 }
 
-func New(ctx context.Context, config *config.TelegramConfig, handler telegram.UpdateHandler, storage session.Storage, middlewares ...telegram.Middleware) *telegram.Client {
+func New(ctx context.Context, config *config.TGConfig, handler telegram.UpdateHandler, storage session.Storage, middlewares ...telegram.Middleware) *telegram.Client {
 
 	_clock := tdclock.System
 
@@ -61,13 +61,13 @@ func New(ctx context.Context, config *config.TelegramConfig, handler telegram.Up
 	return telegram.NewClient(config.AppId, config.AppHash, opts)
 }
 
-func NoAuthClient(ctx context.Context, config *config.TelegramConfig, handler telegram.UpdateHandler, storage session.Storage) *telegram.Client {
+func NoAuthClient(ctx context.Context, config *config.TGConfig, handler telegram.UpdateHandler, storage session.Storage) *telegram.Client {
 	middlewares, _ := defaultMiddlewares(ctx)
 	middlewares = append(middlewares, ratelimit.New(rate.Every(time.Millisecond*100), 5))
 	return New(ctx, config, handler, storage, middlewares...)
 }
 
-func AuthClient(ctx context.Context, config *config.TelegramConfig, sessionStr string) (*telegram.Client, error) {
+func AuthClient(ctx context.Context, config *config.TGConfig, sessionStr string) (*telegram.Client, error) {
 	data, err := session.TelethonSession(sessionStr)
 
 	if err != nil {
@@ -88,7 +88,7 @@ func AuthClient(ctx context.Context, config *config.TelegramConfig, sessionStr s
 	return New(ctx, config, nil, storage, middlewares...), nil
 }
 
-func BotClient(ctx context.Context, KV kv.KV, config *config.TelegramConfig, token string) (*telegram.Client, error) {
+func BotClient(ctx context.Context, KV kv.KV, config *config.TGConfig, token string) (*telegram.Client, error) {
 	storage := kv.NewSession(KV, kv.Key("botsession", token))
 	middlewares, _ := defaultMiddlewares(ctx)
 	if config.RateLimit {

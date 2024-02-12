@@ -9,7 +9,7 @@ import (
 )
 
 func InitRouter(r *gin.Engine, c *controller.Controller, cnf *config.Config) *gin.Engine {
-	authmiddleware := middleware.Authmiddleware(cnf.JwtConfig.Secret)
+	authmiddleware := middleware.Authmiddleware(cnf.JWT.Secret)
 	api := r.Group("/api")
 	{
 		auth := api.Group("/auth")

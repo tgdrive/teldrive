@@ -7,15 +7,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var configFile string
-
-const versionString = "1.1.0"
-
 var rootCmd = &cobra.Command{
 	Use:               "teldrive [command]",
-	Short:             "Teledrive",
-	Example:           "teldrive run",
-	Version:           versionString,
+	Short:             "Teldrive",
 	CompletionOptions: cobra.CompletionOptions{DisableDefaultCmd: true},
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Help()
@@ -23,10 +17,10 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(runCmd)
-	runCmd.PersistentFlags().StringVarP(&configFile, "config", "", "", "config file path")
-}
+	runCmd := NewRun()
+	rootCmd.AddCommand(runCmd, NewVersion())
 
+}
 func main() {
 	if err := rootCmd.Execute(); err != nil {
 		log.Printf("failed to execute command. err: %v", err)

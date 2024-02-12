@@ -40,7 +40,7 @@ func NewUserService(db *gorm.DB, cnf *config.Config, kv kv.KV) *UserService {
 func (us *UserService) GetProfilePhoto(c *gin.Context) {
 	_, session := GetUserAuth(c)
 
-	client, err := tgc.AuthClient(c, &us.cnf.Telegram, session)
+	client, err := tgc.AuthClient(c, &us.cnf.TG, session)
 
 	if err != nil {
 		c.AbortWithError(http.StatusInternalServerError, err)
@@ -143,7 +143,7 @@ func (us *UserService) UpdateChannel(c *gin.Context) (*schemas.Message, *types.A
 
 func (us *UserService) ListChannels(c *gin.Context) (interface{}, *types.AppError) {
 	_, session := GetUserAuth(c)
-	client, _ := tgc.AuthClient(c, &us.cnf.Telegram, session)
+	client, _ := tgc.AuthClient(c, &us.cnf.TG, session)
 
 	channels := make(map[int64]*schemas.Channel)
 
@@ -170,7 +170,7 @@ func (us *UserService) ListChannels(c *gin.Context) (interface{}, *types.AppErro
 
 func (us *UserService) AddBots(c *gin.Context) (*schemas.Message, *types.AppError) {
 	userId, session := GetUserAuth(c)
-	client, _ := tgc.AuthClient(c, &us.cnf.Telegram, session)
+	client, _ := tgc.AuthClient(c, &us.cnf.TG, session)
 
 	var botsTokens []string
 
@@ -246,7 +246,7 @@ func (us *UserService) addBots(c context.Context, client *telegram.Client, userI
 			waitChan <- struct{}{}
 			wg.Add(1)
 			go func(t string) {
-				info, err := getBotInfo(c, us.kv, &us.cnf.Telegram, t)
+				info, err := getBotInfo(c, us.kv, &us.cnf.TG, t)
 				if err != nil {
 					return
 				}

@@ -126,7 +126,7 @@ func (c *CronService) CleanUploads(ctx context.Context) {
 		Select("JSONB_AGG(uploads.part_id) as parts", "uploads.channel_id", "uploads.user_id", "s.session").
 		Joins("left join teldrive.users as u  on u.user_id = uploads.user_id").
 		Joins("left join (select * from teldrive.sessions order by created_at desc limit 1) as s on s.user_id = uploads.user_id").
-		Where("uploads.created_at > ?", time.Now().UTC().Add(c.cnf.Telegram.Uploads.Retention)).
+		Where("uploads.created_at > ?", time.Now().UTC().Add(c.cnf.TG.Uploads.Retention)).
 		Group("uploads.channel_id").Group("uploads.user_id").Group("s.session").
 		Scan(&upResults).Error; err != nil {
 		return
@@ -153,7 +153,7 @@ func (c *CronService) UpdateFolderSize() {
 
 func deleteTGMessages(ctx context.Context, cnf *config.Config, session string, channelId, userId int64, ids []int) error {
 
-	client, _ := tgc.AuthClient(ctx, &cnf.Telegram, session)
+	client, _ := tgc.AuthClient(ctx, &cnf.TG, session)
 
 	err := tgc.RunWithAuth(ctx, client, "", func(ctx context.Context) error {
 

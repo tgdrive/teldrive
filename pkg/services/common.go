@@ -101,7 +101,7 @@ func GetUserAuth(c *gin.Context) (int64, string) {
 	return userId, jwtUser.TgSession
 }
 
-func getBotInfo(ctx context.Context, KV kv.KV, config *config.TelegramConfig, token string) (*types.BotInfo, error) {
+func getBotInfo(ctx context.Context, KV kv.KV, config *config.TGConfig, token string) (*types.BotInfo, error) {
 	client, _ := tgc.BotClient(ctx, KV, config, token)
 	var user *tg.User
 	err := tgc.RunWithAuth(ctx, client, token, func(ctx context.Context) error {

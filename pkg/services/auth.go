@@ -46,7 +46,7 @@ func NewAuthService(db *gorm.DB, cnf *config.Config) *AuthService {
 
 func (as *AuthService) LogIn(c *gin.Context, session *schemas.TgSession) (*schemas.Message, *types.AppError) {
 
-	if !checkUserIsAllowed(as.cnf.JwtConfig.AllowedUsers, session.UserName) {
+	if !checkUserIsAllowed(as.cnf.JWT.AllowedUsers, session.UserName) {
 		return nil, &types.AppError{Error: errors.New("user not allowed"),
 			Code: http.StatusUnauthorized}
 	}
@@ -56,7 +56,7 @@ func (as *AuthService) LogIn(c *gin.Context, session *schemas.TgSession) (*schem
 	jwtClaims := &types.JWTClaims{Claims: jwt.Claims{
 		Subject:  strconv.FormatInt(session.UserID, 10),
 		IssuedAt: jwt.NewNumericDate(now),
-		Expiry:   jwt.NewNumericDate(now.Add(as.cnf.JwtConfig.SessionTime)),
+		Expiry:   jwt.NewNumericDate(now.Add(as.cnf.JWT.SessionTime)),
 	}, TgSession: session.Sesssion,
 		Name:      session.Name,
 		UserName:  session.UserName,
@@ -68,7 +68,7 @@ func (as *AuthService) LogIn(c *gin.Context, session *schemas.TgSession) (*schem
 	hexToken := hex.EncodeToString(tokenhash[:])
 	jwtClaims.Hash = hexToken
 
-	jweToken, err := auth.Encode(as.cnf.JwtConfig.Secret, jwtClaims)
+	jweToken, err := auth.Encode(as.cnf.JWT.Secret, jwtClaims)
 
 	if err != nil {
 		return nil, &types.AppError{Error: err, Code: http.StatusBadRequest}
@@ -114,7 +114,7 @@ func (as *AuthService) LogIn(c *gin.Context, session *schemas.TgSession) (*schem
 		return nil, &types.AppError{Error: err}
 	}
 
-	setSessionCookie(c, jweToken, int(as.cnf.JwtConfig.SessionTime.Seconds()))
+	setSessionCookie(c, jweToken, int(as.cnf.JWT.SessionTime.Seconds()))
 
 	return &schemas.Message{Message: "login success"}, nil
 }
@@ -127,7 +127,7 @@ func (as *AuthService) GetSession(c *gin.Context) *schemas.Session {
 		return nil
 	}
 
-	jwePayload, err := auth.Decode(as.cnf.JwtConfig.Secret, cookie.Value)
+	jwePayload, err := auth.Decode(as.cnf.JWT.Secret, cookie.Value)
 
 	if err != nil {
 		return nil
@@ -135,7 +135,7 @@ func (as *AuthService) GetSession(c *gin.Context) *schemas.Session {
 
 	now := time.Now().UTC()
 
-	newExpires := now.Add(as.cnf.JwtConfig.SessionTime)
+	newExpires := now.Add(as.cnf.JWT.SessionTime)
 
 	session := &schemas.Session{Name: jwePayload.Name,
 		UserName: jwePayload.UserName,
@@ -146,19 +146,19 @@ func (as *AuthService) GetSession(c *gin.Context) *schemas.Session {
 
 	jwePayload.Expiry = jwt.NewNumericDate(newExpires)
 
-	jweToken, err := auth.Encode(as.cnf.JwtConfig.Secret, jwePayload)
+	jweToken, err := auth.Encode(as.cnf.JWT.Secret, jwePayload)
 
 	if err != nil {
 		return nil
 	}
-	setSessionCookie(c, jweToken, int(as.cnf.JwtConfig.SessionTime.Seconds()))
+	setSessionCookie(c, jweToken, int(as.cnf.JWT.SessionTime.Seconds()))
 	return session
 }
 
 func (as *AuthService) Logout(c *gin.Context) (*schemas.Message, *types.AppError) {
 	val, _ := c.Get("jwtUser")
 	jwtUser := val.(*types.JWTClaims)
-	client, _ := tgc.AuthClient(c, &as.cnf.Telegram, jwtUser.TgSession)
+	client, _ := tgc.AuthClient(c, &as.cnf.TG, jwtUser.TgSession)
 
 	tgc.RunWithAuth(c, client, "", func(ctx context.Context) error {
 		_, err := client.API().AuthLogOut(c)
@@ -184,7 +184,7 @@ func (as *AuthService) HandleMultipleLogin(c *gin.Context) {
 	dispatcher := tg.NewUpdateDispatcher()
 	loggedIn := qrlogin.OnLoginToken(dispatcher)
 	sessionStorage := &session.StorageMemory{}
-	tgClient := tgc.NoAuthClient(c, &as.cnf.Telegram, dispatcher, sessionStorage)
+	tgClient := tgc.NoAuthClient(c, &as.cnf.TG, dispatcher, sessionStorage)
 
 	err = tgClient.Run(c, func(ctx context.Context) error {
 		for {
@@ -215,7 +215,7 @@ func (as *AuthService) HandleMultipleLogin(c *gin.Context) {
 						conn.WriteJSON(map[string]interface{}{"type": "error", "message": "auth failed"})
 						return
 					}
-					if !checkUserIsAllowed(as.cnf.JwtConfig.AllowedUsers, user.Username) {
+					if !checkUserIsAllowed(as.cnf.JWT.AllowedUsers, user.Username) {
 						conn.WriteJSON(map[string]interface{}{"type": "error", "message": "user not allowed"})
 						tgClient.API().AuthLogOut(c)
 						return
@@ -256,7 +256,7 @@ func (as *AuthService) HandleMultipleLogin(c *gin.Context) {
 						conn.WriteJSON(map[string]interface{}{"type": "error", "message": "auth failed"})
 						return
 					}
-					if !checkUserIsAllowed(as.cnf.JwtConfig.AllowedUsers, user.Username) {
+					if !checkUserIsAllowed(as.cnf.JWT.AllowedUsers, user.Username) {
 						conn.WriteJSON(map[string]interface{}{"type": "error", "message": "user not allowed"})
 						tgClient.API().AuthLogOut(c)
 						return
@@ -281,7 +281,7 @@ func (as *AuthService) HandleMultipleLogin(c *gin.Context) {
 						conn.WriteJSON(map[string]interface{}{"type": "error", "message": "auth failed"})
 						return
 					}
-					if !checkUserIsAllowed(as.cnf.JwtConfig.AllowedUsers, user.Username) {
+					if !checkUserIsAllowed(as.cnf.JWT.AllowedUsers, user.Username) {
 						conn.WriteJSON(map[string]interface{}{"type": "error", "message": "user not allowed"})
 						tgClient.API().AuthLogOut(c)
 						return

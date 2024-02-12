@@ -17,11 +17,11 @@ func NewDatabase(cfg *config.Config) (*gorm.DB, error) {
 	var (
 		db     *gorm.DB
 		err    error
-		logger = NewLogger(time.Second, true, zapcore.Level(cfg.DBConfig.LogLevel))
+		logger = NewLogger(time.Second, true, zapcore.Level(cfg.DB.LogLevel))
 	)
 
 	for i := 0; i <= 30; i++ {
-		db, err = gorm.Open(postgres.Open(cfg.DBConfig.DataSourceName), &gorm.Config{
+		db, err = gorm.Open(postgres.Open(cfg.DB.DataSource), &gorm.Config{
 			Logger: logger,
 			NamingStrategy: schema.NamingStrategy{
 				TablePrefix:   "teldrive.",
@@ -45,11 +45,11 @@ func NewDatabase(cfg *config.Config) (*gorm.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	rawDB.SetMaxOpenConns(cfg.DBConfig.Pool.MaxOpen)
-	rawDB.SetMaxIdleConns(cfg.DBConfig.Pool.MaxIdle)
-	rawDB.SetConnMaxLifetime(cfg.DBConfig.Pool.MaxLifetime)
+	rawDB.SetMaxOpenConns(cfg.DB.Pool.MaxOpen)
+	rawDB.SetMaxIdleConns(cfg.DB.Pool.MaxIdle)
+	rawDB.SetConnMaxLifetime(cfg.DB.Pool.MaxLifetime)
 
-	if cfg.DBConfig.Migrate.Enable {
+	if cfg.DB.Migrate.Enable {
 		err := migrateDB(rawDB)
 		if err != nil {
 			return nil, err

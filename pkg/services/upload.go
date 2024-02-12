@@ -35,12 +35,12 @@ const saltLength = 32
 type UploadService struct {
 	db     *gorm.DB
 	worker *tgc.UploadWorker
-	cnf    *config.TelegramConfig
+	cnf    *config.TGConfig
 	kv     kv.KV
 }
 
 func NewUploadService(db *gorm.DB, cnf *config.Config, worker *tgc.UploadWorker, kv kv.KV) *UploadService {
-	return &UploadService{db: db, worker: worker, cnf: &cnf.Telegram, kv: kv}
+	return &UploadService{db: db, worker: worker, cnf: &cnf.TG, kv: kv}
 }
 
 func (us *UploadService) GetUploadFileById(c *gin.Context) (*schemas.UploadOut, *types.AppError) {
@@ -81,7 +81,7 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 
 	var encryptedKey string
 
-	if uploadQuery.Encrypted && us.cnf.Uploads.EncrptionKey == "" {
+	if uploadQuery.Encrypted && us.cnf.Uploads.EncryptionKey == "" {
 		return nil, &types.AppError{Error: errors.New("encryption key not found"),
 			Code: http.StatusBadRequest}
 	}

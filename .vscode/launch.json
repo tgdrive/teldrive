@@ -10,7 +10,7 @@
             "request": "launch",
             "mode": "auto",
             "program": "${workspaceFolder}/cmd/teldrive",
-            "args": ["run","--config","teldrive.yml"]
+            "args": ["run"]
         }
     ]
 }

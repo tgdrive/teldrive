@@ -34,12 +34,12 @@ import (
 
 type FileService struct {
 	db     *gorm.DB
-	cnf    *config.TelegramConfig
+	cnf    *config.TGConfig
 	worker *tgc.StreamWorker
 }
 
 func NewFileService(db *gorm.DB, cnf *config.Config, worker *tgc.StreamWorker) *FileService {
-	return &FileService{db: db, cnf: &cnf.Telegram, worker: worker}
+	return &FileService{db: db, cnf: &cnf.TG, worker: worker}
 }
 
 func (fs *FileService) CreateFile(c *gin.Context, userId int64, fileIn *schemas.FileIn) (*schemas.FileOut, *types.AppError) {
@@ -524,7 +524,7 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 		parts = rangedParts(parts, start, end)
 
 		if file.Encrypted {
-			lr, _ = reader.NewDecryptedReader(c, client.Tg, parts, contentLength, fs.cnf.Uploads.EncrptionKey)
+			lr, _ = reader.NewDecryptedReader(c, client.Tg, parts, contentLength, fs.cnf.Uploads.EncryptionKey)
 		} else {
 			lr, _ = reader.NewLinearReader(c, client.Tg, parts, contentLength)
 		}

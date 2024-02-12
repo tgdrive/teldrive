@@ -1,0 +1,47 @@
+[db]
+  data-source = ""
+  log-level = 1
+
+  [db.migrate]
+    enable = true
+
+  [db.pool]
+    max-idle = 25
+    max-lifetime = "10m"
+    max-open = 25
+
+[jwt]
+  allowed-users = [""]
+  secret = ""
+  session-time = "30d"
+
+[log]
+  development = false
+  encoding = "console"
+  level = -1
+
+[server]
+  graceful-shutdown = "15s"
+  port = 5000
+  read-timeout = "30s"
+  write-timeout = "30s"
+
+[tg]
+  app-hash = ""
+  app-id = 0
+  app-version = "2.1.9 K"
+  bg-bots-limit = 5
+  device-model = "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/116.0"
+  disable-stream-bots = false
+  lang-code = "en"
+  lang-pack = "en"
+  rate = 100
+  rate-burst = 5
+  rate-limit = true
+  system-lang-code = "en-US"
+  system-version = "Win32"
+
+  [tg.uploads]
+    encryption-key = ""
+    retention = "15d"
+    threads = 16
