@@ -31,6 +31,7 @@ type TGConfig struct {
 	LangCode          string
 	SystemLangCode    string
 	LangPack          string
+	SessionFile       string
 	BgBotsLimit       int
 	DisableStreamBots bool
 	Uploads           struct {

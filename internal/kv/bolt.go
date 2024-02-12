@@ -4,6 +4,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/divyam234/teldrive/internal/config"
 	"github.com/divyam234/teldrive/internal/utils"
 	"go.etcd.io/bbolt"
 )
@@ -41,8 +42,13 @@ func (b *Bolt) Delete(key string) error {
 	})
 }
 
-func NewBoltKV() KV {
-	boltDB, err := bbolt.Open(filepath.Join(utils.ExecutableDir(), "teldrive.db"), 0666, &bbolt.Options{
+func NewBoltKV(cnf *config.Config) KV {
+
+	sessionFile := cnf.TG.SessionFile
+	if sessionFile == "" {
+		sessionFile = filepath.Join(utils.ExecutableDir(), "teldrive.db")
+	}
+	boltDB, err := bbolt.Open(sessionFile, 0666, &bbolt.Options{
 		Timeout:    time.Second,
 		NoGrowSync: false,
 	})

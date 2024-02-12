@@ -21,18 +21,18 @@ func RunWithAuth(ctx context.Context, client *telegram.Client, token string, f f
 			if !status.Authorized {
 				return errors.Errorf("not authorized. please login first")
 			}
-			logger.Debug("User Session",
+			logger.Debugw("User Session",
 				zap.Int64("id", status.User.ID),
 				zap.String("username", status.User.Username))
 		} else {
 			if !status.Authorized {
-				logger.Debug("creating bot session")
+				logger.Debugw("creating bot session")
 				_, err := client.Auth().Bot(ctx, token)
 				if err != nil {
 					return err
 				}
 				status, _ = client.Auth().Status(ctx)
-				logger.Debug("Bot Session",
+				logger.Debugw("Bot Session",
 					zap.Int64("id", status.User.ID),
 					zap.String("username", status.User.Username))
 			}

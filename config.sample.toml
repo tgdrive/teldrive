@@ -37,6 +37,7 @@
   rate = 100
   rate-burst = 5
   rate-limit = true
+  session-file = ""
   system-lang-code = "en-US"
   system-version = "Win32"
 
