@@ -147,11 +147,11 @@ teldrive run --help
 | --tg-uploads-retention               | Uploads retention duration.Duration to keep failed uploaded chunks in db for resuming uploads.                       | No       | 360h (30 days)                                               |
 
 
-```ts
-	DebugLevel = -1
-	InfoLevel = 0
-	WarnLevel = 1
-	ErrorLevel = 2
+```
+DebugLevel = -1
+InfoLevel = 0
+WarnLevel = 1
+ErrorLevel = 2
 ```
 Possible log level values
 
