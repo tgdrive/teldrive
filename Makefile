@@ -7,6 +7,7 @@ GIT_COMMIT := $(shell git rev-parse --short HEAD)
 GIT_LINK := $(shell git remote get-url origin)
 GIT_DEV_TAG := $(shell git describe --tags --abbrev=0 --match='*-dev')
 ENV_FILE := $(FRONTEND_DIR)/.env
+MODULE_PATH := $(shell go list -m)
 
 GOOS ?= $(shell go env GOOS)
 GOARCH ?= $(shell go env GOARCH)
@@ -36,7 +37,7 @@ endif
 
 backend:
 	@echo "Building backend for $(GOOS)/$(GOARCH)..."
-	go build -trimpath -ldflags "-s -w -extldflags=-static" -o $(BUILD_DIR)/$(APP_NAME)$(BINARY_EXTENSION) ./cmd/teldrive
+	go build -trimpath -ldflags "-s -w -X $(MODULE_PATH)/internal/config.Version=$(GIT_VERSION) -extldflags=-static" -o $(BUILD_DIR)/$(APP_NAME)$(BINARY_EXTENSION)
 
 build: frontend backend
 	@echo "Building complete."

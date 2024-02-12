@@ -42,8 +42,8 @@ type TGConfig struct {
 
 type LoggingConfig struct {
 	Level       int
-	Encoding    string
 	Development bool
+	File        string
 }
 
 type JWTConfig struct {
@@ -59,8 +59,8 @@ type DBConfig struct {
 		Enable bool
 	}
 	Pool struct {
-		MaxOpen     int
-		MaxIdle     int
-		MaxLifetime time.Duration
+		MaxOpenConnections int
+		MaxIdleConnections int
+		MaxLifetime        time.Duration
 	}
 }

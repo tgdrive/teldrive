@@ -1,4 +1,4 @@
-package main
+package cmd
 
 import (
 	"context"
@@ -52,7 +52,7 @@ func NewRun() *cobra.Command {
 	runCmd.Flags().DurationVar(&config.Server.GracefulShutdown, "server-graceful-shutdown", 15*time.Second, "Server graceful shutdown timeout")
 
 	runCmd.Flags().IntVarP(&config.Log.Level, "log-level", "", -1, "Logging level")
-	runCmd.Flags().StringVar(&config.Log.Encoding, "log-encoding", "console", "Logging encoding")
+	runCmd.Flags().StringVar(&config.Log.File, "log-file", "", "Logging file path")
 	runCmd.Flags().BoolVar(&config.Log.Development, "log-development", false, "Enable development mode")
 
 	runCmd.Flags().StringVar(&config.JWT.Secret, "jwt-secret", "", "JWT secret key")
@@ -62,8 +62,8 @@ func NewRun() *cobra.Command {
 	runCmd.Flags().StringVar(&config.DB.DataSource, "db-data-source", "", "Database connection string")
 	runCmd.Flags().IntVar(&config.DB.LogLevel, "db-log-level", 1, "Database log level")
 	runCmd.Flags().BoolVar(&config.DB.Migrate.Enable, "db-migrate-enable", true, "Enable database migration")
-	runCmd.Flags().IntVar(&config.DB.Pool.MaxOpen, "db-pool-max-open", 25, "Database max open connections")
-	runCmd.Flags().IntVar(&config.DB.Pool.MaxIdle, "db-pool-max-idle", 25, "Database max idle connections")
+	runCmd.Flags().IntVar(&config.DB.Pool.MaxIdleConnections, "db-pool-max-open-connections", 25, "Database max open connections")
+	runCmd.Flags().IntVar(&config.DB.Pool.MaxIdleConnections, "db-pool-max-idle-connections", 25, "Database max idle connections")
 	runCmd.Flags().DurationVar(&config.DB.Pool.MaxLifetime, "db-pool-max-lifetime", 10*time.Minute, "Database max connection lifetime")
 
 	runCmd.Flags().IntVar(&config.TG.AppId, "tg-app-id", 0, "Telegram app ID")
@@ -93,9 +93,9 @@ func NewRun() *cobra.Command {
 
 func runApplication(conf *config.Config) {
 	logging.SetConfig(&logging.Config{
-		Encoding:    conf.Log.Encoding,
 		Level:       zapcore.Level(conf.Log.Level),
 		Development: conf.Log.Development,
+		FilePath:    conf.Log.File,
 	})
 	defer logging.DefaultLogger().Sync()
 

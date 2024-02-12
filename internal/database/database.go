@@ -45,8 +45,8 @@ func NewDatabase(cfg *config.Config) (*gorm.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	rawDB.SetMaxOpenConns(cfg.DB.Pool.MaxOpen)
-	rawDB.SetMaxIdleConns(cfg.DB.Pool.MaxIdle)
+	rawDB.SetMaxOpenConns(cfg.DB.Pool.MaxOpenConnections)
+	rawDB.SetMaxIdleConns(cfg.DB.Pool.MaxIdleConnections)
 	rawDB.SetConnMaxLifetime(cfg.DB.Pool.MaxLifetime)
 
 	if cfg.DB.Migrate.Enable {

@@ -165,30 +165,33 @@ func (fs *FileService) ListFiles(userId int64, fquery *schemas.FileQuery) (*sche
 	if fquery.Op == "list" {
 
 		query.Order("type DESC").Order(getOrder(fquery)).Where("parent_id = ?", pathId).
-			Model(filter)
+			Model(filter).Where(&filter)
 
 	} else if fquery.Op == "find" {
 
 		filter.Name = fquery.Name
 		filter.Type = fquery.Type
 		filter.ParentID = fquery.ParentID
-		filter.Starred = *fquery.Starred
 		filter.Path = fquery.Path
+		filter.Type = fquery.Type
+		if fquery.Starred != nil {
+			filter.Starred = *fquery.Starred
+		}
 
 		if fquery.Path != "" && fquery.Name != "" {
 			filter.ParentID = pathId
 			filter.Path = ""
 		}
 
-		query.Order("type DESC").Order(getOrder(fquery)).Where(fquery).
-			Model(&filter)
+		query.Order("type DESC").Order(getOrder(fquery)).
+			Model(&filter).Where(&filter)
 
 	} else if fquery.Op == "search" {
 
 		query.Where("teldrive.get_tsquery(?) @@ teldrive.get_tsvector(name)", fquery.Search)
 
 		query.Order(getOrder(fquery)).
-			Model(filter)
+			Model(&filter).Where(&filter)
 	}
 
 	if fquery.Path == "" {

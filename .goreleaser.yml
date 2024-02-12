@@ -12,7 +12,10 @@ builds:
       
     main: cmd/teldrive/main.go
     flags: -trimpath
-    ldflags: "-extldflags -static -s -w"
+    ldflags:
+     - -extldflags=-static
+     - -s -w
+     - -X {{ .ModulePath }}/internal/config.Version={{ .Version }}
     mod_timestamp: "{{ .CommitTimestamp }}"
     goos:
       - linux

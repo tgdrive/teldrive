@@ -6,18 +6,17 @@
     enable = true
 
   [db.pool]
-    max-idle = 25
+    max-idle-connections = 25
     max-lifetime = "10m"
-    max-open = 25
+    max-open-connections = 25
 
 [jwt]
   allowed-users = [""]
   secret = ""
-  session-time = "30d"
+  session-time = "720h"
 
 [log]
-  development = false
-  encoding = "console"
+  development = true
   level = -1
 
 [server]
@@ -43,5 +42,5 @@
 
   [tg.uploads]
     encryption-key = ""
-    retention = "15d"
+    retention = "360h"
     threads = 16

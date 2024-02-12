@@ -25,7 +25,7 @@ func NewTestDatabase(tb testing.TB, migration bool) *gorm.DB {
 			TablePrefix:   "teldrive.",
 			SingularTable: false,
 		},
-		PrepareStmt: false,
+		PrepareStmt: true,
 		NowFunc: func() time.Time {
 			return time.Now().UTC()
 		},
