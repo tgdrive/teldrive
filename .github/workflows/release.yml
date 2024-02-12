@@ -38,7 +38,7 @@ jobs:
       
       - name: Set env
         run: |
-          echo "GORELEASER_PREVIOUS_TAG=$(git tag --sort=committerdate | grep -E  '[0-9]+\.[0-9]+\.[0-9]+$' | tail -2 | head -1)" >> $GITHUB_ENV
+          echo "GORELEASER_PREVIOUS_TAG=$(git tag --sort=v:refname | grep -E  '[0-9]+\.[0-9]+\.[0-9]+$' | tail -2 | head -1)" >> $GITHUB_ENV
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v5

@@ -33,13 +33,11 @@ services:
     container_name: teldrive
     volumes:
       - ./teldrive.db:/teldrive.db:rw
-      - ./logs:/logs:rw
-    env_file: teldrive.env
+      - ./config.toml:/config.toml
     ports:
       - 8080:8080
 
 ```
-
 ***People Who want to use local Postgres instance***
 ```docker
 version: "3.8"
@@ -51,8 +49,7 @@ services:
     container_name: teldrive
     volumes:
       - ./teldrive.db:/teldrive.db:rw
-      - ./logs:/logs:rw
-    env_file: teldrive.env
+      - ./config.toml:/config.toml
     ports:
       - 8080:8080
     depends_on:
@@ -66,20 +63,31 @@ services:
       - POSTGRES_USER=teldrive
       - POSTGRES_PASSWORD=secret
     volumes:
-      - teldrive_db:/var/lib/postgresql/data
+      - ./postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "teldrive"]
       interval: 10s
       start_period: 30s
-
-volumes:
-  teldrive_db:
 ```
 
 **Follow Below Steps**
 
-- Create the `teldrive.env` file with your variables and start your container.See how to fill env file below.
+- Create the `config.toml` file with your values and start your container. See how to fill file below.
 
+```toml
+#config.toml
+[db]
+data-source = "postgres://<db username>:<db password>@<db host>/<db name>"
+
+[jwt]
+secret = "abcd"
+
+[tg]
+app-id = 
+app-hash = "fwfwfwf"
+```
+***Only these values are mandatory however you can change or
+tweak your config see more in advanced configurations below***.
 ```sh
 touch teldrive.db
 docker compose up -d
@@ -92,24 +100,13 @@ docker compose up -d
 
 - Download the release binary of Teldrive from the releases section.
 
-- Add same env file as above.
+- Add same config file as above.
 - Now, run the Teldrive executable binary directly.
-
-## Setting up things
-
-If you're locally or remotely hosting, create a file named `teldrive.env` in the root directory and add all the mandatory variables there.
-An example of `teldrive.env` file:
-
+- You can also set up without config file.
 ```sh
-APP_ID=1234
-APP_HASH=abc
-JWT_SECRET=abc
-DATABASE_URL=postgres://<db username>:<db password>@<db host>/<db name>
+teldrive run --tg-app-id="" --tg-app-hash="" --jwt-secret="" --db-data-source=""
 ```
-When used with local postgres instance above:
-```
-DATABASE_URL=postgres://POSTGRES_USER:POSTGRES_PASSWORD@db/teldrive
-```
+
 **Generate JWT**
 ```bash
 $ openssl rand -hex 32
@@ -125,26 +122,36 @@ You can generate secret from [here](https://generate-secret.vercel.app/32).
   - Teldrive supports image thumbnail resizing on the fly. To enable this, you have to deploy a separate image resize service from [here](https://github.com/divyam234/image-resize).
   - After deploying this service, add its URL in Teldrive UI settings in the **Resize Host** field.
 
-### Env Variables
+### Advanced Configuration
 
-| Variable        | Required | Description                                                                               |
-| --------------- | -------- | ----------------------------------------------------------------------------------------- |
-| `APP_ID`        | Yes      | API ID for your Telegram account, which can be obtained from my.telegram.org.              |
-| `APP_HASH`      | Yes      | API HASH for your Telegram account, which can be obtained from my.telegram.org.             |
-| `JWT_SECRET`    | Yes      | Used for signing JWT tokens.                                                               |
-| `DATABASE_URL`  | Yes      | Connection String obtained from Postgres DB (you can use Neon db as a free alternative for Postgres). |
+**cli options**
 
-| Variable           | Default Value | Required | Description                                                                               |
-|--------------------|---------------|----------|-------------------------------------------------------------------------------------------|
-| `HTTPS`            | false         | NO       | Needed for cross domain setup.                        |
-| `PORT`             | 8080          | NO       | Change default listen port.                                                      |
-| `ALLOWED_USERS`    |               | NO       | Allow certain Telegram usernames, including yours, to access the app.                      |
-| `COOKIE_SAME_SITE` | true          | NO       | Needed for cross domain setup.                         |
-| `BG_BOTS_LIMIT`    | 5             | NO       | Start at most BG_BOTS_LIMIT no of bots in the background to prevent connection recreation on every request (Default 5). |
-| `UPLOAD_RETENTION` | 15            | NO       | No of days to keep incomplete uploads parts in the channel; afterwards, these parts are deleted. |
-| `ENCRYPTION_KEY`  |               | NO       | Password for Encrypting files.                                                                  |
-| `DEV`              | false         | NO       | DEV mode to enable debug logging.                                         |
-| `LOG_SQL`          | false         | NO       | Log SQL queries.                                                          |
+```sh
+teldrive run --help
+```
+| Flag Name                           | Description                                       | Required | Default Value                                         |
+|-------------------------------------|---------------------------------------------------|----------|-------------------------------------------------------|
+| --jwt-secret                         | JWT secret key                                    | Yes      | ""                               |
+| --db-data-source                     | Database connection string                       | Yes      | ""                               |
+| --tg-app-id                          | API ID for your Telegram account, which can be obtained from my.telegram.org.                                   | Yes      | 0                                                     |
+| --tg-app-hash                        | API HASH for your Telegram account, which can be obtained from my.telegram.org.                                 | Yes      | ""                              |
+| --jwt-allowed-users                  | Allow certain Telegram usernames, including yours, to access the app.                             |No      | ""                        |
+| --tg-uploads-encryption-key          | Encryption key for encrypting files.                           | No      | ""                               |
+| --config, -c                        | Config file.                                 | No       | $HOME/.teldrive/config.toml                           |
+| --server-port, -p                    | Server port                                       | No       | 8080                                                  |
+| --log-level                          | Logging level                                     | No       | -1 (Debug)                         |
+| --tg-rate-limit                      | Enable rate limiting                              | No       | true                                                  |
+| --tg-rate-burst                      | Limiting burst                                    | No       | 5                                                     |
+| --tg-rate                            | Limiting rate                                     | No       | 100                                                   |
+| --tg-bg-bots-limit                   | Start at most this no of bots in the background to prevent connection recreation on every request.Increase this if you are streaming or downloading large no of files simultaneously.                             | No       | 5                                                                                          
+| --tg-uploads-threads                 | Concurrent Uploads threads for uploading file                                  | No       | 16                                                    |
+| --tg-uploads-retention               | Uploads retention duration.Duration to keep failed uploaded chunks in db for resuming uploads.                       | No       | 360h (30 days)                                               |
+
+
+**You Can also set config values through env varibles.**
+- For example ```tg-session-file``` will become ```TELDRIVE_TG_SESSION_FILE``` same for all possible flags.
+
+- See ```config.sample.toml``` in repo if you want to setup advanced configurations through toml file.
 
 > [!WARNING]
 > Keep your Password safe once generated teldrive uses same encryption as of rclone internally 
@@ -178,8 +185,6 @@ encrypt_files = false # Enable this to encrypt files make sure ENCRYPTION_KEY en
 ### Don'ts:
 
 - **Data Hoarding:** Avoid excessive data hoarding, as it not only violates Telegram's terms but also leads to unnecessary wastage of storage space.
-
-- **No Netflix Clones:** Refrain from using this service to create your own Netflix-like platform. Saving large amounts of movies or content for personal media servers is discouraged, as it goes against the intended use of Telegram.
 
 ### Additional Recommendations:
 
