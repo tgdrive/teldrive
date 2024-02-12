@@ -7,7 +7,6 @@ services:
     container_name: teldrive
     volumes:
       - ./teldrive.db:/teldrive.db:rw
-      - ./logs:/logs:rw
-    env_file: teldrive.env
+      - ./config.toml:/config.toml
     ports:
       - 8080:8080

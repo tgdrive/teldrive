@@ -7,7 +7,7 @@ services:
     container_name: teldrive
     volumes:
       - ./teldrive.db:/teldrive.db:rw
-      - ./logs:/logs:rw
+      - ./config.toml:/config.toml
     env_file: teldrive.env
     ports:
       - 8080:8080
@@ -22,12 +22,8 @@ services:
       - POSTGRES_USER=teldrive
       - POSTGRES_PASSWORD=secret
     volumes:
-      - teldrive_db:/var/lib/postgresql/data
+      - ./postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "teldrive"]
       interval: 10s
       start_period: 30s
-
-volumes:
-  teldrive_db:
-  
