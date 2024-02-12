@@ -10,7 +10,7 @@ builds:
   - env:
       - CGO_ENABLED=0
       
-    main: cmd/teldrive/main.go
+    main: main.go
     flags: -trimpath
     ldflags:
      - -extldflags=-static
