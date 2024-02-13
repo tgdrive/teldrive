@@ -1,11 +1,13 @@
 package kv
 
 import (
+	"os"
 	"path/filepath"
 	"time"
 
 	"github.com/divyam234/teldrive/internal/config"
 	"github.com/divyam234/teldrive/internal/utils"
+	"github.com/mitchellh/go-homedir"
 	"go.etcd.io/bbolt"
 )
 
@@ -46,7 +48,17 @@ func NewBoltKV(cnf *config.Config) KV {
 
 	sessionFile := cnf.TG.SessionFile
 	if sessionFile == "" {
-		sessionFile = filepath.Join(utils.ExecutableDir(), "teldrive.db")
+		dir, err := homedir.Dir()
+		if err != nil {
+			dir = utils.ExecutableDir()
+		} else {
+			dir = filepath.Join(dir, ".teldrive")
+			err := os.Mkdir(dir, 0755)
+			if err != nil && !os.IsExist(err) {
+				dir = utils.ExecutableDir()
+			}
+		}
+		sessionFile = filepath.Join(dir, "session.db")
 	}
 	boltDB, err := bbolt.Open(sessionFile, 0666, &bbolt.Options{
 		Timeout:    time.Second,

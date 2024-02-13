@@ -6,7 +6,7 @@ services:
     restart: always
     container_name: teldrive
     volumes:
-      - ./teldrive.db:/teldrive.db:rw
+      - ./session.db:/session.db:rw
       - ./config.toml:/config.toml
     ports:
       - 8080:8080

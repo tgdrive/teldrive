@@ -32,7 +32,7 @@ services:
     restart: always
     container_name: teldrive
     volumes:
-      - ./teldrive.db:/teldrive.db:rw
+      - ./session.db:/session.db:rw
       - ./config.toml:/config.toml
     ports:
       - 8080:8080
@@ -48,7 +48,7 @@ services:
     restart: always
     container_name: teldrive
     volumes:
-      - ./teldrive.db:/teldrive.db:rw
+      - ./session.db:/session.db:rw
       - ./config.toml:/config.toml
     ports:
       - 8080:8080
@@ -88,7 +88,7 @@ app-hash = "fwfwfwf"
 ***Only these values are mandatory however you can change or
 tweak your config see more in advanced configurations below***.
 ```sh
-touch teldrive.db
+touch session.db
 docker compose up -d
 ```
 - **Go to http://localhost:8080**
@@ -149,6 +149,7 @@ teldrive run --help
 | --tg-rate-limit                      | Enable rate limiting                              | No       | true                                                  |
 | --tg-rate-burst                      | Limiting burst                                    | No       | 5                                                     |
 | --tg-rate                            | Limiting rate                                     | No       | 100                                                   |
+| --tg-session-file                        | Bot Session File file.                                 | No       | $HOME/.teldrive/session.db                          |
 | --tg-bg-bots-limit                   | Start at most this no of bots in the background to prevent connection recreation on every request.Increase this if you are streaming or downloading large no of files simultaneously.                             | No       | 5                                                                                          
 | --tg-uploads-threads                 | Concurrent Uploads threads for uploading file                                  | No       | 16                                                    |
 | --tg-uploads-retention               | Uploads retention duration.Duration to keep failed uploaded chunks in db for resuming uploads.                       | No       | 360h (30 days)                                               |
