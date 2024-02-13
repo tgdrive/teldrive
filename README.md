@@ -102,6 +102,13 @@ docker compose up -d
 - Add same config file as above.
 - Now, run the Teldrive executable binary directly.
 - You can also set up without config file.
+
+**One line installer for linux**
+```sh
+curl -s https://i.jpillora.com/divyam234/teldrive | bash # install in current directory
+
+curl -s https://i.jpillora.com/divyam234/teldrive! | bash # install in /usr/local/bin
+```
 ```sh
 teldrive run --tg-app-id="" --tg-app-hash="" --jwt-secret="" --db-data-source=""
 ```
