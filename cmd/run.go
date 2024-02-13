@@ -75,10 +75,10 @@ func NewRun() *cobra.Command {
 	runCmd.Flags().StringVar(&config.TG.DeviceModel, "tg-device-model",
 		"Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/116.0", "Device model")
 	runCmd.Flags().StringVar(&config.TG.SystemVersion, "tg-system-version", "Win32", "System version")
-	runCmd.Flags().StringVar(&config.TG.AppVersion, "tg-app-version", "2.1.9 K", "App version")
+	runCmd.Flags().StringVar(&config.TG.AppVersion, "tg-app-version", "4.6.3 K", "App version")
 	runCmd.Flags().StringVar(&config.TG.LangCode, "tg-lang-code", "en", "Language code")
 	runCmd.Flags().StringVar(&config.TG.SystemLangCode, "tg-system-lang-code", "en-US", "System language code")
-	runCmd.Flags().StringVar(&config.TG.LangPack, "tg-lang-pack", "en", "Language pack")
+	runCmd.Flags().StringVar(&config.TG.LangPack, "tg-lang-pack", "webk", "Language pack")
 	runCmd.Flags().IntVar(&config.TG.BgBotsLimit, "tg-bg-bots-limit", 5, "Background bots limit")
 	runCmd.Flags().BoolVar(&config.TG.DisableStreamBots, "tg-disable-stream-bots", false, "Disable stream bots")
 	runCmd.Flags().StringVar(&config.TG.Uploads.EncryptionKey, "tg-uploads-encryption-key", "", "Uploads encryption key")
