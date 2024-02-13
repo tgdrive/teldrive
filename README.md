@@ -145,23 +145,14 @@ teldrive run --help
 | --tg-uploads-encryption-key          | Encryption key for encrypting files.                           | No      | ""                               |
 | --config, -c                        | Config file.                                 | No       | $HOME/.teldrive/config.toml                           |
 | --server-port, -p                    | Server port                                       | No       | 8080                                                  |
-| --log-level                          | Logging level                                     | No       | -1 (Debug)                         |
+| --log-level                          | Logging level<br> <br> DebugLevel = -1 <br>InfoLevel = 0<br> WarnLevel = 1 <br> ErrorLevel = 2                                     | No       | -1                       |
 | --tg-rate-limit                      | Enable rate limiting                              | No       | true                                                  |
 | --tg-rate-burst                      | Limiting burst                                    | No       | 5                                                     |
 | --tg-rate                            | Limiting rate                                     | No       | 100                                                   |
-| --tg-session-file                        | Bot Session File file.                                 | No       | $HOME/.teldrive/session.db                          |
+| --tg-session-file                        | Bot session file.                                 | No       | $HOME/.teldrive/session.db                          |
 | --tg-bg-bots-limit                   | Start at most this no of bots in the background to prevent connection recreation on every request.Increase this if you are streaming or downloading large no of files simultaneously.                             | No       | 5                                                                                          
 | --tg-uploads-threads                 | Concurrent Uploads threads for uploading file                                  | No       | 16                                                    |
 | --tg-uploads-retention               | Uploads retention duration.Duration to keep failed uploaded chunks in db for resuming uploads.                       | No       | 360h (30 days)                                               |
-
-
-```
-DebugLevel = -1
-InfoLevel = 0
-WarnLevel = 1
-ErrorLevel = 2
-```
-Possible log level values
 
 **You Can also set config values through env varibles.**
 - For example ```tg-session-file``` will become ```TELDRIVE_TG_SESSION_FILE``` same for all possible flags.
