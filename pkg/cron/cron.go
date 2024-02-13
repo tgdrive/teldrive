@@ -71,13 +71,15 @@ type CronService struct {
 func StartCronJobs(db *gorm.DB, cnf *config.Config) {
 	scheduler := gocron.NewScheduler(time.UTC)
 
+	ctx := context.Background()
+
 	cron := CronService{db: db, cnf: cnf, logger: logging.DefaultLogger()}
 
-	scheduler.Every(1).Hour().Do(cron.CleanFiles)
+	scheduler.Every(1).Hour().Do(cron.CleanFiles, ctx)
 
 	scheduler.Every(2).Hour().Do(cron.UpdateFolderSize)
 
-	scheduler.Every(12).Hour().Do(cron.CleanUploads)
+	scheduler.Every(12).Hour().Do(cron.CleanUploads, ctx)
 
 	scheduler.StartAsync()
 }
@@ -148,7 +150,6 @@ func (c *CronService) CleanUploads(ctx context.Context) {
 
 func (c *CronService) UpdateFolderSize() {
 	c.db.Exec("call teldrive.update_size();")
-	c.logger.Info("updated folder sizes")
 }
 
 func deleteTGMessages(ctx context.Context, cnf *config.Config, session string, channelId, userId int64, ids []int) error {
