@@ -127,6 +127,7 @@ You can generate secret from [here](https://generate-secret.vercel.app/32).
   - Uploads from UI will be slower due to limitations of the browser. Use modified [Rclone](https://github.com/divyam234/rclone) version for teldrive.
   - Teldrive supports image thumbnail resizing on the fly. To enable this, you have to deploy a separate image resize service from [here](https://github.com/divyam234/image-resize).
   - After deploying this service, add its URL in Teldrive UI settings in the **Resize Host** field.
+  - Files are deleted at regular interval of one hour through cron job from tg channel after its deleted from teldrive this is done so  that person can recover files if he/she accidently deletes them.
 
 ### Advanced Configuration
 
