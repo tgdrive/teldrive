@@ -21,9 +21,7 @@
 
 [server]
   graceful-shutdown = "15s"
-  port = 5000
-  read-timeout = "30s"
-  write-timeout = "30s"
+  port = 8080
 
 [tg]
   app-hash = ""

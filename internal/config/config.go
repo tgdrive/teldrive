@@ -14,8 +14,6 @@ type Config struct {
 
 type ServerConfig struct {
 	Port             int
-	ReadTimeout      time.Duration
-	WriteTimeout     time.Duration
 	GracefulShutdown time.Duration
 }
 

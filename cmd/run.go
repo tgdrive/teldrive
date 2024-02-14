@@ -47,8 +47,6 @@ func NewRun() *cobra.Command {
 
 	runCmd.Flags().StringP("config", "c", "", "config file (default is $HOME/.teldrive/config.toml)")
 	runCmd.Flags().IntVarP(&config.Server.Port, "server-port", "p", 8080, "Server port")
-	runCmd.Flags().DurationVar(&config.Server.ReadTimeout, "server-read-timeout", 30*time.Second, "Server read timeout")
-	runCmd.Flags().DurationVar(&config.Server.WriteTimeout, "server-write-timeout", 30*time.Second, "Server write timeout")
 	runCmd.Flags().DurationVar(&config.Server.GracefulShutdown, "server-graceful-shutdown", 15*time.Second, "Server graceful shutdown timeout")
 
 	runCmd.Flags().IntVarP(&config.Log.Level, "log-level", "", -1, "Logging level")
@@ -209,10 +207,8 @@ func initApp(lc fx.Lifecycle, cfg *config.Config, c *controller.Controller) *gin
 
 	r = api.InitRouter(r, c, cfg)
 	srv := &http.Server{
-		Addr:         fmt.Sprintf(":%d", cfg.Server.Port),
-		Handler:      r,
-		ReadTimeout:  cfg.Server.ReadTimeout,
-		WriteTimeout: cfg.Server.WriteTimeout,
+		Addr:    fmt.Sprintf(":%d", cfg.Server.Port),
+		Handler: r,
 	}
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
