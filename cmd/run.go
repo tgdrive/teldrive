@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"strings"
 	"time"
 	"unicode"
@@ -21,6 +22,7 @@ import (
 	"github.com/divyam234/teldrive/pkg/cron"
 	"github.com/divyam234/teldrive/pkg/logging"
 	"github.com/divyam234/teldrive/pkg/services"
+	"github.com/gin-contrib/gzip"
 	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
 	"github.com/mitchellh/go-homedir"
@@ -204,6 +206,16 @@ func initApp(lc fx.Lifecycle, cfg *config.Config, c *controller.Controller) *gin
 	}))
 
 	r.Use(middleware.Cors())
+
+	r.Use(func(c *gin.Context) {
+		pattern := `/(assets|img|pdf\.js)/.*\.(js|css|svg|jpeg|jpg|mjs|png|bcmap|woff|woff2|ttf|otf|json|webp|png|ico|txt|ftl|pfb)$`
+		re, _ := regexp.Compile(pattern)
+		if re.MatchString(c.Request.URL.Path) {
+			c.Writer.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+			gzip.Gzip(gzip.DefaultCompression)(c)
+		}
+		c.Next()
+	})
 
 	r = api.InitRouter(r, c, cfg)
 	srv := &http.Server{
