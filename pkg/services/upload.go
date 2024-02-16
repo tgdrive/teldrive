@@ -79,8 +79,6 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 		return nil, &types.AppError{Error: err, Code: http.StatusBadRequest}
 	}
 
-	var encryptedKey string
-
 	if uploadQuery.Encrypted && us.cnf.Uploads.EncryptionKey == "" {
 		return nil, &types.AppError{Error: errors.New("encryption key not found"),
 			Code: http.StatusBadRequest}
@@ -142,7 +140,7 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 		if uploadQuery.Encrypted {
 			//gen random Salt
 			salt, _ = generateRandomSalt()
-			cipher, _ := crypt.NewCipher(encryptedKey, salt)
+			cipher, _ := crypt.NewCipher(us.cnf.Uploads.EncryptionKey, salt)
 			fileSize = crypt.EncryptedSize(fileSize)
 			fileStream, _ = cipher.EncryptData(fileStream)
 		}
