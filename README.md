@@ -2,6 +2,10 @@
 
 Telegram Drive is a powerful utility that enables you to organise your telegram files and much more.
 
+[![Discord](https://img.shields.io/discord/1142377485737148479?label=discord&logo=discord&style=flat-square&logoColor=white)](https://discord.gg/8QAeCvTK7G)
+
+**Click on icon to join Discord Server**
+
 ## Features
 
 - **UI:** Based on Material You to create nice looking UI themes.
