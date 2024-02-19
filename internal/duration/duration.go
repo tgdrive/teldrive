@@ -1,41 +1,37 @@
 package duration
 
 import (
-	"encoding/json"
-	"errors"
 	"math"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/spf13/pflag"
 )
 
-// Duration is a time.Duration with some more parsing options
 type Duration time.Duration
 
-// DurationOff is the default value for flags which can be turned off
 const DurationOff = Duration((1 << 63) - 1)
 
-// Turn Duration into a string
-func (d Duration) String() string {
-	if d == DurationOff {
+func (d *Duration) String() string {
+	if *d == DurationOff {
 		return "off"
 	}
-	for i := len(ageSuffixes) - 2; i >= 0; i-- {
-		ageSuffix := &ageSuffixes[i]
-		if math.Abs(float64(d)) >= float64(ageSuffix.Multiplier) {
-			timeUnits := float64(d) / float64(ageSuffix.Multiplier)
-			return strconv.FormatFloat(timeUnits, 'f', -1, 64) + ageSuffix.Suffix
-		}
+
+	ageSuffix := &ageSuffixes[0]
+	if math.Abs(float64(*d)) >= float64(ageSuffix.Multiplier) {
+		timeUnits := float64(*d) / float64(ageSuffix.Multiplier)
+		return strconv.FormatFloat(timeUnits, 'f', -1, 64) + ageSuffix.Suffix
 	}
-	return time.Duration(d).String()
+	return time.Duration(*d).String()
 }
 
-// IsSet returns if the duration is != DurationOff
-func (d Duration) IsSet() bool {
-	return d != DurationOff
+func (d *Duration) Set(s string) error {
+	v, err := parseDuration(s)
+	*d = Duration(v)
+	return err
 }
 
-// We use time conventions
 var ageSuffixes = []struct {
 	Suffix     string
 	Multiplier time.Duration
@@ -44,12 +40,9 @@ var ageSuffixes = []struct {
 	{Suffix: "w", Multiplier: time.Hour * 24 * 7},
 	{Suffix: "M", Multiplier: time.Hour * 24 * 30},
 	{Suffix: "y", Multiplier: time.Hour * 24 * 365},
-
-	// Default to second
 	{Suffix: "", Multiplier: time.Second},
 }
 
-// parse the age as suffixed ages
 func parseDurationSuffixes(age string) (time.Duration, error) {
 	var period float64
 
@@ -69,14 +62,11 @@ func parseDurationSuffixes(age string) (time.Duration, error) {
 	return time.Duration(period), nil
 }
 
-// parseDurationFromNow parses a duration string. Allows ParseDuration to match the time
-// package and easier testing within the fs package.
 func parseDurationFromNow(age string) (d time.Duration, err error) {
 	if age == "off" {
 		return time.Duration(DurationOff), nil
 	}
 
-	// Attempt to parse as a time.Duration first
 	d, err = time.ParseDuration(age)
 	if err == nil {
 		return d, nil
@@ -90,32 +80,19 @@ func parseDurationFromNow(age string) (d time.Duration, err error) {
 	return d, err
 }
 
-func ParseDuration(age string) (time.Duration, error) {
+func newDurationValue(val time.Duration, p *time.Duration) *Duration {
+	*p = val
+	return (*Duration)(p)
+}
+
+func DurationVar(f *pflag.FlagSet, p *time.Duration, name string, value time.Duration, usage string) {
+	f.VarP(newDurationValue(value, p), name, "", usage)
+}
+
+func parseDuration(age string) (time.Duration, error) {
 	return parseDurationFromNow(age)
 }
 
-func (d Duration) Type() string {
+func (d *Duration) Type() string {
 	return "Duration"
-}
-
-func (d *Duration) UnmarshalJSON(b []byte) error {
-	var v interface{}
-	if err := json.Unmarshal(b, &v); err != nil {
-		return err
-	}
-	switch value := v.(type) {
-	case float64:
-		*d = Duration(value)
-		return nil
-	case string:
-		var err error
-		dur, err := ParseDuration(value)
-		*d = Duration(dur)
-		if err != nil {
-			return err
-		}
-		return nil
-	default:
-		return errors.New("invalid duration")
-	}
 }

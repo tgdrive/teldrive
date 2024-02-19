@@ -13,7 +13,7 @@
 [jwt]
   allowed-users = [""]
   secret = ""
-  session-time = "720h"
+  session-time = "30d"
 
 [log]
   development = true
@@ -41,5 +41,5 @@
 
   [tg.uploads]
     encryption-key = ""
-    retention = "360h"
+    retention = "7d"
     threads = 16

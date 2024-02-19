@@ -14,6 +14,7 @@ import (
 	"github.com/divyam234/teldrive/api"
 	"github.com/divyam234/teldrive/internal/config"
 	"github.com/divyam234/teldrive/internal/database"
+	"github.com/divyam234/teldrive/internal/duration"
 	"github.com/divyam234/teldrive/internal/kv"
 	"github.com/divyam234/teldrive/internal/middleware"
 	"github.com/divyam234/teldrive/internal/tgc"
@@ -49,14 +50,14 @@ func NewRun() *cobra.Command {
 
 	runCmd.Flags().StringP("config", "c", "", "config file (default is $HOME/.teldrive/config.toml)")
 	runCmd.Flags().IntVarP(&config.Server.Port, "server-port", "p", 8080, "Server port")
-	runCmd.Flags().DurationVar(&config.Server.GracefulShutdown, "server-graceful-shutdown", 15*time.Second, "Server graceful shutdown timeout")
+	duration.DurationVar(runCmd.Flags(), &config.Server.GracefulShutdown, "server-graceful-shutdown", 15*time.Second, "Server graceful shutdown timeout")
 
 	runCmd.Flags().IntVarP(&config.Log.Level, "log-level", "", -1, "Logging level")
 	runCmd.Flags().StringVar(&config.Log.File, "log-file", "", "Logging file path")
 	runCmd.Flags().BoolVar(&config.Log.Development, "log-development", false, "Enable development mode")
 
 	runCmd.Flags().StringVar(&config.JWT.Secret, "jwt-secret", "", "JWT secret key")
-	runCmd.Flags().DurationVar(&config.JWT.SessionTime, "jwt-session-time", (30*24)*time.Hour, "JWT session duration")
+	duration.DurationVar(runCmd.Flags(), &config.JWT.SessionTime, "jwt-session-time", (30*24)*time.Hour, "JWT session duration")
 	runCmd.Flags().StringSliceVar(&config.JWT.AllowedUsers, "jwt-allowed-users", []string{}, "Allowed users")
 
 	runCmd.Flags().StringVar(&config.DB.DataSource, "db-data-source", "", "Database connection string")
@@ -64,7 +65,7 @@ func NewRun() *cobra.Command {
 	runCmd.Flags().BoolVar(&config.DB.Migrate.Enable, "db-migrate-enable", true, "Enable database migration")
 	runCmd.Flags().IntVar(&config.DB.Pool.MaxIdleConnections, "db-pool-max-open-connections", 25, "Database max open connections")
 	runCmd.Flags().IntVar(&config.DB.Pool.MaxIdleConnections, "db-pool-max-idle-connections", 25, "Database max idle connections")
-	runCmd.Flags().DurationVar(&config.DB.Pool.MaxLifetime, "db-pool-max-lifetime", 10*time.Minute, "Database max connection lifetime")
+	duration.DurationVar(runCmd.Flags(), &config.DB.Pool.MaxLifetime, "db-pool-max-lifetime", 10*time.Minute, "Database max connection lifetime")
 
 	runCmd.Flags().IntVar(&config.TG.AppId, "tg-app-id", 0, "Telegram app ID")
 	runCmd.Flags().StringVar(&config.TG.AppHash, "tg-app-hash", "", "Telegram app hash")
@@ -83,12 +84,14 @@ func NewRun() *cobra.Command {
 	runCmd.Flags().BoolVar(&config.TG.DisableStreamBots, "tg-disable-stream-bots", false, "Disable stream bots")
 	runCmd.Flags().StringVar(&config.TG.Uploads.EncryptionKey, "tg-uploads-encryption-key", "", "Uploads encryption key")
 	runCmd.Flags().IntVar(&config.TG.Uploads.Threads, "tg-uploads-threads", 16, "Uploads threads")
-	runCmd.Flags().DurationVar(&config.TG.Uploads.Retention, "tg-uploads-retention", (24*15)*time.Hour, "Uploads retention duration")
+	duration.DurationVar(runCmd.Flags(), &config.TG.Uploads.Retention, "tg-uploads-retention", (24*7)*time.Hour,
+		"Uploads retention duration")
 
 	runCmd.MarkFlagRequired("tg-app-id")
 	runCmd.MarkFlagRequired("tg-app-hash")
 	runCmd.MarkFlagRequired("db-data-source")
 	runCmd.MarkFlagRequired("jwt-secret")
+
 	return runCmd
 }
 
