@@ -99,6 +99,10 @@ func (c *CronService) CleanFiles(ctx context.Context) {
 	}
 
 	for _, row := range results {
+
+		if row.Session == "" {
+			break
+		}
 		ids := []int{}
 
 		fileIds := []string{}
@@ -135,6 +139,9 @@ func (c *CronService) CleanUploads(ctx context.Context) {
 	}
 
 	for _, result := range upResults {
+		if result.Session == "" {
+			break
+		}
 		err := deleteTGMessages(ctx, c.cnf, result.Session, result.ChannelId, result.UserId, result.Parts)
 		c.logger.Errorw("failed to delete messages", err)
 		parts := []int{}
