@@ -19,7 +19,7 @@ require (
 	github.com/spf13/viper v1.18.2
 	github.com/thoas/go-funk v0.9.3
 	github.com/vmihailenco/msgpack v4.0.4+incompatible
-	go.etcd.io/bbolt v1.3.8
+	go.etcd.io/bbolt v1.3.9
 	go.uber.org/fx v1.20.1
 	go.uber.org/zap v1.27.0
 	golang.org/x/time v0.5.0
