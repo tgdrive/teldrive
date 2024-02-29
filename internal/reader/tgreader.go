@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/divyam234/teldrive/pkg/types"
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/tg"
 )
@@ -33,20 +32,22 @@ func calculateChunkSize(start, end int64) int64 {
 	return chunkSize
 }
 
-func NewTGReader(
+func newTGReader(
 	ctx context.Context,
 	client *telegram.Client,
-	part types.Part,
+	location *tg.InputDocumentFileLocation,
+	start int64,
+	end int64,
 
 ) (io.ReadCloser, error) {
 
 	r := &tgReader{
 		ctx:       ctx,
-		location:  part.Location,
+		location:  location,
 		client:    client,
-		start:     part.Start,
-		end:       part.End,
-		chunkSize: calculateChunkSize(part.Start, part.End),
+		start:     start,
+		end:       end,
+		chunkSize: calculateChunkSize(start, end),
 	}
 	r.next = r.partStream()
 	return r, nil

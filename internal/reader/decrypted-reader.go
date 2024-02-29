@@ -11,62 +11,120 @@ import (
 
 type decrpytedReader struct {
 	ctx           context.Context
-	parts         []types.Part
-	pos           int
+	chunks        []types.Part
 	client        *telegram.Client
+	limit         int64
+	count         int64
+	pos           int
 	reader        io.ReadCloser
-	bytesread     int64
-	contentLength int64
+	err           error
 	encryptionKey string
 }
 
 func NewDecryptedReader(
 	ctx context.Context,
 	client *telegram.Client,
-	parts []types.Part,
-	contentLength int64,
+	offset, limit int64, chunks []types.Part,
 	encryptionKey string) (io.ReadCloser, error) {
 
 	r := &decrpytedReader{
 		ctx:           ctx,
-		parts:         parts,
+		chunks:        chunks,
+		limit:         limit,
 		client:        client,
-		contentLength: contentLength,
 		encryptionKey: encryptionKey,
 	}
-	res, err := r.nextPart()
 
-	if err != nil {
-		return nil, err
+	err := io.EOF
+	for offset >= 0 && err != nil {
+		offset, err = r.nextChunk(offset)
 	}
-
-	r.reader = res
-
-	return r, nil
+	if err == nil || err == io.EOF {
+		r.err = err
+		return r, nil
+	}
+	return nil, err
 
 }
 
+func (r *decrpytedReader) nextChunk(offset int64) (int64, error) {
+	if r.err != nil {
+		return -1, r.err
+	}
+	if r.pos >= len(r.chunks) || r.limit <= 0 || offset < 0 {
+		return -1, io.EOF
+	}
+
+	chunk := r.chunks[r.pos]
+	count := chunk.Size
+	r.pos++
+
+	if offset >= count {
+		return offset - count, io.EOF
+	}
+	count -= offset
+	if r.limit < count {
+		count = r.limit
+	}
+
+	if err := r.Close(); err != nil {
+		return -1, err
+	}
+
+	cipher, err := crypt.NewCipher(r.encryptionKey, r.chunks[r.pos-1].Salt)
+	if err != nil {
+		return -1, err
+	}
+	reader, err := cipher.DecryptDataSeek(r.ctx,
+		func(ctx context.Context,
+			underlyingOffset,
+			underlyingLimit int64) (io.ReadCloser, error) {
+
+			var end int64
+
+			if underlyingLimit >= 0 {
+				end = min(r.chunks[r.pos-1].Size-1, underlyingOffset+underlyingLimit-1)
+			}
+
+			return newTGReader(r.ctx, r.client, r.chunks[r.pos-1].Location, underlyingOffset, end)
+		}, offset, count)
+
+	if err != nil {
+		return -1, err
+	}
+
+	r.reader = reader
+	r.count = count
+	return offset, nil
+}
+
 func (r *decrpytedReader) Read(p []byte) (n int, err error) {
+	if r.err != nil {
+		return 0, r.err
+	}
+	if r.limit <= 0 {
+		r.err = io.EOF
+		return 0, io.EOF
+	}
+
+	for r.count <= 0 {
+		off, err := r.nextChunk(0)
+		if off < 0 {
+			r.err = err
+			return 0, err
+		}
+	}
 
 	n, err = r.reader.Read(p)
-
-	if err == io.EOF || n == 0 {
-		r.pos++
-		if r.pos < len(r.parts) {
-			r.reader, err = r.nextPart()
-			if err != nil {
-				return 0, err
-			}
+	if err == nil || err == io.EOF {
+		r.count -= int64(n)
+		r.limit -= int64(n)
+		if r.limit > 0 {
+			err = nil
 		}
-
 	}
-	r.bytesread += int64(n)
-
-	if r.bytesread == r.contentLength {
-		return n, io.EOF
-	}
-
-	return n, nil
+	r.err = err
+	return
 }
 
 func (r *decrpytedReader) Close() (err error) {
@@ -76,28 +134,4 @@ func (r *decrpytedReader) Close() (err error) {
 		return err
 	}
 	return nil
-}
-
-func (r *decrpytedReader) nextPart() (io.ReadCloser, error) {
-
-	cipher, _ := crypt.NewCipher(r.encryptionKey, r.parts[r.pos].Salt)
-
-	return cipher.DecryptDataSeek(r.ctx,
-		func(ctx context.Context,
-			underlyingOffset,
-			underlyingLimit int64) (io.ReadCloser, error) {
-
-			var end int64
-
-			if underlyingLimit >= 0 {
-				end = min(r.parts[r.pos].Size-1, underlyingOffset+underlyingLimit-1)
-			}
-
-			return NewTGReader(r.ctx, r.client, types.Part{
-				Start:    underlyingOffset,
-				End:      end,
-				Location: r.parts[r.pos].Location,
-			})
-		}, r.parts[r.pos].Start, r.parts[r.pos].End-r.parts[r.pos].Start+1)
-
 }
