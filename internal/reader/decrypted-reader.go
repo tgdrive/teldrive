@@ -15,8 +15,8 @@ type decrpytedReader struct {
 	pos           int
 	client        *telegram.Client
 	reader        io.ReadCloser
-	bytesread     int64
-	contentLength int64
+	limit         int64
+	err           error
 	encryptionKey string
 }
 
@@ -24,14 +24,14 @@ func NewDecryptedReader(
 	ctx context.Context,
 	client *telegram.Client,
 	parts []types.Part,
-	contentLength int64,
+	limit int64,
 	encryptionKey string) (io.ReadCloser, error) {
 
 	r := &decrpytedReader{
 		ctx:           ctx,
 		parts:         parts,
 		client:        client,
-		contentLength: contentLength,
+		limit:         limit,
 		encryptionKey: encryptionKey,
 	}
 	res, err := r.nextPart()
@@ -48,25 +48,31 @@ func NewDecryptedReader(
 
 func (r *decrpytedReader) Read(p []byte) (n int, err error) {
 
+	if r.err != nil {
+		return 0, r.err
+	}
+
+	if r.limit <= 0 {
+		return 0, io.EOF
+	}
+
 	n, err = r.reader.Read(p)
 
-	if err == io.EOF || n == 0 {
+	if err == nil {
+		r.limit -= int64(n)
+	}
+
+	if err == io.EOF {
+		if r.limit > 0 {
+			err = nil
+		}
 		r.pos++
 		if r.pos < len(r.parts) {
-			r.reader, err = r.nextPart()
-			if err != nil {
-				return 0, err
-			}
+			r.reader, err = newTGReader(r.ctx, r.client, r.parts[r.pos])
 		}
-
 	}
-	r.bytesread += int64(n)
-
-	if r.bytesread == r.contentLength {
-		return n, io.EOF
-	}
-
-	return n, nil
+	r.err = err
+	return
 }
 
 func (r *decrpytedReader) Close() (err error) {
@@ -93,7 +99,7 @@ func (r *decrpytedReader) nextPart() (io.ReadCloser, error) {
 				end = min(r.parts[r.pos].Size-1, underlyingOffset+underlyingLimit-1)
 			}
 
-			return NewTGReader(r.ctx, r.client, types.Part{
+			return newTGReader(r.ctx, r.client, types.Part{
 				Start:    underlyingOffset,
 				End:      end,
 				Location: r.parts[r.pos].Location,

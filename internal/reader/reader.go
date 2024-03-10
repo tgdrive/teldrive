@@ -9,29 +9,29 @@ import (
 )
 
 type linearReader struct {
-	ctx           context.Context
-	parts         []types.Part
-	pos           int
-	client        *telegram.Client
-	reader        io.ReadCloser
-	bytesread     int64
-	contentLength int64
+	ctx    context.Context
+	parts  []types.Part
+	pos    int
+	client *telegram.Client
+	reader io.ReadCloser
+	limit  int64
+	err    error
 }
 
 func NewLinearReader(ctx context.Context,
 	client *telegram.Client,
 	parts []types.Part,
-	contentLength int64,
+	limit int64,
 ) (reader io.ReadCloser, err error) {
 
 	r := &linearReader{
-		ctx:           ctx,
-		parts:         parts,
-		client:        client,
-		contentLength: contentLength,
+		ctx:    ctx,
+		parts:  parts,
+		client: client,
+		limit:  limit,
 	}
 
-	reader, err = NewTGReader(r.ctx, r.client, r.parts[r.pos])
+	reader, err = newTGReader(r.ctx, r.client, r.parts[r.pos])
 
 	if err != nil {
 		return nil, err
@@ -43,24 +43,31 @@ func NewLinearReader(ctx context.Context,
 
 func (r *linearReader) Read(p []byte) (n int, err error) {
 
+	if r.err != nil {
+		return 0, r.err
+	}
+
+	if r.limit <= 0 {
+		return 0, io.EOF
+	}
+
 	n, err = r.reader.Read(p)
 
-	if err == io.EOF || n == 0 {
+	if err == nil {
+		r.limit -= int64(n)
+	}
+
+	if err == io.EOF {
+		if r.limit > 0 {
+			err = nil
+		}
 		r.pos++
 		if r.pos < len(r.parts) {
-			r.reader, err = NewTGReader(r.ctx, r.client, r.parts[r.pos])
-			if err != nil {
-				return 0, err
-			}
+			r.reader, err = newTGReader(r.ctx, r.client, r.parts[r.pos])
 		}
 	}
-	r.bytesread += int64(n)
-
-	if r.bytesread == r.contentLength {
-		return n, io.EOF
-	}
-
-	return n, nil
+	r.err = err
+	return
 }
 
 func (r *linearReader) Close() (err error) {
