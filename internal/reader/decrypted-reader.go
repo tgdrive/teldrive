@@ -12,6 +12,7 @@ import (
 type decrpytedReader struct {
 	ctx           context.Context
 	parts         []types.Part
+	ranges        []types.Range
 	pos           int
 	client        *telegram.Client
 	reader        io.ReadCloser
@@ -24,14 +25,15 @@ func NewDecryptedReader(
 	ctx context.Context,
 	client *telegram.Client,
 	parts []types.Part,
-	limit int64,
+	start, end int64,
 	encryptionKey string) (io.ReadCloser, error) {
 
 	r := &decrpytedReader{
 		ctx:           ctx,
 		parts:         parts,
 		client:        client,
-		limit:         limit,
+		limit:         end - start + 1,
+		ranges:        calculatePartByteRanges(start, end, parts[0].DecryptedSize),
 		encryptionKey: encryptionKey,
 	}
 	res, err := r.nextPart()
@@ -68,7 +70,7 @@ func (r *decrpytedReader) Read(p []byte) (n int, err error) {
 		}
 		r.pos++
 		if r.pos < len(r.parts) {
-			r.reader, err = newTGReader(r.ctx, r.client, r.parts[r.pos])
+			r.reader, err = r.nextPart()
 		}
 	}
 	r.err = err
@@ -86,7 +88,11 @@ func (r *decrpytedReader) Close() (err error) {
 
 func (r *decrpytedReader) nextPart() (io.ReadCloser, error) {
 
-	cipher, _ := crypt.NewCipher(r.encryptionKey, r.parts[r.pos].Salt)
+	location := r.parts[r.ranges[r.pos].PartNo].Location
+	start := r.ranges[r.pos].Start
+	end := r.ranges[r.pos].End
+	salt := r.parts[r.ranges[r.pos].PartNo].Salt
+	cipher, _ := crypt.NewCipher(r.encryptionKey, salt)
 
 	return cipher.DecryptDataSeek(r.ctx,
 		func(ctx context.Context,
@@ -96,14 +102,10 @@ func (r *decrpytedReader) nextPart() (io.ReadCloser, error) {
 			var end int64
 
 			if underlyingLimit >= 0 {
-				end = min(r.parts[r.pos].Size-1, underlyingOffset+underlyingLimit-1)
+				end = min(r.parts[r.ranges[r.pos].PartNo].Size-1, underlyingOffset+underlyingLimit-1)
 			}
 
-			return newTGReader(r.ctx, r.client, types.Part{
-				Start:    underlyingOffset,
-				End:      end,
-				Location: r.parts[r.pos].Location,
-			})
-		}, r.parts[r.pos].Start, r.parts[r.pos].End-r.parts[r.pos].Start+1)
+			return newTGReader(r.ctx, r.client, location, underlyingOffset, end)
+		}, start, end-start+1)
 
 }

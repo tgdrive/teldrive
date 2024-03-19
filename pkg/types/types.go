@@ -12,11 +12,10 @@ type AppError struct {
 }
 
 type Part struct {
-	Location *tg.InputDocumentFileLocation
-	Start    int64
-	End      int64
-	Size     int64
-	Salt     string
+	Location      *tg.InputDocumentFileLocation
+	DecryptedSize int64
+	Size          int64
+	Salt          string
 }
 
 type JWTClaims struct {
@@ -47,4 +46,10 @@ type BotInfo struct {
 	UserName   string
 	AccessHash int64
 	Token      string
+}
+
+type Range struct {
+	Start  int64
+	End    int64
+	PartNo int64
 }

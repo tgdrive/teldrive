@@ -17,6 +17,7 @@ var internalErrors = []string{
 	"RPC_CALL_FAIL",
 	"RPC_MCGET_FAIL",
 	"WORKER_BUSY_TOO_LONG_RETRY",
+	"memory limit exit",
 }
 
 type retry struct {

@@ -234,10 +234,6 @@ func (us *UserService) addBots(c context.Context, client *telegram.Client, userI
 			return err
 		}
 
-		if err != nil {
-			return err
-
-		}
 		botInfoChannel := make(chan *types.BotInfo, len(botsTokens))
 
 		waitChan := make(chan struct{}, 6)
@@ -261,9 +257,9 @@ func (us *UserService) addBots(c context.Context, client *telegram.Client, userI
 					<-waitChan
 					wg.Done()
 				}()
-				if err == nil {
-					botInfoChannel <- info
-				}
+
+				botInfoChannel <- info
+
 			}(token)
 		}
 

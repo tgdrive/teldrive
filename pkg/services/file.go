@@ -524,12 +524,20 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 			return
 		}
 
-		parts = rangedParts(parts, start, end)
-
 		if file.Encrypted {
-			lr, _ = reader.NewDecryptedReader(c, client.Tg, parts, contentLength, fs.cnf.Uploads.EncryptionKey)
+			lr, err = reader.NewDecryptedReader(c, client.Tg, parts, start, end, fs.cnf.Uploads.EncryptionKey)
 		} else {
-			lr, _ = reader.NewLinearReader(c, client.Tg, parts, contentLength)
+			lr, err = reader.NewLinearReader(c, client.Tg, parts, start, end)
+		}
+
+		if err != nil {
+			logger.Error("file stream", err)
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if lr == nil {
+			http.Error(w, "failed to initialise reader", http.StatusInternalServerError)
+			return
 		}
 
 		io.CopyN(w, lr, contentLength)

@@ -163,62 +163,19 @@ func getParts(ctx context.Context, client *telegram.Client, file *schemas.FileOu
 		media := item.Media.(*tg.MessageMediaDocument)
 		document := media.Document.(*tg.Document)
 		location := document.AsInputDocumentFileLocation()
-		end := document.Size - 1
-		if file.Encrypted {
-			end, _ = crypt.DecryptedSize(document.Size)
-			end -= 1
-		}
-		parts = append(parts, types.Part{
+
+		part := types.Part{
 			Location: location,
-			End:      end,
 			Size:     document.Size,
 			Salt:     file.Parts[i].Salt,
-		})
+		}
+		if file.Encrypted {
+			part.DecryptedSize, _ = crypt.DecryptedSize(document.Size)
+		}
+		parts = append(parts, part)
 	}
 	cache.Set(key, &parts, 3600)
 	return parts, nil
-}
-
-func rangedParts(parts []types.Part, startByte, endByte int64) []types.Part {
-
-	chunkSize := parts[0].End + 1
-
-	numParts := int64(len(parts))
-
-	validParts := []types.Part{}
-
-	firstChunk := max(startByte/chunkSize, 0)
-
-	lastChunk := min(endByte/chunkSize, numParts)
-
-	startInFirstChunk := startByte % chunkSize
-
-	endInLastChunk := endByte % chunkSize
-
-	if firstChunk == lastChunk {
-		part := parts[firstChunk]
-		part.Start = startInFirstChunk
-		part.End = endInLastChunk
-		validParts = append(validParts, part)
-	} else {
-		part := parts[firstChunk]
-		part.Start = startInFirstChunk
-		validParts = append(validParts, part)
-		// Add valid parts from any chunks in between.
-		for i := firstChunk + 1; i < lastChunk; i++ {
-			part := parts[i]
-			part.Start = 0
-			validParts = append(validParts, part)
-		}
-
-		// Add valid parts from the last chunk.
-		endPart := parts[lastChunk]
-		endPart.Start = 0
-		endPart.End = endInLastChunk
-		validParts = append(validParts, endPart)
-	}
-
-	return validParts
 }
 
 func GetChannelById(ctx context.Context, client *telegram.Client, channelId int64, userID string) (*tg.InputChannel, error) {
