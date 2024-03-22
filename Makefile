@@ -11,7 +11,7 @@ MODULE_PATH := $(shell go list -m)
 GOOS ?= $(shell go env GOOS)
 GOARCH ?= $(shell go env GOARCH)
 
-.PHONY: all build run clean frontend backend run sync-ui tag-and-push retag dev-tag dev-retag
+.PHONY: all build run clean frontend backend run sync-ui retag patch-version minor-version
  
 all: build
 

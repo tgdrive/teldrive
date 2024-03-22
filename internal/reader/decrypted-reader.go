@@ -69,7 +69,7 @@ func (r *decrpytedReader) Read(p []byte) (n int, err error) {
 			err = nil
 		}
 		r.pos++
-		if r.pos < len(r.parts) {
+		if r.pos < len(r.ranges) {
 			r.reader, err = r.nextPart()
 		}
 	}
