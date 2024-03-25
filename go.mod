@@ -10,7 +10,7 @@ require (
 	github.com/go-co-op/gocron v1.37.0
 	github.com/go-jose/go-jose/v3 v3.0.3
 	github.com/gotd/contrib v0.19.0
-	github.com/gotd/td v0.99.1
+	github.com/gotd/td v0.99.2
 	github.com/magiconair/properties v1.8.7
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/pkg/errors v0.9.1
