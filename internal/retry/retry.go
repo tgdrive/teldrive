@@ -18,11 +18,21 @@ var internalErrors = []string{
 	"RPC_MCGET_FAIL",
 	"WORKER_BUSY_TOO_LONG_RETRY",
 	"memory limit exit",
+	"connection dead",
 }
 
 type retry struct {
 	max    int
 	errors []string
+}
+
+func isErrorMatch(err error) bool {
+	for _, internalError := range internalErrors {
+		if errors.Is(err, errors.New(internalError)) {
+			return true
+		}
+	}
+	return false
 }
 
 func (r retry) Handle(next tg.Invoker) telegram.InvokeFunc {
@@ -31,7 +41,7 @@ func (r retry) Handle(next tg.Invoker) telegram.InvokeFunc {
 
 		for retries < r.max {
 			if err := next.Invoke(ctx, input, output); err != nil {
-				if tgerr.Is(err, r.errors...) {
+				if tgerr.Is(err, r.errors...) || isErrorMatch(err) {
 					retries++
 					continue
 				}
