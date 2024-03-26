@@ -60,7 +60,7 @@ require (
 
 require (
 	github.com/bytedance/sonic v1.11.3 // indirect
-	github.com/cenkalti/backoff/v4 v4.2.1
+	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/chenzhuoyu/base64x v0.0.0-20230717121745-296ad89f973d // indirect
 	github.com/gabriel-vasile/mimetype v1.4.3 // indirect
 	github.com/gin-contrib/gzip v1.0.0
