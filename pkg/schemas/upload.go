@@ -34,5 +34,5 @@ type UploadPart struct {
 
 type UploadStats struct {
 	UploadDate    string `json:"uploadDate"`
-	TotalUploaded int64  `json:"totalUpladed"`
+	TotalUploaded int64  `json:"totalUploaded"`
 }

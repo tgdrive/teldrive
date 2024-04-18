@@ -66,7 +66,7 @@ func (us *UploadService) DeleteUploadFile(c *gin.Context) (*schemas.Message, *ty
 
 func (us *UploadService) GetUploadStats(userId int64, days int) ([]schemas.UploadStats, *types.AppError) {
 	var stats []schemas.UploadStats
-	rows, err := us.db.Raw(`
+	err := us.db.Raw(`
     SELECT 
         dates.upload_date::date AS upload_date,
         COALESCE(SUM(files.size), 0)::bigint AS total_uploaded
@@ -77,25 +77,18 @@ func (us *UploadService) GetUploadStats(userId int64, days int) ([]schemas.Uploa
     ON 
         dates.upload_date = DATE_TRUNC('day', files.created_at)
     WHERE 
-        dates.upload_date >= CURRENT_DATE - INTERVAL '1 day' * @days and files.user_id = @userId 
+	    dates.upload_date >= CURRENT_DATE - INTERVAL '1 day' * @days and (files.type='file' or files.type is null) and (files.user_id=@userId or files.user_id is null)
     GROUP BY 
         dates.upload_date
     ORDER BY 
-        dates.upload_date desc
-  `, sql.Named("days", days-1), sql.Named("userId", userId)).Rows()
+        dates.upload_date
+  `, sql.Named("days", days-1), sql.Named("userId", userId)).Scan(&stats).Error
 
 	if err != nil {
 		return nil, &types.AppError{Error: err}
 
 	}
 
-	defer rows.Close()
-	for rows.Next() {
-		var uploadDate string
-		var totalUploaded int64
-		rows.Scan(&uploadDate, &totalUploaded)
-		stats = append(stats, schemas.UploadStats{UploadDate: uploadDate, TotalUploaded: totalUploaded})
-	}
 	return stats, nil
 }
 
