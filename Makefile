@@ -1,7 +1,7 @@
-FRONTEND_DIR := ui/teldrive-ui
-BUILD_DIR := bin
 APP_NAME := teldrive
-
+BUILD_DIR := bin
+FRONTEND_DIR := ui/dist
+FRONTEND_ASSET := https://github.com/divyam234/teldrive-ui/releases/download/v1/teldrive-ui.zip
 GIT_TAG := $(shell git describe --tags --abbrev=0)
 GIT_COMMIT := $(shell git rev-parse --short HEAD)
 GIT_LINK := $(shell git remote get-url origin)
@@ -23,16 +23,22 @@ SHELL := /bin/bash
 BINARY_EXTENSION:=
 endif
 
-frontend: $(ENV_FILE)
-	@echo "Building frontend..."
-	cd $(FRONTEND_DIR) ; pnpm install ; pnpm build
-	
-$(ENV_FILE): Makefile
-ifdef ComSpec
-	@echo 'VITE_VERSION_INFO={"version": "$(GIT_TAG)", "commit": "$(GIT_COMMIT)", "link": "$(GIT_LINK)"}' | Out-File -encoding utf8 $(ENV_FILE)
+frontend:
+	@echo "Extract UI"
+ifeq ($(OS),Windows_NT)
+	powershell -Command "Remove-Item -Path $(FRONTEND_DIR) -Recurse -Force"
+	powershell -Command "Invoke-WebRequest -Uri $(FRONTEND_ASSET) -OutFile teldrive-ui.zip"
+	powershell -Command "if (!(Test-Path -Path $(subst /,\\,$(FRONTEND_DIR)))) { New-Item -ItemType Directory -Force -Path $(subst /,\\,$(FRONTEND_DIR)) }"
+	powershell -Command "Expand-Archive -Path teldrive-ui.zip -DestinationPath $(FRONTEND_DIR) -Force"
+	powershell -Command "Remove-Item -Path teldrive-ui.zip -Force"
 else
-	@echo 'VITE_VERSION_INFO={"version": "$(GIT_TAG)", "commit": "$(GIT_COMMIT)", "link": "$(GIT_LINK)"}' > $(ENV_FILE)
+	rm -rf $(FRONTEND_DIR)
+	curl -LO $(FRONTEND_ASSET) -o teldrive-ui.zip
+	mkdir -p $(FRONTEND_DIR)
+	unzip -d $(FRONTEND_DIR) teldrive-ui.zip
+	rm -rf teldrive-ui.zip
 endif
+
 
 backend:
 	@echo "Building backend for $(GOOS)/$(GOARCH)..."
@@ -54,12 +60,6 @@ deps:
 	@echo "Installing Go dependencies..."
 	go mod download
 
-	@echo "Installing frontend dependencies..."
-	cd $(FRONTEND_DIR) && pnpm install
-
-sync-ui:
-	git submodule update --init --recursive --remote
-	
 retag:
 	@echo "Retagging..."
 	git tag -d $(GIT_TAG)

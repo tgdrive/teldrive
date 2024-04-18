@@ -30,3 +30,5 @@ sslcerts
 *.db
 logs
 bin
+ui/dist
+teldrive-ui.zip
