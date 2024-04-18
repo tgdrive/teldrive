@@ -168,6 +168,18 @@ func (fc *Controller) MoveDirectory(c *gin.Context) {
 	c.JSON(http.StatusOK, res)
 }
 
+func (fc *Controller) GetCategoryStats(c *gin.Context) {
+	userId, _ := services.GetUserAuth(c)
+
+	res, err := fc.FileService.GetCategoryStats(userId)
+	if err != nil {
+		httputil.NewError(c, err.Code, err.Error)
+		return
+	}
+
+	c.JSON(http.StatusOK, res)
+}
+
 func (fc *Controller) GetFileStream(c *gin.Context) {
 	fc.FileService.GetFileStream(c)
 }

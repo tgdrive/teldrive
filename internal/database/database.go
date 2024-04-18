@@ -20,7 +20,7 @@ func NewDatabase(cfg *config.Config) (*gorm.DB, error) {
 		logger = NewLogger(time.Second, true, zapcore.Level(cfg.DB.LogLevel))
 	)
 
-	for i := 0; i <= 30; i++ {
+	for i := 0; i <= 10; i++ {
 		db, err = gorm.Open(postgres.Open(cfg.DB.DataSource), &gorm.Config{
 			Logger: logger,
 			NamingStrategy: schema.NamingStrategy{
@@ -38,7 +38,7 @@ func NewDatabase(cfg *config.Config) (*gorm.DB, error) {
 		time.Sleep(500 * time.Millisecond)
 	}
 	if err != nil {
-		return nil, err
+		logging.DefaultLogger().Fatalf("database: %v", err)
 	}
 
 	rawDB, err := db.DB()

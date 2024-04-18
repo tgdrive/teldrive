@@ -101,7 +101,13 @@ func runApplication(conf *config.Config) {
 		Development: conf.Log.Development,
 		FilePath:    conf.Log.File,
 	})
-	defer logging.DefaultLogger().Sync()
+
+	tgContext, cancel := context.WithCancel(context.Background())
+
+	defer func() {
+		logging.DefaultLogger().Sync()
+		cancel()
+	}()
 
 	app := fx.New(
 		fx.Supply(conf),
@@ -115,7 +121,7 @@ func runApplication(conf *config.Config) {
 		fx.Provide(
 			database.NewDatabase,
 			kv.NewBoltKV,
-			tgc.NewStreamWorker,
+			tgc.NewStreamWorker(tgContext),
 			tgc.NewUploadWorker,
 			services.NewAuthService,
 			services.NewFileService,

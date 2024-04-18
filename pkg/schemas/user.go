@@ -6,7 +6,6 @@ type Channel struct {
 }
 
 type AccountStats struct {
-	TotalSize  int64 `json:"totalSize"`
-	TotalFiles int64 `json:"totalFiles"`
-	Channel
+	ChannelID int64    `json:"channelId"`
+	Bots      []string `json:"bots"`
 }

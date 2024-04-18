@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/divyam234/teldrive/internal/cache"
+	category "github.com/divyam234/teldrive/internal/category"
 	"github.com/divyam234/teldrive/internal/config"
 	"github.com/divyam234/teldrive/internal/database"
 	"github.com/divyam234/teldrive/internal/http_range"
@@ -78,6 +79,7 @@ func (fs *FileService) CreateFile(c *gin.Context, userId int64, fileIn *schemas.
 		}
 		fileDB.ChannelID = &channelId
 		fileDB.MimeType = fileIn.MimeType
+		fileDB.Category = string(category.GetCategory(fileIn.MimeType))
 		parts := models.Parts{}
 		for _, part := range fileIn.Parts {
 			parts = append(parts, models.Part{
@@ -172,6 +174,7 @@ func (fs *FileService) ListFiles(userId int64, fquery *schemas.FileQuery) (*sche
 		filter.Name = fquery.Name
 		filter.Type = fquery.Type
 		filter.ParentID = fquery.ParentID
+		filter.Category = fquery.Category
 		filter.Path = fquery.Path
 		filter.Type = fquery.Type
 		if fquery.Starred != nil {
@@ -272,6 +275,19 @@ func (fs *FileService) MoveDirectory(userId int64, payload *schemas.DirMove) (*s
 	}
 
 	return &schemas.Message{Message: "directory moved"}, nil
+}
+
+func (fs *FileService) GetCategoryStats(userId int64) ([]schemas.FileCategoryStats, *types.AppError) {
+
+	var stats []schemas.FileCategoryStats
+
+	if err := fs.db.Model(&models.File{}).Select("category", "COUNT(*) as total_files", "coalesce(SUM(size),0) as total_size").
+		Where(&models.File{UserID: userId, Type: "file", Status: "active"}).
+		Order("category ASC").Group("category").Find(&stats).Error; err != nil {
+		return nil, &types.AppError{Error: err}
+	}
+
+	return stats, nil
 }
 
 func (fs *FileService) CopyFile(c *gin.Context) (*schemas.FileOut, *types.AppError) {

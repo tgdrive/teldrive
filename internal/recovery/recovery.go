@@ -11,20 +11,6 @@ import (
 	"github.com/gotd/td/tgerr"
 )
 
-func hasError(err error, target string) bool {
-	for err != nil {
-		if err.Error() == target {
-			return true
-		}
-		if unwrapper, ok := err.(interface{ Unwrap() error }); ok {
-			err = unwrapper.Unwrap()
-		} else {
-			break
-		}
-	}
-	return false
-}
-
 type recovery struct {
 	ctx     context.Context
 	backoff backoff.BackOff
@@ -61,10 +47,7 @@ func (r *recovery) shouldRecover(err error) bool {
 	default:
 	}
 
-	//recover only if context is not cancelled and error is not a rpc error
-	isContextErr := hasError(err, "context canceled")
-
 	_, ok := tgerr.As(err)
 
-	return !isContextErr && !ok
+	return !errors.Is(err, context.Canceled) && !ok
 }

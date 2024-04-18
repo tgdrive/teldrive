@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/base64"
 	"errors"
 	"net/http"
@@ -61,6 +62,41 @@ func (us *UploadService) DeleteUploadFile(c *gin.Context) (*schemas.Message, *ty
 		return nil, &types.AppError{Error: err}
 	}
 	return &schemas.Message{Message: "upload deleted"}, nil
+}
+
+func (us *UploadService) GetUploadStats(userId int64, days int) ([]schemas.UploadStats, *types.AppError) {
+	var stats []schemas.UploadStats
+	rows, err := us.db.Raw(`
+    SELECT 
+        dates.upload_date::date AS upload_date,
+        COALESCE(SUM(files.size), 0)::bigint AS total_uploaded
+    FROM 
+        generate_series(CURRENT_DATE - INTERVAL '1 day' * @days, CURRENT_DATE, '1 day') AS dates(upload_date)
+    LEFT JOIN 
+        teldrive.files AS files
+    ON 
+        dates.upload_date = DATE_TRUNC('day', files.created_at)
+    WHERE 
+        dates.upload_date >= CURRENT_DATE - INTERVAL '1 day' * @days and files.user_id = @userId 
+    GROUP BY 
+        dates.upload_date
+    ORDER BY 
+        dates.upload_date desc
+  `, sql.Named("days", days-1), sql.Named("userId", userId)).Rows()
+
+	if err != nil {
+		return nil, &types.AppError{Error: err}
+
+	}
+
+	defer rows.Close()
+	for rows.Next() {
+		var uploadDate string
+		var totalUploaded int64
+		rows.Scan(&uploadDate, &totalUploaded)
+		stats = append(stats, schemas.UploadStats{UploadDate: uploadDate, TotalUploaded: totalUploaded})
+	}
+	return stats, nil
 }
 
 func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *types.AppError) {

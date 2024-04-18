@@ -31,3 +31,8 @@ type UploadPart struct {
 	Size      int64  `json:"size"`
 	Encrypted bool   `json:"encrypted"`
 }
+
+type UploadStats struct {
+	UploadDate    string `json:"uploadDate"`
+	TotalUploaded int64  `json:"totalUpladed"`
+}

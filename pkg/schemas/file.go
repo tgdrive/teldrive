@@ -17,6 +17,7 @@ type FileQuery struct {
 	Op            string     `form:"op"`
 	Starred       *bool      `form:"starred"`
 	ParentID      string     `form:"parentId"`
+	Category      string     `form:"category"`
 	UpdatedAt     *time.Time `form:"updatedAt"`
 	Sort          string     `form:"sort"`
 	Order         string     `form:"order"`
@@ -41,6 +42,7 @@ type FileOut struct {
 	Name       string    `json:"name"`
 	Type       string    `json:"type"`
 	MimeType   string    `json:"mimeType"`
+	Category   string    `json:"category,omitempty"`
 	Path       string    `json:"path,omitempty"`
 	Size       int64     `json:"size,omitempty"`
 	Starred    bool      `json:"starred"`
@@ -88,4 +90,10 @@ type Copy struct {
 	ID          string `json:"id" binding:"required"`
 	Name        string `json:"name" binding:"required"`
 	Destination string `json:"destination" binding:"required"`
+}
+
+type FileCategoryStats struct {
+	TotalFiles int    `json:"totalFiles"`
+	TotalSize  int    `json:"totalSize"`
+	Category   string `json:"category"`
 }

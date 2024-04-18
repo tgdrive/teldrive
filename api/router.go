@@ -28,6 +28,7 @@ func InitRouter(r *gin.Engine, c *controller.Controller, cnf *config.Config) *gi
 			files.PATCH(":fileID", authmiddleware, c.UpdateFile)
 			files.HEAD(":fileID/stream/:fileName", c.GetFileStream)
 			files.GET(":fileID/stream/:fileName", c.GetFileStream)
+			files.GET("/category/stats", authmiddleware, c.GetCategoryStats)
 			files.POST("/move", authmiddleware, c.MoveFiles)
 			files.POST("/directories", authmiddleware, c.MakeDirectory)
 			files.POST("/delete", authmiddleware, c.DeleteFiles)
@@ -37,6 +38,7 @@ func InitRouter(r *gin.Engine, c *controller.Controller, cnf *config.Config) *gi
 		uploads := api.Group("/uploads")
 		{
 			uploads.Use(authmiddleware)
+			uploads.GET("/stats", c.UploadStats)
 			uploads.GET(":id", c.GetUploadFileById)
 			uploads.POST(":id", c.UploadFile)
 			uploads.DELETE(":id", c.DeleteUploadFile)
@@ -46,7 +48,6 @@ func InitRouter(r *gin.Engine, c *controller.Controller, cnf *config.Config) *gi
 			users.Use(authmiddleware)
 			users.GET("/profile", c.GetProfilePhoto)
 			users.GET("/stats", c.GetStats)
-			users.GET("/bots", c.GetBots)
 			users.GET("/channels", c.ListChannels)
 			users.PATCH("/channels", c.UpdateChannel)
 			users.POST("/bots", c.AddBots)

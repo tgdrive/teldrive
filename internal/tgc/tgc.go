@@ -28,18 +28,7 @@ func defaultMiddlewares(ctx context.Context) ([]telegram.Middleware, error) {
 
 func New(ctx context.Context, config *config.TGConfig, handler telegram.UpdateHandler, storage session.Storage, middlewares ...telegram.Middleware) *telegram.Client {
 
-	_clock := tdclock.System
-
-	noUpdates := true
-
-	if handler != nil {
-		noUpdates = false
-	}
-
 	opts := telegram.Options{
-		ReconnectionBackoff: func() backoff.BackOff {
-			return Backoff(_clock)
-		},
 		Device: telegram.DeviceConfig{
 			DeviceModel:    config.DeviceModel,
 			SystemVersion:  config.SystemVersion,
@@ -53,8 +42,6 @@ func New(ctx context.Context, config *config.TGConfig, handler telegram.UpdateHa
 		MaxRetries:     10,
 		DialTimeout:    10 * time.Second,
 		Middlewares:    middlewares,
-		Clock:          _clock,
-		NoUpdates:      noUpdates,
 		UpdateHandler:  handler,
 	}
 

@@ -53,6 +53,7 @@ type StreamWorker struct {
 	currIdx map[int64]int
 	cnf     *config.TGConfig
 	kv      kv.KV
+	ctx     context.Context
 }
 
 func (w *StreamWorker) Set(bots []string, channelId int64) {
@@ -65,7 +66,7 @@ func (w *StreamWorker) Set(bots []string, channelId int64) {
 		w.currIdx = make(map[int64]int)
 		w.bots[channelId] = bots
 		for _, token := range bots {
-			client, _ := BotClient(context.TODO(), w.kv, w.cnf, token)
+			client, _ := BotClient(w.ctx, w.kv, w.cnf, token)
 			w.clients[channelId] = append(w.clients[channelId], &Client{Tg: client, Status: "idle"})
 		}
 		w.currIdx[channelId] = 0
@@ -102,7 +103,7 @@ func (w *StreamWorker) UserWorker(client *telegram.Client, userId int64) (*Clien
 	}
 	nextClient := w.clients[userId][0]
 	if nextClient.Status == "idle" {
-		stop, err := bg.Connect(nextClient.Tg)
+		stop, err := bg.Connect(nextClient.Tg, bg.WithContext(w.ctx))
 		if err != nil {
 			return nil, err
 		}
@@ -112,6 +113,9 @@ func (w *StreamWorker) UserWorker(client *telegram.Client, userId int64) (*Clien
 	return nextClient, nil
 }
 
-func NewStreamWorker(cnf *config.Config, kv kv.KV) *StreamWorker {
-	return &StreamWorker{cnf: &cnf.TG, kv: kv}
+func NewStreamWorker(ctx context.Context) func(cnf *config.Config, kv kv.KV) *StreamWorker {
+	return func(cnf *config.Config, kv kv.KV) *StreamWorker {
+		return &StreamWorker{cnf: &cnf.TG, kv: kv, ctx: ctx}
+	}
+
 }
