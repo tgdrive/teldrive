@@ -43,6 +43,7 @@ type FileOut struct {
 	Type       string    `json:"type"`
 	MimeType   string    `json:"mimeType"`
 	Category   string    `json:"category,omitempty"`
+	Encrypted  bool      `json:"encrypted"`
 	Path       string    `json:"path,omitempty"`
 	Size       int64     `json:"size,omitempty"`
 	Starred    bool      `json:"starred"`
