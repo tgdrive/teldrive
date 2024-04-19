@@ -1,4 +1,4 @@
-package catregory
+package category
 
 import (
 	"path/filepath"
@@ -25,7 +25,7 @@ var (
 )
 
 func GetCategory(fileName string) Category {
-	fileExtension := strings.ToLower(filepath.Ext(fileName))
+	fileExtension := strings.Split(strings.ToLower(filepath.Ext(fileName)), ".")[1]
 
 	if contains(documentExtensions, fileExtension) {
 		return Document
