@@ -6,6 +6,6 @@ type Channel struct {
 }
 
 type AccountStats struct {
-	ChannelID int64    `json:"channelId"`
+	ChannelID int64    `json:"channelId,omitempty"`
 	Bots      []string `json:"bots"`
 }

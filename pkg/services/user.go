@@ -85,14 +85,8 @@ func (us *UserService) GetStats(c *gin.Context) (*schemas.AccountStats, *types.A
 		channelId int64
 		err       error
 	)
-	if c.Param("channelId") != "" {
-		channelId, _ = strconv.ParseInt(c.Param("channelId"), 10, 64)
-	} else {
-		channelId, err = GetDefaultChannel(c, us.db, userID)
-		if err != nil {
-			return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
-		}
-	}
+
+	channelId, _ = GetDefaultChannel(c, us.db, userID)
 
 	tokens, err := getBotsToken(c, us.db, userID, channelId)
 
