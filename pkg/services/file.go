@@ -248,7 +248,7 @@ func (fs *FileService) MoveFiles(userId int64, payload *schemas.FileOperation) (
 	items := pgtype.Array[string]{
 		Elements: payload.Files,
 		Valid:    true,
-		Dims:     []pgtype.ArrayDimension{{Length: 1, LowerBound: 1}},
+		Dims:     []pgtype.ArrayDimension{{Length: int32(len(payload.Files)), LowerBound: 1}},
 	}
 
 	if err := fs.db.Exec("select * from teldrive.move_items(? , ? , ?)", items, payload.Destination, userId).Error; err != nil {
