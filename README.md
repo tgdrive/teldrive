@@ -29,7 +29,8 @@ Telegram Drive is a powerful utility that enables you to organise your telegram 
 ![demo2](./public/demo2.png)
 ![demo3](./public/demo3.png)
 ![demo5](./public/demo6.png)
-![demo5](./public/demo7.png)
+![demo8](./public/demo8.png)
+![demo7](./public/demo7.png)
 ![demo4](./public/demo4.png)
 </details>
 
