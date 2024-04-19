@@ -25,7 +25,11 @@ var (
 )
 
 func GetCategory(fileName string) Category {
-	fileExtension := strings.Split(strings.ToLower(filepath.Ext(fileName)), ".")[1]
+	fileExtension := filepath.Ext(fileName)
+	if fileExtension != "" {
+		fileExtension = strings.ToLower(fileExtension[1:])
+
+	}
 
 	if contains(documentExtensions, fileExtension) {
 		return Document

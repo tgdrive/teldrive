@@ -11,7 +11,7 @@ import (
 	"strings"
 
 	"github.com/divyam234/teldrive/internal/cache"
-	category "github.com/divyam234/teldrive/internal/category"
+	"github.com/divyam234/teldrive/internal/category"
 	"github.com/divyam234/teldrive/internal/config"
 	"github.com/divyam234/teldrive/internal/database"
 	"github.com/divyam234/teldrive/internal/http_range"
