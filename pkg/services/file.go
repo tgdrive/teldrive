@@ -79,7 +79,7 @@ func (fs *FileService) CreateFile(c *gin.Context, userId int64, fileIn *schemas.
 		}
 		fileDB.ChannelID = &channelId
 		fileDB.MimeType = fileIn.MimeType
-		fileDB.Category = string(category.GetCategory(fileIn.MimeType))
+		fileDB.Category = string(category.GetCategory(fileIn.Name))
 		parts := models.Parts{}
 		for _, part := range fileIn.Parts {
 			parts = append(parts, models.Part{
