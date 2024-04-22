@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -194,6 +195,9 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 		res, err := target.Media(c, document)
 
 		if err != nil {
+			logger.Debugw("upload failed", "fileName", uploadQuery.FileName,
+				"partName", uploadQuery.PartName,
+				"chunkNo", uploadQuery.PartNo)
 			return err
 		}
 
@@ -207,6 +211,13 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 				message = channelMsg.Message.(*tg.Message)
 				break
 			}
+		}
+
+		if message.ID == 0 {
+			logger.Debugw("upload failed", "fileName", uploadQuery.FileName,
+				"partName", uploadQuery.PartName,
+				"chunkNo", uploadQuery.PartNo)
+			return fmt.Errorf("upload failed")
 		}
 
 		partUpload := &models.Upload{
