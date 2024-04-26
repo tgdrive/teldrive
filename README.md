@@ -197,6 +197,7 @@ access_token = #session token obtained from cookies
 chunk_size = 500M
 upload_concurrency = 4
 encrypt_files = false # Enable this to encrypt files make sure ENCRYPTION_KEY env variable is not empty in teldrive instance.
+randomise_part= true # Uuse random part names when uplaoding file to channel instead of original filename.
 ```
 **See all options in rclone config command**
 
