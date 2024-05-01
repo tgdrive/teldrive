@@ -40,9 +40,32 @@ Telegram Drive is a powerful utility that enables you to organise your telegram 
 
 [File Browser Component ](https://github.com/divyam234/tw-file-browser)
 
+
+### One Line Installer
+
+[![install count](https://img.shields.io/endpoint?url=https://instl.sh/api/v1/badge/shields.io/stats/divyam234/teldrive&style=for-the-badge)](https://instl.sh/divyam234/teldrive)
+
+#### Linux
+
+```bash
+curl -sSL instl.sh/divyam234/teldrive/linux | bash
+```
+
+#### Windows
+
+```powershell
+iwr instl.sh/divyam234/teldrive/windows | iex
+```
+
+#### macOS
+
+```bash
+curl -sSL instl.sh/divyam234/teldrive/macos | bash
+```
+
 ### Deploy using docker-compose
 
-```docker
+```yml
 version: "3.8"
 
 services:
@@ -58,7 +81,7 @@ services:
 
 ```
 ***People Who want to use local Postgres instance***
-```docker
+```yml
 version: "3.8"
 
 services:
@@ -116,18 +139,11 @@ docker compose up -d
 
 **Follow Below Steps**
 
-- Download the release binary of Teldrive from the releases section.
-
+- Run one line installer.
 - Add same config file as above.
 - Now, run the Teldrive executable binary directly.
 - You can also set up without config file.
 
-**One line installer for linux**
-```sh
-curl -s https://sh-install.vercel.app/divyam234/teldrive | bash # install in current directory
-
-curl -s https://sh-install.vercel.app/divyam234/teldrive! | bash # install in /usr/local/bin
-```
 ```sh
 teldrive run --tg-app-id="" --tg-app-hash="" --jwt-secret="" --db-data-source=""
 ```
