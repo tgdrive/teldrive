@@ -304,24 +304,33 @@ func (fs *FileService) CopyFile(c *gin.Context) (*schemas.FileOut, *types.AppErr
 
 	var res []models.File
 
-	fs.db.Model(&models.File{}).Where("id = ?", payload.ID).Find(&res)
+	if err := fs.db.Model(&models.File{}).Where("id = ?", payload.ID).Find(&res).Error; err != nil {
+		return nil, &types.AppError{Error: err}
+	}
 
 	file := mapper.ToFileOutFull(res[0])
 
 	newIds := models.Parts{}
 
-	err := tgc.RunWithAuth(c, client, "", func(ctx context.Context) error {
+	channelId, err := GetDefaultChannel(c, fs.db, userId)
+	if err != nil {
+		return nil, &types.AppError{Error: err}
+	}
+
+	err = tgc.RunWithAuth(c, client, "", func(ctx context.Context) error {
 		user := strconv.FormatInt(userId, 10)
 		messages, err := getTGMessages(c, client, file.Parts, file.ChannelID, user)
+
 		if err != nil {
 			return err
 		}
 
-		channel, err := GetChannelById(c, client, file.ChannelID, user)
+		channel, err := GetChannelById(ctx, client, channelId, user)
+
 		if err != nil {
 			return err
 		}
-		for _, message := range messages.Messages {
+		for i, message := range messages.Messages {
 			item := message.(*tg.Message)
 			media := item.Media.(*tg.MessageMediaDocument)
 			document := media.Document.(*tg.Document)
@@ -351,7 +360,7 @@ func (fs *FileService) CopyFile(c *gin.Context) (*schemas.FileOut, *types.AppErr
 				}
 
 			}
-			newIds = append(newIds, models.Part{ID: int64(msg.ID)})
+			newIds = append(newIds, models.Part{ID: int64(msg.ID), Salt: file.Parts[i].Salt})
 
 		}
 		return nil
@@ -380,8 +389,9 @@ func (fs *FileService) CopyFile(c *gin.Context) (*schemas.FileOut, *types.AppErr
 	dbFile.Starred = false
 	dbFile.Status = "active"
 	dbFile.ParentID = dest.ID
-	dbFile.ChannelID = &file.ChannelID
+	dbFile.ChannelID = &channelId
 	dbFile.Encrypted = file.Encrypted
+	dbFile.Category = file.Category
 
 	if err := fs.db.Create(&dbFile).Error; err != nil {
 		return nil, &types.AppError{Error: err}
