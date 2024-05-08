@@ -38,8 +38,9 @@ Telegram Drive is a powerful utility that enables you to organise your telegram 
 
 [UI Repo ](https://github.com/divyam234/teldrive-ui)
 
-[File Browser Component ](https://github.com/divyam234/tw-file-browser)
+[UI Library ](https://github.com/divyam234/tw-material)
 
+[File Browser Component ](https://github.com/divyam234/tw-file-browser)
 
 ### One Line Installer
 
