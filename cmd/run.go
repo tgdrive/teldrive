@@ -217,7 +217,7 @@ func initApp(lc fx.Lifecycle, cfg *config.Config, c *controller.Controller) *gin
 	r.Use(middleware.Cors())
 
 	r.Use(func(c *gin.Context) {
-		pattern := `/(assets|img|pdf\.js)/.*\.(js|css|svg|jpeg|jpg|mjs|png|bcmap|woff|woff2|ttf|otf|json|webp|png|ico|txt|ftl|pfb)$`
+		pattern := `/(assets|images|fonts)/.*\.(js|css|svg|jpeg|jpg|png|woff|woff2|ttf|json|webp|png|ico|txt)$`
 		re, _ := regexp.Compile(pattern)
 		if re.MatchString(c.Request.URL.Path) {
 			c.Writer.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
