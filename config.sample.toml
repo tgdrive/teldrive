@@ -38,7 +38,8 @@
   session-file = ""
   system-lang-code = "en-US"
   system-version = "Win32"
-
+  proxy= "http://127.0.0.1:8080"
+  
   [tg.uploads]
     encryption-key = ""
     retention = "7d"
