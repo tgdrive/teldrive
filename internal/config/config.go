@@ -32,6 +32,7 @@ type TGConfig struct {
 	SessionFile       string
 	BgBotsLimit       int
 	DisableStreamBots bool
+	Proxy             string
 	Uploads           struct {
 		EncryptionKey string
 		Threads       int

@@ -184,7 +184,7 @@ func (as *AuthService) HandleMultipleLogin(c *gin.Context) {
 	dispatcher := tg.NewUpdateDispatcher()
 	loggedIn := qrlogin.OnLoginToken(dispatcher)
 	sessionStorage := &session.StorageMemory{}
-	tgClient := tgc.NoAuthClient(c, &as.cnf.TG, dispatcher, sessionStorage)
+	tgClient, _ := tgc.NoAuthClient(c, &as.cnf.TG, dispatcher, sessionStorage)
 
 	err = tgClient.Run(c, func(ctx context.Context) error {
 		for {
