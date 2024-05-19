@@ -330,7 +330,7 @@ func (fs *FileService) CopyFile(c *gin.Context) (*schemas.FileOut, *types.AppErr
 		if err != nil {
 			return err
 		}
-		for i, message := range messages.Messages {
+		for i, message := range messages {
 			item := message.(*tg.Message)
 			media := item.Media.(*tg.MessageMediaDocument)
 			document := media.Document.(*tg.Document)
