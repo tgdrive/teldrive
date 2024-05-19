@@ -124,7 +124,7 @@ func getBotInfo(ctx context.Context, KV kv.KV, config *config.TGConfig, token st
 	return &types.BotInfo{Id: user.ID, UserName: user.Username, Token: token}, nil
 }
 
-func getTGMessagesBatch(ctx context.Context, client *telegram.Client, channel *tg.InputChannel, parts []schemas.Part, userID string, index int,
+func getTGMessagesBatch(ctx context.Context, client *telegram.Client, channel *tg.InputChannel, parts []schemas.Part, index int,
 	results chan<- batchResult, errors chan<- error, wg *sync.WaitGroup) {
 
 	defer wg.Done()
@@ -172,10 +172,10 @@ func getTGMessages(ctx context.Context, client *telegram.Client, parts []schemas
 
 	errors := make(chan error, batchCount)
 
-	for i := 0; i < batchCount; i++ {
+	for i := range batchCount {
 		wg.Add(1)
 		splitParts := parts[i*batchSize : min((i+1)*batchSize, len(parts))]
-		go getTGMessagesBatch(ctx, client, channel, splitParts, userID, i, results, errors, &wg)
+		go getTGMessagesBatch(ctx, client, channel, splitParts, i, results, errors, &wg)
 	}
 
 	wg.Wait()
@@ -188,19 +188,19 @@ func getTGMessages(ctx context.Context, client *telegram.Client, parts []schemas
 		}
 	}
 
-	channelResult := []batchResult{}
+	batchResults := []batchResult{}
 
 	for result := range results {
-		channelResult = append(channelResult, result)
+		batchResults = append(batchResults, result)
 	}
 
-	sort.Slice(channelResult, func(i, j int) bool {
-		return channelResult[i].Index < channelResult[j].Index
+	sort.Slice(batchResults, func(i, j int) bool {
+		return batchResults[i].Index < batchResults[j].Index
 	})
 
 	allMessages := []tg.MessageClass{}
 
-	for _, result := range channelResult {
+	for _, result := range batchResults {
 		allMessages = append(allMessages, result.Messages.GetMessages()...)
 	}
 

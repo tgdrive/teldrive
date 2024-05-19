@@ -163,7 +163,7 @@ func bindFlagsRecursive(flags *pflag.FlagSet, prefix string, v reflect.Value) {
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
-	for i := 0; i < t.NumField(); i++ {
+	for i := range t.NumField() {
 		field := t.Field(i)
 		switch field.Type.Kind() {
 		case reflect.Struct:
