@@ -135,6 +135,8 @@ touch session.db
 docker compose up -d
 ```
 - **Go to http://localhost:8080**
+> [!WARNING]
+> Make sure to run ```touch session.db``` to create empty session file  if you are using docker compose otherwise app will not run.
 
 ### Use without docker
 
