@@ -6,7 +6,6 @@ import (
 
 	"github.com/divyam234/teldrive/internal/config"
 	"github.com/divyam234/teldrive/internal/kv"
-	"github.com/gotd/contrib/bg"
 	"github.com/gotd/td/telegram"
 )
 
@@ -42,7 +41,7 @@ func NewUploadWorker() *UploadWorker {
 
 type Client struct {
 	Tg     *telegram.Client
-	Stop   bg.StopFunc
+	Stop   StopFunc
 	Status string
 }
 
@@ -81,7 +80,7 @@ func (w *StreamWorker) Next(channelId int64) (*Client, int, error) {
 	nextClient := w.clients[channelId][index]
 	w.currIdx[channelId] = (index + 1) % len(w.clients[channelId])
 	if nextClient.Status == "idle" {
-		stop, err := bg.Connect(nextClient.Tg)
+		stop, err := Connect(nextClient.Tg, WithBotToken(w.bots[channelId][index]))
 		if err != nil {
 			return nil, 0, err
 		}
@@ -103,7 +102,7 @@ func (w *StreamWorker) UserWorker(client *telegram.Client, userId int64) (*Clien
 	}
 	nextClient := w.clients[userId][0]
 	if nextClient.Status == "idle" {
-		stop, err := bg.Connect(nextClient.Tg, bg.WithContext(w.ctx))
+		stop, err := Connect(nextClient.Tg, WithContext(w.ctx))
 		if err != nil {
 			return nil, err
 		}
