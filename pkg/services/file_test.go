@@ -83,7 +83,7 @@ func (s *FileServiceSuite) Test_Update() {
 		Path: "/dwkd",
 		Type: "file",
 	}
-	r, err := s.srv.UpdateFile(res.ID, 123456, data)
+	r, err := s.srv.UpdateFile(res.ID, 123456, data, nil)
 	s.NoError(err.Error)
 	s.Equal(r.Name, data.Name)
 	s.Equal(r.Path, data.Path)

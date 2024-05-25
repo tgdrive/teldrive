@@ -3,6 +3,7 @@ package controller
 import (
 	"net/http"
 
+	"github.com/divyam234/teldrive/internal/cache"
 	"github.com/divyam234/teldrive/pkg/httputil"
 	"github.com/divyam234/teldrive/pkg/logging"
 	"github.com/divyam234/teldrive/pkg/schemas"
@@ -43,7 +44,7 @@ func (fc *Controller) UpdateFile(c *gin.Context) {
 		httputil.NewError(c, http.StatusBadRequest, err)
 		return
 	}
-	res, err := fc.FileService.UpdateFile(c.Param("fileID"), userId, &fileUpdate)
+	res, err := fc.FileService.UpdateFile(c.Param("fileID"), userId, &fileUpdate, cache.FromContext(c))
 	if err != nil {
 		httputil.NewError(c, err.Code, err.Error)
 		return
@@ -143,6 +144,17 @@ func (fc *Controller) DeleteFiles(c *gin.Context) {
 		return
 	}
 	res, err := fc.FileService.DeleteFiles(userId, &payload)
+	if err != nil {
+		httputil.NewError(c, err.Code, err.Error)
+		return
+	}
+
+	c.JSON(http.StatusOK, res)
+}
+
+func (fc *Controller) DeleteFileParts(c *gin.Context) {
+
+	res, err := fc.FileService.DeleteFileParts(c, c.Param("fileID"))
 	if err != nil {
 		httputil.NewError(c, err.Code, err.Error)
 		return

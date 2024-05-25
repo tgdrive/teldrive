@@ -334,3 +334,26 @@ func getSessionByHash(db *gorm.DB, cache *cache.Cache, hash string) (*models.Ses
 	return &session, nil
 
 }
+
+func DeleteTGMessages(ctx context.Context, cnf *config.TGConfig, session string, channelId, userId int64, ids []int) error {
+
+	client, _ := tgc.AuthClient(ctx, cnf, session)
+
+	err := tgc.RunWithAuth(ctx, client, "", func(ctx context.Context) error {
+
+		channel, err := GetChannelById(ctx, client, channelId, strconv.FormatInt(userId, 10))
+
+		if err != nil {
+			return err
+		}
+
+		messageDeleteRequest := tg.ChannelsDeleteMessagesRequest{Channel: channel, ID: ids}
+
+		_, err = client.API().ChannelsDeleteMessages(ctx, &messageDeleteRequest)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	return err
+}

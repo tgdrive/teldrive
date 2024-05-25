@@ -67,6 +67,7 @@ type FileUpdate struct {
 	ParentID  string    `json:"parentId,omitempty"`
 	UpdatedAt time.Time `json:"updatedAt,omitempty"`
 	Parts     []Part    `json:"parts,omitempty"`
+	Size      *int64    `json:"size,omitempty"`
 }
 
 type FileResponse struct {

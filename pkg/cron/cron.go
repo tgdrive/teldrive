@@ -4,16 +4,13 @@ import (
 	"context"
 	"database/sql/driver"
 	"encoding/json"
-	"strconv"
 	"time"
 
 	"github.com/divyam234/teldrive/internal/config"
-	"github.com/divyam234/teldrive/internal/tgc"
 	"github.com/divyam234/teldrive/pkg/logging"
 	"github.com/divyam234/teldrive/pkg/models"
 	"github.com/divyam234/teldrive/pkg/services"
 	"github.com/go-co-op/gocron"
-	"github.com/gotd/td/tg"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
@@ -114,7 +111,7 @@ func (c *CronService) CleanFiles(ctx context.Context) {
 			}
 
 		}
-		err := deleteTGMessages(ctx, c.cnf, row.Session, row.ChannelId, row.UserId, ids)
+		err := services.DeleteTGMessages(ctx, &c.cnf.TG, row.Session, row.ChannelId, row.UserId, ids)
 		if err != nil {
 			c.logger.Errorw("failed to clean files", err)
 		}
@@ -142,7 +139,7 @@ func (c *CronService) CleanUploads(ctx context.Context) {
 		if result.Session == "" {
 			break
 		}
-		err := deleteTGMessages(ctx, c.cnf, result.Session, result.ChannelId, result.UserId, result.Parts)
+		err := services.DeleteTGMessages(ctx, &c.cnf.TG, result.Session, result.ChannelId, result.UserId, result.Parts)
 		c.logger.Errorw("failed to delete messages", err)
 		parts := []int{}
 		for _, id := range result.Parts {
@@ -157,27 +154,4 @@ func (c *CronService) CleanUploads(ctx context.Context) {
 
 func (c *CronService) UpdateFolderSize() {
 	c.db.Exec("call teldrive.update_size();")
-}
-
-func deleteTGMessages(ctx context.Context, cnf *config.Config, session string, channelId, userId int64, ids []int) error {
-
-	client, _ := tgc.AuthClient(ctx, &cnf.TG, session)
-
-	err := tgc.RunWithAuth(ctx, client, "", func(ctx context.Context) error {
-
-		channel, err := services.GetChannelById(ctx, client, channelId, strconv.FormatInt(userId, 10))
-
-		if err != nil {
-			return err
-		}
-
-		messageDeleteRequest := tg.ChannelsDeleteMessagesRequest{Channel: channel, ID: ids}
-
-		_, err = client.API().ChannelsDeleteMessages(ctx, &messageDeleteRequest)
-		if err != nil {
-			return err
-		}
-		return nil
-	})
-	return err
 }

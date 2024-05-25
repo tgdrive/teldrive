@@ -28,6 +28,7 @@ func InitRouter(r *gin.Engine, c *controller.Controller, cnf *config.Config) *gi
 			files.PATCH(":fileID", authmiddleware, c.UpdateFile)
 			files.HEAD(":fileID/stream/:fileName", c.GetFileStream)
 			files.GET(":fileID/stream/:fileName", c.GetFileStream)
+			files.DELETE(":fileID/parts", authmiddleware, c.DeleteFileParts)
 			files.GET("/category/stats", authmiddleware, c.GetCategoryStats)
 			files.POST("/move", authmiddleware, c.MoveFiles)
 			files.POST("/directories", authmiddleware, c.MakeDirectory)

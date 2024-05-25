@@ -110,7 +110,7 @@ func (fs *FileService) CreateFile(c *gin.Context, userId int64, fileIn *schemas.
 	return res, nil
 }
 
-func (fs *FileService) UpdateFile(id string, userId int64, update *schemas.FileUpdate) (*schemas.FileOut, *types.AppError) {
+func (fs *FileService) UpdateFile(id string, userId int64, update *schemas.FileUpdate, cache *cache.Cache) (*schemas.FileOut, *types.AppError) {
 	var (
 		files []models.File
 		chain *gorm.DB
@@ -118,7 +118,35 @@ func (fs *FileService) UpdateFile(id string, userId int64, update *schemas.FileU
 	if update.Type == "folder" && update.Name != "" {
 		chain = fs.db.Raw("select * from teldrive.update_folder(?, ?, ?)", id, update.Name, userId).Scan(&files)
 	} else {
-		chain = fs.db.Model(&files).Clauses(clause.Returning{}).Where("id = ?", id).Updates(update)
+
+		updateDb := models.File{
+			Name:      update.Name,
+			ParentID:  update.ParentID,
+			UpdatedAt: update.UpdatedAt,
+			Path:      update.Path,
+			Size:      update.Size,
+		}
+
+		if update.Starred != nil {
+			updateDb.Starred = *update.Starred
+		}
+
+		if len(update.Parts) > 0 {
+			parts := models.Parts{}
+
+			for _, part := range update.Parts {
+				parts = append(parts, models.Part{
+					ID:   part.ID,
+					Salt: part.Salt,
+				})
+
+			}
+
+			updateDb.Parts = &parts
+		}
+		chain = fs.db.Model(&files).Clauses(clause.Returning{}).Where("id = ?", id).Updates(updateDb)
+
+		cache.Delete(fmt.Sprintf("files:%s", id))
 	}
 
 	if chain.Error != nil {
@@ -265,6 +293,32 @@ func (fs *FileService) DeleteFiles(userId int64, payload *schemas.FileOperation)
 	}
 
 	return &schemas.Message{Message: "files deleted"}, nil
+}
+
+func (fs *FileService) DeleteFileParts(c *gin.Context, id string) (*schemas.Message, *types.AppError) {
+	var file models.File
+	if err := fs.db.Where("id = ?", id).First(&file).Error; err != nil {
+		if database.IsRecordNotFoundErr(err) {
+			return nil, &types.AppError{Error: database.ErrNotFound, Code: http.StatusNotFound}
+		}
+		return nil, &types.AppError{Error: err}
+	}
+
+	userId, session := GetUserAuth(c)
+
+	ids := []int{}
+
+	for _, part := range *file.Parts {
+		ids = append(ids, int(part.ID))
+	}
+
+	err := DeleteTGMessages(c, fs.cnf, session, *file.ChannelID, userId, ids)
+
+	if err != nil {
+		return nil, &types.AppError{Error: err}
+	}
+
+	return &schemas.Message{Message: "file parts deleted"}, nil
 }
 
 func (fs *FileService) MoveDirectory(userId int64, payload *schemas.DirMove) (*schemas.Message, *types.AppError) {
