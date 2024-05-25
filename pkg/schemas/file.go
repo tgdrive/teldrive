@@ -66,6 +66,7 @@ type FileUpdate struct {
 	Starred   *bool     `json:"starred,omitempty"`
 	ParentID  string    `json:"parentId,omitempty"`
 	UpdatedAt time.Time `json:"updatedAt,omitempty"`
+	Parts     []Part    `json:"parts,omitempty"`
 }
 
 type FileResponse struct {
