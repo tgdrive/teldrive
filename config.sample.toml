@@ -43,4 +43,4 @@
   [tg.uploads]
     encryption-key = ""
     retention = "7d"
-    threads = 16
+    threads = 8

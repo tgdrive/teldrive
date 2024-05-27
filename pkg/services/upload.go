@@ -15,6 +15,8 @@ import (
 
 	"github.com/divyam234/teldrive/internal/crypt"
 	"github.com/divyam234/teldrive/internal/kv"
+	"github.com/divyam234/teldrive/internal/recovery"
+	"github.com/divyam234/teldrive/internal/retry"
 	"github.com/divyam234/teldrive/internal/tgc"
 	"github.com/divyam234/teldrive/pkg/logging"
 	"github.com/divyam234/teldrive/pkg/mapper"
@@ -145,13 +147,14 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 	} else {
 		us.worker.Set(tokens, channelId)
 		token, index = us.worker.Next(channelId)
-		client, _ = tgc.BotClient(c, us.kv, us.cnf, token)
+		client, _ = tgc.UploadClient(c, us.kv, us.cnf, token, recovery.New(c, tgc.NewBackoff(us.cnf.ReconnectTimeout)),
+			retry.New(us.cnf.Uploads.MaxRetries))
 		channelUser = strings.Split(token, ":")[0]
 	}
 
 	logger := logging.FromContext(c)
 
-	logger.Debugw("uploading file", "fileName", uploadQuery.FileName,
+	logger.Debugw("uploading chunk", "fileName", uploadQuery.FileName,
 		"partName", uploadQuery.PartName,
 		"bot", channelUser, "botNo", index,
 		"chunkNo", uploadQuery.PartNo, "partSize", fileSize)
@@ -161,7 +164,6 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 		channel, err := GetChannelById(ctx, client, channelId, channelUser)
 
 		if err != nil {
-			logger.Error("error", err)
 			return err
 		}
 
@@ -179,7 +181,7 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 
 		u := uploader.NewUploader(api).WithThreads(us.cnf.Uploads.Threads).WithPartSize(512 * 1024)
 
-		upload, err := u.Upload(c, uploader.NewUpload(uploadQuery.PartName, fileStream, fileSize))
+		upload, err := u.Upload(ctx, uploader.NewUpload(uploadQuery.PartName, fileStream, fileSize))
 
 		if err != nil {
 			return err
@@ -192,12 +194,9 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 		target := sender.To(&tg.InputPeerChannel{ChannelID: channel.ChannelID,
 			AccessHash: channel.AccessHash})
 
-		res, err := target.Media(c, document)
+		res, err := target.Media(ctx, document)
 
 		if err != nil {
-			logger.Debugw("upload failed", "fileName", uploadQuery.FileName,
-				"partName", uploadQuery.PartName,
-				"chunkNo", uploadQuery.PartNo)
 			return err
 		}
 
@@ -214,9 +213,6 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 		}
 
 		if message.ID == 0 {
-			logger.Debugw("upload failed", "fileName", uploadQuery.FileName,
-				"partName", uploadQuery.PartName,
-				"chunkNo", uploadQuery.PartNo)
 			return fmt.Errorf("upload failed")
 		}
 
@@ -246,14 +242,16 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 	})
 
 	if err != nil {
+		logger.Debugw("upload failed", "fileName", uploadQuery.FileName,
+			"partName", uploadQuery.PartName,
+			"chunkNo", uploadQuery.PartNo)
 		return nil, &types.AppError{Error: err}
 	}
-
 	logger.Debugw("upload finished", "fileName", uploadQuery.FileName,
 		"partName", uploadQuery.PartName,
 		"chunkNo", uploadQuery.PartNo)
-
 	return out, nil
+
 }
 
 func generateRandomSalt() (string, error) {

@@ -49,5 +49,5 @@ func (r *recovery) shouldRecover(err error) bool {
 
 	_, ok := tgerr.As(err)
 
-	return !errors.Is(err, context.Canceled) && !ok
+	return !ok
 }

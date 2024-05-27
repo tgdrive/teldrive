@@ -33,9 +33,11 @@ type TGConfig struct {
 	BgBotsLimit       int
 	DisableStreamBots bool
 	Proxy             string
+	ReconnectTimeout  time.Duration
 	Uploads           struct {
 		EncryptionKey string
 		Threads       int
+		MaxRetries    int
 		Retention     time.Duration
 	}
 }

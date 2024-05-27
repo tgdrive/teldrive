@@ -190,7 +190,7 @@ teldrive run --help
 | --tg-rate                            | Limiting rate                                     | No       | 100                                                   |
 | --tg-session-file                        | Bot session file.                                 | No       | $HOME/.teldrive/session.db                          |
 | --tg-bg-bots-limit                   | Start at most this no of bots in the background to prevent connection recreation on every request.Increase this if you are streaming or downloading large no of files simultaneously.                             | No       | 5                                                                                          
-| --tg-uploads-threads                 | Concurrent Uploads threads for uploading file                                  | No       | 16                                                    |
+| --tg-uploads-threads                 | Concurrent Uploads threads for uploading file                                  | No       | 8                                                    |
 | --tg-uploads-retention               | Uploads retention duration.Duration to keep failed uploaded chunks in db for resuming uploads.                       | No       | 7d                                               |
 | --tg-proxy               | Socks5 or HTTP proxy for telegram client.                       | No       | ""                                               |
 

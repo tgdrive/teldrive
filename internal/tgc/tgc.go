@@ -7,12 +7,9 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	"github.com/divyam234/teldrive/internal/config"
 	"github.com/divyam234/teldrive/internal/kv"
-	"github.com/divyam234/teldrive/internal/recovery"
-	"github.com/divyam234/teldrive/internal/retry"
 	"github.com/divyam234/teldrive/internal/utils"
 	"github.com/gotd/contrib/middleware/floodwait"
 	"github.com/gotd/contrib/middleware/ratelimit"
-	tdclock "github.com/gotd/td/clock"
 	"github.com/gotd/td/session"
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/telegram/dcs"
@@ -21,13 +18,10 @@ import (
 	"golang.org/x/time/rate"
 )
 
-func defaultMiddlewares(ctx context.Context) ([]telegram.Middleware, error) {
-
+func defaultMiddlewares() []telegram.Middleware {
 	return []telegram.Middleware{
-		recovery.New(ctx, Backoff(tdclock.System)),
-		retry.New(5),
 		floodwait.NewSimpleWaiter(),
-	}, nil
+	}
 }
 
 func New(ctx context.Context, config *config.TGConfig, handler telegram.UpdateHandler, storage session.Storage, middlewares ...telegram.Middleware) (*telegram.Client, error) {
@@ -45,6 +39,9 @@ func New(ctx context.Context, config *config.TGConfig, handler telegram.UpdateHa
 		Resolver: dcs.Plain(dcs.PlainOptions{
 			Dial: dialer,
 		}),
+		ReconnectionBackoff: func() backoff.BackOff {
+			return NewBackoff(config.ReconnectTimeout)
+		},
 		Device: telegram.DeviceConfig{
 			DeviceModel:    config.DeviceModel,
 			SystemVersion:  config.SystemVersion,
@@ -54,8 +51,8 @@ func New(ctx context.Context, config *config.TGConfig, handler telegram.UpdateHa
 			LangCode:       config.LangCode,
 		},
 		SessionStorage: storage,
-		RetryInterval:  time.Second,
-		MaxRetries:     10,
+		RetryInterval:  5 * time.Second,
+		MaxRetries:     -1,
 		DialTimeout:    10 * time.Second,
 		Middlewares:    middlewares,
 		UpdateHandler:  handler,
@@ -65,7 +62,7 @@ func New(ctx context.Context, config *config.TGConfig, handler telegram.UpdateHa
 }
 
 func NoAuthClient(ctx context.Context, config *config.TGConfig, handler telegram.UpdateHandler, storage session.Storage) (*telegram.Client, error) {
-	middlewares, _ := defaultMiddlewares(ctx)
+	middlewares := defaultMiddlewares()
 	middlewares = append(middlewares, ratelimit.New(rate.Every(time.Millisecond*100), 5))
 	return New(ctx, config, handler, storage, middlewares...)
 }
@@ -85,7 +82,7 @@ func AuthClient(ctx context.Context, config *config.TGConfig, sessionStr string)
 	if err := loader.Save(context.TODO(), data); err != nil {
 		return nil, err
 	}
-	middlewares, _ := defaultMiddlewares(ctx)
+	middlewares := defaultMiddlewares()
 	middlewares = append(middlewares, ratelimit.New(rate.Every(time.Millisecond*
 		time.Duration(config.Rate)), config.RateBurst))
 	return New(ctx, config, nil, storage, middlewares...)
@@ -93,7 +90,7 @@ func AuthClient(ctx context.Context, config *config.TGConfig, sessionStr string)
 
 func BotClient(ctx context.Context, KV kv.KV, config *config.TGConfig, token string) (*telegram.Client, error) {
 	storage := kv.NewSession(KV, kv.Key("botsession", token))
-	middlewares, _ := defaultMiddlewares(ctx)
+	middlewares := defaultMiddlewares()
 	if config.RateLimit {
 		middlewares = append(middlewares, ratelimit.New(rate.Every(time.Millisecond*
 			time.Duration(config.Rate)), config.RateBurst))
@@ -101,11 +98,22 @@ func BotClient(ctx context.Context, KV kv.KV, config *config.TGConfig, token str
 	}
 	return New(ctx, config, nil, storage, middlewares...)
 }
-func Backoff(_clock tdclock.Clock) backoff.BackOff {
-	b := backoff.NewExponentialBackOff()
 
+func UploadClient(ctx context.Context, KV kv.KV, config *config.TGConfig, token string, middlewares ...telegram.Middleware) (*telegram.Client, error) {
+	storage := kv.NewSession(KV, kv.Key("botsession", token))
+	middlewares = append(middlewares, defaultMiddlewares()...)
+	if config.RateLimit {
+		middlewares = append(middlewares, ratelimit.New(rate.Every(time.Millisecond*
+			time.Duration(config.Rate)), config.RateBurst))
+
+	}
+	return New(ctx, config, nil, storage, middlewares...)
+}
+
+func NewBackoff(timeout time.Duration) backoff.BackOff {
+	b := backoff.NewExponentialBackOff()
 	b.Multiplier = 1.1
-	b.MaxElapsedTime = time.Duration(120) * time.Second
-	b.Clock = _clock
+	b.MaxElapsedTime = timeout
+	b.MaxInterval = 10 * time.Second
 	return b
 }
