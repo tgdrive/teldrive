@@ -6,6 +6,7 @@ import (
 	"github.com/divyam234/teldrive/internal/config"
 	"github.com/divyam234/teldrive/pkg/logging"
 
+	extraClausePlugin "github.com/WinterYukky/gorm-extra-clause-plugin"
 	"go.uber.org/zap/zapcore"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -37,6 +38,7 @@ func NewDatabase(cfg *config.Config) (*gorm.DB, error) {
 		logging.DefaultLogger().Warnf("failed to open database: %v", err)
 		time.Sleep(500 * time.Millisecond)
 	}
+	db.Use(extraClausePlugin.New())
 	if err != nil {
 		logging.DefaultLogger().Fatalf("database: %v", err)
 	}

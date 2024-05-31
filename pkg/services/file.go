@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/WinterYukky/gorm-extra-clause-plugin/exclause"
 	"github.com/divyam234/teldrive/internal/cache"
 	"github.com/divyam234/teldrive/internal/category"
 	"github.com/divyam234/teldrive/internal/config"
@@ -188,20 +189,22 @@ func (fs *FileService) ListFiles(userId int64, fquery *schemas.FileQuery) (*sche
 	}
 
 	query := fs.db.Limit(fquery.PerPage)
-
-	filter := &models.File{UserID: userId, Status: "active"}
-
 	setOrderFilter(query, fquery)
 
 	if fquery.Op == "list" {
-
+		filter := &models.File{UserID: userId, Status: "active"}
 		query.Order("type DESC").Order(getOrder(fquery)).Where("parent_id = ?", pathId).
 			Model(filter).Where(&filter)
 
 	} else if fquery.Op == "find" {
-
-		if fquery.Path != "" && (fquery.Name != "" || fquery.Query != "") {
+		if !fquery.DeepSearch && pathId != "" && (fquery.Name != "" || fquery.Query != "") {
 			query.Where("parent_id = ?", pathId)
+			fquery.Path = ""
+		} else if fquery.DeepSearch && pathId != "" && fquery.Query != "" {
+			query = fs.db.Clauses(exclause.With{Recursive: true, CTEs: []exclause.CTE{{Name: "subdirs",
+				Subquery: exclause.Subquery{DB: fs.db.Model(&models.File{Id: pathId}).Select("id", "parent_id").Clauses(exclause.NewUnion("ALL ?",
+					fs.db.Table("teldrive.files as f").Select("f.id", "f.parent_id").
+						Joins("inner join subdirs ON f.parent_id = subdirs.id")))}}}}).Where("files.id in (select id  from subdirs)")
 			fquery.Path = ""
 		}
 
@@ -258,6 +261,7 @@ func (fs *FileService) ListFiles(userId int64, fquery *schemas.FileQuery) (*sche
 
 		}
 
+		filter := &models.File{UserID: userId, Status: "active"}
 		filter.Name = fquery.Name
 		filter.ParentID = fquery.ParentID
 		filter.Path = fquery.Path
@@ -269,10 +273,12 @@ func (fs *FileService) ListFiles(userId int64, fquery *schemas.FileQuery) (*sche
 		query.Order("type DESC").Order(getOrder(fquery)).
 			Model(&filter).Where(&filter)
 
+		query.Limit(fquery.PerPage)
+		setOrderFilter(query, fquery)
 	}
 
-	if fquery.Path == "" {
-		query.Select("*,(select path from teldrive.files as f where f.id = files.parent_id) as parent_path")
+	if fquery.Path == "" || fquery.DeepSearch {
+		query.Select("*,(select path from teldrive.files as ff where ff.id = files.parent_id) as parent_path")
 	}
 
 	files := []schemas.FileOut{}

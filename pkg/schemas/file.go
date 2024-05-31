@@ -15,6 +15,7 @@ type FileQuery struct {
 	Type          string `form:"type"`
 	Path          string `form:"path"`
 	Op            string `form:"op"`
+	DeepSearch    bool   `form:"deepSearch"`
 	Starred       *bool  `form:"starred"`
 	ParentID      string `form:"parentId"`
 	Category      string `form:"category"`

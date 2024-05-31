@@ -1,3 +1,5 @@
+github.com/WinterYukky/gorm-extra-clause-plugin v0.2.1 h1:G0e4eFRrh3WdM1I3EKKidV2yF5J09uRIJlKYxt6zNR4=
+github.com/WinterYukky/gorm-extra-clause-plugin v0.2.1/go.mod h1:qAN5KRJJTCM49X2wUHZAVB3rfvO8A8L0ISd/uB1WM5s=
 github.com/bytedance/sonic v1.11.6 h1:oUp34TzMlL+OY1OUWxHqsdkgC/Zfc85zGqw9siXjrc0=
 github.com/bytedance/sonic v1.11.6/go.mod h1:LysEHSvpvDySVdC2f87zGWf6CIKJcAvqab1ZaiQtds4=
 github.com/bytedance/sonic/loader v0.1.1 h1:c+e5Pt1k/cy5wMveRDyk2X4B9hF4g7an8N3zCYjJFNM=
