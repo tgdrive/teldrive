@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/divyam234/teldrive/internal/cache"
 	"github.com/divyam234/teldrive/internal/category"
@@ -199,30 +200,75 @@ func (fs *FileService) ListFiles(userId int64, fquery *schemas.FileQuery) (*sche
 
 	} else if fquery.Op == "find" {
 
+		if fquery.Path != "" && (fquery.Name != "" || fquery.Query != "") {
+			query.Where("parent_id = ?", pathId)
+			fquery.Path = ""
+		}
+
+		if fquery.UpdatedAt != "" {
+			dateFilters := strings.Split(fquery.UpdatedAt, ",")
+			for _, dateFilter := range dateFilters {
+				parts := strings.Split(dateFilter, ":")
+				if len(parts) == 2 {
+					op, date := parts[0], parts[1]
+					t, err := time.Parse(time.DateOnly, date)
+					if err != nil {
+						return nil, &types.AppError{Error: err}
+					}
+					formattedDate := t.Format(time.RFC3339)
+					switch op {
+					case "gte":
+						query.Where("updated_at >= ?", formattedDate)
+					case "lte":
+						query.Where("updated_at <= ?", formattedDate)
+					case "eq":
+						query.Where("updated_at = ?", formattedDate)
+					case "gt":
+						query.Where("updated_at > ?", formattedDate)
+					case "lt":
+						query.Where("updated_at < ?", formattedDate)
+					}
+				}
+			}
+		}
+
+		if fquery.Query != "" {
+			query.Where("teldrive.get_tsquery(?) @@ teldrive.get_tsvector(name)", fquery.Query)
+		}
+
+		if fquery.Category != "" {
+			categories := strings.Split(fquery.Category, ",")
+			var filterQuery *gorm.DB
+			if categories[0] == "folder" {
+				filterQuery = fs.db.Where("type = ?", categories[0])
+			} else {
+				filterQuery = fs.db.Where("category = ?", categories[0])
+			}
+
+			if len(categories) > 1 {
+				for _, category := range categories[1:] {
+					if category == "folder" {
+						filterQuery.Or("type = ?", category)
+					} else {
+						filterQuery.Or("category = ?", category)
+					}
+				}
+			}
+			query.Where(filterQuery)
+
+		}
+
 		filter.Name = fquery.Name
-		filter.Type = fquery.Type
 		filter.ParentID = fquery.ParentID
-		filter.Category = fquery.Category
 		filter.Path = fquery.Path
 		filter.Type = fquery.Type
 		if fquery.Starred != nil {
 			filter.Starred = *fquery.Starred
 		}
 
-		if fquery.Path != "" && fquery.Name != "" {
-			filter.ParentID = pathId
-			filter.Path = ""
-		}
-
 		query.Order("type DESC").Order(getOrder(fquery)).
 			Model(&filter).Where(&filter)
 
-	} else if fquery.Op == "search" {
-
-		query.Where("teldrive.get_tsquery(?) @@ teldrive.get_tsvector(name)", fquery.Search)
-
-		query.Order(getOrder(fquery)).
-			Model(&filter).Where(&filter)
 	}
 
 	if fquery.Path == "" {
