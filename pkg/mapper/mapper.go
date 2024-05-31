@@ -11,7 +11,7 @@ func ToFileOut(file models.File) *schemas.FileOut {
 		size = *file.Size
 	}
 	return &schemas.FileOut{
-		ID:        file.ID,
+		Id:        file.Id,
 		Name:      file.Name,
 		Type:      file.Type,
 		MimeType:  file.MimeType,

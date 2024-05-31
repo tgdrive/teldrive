@@ -211,7 +211,7 @@ func getParts(ctx context.Context, client *telegram.Client, file *schemas.FileOu
 	cache := cache.FromContext(ctx)
 	parts := []types.Part{}
 
-	key := fmt.Sprintf("messages:%s:%s", file.ID, userID)
+	key := fmt.Sprintf("messages:%s:%s", file.Id, userID)
 
 	err := cache.Get(key, &parts)
 

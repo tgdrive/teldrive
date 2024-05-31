@@ -129,22 +129,25 @@ func (c *CronService) CleanUploads(ctx context.Context) {
 		Select("JSONB_AGG(uploads.part_id) as parts", "uploads.channel_id", "uploads.user_id", "s.session").
 		Joins("left join teldrive.users as u  on u.user_id = uploads.user_id").
 		Joins("left join (select * from teldrive.sessions order by created_at desc limit 1) as s on s.user_id = uploads.user_id").
-		Where("uploads.created_at > ?", time.Now().UTC().Add(c.cnf.TG.Uploads.Retention)).
+		Where("uploads.created_at < ?", time.Now().UTC().Add(-c.cnf.TG.Uploads.Retention)).
 		Group("uploads.channel_id").Group("uploads.user_id").Group("s.session").
 		Scan(&upResults).Error; err != nil {
 		return
 	}
 
 	for _, result := range upResults {
-		if result.Session == "" {
-			break
-		}
-		err := services.DeleteTGMessages(ctx, &c.cnf.TG, result.Session, result.ChannelId, result.UserId, result.Parts)
-		c.logger.Errorw("failed to delete messages", err)
+
 		parts := []int{}
 		for _, id := range result.Parts {
 			parts = append(parts, id)
 		}
+
+		if result.Session == "" && len(parts) > 0 {
+			c.db.Where("part_id = any($1)", parts).Delete(&models.Upload{})
+			break
+		}
+		err := services.DeleteTGMessages(ctx, &c.cnf.TG, result.Session, result.ChannelId, result.UserId, result.Parts)
+		c.logger.Errorw("failed to delete messages", err)
 
 		if err == nil {
 			c.db.Where("part_id = any($1)", parts).Delete(&models.Upload{})

@@ -255,7 +255,7 @@ func (fs *FileService) getPathId(path string, userId int64) (string, error) {
 		return "", database.ErrNotFound
 
 	}
-	return file.ID, nil
+	return file.Id, nil
 }
 
 func (fs *FileService) MakeDirectory(userId int64, payload *schemas.MkDir) (*schemas.FileOut, *types.AppError) {
@@ -442,7 +442,7 @@ func (fs *FileService) CopyFile(c *gin.Context) (*schemas.FileOut, *types.AppErr
 	dbFile.UserID = userId
 	dbFile.Starred = false
 	dbFile.Status = "active"
-	dbFile.ParentID = dest.ID
+	dbFile.ParentID = dest.Id
 	dbFile.ChannelID = &channelId
 	dbFile.Encrypted = file.Encrypted
 	dbFile.Category = file.Category
@@ -537,7 +537,7 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 	c.Header("Content-Type", mimeType)
 
 	c.Header("Content-Length", strconv.FormatInt(contentLength, 10))
-	c.Header("E-Tag", fmt.Sprintf("\"%s\"", md5.FromString(file.ID+strconv.FormatInt(file.Size, 10))))
+	c.Header("E-Tag", fmt.Sprintf("\"%s\"", md5.FromString(file.Id+strconv.FormatInt(file.Size, 10))))
 	c.Header("Last-Modified", file.UpdatedAt.UTC().Format(http.TimeFormat))
 
 	disposition := "inline"

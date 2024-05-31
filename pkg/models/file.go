@@ -7,7 +7,7 @@ import (
 )
 
 type File struct {
-	ID        string    `gorm:"type:text;primaryKey;default:generate_uid(16)"`
+	Id        string    `gorm:"type:text;primaryKey;default:generate_uid(16)"`
 	Name      string    `gorm:"type:text;not null"`
 	Type      string    `gorm:"type:text;not null"`
 	MimeType  string    `gorm:"type:text;not null"`

@@ -58,9 +58,9 @@ func TestSuite(t *testing.T) {
 func (s *FileServiceSuite) TestSave() {
 	res, err := s.srv.CreateFile(&gin.Context{}, 123456, s.entry("file.jpeg"))
 	s.NoError(err.Error)
-	find, err := s.srv.GetFileByID(res.ID)
+	find, err := s.srv.GetFileByID(res.Id)
 	s.NoError(err.Error)
-	s.Equal(find.ID, res.ID)
+	s.Equal(find.Id, res.Id)
 	s.Equal(find.MimeType, res.MimeType)
 }
 
@@ -83,7 +83,7 @@ func (s *FileServiceSuite) Test_Update() {
 		Path: "/dwkd",
 		Type: "file",
 	}
-	r, err := s.srv.UpdateFile(res.ID, 123456, data, nil)
+	r, err := s.srv.UpdateFile(res.Id, 123456, data, nil)
 	s.NoError(err.Error)
 	s.Equal(r.Name, data.Name)
 	s.Equal(r.Path, data.Path)
