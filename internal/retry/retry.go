@@ -19,6 +19,7 @@ var internalErrors = []string{
 	"WORKER_BUSY_TOO_LONG_RETRY",
 	"memory limit exit",
 	"connection dead",
+	"engine was closed",
 }
 
 type retry struct {
