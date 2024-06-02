@@ -162,6 +162,8 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 
 	uploadPool := pool.NewPool(client, int64(us.cnf.PoolSize), middlewares...)
 
+	defer uploadPool.Close()
+
 	logger := logging.FromContext(c)
 
 	logger.Debugw("uploading chunk", "fileName", uploadQuery.FileName,
