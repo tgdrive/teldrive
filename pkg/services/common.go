@@ -111,7 +111,7 @@ func GetUserAuth(c *gin.Context) (int64, string) {
 }
 
 func getBotInfo(ctx context.Context, KV kv.KV, config *config.TGConfig, token string) (*types.BotInfo, error) {
-	client, _ := tgc.BotClient(ctx, KV, config, token)
+	client, _, _ := tgc.BotClient(ctx, KV, config, token, 5, true)
 	var user *tg.User
 	err := tgc.RunWithAuth(ctx, client, token, func(ctx context.Context) error {
 		user, _ = client.Self(ctx)

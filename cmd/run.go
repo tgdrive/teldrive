@@ -16,12 +16,12 @@ import (
 	"github.com/divyam234/teldrive/internal/database"
 	"github.com/divyam234/teldrive/internal/duration"
 	"github.com/divyam234/teldrive/internal/kv"
+	"github.com/divyam234/teldrive/internal/logging"
 	"github.com/divyam234/teldrive/internal/middleware"
 	"github.com/divyam234/teldrive/internal/tgc"
 	"github.com/divyam234/teldrive/internal/utils"
 	"github.com/divyam234/teldrive/pkg/controller"
 	"github.com/divyam234/teldrive/pkg/cron"
-	"github.com/divyam234/teldrive/pkg/logging"
 	"github.com/divyam234/teldrive/pkg/services"
 	"github.com/gin-contrib/gzip"
 	ginzap "github.com/gin-contrib/zap"
@@ -86,6 +86,7 @@ func NewRun() *cobra.Command {
 	runCmd.Flags().StringVar(&config.TG.Uploads.EncryptionKey, "tg-uploads-encryption-key", "", "Uploads encryption key")
 	runCmd.Flags().IntVar(&config.TG.Uploads.Threads, "tg-uploads-threads", 8, "Uploads threads")
 	runCmd.Flags().IntVar(&config.TG.Uploads.MaxRetries, "tg-uploads-max-retries", 10, "Uploads Retries")
+	runCmd.Flags().Int64Var(&config.TG.PoolSize, "tg-pool-size", 8, "Telegram Session pool size")
 	duration.DurationVar(runCmd.Flags(), &config.TG.ReconnectTimeout, "tg-reconnect-timeout", 5*time.Minute, "Reconnect Timeout")
 	duration.DurationVar(runCmd.Flags(), &config.TG.Uploads.Retention, "tg-uploads-retention", (24*7)*time.Hour, "Uploads retention duration")
 	runCmd.MarkFlagRequired("tg-app-id")

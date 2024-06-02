@@ -65,7 +65,7 @@ func (w *StreamWorker) Set(bots []string, channelId int64) {
 		w.currIdx = make(map[int64]int)
 		w.bots[channelId] = bots
 		for _, token := range bots {
-			client, _ := BotClient(w.ctx, w.kv, w.cnf, token)
+			client, _, _ := BotClient(w.ctx, w.kv, w.cnf, token, 5, true)
 			w.clients[channelId] = append(w.clients[channelId], &Client{Tg: client, Status: "idle"})
 		}
 		w.currIdx[channelId] = 0

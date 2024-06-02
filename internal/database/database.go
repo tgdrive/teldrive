@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/divyam234/teldrive/internal/config"
-	"github.com/divyam234/teldrive/pkg/logging"
+	"github.com/divyam234/teldrive/internal/logging"
 
 	extraClausePlugin "github.com/WinterYukky/gorm-extra-clause-plugin"
 	"go.uber.org/zap/zapcore"

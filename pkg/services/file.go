@@ -17,11 +17,11 @@ import (
 	"github.com/divyam234/teldrive/internal/config"
 	"github.com/divyam234/teldrive/internal/database"
 	"github.com/divyam234/teldrive/internal/http_range"
+	"github.com/divyam234/teldrive/internal/logging"
 	"github.com/divyam234/teldrive/internal/md5"
 	"github.com/divyam234/teldrive/internal/reader"
 	"github.com/divyam234/teldrive/internal/tgc"
 	"github.com/divyam234/teldrive/internal/utils"
-	"github.com/divyam234/teldrive/pkg/logging"
 	"github.com/divyam234/teldrive/pkg/mapper"
 	"github.com/divyam234/teldrive/pkg/models"
 	"github.com/divyam234/teldrive/pkg/schemas"
@@ -551,6 +551,21 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 	var start, end int64
 
 	rangeHeader := r.Header.Get("Range")
+
+	if file.Size == 0 {
+		c.Header("Content-Type", file.MimeType)
+		c.Header("Content-Length", "0")
+
+		if rangeHeader != "" {
+			w.Header().Set("Content-Range", fmt.Sprintf("bytes */%d", file.Size))
+			http.Error(w, "Requested Range Not Satisfiable", http.StatusRequestedRangeNotSatisfiable)
+			return
+		}
+
+		c.Header("Content-Disposition", mime.FormatMediaType("inline", map[string]string{"filename": file.Name}))
+		w.WriteHeader(http.StatusOK)
+		return
+	}
 
 	if rangeHeader == "" {
 		start = 0

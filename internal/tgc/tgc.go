@@ -7,6 +7,8 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	"github.com/divyam234/teldrive/internal/config"
 	"github.com/divyam234/teldrive/internal/kv"
+	"github.com/divyam234/teldrive/internal/recovery"
+	"github.com/divyam234/teldrive/internal/retry"
 	"github.com/divyam234/teldrive/internal/utils"
 	"github.com/gotd/contrib/middleware/floodwait"
 	"github.com/gotd/contrib/middleware/ratelimit"
@@ -17,12 +19,6 @@ import (
 	"golang.org/x/net/proxy"
 	"golang.org/x/time/rate"
 )
-
-func defaultMiddlewares() []telegram.Middleware {
-	return []telegram.Middleware{
-		floodwait.NewSimpleWaiter(),
-	}
-}
 
 func New(ctx context.Context, config *config.TGConfig, handler telegram.UpdateHandler, storage session.Storage, middlewares ...telegram.Middleware) (*telegram.Client, error) {
 
@@ -40,7 +36,7 @@ func New(ctx context.Context, config *config.TGConfig, handler telegram.UpdateHa
 			Dial: dialer,
 		}),
 		ReconnectionBackoff: func() backoff.BackOff {
-			return NewBackoff(config.ReconnectTimeout)
+			return newBackoff(config.ReconnectTimeout)
 		},
 		Device: telegram.DeviceConfig{
 			DeviceModel:    config.DeviceModel,
@@ -52,7 +48,7 @@ func New(ctx context.Context, config *config.TGConfig, handler telegram.UpdateHa
 		},
 		SessionStorage: storage,
 		RetryInterval:  5 * time.Second,
-		MaxRetries:     -1,
+		MaxRetries:     5,
 		DialTimeout:    10 * time.Second,
 		Middlewares:    middlewares,
 		UpdateHandler:  handler,
@@ -62,7 +58,9 @@ func New(ctx context.Context, config *config.TGConfig, handler telegram.UpdateHa
 }
 
 func NoAuthClient(ctx context.Context, config *config.TGConfig, handler telegram.UpdateHandler, storage session.Storage) (*telegram.Client, error) {
-	middlewares := defaultMiddlewares()
+	middlewares := []telegram.Middleware{
+		floodwait.NewSimpleWaiter(),
+	}
 	middlewares = append(middlewares, ratelimit.New(rate.Every(time.Millisecond*100), 5))
 	return New(ctx, config, handler, storage, middlewares...)
 }
@@ -82,35 +80,47 @@ func AuthClient(ctx context.Context, config *config.TGConfig, sessionStr string)
 	if err := loader.Save(context.TODO(), data); err != nil {
 		return nil, err
 	}
-	middlewares := defaultMiddlewares()
+	middlewares := []telegram.Middleware{
+		floodwait.NewSimpleWaiter(),
+	}
 	middlewares = append(middlewares, ratelimit.New(rate.Every(time.Millisecond*
 		time.Duration(config.Rate)), config.RateBurst))
 	return New(ctx, config, nil, storage, middlewares...)
 }
 
-func BotClient(ctx context.Context, KV kv.KV, config *config.TGConfig, token string) (*telegram.Client, error) {
+func BotClient(ctx context.Context, KV kv.KV, config *config.TGConfig, token string, retries int, passMiddleware bool) (*telegram.Client, []telegram.Middleware, error) {
+
 	storage := kv.NewSession(KV, kv.Key("botsession", token))
-	middlewares := defaultMiddlewares()
+
+	middlewares := []telegram.Middleware{
+		floodwait.NewSimpleWaiter(),
+		recovery.New(ctx, newBackoff(config.ReconnectTimeout)),
+		retry.New(retries),
+	}
+
 	if config.RateLimit {
 		middlewares = append(middlewares, ratelimit.New(rate.Every(time.Millisecond*
 			time.Duration(config.Rate)), config.RateBurst))
-
 	}
-	return New(ctx, config, nil, storage, middlewares...)
+
+	if passMiddleware {
+		client, err := New(ctx, config, nil, storage, middlewares...)
+		if err != nil {
+			return nil, nil, err
+
+		}
+		return client, nil, nil
+	} else {
+		client, err := New(ctx, config, nil, storage)
+		if err != nil {
+			return nil, nil, err
+		}
+		return client, middlewares, nil
+	}
+
 }
 
-func UploadClient(ctx context.Context, KV kv.KV, config *config.TGConfig, token string, middlewares ...telegram.Middleware) (*telegram.Client, error) {
-	storage := kv.NewSession(KV, kv.Key("botsession", token))
-	middlewares = append(middlewares, defaultMiddlewares()...)
-	if config.RateLimit {
-		middlewares = append(middlewares, ratelimit.New(rate.Every(time.Millisecond*
-			time.Duration(config.Rate)), config.RateBurst))
-
-	}
-	return New(ctx, config, nil, storage, middlewares...)
-}
-
-func NewBackoff(timeout time.Duration) backoff.BackOff {
+func newBackoff(timeout time.Duration) backoff.BackOff {
 	b := backoff.NewExponentialBackOff()
 	b.Multiplier = 1.1
 	b.MaxElapsedTime = timeout

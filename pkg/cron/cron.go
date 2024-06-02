@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/divyam234/teldrive/internal/config"
-	"github.com/divyam234/teldrive/pkg/logging"
+	"github.com/divyam234/teldrive/internal/logging"
 	"github.com/divyam234/teldrive/pkg/models"
 	"github.com/divyam234/teldrive/pkg/services"
 	"github.com/go-co-op/gocron"

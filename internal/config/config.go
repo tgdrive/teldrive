@@ -34,6 +34,7 @@ type TGConfig struct {
 	DisableStreamBots bool
 	Proxy             string
 	ReconnectTimeout  time.Duration
+	PoolSize          int64
 	Uploads           struct {
 		EncryptionKey string
 		Threads       int

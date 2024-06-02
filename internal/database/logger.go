@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/divyam234/teldrive/pkg/logging"
+	"github.com/divyam234/teldrive/internal/logging"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"

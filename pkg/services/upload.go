@@ -15,10 +15,9 @@ import (
 
 	"github.com/divyam234/teldrive/internal/crypt"
 	"github.com/divyam234/teldrive/internal/kv"
-	"github.com/divyam234/teldrive/internal/recovery"
-	"github.com/divyam234/teldrive/internal/retry"
+	"github.com/divyam234/teldrive/internal/logging"
+	"github.com/divyam234/teldrive/internal/pool"
 	"github.com/divyam234/teldrive/internal/tgc"
-	"github.com/divyam234/teldrive/pkg/logging"
 	"github.com/divyam234/teldrive/pkg/mapper"
 	"github.com/divyam234/teldrive/pkg/schemas"
 
@@ -101,6 +100,7 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 		channelId   int64
 		err         error
 		client      *telegram.Client
+		middlewares []telegram.Middleware
 		token       string
 		index       int
 		channelUser string
@@ -124,7 +124,7 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 
 	fileSize := c.Request.ContentLength
 
-	defer c.Request.Body.Close()
+	defer fileStream.Close()
 
 	if uploadQuery.ChannelID == 0 {
 		channelId, err = GetDefaultChannel(c, us.db, userId)
@@ -142,15 +142,25 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 	}
 
 	if len(tokens) == 0 {
-		client, _ = tgc.AuthClient(c, us.cnf, session)
+		client, err = tgc.AuthClient(c, us.cnf, session)
+		if err != nil {
+			return nil, &types.AppError{Error: err}
+		}
 		channelUser = strconv.FormatInt(userId, 10)
 	} else {
 		us.worker.Set(tokens, channelId)
 		token, index = us.worker.Next(channelId)
-		client, _ = tgc.UploadClient(c, us.kv, us.cnf, token, recovery.New(c, tgc.NewBackoff(us.cnf.ReconnectTimeout)),
-			retry.New(us.cnf.Uploads.MaxRetries))
+
+		client, middlewares, err = tgc.BotClient(c, us.kv, us.cnf, token, us.cnf.Uploads.MaxRetries, false)
+
+		if err != nil {
+			return nil, &types.AppError{Error: err}
+		}
+
 		channelUser = strings.Split(token, ":")[0]
 	}
+
+	uploadPool := pool.NewPool(client, int64(us.cnf.PoolSize), middlewares...)
 
 	logger := logging.FromContext(c)
 
@@ -177,9 +187,9 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 			fileStream, _ = cipher.EncryptData(fileStream)
 		}
 
-		api := client.API()
+		client := uploadPool.Default(ctx)
 
-		u := uploader.NewUploader(api).WithThreads(us.cnf.Uploads.Threads).WithPartSize(512 * 1024)
+		u := uploader.NewUploader(client).WithThreads(us.cnf.Uploads.Threads).WithPartSize(512 * 1024)
 
 		upload, err := u.Upload(ctx, uploader.NewUpload(uploadQuery.PartName, fileStream, fileSize))
 
@@ -189,7 +199,7 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 
 		document := message.UploadedDocument(upload).Filename(uploadQuery.PartName).ForceFile(true)
 
-		sender := message.NewSender(client.API())
+		sender := message.NewSender(client)
 
 		target := sender.To(&tg.InputPeerChannel{ChannelID: channel.ChannelID,
 			AccessHash: channel.AccessHash})
@@ -229,9 +239,8 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 		}
 
 		if err := us.db.Create(partUpload).Error; err != nil {
-			//delete uploaded part if upload fails
 			if message.ID != 0 {
-				api.ChannelsDeleteMessages(ctx, &tg.ChannelsDeleteMessagesRequest{Channel: channel, ID: []int{message.ID}})
+				client.ChannelsDeleteMessages(ctx, &tg.ChannelsDeleteMessagesRequest{Channel: channel, ID: []int{message.ID}})
 			}
 			return err
 		}

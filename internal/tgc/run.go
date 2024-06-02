@@ -3,7 +3,7 @@ package tgc
 import (
 	"context"
 
-	"github.com/divyam234/teldrive/pkg/logging"
+	"github.com/divyam234/teldrive/internal/logging"
 	"github.com/gotd/td/telegram"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"

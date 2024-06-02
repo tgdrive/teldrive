@@ -1,7 +1,7 @@
 package httputil
 
 import (
-	"github.com/divyam234/teldrive/pkg/logging"
+	"github.com/divyam234/teldrive/internal/logging"
 	"github.com/gin-gonic/gin"
 )
 

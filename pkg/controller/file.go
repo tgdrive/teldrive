@@ -4,8 +4,8 @@ import (
 	"net/http"
 
 	"github.com/divyam234/teldrive/internal/cache"
+	"github.com/divyam234/teldrive/internal/logging"
 	"github.com/divyam234/teldrive/pkg/httputil"
-	"github.com/divyam234/teldrive/pkg/logging"
 	"github.com/divyam234/teldrive/pkg/schemas"
 	"github.com/divyam234/teldrive/pkg/services"
 	"github.com/gin-gonic/gin"
