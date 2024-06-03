@@ -193,6 +193,7 @@ teldrive run --help
 | --tg-uploads-threads                 | Concurrent Uploads threads for uploading file                                  | No       | 8                                                    |
 | --tg-uploads-retention               | Uploads retention duration.Duration to keep failed uploaded chunks in db for resuming uploads.                       | No       | 7d                                               |
 | --tg-proxy               | Socks5 or HTTP proxy for telegram client.                       | No       | ""                                               |
+| --tg-pool-size               | Connection pool size for uploads.Greater pool size will result in more memory and cpu usage set it to 0 but it will lower upload speed significcantly or reduce the no of concurrent uploads and transfers in rclone.                  | No       | 8                                              |
 
 **You Can also set config values through env varibles.**
 - For example ```tg-session-file``` will become ```TELDRIVE_TG_SESSION_FILE``` same for all possible flags.
