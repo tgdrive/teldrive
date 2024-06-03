@@ -3,6 +3,7 @@ module github.com/divyam234/teldrive
 go 1.22
 
 require (
+	github.com/WinterYukky/gorm-extra-clause-plugin v0.2.1
 	github.com/coocood/freecache v1.2.4
 	github.com/divyam234/cors v1.4.2
 	github.com/gin-contrib/zap v1.1.3
@@ -17,7 +18,7 @@ require (
 	github.com/pkg/errors v0.9.1
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/pflag v1.0.5
-	github.com/spf13/viper v1.18.2
+	github.com/spf13/viper v1.19.0
 	github.com/thoas/go-funk v0.9.3
 	github.com/vmihailenco/msgpack v4.0.4+incompatible
 	go.etcd.io/bbolt v1.3.10
@@ -30,7 +31,6 @@ require (
 )
 
 require (
-	github.com/WinterYukky/gorm-extra-clause-plugin v0.2.1 // indirect
 	github.com/bytedance/sonic/loader v0.1.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudwego/base64x v0.1.4 // indirect
@@ -99,7 +99,7 @@ require (
 	go.opentelemetry.io/otel v1.26.0 // indirect
 	go.opentelemetry.io/otel/trace v1.26.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	go.uber.org/multierr v1.11.0 // indirect
+	go.uber.org/multierr v1.11.0
 	golang.org/x/arch v0.8.0 // indirect
 	golang.org/x/crypto v0.23.0
 	golang.org/x/net v0.25.0
