@@ -132,6 +132,13 @@ func runApplication(conf *config.Config) {
 			controller.NewController,
 		),
 	)
+
+	defer func() {
+		if r := recover(); r != nil {
+			logging.FromContext(context.TODO()).Errorf("Recovered from panic: %v", r)
+		}
+	}()
+
 	app.Run()
 }
 
