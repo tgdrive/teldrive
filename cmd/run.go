@@ -210,6 +210,8 @@ func initApp(lc fx.Lifecycle, cfg *config.Config, c *controller.Controller) *gin
 
 	r := gin.New()
 
+	r.Use(gin.Recovery())
+
 	r.Use(ginzap.GinzapWithConfig(logging.DefaultLogger().Desugar(), &ginzap.Config{
 		TimeFormat: time.RFC3339,
 		UTC:        true,
