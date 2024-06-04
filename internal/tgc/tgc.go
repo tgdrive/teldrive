@@ -7,6 +7,7 @@ import (
 	"github.com/cenkalti/backoff/v4"
 	"github.com/divyam234/teldrive/internal/config"
 	"github.com/divyam234/teldrive/internal/kv"
+	"github.com/divyam234/teldrive/internal/logging"
 	"github.com/divyam234/teldrive/internal/recovery"
 	"github.com/divyam234/teldrive/internal/retry"
 	"github.com/divyam234/teldrive/internal/utils"
@@ -16,6 +17,7 @@ import (
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/telegram/dcs"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 	"golang.org/x/net/proxy"
 	"golang.org/x/time/rate"
 )
@@ -29,6 +31,12 @@ func New(ctx context.Context, config *config.TGConfig, handler telegram.UpdateHa
 			return nil, errors.Wrap(err, "get dialer")
 		}
 		dialer = d.DialContext
+	}
+
+	var logger *zap.Logger
+	if config.EnableLogging {
+		logger = logging.FromContext(ctx).Desugar().Named("td")
+
 	}
 
 	opts := telegram.Options{
@@ -52,6 +60,7 @@ func New(ctx context.Context, config *config.TGConfig, handler telegram.UpdateHa
 		DialTimeout:    10 * time.Second,
 		Middlewares:    middlewares,
 		UpdateHandler:  handler,
+		Logger:         logger,
 	}
 
 	return telegram.NewClient(config.AppId, config.AppHash, opts), nil

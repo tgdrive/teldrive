@@ -2,58 +2,33 @@ package cron
 
 import (
 	"context"
-	"database/sql/driver"
-	"encoding/json"
 	"time"
 
 	"github.com/divyam234/teldrive/internal/config"
 	"github.com/divyam234/teldrive/internal/logging"
 	"github.com/divyam234/teldrive/pkg/models"
+	"github.com/divyam234/teldrive/pkg/schemas"
 	"github.com/divyam234/teldrive/pkg/services"
 	"github.com/go-co-op/gocron"
 	"go.uber.org/zap"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
-type Files []File
 type File struct {
-	ID    string        `json:"id"`
-	Parts []models.Part `json:"parts"`
-}
-
-func (a Files) Value() (driver.Value, error) {
-	return json.Marshal(a)
-}
-
-func (a *Files) Scan(value interface{}) error {
-	if err := json.Unmarshal(value.([]byte), &a); err != nil {
-		return err
-	}
-	return nil
-}
-
-type UpParts []int
-
-func (a UpParts) Value() (driver.Value, error) {
-	return json.Marshal(a)
-}
-
-func (a *UpParts) Scan(value interface{}) error {
-	if err := json.Unmarshal(value.([]byte), &a); err != nil {
-		return err
-	}
-	return nil
+	ID    string         `json:"id"`
+	Parts []schemas.Part `json:"parts"`
 }
 
 type Result struct {
-	Files     Files
+	Files     datatypes.JSONSlice[File]
 	Session   string
 	UserId    int64
 	ChannelId int64
 }
 
 type UploadResult struct {
-	Parts     UpParts
+	Parts     datatypes.JSONSlice[int]
 	Session   string
 	UserId    int64
 	ChannelId int64
@@ -137,20 +112,15 @@ func (c *CronService) CleanUploads(ctx context.Context) {
 
 	for _, result := range upResults {
 
-		parts := []int{}
-		for _, id := range result.Parts {
-			parts = append(parts, id)
-		}
-
-		if result.Session == "" && len(parts) > 0 {
-			c.db.Where("part_id = any($1)", parts).Delete(&models.Upload{})
+		if result.Session == "" && len(result.Parts) > 0 {
+			c.db.Where("part_id = any($1)", result.Parts).Delete(&models.Upload{})
 			break
 		}
 		err := services.DeleteTGMessages(ctx, &c.cnf.TG, result.Session, result.ChannelId, result.UserId, result.Parts)
 		c.logger.Errorw("failed to delete messages", err)
 
 		if err == nil {
-			c.db.Where("part_id = any($1)", parts).Delete(&models.Upload{})
+			c.db.Where("part_id = any($1)", result.Parts).Delete(&models.Upload{})
 		}
 	}
 }

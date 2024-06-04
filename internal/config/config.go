@@ -35,6 +35,7 @@ type TGConfig struct {
 	Proxy             string
 	ReconnectTimeout  time.Duration
 	PoolSize          int64
+	EnableLogging     bool
 	Uploads           struct {
 		EncryptionKey string
 		Threads       int
@@ -56,12 +57,11 @@ type JWTConfig struct {
 }
 
 type DBConfig struct {
-	DataSource string
-	LogLevel   int
-	Migrate    struct {
-		Enable bool
-	}
-	Pool struct {
+	DataSource  string
+	PrepareStmt bool
+	LogLevel    int
+	Pool        struct {
+		Enable             bool
 		MaxOpenConnections int
 		MaxIdleConnections int
 		MaxLifetime        time.Duration

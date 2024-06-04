@@ -26,17 +26,20 @@ require (
 	go.uber.org/zap v1.27.0
 	golang.org/x/time v0.5.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
+	gorm.io/datatypes v1.2.0
 	gorm.io/driver/postgres v1.5.7
 	gorm.io/gorm v1.25.10
 )
 
 require (
+	filippo.io/edwards25519 v1.1.0 // indirect
 	github.com/bytedance/sonic/loader v0.1.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudwego/base64x v0.1.4 // indirect
 	github.com/cloudwego/iasm v0.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
+	github.com/go-sql-driver/mysql v1.8.1 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
@@ -57,6 +60,7 @@ require (
 	golang.org/x/exp v0.0.0-20240409090435-93d18d7e34b8 // indirect
 	google.golang.org/appengine v1.6.8 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
+	gorm.io/driver/mysql v1.5.6 // indirect
 
 )
 

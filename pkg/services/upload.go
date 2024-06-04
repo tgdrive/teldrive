@@ -162,7 +162,11 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 
 	uploadPool := pool.NewPool(client, int64(us.cnf.PoolSize), middlewares...)
 
-	defer uploadPool.Close()
+	defer func() {
+		if uploadPool != nil {
+			uploadPool.Close()
+		}
+	}()
 
 	logger := logging.FromContext(c)
 

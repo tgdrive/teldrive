@@ -20,9 +20,11 @@ func NewDatabase(cfg *config.Config) (*gorm.DB, error) {
 		err    error
 		logger = NewLogger(time.Second, true, zapcore.Level(cfg.DB.LogLevel))
 	)
-
-	for i := 0; i <= 10; i++ {
-		db, err = gorm.Open(postgres.Open(cfg.DB.DataSource), &gorm.Config{
+	for i := 0; i <= 5; i++ {
+		db, err = gorm.Open(postgres.New(postgres.Config{
+			DSN:                  cfg.DB.DataSource,
+			PreferSimpleProtocol: !cfg.DB.PrepareStmt,
+		}), &gorm.Config{
 			Logger: logger,
 			NamingStrategy: schema.NamingStrategy{
 				TablePrefix:   "teldrive.",
@@ -38,24 +40,28 @@ func NewDatabase(cfg *config.Config) (*gorm.DB, error) {
 		logging.DefaultLogger().Warnf("failed to open database: %v", err)
 		time.Sleep(500 * time.Millisecond)
 	}
-	db.Use(extraClausePlugin.New())
+
 	if err != nil {
 		logging.DefaultLogger().Fatalf("database: %v", err)
 	}
 
-	rawDB, err := db.DB()
-	if err != nil {
-		return nil, err
-	}
-	rawDB.SetMaxOpenConns(cfg.DB.Pool.MaxOpenConnections)
-	rawDB.SetMaxIdleConns(cfg.DB.Pool.MaxIdleConnections)
-	rawDB.SetConnMaxLifetime(cfg.DB.Pool.MaxLifetime)
+	db.Use(extraClausePlugin.New())
 
-	if cfg.DB.Migrate.Enable {
-		err := migrateDB(rawDB)
+	if cfg.DB.Pool.Enable {
+		rawDB, err := db.DB()
 		if err != nil {
 			return nil, err
 		}
+		rawDB.SetMaxOpenConns(cfg.DB.Pool.MaxOpenConnections)
+		rawDB.SetMaxIdleConns(cfg.DB.Pool.MaxIdleConnections)
+		rawDB.SetConnMaxLifetime(cfg.DB.Pool.MaxLifetime)
 	}
+
+	sqlDb, _ := db.DB()
+	err = migrateDB(sqlDb)
+	if err != nil {
+		return nil, err
+	}
+
 	return db, nil
 }

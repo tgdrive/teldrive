@@ -26,18 +26,17 @@ func ToFileOut(file models.File) *schemas.FileOut {
 }
 
 func ToFileOutFull(file models.File) *schemas.FileOutFull {
-	parts := []schemas.Part{}
-	for _, part := range *file.Parts {
-		parts = append(parts, schemas.Part{
-			ID:   part.ID,
-			Salt: part.Salt,
-		})
+
+	var channelId int64
+
+	if file.ChannelID != nil {
+		channelId = *file.ChannelID
 	}
 
 	return &schemas.FileOutFull{
 		FileOut:   ToFileOut(file),
-		Parts:     parts,
-		ChannelID: *file.ChannelID,
+		Parts:     file.Parts,
+		ChannelID: channelId,
 		Encrypted: file.Encrypted,
 	}
 }

@@ -31,6 +31,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -82,15 +83,7 @@ func (fs *FileService) CreateFile(c *gin.Context, userId int64, fileIn *schemas.
 		fileDB.ChannelID = &channelId
 		fileDB.MimeType = fileIn.MimeType
 		fileDB.Category = string(category.GetCategory(fileIn.Name))
-		parts := models.Parts{}
-		for _, part := range fileIn.Parts {
-			parts = append(parts, models.Part{
-				ID:   part.ID,
-				Salt: part.Salt,
-			})
-
-		}
-		fileDB.Parts = &parts
+		fileDB.Parts = datatypes.NewJSONSlice(fileIn.Parts)
 		fileDB.Starred = false
 		fileDB.Size = &fileIn.Size
 	}
@@ -134,17 +127,7 @@ func (fs *FileService) UpdateFile(id string, userId int64, update *schemas.FileU
 		}
 
 		if len(update.Parts) > 0 {
-			parts := models.Parts{}
-
-			for _, part := range update.Parts {
-				parts = append(parts, models.Part{
-					ID:   part.ID,
-					Salt: part.Salt,
-				})
-
-			}
-
-			updateDb.Parts = &parts
+			updateDb.Parts = datatypes.NewJSONSlice(update.Parts)
 		}
 		chain = fs.db.Model(&files).Clauses(clause.Returning{}).Where("id = ?", id).Updates(updateDb)
 
@@ -360,7 +343,7 @@ func (fs *FileService) DeleteFileParts(c *gin.Context, id string) (*schemas.Mess
 
 	ids := []int{}
 
-	for _, part := range *file.Parts {
+	for _, part := range file.Parts {
 		ids = append(ids, int(part.ID))
 	}
 
@@ -416,7 +399,7 @@ func (fs *FileService) CopyFile(c *gin.Context) (*schemas.FileOut, *types.AppErr
 
 	file := mapper.ToFileOutFull(res[0])
 
-	newIds := models.Parts{}
+	newIds := []schemas.Part{}
 
 	channelId, err := GetDefaultChannel(c, fs.db, userId)
 	if err != nil {
@@ -466,7 +449,7 @@ func (fs *FileService) CopyFile(c *gin.Context) (*schemas.FileOut, *types.AppErr
 				}
 
 			}
-			newIds = append(newIds, models.Part{ID: int64(msg.ID), Salt: file.Parts[i].Salt})
+			newIds = append(newIds, schemas.Part{ID: int64(msg.ID), Salt: file.Parts[i].Salt})
 
 		}
 		return nil
@@ -490,7 +473,7 @@ func (fs *FileService) CopyFile(c *gin.Context) (*schemas.FileOut, *types.AppErr
 	dbFile.Size = &file.Size
 	dbFile.Type = file.Type
 	dbFile.MimeType = file.MimeType
-	dbFile.Parts = &newIds
+	dbFile.Parts = datatypes.NewJSONSlice(newIds)
 	dbFile.UserID = userId
 	dbFile.Starred = false
 	dbFile.Status = "active"

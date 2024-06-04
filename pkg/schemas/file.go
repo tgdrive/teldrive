@@ -56,7 +56,7 @@ type FileOut struct {
 type FileOutFull struct {
 	*FileOut
 	Parts     []Part `json:"parts,omitempty"`
-	ChannelID int64  `json:"channelId"`
+	ChannelID int64  `json:"channelId,omitempty"`
 	Encrypted bool   `json:"encrypted"`
 }
 

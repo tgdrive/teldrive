@@ -62,7 +62,8 @@ func NewRun() *cobra.Command {
 
 	runCmd.Flags().StringVar(&config.DB.DataSource, "db-data-source", "", "Database connection string")
 	runCmd.Flags().IntVar(&config.DB.LogLevel, "db-log-level", 1, "Database log level")
-	runCmd.Flags().BoolVar(&config.DB.Migrate.Enable, "db-migrate-enable", true, "Enable database migration")
+	runCmd.Flags().BoolVar(&config.DB.PrepareStmt, "db-prepare-stmt", true, "Enable prepared statements")
+	runCmd.Flags().BoolVar(&config.DB.Pool.Enable, "db-pool-enable", true, "Enable database pool")
 	runCmd.Flags().IntVar(&config.DB.Pool.MaxIdleConnections, "db-pool-max-open-connections", 25, "Database max open connections")
 	runCmd.Flags().IntVar(&config.DB.Pool.MaxIdleConnections, "db-pool-max-idle-connections", 25, "Database max idle connections")
 	duration.DurationVar(runCmd.Flags(), &config.DB.Pool.MaxLifetime, "db-pool-max-lifetime", 10*time.Minute, "Database max connection lifetime")
@@ -83,6 +84,7 @@ func NewRun() *cobra.Command {
 	runCmd.Flags().StringVar(&config.TG.Proxy, "tg-proxy", "", "HTTP OR SOCKS5 proxy URL")
 	runCmd.Flags().IntVar(&config.TG.BgBotsLimit, "tg-bg-bots-limit", 5, "Background bots limit")
 	runCmd.Flags().BoolVar(&config.TG.DisableStreamBots, "tg-disable-stream-bots", false, "Disable stream bots")
+	runCmd.Flags().BoolVar(&config.TG.EnableLogging, "tg-enable-logging", false, "Enable telegram client logging")
 	runCmd.Flags().StringVar(&config.TG.Uploads.EncryptionKey, "tg-uploads-encryption-key", "", "Uploads encryption key")
 	runCmd.Flags().IntVar(&config.TG.Uploads.Threads, "tg-uploads-threads", 8, "Uploads threads")
 	runCmd.Flags().IntVar(&config.TG.Uploads.MaxRetries, "tg-uploads-max-retries", 10, "Uploads Retries")
@@ -132,12 +134,6 @@ func runApplication(conf *config.Config) {
 			controller.NewController,
 		),
 	)
-
-	defer func() {
-		if r := recover(); r != nil {
-			logging.FromContext(context.TODO()).Errorf("Recovered from panic: %v", r)
-		}
-	}()
 
 	app.Run()
 }
@@ -245,7 +241,9 @@ func initApp(lc fx.Lifecycle, cfg *config.Config, c *controller.Controller) *gin
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
 			logging.FromContext(ctx).Infof("Started server http://localhost:%d", cfg.Server.Port)
+
 			go func() {
+
 				if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 					logging.DefaultLogger().Errorw("failed to close http server", "err", err)
 				}

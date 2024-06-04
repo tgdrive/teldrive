@@ -1,11 +1,9 @@
 [db]
   data-source = ""
+  prepare-stmt = true
   log-level = 1
-
-  [db.migrate]
-    enable = true
-
   [db.pool]
+    enable = true
     max-idle-connections = 25
     max-lifetime = "10m"
     max-open-connections = 25
