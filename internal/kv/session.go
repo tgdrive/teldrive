@@ -29,7 +29,9 @@ func (s *Session) LoadSession(_ context.Context) ([]byte, error) {
 		}
 		return nil, err
 	}
-	return b, nil
+	data := make([]byte, len(b))
+	copy(data, b)
+	return data, nil
 }
 
 func (s *Session) StoreSession(_ context.Context, data []byte) error {

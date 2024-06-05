@@ -5,7 +5,7 @@ import (
 	"io"
 
 	"github.com/divyam234/teldrive/pkg/types"
-	"github.com/gotd/td/telegram"
+	"github.com/gotd/td/tg"
 )
 
 func calculatePartByteRanges(startByte, endByte, partSize int64) []types.Range {
@@ -40,14 +40,14 @@ type linearReader struct {
 	parts  []types.Part
 	ranges []types.Range
 	pos    int
-	client *telegram.Client
+	client *tg.Client
 	reader io.ReadCloser
 	limit  int64
 	err    error
 }
 
 func NewLinearReader(ctx context.Context,
-	client *telegram.Client,
+	client *tg.Client,
 	parts []types.Part,
 	start, end int64,
 ) (reader io.ReadCloser, err error) {

@@ -5,13 +5,12 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/tg"
 )
 
 type tgReader struct {
 	ctx       context.Context
-	client    *telegram.Client
+	client    *tg.Client
 	location  *tg.InputDocumentFileLocation
 	start     int64
 	end       int64
@@ -34,7 +33,7 @@ func calculateChunkSize(start, end int64) int64 {
 
 func newTGReader(
 	ctx context.Context,
-	client *telegram.Client,
+	client *tg.Client,
 	location *tg.InputDocumentFileLocation,
 	start int64,
 	end int64,
@@ -95,7 +94,7 @@ func (r *tgReader) chunk(offset int64, limit int64) ([]byte, error) {
 		Precise:  true,
 	}
 
-	res, err := r.client.API().UploadGetFile(r.ctx, req)
+	res, err := r.client.UploadGetFile(r.ctx, req)
 
 	if err != nil {
 		return nil, err

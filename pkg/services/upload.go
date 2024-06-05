@@ -150,8 +150,7 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 	} else {
 		us.worker.Set(tokens, channelId)
 		token, index = us.worker.Next(channelId)
-
-		client, middlewares, err = tgc.BotClient(c, us.kv, us.cnf, token, us.cnf.Uploads.MaxRetries, false)
+		client, err = tgc.BotClient(c, us.kv, us.cnf, token)
 
 		if err != nil {
 			return nil, &types.AppError{Error: err}
@@ -160,13 +159,11 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 		channelUser = strings.Split(token, ":")[0]
 	}
 
+	middlewares = tgc.Middlewares(us.cnf, us.cnf.Uploads.MaxRetries)
+
 	uploadPool := pool.NewPool(client, int64(us.cnf.PoolSize), middlewares...)
 
-	defer func() {
-		if uploadPool != nil {
-			uploadPool.Close()
-		}
-	}()
+	defer uploadPool.Close()
 
 	logger := logging.FromContext(c)
 

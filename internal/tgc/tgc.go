@@ -74,7 +74,7 @@ func NoAuthClient(ctx context.Context, config *config.TGConfig, handler telegram
 	return New(ctx, config, handler, storage, middlewares...)
 }
 
-func AuthClient(ctx context.Context, config *config.TGConfig, sessionStr string) (*telegram.Client, error) {
+func AuthClient(ctx context.Context, config *config.TGConfig, sessionStr string, middlewares ...telegram.Middleware) (*telegram.Client, error) {
 	data, err := session.TelethonSession(sessionStr)
 
 	if err != nil {
@@ -89,43 +89,27 @@ func AuthClient(ctx context.Context, config *config.TGConfig, sessionStr string)
 	if err := loader.Save(context.TODO(), data); err != nil {
 		return nil, err
 	}
-	middlewares := []telegram.Middleware{
-		floodwait.NewSimpleWaiter(),
-	}
-	middlewares = append(middlewares, ratelimit.New(rate.Every(time.Millisecond*
-		time.Duration(config.Rate)), config.RateBurst))
 	return New(ctx, config, nil, storage, middlewares...)
 }
 
-func BotClient(ctx context.Context, KV kv.KV, config *config.TGConfig, token string, retries int, passMiddleware bool) (*telegram.Client, []telegram.Middleware, error) {
+func BotClient(ctx context.Context, KV kv.KV, config *config.TGConfig, token string, middlewares ...telegram.Middleware) (*telegram.Client, error) {
 
 	storage := kv.NewSession(KV, kv.Key("botsession", token))
 
+	return New(ctx, config, nil, storage, middlewares...)
+
+}
+
+func Middlewares(config *config.TGConfig, retries int) []telegram.Middleware {
 	middlewares := []telegram.Middleware{
 		floodwait.NewSimpleWaiter(),
-		recovery.New(ctx, newBackoff(config.ReconnectTimeout)),
+		recovery.New(context.Background(), newBackoff(config.ReconnectTimeout)),
 		retry.New(retries),
 	}
-
 	if config.RateLimit {
-		middlewares = append(middlewares, ratelimit.New(rate.Every(time.Millisecond*
-			time.Duration(config.Rate)), config.RateBurst))
+		middlewares = append(middlewares, ratelimit.New(rate.Every(time.Millisecond*time.Duration(config.Rate)), config.RateBurst))
 	}
-
-	if passMiddleware {
-		client, err := New(ctx, config, nil, storage, middlewares...)
-		if err != nil {
-			return nil, nil, err
-
-		}
-		return client, nil, nil
-	} else {
-		client, err := New(ctx, config, nil, storage)
-		if err != nil {
-			return nil, nil, err
-		}
-		return client, middlewares, nil
-	}
+	return middlewares
 
 }
 

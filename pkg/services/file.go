@@ -615,8 +615,8 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 	var client *tgc.Client
 
 	if fs.cnf.DisableStreamBots || len(tokens) == 0 {
-		tgClient, _ := tgc.AuthClient(c, fs.cnf, session.Session)
-		client, err = fs.worker.UserWorker(tgClient, session.UserId)
+
+		client, err = fs.worker.UserWorker(session.Session, session.UserId)
 		if err != nil {
 			logger.Error("file stream", zap.Error(err))
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -655,9 +655,9 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 		}
 
 		if file.Encrypted {
-			lr, err = reader.NewDecryptedReader(c, client.Tg, parts, start, end, fs.cnf.Uploads.EncryptionKey)
+			lr, err = reader.NewDecryptedReader(c, client.Tg.API(), parts, start, end, fs.cnf.Uploads.EncryptionKey)
 		} else {
-			lr, err = reader.NewLinearReader(c, client.Tg, parts, start, end)
+			lr, err = reader.NewLinearReader(c, client.Tg.API(), parts, start, end)
 		}
 
 		if err != nil {

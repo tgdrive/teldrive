@@ -65,7 +65,8 @@ func (w *StreamWorker) Set(bots []string, channelId int64) {
 		w.currIdx = make(map[int64]int)
 		w.bots[channelId] = bots
 		for _, token := range bots {
-			client, _, _ := BotClient(w.ctx, w.kv, w.cnf, token, 5, true)
+			middlewares := Middlewares(w.cnf, 5)
+			client, _ := BotClient(w.ctx, w.kv, w.cnf, token, middlewares...)
 			w.clients[channelId] = append(w.clients[channelId], &Client{Tg: client, Status: "idle"})
 		}
 		w.currIdx[channelId] = 0
@@ -90,7 +91,7 @@ func (w *StreamWorker) Next(channelId int64) (*Client, int, error) {
 	return nextClient, index, nil
 }
 
-func (w *StreamWorker) UserWorker(client *telegram.Client, userId int64) (*Client, error) {
+func (w *StreamWorker) UserWorker(session string, userId int64) (*Client, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
@@ -98,6 +99,8 @@ func (w *StreamWorker) UserWorker(client *telegram.Client, userId int64) (*Clien
 
 	if !ok {
 		w.clients = make(map[int64][]*Client)
+		middlewares := Middlewares(w.cnf, 5)
+		client, _ := AuthClient(w.ctx, w.cnf, session, middlewares...)
 		w.clients[userId] = append(w.clients[userId], &Client{Tg: client, Status: "idle"})
 	}
 	nextClient := w.clients[userId][0]

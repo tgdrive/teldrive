@@ -6,7 +6,7 @@ import (
 
 	"github.com/divyam234/teldrive/internal/crypt"
 	"github.com/divyam234/teldrive/pkg/types"
-	"github.com/gotd/td/telegram"
+	"github.com/gotd/td/tg"
 )
 
 type decrpytedReader struct {
@@ -14,7 +14,7 @@ type decrpytedReader struct {
 	parts         []types.Part
 	ranges        []types.Range
 	pos           int
-	client        *telegram.Client
+	client        *tg.Client
 	reader        io.ReadCloser
 	limit         int64
 	err           error
@@ -23,7 +23,7 @@ type decrpytedReader struct {
 
 func NewDecryptedReader(
 	ctx context.Context,
-	client *telegram.Client,
+	client *tg.Client,
 	parts []types.Part,
 	start, end int64,
 	encryptionKey string) (io.ReadCloser, error) {
