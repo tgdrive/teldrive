@@ -222,8 +222,6 @@ random_chunk_name= true # Use random chunk names when uploading files to channel
 ```
 **See all options in rclone config command**
 
-[Read Wiki for FAQ](https://github.com/divyam234/teldrive/wiki).
-
 ## Best Practices for Using Teldrive
 
 ### Dos:
