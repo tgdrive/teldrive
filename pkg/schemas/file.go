@@ -45,7 +45,6 @@ type FileOut struct {
 	MimeType   string    `json:"mimeType"`
 	Category   string    `json:"category,omitempty"`
 	Encrypted  bool      `json:"encrypted"`
-	Path       string    `json:"path,omitempty"`
 	Size       int64     `json:"size,omitempty"`
 	Starred    bool      `json:"starred"`
 	ParentID   string    `json:"parentId,omitempty"`
@@ -63,7 +62,6 @@ type FileOutFull struct {
 type FileUpdate struct {
 	Name      string    `json:"name,omitempty"`
 	Type      string    `json:"type,omitempty"`
-	Path      string    `json:"path,omitempty"`
 	Starred   *bool     `json:"starred,omitempty"`
 	ParentID  string    `json:"parentId,omitempty"`
 	UpdatedAt time.Time `json:"updatedAt,omitempty"`

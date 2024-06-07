@@ -97,7 +97,6 @@ func (as *AuthService) LogIn(c *gin.Context, session *schemas.TgSession) (*schem
 			Name:     "root",
 			Type:     "folder",
 			MimeType: "drive/folder",
-			Path:     "/",
 			Depth:    utils.IntPointer(0),
 			UserID:   session.UserID,
 			Status:   "active",

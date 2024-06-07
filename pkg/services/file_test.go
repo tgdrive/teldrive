@@ -30,7 +30,6 @@ func (s *FileServiceSuite) SetupTest() {
 		Name:     "root",
 		Type:     "folder",
 		MimeType: "drive/folder",
-		Path:     "/",
 		Depth:    utils.IntPointer(0),
 		UserID:   123456,
 		Status:   "active",
@@ -80,13 +79,11 @@ func (s *FileServiceSuite) Test_Update() {
 	s.NoError(err.Error)
 	data := &schemas.FileUpdate{
 		Name: "file3.jpeg",
-		Path: "/dwkd",
 		Type: "file",
 	}
 	r, err := s.srv.UpdateFile(res.Id, 123456, data, nil)
 	s.NoError(err.Error)
 	s.Equal(r.Name, data.Name)
-	s.Equal(r.Path, data.Path)
 }
 
 func (s *FileServiceSuite) Test_NoFound() {

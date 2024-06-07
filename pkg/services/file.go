@@ -48,30 +48,31 @@ func NewFileService(db *gorm.DB, cnf *config.Config, worker *tgc.StreamWorker) *
 
 func (fs *FileService) CreateFile(c *gin.Context, userId int64, fileIn *schemas.FileIn) (*schemas.FileOut, *types.AppError) {
 
-	var fileDB models.File
+	var (
+		fileDB models.File
+		parent *models.File
+		err    error
+	)
 
 	fileIn.Path = strings.TrimSpace(fileIn.Path)
 
-	if fileIn.Path != "" {
-		pathId, err := fs.getPathId(fileIn.Path, userId)
-		if err != nil || pathId == "" {
+	if fileIn.Path != "" && fileIn.ParentID == "" {
+		parent, err = fs.getFileFromPath(fileIn.Path, userId)
+		if err != nil {
 			return nil, &types.AppError{Error: err, Code: http.StatusNotFound}
 		}
-		fileDB.ParentID = pathId
+		fileDB.ParentID = parent.Id
+	} else if fileIn.ParentID != "" {
+		fileDB.ParentID = fileIn.ParentID
+
+	} else {
+		return nil, &types.AppError{Error: fmt.Errorf("parent id or path is required"), Code: http.StatusBadRequest}
 	}
 
 	if fileIn.Type == "folder" {
 		fileDB.MimeType = "drive/folder"
-		var fullPath string
-		if fileIn.Path == "/" {
-			fullPath = "/" + fileIn.Name
-		} else {
-			fullPath = fileIn.Path + "/" + fileIn.Name
-		}
-		fileDB.Path = fullPath
-		fileDB.Depth = utils.IntPointer(len(strings.Split(fileIn.Path, "/")) - 1)
+		fileDB.Depth = utils.IntPointer(*parent.Depth + 1)
 	} else if fileIn.Type == "file" {
-		fileDB.Path = ""
 		channelId := fileIn.ChannelID
 		if fileIn.ChannelID == 0 {
 			var err error
@@ -110,29 +111,24 @@ func (fs *FileService) UpdateFile(id string, userId int64, update *schemas.FileU
 		files []models.File
 		chain *gorm.DB
 	)
-	if update.Type == "folder" && update.Name != "" {
-		chain = fs.db.Raw("select * from teldrive.update_folder(?, ?, ?)", id, update.Name, userId).Scan(&files)
-	} else {
 
-		updateDb := models.File{
-			Name:      update.Name,
-			ParentID:  update.ParentID,
-			UpdatedAt: update.UpdatedAt,
-			Path:      update.Path,
-			Size:      update.Size,
-		}
-
-		if update.Starred != nil {
-			updateDb.Starred = *update.Starred
-		}
-
-		if len(update.Parts) > 0 {
-			updateDb.Parts = datatypes.NewJSONSlice(update.Parts)
-		}
-		chain = fs.db.Model(&files).Clauses(clause.Returning{}).Where("id = ?", id).Updates(updateDb)
-
-		cache.Delete(fmt.Sprintf("files:%s", id))
+	updateDb := models.File{
+		Name:      update.Name,
+		ParentID:  update.ParentID,
+		UpdatedAt: update.UpdatedAt,
+		Size:      update.Size,
 	}
+
+	if update.Starred != nil {
+		updateDb.Starred = *update.Starred
+	}
+
+	if len(update.Parts) > 0 {
+		updateDb.Parts = datatypes.NewJSONSlice(update.Parts)
+	}
+	chain = fs.db.Model(&files).Clauses(clause.Returning{}).Where("id = ?", id).Updates(updateDb)
+
+	cache.Delete(fmt.Sprintf("files:%s", id))
 
 	if chain.Error != nil {
 		return nil, &types.AppError{Error: chain.Error}
@@ -160,12 +156,12 @@ func (fs *FileService) GetFileByID(id string) (*schemas.FileOutFull, *types.AppE
 func (fs *FileService) ListFiles(userId int64, fquery *schemas.FileQuery) (*schemas.FileResponse, *types.AppError) {
 
 	var (
-		pathId string
+		parent *models.File
 		err    error
 	)
 
 	if fquery.Path != "" {
-		pathId, err = fs.getPathId(fquery.Path, userId)
+		parent, err = fs.getFileFromPath(fquery.Path, userId)
 		if err != nil {
 			return nil, &types.AppError{Error: err, Code: http.StatusNotFound}
 		}
@@ -176,16 +172,16 @@ func (fs *FileService) ListFiles(userId int64, fquery *schemas.FileQuery) (*sche
 
 	if fquery.Op == "list" {
 		filter := &models.File{UserID: userId, Status: "active"}
-		query.Order("type DESC").Order(getOrder(fquery)).Where("parent_id = ?", pathId).
+		query.Order("type DESC").Order(getOrder(fquery)).Where("parent_id = ?", parent.Id).
 			Model(filter).Where(&filter)
 
 	} else if fquery.Op == "find" {
-		if !fquery.DeepSearch && pathId != "" && (fquery.Name != "" || fquery.Query != "") {
-			query.Where("parent_id = ?", pathId)
+		if !fquery.DeepSearch && parent != nil && (fquery.Name != "" || fquery.Query != "") {
+			query.Where("parent_id = ?", parent.Id)
 			fquery.Path = ""
-		} else if fquery.DeepSearch && pathId != "" && fquery.Query != "" {
+		} else if fquery.DeepSearch && parent != nil && fquery.Query != "" {
 			query = fs.db.Clauses(exclause.With{Recursive: true, CTEs: []exclause.CTE{{Name: "subdirs",
-				Subquery: exclause.Subquery{DB: fs.db.Model(&models.File{Id: pathId}).Select("id", "parent_id").Clauses(exclause.NewUnion("ALL ?",
+				Subquery: exclause.Subquery{DB: fs.db.Model(&models.File{Id: parent.Id}).Select("id", "parent_id").Clauses(exclause.NewUnion("ALL ?",
 					fs.db.Table("teldrive.files as f").Select("f.id", "f.parent_id").
 						Joins("inner join subdirs ON f.parent_id = subdirs.id")))}}}}).Where("files.id in (select id  from subdirs)")
 			fquery.Path = ""
@@ -247,7 +243,6 @@ func (fs *FileService) ListFiles(userId int64, fquery *schemas.FileQuery) (*sche
 		filter := &models.File{UserID: userId, Status: "active"}
 		filter.Name = fquery.Name
 		filter.ParentID = fquery.ParentID
-		filter.Path = fquery.Path
 		filter.Type = fquery.Type
 		if fquery.Starred != nil {
 			filter.Starred = *fquery.Starred
@@ -258,10 +253,6 @@ func (fs *FileService) ListFiles(userId int64, fquery *schemas.FileQuery) (*sche
 
 		query.Limit(fquery.PerPage)
 		setOrderFilter(query, fquery)
-	}
-
-	if fquery.Path == "" || fquery.DeepSearch {
-		query.Select("*,(select path from teldrive.files as ff where ff.id = files.parent_id) as parent_path")
 	}
 
 	files := []schemas.FileOut{}
@@ -281,16 +272,19 @@ func (fs *FileService) ListFiles(userId int64, fquery *schemas.FileQuery) (*sche
 	return res, nil
 }
 
-func (fs *FileService) getPathId(path string, userId int64) (string, error) {
+func (fs *FileService) getFileFromPath(path string, userId int64) (*models.File, error) {
 
-	var file models.File
+	var res []models.File
 
-	if err := fs.db.Model(&models.File{}).Select("id").Where("path = ?", path).Where("user_id = ?", userId).
-		First(&file).Error; database.IsRecordNotFoundErr(err) {
-		return "", database.ErrNotFound
+	if err := fs.db.Raw("select * from teldrive.get_file_from_path(?, ?)", path, userId).
+		Scan(&res).Error; err != nil {
+		return nil, err
 
 	}
-	return file.Id, nil
+	if len(res) == 0 {
+		return nil, database.ErrNotFound
+	}
+	return &res[0], nil
 }
 
 func (fs *FileService) MakeDirectory(userId int64, payload *schemas.MkDir) (*schemas.FileOut, *types.AppError) {

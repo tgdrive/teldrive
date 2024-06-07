@@ -16,7 +16,6 @@ func ToFileOut(file models.File) *schemas.FileOut {
 		Type:      file.Type,
 		MimeType:  file.MimeType,
 		Category:  file.Category,
-		Path:      file.Path,
 		Encrypted: file.Encrypted,
 		Size:      size,
 		Starred:   file.Starred,

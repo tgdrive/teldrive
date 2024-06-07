@@ -12,7 +12,6 @@ type File struct {
 	Name      string                            `gorm:"type:text;not null"`
 	Type      string                            `gorm:"type:text;not null"`
 	MimeType  string                            `gorm:"type:text;not null"`
-	Path      string                            `gorm:"type:text;index"`
 	Size      *int64                            `gorm:"type:bigint"`
 	Starred   bool                              `gorm:"default:false"`
 	Depth     *int                              `gorm:"type:integer"`
