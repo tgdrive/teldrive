@@ -155,33 +155,32 @@ func (fs *FileService) GetFileByID(id string) (*schemas.FileOutFull, *types.AppE
 
 func (fs *FileService) ListFiles(userId int64, fquery *schemas.FileQuery) (*schemas.FileResponse, *types.AppError) {
 
-	var (
-		parent *models.File
-		err    error
-	)
+	var parentID string
 
-	if fquery.Path != "" {
-		parent, err = fs.getFileFromPath(fquery.Path, userId)
+	if fquery.Path != "" && fquery.ParentID == "" {
+		parent, err := fs.getFileFromPath(fquery.Path, userId)
 		if err != nil {
 			return nil, &types.AppError{Error: err, Code: http.StatusNotFound}
 		}
+		parentID = parent.Id
+	} else if fquery.ParentID != "" {
+		parentID = fquery.ParentID
 	}
 
 	query := fs.db.Limit(fquery.PerPage)
 	setOrderFilter(query, fquery)
 
 	if fquery.Op == "list" {
-		filter := &models.File{UserID: userId, Status: "active"}
-		query.Order("type DESC").Order(getOrder(fquery)).Where("parent_id = ?", parent.Id).
-			Model(filter).Where(&filter)
+		filter := &models.File{UserID: userId, Status: "active", ParentID: parentID}
+		query.Order("type DESC").Order(getOrder(fquery)).Model(filter).Where(&filter)
 
 	} else if fquery.Op == "find" {
-		if !fquery.DeepSearch && parent != nil && (fquery.Name != "" || fquery.Query != "") {
-			query.Where("parent_id = ?", parent.Id)
+		if !fquery.DeepSearch && parentID != "" && (fquery.Name != "" || fquery.Query != "") {
+			query.Where("parent_id = ?", parentID)
 			fquery.Path = ""
-		} else if fquery.DeepSearch && parent != nil && fquery.Query != "" {
+		} else if fquery.DeepSearch && parentID != "" && fquery.Query != "" {
 			query = fs.db.Clauses(exclause.With{Recursive: true, CTEs: []exclause.CTE{{Name: "subdirs",
-				Subquery: exclause.Subquery{DB: fs.db.Model(&models.File{Id: parent.Id}).Select("id", "parent_id").Clauses(exclause.NewUnion("ALL ?",
+				Subquery: exclause.Subquery{DB: fs.db.Model(&models.File{Id: parentID}).Select("id", "parent_id").Clauses(exclause.NewUnion("ALL ?",
 					fs.db.Table("teldrive.files as f").Select("f.id", "f.parent_id").
 						Joins("inner join subdirs ON f.parent_id = subdirs.id")))}}}}).Where("files.id in (select id  from subdirs)")
 			fquery.Path = ""
