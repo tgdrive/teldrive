@@ -222,6 +222,10 @@ random_chunk_name= true # Use random chunk names when uploading files to channel
 ```
 **See all options in rclone config command**
 
+# Recognitions
+
+<a href="https://trendshift.io/repositories/7568" target="_blank"><img src="https://trendshift.io/api/badge/repositories/7568" alt="divyam234%2Fteldrive | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+
 ## Best Practices for Using Teldrive
 
 ### Dos:
