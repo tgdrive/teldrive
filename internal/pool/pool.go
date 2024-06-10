@@ -88,6 +88,9 @@ func (p *pool) Default(ctx context.Context) *tg.Client {
 }
 
 func (p *pool) Close() (err error) {
-	return p.close()
 
+	if p.close != nil {
+		return p.close()
+	}
+	return nil
 }
