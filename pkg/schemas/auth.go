@@ -16,3 +16,12 @@ type Session struct {
 	Hash      string `json:"hash"`
 	Expires   string `json:"expires"`
 }
+type SessionOut struct {
+	Hash        string `json:"hash"`
+	CreatedAt   string `json:"createdAt"`
+	Location    string `json:"location,omitempty"`
+	OfficialApp bool   `json:"officialApp,omitempty"`
+	AppName     string `json:"appName,omitempty"`
+	Valid       bool   `json:"valid"`
+	Current     bool   `json:"current"`
+}

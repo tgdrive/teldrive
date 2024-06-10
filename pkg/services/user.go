@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/divyam234/teldrive/internal/cache"
 	"github.com/divyam234/teldrive/internal/config"
@@ -20,6 +22,7 @@ import (
 	"github.com/gotd/td/telegram/message/peer"
 	"github.com/gotd/td/telegram/query"
 	"github.com/gotd/td/tg"
+	"github.com/gotd/td/tgerr"
 	"github.com/thoas/go-funk"
 	"go.uber.org/zap"
 
@@ -124,6 +127,85 @@ func (us *UserService) UpdateChannel(c *gin.Context) (*schemas.Message, *types.A
 	key := fmt.Sprintf("users:channel:%d", userId)
 	cache.Set(key, payload.ChannelID, 0)
 	return &schemas.Message{Message: "channel updated"}, nil
+}
+
+func (us *UserService) ListSessions(c *gin.Context) ([]schemas.SessionOut, *types.AppError) {
+	userId, userSession := GetUserAuth(c)
+
+	client, _ := tgc.AuthClient(c, &us.cnf.TG, userSession)
+
+	var (
+		auth *tg.AccountAuthorizations
+		err  error
+	)
+
+	err = client.Run(c, func(ctx context.Context) error {
+		auth, err = client.API().AccountGetAuthorizations(c)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+
+	if err != nil && !tgerr.Is(err, "AUTH_KEY_UNREGISTERED") {
+		return nil, &types.AppError{Error: err}
+	}
+
+	dbSessions := []models.Session{}
+
+	if err = us.db.Where("user_id = ?", userId).Find(&dbSessions).Order("created_at DESC").Error; err != nil {
+		return nil, &types.AppError{Error: err}
+	}
+
+	sessionsOut := []schemas.SessionOut{}
+
+	for _, session := range dbSessions {
+
+		s := schemas.SessionOut{Hash: session.Hash,
+			CreatedAt: session.CreatedAt.UTC().Format(time.RFC3339),
+			Current:   session.Session == userSession}
+
+		if auth != nil {
+			for _, auth := range auth.Authorizations {
+				if session.AuthHash == GenAuthHash(&auth) {
+					s.AppName = strings.Trim(strings.Replace(auth.AppName, "Telegram", "", -1), " ")
+					s.Location = auth.Country
+					s.OfficialApp = auth.OfficialApp
+					s.Valid = true
+					break
+				}
+			}
+		}
+
+		sessionsOut = append(sessionsOut, s)
+	}
+
+	return sessionsOut, nil
+}
+
+func (us *UserService) RemoveSession(c *gin.Context) (*schemas.Message, *types.AppError) {
+
+	userId, _ := GetUserAuth(c)
+
+	session := &models.Session{}
+
+	if err := us.db.Where("user_id = ?", userId).Where("hash = ?", c.Param("id")).First(session).Error; err != nil {
+		return nil, &types.AppError{Error: err}
+	}
+
+	client, _ := tgc.AuthClient(c, &us.cnf.TG, session.Session)
+
+	client.Run(c, func(ctx context.Context) error {
+		_, err := client.API().AuthLogOut(c)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+
+	us.db.Where("user_id = ?", userId).Where("hash = ?", session.Hash).Delete(&models.Session{})
+
+	return &schemas.Message{Message: "session deleted"}, nil
 }
 
 func (us *UserService) ListChannels(c *gin.Context) (interface{}, *types.AppError) {

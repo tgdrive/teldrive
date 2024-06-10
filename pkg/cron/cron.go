@@ -87,12 +87,14 @@ func (c *CronService) CleanFiles(ctx context.Context) {
 
 		}
 		err := services.DeleteTGMessages(ctx, &c.cnf.TG, row.Session, row.ChannelId, row.UserId, ids)
+
 		if err != nil {
 			c.logger.Errorw("failed to clean files", err)
+			return
 		}
-		if err == nil {
-			c.db.Where("id = any($1)", fileIds).Delete(&models.File{})
-		}
+
+		c.db.Where("id = any($1)", fileIds).Delete(&models.File{})
+
 		c.logger.Infow("cleaned files", "user", row.UserId, "channel", row.ChannelId)
 	}
 }
@@ -114,14 +116,15 @@ func (c *CronService) CleanUploads(ctx context.Context) {
 
 		if result.Session == "" && len(result.Parts) > 0 {
 			c.db.Where("part_id = any($1)", result.Parts).Delete(&models.Upload{})
-			break
+			return
 		}
 		err := services.DeleteTGMessages(ctx, &c.cnf.TG, result.Session, result.ChannelId, result.UserId, result.Parts)
-		c.logger.Errorw("failed to delete messages", err)
-
-		if err == nil {
-			c.db.Where("part_id = any($1)", result.Parts).Delete(&models.Upload{})
+		if err != nil {
+			c.logger.Errorw("failed to delete messages", err)
+			return
 		}
+		c.db.Where("part_id = any($1)", result.Parts).Delete(&models.Upload{})
+
 	}
 }
 

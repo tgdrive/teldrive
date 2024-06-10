@@ -16,7 +16,6 @@ func RunWithAuth(ctx context.Context, client *telegram.Client, token string, f f
 		if err != nil {
 			return err
 		}
-
 		if token == "" {
 			if !status.Authorized {
 				return errors.Errorf("not authorized. please login first")

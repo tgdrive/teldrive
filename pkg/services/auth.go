@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/divyam234/teldrive/internal/auth"
+	"github.com/divyam234/teldrive/internal/cache"
 	"github.com/divyam234/teldrive/internal/config"
 	"github.com/divyam234/teldrive/internal/tgc"
 	"github.com/divyam234/teldrive/internal/utils"
@@ -107,9 +108,32 @@ func (as *AuthService) LogIn(c *gin.Context, session *schemas.TgSession) (*schem
 		}
 	}
 
+	client, _ := tgc.AuthClient(c, &as.cnf.TG, session.Sesssion)
+
+	var auth *tg.Authorization
+
+	err = client.Run(c, func(ctx context.Context) error {
+		auths, err := client.API().AccountGetAuthorizations(c)
+		if err != nil {
+			return err
+		}
+		for _, a := range auths.Authorizations {
+			if a.Current {
+				auth = &a
+				break
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, &types.AppError{Error: err}
+
+	}
+
 	//create session
 	if err := as.db.Create(&models.Session{UserId: session.UserID, Hash: hexToken,
-		Session: session.Sesssion}).Error; err != nil {
+		Session: session.Sesssion, AuthHash: GenAuthHash(auth)}).Error; err != nil {
 		return nil, &types.AppError{Error: err}
 	}
 
@@ -127,6 +151,14 @@ func (as *AuthService) GetSession(c *gin.Context) *schemas.Session {
 	}
 
 	jwePayload, err := auth.Decode(as.cnf.JWT.Secret, cookie.Value)
+
+	if err != nil {
+		return nil
+	}
+
+	cache := cache.FromContext(c)
+
+	_, err = getSessionByHash(as.db, cache, jwePayload.Hash)
 
 	if err != nil {
 		return nil
@@ -165,6 +197,8 @@ func (as *AuthService) Logout(c *gin.Context) (*schemas.Message, *types.AppError
 	})
 	setSessionCookie(c, "", -1)
 	as.db.Where("session = ?", jwtUser.TgSession).Delete(&models.Session{})
+	cache := cache.FromContext(c)
+	cache.Delete(fmt.Sprintf("sessions:%s", jwtUser.Hash))
 	return &schemas.Message{Message: "logout success"}, nil
 }
 

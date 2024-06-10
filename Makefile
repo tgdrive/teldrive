@@ -1,3 +1,9 @@
+ifdef ComSpec
+SHELL := powershell.exe
+else
+SHELL := /bin/bash
+endif
+
 APP_NAME := teldrive
 BUILD_DIR := bin
 FRONTEND_DIR := ui/dist
@@ -7,6 +13,7 @@ GIT_COMMIT := $(shell git rev-parse --short HEAD)
 GIT_LINK := $(shell git remote get-url origin)
 ENV_FILE := $(FRONTEND_DIR)/.env
 MODULE_PATH := $(shell go list -m)
+BUILD_DATE := $(shell $(BUILD_DATE))
 
 GOOS ?= $(shell go env GOOS)
 GOARCH ?= $(shell go env GOARCH)
@@ -15,13 +22,7 @@ GOARCH ?= $(shell go env GOARCH)
  
 all: build
 
-ifdef ComSpec
-SHELL := powershell.exe
-BINARY_EXTENSION:=.exe
-else
-SHELL := /bin/bash
-BINARY_EXTENSION:=
-endif
+
 
 frontend:
 	@echo "Extract UI"

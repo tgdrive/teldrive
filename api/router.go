@@ -50,9 +50,11 @@ func InitRouter(r *gin.Engine, c *controller.Controller, cnf *config.Config) *gi
 			users.GET("/profile", c.GetProfilePhoto)
 			users.GET("/stats", c.GetStats)
 			users.GET("/channels", c.ListChannels)
+			users.GET("/sessions", c.ListSessions)
 			users.PATCH("/channels", c.UpdateChannel)
 			users.POST("/bots", c.AddBots)
 			users.DELETE("/bots", c.RemoveBots)
+			users.DELETE("/sessions/:id", c.RemoveSession)
 		}
 	}
 

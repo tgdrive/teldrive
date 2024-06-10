@@ -3,8 +3,11 @@ package services
 import (
 	"bytes"
 	"context"
+	"crypto/md5"
 	"crypto/rand"
 	"encoding/binary"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math"
@@ -25,6 +28,7 @@ import (
 	"github.com/gotd/td/tg"
 	"github.com/pkg/errors"
 	"github.com/thoas/go-funk"
+	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
 )
 
@@ -321,15 +325,12 @@ func getSessionByHash(db *gorm.DB, cache *cache.Cache, hash string) (*models.Ses
 
 	err := cache.Get(key, &session)
 
-	if err == nil {
-		return &session, nil
+	if err != nil {
+		if err := db.Model(&models.Session{}).Where("hash = ?", hash).First(&session).Error; err != nil {
+			return nil, err
+		}
+		cache.Set(key, &session, 0)
 	}
-
-	if err := db.Model(&models.Session{}).Where("hash = ?", hash).First(&session).Error; err != nil {
-		return nil, err
-	}
-
-	cache.Set(key, &session, 0)
 
 	return &session, nil
 
@@ -340,20 +341,41 @@ func DeleteTGMessages(ctx context.Context, cnf *config.TGConfig, session string,
 	client, _ := tgc.AuthClient(ctx, cnf, session)
 
 	err := tgc.RunWithAuth(ctx, client, "", func(ctx context.Context) error {
-
 		channel, err := GetChannelById(ctx, client, channelId, strconv.FormatInt(userId, 10))
 
 		if err != nil {
 			return err
 		}
 
-		messageDeleteRequest := tg.ChannelsDeleteMessagesRequest{Channel: channel, ID: ids}
+		batchSize := 100
 
-		_, err = client.API().ChannelsDeleteMessages(ctx, &messageDeleteRequest)
-		if err != nil {
-			return err
+		batchCount := int(math.Ceil(float64(len(ids)) / float64(batchSize)))
+
+		g, _ := errgroup.WithContext(ctx)
+
+		g.SetLimit(8)
+
+		for i := 0; i < batchCount; i++ {
+			start := i * batchSize
+			end := min((i+1)*batchSize, len(ids))
+			batchIds := ids[start:end]
+			go func() error {
+				messageDeleteRequest := tg.ChannelsDeleteMessagesRequest{Channel: channel, ID: batchIds}
+				_, err = client.API().ChannelsDeleteMessages(ctx, &messageDeleteRequest)
+				return err
+			}()
 		}
-		return nil
+
+		return g.Wait()
 	})
 	return err
+}
+
+func GenAuthHash(auth *tg.Authorization) string {
+	auth.Flags = 0
+	auth.DateActive = 0
+	auth.Current = false
+	b, _ := json.Marshal(auth)
+	hash := md5.Sum(b)
+	return hex.EncodeToString(hash[:])
 }
