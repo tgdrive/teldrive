@@ -138,7 +138,7 @@ func (fc *Controller) DeleteFiles(c *gin.Context) {
 
 	userId, _ := services.GetUserAuth(c)
 
-	var payload schemas.FileOperation
+	var payload schemas.DeleteOperation
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		httputil.NewError(c, http.StatusBadRequest, err)
 		return

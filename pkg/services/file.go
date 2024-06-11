@@ -30,7 +30,6 @@ import (
 	"github.com/gotd/td/tg"
 	"go.uber.org/zap"
 
-	"github.com/jackc/pgx/v5/pgtype"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -301,23 +300,24 @@ func (fs *FileService) MakeDirectory(userId int64, payload *schemas.MkDir) (*sch
 
 func (fs *FileService) MoveFiles(userId int64, payload *schemas.FileOperation) (*schemas.Message, *types.AppError) {
 
-	items := pgtype.Array[string]{
-		Elements: payload.Files,
-		Valid:    true,
-		Dims:     []pgtype.ArrayDimension{{Length: int32(len(payload.Files)), LowerBound: 1}},
-	}
-
-	if err := fs.db.Exec("select * from teldrive.move_items(? , ? , ?)", items, payload.Destination, userId).Error; err != nil {
+	if err := fs.db.Exec("select * from teldrive.move_items($1 , $2 , $3)", payload.Files, payload.Destination, userId).Error; err != nil {
 		return nil, &types.AppError{Error: err}
 	}
 
 	return &schemas.Message{Message: "files moved"}, nil
 }
 
-func (fs *FileService) DeleteFiles(userId int64, payload *schemas.FileOperation) (*schemas.Message, *types.AppError) {
+func (fs *FileService) DeleteFiles(userId int64, payload *schemas.DeleteOperation) (*schemas.Message, *types.AppError) {
 
-	if err := fs.db.Exec("call teldrive.delete_files($1)", payload.Files).Error; err != nil {
-		return nil, &types.AppError{Error: err}
+	if payload.Source != "" {
+		if err := fs.db.Exec("call teldrive.delete_folder_recursive($1 , $2)", payload.Source, userId).Error; err != nil {
+			return nil, &types.AppError{Error: err}
+		}
+	} else if payload.Source == "" && len(payload.Files) > 0 {
+		if err := fs.db.Exec("call teldrive.delete_files_bulk($1 , $2)", payload.Files, userId).Error; err != nil {
+			return nil, &types.AppError{Error: err}
+		}
+
 	}
 
 	return &schemas.Message{Message: "files deleted"}, nil

@@ -78,6 +78,10 @@ type FileOperation struct {
 	Files       []string `json:"files"  binding:"required"`
 	Destination string   `json:"destination,omitempty"`
 }
+type DeleteOperation struct {
+	Files  []string `json:"files,omitempty"`
+	Source string   `json:"source,omitempty"`
+}
 
 type DirMove struct {
 	Source      string `json:"source" binding:"required"`
