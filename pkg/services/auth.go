@@ -133,7 +133,7 @@ func (as *AuthService) LogIn(c *gin.Context, session *schemas.TgSession) (*schem
 
 	//create session
 	if err := as.db.Create(&models.Session{UserId: session.UserID, Hash: hexToken,
-		Session: session.Sesssion, AuthHash: GenAuthHash(auth)}).Error; err != nil {
+		Session: session.Sesssion, SessionDate: auth.DateCreated}).Error; err != nil {
 		return nil, &types.AppError{Error: err}
 	}
 

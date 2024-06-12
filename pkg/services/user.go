@@ -153,7 +153,7 @@ func (us *UserService) ListSessions(c *gin.Context) ([]schemas.SessionOut, *type
 
 	dbSessions := []models.Session{}
 
-	if err = us.db.Where("user_id = ?", userId).Find(&dbSessions).Order("created_at DESC").Error; err != nil {
+	if err = us.db.Where("user_id = ?", userId).Order("created_at DESC").Find(&dbSessions).Error; err != nil {
 		return nil, &types.AppError{Error: err}
 	}
 
@@ -166,11 +166,11 @@ func (us *UserService) ListSessions(c *gin.Context) ([]schemas.SessionOut, *type
 			Current:   session.Session == userSession}
 
 		if auth != nil {
-			for _, auth := range auth.Authorizations {
-				if session.AuthHash == GenAuthHash(&auth) {
-					s.AppName = strings.Trim(strings.Replace(auth.AppName, "Telegram", "", -1), " ")
-					s.Location = auth.Country
-					s.OfficialApp = auth.OfficialApp
+			for _, a := range auth.Authorizations {
+				if session.SessionDate == a.DateCreated {
+					s.AppName = strings.Trim(strings.Replace(a.AppName, "Telegram", "", -1), " ")
+					s.Location = a.Country
+					s.OfficialApp = a.OfficialApp
 					s.Valid = true
 					break
 				}

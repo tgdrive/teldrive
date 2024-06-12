@@ -3,11 +3,8 @@ package services
 import (
 	"bytes"
 	"context"
-	"crypto/md5"
 	"crypto/rand"
 	"encoding/binary"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io"
 	"math"
@@ -369,13 +366,4 @@ func DeleteTGMessages(ctx context.Context, cnf *config.TGConfig, session string,
 		return g.Wait()
 	})
 	return err
-}
-
-func GenAuthHash(auth *tg.Authorization) string {
-	auth.Flags = 0
-	auth.DateActive = 0
-	auth.Current = false
-	b, _ := json.Marshal(auth)
-	hash := md5.Sum(b)
-	return hex.EncodeToString(hash[:])
 }
