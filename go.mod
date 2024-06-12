@@ -11,7 +11,7 @@ require (
 	github.com/go-co-op/gocron v1.37.0
 	github.com/go-jose/go-jose/v3 v3.0.3
 	github.com/gotd/contrib v0.20.0
-	github.com/gotd/td v0.102.0
+	github.com/gotd/td v0.103.0
 	github.com/iyear/connectproxy v0.1.1
 	github.com/magiconair/properties v1.8.7
 	github.com/mitchellh/go-homedir v1.1.0
@@ -100,10 +100,10 @@ require (
 	github.com/stretchr/testify v1.9.0
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect
-	go.opentelemetry.io/otel v1.26.0 // indirect
-	go.opentelemetry.io/otel/trace v1.26.0 // indirect
+	go.opentelemetry.io/otel v1.27.0 // indirect
+	go.opentelemetry.io/otel/trace v1.27.0 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
-	go.uber.org/multierr v1.11.0
+	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/arch v0.8.0 // indirect
 	golang.org/x/crypto v0.24.0
 	golang.org/x/net v0.26.0
