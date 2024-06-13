@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 
+	"github.com/divyam234/teldrive/internal/config"
 	"github.com/divyam234/teldrive/pkg/types"
 	"github.com/gotd/td/tg"
 )
@@ -44,12 +45,14 @@ type linearReader struct {
 	reader io.ReadCloser
 	limit  int64
 	err    error
+	config *config.TGConfig
 }
 
 func NewLinearReader(ctx context.Context,
 	client *tg.Client,
 	parts []types.Part,
 	start, end int64,
+	config *config.TGConfig,
 ) (reader io.ReadCloser, err error) {
 
 	r := &linearReader{
@@ -58,6 +61,7 @@ func NewLinearReader(ctx context.Context,
 		client: client,
 		limit:  end - start + 1,
 		ranges: calculatePartByteRanges(start, end, parts[0].Size),
+		config: config,
 	}
 
 	r.reader, err = r.nextPart()
@@ -104,8 +108,16 @@ func (r *linearReader) nextPart() (io.ReadCloser, error) {
 	location := r.parts[r.ranges[r.pos].PartNo].Location
 	startByte := r.ranges[r.pos].Start
 	endByte := r.ranges[r.pos].End
+	rd, err := newTGReader(r.ctx, r.client, location, startByte, endByte)
+	if err != nil {
+		return nil, err
+	}
+	if r.config.Stream.BufferReader {
+		return NewAsyncReader(r.ctx, rd, r.config.Stream.Buffers)
 
-	return newTGReader(r.ctx, r.client, location, startByte, endByte)
+	}
+	return rd, nil
+
 }
 
 func (r *linearReader) Close() (err error) {

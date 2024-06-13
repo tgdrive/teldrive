@@ -647,10 +647,16 @@ func (fs *FileService) GetFileStream(c *gin.Context) {
 			return
 		}
 
+		tgClient := client.Tg.API()
+
+		if fs.cnf.Stream.UsePooling {
+			tgClient = client.Pool.Default(c)
+		}
+
 		if file.Encrypted {
-			lr, err = reader.NewDecryptedReader(c, client.Tg.API(), parts, start, end, fs.cnf.Uploads.EncryptionKey)
+			lr, err = reader.NewDecryptedReader(c, tgClient, parts, start, end, fs.cnf)
 		} else {
-			lr, err = reader.NewLinearReader(c, client.Tg.API(), parts, start, end)
+			lr, err = reader.NewLinearReader(c, tgClient, parts, start, end, fs.cnf)
 		}
 
 		if err != nil {

@@ -4,21 +4,22 @@ import (
 	"context"
 	"io"
 
+	"github.com/divyam234/teldrive/internal/config"
 	"github.com/divyam234/teldrive/internal/crypt"
 	"github.com/divyam234/teldrive/pkg/types"
 	"github.com/gotd/td/tg"
 )
 
 type decrpytedReader struct {
-	ctx           context.Context
-	parts         []types.Part
-	ranges        []types.Range
-	pos           int
-	client        *tg.Client
-	reader        io.ReadCloser
-	limit         int64
-	err           error
-	encryptionKey string
+	ctx    context.Context
+	parts  []types.Part
+	ranges []types.Range
+	pos    int
+	client *tg.Client
+	reader io.ReadCloser
+	limit  int64
+	err    error
+	config *config.TGConfig
 }
 
 func NewDecryptedReader(
@@ -26,15 +27,15 @@ func NewDecryptedReader(
 	client *tg.Client,
 	parts []types.Part,
 	start, end int64,
-	encryptionKey string) (io.ReadCloser, error) {
+	config *config.TGConfig) (io.ReadCloser, error) {
 
 	r := &decrpytedReader{
-		ctx:           ctx,
-		parts:         parts,
-		client:        client,
-		limit:         end - start + 1,
-		ranges:        calculatePartByteRanges(start, end, parts[0].DecryptedSize),
-		encryptionKey: encryptionKey,
+		ctx:    ctx,
+		parts:  parts,
+		client: client,
+		limit:  end - start + 1,
+		ranges: calculatePartByteRanges(start, end, parts[0].DecryptedSize),
+		config: config,
 	}
 	res, err := r.nextPart()
 
@@ -92,7 +93,7 @@ func (r *decrpytedReader) nextPart() (io.ReadCloser, error) {
 	start := r.ranges[r.pos].Start
 	end := r.ranges[r.pos].End
 	salt := r.parts[r.ranges[r.pos].PartNo].Salt
-	cipher, _ := crypt.NewCipher(r.encryptionKey, salt)
+	cipher, _ := crypt.NewCipher(r.config.Uploads.EncryptionKey, salt)
 
 	return cipher.DecryptDataSeek(r.ctx,
 		func(ctx context.Context,
@@ -104,8 +105,16 @@ func (r *decrpytedReader) nextPart() (io.ReadCloser, error) {
 			if underlyingLimit >= 0 {
 				end = min(r.parts[r.ranges[r.pos].PartNo].Size-1, underlyingOffset+underlyingLimit-1)
 			}
+			rd, err := newTGReader(r.ctx, r.client, location, underlyingOffset, end)
+			if err != nil {
+				return nil, err
+			}
+			if r.config.Stream.BufferReader {
+				return NewAsyncReader(r.ctx, rd, r.config.Stream.Buffers)
 
-			return newTGReader(r.ctx, r.client, location, underlyingOffset, end)
+			}
+			return rd, nil
+
 		}, start, end-start+1)
 
 }
