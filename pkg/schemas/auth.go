@@ -12,6 +12,7 @@ type TgSession struct {
 type Session struct {
 	Name      string `json:"name"`
 	UserName  string `json:"userName"`
+	UserId    int64  `json:"userId"`
 	IsPremium bool   `json:"isPremium"`
 	Hash      string `json:"hash"`
 	Expires   string `json:"expires"`

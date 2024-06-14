@@ -168,8 +168,11 @@ func (as *AuthService) GetSession(c *gin.Context) *schemas.Session {
 
 	newExpires := now.Add(as.cnf.JWT.SessionTime)
 
+	userId, _ := strconv.ParseInt(jwePayload.Subject, 10, 64)
+
 	session := &schemas.Session{Name: jwePayload.Name,
 		UserName: jwePayload.UserName,
+		UserId:   userId,
 		Hash:     jwePayload.Hash,
 		Expires:  newExpires.Format(time.RFC3339)}
 

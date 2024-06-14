@@ -356,13 +356,12 @@ func DeleteTGMessages(ctx context.Context, cnf *config.TGConfig, session string,
 			start := i * batchSize
 			end := min((i+1)*batchSize, len(ids))
 			batchIds := ids[start:end]
-			go func() error {
+			g.Go(func() error {
 				messageDeleteRequest := tg.ChannelsDeleteMessagesRequest{Channel: channel, ID: batchIds}
 				_, err = client.API().ChannelsDeleteMessages(ctx, &messageDeleteRequest)
 				return err
-			}()
+			})
 		}
-
 		return g.Wait()
 	})
 	return err

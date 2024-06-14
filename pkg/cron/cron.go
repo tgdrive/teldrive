@@ -10,6 +10,7 @@ import (
 	"github.com/divyam234/teldrive/pkg/schemas"
 	"github.com/divyam234/teldrive/pkg/services"
 	"github.com/go-co-op/gocron"
+	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -89,11 +90,17 @@ func (c *CronService) CleanFiles(ctx context.Context) {
 		err := services.DeleteTGMessages(ctx, &c.cnf.TG, row.Session, row.ChannelId, row.UserId, ids)
 
 		if err != nil {
-			c.logger.Errorw("failed to clean files", err)
+			c.logger.Errorw("failed to delete messages", err)
 			return
 		}
 
-		c.db.Where("id = any($1)", fileIds).Delete(&models.File{})
+		items := pgtype.Array[string]{
+			Elements: fileIds,
+			Valid:    true,
+			Dims:     []pgtype.ArrayDimension{{Length: int32(len(fileIds)), LowerBound: 1}},
+		}
+
+		c.db.Where("id = any($1)", items).Delete(&models.File{})
 
 		c.logger.Infow("cleaned files", "user", row.UserId, "channel", row.ChannelId)
 	}
@@ -114,16 +121,20 @@ func (c *CronService) CleanUploads(ctx context.Context) {
 
 	for _, result := range upResults {
 
-		if result.Session == "" && len(result.Parts) > 0 {
-			c.db.Where("part_id = any($1)", result.Parts).Delete(&models.Upload{})
-			return
+		if result.Session != "" && len(result.Parts) > 0 {
+			err := services.DeleteTGMessages(ctx, &c.cnf.TG, result.Session, result.ChannelId, result.UserId, result.Parts)
+			if err != nil {
+				c.logger.Errorw("failed to delete messages", err)
+				return
+			}
 		}
-		err := services.DeleteTGMessages(ctx, &c.cnf.TG, result.Session, result.ChannelId, result.UserId, result.Parts)
-		if err != nil {
-			c.logger.Errorw("failed to delete messages", err)
-			return
+		items := pgtype.Array[int]{
+			Elements: result.Parts,
+			Valid:    true,
+			Dims:     []pgtype.ArrayDimension{{Length: int32(len(result.Parts)), LowerBound: 1}},
 		}
-		c.db.Where("part_id = any($1)", result.Parts).Delete(&models.Upload{})
+		c.db.Where("part_id = any(?)", items).Where("channel_id = ?", result.ChannelId).
+			Where("user_id = ?", result.UserId).Delete(&models.Upload{}).Delete(&models.Upload{})
 
 	}
 }

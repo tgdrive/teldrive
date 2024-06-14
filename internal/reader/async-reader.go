@@ -29,7 +29,6 @@ type AsyncReader struct {
 	err     error
 	cur     *buffer
 	exited  chan struct{}
-	size    int
 	closed  bool
 	mu      sync.Mutex
 }
@@ -54,7 +53,6 @@ func (a *AsyncReader) init(rd io.ReadCloser, buffers int) {
 	a.exited = make(chan struct{})
 	a.buffers = buffers
 	a.cur = nil
-	a.size = softStartInitial
 
 	for i := 0; i < buffers; i++ {
 		a.token <- struct{}{}
@@ -67,10 +65,6 @@ func (a *AsyncReader) init(rd io.ReadCloser, buffers int) {
 			select {
 			case <-a.token:
 				b := a.getBuffer()
-				if a.size < BufferSize {
-					b.buf = b.buf[:a.size]
-					a.size <<= 1
-				}
 				err := b.read(a.in)
 				a.ready <- b
 				if err != nil {
@@ -93,7 +87,7 @@ func (a *AsyncReader) putBuffer(b *buffer) {
 
 func (a *AsyncReader) getBuffer() *buffer {
 	bufferPoolOnce.Do(func() {
-		bufferPool = pool.New(bufferCacheFlushTime, BufferSize, bufferCacheSize, true)
+		bufferPool = pool.New(bufferCacheFlushTime, BufferSize, bufferCacheSize, false)
 	})
 	return &buffer{
 		buf: bufferPool.Get(),
