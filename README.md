@@ -230,18 +230,12 @@ random_chunk_name= true # Use random chunk names when uploading files to channel
 
 ### Dos:
 
-- **Follow Limits:** Adhere to the limits imposed by Telegram servers to avoid account bans and automatic deletion of your channel.
-
-### Don'ts:
-
-- **Data Hoarding:** Avoid excessive data hoarding, as it not only violates Telegram's terms but also leads to unnecessary wastage of storage space.
-
-### Additional Recommendations:
-
+- **Follow Limits:** Adhere to the limits imposed by Telegram servers to avoid account bans and automatic deletion of your channel.Your files will be removed from telegram servers if you try to abuse the service as most people have zero brains they will still do so good luck.
 - **Responsible Storage:** Be mindful of the content you store on Telegram. Utilize storage efficiently and only keep data that serves a purpose.
-
-- **Respect Terms of Service:** Familiarize yourself with and adhere to the terms of service provided by Telegram to ensure a positive and sustainable usage experience.
-
+  
+### Don'ts:
+- **Data Hoarding:** Avoid excessive data hoarding, as it not only violates Telegram's terms.
+- 
 By following these guidelines, you contribute to the responsible and effective use of Telegram, maintaining a fair and equitable environment for all users.
 
 
