@@ -235,7 +235,7 @@ random_chunk_name= true # Use random chunk names when uploading files to channel
   
 ### Don'ts:
 - **Data Hoarding:** Avoid excessive data hoarding, as it not only violates Telegram's terms.
-- 
+  
 By following these guidelines, you contribute to the responsible and effective use of Telegram, maintaining a fair and equitable environment for all users.
 
 
