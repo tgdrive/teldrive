@@ -1,4 +1,4 @@
-name: Goreleaser
+name: Build Dev
 
 on:
   push:
@@ -40,7 +40,7 @@ jobs:
       - name: Set Vars
         run: |
          echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
-         
+
       - name: Build Image
         uses: docker/build-push-action@v6
         with:
