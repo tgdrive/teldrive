@@ -92,8 +92,6 @@ func (r *linearReader) Read(p []byte) (int, error) {
 
 	n, err := r.reader.Read(p)
 
-	r.limit -= int64(n)
-
 	if err == io.EOF {
 		if r.limit > 0 {
 			err = nil
@@ -107,6 +105,7 @@ func (r *linearReader) Read(p []byte) (int, error) {
 
 		}
 	}
+	r.limit -= int64(n)
 	return n, err
 }
 

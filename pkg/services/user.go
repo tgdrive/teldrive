@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -14,7 +15,6 @@ import (
 	"github.com/divyam234/teldrive/internal/cache"
 	"github.com/divyam234/teldrive/internal/config"
 	"github.com/divyam234/teldrive/internal/kv"
-	"github.com/divyam234/teldrive/internal/logging"
 	"github.com/divyam234/teldrive/internal/tgc"
 	"github.com/divyam234/teldrive/pkg/models"
 	"github.com/divyam234/teldrive/pkg/schemas"
@@ -24,8 +24,7 @@ import (
 	"github.com/gotd/td/telegram/query"
 	"github.com/gotd/td/tg"
 	"github.com/gotd/td/tgerr"
-	"github.com/thoas/go-funk"
-	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -209,7 +208,7 @@ func (us *UserService) RemoveSession(c *gin.Context) (*schemas.Message, *types.A
 	return &schemas.Message{Message: "session deleted"}, nil
 }
 
-func (us *UserService) ListChannels(c *gin.Context) (interface{}, *types.AppError) {
+func (us *UserService) ListChannels(c *gin.Context) ([]schemas.Channel, *types.AppError) {
 	_, session := auth.GetUser(c)
 	client, _ := tgc.AuthClient(c, &us.cnf.TG, session)
 
@@ -232,8 +231,17 @@ func (us *UserService) ListChannels(c *gin.Context) (interface{}, *types.AppErro
 		return nil
 
 	})
+	res := []schemas.Channel{}
 
-	return funk.Values(channels), nil
+	for _, channel := range channels {
+		res = append(res, *channel)
+
+	}
+
+	sort.Slice(res, func(i, j int) bool {
+		return res[i].ChannelName < res[j].ChannelName
+	})
+	return res, nil
 }
 
 func (us *UserService) AddBots(c *gin.Context) (*schemas.Message, *types.AppError) {
@@ -285,64 +293,52 @@ func (us *UserService) RemoveBots(c *gin.Context) (*schemas.Message, *types.AppE
 
 func (us *UserService) addBots(c context.Context, client *telegram.Client, userId int64, channelId int64, botsTokens []string) (*schemas.Message, *types.AppError) {
 
-	botInfo := []types.BotInfo{}
-
-	var wg sync.WaitGroup
-
-	logger := logging.FromContext(c)
-
 	cache := cache.FromContext(c)
+
+	botInfoMap := make(map[string]*types.BotInfo)
 
 	err := tgc.RunWithAuth(c, client, "", func(ctx context.Context) error {
 
 		channel, err := tgc.GetChannelById(ctx, client.API(), channelId)
 
 		if err != nil {
-			logger.Error("error", zap.Error(err))
 			return err
 		}
 
-		botInfoChannel := make(chan *types.BotInfo, len(botsTokens))
+		g, _ := errgroup.WithContext(ctx)
 
-		waitChan := make(chan struct{}, 6)
+		g.SetLimit(8)
+
+		mapMu := sync.Mutex{}
 
 		for _, token := range botsTokens {
-			waitChan <- struct{}{}
-			wg.Add(1)
-			go func(t string) {
-				info, err := tgc.GetBotInfo(c, client, t)
+			g.Go(func() error {
+				info, err := tgc.GetBotInfo(c, us.kv, &us.cnf.TG, token)
 				if err != nil {
-					return
+					return err
 				}
 				botPeerClass, err := peer.DefaultResolver(client.API()).ResolveDomain(ctx, info.UserName)
 				if err != nil {
-					logger.Error("error", zap.Error(err))
-					return
+					return err
 				}
 				botPeer := botPeerClass.(*tg.InputPeerUser)
 				info.AccessHash = botPeer.AccessHash
-				defer func() {
-					<-waitChan
-					wg.Done()
-				}()
-
-				botInfoChannel <- info
-
-			}(token)
-		}
-
-		wg.Wait()
-		close(botInfoChannel)
-		for result := range botInfoChannel {
-			botInfo = append(botInfo, *result)
-		}
-
-		if len(botsTokens) == len(botInfo) {
-			users := funk.Map(botInfo, func(info types.BotInfo) tg.InputUser {
-				return tg.InputUser{UserID: info.Id, AccessHash: info.AccessHash}
+				mapMu.Lock()
+				botInfoMap[token] = info
+				mapMu.Unlock()
+				return nil
 			})
-			botsToAdd := users.([]tg.InputUser)
-			for _, user := range botsToAdd {
+
+		}
+		if err = g.Wait(); err != nil {
+			return err
+		}
+		if len(botsTokens) == len(botInfoMap) {
+			users := []tg.InputUser{}
+			for _, info := range botInfoMap {
+				users = append(users, tg.InputUser{UserID: info.Id, AccessHash: info.AccessHash})
+			}
+			for _, user := range users {
 				payload := &tg.ChannelsEditAdminRequest{
 					Channel: channel,
 					UserID:  tg.InputUserClass(&user),
@@ -362,10 +358,8 @@ func (us *UserService) addBots(c context.Context, client *telegram.Client, userI
 				}
 				_, err := client.API().ChannelsEditAdmin(ctx, payload)
 				if err != nil {
-					logger.Error("error", zap.Error(err))
 					return err
 				}
-
 			}
 		} else {
 			return errors.New("failed to fetch bots")
@@ -379,7 +373,7 @@ func (us *UserService) addBots(c context.Context, client *telegram.Client, userI
 
 	payload := []models.Bot{}
 
-	for _, info := range botInfo {
+	for _, info := range botInfoMap {
 		payload = append(payload, models.Bot{UserID: userId, Token: info.Token, BotID: info.Id,
 			BotUserName: info.UserName, ChannelID: channelId,
 		})

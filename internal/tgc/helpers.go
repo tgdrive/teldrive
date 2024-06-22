@@ -10,6 +10,8 @@ import (
 	"sync"
 
 	"github.com/divyam234/teldrive/internal/cache"
+	"github.com/divyam234/teldrive/internal/config"
+	"github.com/divyam234/teldrive/internal/kv"
 	"github.com/divyam234/teldrive/pkg/types"
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/tg"
@@ -183,13 +185,13 @@ func GetMediaContent(ctx context.Context, client *tg.Client, location tg.InputFi
 	return buff, nil
 }
 
-func GetBotInfo(ctx context.Context, client *telegram.Client, token string) (*types.BotInfo, error) {
+func GetBotInfo(ctx context.Context, KV kv.KV, config *config.TGConfig, token string) (*types.BotInfo, error) {
 	var user *tg.User
+	client, _ := BotClient(ctx, KV, config, token, Middlewares(config, 5)...)
 	err := RunWithAuth(ctx, client, token, func(ctx context.Context) error {
 		user, _ = client.Self(ctx)
 		return nil
 	})
-
 	if err != nil {
 		return nil, err
 	}

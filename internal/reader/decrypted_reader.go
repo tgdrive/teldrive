@@ -34,7 +34,7 @@ func NewDecryptedReader(
 	config *config.TGConfig,
 	concurrency int,
 	client *tgc.Client,
-	worker *tgc.StreamWorker) (io.ReadCloser, error) {
+	worker *tgc.StreamWorker) (*decrpytedReader, error) {
 
 	r := &decrpytedReader{
 		ctx:         ctx,
@@ -60,14 +60,14 @@ func NewDecryptedReader(
 
 }
 
-func (r *decrpytedReader) Read(p []byte) (n int, err error) {
+func (r *decrpytedReader) Read(p []byte) (int, error) {
 
 	if r.limit <= 0 {
 		return 0, io.EOF
 	}
 
-	n, err = r.reader.Read(p)
-	r.limit -= int64(n)
+	n, err := r.reader.Read(p)
+
 	if err == io.EOF {
 		if r.limit > 0 {
 			err = nil
@@ -78,11 +78,12 @@ func (r *decrpytedReader) Read(p []byte) (n int, err error) {
 		r.pos++
 		if r.pos < len(r.ranges) {
 			r.reader, err = r.nextPart()
+
 		}
 	}
-	return
+	r.limit -= int64(n)
+	return n, err
 }
-
 func (r *decrpytedReader) Close() (err error) {
 	if r.reader != nil {
 		err = r.reader.Close()
