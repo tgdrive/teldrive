@@ -5,8 +5,8 @@ import (
 	"io"
 
 	"github.com/divyam234/teldrive/internal/config"
+	"github.com/divyam234/teldrive/internal/tgc"
 	"github.com/divyam234/teldrive/pkg/types"
-	"github.com/gotd/td/tg"
 )
 
 func calculatePartByteRanges(startByte, endByte, partSize int64) []types.Range {
@@ -37,31 +37,42 @@ func calculatePartByteRanges(startByte, endByte, partSize int64) []types.Range {
 }
 
 type linearReader struct {
-	ctx    context.Context
-	parts  []types.Part
-	ranges []types.Range
-	pos    int
-	client *tg.Client
-	reader io.ReadCloser
-	limit  int64
-	err    error
-	config *config.TGConfig
+	ctx         context.Context
+	parts       []types.Part
+	ranges      []types.Range
+	pos         int
+	reader      io.ReadCloser
+	limit       int64
+	config      *config.TGConfig
+	channelId   int64
+	worker      *tgc.StreamWorker
+	client      *tgc.Client
+	fileId      string
+	concurrency int
 }
 
 func NewLinearReader(ctx context.Context,
-	client *tg.Client,
+	fileId string,
 	parts []types.Part,
 	start, end int64,
+	channelId int64,
 	config *config.TGConfig,
+	concurrency int,
+	client *tgc.Client,
+	worker *tgc.StreamWorker,
 ) (reader io.ReadCloser, err error) {
 
 	r := &linearReader{
-		ctx:    ctx,
-		parts:  parts,
-		client: client,
-		limit:  end - start + 1,
-		ranges: calculatePartByteRanges(start, end, parts[0].Size),
-		config: config,
+		ctx:         ctx,
+		parts:       parts,
+		limit:       end - start + 1,
+		ranges:      calculatePartByteRanges(start, end, parts[0].Size),
+		config:      config,
+		client:      client,
+		worker:      worker,
+		channelId:   channelId,
+		fileId:      fileId,
+		concurrency: concurrency,
 	}
 
 	r.reader, err = r.nextPart()
@@ -73,25 +84,22 @@ func NewLinearReader(ctx context.Context,
 	return r, nil
 }
 
-func (r *linearReader) Read(p []byte) (n int, err error) {
-
-	if r.err != nil {
-		return 0, r.err
-	}
+func (r *linearReader) Read(p []byte) (int, error) {
 
 	if r.limit <= 0 {
 		return 0, io.EOF
 	}
 
-	n, err = r.reader.Read(p)
+	n, err := r.reader.Read(p)
 
-	if err == nil {
-		r.limit -= int64(n)
-	}
+	r.limit -= int64(n)
 
 	if err == io.EOF {
 		if r.limit > 0 {
 			err = nil
+			if r.reader != nil {
+				r.reader.Close()
+			}
 		}
 		r.pos++
 		if r.pos < len(r.ranges) {
@@ -99,24 +107,18 @@ func (r *linearReader) Read(p []byte) (n int, err error) {
 
 		}
 	}
-	r.err = err
-	return
+	return n, err
 }
 
 func (r *linearReader) nextPart() (io.ReadCloser, error) {
 
-	location := r.parts[r.ranges[r.pos].PartNo].Location
-	startByte := r.ranges[r.pos].Start
-	endByte := r.ranges[r.pos].End
-	rd, err := newTGReader(r.ctx, r.client, location, startByte, endByte)
-	if err != nil {
-		return nil, err
-	}
-	if r.config.Stream.BufferReader {
-		return NewAsyncReader(r.ctx, rd, r.config.Stream.Buffers)
+	start := r.ranges[r.pos].Start
+	end := r.ranges[r.pos].End
 
-	}
-	return rd, nil
+	chunkSrc := &chunkSource{channelId: r.channelId, worker: r.worker,
+		fileId: r.fileId, partId: r.parts[r.ranges[r.pos].PartNo].ID,
+		client: r.client, concurrency: r.concurrency}
+	return newTGReader(r.ctx, start, end, r.config, chunkSrc)
 
 }
 

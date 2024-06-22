@@ -43,10 +43,9 @@ type TGConfig struct {
 		Retention     time.Duration
 	}
 	Stream struct {
-		BufferReader bool
+		MultiThreads int
 		Buffers      int
-		UseMmap      bool
-		UsePooling   bool
+		ChunkTimeout time.Duration
 	}
 }
 
