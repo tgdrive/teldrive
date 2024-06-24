@@ -18,25 +18,27 @@ type ServerConfig struct {
 }
 
 type TGConfig struct {
-	AppId             int
-	AppHash           string
-	RateLimit         bool
-	RateBurst         int
-	Rate              int
-	DeviceModel       string
-	SystemVersion     string
-	AppVersion        string
-	LangCode          string
-	SystemLangCode    string
-	LangPack          string
-	SessionFile       string
-	BgBotsLimit       int
-	DisableStreamBots bool
-	Proxy             string
-	ReconnectTimeout  time.Duration
-	PoolSize          int64
-	EnableLogging     bool
-	Uploads           struct {
+	AppId               int
+	AppHash             string
+	RateLimit           bool
+	RateBurst           int
+	Rate                int
+	DeviceModel         string
+	SystemVersion       string
+	AppVersion          string
+	LangCode            string
+	SystemLangCode      string
+	LangPack            string
+	SessionFile         string
+	BgBotsLimit         int
+	DisableStreamBots   bool
+	BgBotsTimeout       time.Duration
+	BgBotsCheckInterval time.Duration
+	Proxy               string
+	ReconnectTimeout    time.Duration
+	PoolSize            int64
+	EnableLogging       bool
+	Uploads             struct {
 		EncryptionKey string
 		Threads       int
 		MaxRetries    int

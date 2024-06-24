@@ -112,7 +112,7 @@ func (r *decrpytedReader) nextPart() (io.ReadCloser, error) {
 			chunkSrc := &chunkSource{channelId: r.channelId, worker: r.worker,
 				fileId: r.fileId, partId: r.parts[r.ranges[r.pos].PartNo].ID,
 				client: r.client, concurrency: r.concurrency}
-			return newTGReader(r.ctx, start, end, r.config, chunkSrc)
+			return newTGReader(r.ctx, underlyingOffset, end, r.config, chunkSrc)
 
 		}, start, end-start+1)
 

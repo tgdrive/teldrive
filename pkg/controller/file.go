@@ -5,7 +5,6 @@ import (
 
 	"github.com/divyam234/teldrive/internal/auth"
 	"github.com/divyam234/teldrive/internal/cache"
-	"github.com/divyam234/teldrive/internal/logging"
 	"github.com/divyam234/teldrive/pkg/httputil"
 	"github.com/divyam234/teldrive/pkg/schemas"
 	"github.com/gin-gonic/gin"
@@ -15,10 +14,7 @@ func (fc *Controller) CreateFile(c *gin.Context) {
 
 	var fileIn schemas.FileIn
 
-	logger := logging.FromContext(c)
-
 	if err := c.ShouldBindJSON(&fileIn); err != nil {
-		logger.Error(err)
 		httputil.NewError(c, http.StatusBadRequest, err)
 		return
 	}
@@ -27,7 +23,6 @@ func (fc *Controller) CreateFile(c *gin.Context) {
 
 	res, err := fc.FileService.CreateFile(c, userId, &fileIn)
 	if err != nil {
-		logger.Error(err)
 		httputil.NewError(c, err.Code, err.Error)
 		return
 	}

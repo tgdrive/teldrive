@@ -43,6 +43,12 @@ func (c *chunkSource) Chunk(ctx context.Context, offset int64, limit int64) ([]b
 
 	client = c.client
 
+	defer func() {
+		if c.concurrency > 0 && client != nil {
+			defer c.worker.Release(client)
+		}
+	}()
+
 	if c.concurrency > 0 {
 		client, _, _ = c.worker.Next(c.channelId)
 	}
