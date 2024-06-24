@@ -11,7 +11,7 @@ require (
 	github.com/go-co-op/gocron v1.37.0
 	github.com/go-jose/go-jose/v3 v3.0.3
 	github.com/gotd/contrib v0.20.0
-	github.com/gotd/td v0.103.0
+	github.com/gotd/td v0.104.0
 	github.com/iyear/connectproxy v0.1.1
 	github.com/magiconair/properties v1.8.7
 	github.com/mitchellh/go-homedir v1.1.0
@@ -88,7 +88,7 @@ require (
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/klauspost/compress v1.17.8 // indirect
+	github.com/klauspost/compress v1.17.9 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.7 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
