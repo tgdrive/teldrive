@@ -11,7 +11,7 @@ require (
 	github.com/go-co-op/gocron v1.37.0
 	github.com/go-jose/go-jose/v3 v3.0.3
 	github.com/gotd/contrib v0.20.0
-	github.com/gotd/td v0.104.0
+	github.com/gotd/td v0.105.0
 	github.com/iyear/connectproxy v0.1.1
 	github.com/magiconair/properties v1.8.7
 	github.com/mitchellh/go-homedir v1.1.0
