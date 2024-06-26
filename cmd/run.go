@@ -52,6 +52,7 @@ func NewRun() *cobra.Command {
 	runCmd.Flags().StringP("config", "c", "", "Config file path (default $HOME/.teldrive/config.toml)")
 	runCmd.Flags().IntVarP(&config.Server.Port, "server-port", "p", 8080, "Server port")
 	duration.DurationVar(runCmd.Flags(), &config.Server.GracefulShutdown, "server-graceful-shutdown", 15*time.Second, "Server graceful shutdown timeout")
+	runCmd.Flags().BoolVar(&config.Server.EnablePprof, "server-enable-pprof", false, "Enable Pprof Profiling")
 
 	runCmd.Flags().IntVarP(&config.Log.Level, "log-level", "", -1, "Logging level")
 	runCmd.Flags().StringVar(&config.Log.File, "log-file", "", "Logging file path")
@@ -219,6 +220,10 @@ func initApp(lc fx.Lifecycle, cfg *config.Config, c *controller.Controller) *gin
 
 	r := gin.New()
 
+	if cfg.Server.EnablePprof {
+		pprof.Register(r)
+	}
+
 	r.Use(gin.Recovery())
 
 	r.Use(ginzap.GinzapWithConfig(logging.DefaultLogger().Desugar(), &ginzap.Config{
@@ -240,7 +245,6 @@ func initApp(lc fx.Lifecycle, cfg *config.Config, c *controller.Controller) *gin
 	})
 
 	r = api.InitRouter(r, c, cfg)
-	pprof.Register(r)
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Server.Port),
 		Handler: r,

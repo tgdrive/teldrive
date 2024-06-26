@@ -123,6 +123,16 @@ func newTGReader(
 
 func (r *tgReader) Close() error {
 	close(r.done)
+	close(r.bufferChan)
+	r.closed = true
+	for b := range r.bufferChan {
+		if b != nil {
+			b = nil
+		}
+	}
+	if r.cur != nil {
+		r.cur = nil
+	}
 	close(r.err)
 	return nil
 }
@@ -172,8 +182,7 @@ func (r *tgReader) fillBufferConcurrently() error {
 	bufferMap := make(map[int]*buffer)
 
 	defer func() {
-		close(r.bufferChan)
-		r.closed = true
+
 		for i := range bufferMap {
 			delete(bufferMap, i)
 		}
@@ -227,7 +236,11 @@ func (r *tgReader) fillBufferConcurrently() error {
 			} else {
 				for i := range r.concurrency {
 					if r.currentPart+i+1 <= r.totalParts {
-						r.bufferChan <- bufferMap[i]
+						select {
+						case <-r.done:
+							return nil
+						case r.bufferChan <- bufferMap[i]:
+						}
 					}
 				}
 				r.currentPart += r.concurrency
@@ -251,8 +264,6 @@ func (r *tgReader) fillBufferConcurrently() error {
 }
 
 func (r *tgReader) fillBufferSequentially() error {
-
-	defer close(r.bufferChan)
 
 	fetchChunk := func(ctx context.Context) (*buffer, error) {
 		chunk, err := r.chunkSrc.Chunk(ctx, r.offset, r.chunkSize)
@@ -281,6 +292,9 @@ func (r *tgReader) fillBufferSequentially() error {
 			buf, err := fetchChunk(r.ctx)
 			if err != nil {
 				r.err <- err
+				return nil
+			}
+			if r.closed {
 				return nil
 			}
 			r.bufferChan <- buf

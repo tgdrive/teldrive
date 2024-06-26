@@ -15,6 +15,7 @@ type Config struct {
 type ServerConfig struct {
 	Port             int
 	GracefulShutdown time.Duration
+	EnablePprof      bool
 }
 
 type TGConfig struct {
