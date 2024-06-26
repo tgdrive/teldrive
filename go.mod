@@ -6,6 +6,7 @@ require (
 	github.com/WinterYukky/gorm-extra-clause-plugin v0.2.1
 	github.com/coocood/freecache v1.2.4
 	github.com/divyam234/cors v1.4.2
+	github.com/gin-contrib/pprof v1.5.0
 	github.com/gin-contrib/zap v1.1.3
 	github.com/gin-gonic/gin v1.10.0
 	github.com/go-co-op/gocron v1.37.0

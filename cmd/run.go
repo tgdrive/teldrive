@@ -24,6 +24,7 @@ import (
 	"github.com/divyam234/teldrive/pkg/cron"
 	"github.com/divyam234/teldrive/pkg/services"
 	"github.com/gin-contrib/gzip"
+	"github.com/gin-contrib/pprof"
 	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
 	"github.com/mitchellh/go-homedir"
@@ -239,6 +240,7 @@ func initApp(lc fx.Lifecycle, cfg *config.Config, c *controller.Controller) *gin
 	})
 
 	r = api.InitRouter(r, c, cfg)
+	pprof.Register(r)
 	srv := &http.Server{
 		Addr:    fmt.Sprintf(":%d", cfg.Server.Port),
 		Handler: r,
