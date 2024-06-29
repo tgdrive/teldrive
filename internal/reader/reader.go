@@ -117,7 +117,10 @@ func (r *linearReader) nextPart() (io.ReadCloser, error) {
 	chunkSrc := &chunkSource{channelId: r.channelId, worker: r.worker,
 		fileId: r.fileId, partId: r.parts[r.ranges[r.pos].PartNo].ID,
 		client: r.client, concurrency: r.concurrency}
-	return newTGReader(r.ctx, start, end, r.config, chunkSrc)
+	if r.concurrency < 2 {
+		return newTGReader(r.ctx, start, end, chunkSrc)
+	}
+	return newTGMultiReader(r.ctx, start, end, r.config, chunkSrc)
 
 }
 

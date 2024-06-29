@@ -59,7 +59,7 @@ func (suite *TestSuite) TestFullRead() {
 	data := make([]byte, 100)
 	rand.Read(data)
 	chunkSrc := &testChunkSource{buffer: data}
-	reader, err := newTGReader(ctx, start, end, suite.config, chunkSrc)
+	reader, err := newTGMultiReader(ctx, start, end, suite.config, chunkSrc)
 	assert.NoError(suite.T(), err)
 	test_data, err := io.ReadAll(reader)
 	assert.Equal(suite.T(), nil, err)
@@ -73,7 +73,7 @@ func (suite *TestSuite) TestPartialRead() {
 	data := make([]byte, 100)
 	rand.Read(data)
 	chunkSrc := &testChunkSource{buffer: data}
-	reader, err := newTGReader(ctx, start, end, suite.config, chunkSrc)
+	reader, err := newTGMultiReader(ctx, start, end, suite.config, chunkSrc)
 	assert.NoError(suite.T(), err)
 	test_data, err := io.ReadAll(reader)
 	assert.NoError(suite.T(), err)
@@ -87,7 +87,7 @@ func (suite *TestSuite) TestTimeout() {
 	data := make([]byte, 100)
 	rand.Read(data)
 	chunkSrc := &testChunkSourceTimeout{buffer: data}
-	reader, err := newTGReader(ctx, start, end, suite.config, chunkSrc)
+	reader, err := newTGMultiReader(ctx, start, end, suite.config, chunkSrc)
 	assert.NoError(suite.T(), err)
 	test_data, err := io.ReadAll(reader)
 	assert.Greater(suite.T(), len(test_data), 0)
@@ -101,7 +101,7 @@ func (suite *TestSuite) TestClose() {
 	data := make([]byte, 100)
 	rand.Read(data)
 	chunkSrc := &testChunkSource{buffer: data}
-	reader, err := newTGReader(ctx, start, end, suite.config, chunkSrc)
+	reader, err := newTGMultiReader(ctx, start, end, suite.config, chunkSrc)
 	assert.NoError(suite.T(), err)
 	_, err = io.ReadAll(reader)
 	assert.NoError(suite.T(), err)
@@ -115,7 +115,7 @@ func (suite *TestSuite) TestCancellation() {
 	data := make([]byte, 100)
 	rand.Read(data)
 	chunkSrc := &testChunkSource{buffer: data}
-	reader, err := newTGReader(ctx, start, end, suite.config, chunkSrc)
+	reader, err := newTGMultiReader(ctx, start, end, suite.config, chunkSrc)
 	assert.NoError(suite.T(), err)
 	cancel()
 	_, err = io.ReadAll(reader)
@@ -131,7 +131,7 @@ func (suite *TestSuite) TestCancellationWithTimeout() {
 	data := make([]byte, 100)
 	rand.Read(data)
 	chunkSrc := &testChunkSourceTimeout{buffer: data}
-	reader, err := newTGReader(ctx, start, end, suite.config, chunkSrc)
+	reader, err := newTGMultiReader(ctx, start, end, suite.config, chunkSrc)
 	assert.NoError(suite.T(), err)
 	_, err = io.ReadAll(reader)
 	assert.Equal(suite.T(), err, context.DeadlineExceeded)
