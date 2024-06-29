@@ -2,11 +2,15 @@ package auth
 
 import (
 	"encoding/json"
+	"fmt"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/divyam234/teldrive/pkg/types"
 	"github.com/gin-gonic/gin"
 	"github.com/go-jose/go-jose/v3"
+	"github.com/go-jose/go-jose/v3/jwt"
 )
 
 func Encode(secret string, payload *types.JWTClaims) (string, error) {
@@ -67,4 +71,34 @@ func GetUser(c *gin.Context) (int64, string) {
 	jwtUser := val.(*types.JWTClaims)
 	userId, _ := strconv.ParseInt(jwtUser.Subject, 10, 64)
 	return userId, jwtUser.TgSession
+}
+
+func VerifyUser(c *gin.Context, secret string) (*types.JWTClaims, error) {
+	var token string
+	cookie, err := c.Request.Cookie("user-session")
+
+	if err != nil {
+		authHeader := c.GetHeader("Authorization")
+		bearerToken := strings.Split(authHeader, "Bearer ")
+		if len(bearerToken) != 2 {
+			return nil, fmt.Errorf("missing auth token")
+		}
+		token = bearerToken[1]
+	} else {
+		token = cookie.Value
+	}
+
+	now := time.Now().UTC()
+
+	jwePayload, err := Decode(secret, token)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if *jwePayload.Expiry < *jwt.NewNumericDate(now) {
+		return nil, fmt.Errorf("token expired")
+
+	}
+	return jwePayload, nil
 }
