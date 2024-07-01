@@ -60,7 +60,7 @@ func NewDatabase(cfg *config.Config) (*gorm.DB, error) {
 	sqlDb, _ := db.DB()
 	err = migrateDB(sqlDb)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
 
 	return db, nil
