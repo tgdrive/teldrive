@@ -114,7 +114,7 @@ func (r *decrpytedReader) nextPart() (io.ReadCloser, error) {
 				client: r.client, concurrency: r.concurrency}
 
 			if r.concurrency < 2 {
-				return newTGReader(r.ctx, start, end, chunkSrc)
+				return newTGReader(r.ctx, underlyingOffset, end, chunkSrc)
 			}
 			return newTGMultiReader(r.ctx, underlyingOffset, end, r.config, chunkSrc)
 
