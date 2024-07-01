@@ -27,6 +27,7 @@ import (
 	"github.com/gin-contrib/pprof"
 	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
+	"github.com/go-co-op/gocron"
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -53,6 +54,8 @@ func NewRun() *cobra.Command {
 	runCmd.Flags().IntVarP(&config.Server.Port, "server-port", "p", 8080, "Server port")
 	duration.DurationVar(runCmd.Flags(), &config.Server.GracefulShutdown, "server-graceful-shutdown", 15*time.Second, "Server graceful shutdown timeout")
 	runCmd.Flags().BoolVar(&config.Server.EnablePprof, "server-enable-pprof", false, "Enable Pprof Profiling")
+
+	runCmd.Flags().BoolVar(&config.CronJobs.Enable, "cronjobs-enable", true, "Run cron jobs")
 
 	runCmd.Flags().IntVarP(&config.Log.Level, "log-level", "", -1, "Logging level")
 	runCmd.Flags().StringVar(&config.Log.File, "log-file", "", "Logging file path")
@@ -120,8 +123,11 @@ func runApplication(conf *config.Config) {
 		cancel()
 	}()
 
+	scheduler := gocron.NewScheduler(time.UTC)
+
 	app := fx.New(
 		fx.Supply(conf),
+		fx.Supply(scheduler),
 		fx.Supply(logging.DefaultLogger().Desugar()),
 		fx.NopLogger,
 		fx.StopTimeout(conf.Server.GracefulShutdown+time.Second),

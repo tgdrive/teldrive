@@ -41,9 +41,10 @@ type CronService struct {
 	logger *zap.SugaredLogger
 }
 
-func StartCronJobs(db *gorm.DB, cnf *config.Config) {
-	scheduler := gocron.NewScheduler(time.UTC)
-
+func StartCronJobs(scheduler *gocron.Scheduler, db *gorm.DB, cnf *config.Config) {
+	if !cnf.CronJobs.Enable {
+		return
+	}
 	ctx := context.Background()
 
 	cron := CronService{db: db, cnf: cnf, logger: logging.DefaultLogger()}

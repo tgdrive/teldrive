@@ -8,6 +8,9 @@
     max-lifetime = "10m"
     max-open-connections = 25
 
+[cronjobs]
+  enable = true
+
 [jwt]
   allowed-users = [""]
   secret = ""

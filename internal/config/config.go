@@ -5,17 +5,22 @@ import (
 )
 
 type Config struct {
-	Server ServerConfig
-	Log    LoggingConfig
-	JWT    JWTConfig
-	DB     DBConfig
-	TG     TGConfig
+	Server   ServerConfig
+	Log      LoggingConfig
+	JWT      JWTConfig
+	DB       DBConfig
+	TG       TGConfig
+	CronJobs CronJobConfig
 }
 
 type ServerConfig struct {
 	Port             int
 	GracefulShutdown time.Duration
 	EnablePprof      bool
+}
+
+type CronJobConfig struct {
+	Enable bool
 }
 
 type TGConfig struct {
