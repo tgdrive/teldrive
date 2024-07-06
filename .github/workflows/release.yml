@@ -30,10 +30,10 @@ jobs:
         uses: docker/setup-qemu-action@v3
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v5
         with:
           distribution: goreleaser
-          version: "~> v2"
+          version: latest
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

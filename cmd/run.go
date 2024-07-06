@@ -11,6 +11,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/arl/statsviz"
 	"github.com/divyam234/teldrive/api"
 	"github.com/divyam234/teldrive/internal/config"
 	"github.com/divyam234/teldrive/internal/database"
@@ -54,6 +55,7 @@ func NewRun() *cobra.Command {
 	runCmd.Flags().IntVarP(&config.Server.Port, "server-port", "p", 8080, "Server port")
 	duration.DurationVar(runCmd.Flags(), &config.Server.GracefulShutdown, "server-graceful-shutdown", 15*time.Second, "Server graceful shutdown timeout")
 	runCmd.Flags().BoolVar(&config.Server.EnablePprof, "server-enable-pprof", false, "Enable Pprof Profiling")
+	runCmd.Flags().BoolVar(&config.Server.EnableStatsviz, "server-enable-statsviz", false, "Enable Statsviz Monitoring")
 
 	runCmd.Flags().BoolVar(&config.CronJobs.Enable, "cronjobs-enable", true, "Run cron jobs")
 
@@ -228,6 +230,19 @@ func initApp(lc fx.Lifecycle, cfg *config.Config, c *controller.Controller) *gin
 
 	if cfg.Server.EnablePprof {
 		pprof.Register(r)
+	}
+
+	if cfg.Server.EnableStatsviz {
+		srv, _ := statsviz.NewServer()
+		ws := srv.Ws()
+		index := srv.Index()
+		r.GET("/debug/statsviz/*filepath", func(context *gin.Context) {
+			if context.Param("filepath") == "/ws" {
+				ws(context.Writer, context.Request)
+				return
+			}
+			index(context.Writer, context.Request)
+		})
 	}
 
 	r.Use(gin.Recovery())
