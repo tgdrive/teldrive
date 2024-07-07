@@ -38,6 +38,7 @@ type TGConfig struct {
 	SessionFile         string
 	BgBotsLimit         int
 	DisableStreamBots   bool
+	StreamBotsOffset    int
 	BgBotsTimeout       time.Duration
 	BgBotsCheckInterval time.Duration
 	Proxy               string

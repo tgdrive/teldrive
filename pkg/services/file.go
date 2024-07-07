@@ -678,7 +678,7 @@ func (fs *FileService) GetFileStream(c *gin.Context, download bool) {
 
 		limit := min(len(tokens), fs.cnf.TG.BgBotsLimit)
 
-		fs.worker.Set(tokens[:limit], file.ChannelID)
+		fs.worker.Set(tokens[fs.cnf.TG.StreamBotsOffset-1:limit], file.ChannelID)
 		client, _, err = fs.worker.Next(file.ChannelID)
 		if err != nil {
 			logger.Error("file stream", zap.Error(err))
