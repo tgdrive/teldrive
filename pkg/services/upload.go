@@ -249,6 +249,14 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 			return err
 		}
 
+		//verify if the part is uploaded
+		msgs, _ := client.ChannelsGetMessages(ctx,
+			&tg.ChannelsGetMessagesRequest{Channel: channel, ID: []tg.InputMessageClass{&tg.InputMessageID{ID: message.ID}}})
+
+		if msgs != nil && len(msgs.(*tg.MessagesChannelMessages).Messages) == 0 {
+			return errors.New("upload failed")
+		}
+
 		out = mapper.ToUploadOut(partUpload)
 
 		return nil
