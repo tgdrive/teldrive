@@ -51,6 +51,7 @@ type TGConfig struct {
 		Retention     time.Duration
 	}
 	Stream struct {
+		BotsOffset   int
 		MultiThreads int
 		Buffers      int
 		ChunkTimeout time.Duration

@@ -19,7 +19,7 @@ func getParts(ctx context.Context, client *tg.Client, file *schemas.FileOutFull,
 	cache := cache.FromContext(ctx)
 	parts := []types.Part{}
 
-	key := fmt.Sprintf("messages:%s:%s", file.Id, userID)
+	key := fmt.Sprintf("files:messages:%s:%s", file.Id, userID)
 
 	err := cache.Get(key, &parts)
 

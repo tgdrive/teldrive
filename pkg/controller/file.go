@@ -147,9 +147,15 @@ func (fc *Controller) DeleteFiles(c *gin.Context) {
 	c.JSON(http.StatusOK, res)
 }
 
-func (fc *Controller) DeleteFileParts(c *gin.Context) {
+func (fc *Controller) UpdateParts(c *gin.Context) {
 
-	res, err := fc.FileService.DeleteFileParts(c, c.Param("fileID"))
+	var payload schemas.PartUpdate
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		httputil.NewError(c, http.StatusBadRequest, err)
+		return
+	}
+
+	res, err := fc.FileService.UpdateParts(c, c.Param("fileID"), &payload)
 	if err != nil {
 		httputil.NewError(c, err.Code, err.Error)
 		return

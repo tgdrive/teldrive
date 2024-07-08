@@ -30,7 +30,7 @@ func InitRouter(r *gin.Engine, c *controller.Controller, cnf *config.Config) *gi
 			files.GET(":fileID/stream/:fileName", c.GetFileStream)
 			files.HEAD(":fileID/download/:fileName", c.GetFileDownload)
 			files.GET(":fileID/download/:fileName", c.GetFileDownload)
-			files.DELETE(":fileID/parts", authmiddleware, c.DeleteFileParts)
+			files.PUT(":fileID/parts", authmiddleware, c.UpdateParts)
 			files.GET("/category/stats", authmiddleware, c.GetCategoryStats)
 			files.POST("/move", authmiddleware, c.MoveFiles)
 			files.POST("/directories", authmiddleware, c.MakeDirectory)
