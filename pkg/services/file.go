@@ -175,8 +175,11 @@ func (fs *FileService) UpdateFile(id string, userId int64, update *schemas.FileU
 
 	cache.Delete(fmt.Sprintf("files:%s", id))
 
-	for _, part := range files[0].Parts {
-		cache.Delete(fmt.Sprintf("location:%d:%s:%d", userId, id, part.ID))
+	if len(update.Parts) > 0 {
+		cache.Delete(fmt.Sprintf("files:messages:%s:%d", id, userId))
+		for _, part := range files[0].Parts {
+			cache.Delete(fmt.Sprintf("location:%d:%s:%d", userId, id, part.ID))
+		}
 	}
 
 	return mapper.ToFileOut(files[0]), nil
