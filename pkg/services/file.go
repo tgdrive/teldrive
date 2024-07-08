@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -38,6 +39,10 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+var (
+	ErrorStreamAbandoned = errors.New("stream abandoned")
+)
+
 type buffer struct {
 	Buf []byte
 }
@@ -48,6 +53,7 @@ func (b *buffer) long() (int64, error) {
 		return 0, err
 	}
 	return int64(v), nil
+
 }
 func (b *buffer) uint64() (uint64, error) {
 	const size = 8
@@ -160,13 +166,17 @@ func (fs *FileService) UpdateFile(id string, userId int64, update *schemas.FileU
 	}
 	chain = fs.db.Model(&files).Clauses(clause.Returning{}).Where("id = ?", id).Updates(updateDb)
 
-	cache.Delete(fmt.Sprintf("files:%s", id))
-
 	if chain.Error != nil {
 		return nil, &types.AppError{Error: chain.Error}
 	}
 	if chain.RowsAffected == 0 {
 		return nil, &types.AppError{Error: database.ErrNotFound, Code: http.StatusNotFound}
+	}
+
+	cache.Delete(fmt.Sprintf("files:%s", id))
+
+	for _, part := range files[0].Parts {
+		cache.Delete(fmt.Sprintf("location:%d:%s:%d", userId, id, part.ID))
 	}
 
 	return mapper.ToFileOut(files[0]), nil
@@ -667,7 +677,7 @@ func (fs *FileService) GetFileStream(c *gin.Context, download bool) {
 	if fs.cnf.TG.DisableStreamBots || len(tokens) == 0 {
 		client, err = fs.worker.UserWorker(session.Session, session.UserId)
 		if err != nil {
-			logger.Error("file stream", zap.Error(err))
+			logger.Error(ErrorStreamAbandoned, err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -681,7 +691,7 @@ func (fs *FileService) GetFileStream(c *gin.Context, download bool) {
 		fs.worker.Set(tokens[soffset-1:eoffset], file.ChannelID)
 		client, _, err = fs.worker.Next(file.ChannelID)
 		if err != nil {
-			logger.Error("file stream", zap.Error(err))
+			logger.Error(ErrorStreamAbandoned, err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -690,7 +700,7 @@ func (fs *FileService) GetFileStream(c *gin.Context, download bool) {
 	if r.Method != "HEAD" {
 		parts, err := getParts(c, client.Tg.API(), file, channelUser)
 		if err != nil {
-			logger.Error("file stream", err)
+			logger.Error(ErrorStreamAbandoned, err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -705,7 +715,7 @@ func (fs *FileService) GetFileStream(c *gin.Context, download bool) {
 		}
 
 		if err != nil {
-			logger.Error("file stream", err)
+			logger.Error(ErrorStreamAbandoned, err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}

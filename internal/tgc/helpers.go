@@ -221,12 +221,22 @@ func GetLocation(ctx context.Context, client *Client, fileId string, channelId i
 		if err != nil {
 			return nil, err
 		}
+
 		messages, _ := res.(*tg.MessagesChannelMessages)
-		item := messages.Messages[0].(*tg.Message)
-		media := item.Media.(*tg.MessageMediaDocument)
-		document := media.Document.(*tg.Document)
-		location = document.AsInputDocumentFileLocation()
-		cache.Set(key, location, 3600)
+
+		if len(messages.Messages) == 0 {
+			return nil, errors.New("no messages found")
+		}
+
+		switch item := messages.Messages[0].(type) {
+		case *tg.MessageEmpty:
+			return nil, errors.New("no messages found")
+		case *tg.Message:
+			media := item.Media.(*tg.MessageMediaDocument)
+			document := media.Document.(*tg.Document)
+			location = document.AsInputDocumentFileLocation()
+			cache.Set(key, location, 1800)
+		}
 	}
 	return location, nil
 }
