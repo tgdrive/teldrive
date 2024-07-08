@@ -688,10 +688,9 @@ func (fs *FileService) GetFileStream(c *gin.Context, download bool) {
 		multiThreads = 0
 
 	} else {
-
-		soffset := fs.cnf.TG.Stream.BotsOffset - 1
-		eoffset := min(len(tokens), fs.cnf.TG.BgBotsLimit+fs.cnf.TG.Stream.BotsOffset-1)
-		fs.worker.Set(tokens[soffset-1:eoffset], file.ChannelID)
+		offset := fs.cnf.TG.Stream.BotsOffset - 1
+		limit := min(len(tokens), fs.cnf.TG.BgBotsLimit+offset-1)
+		fs.worker.Set(tokens[offset:limit], file.ChannelID)
 		client, _, err = fs.worker.Next(file.ChannelID)
 		if err != nil {
 			logger.Error(ErrorStreamAbandoned, err)
