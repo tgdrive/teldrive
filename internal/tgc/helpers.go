@@ -202,7 +202,7 @@ func GetLocation(ctx context.Context, client *Client, fileId string, channelId i
 
 	cache := cache.FromContext(ctx)
 
-	key := fmt.Sprintf("location:%s:%s:%d", client.UserId, fileId, partId)
+	key := fmt.Sprintf("files:location:%s:%s:%d", client.UserId, fileId, partId)
 
 	err = cache.Get(key, location)
 
