@@ -65,6 +65,7 @@ type FileUpdate struct {
 	Starred   *bool     `json:"starred,omitempty"`
 	ParentID  string    `json:"parentId,omitempty"`
 	UpdatedAt time.Time `json:"updatedAt,omitempty"`
+	CreatedAt time.Time `json:"createdAt,omitempty"`
 	Parts     []Part    `json:"parts,omitempty"`
 	Size      *int64    `json:"size,omitempty"`
 }
@@ -81,6 +82,12 @@ type FileOperation struct {
 type DeleteOperation struct {
 	Files  []string `json:"files,omitempty"`
 	Source string   `json:"source,omitempty"`
+}
+type PartUpdate struct {
+	Parts     []Part    `json:"parts"`
+	UploadId  string    `json:"uploadId"`
+	UpdatedAt time.Time `json:"updatedAt" binding:"required"`
+	Size      int64     `json:"size"`
 }
 
 type DirMove struct {

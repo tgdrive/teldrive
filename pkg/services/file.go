@@ -155,6 +155,7 @@ func (fs *FileService) UpdateFile(id string, userId int64, update *schemas.FileU
 		ParentID:  update.ParentID,
 		UpdatedAt: update.UpdatedAt,
 		Size:      update.Size,
+		CreatedAt: update.CreatedAt,
 	}
 
 	if update.Starred != nil {
@@ -369,32 +370,53 @@ func (fs *FileService) DeleteFiles(userId int64, payload *schemas.DeleteOperatio
 	return &schemas.Message{Message: "files deleted"}, nil
 }
 
-func (fs *FileService) DeleteFileParts(c *gin.Context, id string) (*schemas.Message, *types.AppError) {
+func (fs *FileService) UpdateParts(c *gin.Context, id string, payload *schemas.PartUpdate) (*schemas.Message, *types.AppError) {
+
 	var file models.File
-	if err := fs.db.Where("id = ?", id).First(&file).Error; err != nil {
-		if database.IsRecordNotFoundErr(err) {
-			return nil, &types.AppError{Error: database.ErrNotFound, Code: http.StatusNotFound}
+
+	updatePayload := models.File{
+		UpdatedAt: payload.UpdatedAt,
+		Size:      utils.Int64Pointer(payload.Size),
+	}
+
+	if len(payload.Parts) > 0 {
+		updatePayload.Parts = datatypes.NewJSONSlice(payload.Parts)
+	}
+
+	err := fs.db.Transaction(func(tx *gorm.DB) error {
+
+		if err := tx.Where("id = ?", id).First(&file).Error; err != nil {
+			return err
 		}
-		return nil, &types.AppError{Error: err}
-	}
 
-	_, session := auth.GetUser(c)
+		if err := tx.Model(models.File{}).Where("id = ?", id).Updates(updatePayload).Error; err != nil {
+			return err
+		}
 
-	client, _ := tgc.AuthClient(c, &fs.cnf.TG, session)
+		if payload.UploadId != "" {
+			if err := tx.Where("upload_id = ?", payload.UploadId).Delete(&models.Upload{}).Error; err != nil {
+				return err
+			}
+		}
 
-	ids := []int{}
-
-	for _, part := range file.Parts {
-		ids = append(ids, int(part.ID))
-	}
-
-	err := tgc.DeleteMessages(c, client, *file.ChannelID, ids)
+		return nil
+	})
 
 	if err != nil {
 		return nil, &types.AppError{Error: err}
 	}
 
-	return &schemas.Message{Message: "file parts deleted"}, nil
+	if len(file.Parts) > 0 && file.ChannelID != nil {
+		_, session := auth.GetUser(c)
+		ids := []int{}
+		for _, part := range file.Parts {
+			ids = append(ids, int(part.ID))
+		}
+		client, _ := tgc.AuthClient(c, &fs.cnf.TG, session)
+		tgc.DeleteMessages(c, client, *file.ChannelID, ids)
+	}
+
+	return &schemas.Message{Message: "file updated"}, nil
 }
 
 func (fs *FileService) MoveDirectory(userId int64, payload *schemas.DirMove) (*schemas.Message, *types.AppError) {
