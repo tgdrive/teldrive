@@ -17,6 +17,8 @@ type ServerConfig struct {
 	Port             int
 	GracefulShutdown time.Duration
 	EnablePprof      bool
+	ReadTimeout      time.Duration
+	WriteTimeout     time.Duration
 }
 
 type CronJobConfig struct {

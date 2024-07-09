@@ -23,6 +23,8 @@
 [server]
   graceful-shutdown = "15s"
   port = 8080
+  read-timeout = "1h"
+  write-timeout = "1h"
 
 [tg]
   app-hash = ""
@@ -47,5 +49,5 @@
     threads = 8
   [tg.stream]
     multi-threads = 0
-    buffers = 16
+    buffers = 8
 

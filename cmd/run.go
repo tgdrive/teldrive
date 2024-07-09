@@ -54,6 +54,8 @@ func NewRun() *cobra.Command {
 	runCmd.Flags().IntVarP(&config.Server.Port, "server-port", "p", 8080, "Server port")
 	duration.DurationVar(runCmd.Flags(), &config.Server.GracefulShutdown, "server-graceful-shutdown", 15*time.Second, "Server graceful shutdown timeout")
 	runCmd.Flags().BoolVar(&config.Server.EnablePprof, "server-enable-pprof", false, "Enable Pprof Profiling")
+	duration.DurationVar(runCmd.Flags(), &config.Server.ReadTimeout, "server-read-timeout", 1*time.Hour, "Server read timeout")
+	duration.DurationVar(runCmd.Flags(), &config.Server.WriteTimeout, "server-write-timeout", 1*time.Hour, "Server write timeout")
 
 	runCmd.Flags().BoolVar(&config.CronJobs.Enable, "cronjobs-enable", true, "Run cron jobs")
 
@@ -233,10 +235,15 @@ func initApp(lc fx.Lifecycle, cfg *config.Config, c *controller.Controller) *gin
 
 	r.Use(gin.Recovery())
 
+	skipPathRegexps := []*regexp.Regexp{
+		regexp.MustCompile(`^/assets/.*`),
+		regexp.MustCompile(`^/images/.*`),
+	}
+
 	r.Use(ginzap.GinzapWithConfig(logging.DefaultLogger().Desugar(), &ginzap.Config{
-		TimeFormat: time.RFC3339,
-		UTC:        true,
-		SkipPaths:  []string{"/favicon.ico", "/assets"},
+		TimeFormat:      time.RFC3339,
+		UTC:             true,
+		SkipPathRegexps: skipPathRegexps,
 	}))
 
 	r.Use(middleware.Cors())
@@ -253,8 +260,12 @@ func initApp(lc fx.Lifecycle, cfg *config.Config, c *controller.Controller) *gin
 
 	r = api.InitRouter(r, c, cfg)
 	srv := &http.Server{
-		Addr:    fmt.Sprintf(":%d", cfg.Server.Port),
-		Handler: r,
+		Addr:              fmt.Sprintf(":%d", cfg.Server.Port),
+		Handler:           r,
+		ReadTimeout:       cfg.Server.ReadTimeout,
+		WriteTimeout:      cfg.Server.WriteTimeout,
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
