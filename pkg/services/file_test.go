@@ -21,7 +21,7 @@ type FileServiceSuite struct {
 
 func (s *FileServiceSuite) SetupSuite() {
 	s.db = database.NewTestDatabase(s.T(), false)
-	s.srv = NewFileService(s.db, nil, nil)
+	s.srv = NewFileService(s.db, nil, nil, nil)
 }
 
 func (s *FileServiceSuite) SetupTest() {

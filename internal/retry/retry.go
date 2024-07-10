@@ -20,6 +20,7 @@ var internalErrors = []string{
 	"memory limit exit",
 	"connection dead",
 	"engine was closed",
+	"STORAGE_CHOOSE_VOLUME_FAILED",
 }
 
 type retry struct {

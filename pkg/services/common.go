@@ -104,21 +104,3 @@ func getBotsToken(ctx context.Context, db *gorm.DB, userID, channelId int64) ([]
 	return bots, nil
 
 }
-
-func getSessionByHash(db *gorm.DB, cache *cache.Cache, hash string) (*models.Session, error) {
-	var session models.Session
-
-	key := fmt.Sprintf("sessions:%s", hash)
-
-	err := cache.Get(key, &session)
-
-	if err != nil {
-		if err := db.Model(&models.Session{}).Where("hash = ?", hash).First(&session).Error; err != nil {
-			return nil, err
-		}
-		cache.Set(key, &session, 0)
-	}
-
-	return &session, nil
-
-}

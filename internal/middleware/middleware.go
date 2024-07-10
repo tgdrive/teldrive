@@ -7,7 +7,9 @@ import (
 
 	"github.com/divyam234/cors"
 	"github.com/divyam234/teldrive/internal/auth"
+	"github.com/divyam234/teldrive/internal/cache"
 	"github.com/gin-contrib/secure"
+	"gorm.io/gorm"
 
 	"github.com/gin-gonic/gin"
 )
@@ -38,9 +40,9 @@ func Cors() gin.HandlerFunc {
 	})
 }
 
-func Authmiddleware(secret string) gin.HandlerFunc {
+func Authmiddleware(secret string, db *gorm.DB, cache *cache.Cache) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		user, err := auth.VerifyUser(c, secret)
+		user, err := auth.VerifyUser(c, db, cache, secret)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 			return

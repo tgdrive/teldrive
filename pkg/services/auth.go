@@ -25,7 +25,7 @@ import (
 	"github.com/divyam234/teldrive/pkg/schemas"
 	"github.com/divyam234/teldrive/pkg/types"
 	"github.com/gin-gonic/gin"
-	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/websocket"
 	"github.com/gotd/td/session"
 	tgauth "github.com/gotd/td/telegram/auth"
@@ -36,12 +36,13 @@ import (
 )
 
 type AuthService struct {
-	db  *gorm.DB
-	cnf *config.Config
+	db    *gorm.DB
+	cnf   *config.Config
+	cache *cache.Cache
 }
 
-func NewAuthService(db *gorm.DB, cnf *config.Config) *AuthService {
-	return &AuthService{db: db, cnf: cnf}
+func NewAuthService(db *gorm.DB, cnf *config.Config, cache *cache.Cache) *AuthService {
+	return &AuthService{db: db, cnf: cnf, cache: cache}
 
 }
 
@@ -54,16 +55,16 @@ func (as *AuthService) LogIn(c *gin.Context, session *schemas.TgSession) (*schem
 
 	now := time.Now().UTC()
 
-	jwtClaims := &types.JWTClaims{Claims: jwt.Claims{
-		Subject:  strconv.FormatInt(session.UserID, 10),
-		IssuedAt: jwt.NewNumericDate(now),
-		Expiry:   jwt.NewNumericDate(now.Add(as.cnf.JWT.SessionTime)),
-	}, TgSession: session.Sesssion,
+	jwtClaims := &types.JWTClaims{
 		Name:      session.Name,
 		UserName:  session.UserName,
 		Bot:       session.Bot,
 		IsPremium: session.IsPremium,
-	}
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   strconv.FormatInt(session.UserID, 10),
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(as.cnf.JWT.SessionTime)),
+		}}
 
 	tokenhash := md5.Sum([]byte(session.Sesssion))
 	hexToken := hex.EncodeToString(tokenhash[:])
@@ -144,43 +145,31 @@ func (as *AuthService) LogIn(c *gin.Context, session *schemas.TgSession) (*schem
 
 func (as *AuthService) GetSession(c *gin.Context) *schemas.Session {
 
-	cookie, err := c.Request.Cookie("user-session")
+	claims, err := auth.VerifyUser(c, as.db, as.cache, as.cnf.JWT.Secret)
 
 	if err != nil {
 		return nil
 	}
 
-	jwePayload, err := auth.Decode(as.cnf.JWT.Secret, cookie.Value)
-
-	if err != nil {
-		return nil
-	}
-
-	cache := cache.FromContext(c)
-
-	_, err = getSessionByHash(as.db, cache, jwePayload.Hash)
-
-	if err != nil {
-		return nil
-	}
+	claims.TgSession = ""
 
 	now := time.Now().UTC()
 
 	newExpires := now.Add(as.cnf.JWT.SessionTime)
 
-	userId, _ := strconv.ParseInt(jwePayload.Subject, 10, 64)
+	userId, _ := strconv.ParseInt(claims.Subject, 10, 64)
 
-	session := &schemas.Session{Name: jwePayload.Name,
-		UserName: jwePayload.UserName,
+	session := &schemas.Session{Name: claims.Name,
+		UserName: claims.UserName,
 		UserId:   userId,
-		Hash:     jwePayload.Hash,
+		Hash:     claims.Hash,
 		Expires:  newExpires.Format(time.RFC3339)}
 
-	jwePayload.IssuedAt = jwt.NewNumericDate(now)
+	claims.IssuedAt = jwt.NewNumericDate(now)
 
-	jwePayload.Expiry = jwt.NewNumericDate(newExpires)
+	claims.ExpiresAt = jwt.NewNumericDate(newExpires)
 
-	jweToken, err := auth.Encode(as.cnf.JWT.Secret, jwePayload)
+	jweToken, err := auth.Encode(as.cnf.JWT.Secret, claims)
 
 	if err != nil {
 		return nil

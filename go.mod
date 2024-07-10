@@ -10,7 +10,7 @@ require (
 	github.com/gin-contrib/zap v1.1.3
 	github.com/gin-gonic/gin v1.10.0
 	github.com/go-co-op/gocron v1.37.0
-	github.com/go-jose/go-jose/v3 v3.0.3
+	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/gotd/contrib v0.20.0
 	github.com/gotd/td v0.105.0
 	github.com/iyear/connectproxy v0.1.1

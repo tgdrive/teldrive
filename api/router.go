@@ -1,15 +1,17 @@
 package api
 
 import (
+	"github.com/divyam234/teldrive/internal/cache"
 	"github.com/divyam234/teldrive/internal/config"
 	"github.com/divyam234/teldrive/internal/middleware"
 	"github.com/divyam234/teldrive/pkg/controller"
 	"github.com/divyam234/teldrive/ui"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
-func InitRouter(r *gin.Engine, c *controller.Controller, cnf *config.Config) *gin.Engine {
-	authmiddleware := middleware.Authmiddleware(cnf.JWT.Secret)
+func InitRouter(r *gin.Engine, c *controller.Controller, cnf *config.Config, db *gorm.DB, cache *cache.Cache) *gin.Engine {
+	authmiddleware := middleware.Authmiddleware(cnf.JWT.Secret, db, cache)
 	api := r.Group("/api")
 	{
 		auth := api.Group("/auth")

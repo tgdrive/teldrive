@@ -78,10 +78,11 @@ type FileService struct {
 	db     *gorm.DB
 	cnf    *config.Config
 	worker *tgc.StreamWorker
+	cache  *cache.Cache
 }
 
-func NewFileService(db *gorm.DB, cnf *config.Config, worker *tgc.StreamWorker) *FileService {
-	return &FileService{db: db, cnf: cnf, worker: worker}
+func NewFileService(db *gorm.DB, cnf *config.Config, worker *tgc.StreamWorker, cache *cache.Cache) *FileService {
+	return &FileService{db: db, cnf: cnf, worker: worker, cache: cache}
 }
 
 func (fs *FileService) CreateFile(c *gin.Context, userId int64, fileIn *schemas.FileIn) (*schemas.FileOut, *types.AppError) {
@@ -566,8 +567,6 @@ func (fs *FileService) GetFileStream(c *gin.Context, download bool) {
 
 	authHash := c.Query("hash")
 
-	cache := cache.FromContext(c)
-
 	var (
 		session *models.Session
 		err     error
@@ -576,7 +575,7 @@ func (fs *FileService) GetFileStream(c *gin.Context, download bool) {
 	)
 
 	if authHash == "" {
-		user, err = auth.VerifyUser(c, fs.cnf.JWT.Secret)
+		user, err = auth.VerifyUser(c, fs.db, fs.cache, fs.cnf.JWT.Secret)
 		if err != nil {
 			http.Error(w, "missing session or authash", http.StatusUnauthorized)
 			return
@@ -584,7 +583,7 @@ func (fs *FileService) GetFileStream(c *gin.Context, download bool) {
 		userId, _ := strconv.ParseInt(user.Subject, 10, 64)
 		session = &models.Session{UserId: userId, Session: user.TgSession}
 	} else {
-		session, err = getSessionByHash(fs.db, cache, authHash)
+		session, err = auth.GetSessionByHash(fs.db, fs.cache, authHash)
 		if err != nil {
 			http.Error(w, "invalid hash", http.StatusBadRequest)
 			return
@@ -595,7 +594,7 @@ func (fs *FileService) GetFileStream(c *gin.Context, download bool) {
 
 	key := fmt.Sprintf("files:%s", fileID)
 
-	err = cache.Get(key, file)
+	err = fs.cache.Get(key, file)
 
 	if err != nil {
 		file, appErr = fs.GetFileByID(fileID)
@@ -603,7 +602,7 @@ func (fs *FileService) GetFileStream(c *gin.Context, download bool) {
 			http.Error(w, appErr.Error.Error(), http.StatusBadRequest)
 			return
 		}
-		cache.Set(key, file, 0)
+		fs.cache.Set(key, file, 0)
 	}
 
 	c.Header("Accept-Ranges", "bytes")

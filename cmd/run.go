@@ -12,6 +12,7 @@ import (
 	"unicode"
 
 	"github.com/divyam234/teldrive/api"
+	"github.com/divyam234/teldrive/internal/cache"
 	"github.com/divyam234/teldrive/internal/config"
 	"github.com/divyam234/teldrive/internal/database"
 	"github.com/divyam234/teldrive/internal/duration"
@@ -34,6 +35,7 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/fx"
 	"go.uber.org/zap/zapcore"
+	"gorm.io/gorm"
 )
 
 func NewRun() *cobra.Command {
@@ -134,12 +136,9 @@ func runApplication(conf *config.Config) {
 		fx.Supply(logging.DefaultLogger().Desugar()),
 		fx.NopLogger,
 		fx.StopTimeout(conf.Server.GracefulShutdown+time.Second),
-		fx.Invoke(
-			initApp,
-			cron.StartCronJobs,
-		),
 		fx.Provide(
 			database.NewDatabase,
+			cache.DefaultCache,
 			kv.NewBoltKV,
 			tgc.NewStreamWorker(tgContext),
 			tgc.NewUploadWorker,
@@ -148,6 +147,10 @@ func runApplication(conf *config.Config) {
 			services.NewUploadService,
 			services.NewUserService,
 			controller.NewController,
+		),
+		fx.Invoke(
+			initApp,
+			cron.StartCronJobs,
 		),
 	)
 
@@ -223,7 +226,7 @@ func modifyFlag(s string) string {
 	return string(result)
 }
 
-func initApp(lc fx.Lifecycle, cfg *config.Config, c *controller.Controller) *gin.Engine {
+func initApp(lc fx.Lifecycle, cfg *config.Config, c *controller.Controller, db *gorm.DB, cache *cache.Cache) *gin.Engine {
 
 	gin.SetMode(gin.ReleaseMode)
 
@@ -258,7 +261,7 @@ func initApp(lc fx.Lifecycle, cfg *config.Config, c *controller.Controller) *gin
 		c.Next()
 	})
 
-	r = api.InitRouter(r, c, cfg)
+	r = api.InitRouter(r, c, cfg, db, cache)
 	srv := &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.Server.Port),
 		Handler:           r,
