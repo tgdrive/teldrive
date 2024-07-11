@@ -15,7 +15,7 @@ services:
       db:
         condition: service_healthy
   db:
-    image: postgres:15
+    image: groonga/pgroonga
     container_name: teldrive_db
     restart: always
     environment:

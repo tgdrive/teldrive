@@ -261,7 +261,7 @@ func (fs *FileService) ListFiles(userId int64, fquery *schemas.FileQuery) (*sche
 		}
 
 		if fquery.Query != "" {
-			query.Where("teldrive.get_tsquery(?) @@ teldrive.get_tsvector(name)", fquery.Query)
+			query.Where("name &@~ REGEXP_REPLACE(?, '[.,-_]', ' ', 'g')", fquery.Query)
 		}
 
 		if fquery.Category != "" {
