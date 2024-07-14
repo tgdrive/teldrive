@@ -6,8 +6,6 @@ CREATE EXTENSION IF NOT EXISTS btree_gin;
 
 CREATE SCHEMA IF NOT EXISTS teldrive;
 
-CREATE COLLATION IF NOT EXISTS numeric (PROVIDER = ICU, LOCALE = 'en@colnumeric=yes');
-
 -- +goose StatementBegin
 
 CREATE OR REPLACE

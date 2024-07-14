@@ -68,10 +68,7 @@ CREATE TABLE IF NOT EXISTS teldrive.sessions (
     FOREIGN KEY (user_id) REFERENCES teldrive.users(user_id)
 );
 
-CREATE INDEX IF NOT EXISTS name_numeric_idx ON teldrive.files USING btree (name COLLATE "numeric" NULLS FIRST);
-CREATE INDEX IF NOT EXISTS name_search_idx ON teldrive.files USING gin (teldrive.get_tsvector(name), updated_at);
 CREATE INDEX IF NOT EXISTS parent_idx ON teldrive.files USING btree (parent_id);
-CREATE INDEX IF NOT EXISTS parent_name_numeric_idx ON teldrive.files USING btree (parent_id, name COLLATE "numeric" DESC);
 CREATE INDEX IF NOT EXISTS path_idx ON teldrive.files USING btree (path);
 CREATE INDEX IF NOT EXISTS starred_updated_at_idx ON teldrive.files USING btree (starred, updated_at DESC);
 CREATE INDEX IF NOT EXISTS status_idx ON teldrive.files USING btree (status);
@@ -79,12 +76,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS unique_file ON teldrive.files USING btree (nam
 CREATE INDEX IF NOT EXISTS user_id_idx ON teldrive.files USING btree (user_id);
 
 -- +goose Down
-
-DROP INDEX IF EXISTS name_numeric_idx ;
-DROP INDEX IF EXISTS name_search_idx ;
 DROP INDEX IF EXISTS parent_idx ;
-DROP INDEX IF EXISTS parent_name_numeric_idx ;
-DROP INDEX IF EXISTS path_idx ;
 DROP INDEX IF EXISTS starred_updated_at_idx ;
 DROP INDEX IF EXISTS status_idx ;
 DROP INDEX IF EXISTS unique_file;

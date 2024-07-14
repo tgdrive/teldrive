@@ -10,20 +10,20 @@ type Part struct {
 }
 
 type FileQuery struct {
-	Name          string `form:"name"`
-	Query         string `form:"query"`
-	Type          string `form:"type"`
-	Path          string `form:"path"`
-	Op            string `form:"op"`
-	DeepSearch    bool   `form:"deepSearch"`
-	Starred       *bool  `form:"starred"`
-	ParentID      string `form:"parentId"`
-	Category      string `form:"category"`
-	UpdatedAt     string `form:"updatedAt"`
-	Sort          string `form:"sort"`
-	Order         string `form:"order"`
-	PerPage       int    `form:"perPage"`
-	NextPageToken string `form:"nextPageToken"`
+	Name       string `form:"name"`
+	Query      string `form:"query"`
+	Type       string `form:"type"`
+	Path       string `form:"path"`
+	Op         string `form:"op"`
+	DeepSearch bool   `form:"deepSearch"`
+	Starred    *bool  `form:"starred"`
+	ParentID   string `form:"parentId"`
+	Category   string `form:"category"`
+	UpdatedAt  string `form:"updatedAt"`
+	Sort       string `form:"sort"`
+	Order      string `form:"order"`
+	Limit      int    `form:"limit"`
+	Page       int    `form:"page"`
 }
 
 type FileIn struct {
@@ -50,6 +50,7 @@ type FileOut struct {
 	ParentID   string    `json:"parentId,omitempty"`
 	ParentPath string    `json:"parentPath,omitempty"`
 	UpdatedAt  time.Time `json:"updatedAt,omitempty"`
+	Total      int       `json:"total,omitempty"`
 }
 
 type FileOutFull struct {
@@ -70,9 +71,14 @@ type FileUpdate struct {
 	Size      *int64    `json:"size,omitempty"`
 }
 
+type Meta struct {
+	Count       int `json:"count,omitempty"`
+	TotalPages  int `json:"totalPages,omitempty"`
+	CurrentPage int `json:"currentPage,omitempty"`
+}
 type FileResponse struct {
-	Files         []FileOut `json:"results"`
-	NextPageToken string    `json:"nextPageToken,omitempty"`
+	Files []FileOut `json:"files"`
+	Meta  Meta      `json:"meta"`
 }
 
 type FileOperation struct {

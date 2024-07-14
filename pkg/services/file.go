@@ -3,11 +3,11 @@ package services
 import (
 	"context"
 	"crypto/rand"
-	"encoding/base64"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"mime"
 	"net/http"
 	"strconv"
@@ -202,37 +202,19 @@ func (fs *FileService) GetFileByID(id string) (*schemas.FileOutFull, *types.AppE
 
 func (fs *FileService) ListFiles(userId int64, fquery *schemas.FileQuery) (*schemas.FileResponse, *types.AppError) {
 
-	var parentID string
-
-	if fquery.Path != "" && fquery.ParentID == "" {
-		parent, err := fs.getFileFromPath(fquery.Path, userId)
-		if err != nil {
-			return nil, &types.AppError{Error: err, Code: http.StatusNotFound}
-		}
-		parentID = parent.Id
-	} else if fquery.ParentID != "" {
-		parentID = fquery.ParentID
-	}
-
-	query := fs.db.Limit(fquery.PerPage)
-	setOrderFilter(query, fquery)
+	query := fs.db.Where("user_id = ?", userId).Where("status = ?", "active")
 
 	if fquery.Op == "list" {
-		filter := &models.File{UserID: userId, Status: "active", ParentID: parentID}
-		query.Order("type DESC").Order(getOrder(fquery)).Model(filter).Where(&filter)
-
-	} else if fquery.Op == "find" {
-		if !fquery.DeepSearch && parentID != "" && (fquery.Name != "" || fquery.Query != "") {
-			query.Where("parent_id = ?", parentID)
-			fquery.Path = ""
-		} else if fquery.DeepSearch && parentID != "" && fquery.Query != "" {
-			query = fs.db.Clauses(exclause.With{Recursive: true, CTEs: []exclause.CTE{{Name: "subdirs",
-				Subquery: exclause.Subquery{DB: fs.db.Model(&models.File{Id: parentID}).Select("id", "parent_id").Clauses(exclause.NewUnion("ALL ?",
-					fs.db.Table("teldrive.files as f").Select("f.id", "f.parent_id").
-						Joins("inner join subdirs ON f.parent_id = subdirs.id")))}}}}).Where("files.id in (select id  from subdirs)")
-			fquery.Path = ""
+		if fquery.Path != "" && fquery.ParentID == "" {
+			query.Where("parent_id in (SELECT id FROM teldrive.get_file_from_path(?, ?))", fquery.Path, userId)
 		}
-
+		if fquery.ParentID != "" {
+			query.Where("parent_id = ?", fquery.ParentID)
+		}
+	} else if fquery.Op == "find" {
+		if fquery.DeepSearch && fquery.Query != "" && fquery.Path != "" {
+			query.Where("files.id in (select id  from subdirs)")
+		}
 		if fquery.UpdatedAt != "" {
 			dateFilters := strings.Split(fquery.UpdatedAt, ",")
 			for _, dateFilter := range dateFilters {
@@ -261,7 +243,7 @@ func (fs *FileService) ListFiles(userId int64, fquery *schemas.FileQuery) (*sche
 		}
 
 		if fquery.Query != "" {
-			query.Where("name &@~ REGEXP_REPLACE(?, '[.,-_]', ' ', 'g')", fquery.Query)
+			query = query.Where("name &@~ REGEXP_REPLACE(?, '[.,-_]', ' ', 'g')", fquery.Query)
 		}
 
 		if fquery.Category != "" {
@@ -272,7 +254,6 @@ func (fs *FileService) ListFiles(userId int64, fquery *schemas.FileQuery) (*sche
 			} else {
 				filterQuery = fs.db.Where("category = ?", categories[0])
 			}
-
 			if len(categories) > 1 {
 				for _, category := range categories[1:] {
 					if category == "folder" {
@@ -283,37 +264,85 @@ func (fs *FileService) ListFiles(userId int64, fquery *schemas.FileQuery) (*sche
 				}
 			}
 			query.Where(filterQuery)
-
 		}
 
-		filter := &models.File{UserID: userId, Status: "active"}
-		filter.Name = fquery.Name
-		filter.ParentID = fquery.ParentID
-		filter.Type = fquery.Type
+		if fquery.Name != "" {
+			query.Where("name = ?", fquery.Name)
+		}
+		if fquery.ParentID != "" {
+			query.Where("parent_id = ?", fquery.ParentID)
+		}
+		if fquery.Type != "" {
+			query.Where("type = ?", fquery.Type)
+		}
 		if fquery.Starred != nil {
-			filter.Starred = *fquery.Starred
+			query.Where("starred = ?", *fquery.Starred)
+		}
+	}
+
+	orderField := utils.CamelToSnake(fquery.Sort)
+
+	var op string
+
+	if fquery.Page == 1 {
+		if fquery.Order == "asc" {
+			op = ">="
+		} else {
+			op = "<="
+		}
+	} else {
+		if fquery.Order == "asc" {
+			op = ">"
+		} else {
+			op = "<"
 		}
 
-		query.Order("type DESC").Order(getOrder(fquery)).
-			Model(&filter).Where(&filter)
-
-		query.Limit(fquery.PerPage)
-		setOrderFilter(query, fquery)
 	}
+
+	var fileQuery *gorm.DB
+
+	if fquery.DeepSearch && fquery.Query != "" && fquery.Path != "" {
+		fileQuery = fs.db.Clauses(exclause.With{Recursive: true, CTEs: []exclause.CTE{{Name: "subdirs",
+			Subquery: exclause.Subquery{DB: fs.db.Model(&models.File{}).Select("id", "parent_id").
+				Where("id in (SELECT id FROM teldrive.get_file_from_path(?, ?))", fquery.Path, userId).
+				Clauses(exclause.NewUnion("ALL ?",
+					fs.db.Table("teldrive.files as f").Select("f.id", "f.parent_id").
+						Joins("inner join subdirs ON f.parent_id = subdirs.id")))}}}})
+	}
+
+	if fileQuery == nil {
+		fileQuery = fs.db
+	}
+
+	fileQuery = fileQuery.Clauses(exclause.NewWith("ranked_scores", fs.db.Model(&models.File{}).Select(orderField, "count(*) OVER () as total",
+		fmt.Sprintf("ROW_NUMBER() OVER (ORDER BY %s %s) AS rank", orderField, strings.ToUpper(fquery.Order))).Where(query))).
+		Model(&models.File{}).Select("*", "(select total from ranked_scores limit 1) as total").
+		Where(fmt.Sprintf("%s %s (SELECT %s FROM ranked_scores WHERE rank = ?)", orderField, op, orderField),
+			max((fquery.Page-1)*fquery.Limit, 1)).
+		Where(query).Order(getOrder(fquery)).Limit(fquery.Limit)
 
 	files := []schemas.FileOut{}
 
-	query.Scan(&files)
-
-	token := ""
-
-	if len(files) == fquery.PerPage {
-		lastItem := files[len(files)-1]
-		token = utils.GetField(&lastItem, utils.CamelToPascalCase(fquery.Sort))
-		token = base64.StdEncoding.EncodeToString([]byte(token))
+	if err := fileQuery.Scan(&files).Error; err != nil {
+		if strings.Contains(err.Error(), "file not found") {
+			return nil, &types.AppError{Error: database.ErrNotFound, Code: http.StatusNotFound}
+		}
+		return nil, &types.AppError{Error: err}
 	}
 
-	res := &schemas.FileResponse{Files: files, NextPageToken: token}
+	count := 0
+
+	if len(files) > 0 {
+		count = files[0].Total
+	}
+
+	for i := range files {
+		files[i].Total = 0
+	}
+
+	res := &schemas.FileResponse{Files: files,
+		Meta: schemas.Meta{Count: count, TotalPages: int(math.Ceil(float64(count) / float64(fquery.Limit))),
+			CurrentPage: fquery.Page}}
 
 	return res, nil
 }
@@ -752,21 +781,6 @@ func (fs *FileService) GetFileStream(c *gin.Context, download bool) {
 			lr.Close()
 		}
 	}
-}
-func setOrderFilter(query *gorm.DB, fquery *schemas.FileQuery) *gorm.DB {
-	if fquery.NextPageToken != "" {
-		sortColumn := utils.CamelToSnake(fquery.Sort)
-
-		tokenValue, err := base64.StdEncoding.DecodeString(fquery.NextPageToken)
-		if err == nil {
-			if fquery.Order == "asc" {
-				return query.Where(fmt.Sprintf("%s > ?", sortColumn), string(tokenValue))
-			} else {
-				return query.Where(fmt.Sprintf("%s < ?", sortColumn), string(tokenValue))
-			}
-		}
-	}
-	return query
 }
 
 func getOrder(fquery *schemas.FileQuery) clause.OrderByColumn {
