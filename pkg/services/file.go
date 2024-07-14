@@ -272,6 +272,9 @@ func (fs *FileService) ListFiles(userId int64, fquery *schemas.FileQuery) (*sche
 		if fquery.ParentID != "" {
 			query.Where("parent_id = ?", fquery.ParentID)
 		}
+		if fquery.ParentID == "" && fquery.Path != "" && fquery.Query == "" {
+			query.Where("parent_id in (SELECT id FROM teldrive.get_file_from_path(?, ?))", fquery.Path, userId)
+		}
 		if fquery.Type != "" {
 			query.Where("type = ?", fquery.Type)
 		}
