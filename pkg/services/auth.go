@@ -33,6 +33,7 @@ import (
 	"github.com/gotd/td/tg"
 	"github.com/gotd/td/tgerr"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type AuthService struct {
@@ -83,18 +84,11 @@ func (as *AuthService) LogIn(c *gin.Context, session *schemas.TgSession) (*schem
 		IsPremium: session.IsPremium,
 	}
 
-	var result []models.User
+	err = as.db.Transaction(func(tx *gorm.DB) error {
 
-	if err := as.db.Model(&models.User{}).Where("user_id = ?", session.UserID).
-		Find(&result).Error; err != nil {
-		return nil, &types.AppError{Error: err}
-	}
-	if len(result) == 0 {
-		if err := as.db.Create(&user).Error; err != nil {
-			return nil, &types.AppError{Error: err}
+		if err := as.db.Clauses(clause.OnConflict{DoNothing: true}).Create(&user).Error; err != nil {
+			return err
 		}
-
-		//Create root folder on first login
 		file := &models.File{
 			Name:     "root",
 			Type:     "folder",
@@ -104,9 +98,14 @@ func (as *AuthService) LogIn(c *gin.Context, session *schemas.TgSession) (*schem
 			Status:   "active",
 			ParentID: "root",
 		}
-		if err := as.db.Create(file).Error; err != nil {
-			return nil, &types.AppError{Error: err}
+		if err := as.db.Clauses(clause.OnConflict{DoNothing: true}).Create(file).Error; err != nil {
+			return err
 		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, &types.AppError{Error: err}
 	}
 
 	client, _ := tgc.AuthClient(c, &as.cnf.TG, session.Sesssion)
