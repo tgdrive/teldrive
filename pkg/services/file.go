@@ -206,7 +206,7 @@ func (fs *FileService) ListFiles(userId int64, fquery *schemas.FileQuery) (*sche
 
 	if fquery.Op == "list" {
 		if fquery.Path != "" && fquery.ParentID == "" {
-			query.Where("parent_id in (SELECT id FROM teldrive.get_file_from_path(?, ?))", fquery.Path, userId)
+			query.Where("parent_id in (SELECT id FROM teldrive.get_file_from_path(?, ?, ?))", fquery.Path, userId, true)
 		}
 		if fquery.ParentID != "" {
 			query.Where("parent_id = ?", fquery.ParentID)
@@ -273,7 +273,7 @@ func (fs *FileService) ListFiles(userId int64, fquery *schemas.FileQuery) (*sche
 			query.Where("parent_id = ?", fquery.ParentID)
 		}
 		if fquery.ParentID == "" && fquery.Path != "" && fquery.Query == "" {
-			query.Where("parent_id in (SELECT id FROM teldrive.get_file_from_path(?, ?))", fquery.Path, userId)
+			query.Where("parent_id in (SELECT id FROM teldrive.get_file_from_path(?, ?, ?))", fquery.Path, userId, true)
 		}
 		if fquery.Type != "" {
 			query.Where("type = ?", fquery.Type)
@@ -307,7 +307,7 @@ func (fs *FileService) ListFiles(userId int64, fquery *schemas.FileQuery) (*sche
 	if fquery.DeepSearch && fquery.Query != "" && fquery.Path != "" {
 		fileQuery = fs.db.Clauses(exclause.With{Recursive: true, CTEs: []exclause.CTE{{Name: "subdirs",
 			Subquery: exclause.Subquery{DB: fs.db.Model(&models.File{}).Select("id", "parent_id").
-				Where("id in (SELECT id FROM teldrive.get_file_from_path(?, ?))", fquery.Path, userId).
+				Where("id in (SELECT id FROM teldrive.get_file_from_path(?, ?, ?))", fquery.Path, userId, true).
 				Clauses(exclause.NewUnion("ALL ?",
 					fs.db.Table("teldrive.files as f").Select("f.id", "f.parent_id").
 						Joins("inner join subdirs ON f.parent_id = subdirs.id")))}}}})
@@ -354,7 +354,7 @@ func (fs *FileService) getFileFromPath(path string, userId int64) (*models.File,
 
 	var res []models.File
 
-	if err := fs.db.Raw("select * from teldrive.get_file_from_path(?, ?)", path, userId).
+	if err := fs.db.Raw("select * from teldrive.get_file_from_path(?, ?, ?)", path, userId, true).
 		Scan(&res).Error; err != nil {
 		return nil, err
 
