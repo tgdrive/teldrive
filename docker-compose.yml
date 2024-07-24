@@ -1,7 +1,5 @@
-version: "3.8"
-
 services:
-  server:
+  teldrive:
     image: ghcr.io/divyam234/teldrive
     restart: always
     container_name: teldrive

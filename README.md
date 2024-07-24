@@ -67,10 +67,9 @@ curl -sSL instl.sh/divyam234/teldrive/macos | bash
 ### Deploy using docker-compose
 
 ```yml
-version: "3.8"
-
+#docker-compose.yml
 services:
-  server:
+  teldrive:
     image: ghcr.io/divyam234/teldrive
     restart: always
     container_name: teldrive
@@ -79,39 +78,56 @@ services:
       - ./config.toml:/config.toml
     ports:
       - 8080:8080
-
 ```
-***People Who want to use local Postgres instance***
-```yml
-version: "3.8"
+***People Who want to use local Postgres instance with teldrive.***
+<br>
+<br>
+**Create separate service for postgres and teldrive and add it to docker-compose file.Separate services are needed so that postgres doesn't depends on teldrive and can be used with other services.**
 
+```sh
+docker network create postgres
+```
+
+```yml
+#docker-compose.yml
 services:
-  server:
-    image: ghcr.io/divyam234/teldrive
+  postgres_db:
+    image: ghcr.io/divyam234/postgres
+    container_name: postgres_db
     restart: always
-    container_name: teldrive
-    volumes:
-      - ./session.db:/session.db:rw
-      - ./config.toml:/config.toml
-    ports:
-      - 8080:8080
-    depends_on:
-      db:
-        condition: service_healthy
-  db:
-    image: groonga/pgroonga
-    container_name: teldrive_db
-    restart: always
+    networks:
+     - postgres
     environment:
       - POSTGRES_USER=teldrive
       - POSTGRES_PASSWORD=secret
+      - POSTGRES_DB=postgres
     volumes:
       - ./postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD", "pg_isready", "-U", "teldrive"]
-      interval: 10s
-      start_period: 30s
+networks:
+  postgres:                                 
+    external: true
 ```
+
+```yml
+#docker-compose.yml
+services:
+  teldrive:
+    image: ghcr.io/divyam234/teldrive
+    restart: always
+    container_name: teldrive
+    command: ["--db-data-source=postgres://teldrive:secret@postgres_db/postgres"]
+    networks:
+     - postgres
+    volumes:
+      - ./session.db:/session.db:rw
+      - ./config.toml:/config.toml
+    ports:
+      - 8080:8080
+networks:
+  postgres:                                 
+    external: true
+```
+**These two services must be created in seperate folders.**
 
 **Follow Below Steps**
 
@@ -132,6 +148,7 @@ app-hash = "fwfwfwf"
 tweak your config see more in advanced configurations below***.
 ```sh
 touch session.db
+# Run below command for both teldrive and postgres
 docker compose up -d
 ```
 - **Go to http://localhost:8080**
