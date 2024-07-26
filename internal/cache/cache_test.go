@@ -1,7 +1,6 @@
 package cache
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -10,8 +9,6 @@ import (
 )
 
 func TestCache(t *testing.T) {
-	ctx := context.Background()
-	cache := FromContext(ctx)
 
 	var value = schemas.FileIn{
 		Name: "file.jpeg",
@@ -19,7 +16,9 @@ func TestCache(t *testing.T) {
 	}
 	var result schemas.FileIn
 
-	err := cache.Set("key", value, 1*time.Minute)
+	cache := NewMemoryCache(1 * 1024 * 1024)
+
+	err := cache.Set("key", value, 1*time.Second)
 	assert.NoError(t, err)
 
 	err = cache.Get("key", &result)

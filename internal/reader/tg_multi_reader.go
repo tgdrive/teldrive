@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/divyam234/teldrive/internal/cache"
 	"github.com/divyam234/teldrive/internal/config"
 	"github.com/divyam234/teldrive/internal/tgc"
 	"github.com/gotd/td/tg"
@@ -28,6 +29,7 @@ type chunkSource struct {
 	partId      int64
 	concurrency int
 	client      *tgc.Client
+	cache       cache.Cacher
 }
 
 func (c *chunkSource) ChunkSize(start, end int64) int64 {
@@ -52,7 +54,7 @@ func (c *chunkSource) Chunk(ctx context.Context, offset int64, limit int64) ([]b
 	if c.concurrency > 0 {
 		client, _, _ = c.worker.Next(c.channelId)
 	}
-	location, err = tgc.GetLocation(ctx, client, c.fileId, c.channelId, c.partId)
+	location, err = tgc.GetLocation(ctx, client, c.cache, c.fileId, c.channelId, c.partId)
 
 	if err != nil {
 		return nil, err

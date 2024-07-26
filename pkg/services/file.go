@@ -78,10 +78,10 @@ type FileService struct {
 	db     *gorm.DB
 	cnf    *config.Config
 	worker *tgc.StreamWorker
-	cache  *cache.Cache
+	cache  cache.Cacher
 }
 
-func NewFileService(db *gorm.DB, cnf *config.Config, worker *tgc.StreamWorker, cache *cache.Cache) *FileService {
+func NewFileService(db *gorm.DB, cnf *config.Config, worker *tgc.StreamWorker, cache cache.Cacher) *FileService {
 	return &FileService{db: db, cnf: cnf, worker: worker, cache: cache}
 }
 
@@ -115,7 +115,7 @@ func (fs *FileService) CreateFile(c *gin.Context, userId int64, fileIn *schemas.
 		channelId := fileIn.ChannelID
 		if fileIn.ChannelID == 0 {
 			var err error
-			channelId, err = getDefaultChannel(c, fs.db, userId)
+			channelId, err = getDefaultChannel(fs.db, fs.cache, userId)
 			if err != nil {
 				return nil, &types.AppError{Error: err, Code: http.StatusNotFound}
 			}
@@ -145,7 +145,7 @@ func (fs *FileService) CreateFile(c *gin.Context, userId int64, fileIn *schemas.
 	return res, nil
 }
 
-func (fs *FileService) UpdateFile(id string, userId int64, update *schemas.FileUpdate, cache *cache.Cache) (*schemas.FileOut, *types.AppError) {
+func (fs *FileService) UpdateFile(id string, userId int64, update *schemas.FileUpdate) (*schemas.FileOut, *types.AppError) {
 	var (
 		files []models.File
 		chain *gorm.DB
@@ -175,14 +175,7 @@ func (fs *FileService) UpdateFile(id string, userId int64, update *schemas.FileU
 		return nil, &types.AppError{Error: database.ErrNotFound, Code: http.StatusNotFound}
 	}
 
-	cache.Delete(fmt.Sprintf("files:%s", id))
-
-	if len(update.Parts) > 0 {
-		cache.Delete(fmt.Sprintf("files:messages:%s:%d", id, userId))
-		for _, part := range files[0].Parts {
-			cache.Delete(fmt.Sprintf("files:location:%d:%s:%d", userId, id, part.ID))
-		}
-	}
+	fs.cache.Delete(fmt.Sprintf("files:%s", id))
 
 	return mapper.ToFileOut(files[0]), nil
 
@@ -403,7 +396,7 @@ func (fs *FileService) DeleteFiles(userId int64, payload *schemas.DeleteOperatio
 	return &schemas.Message{Message: "files deleted"}, nil
 }
 
-func (fs *FileService) UpdateParts(c *gin.Context, id string, payload *schemas.PartUpdate) (*schemas.Message, *types.AppError) {
+func (fs *FileService) UpdateParts(c *gin.Context, id string, userId int64, payload *schemas.PartUpdate) (*schemas.Message, *types.AppError) {
 
 	var file models.File
 
@@ -447,6 +440,13 @@ func (fs *FileService) UpdateParts(c *gin.Context, id string, payload *schemas.P
 		}
 		client, _ := tgc.AuthClient(c, &fs.cnf.TG, session)
 		tgc.DeleteMessages(c, client, *file.ChannelID, ids)
+		keys := []string{fmt.Sprintf("files:%s", id), fmt.Sprintf("files:messages:%s:%d", id, userId)}
+		for _, part := range file.Parts {
+			keys = append(keys, fmt.Sprintf("files:location:%d:%s:%d", userId, id, part.ID))
+
+		}
+		fs.cache.Delete(keys...)
+
 	}
 
 	return &schemas.Message{Message: "file updated"}, nil
@@ -497,7 +497,7 @@ func (fs *FileService) CopyFile(c *gin.Context) (*schemas.FileOut, *types.AppErr
 
 	newIds := []schemas.Part{}
 
-	channelId, err := getDefaultChannel(c, fs.db, userId)
+	channelId, err := getDefaultChannel(fs.db, fs.cache, userId)
 	if err != nil {
 		return nil, &types.AppError{Error: err}
 	}
@@ -706,7 +706,7 @@ func (fs *FileService) GetFileStream(c *gin.Context, download bool) {
 
 	c.Header("Content-Disposition", mime.FormatMediaType(disposition, map[string]string{"filename": file.Name}))
 
-	tokens, err := getBotsToken(c, fs.db, session.UserId, file.ChannelID)
+	tokens, err := getBotsToken(fs.db, fs.cache, session.UserId, file.ChannelID)
 
 	logger := logging.FromContext(c)
 	if err != nil {
@@ -753,7 +753,7 @@ func (fs *FileService) GetFileStream(c *gin.Context, download bool) {
 	}
 
 	if r.Method != "HEAD" {
-		parts, err := getParts(c, client.Tg.API(), file, channelUser)
+		parts, err := getParts(c, client.Tg.API(), fs.cache, file, channelUser)
 		if err != nil {
 			logger.Error(ErrorStreamAbandoned, err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -764,9 +764,9 @@ func (fs *FileService) GetFileStream(c *gin.Context, download bool) {
 			multiThreads = 0
 		}
 		if file.Encrypted {
-			lr, err = reader.NewDecryptedReader(c, file.Id, parts, start, end, file.ChannelID, &fs.cnf.TG, multiThreads, client, fs.worker)
+			lr, err = reader.NewDecryptedReader(c, file.Id, parts, start, end, file.ChannelID, &fs.cnf.TG, multiThreads, client, fs.worker, fs.cache)
 		} else {
-			lr, err = reader.NewLinearReader(c, file.Id, parts, start, end, file.ChannelID, &fs.cnf.TG, multiThreads, client, fs.worker)
+			lr, err = reader.NewLinearReader(c, file.Id, parts, start, end, file.ChannelID, &fs.cnf.TG, multiThreads, client, fs.worker, fs.cache)
 		}
 
 		if err != nil {

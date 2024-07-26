@@ -49,11 +49,11 @@ func StartCronJobs(scheduler *gocron.Scheduler, db *gorm.DB, cnf *config.Config)
 
 	cron := CronService{db: db, cnf: cnf, logger: logging.DefaultLogger()}
 
-	scheduler.Every(1).Hour().Do(cron.CleanFiles, ctx)
+	scheduler.Every(cnf.CronJobs.CleanFilesInterval).Do(cron.CleanFiles, ctx)
 
-	scheduler.Every(2).Hour().Do(cron.UpdateFolderSize)
+	scheduler.Every(cnf.CronJobs.FolderSizeInterval).Do(cron.UpdateFolderSize)
 
-	scheduler.Every(12).Hour().Do(cron.CleanUploads, ctx)
+	scheduler.Every(cnf.CronJobs.CleanUploadsInterval).Do(cron.CleanUploads, ctx)
 
 	scheduler.StartAsync()
 }

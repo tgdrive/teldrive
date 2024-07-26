@@ -2,99 +2,106 @@ package cache
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	"github.com/coocood/freecache"
-	"github.com/gin-gonic/gin"
-	"github.com/vmihailenco/msgpack"
+	"github.com/divyam234/teldrive/internal/config"
+	"github.com/redis/go-redis/v9"
+	"github.com/vmihailenco/msgpack/v5"
 )
 
-type Cache struct {
-	cache *freecache.Cache
-	mu    sync.RWMutex
+type Cacher interface {
+	Get(key string, value interface{}) error
+	Set(key string, value interface{}, expiration time.Duration) error
+	Delete(keys ...string) error
 }
 
-func (c *Cache) Get(key string, value interface{}) error {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	result, err := c.cache.Get([]byte(key))
+type MemoryCache struct {
+	cache  *freecache.Cache
+	prefix string
+}
+
+func NewCache(ctx context.Context, conf *config.Config) Cacher {
+	var cacher Cacher
+	switch conf.Cache.Type {
+	case "memory":
+		cacher = NewMemoryCache(conf.Cache.MaxSize)
+	case "redis":
+		cacher = NewRedisCache(ctx, redis.NewClient(&redis.Options{
+			Addr:     conf.Cache.RedisAddr,
+			Password: conf.Cache.RedisPass,
+		}))
+	}
+	return cacher
+}
+
+func NewMemoryCache(size int) *MemoryCache {
+	return &MemoryCache{
+		cache:  freecache.NewCache(size),
+		prefix: "teldrive:",
+	}
+}
+
+func (m *MemoryCache) Get(key string, value interface{}) error {
+	key = m.prefix + key
+	data, err := m.cache.Get([]byte(key))
 	if err != nil {
 		return err
 	}
+	return msgpack.Unmarshal(data, value)
+}
 
-	err = msgpack.Unmarshal(result, value)
-
+func (m *MemoryCache) Set(key string, value interface{}, expiration time.Duration) error {
+	key = m.prefix + key
+	data, err := msgpack.Marshal(value)
 	if err != nil {
 		return err
+	}
+	return m.cache.Set([]byte(key), data, int(expiration.Seconds()))
+}
+
+func (m *MemoryCache) Delete(keys ...string) error {
+	for _, key := range keys {
+		m.cache.Del([]byte(m.prefix + key))
 	}
 	return nil
 }
 
-func (c *Cache) Set(key string, value interface{}, expires time.Duration) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	bytes, err := msgpack.Marshal(value)
+type RedisCache struct {
+	client *redis.Client
+	ctx    context.Context
+	prefix string
+}
+
+func NewRedisCache(ctx context.Context, client *redis.Client) *RedisCache {
+	return &RedisCache{
+		client: client,
+		prefix: "teldrive:",
+		ctx:    ctx,
+	}
+}
+
+func (r *RedisCache) Get(key string, value interface{}) error {
+	key = r.prefix + key
+	data, err := r.client.Get(r.ctx, key).Bytes()
 	if err != nil {
 		return err
 	}
-	return c.cache.Set([]byte(key), bytes, int(expires.Seconds()))
+	return msgpack.Unmarshal(data, value)
 }
 
-func (c *Cache) Delete(key string) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.cache.Del([]byte(key))
-	return nil
-}
-
-var (
-	defaultCache     *Cache
-	defaultCacheOnce sync.Once
-)
-
-type Config struct {
-	Size int
-}
-
-var conf = &Config{
-	Size: 5 * 1024 * 1024,
-}
-
-func SetConfig(c *Config) {
-	conf = &Config{
-		Size: c.Size,
+func (r *RedisCache) Set(key string, value interface{}, expiration time.Duration) error {
+	key = r.prefix + key
+	data, err := msgpack.Marshal(value)
+	if err != nil {
+		return err
 	}
+	return r.client.Set(r.ctx, key, data, expiration).Err()
 }
 
-func DefaultCache() *Cache {
-	defaultCacheOnce.Do(func() {
-		defaultCache = &Cache{cache: freecache.NewCache(conf.Size)}
-	})
-	return defaultCache
-}
-
-type cacheKeyType string
-
-var contextKey = cacheKeyType("cache")
-
-func WithCache(ctx context.Context, cache *Cache) context.Context {
-	if gCtx, ok := ctx.(*gin.Context); ok {
-		ctx = gCtx.Request.Context()
+func (r *RedisCache) Delete(keys ...string) error {
+	for i := range keys {
+		keys[i] = r.prefix + keys[i]
 	}
-	return context.WithValue(ctx, contextKey, cache)
-}
-
-func FromContext(ctx context.Context) *Cache {
-	if ctx == nil {
-		return DefaultCache()
-	}
-	if gCtx, ok := ctx.(*gin.Context); ok && gCtx != nil {
-		ctx = gCtx.Request.Context()
-	}
-	if cache, ok := ctx.Value(contextKey).(*Cache); ok {
-		return cache
-	}
-	return DefaultCache()
+	return r.client.Del(r.ctx, keys...).Err()
 }

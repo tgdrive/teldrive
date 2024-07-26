@@ -81,7 +81,7 @@ func (s *FileServiceSuite) Test_Update() {
 		Name: "file3.jpeg",
 		Type: "file",
 	}
-	r, err := s.srv.UpdateFile(res.Id, 123456, data, nil)
+	r, err := s.srv.UpdateFile(res.Id, 123456, data)
 	s.NoError(err.Error)
 	s.Equal(r.Name, data.Name)
 }

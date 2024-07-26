@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 
+	"github.com/divyam234/teldrive/internal/cache"
 	"github.com/divyam234/teldrive/internal/config"
 	"github.com/divyam234/teldrive/internal/crypt"
 	"github.com/divyam234/teldrive/internal/tgc"
@@ -23,6 +24,7 @@ type decrpytedReader struct {
 	client      *tgc.Client
 	fileId      string
 	concurrency int
+	cache       cache.Cacher
 }
 
 func NewDecryptedReader(
@@ -34,7 +36,8 @@ func NewDecryptedReader(
 	config *config.TGConfig,
 	concurrency int,
 	client *tgc.Client,
-	worker *tgc.StreamWorker) (*decrpytedReader, error) {
+	worker *tgc.StreamWorker,
+	cache cache.Cacher) (*decrpytedReader, error) {
 
 	r := &decrpytedReader{
 		ctx:         ctx,
@@ -47,6 +50,7 @@ func NewDecryptedReader(
 		channelId:   channelId,
 		fileId:      fileId,
 		concurrency: concurrency,
+		cache:       cache,
 	}
 	res, err := r.nextPart()
 
@@ -111,7 +115,7 @@ func (r *decrpytedReader) nextPart() (io.ReadCloser, error) {
 			}
 			chunkSrc := &chunkSource{channelId: r.channelId, worker: r.worker,
 				fileId: r.fileId, partId: r.parts[r.ranges[r.pos].PartNo].ID,
-				client: r.client, concurrency: r.concurrency}
+				client: r.client, concurrency: r.concurrency, cache: r.cache}
 
 			if r.concurrency < 2 {
 				return newTGReader(r.ctx, underlyingOffset, end, chunkSrc)

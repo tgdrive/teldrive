@@ -39,10 +39,10 @@ import (
 type AuthService struct {
 	db    *gorm.DB
 	cnf   *config.Config
-	cache *cache.Cache
+	cache cache.Cacher
 }
 
-func NewAuthService(db *gorm.DB, cnf *config.Config, cache *cache.Cache) *AuthService {
+func NewAuthService(db *gorm.DB, cnf *config.Config, cache cache.Cacher) *AuthService {
 	return &AuthService{db: db, cnf: cnf, cache: cache}
 
 }
@@ -188,8 +188,7 @@ func (as *AuthService) Logout(c *gin.Context) (*schemas.Message, *types.AppError
 	})
 	setSessionCookie(c, "", -1)
 	as.db.Where("session = ?", jwtUser.TgSession).Delete(&models.Session{})
-	cache := cache.FromContext(c)
-	cache.Delete(fmt.Sprintf("sessions:%s", jwtUser.Hash))
+	as.cache.Delete(fmt.Sprintf("sessions:%s", jwtUser.Hash))
 	return &schemas.Message{Message: "logout success"}, nil
 }
 

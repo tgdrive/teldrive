@@ -43,7 +43,7 @@ func GetUser(c *gin.Context) (int64, string) {
 	return userId, jwtUser.TgSession
 }
 
-func VerifyUser(c *gin.Context, db *gorm.DB, cache *cache.Cache, secret string) (*types.JWTClaims, error) {
+func VerifyUser(c *gin.Context, db *gorm.DB, cache cache.Cacher, secret string) (*types.JWTClaims, error) {
 	var token string
 	cookie, err := c.Request.Cookie("user-session")
 
@@ -77,7 +77,7 @@ func VerifyUser(c *gin.Context, db *gorm.DB, cache *cache.Cache, secret string) 
 	return claims, nil
 }
 
-func GetSessionByHash(db *gorm.DB, cache *cache.Cache, hash string) (*models.Session, error) {
+func GetSessionByHash(db *gorm.DB, cache cache.Cacher, hash string) (*models.Session, error) {
 	var session models.Session
 
 	key := fmt.Sprintf("sessions:%s", hash)

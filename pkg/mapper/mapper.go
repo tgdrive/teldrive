@@ -36,7 +36,6 @@ func ToFileOutFull(file models.File) *schemas.FileOutFull {
 		FileOut:   ToFileOut(file),
 		Parts:     file.Parts,
 		ChannelID: channelId,
-		Encrypted: file.Encrypted,
 	}
 }
 

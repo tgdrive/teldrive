@@ -33,14 +33,12 @@ func Cors() gin.HandlerFunc {
 	return cors.New(cors.Config{
 		AllowMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"},
 		AllowHeaders: []string{"Authorization", "Content-Length", "Content-Type"},
-		AllowOriginFunc: func(origin string) bool {
-			return true
-		},
-		MaxAge: 12 * time.Hour,
+		AllowOrigins: []string{"*"},
+		MaxAge:       12 * time.Hour,
 	})
 }
 
-func Authmiddleware(secret string, db *gorm.DB, cache *cache.Cache) gin.HandlerFunc {
+func Authmiddleware(secret string, db *gorm.DB, cache cache.Cacher) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user, err := auth.VerifyUser(c, db, cache, secret)
 		if err != nil {

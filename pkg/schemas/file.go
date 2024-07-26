@@ -57,7 +57,6 @@ type FileOutFull struct {
 	*FileOut
 	Parts     []Part `json:"parts,omitempty"`
 	ChannelID int64  `json:"channelId,omitempty"`
-	Encrypted bool   `json:"encrypted"`
 }
 
 type FileUpdate struct {

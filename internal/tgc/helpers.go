@@ -8,6 +8,7 @@ import (
 	"math"
 	"runtime"
 	"sync"
+	"time"
 
 	"github.com/divyam234/teldrive/internal/cache"
 	"github.com/divyam234/teldrive/internal/config"
@@ -198,9 +199,7 @@ func GetBotInfo(ctx context.Context, KV kv.KV, config *config.TGConfig, token st
 	return &types.BotInfo{Id: user.ID, UserName: user.Username, Token: token}, nil
 }
 
-func GetLocation(ctx context.Context, client *Client, fileId string, channelId int64, partId int64) (location *tg.InputDocumentFileLocation, err error) {
-
-	cache := cache.FromContext(ctx)
+func GetLocation(ctx context.Context, client *Client, cache cache.Cacher, fileId string, channelId int64, partId int64) (location *tg.InputDocumentFileLocation, err error) {
 
 	key := fmt.Sprintf("files:location:%s:%s:%d", client.UserId, fileId, partId)
 
@@ -235,7 +234,7 @@ func GetLocation(ctx context.Context, client *Client, fileId string, channelId i
 			media := item.Media.(*tg.MessageMediaDocument)
 			document := media.Document.(*tg.Document)
 			location = document.AsInputDocumentFileLocation()
-			cache.Set(key, location, 1800)
+			cache.Set(key, location, 30*time.Minute)
 		}
 	}
 	return location, nil

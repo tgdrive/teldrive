@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 
+	"github.com/divyam234/teldrive/internal/cache"
 	"github.com/divyam234/teldrive/internal/config"
 	"github.com/divyam234/teldrive/internal/tgc"
 	"github.com/divyam234/teldrive/pkg/types"
@@ -49,6 +50,7 @@ type linearReader struct {
 	client      *tgc.Client
 	fileId      string
 	concurrency int
+	cache       cache.Cacher
 }
 
 func NewLinearReader(ctx context.Context,
@@ -60,6 +62,7 @@ func NewLinearReader(ctx context.Context,
 	concurrency int,
 	client *tgc.Client,
 	worker *tgc.StreamWorker,
+	cache cache.Cacher,
 ) (reader io.ReadCloser, err error) {
 
 	r := &linearReader{
@@ -73,6 +76,7 @@ func NewLinearReader(ctx context.Context,
 		channelId:   channelId,
 		fileId:      fileId,
 		concurrency: concurrency,
+		cache:       cache,
 	}
 
 	r.reader, err = r.nextPart()
@@ -116,7 +120,7 @@ func (r *linearReader) nextPart() (io.ReadCloser, error) {
 
 	chunkSrc := &chunkSource{channelId: r.channelId, worker: r.worker,
 		fileId: r.fileId, partId: r.parts[r.ranges[r.pos].PartNo].ID,
-		client: r.client, concurrency: r.concurrency}
+		client: r.client, concurrency: r.concurrency, cache: r.cache}
 	if r.concurrency < 2 {
 		return newTGReader(r.ctx, start, end, chunkSrc)
 	}

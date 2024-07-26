@@ -11,6 +11,12 @@ type Config struct {
 	DB       DBConfig
 	TG       TGConfig
 	CronJobs CronJobConfig
+	Cache    struct {
+		Type      string
+		MaxSize   int
+		RedisAddr string
+		RedisPass string
+	}
 }
 
 type ServerConfig struct {
@@ -22,7 +28,10 @@ type ServerConfig struct {
 }
 
 type CronJobConfig struct {
-	Enable bool
+	Enable               bool
+	CleanFilesInterval   time.Duration
+	CleanUploadsInterval time.Duration
+	FolderSizeInterval   time.Duration
 }
 
 type TGConfig struct {

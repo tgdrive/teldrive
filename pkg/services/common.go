@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/divyam234/teldrive/internal/cache"
 	"github.com/divyam234/teldrive/internal/crypt"
@@ -15,8 +16,8 @@ import (
 	"gorm.io/gorm"
 )
 
-func getParts(ctx context.Context, client *tg.Client, file *schemas.FileOutFull, userID string) ([]types.Part, error) {
-	cache := cache.FromContext(ctx)
+func getParts(ctx context.Context, client *tg.Client, cache cache.Cacher, file *schemas.FileOutFull, userID string) ([]types.Part, error) {
+
 	parts := []types.Part{}
 
 	key := fmt.Sprintf("files:messages:%s:%s", file.Id, userID)
@@ -52,12 +53,12 @@ func getParts(ctx context.Context, client *tg.Client, file *schemas.FileOutFull,
 		}
 		parts = append(parts, part)
 	}
-	cache.Set(key, &parts, 3600)
+	cache.Set(key, &parts, 60*time.Minute)
 	return parts, nil
 }
 
-func getDefaultChannel(ctx context.Context, db *gorm.DB, userID int64) (int64, error) {
-	cache := cache.FromContext(ctx)
+func getDefaultChannel(db *gorm.DB, cache cache.Cacher, userID int64) (int64, error) {
+
 	var channelId int64
 	key := fmt.Sprintf("users:channel:%d", userID)
 
@@ -83,8 +84,7 @@ func getDefaultChannel(ctx context.Context, db *gorm.DB, userID int64) (int64, e
 	return channelId, nil
 }
 
-func getBotsToken(ctx context.Context, db *gorm.DB, userID, channelId int64) ([]string, error) {
-	cache := cache.FromContext(ctx)
+func getBotsToken(db *gorm.DB, cache cache.Cacher, userID, channelId int64) ([]string, error) {
 	var bots []string
 
 	key := fmt.Sprintf("users:bots:%d:%d", userID, channelId)

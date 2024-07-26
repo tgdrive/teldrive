@@ -60,6 +60,14 @@ func NewRun() *cobra.Command {
 	duration.DurationVar(runCmd.Flags(), &config.Server.WriteTimeout, "server-write-timeout", 1*time.Hour, "Server write timeout")
 
 	runCmd.Flags().BoolVar(&config.CronJobs.Enable, "cronjobs-enable", true, "Run cron jobs")
+	duration.DurationVar(runCmd.Flags(), &config.CronJobs.CleanFilesInterval, "cronjobs-clean-files-interval", 1*time.Hour, "Clean files interval")
+	duration.DurationVar(runCmd.Flags(), &config.CronJobs.CleanUploadsInterval, "cronjobs-clean-uploads-interval", 12*time.Hour, "Clean uploads interval")
+	duration.DurationVar(runCmd.Flags(), &config.CronJobs.FolderSizeInterval, "cronjobs-folder-size-interval", 2*time.Hour, "Folder size update  interval")
+
+	runCmd.Flags().StringVar(&config.Cache.Type, "cache-type", "memory", "Cache type redis or memory")
+	runCmd.Flags().IntVar(&config.Cache.MaxSize, "cache-max-size", 10*1024*1024, "Max Cache max size (memory)")
+	runCmd.Flags().StringVar(&config.Cache.RedisAddr, "cache-redis-addr", "localhost:6379", "Redis address")
+	runCmd.Flags().StringVar(&config.Cache.RedisPass, "cache-redis-pass", "", "Redis password")
 
 	runCmd.Flags().IntVarP(&config.Log.Level, "log-level", "", -1, "Logging level")
 	runCmd.Flags().StringVar(&config.Log.File, "log-file", "", "Logging file path")
@@ -121,7 +129,7 @@ func runApplication(conf *config.Config) {
 		FilePath:    conf.Log.File,
 	})
 
-	tgContext, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
 
 	defer func() {
 		logging.DefaultLogger().Sync()
@@ -130,17 +138,21 @@ func runApplication(conf *config.Config) {
 
 	scheduler := gocron.NewScheduler(time.UTC)
 
+	cacher := cache.NewCache(ctx, conf)
+
 	app := fx.New(
 		fx.Supply(conf),
 		fx.Supply(scheduler),
+		fx.Provide(func() cache.Cacher {
+			return cacher
+		}),
 		fx.Supply(logging.DefaultLogger().Desugar()),
 		fx.NopLogger,
 		fx.StopTimeout(conf.Server.GracefulShutdown+time.Second),
 		fx.Provide(
 			database.NewDatabase,
-			cache.DefaultCache,
 			kv.NewBoltKV,
-			tgc.NewStreamWorker(tgContext),
+			tgc.NewStreamWorker(ctx),
 			tgc.NewUploadWorker,
 			services.NewAuthService,
 			services.NewFileService,
@@ -226,7 +238,7 @@ func modifyFlag(s string) string {
 	return string(result)
 }
 
-func initApp(lc fx.Lifecycle, cfg *config.Config, c *controller.Controller, db *gorm.DB, cache *cache.Cache) *gin.Engine {
+func initApp(lc fx.Lifecycle, cfg *config.Config, c *controller.Controller, db *gorm.DB, cache cache.Cacher) *gin.Engine {
 
 	gin.SetMode(gin.ReleaseMode)
 

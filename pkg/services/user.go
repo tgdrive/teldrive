@@ -32,13 +32,14 @@ import (
 )
 
 type UserService struct {
-	db  *gorm.DB
-	cnf *config.Config
-	kv  kv.KV
+	db    *gorm.DB
+	cnf   *config.Config
+	kv    kv.KV
+	cache cache.Cacher
 }
 
-func NewUserService(db *gorm.DB, cnf *config.Config, kv kv.KV) *UserService {
-	return &UserService{db: db, cnf: cnf, kv: kv}
+func NewUserService(db *gorm.DB, cnf *config.Config, kv kv.KV, cache cache.Cacher) *UserService {
+	return &UserService{db: db, cnf: cnf, kv: kv, cache: cache}
 }
 func (us *UserService) GetProfilePhoto(c *gin.Context) {
 	_, session := auth.GetUser(c)
@@ -89,9 +90,9 @@ func (us *UserService) GetStats(c *gin.Context) (*schemas.AccountStats, *types.A
 		err       error
 	)
 
-	channelId, _ = getDefaultChannel(c, us.db, userID)
+	channelId, _ = getDefaultChannel(us.db, us.cache, userID)
 
-	tokens, err := getBotsToken(c, us.db, userID, channelId)
+	tokens, err := getBotsToken(us.db, us.cache, userID, channelId)
 
 	if err != nil {
 		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
@@ -100,8 +101,6 @@ func (us *UserService) GetStats(c *gin.Context) (*schemas.AccountStats, *types.A
 }
 
 func (us *UserService) UpdateChannel(c *gin.Context) (*schemas.Message, *types.AppError) {
-
-	cache := cache.FromContext(c)
 
 	userId, _ := auth.GetUser(c)
 
@@ -125,7 +124,7 @@ func (us *UserService) UpdateChannel(c *gin.Context) (*schemas.Message, *types.A
 		Where("user_id = ?", userId).Update("selected", false)
 
 	key := fmt.Sprintf("users:channel:%d", userId)
-	cache.Set(key, payload.ChannelID, 0)
+	us.cache.Set(key, payload.ChannelID, 0)
 	return &schemas.Message{Message: "channel updated"}, nil
 }
 
@@ -258,7 +257,7 @@ func (us *UserService) AddBots(c *gin.Context) (*schemas.Message, *types.AppErro
 		return &schemas.Message{Message: "no bots to add"}, nil
 	}
 
-	channelId, err := getDefaultChannel(c, us.db, userId)
+	channelId, err := getDefaultChannel(us.db, us.cache, userId)
 
 	if err != nil {
 		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
@@ -270,11 +269,9 @@ func (us *UserService) AddBots(c *gin.Context) (*schemas.Message, *types.AppErro
 
 func (us *UserService) RemoveBots(c *gin.Context) (*schemas.Message, *types.AppError) {
 
-	cache := cache.FromContext(c)
-
 	userID, _ := auth.GetUser(c)
 
-	channelId, err := getDefaultChannel(c, us.db, userID)
+	channelId, err := getDefaultChannel(us.db, us.cache, userID)
 
 	if err != nil {
 		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
@@ -285,15 +282,13 @@ func (us *UserService) RemoveBots(c *gin.Context) (*schemas.Message, *types.AppE
 		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}
 	}
 
-	cache.Delete(fmt.Sprintf("users:bots:%d:%d", userID, channelId))
+	us.cache.Delete(fmt.Sprintf("users:bots:%d:%d", userID, channelId))
 
 	return &schemas.Message{Message: "bots deleted"}, nil
 
 }
 
 func (us *UserService) addBots(c context.Context, client *telegram.Client, userId int64, channelId int64, botsTokens []string) (*schemas.Message, *types.AppError) {
-
-	cache := cache.FromContext(c)
 
 	botInfoMap := make(map[string]*types.BotInfo)
 
@@ -379,7 +374,7 @@ func (us *UserService) addBots(c context.Context, client *telegram.Client, userI
 		})
 	}
 
-	cache.Delete(fmt.Sprintf("users:bots:%d:%d", userId, channelId))
+	us.cache.Delete(fmt.Sprintf("users:bots:%d:%d", userId, channelId))
 
 	if err := us.db.Clauses(clause.OnConflict{DoNothing: true}).Create(&payload).Error; err != nil {
 		return nil, &types.AppError{Error: err, Code: http.StatusInternalServerError}

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/divyam234/teldrive/internal/auth"
+	"github.com/divyam234/teldrive/internal/cache"
 	"github.com/divyam234/teldrive/internal/crypt"
 	"github.com/divyam234/teldrive/internal/kv"
 	"github.com/divyam234/teldrive/internal/logging"
@@ -41,10 +42,11 @@ type UploadService struct {
 	worker *tgc.UploadWorker
 	cnf    *config.TGConfig
 	kv     kv.KV
+	cache  cache.Cacher
 }
 
-func NewUploadService(db *gorm.DB, cnf *config.Config, worker *tgc.UploadWorker, kv kv.KV) *UploadService {
-	return &UploadService{db: db, worker: worker, cnf: &cnf.TG, kv: kv}
+func NewUploadService(db *gorm.DB, cnf *config.Config, worker *tgc.UploadWorker, kv kv.KV, cache cache.Cacher) *UploadService {
+	return &UploadService{db: db, worker: worker, cnf: &cnf.TG, kv: kv, cache: cache}
 }
 
 func (us *UploadService) GetUploadFileById(c *gin.Context) (*schemas.UploadOut, *types.AppError) {
@@ -128,7 +130,7 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 	defer fileStream.Close()
 
 	if uploadQuery.ChannelID == 0 {
-		channelId, err = getDefaultChannel(c, us.db, userId)
+		channelId, err = getDefaultChannel(us.db, us.cache, userId)
 		if err != nil {
 			return nil, &types.AppError{Error: err}
 		}
@@ -136,7 +138,7 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 		channelId = uploadQuery.ChannelID
 	}
 
-	tokens, err := getBotsToken(c, us.db, userId, channelId)
+	tokens, err := getBotsToken(us.db, us.cache, userId, channelId)
 
 	if err != nil {
 		return nil, &types.AppError{Error: err}

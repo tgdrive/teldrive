@@ -10,7 +10,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func InitRouter(r *gin.Engine, c *controller.Controller, cnf *config.Config, db *gorm.DB, cache *cache.Cache) *gin.Engine {
+func InitRouter(r *gin.Engine, c *controller.Controller, cnf *config.Config, db *gorm.DB, cache cache.Cacher) *gin.Engine {
 	authmiddleware := middleware.Authmiddleware(cnf.JWT.Secret, db, cache)
 	api := r.Group("/api")
 	{

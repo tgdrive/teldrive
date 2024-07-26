@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/divyam234/teldrive/internal/auth"
-	"github.com/divyam234/teldrive/internal/cache"
 	"github.com/divyam234/teldrive/pkg/httputil"
 	"github.com/divyam234/teldrive/pkg/schemas"
 	"github.com/gin-gonic/gin"
@@ -39,7 +38,7 @@ func (fc *Controller) UpdateFile(c *gin.Context) {
 		httputil.NewError(c, http.StatusBadRequest, err)
 		return
 	}
-	res, err := fc.FileService.UpdateFile(c.Param("fileID"), userId, &fileUpdate, cache.FromContext(c))
+	res, err := fc.FileService.UpdateFile(c.Param("fileID"), userId, &fileUpdate)
 	if err != nil {
 		httputil.NewError(c, err.Code, err.Error)
 		return
@@ -150,13 +149,15 @@ func (fc *Controller) DeleteFiles(c *gin.Context) {
 
 func (fc *Controller) UpdateParts(c *gin.Context) {
 
+	userId, _ := auth.GetUser(c)
+
 	var payload schemas.PartUpdate
 	if err := c.ShouldBindJSON(&payload); err != nil {
 		httputil.NewError(c, http.StatusBadRequest, err)
 		return
 	}
 
-	res, err := fc.FileService.UpdateParts(c, c.Param("fileID"), &payload)
+	res, err := fc.FileService.UpdateParts(c, c.Param("fileID"), userId, &payload)
 	if err != nil {
 		httputil.NewError(c, err.Code, err.Error)
 		return

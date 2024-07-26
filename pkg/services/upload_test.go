@@ -18,7 +18,7 @@ type UploadServiceSuite struct {
 
 func (s *UploadServiceSuite) SetupSuite() {
 	s.db = database.NewTestDatabase(s.T(), false)
-	s.srv = NewUploadService(s.db, nil, nil, nil)
+	s.srv = NewUploadService(s.db, nil, nil, nil, nil)
 }
 
 func (s *UploadServiceSuite) SetupTest() {
