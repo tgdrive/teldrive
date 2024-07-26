@@ -2,6 +2,7 @@ package cache
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/coocood/freecache"
@@ -19,6 +20,7 @@ type Cacher interface {
 type MemoryCache struct {
 	cache  *freecache.Cache
 	prefix string
+	mu     sync.RWMutex
 }
 
 func NewCache(ctx context.Context, conf *config.Config) Cacher {
@@ -43,6 +45,8 @@ func NewMemoryCache(size int) *MemoryCache {
 }
 
 func (m *MemoryCache) Get(key string, value interface{}) error {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	key = m.prefix + key
 	data, err := m.cache.Get([]byte(key))
 	if err != nil {
@@ -52,6 +56,8 @@ func (m *MemoryCache) Get(key string, value interface{}) error {
 }
 
 func (m *MemoryCache) Set(key string, value interface{}, expiration time.Duration) error {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	key = m.prefix + key
 	data, err := msgpack.Marshal(value)
 	if err != nil {
@@ -61,6 +67,8 @@ func (m *MemoryCache) Set(key string, value interface{}, expiration time.Duratio
 }
 
 func (m *MemoryCache) Delete(keys ...string) error {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
 	for _, key := range keys {
 		m.cache.Del([]byte(m.prefix + key))
 	}
@@ -71,6 +79,7 @@ type RedisCache struct {
 	client *redis.Client
 	ctx    context.Context
 	prefix string
+	mu     sync.RWMutex
 }
 
 func NewRedisCache(ctx context.Context, client *redis.Client) *RedisCache {
@@ -82,6 +91,8 @@ func NewRedisCache(ctx context.Context, client *redis.Client) *RedisCache {
 }
 
 func (r *RedisCache) Get(key string, value interface{}) error {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	key = r.prefix + key
 	data, err := r.client.Get(r.ctx, key).Bytes()
 	if err != nil {
@@ -91,6 +102,8 @@ func (r *RedisCache) Get(key string, value interface{}) error {
 }
 
 func (r *RedisCache) Set(key string, value interface{}, expiration time.Duration) error {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	key = r.prefix + key
 	data, err := msgpack.Marshal(value)
 	if err != nil {
@@ -100,6 +113,8 @@ func (r *RedisCache) Set(key string, value interface{}, expiration time.Duration
 }
 
 func (r *RedisCache) Delete(keys ...string) error {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	for i := range keys {
 		keys[i] = r.prefix + keys[i]
 	}
