@@ -47,19 +47,19 @@ Telegram Drive is a powerful utility that enables you to organise your telegram 
 #### Linux
 
 ```bash
-curl -sSL instl.vercel.app/divyam234/teldrive/linux | bash
+curl -sSL https://instl.vercel.app/divyam234/teldrive/linux | bash
 ```
 
 #### Windows
 
 ```powershell
-iwr instl.vercel.app/divyam234/teldrive/windows | iex
+iwr https://instl.vercel.app/divyam234/teldrive/windows | iex
 ```
 
 #### macOS
 
 ```bash
-curl -sSL instl.vercel.app/divyam234/teldrive/macos | bash
+curl -sSL https://instl.vercel.app/divyam234/teldrive/macos | bash
 ```
 
 ### Deploy using docker-compose
