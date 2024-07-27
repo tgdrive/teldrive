@@ -6,7 +6,6 @@ import (
 	"github.com/divyam234/teldrive/internal/database"
 	"github.com/gin-gonic/gin"
 
-	"github.com/divyam234/teldrive/internal/utils"
 	"github.com/divyam234/teldrive/pkg/models"
 	"github.com/divyam234/teldrive/pkg/schemas"
 	"github.com/stretchr/testify/suite"
@@ -30,7 +29,6 @@ func (s *FileServiceSuite) SetupTest() {
 		Name:     "root",
 		Type:     "folder",
 		MimeType: "drive/folder",
-		Depth:    utils.IntPointer(0),
 		UserID:   123456,
 		Status:   "active",
 		ParentID: "root",

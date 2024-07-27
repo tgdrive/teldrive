@@ -20,7 +20,6 @@ import (
 	"github.com/divyam234/teldrive/internal/cache"
 	"github.com/divyam234/teldrive/internal/config"
 	"github.com/divyam234/teldrive/internal/tgc"
-	"github.com/divyam234/teldrive/internal/utils"
 	"github.com/divyam234/teldrive/pkg/models"
 	"github.com/divyam234/teldrive/pkg/schemas"
 	"github.com/divyam234/teldrive/pkg/types"
@@ -93,7 +92,6 @@ func (as *AuthService) LogIn(c *gin.Context, session *schemas.TgSession) (*schem
 			Name:     "root",
 			Type:     "folder",
 			MimeType: "drive/folder",
-			Depth:    utils.IntPointer(0),
 			UserID:   session.UserID,
 			Status:   "active",
 			ParentID: "root",

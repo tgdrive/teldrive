@@ -110,7 +110,6 @@ func (fs *FileService) CreateFile(c *gin.Context, userId int64, fileIn *schemas.
 
 	if fileIn.Type == "folder" {
 		fileDB.MimeType = "drive/folder"
-		fileDB.Depth = utils.IntPointer(*parent.Depth + 1)
 	} else if fileIn.Type == "file" {
 		channelId := fileIn.ChannelID
 		if fileIn.ChannelID == 0 {
