@@ -1,6 +1,7 @@
 package models
 
 import (
+	"database/sql"
 	"time"
 
 	"github.com/divyam234/teldrive/pkg/schemas"
@@ -18,7 +19,7 @@ type File struct {
 	Encrypted bool                              `gorm:"default:false"`
 	UserID    int64                             `gorm:"type:bigint;not null"`
 	Status    string                            `gorm:"type:text"`
-	ParentID  string                            `gorm:"type:uuid;index"`
+	ParentID  sql.NullString                    `gorm:"type:uuid;index"`
 	Parts     datatypes.JSONSlice[schemas.Part] `gorm:"type:jsonb"`
 	ChannelID *int64                            `gorm:"type:bigint"`
 	CreatedAt time.Time                         `gorm:"default:timezone('utc'::text, now())"`

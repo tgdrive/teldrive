@@ -31,7 +31,6 @@ func (s *FileServiceSuite) SetupTest() {
 		MimeType: "drive/folder",
 		UserID:   123456,
 		Status:   "active",
-		ParentID: "root",
 	})
 }
 

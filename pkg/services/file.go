@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -100,9 +101,15 @@ func (fs *FileService) CreateFile(c *gin.Context, userId int64, fileIn *schemas.
 		if err != nil {
 			return nil, &types.AppError{Error: err, Code: http.StatusNotFound}
 		}
-		fileDB.ParentID = parent.Id
+		fileDB.ParentID = sql.NullString{
+			String: parent.Id,
+			Valid:  true,
+		}
 	} else if fileIn.ParentID != "" {
-		fileDB.ParentID = fileIn.ParentID
+		fileDB.ParentID = sql.NullString{
+			String: fileIn.ParentID,
+			Valid:  true,
+		}
 
 	} else {
 		return nil, &types.AppError{Error: fmt.Errorf("parent id or path is required"), Code: http.StatusBadRequest}
@@ -110,6 +117,7 @@ func (fs *FileService) CreateFile(c *gin.Context, userId int64, fileIn *schemas.
 
 	if fileIn.Type == "folder" {
 		fileDB.MimeType = "drive/folder"
+		fileDB.Parts = nil
 	} else if fileIn.Type == "file" {
 		channelId := fileIn.ChannelID
 		if fileIn.ChannelID == 0 {
@@ -151,8 +159,11 @@ func (fs *FileService) UpdateFile(id string, userId int64, update *schemas.FileU
 	)
 
 	updateDb := models.File{
-		Name:      update.Name,
-		ParentID:  update.ParentID,
+		Name: update.Name,
+		ParentID: sql.NullString{
+			String: update.ParentID,
+			Valid:  true,
+		},
 		UpdatedAt: update.UpdatedAt,
 		Size:      update.Size,
 		CreatedAt: update.CreatedAt,
@@ -576,7 +587,10 @@ func (fs *FileService) CopyFile(c *gin.Context) (*schemas.FileOut, *types.AppErr
 	dbFile.UserID = userId
 	dbFile.Starred = false
 	dbFile.Status = "active"
-	dbFile.ParentID = dest.Id
+	dbFile.ParentID = sql.NullString{
+		String: dest.Id,
+		Valid:  true,
+	}
 	dbFile.ChannelID = &channelId
 	dbFile.Encrypted = file.Encrypted
 	dbFile.Category = file.Category
