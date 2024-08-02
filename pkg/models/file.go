@@ -8,7 +8,7 @@ import (
 )
 
 type File struct {
-	Id        string                            `gorm:"type:text;primaryKey;default:generate_uid(16)"`
+	Id        string                            `gorm:"type:uuid;primaryKey;default:uuid7()"`
 	Name      string                            `gorm:"type:text;not null"`
 	Type      string                            `gorm:"type:text;not null"`
 	MimeType  string                            `gorm:"type:text;not null"`
@@ -18,7 +18,7 @@ type File struct {
 	Encrypted bool                              `gorm:"default:false"`
 	UserID    int64                             `gorm:"type:bigint;not null"`
 	Status    string                            `gorm:"type:text"`
-	ParentID  string                            `gorm:"type:text;index"`
+	ParentID  string                            `gorm:"type:uuid;index"`
 	Parts     datatypes.JSONSlice[schemas.Part] `gorm:"type:jsonb"`
 	ChannelID *int64                            `gorm:"type:bigint"`
 	CreatedAt time.Time                         `gorm:"default:timezone('utc'::text, now())"`

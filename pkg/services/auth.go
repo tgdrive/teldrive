@@ -94,7 +94,6 @@ func (as *AuthService) LogIn(c *gin.Context, session *schemas.TgSession) (*schem
 			MimeType: "drive/folder",
 			UserID:   session.UserID,
 			Status:   "active",
-			ParentID: "root",
 		}
 		if err := as.db.Clauses(clause.OnConflict{DoNothing: true}).Create(file).Error; err != nil {
 			return err
