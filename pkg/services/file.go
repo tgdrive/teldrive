@@ -159,14 +159,9 @@ func (fs *FileService) UpdateFile(id string, userId int64, update *schemas.FileU
 	)
 
 	updateDb := models.File{
-		Name: update.Name,
-		ParentID: sql.NullString{
-			String: update.ParentID,
-			Valid:  true,
-		},
+		Name:      update.Name,
 		UpdatedAt: update.UpdatedAt,
 		Size:      update.Size,
-		CreatedAt: update.CreatedAt,
 	}
 
 	if update.Starred != nil {

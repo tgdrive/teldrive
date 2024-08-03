@@ -61,11 +61,8 @@ type FileOutFull struct {
 
 type FileUpdate struct {
 	Name      string    `json:"name,omitempty"`
-	Type      string    `json:"type,omitempty"`
 	Starred   *bool     `json:"starred,omitempty"`
-	ParentID  string    `json:"parentId,omitempty"`
 	UpdatedAt time.Time `json:"updatedAt,omitempty"`
-	CreatedAt time.Time `json:"createdAt,omitempty"`
 	Parts     []Part    `json:"parts,omitempty"`
 	Size      *int64    `json:"size,omitempty"`
 }

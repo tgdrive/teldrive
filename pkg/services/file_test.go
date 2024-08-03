@@ -76,7 +76,6 @@ func (s *FileServiceSuite) Test_Update() {
 	s.NoError(err.Error)
 	data := &schemas.FileUpdate{
 		Name: "file3.jpeg",
-		Type: "file",
 	}
 	r, err := s.srv.UpdateFile(res.Id, 123456, data)
 	s.NoError(err.Error)
