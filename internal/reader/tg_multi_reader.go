@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"sync"
 	"time"
 
 	"github.com/divyam234/teldrive/internal/cache"
@@ -15,7 +14,10 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-var ErrorStreamAbandoned = errors.New("stream abandoned")
+var (
+	ErrStreamAbandoned = errors.New("stream abandoned")
+	ErrChunkTimeout    = errors.New("chunk fetch timed out")
+)
 
 type ChunkSource interface {
 	Chunk(ctx context.Context, offset int64, limit int64) ([]byte, error)
@@ -23,10 +25,10 @@ type ChunkSource interface {
 }
 
 type chunkSource struct {
-	channelId   int64
+	channelID   int64
 	worker      *tgc.StreamWorker
-	fileId      string
-	partId      int64
+	fileID      string
+	partID      int64
 	concurrency int
 	client      *tgc.Client
 	cache       cache.Cacher
@@ -52,9 +54,9 @@ func (c *chunkSource) Chunk(ctx context.Context, offset int64, limit int64) ([]b
 	}()
 
 	if c.concurrency > 0 {
-		client, _, _ = c.worker.Next(c.channelId)
+		client, _, _ = c.worker.Next(c.channelID)
 	}
-	location, err = tgc.GetLocation(ctx, client, c.cache, c.fileId, c.channelId, c.partId)
+	location, err = tgc.GetLocation(ctx, client, c.cache, c.fileID, c.channelID, c.partID)
 
 	if err != nil {
 		return nil, err
@@ -66,22 +68,19 @@ func (c *chunkSource) Chunk(ctx context.Context, offset int64, limit int64) ([]b
 
 type tgMultiReader struct {
 	ctx         context.Context
+	cancel      context.CancelFunc
 	offset      int64
 	limit       int64
 	chunkSize   int64
 	bufferChan  chan *buffer
-	done        chan struct{}
 	cur         *buffer
-	err         chan error
-	mu          sync.Mutex
 	concurrency int
 	leftCut     int64
 	rightCut    int64
 	totalParts  int
 	currentPart int
-	closed      bool
-	timeout     time.Duration
 	chunkSrc    ChunkSource
+	timeout     time.Duration
 }
 
 func newTGMultiReader(
@@ -90,15 +89,15 @@ func newTGMultiReader(
 	end int64,
 	config *config.TGConfig,
 	chunkSrc ChunkSource,
-
 ) (*tgMultiReader, error) {
-
 	chunkSize := chunkSrc.ChunkSize(start, end)
-
 	offset := start - (start % chunkSize)
+
+	ctx, cancel := context.WithCancel(ctx)
 
 	r := &tgMultiReader{
 		ctx:         ctx,
+		cancel:      cancel,
 		limit:       end - start + 1,
 		bufferChan:  make(chan *buffer, config.Stream.Buffers),
 		concurrency: config.Stream.MultiThreads,
@@ -109,8 +108,6 @@ func newTGMultiReader(
 		chunkSize:   chunkSize,
 		chunkSrc:    chunkSrc,
 		timeout:     config.Stream.ChunkTimeout,
-		done:        make(chan struct{}, 1),
-		err:         make(chan error, 1),
 	}
 
 	go r.fillBufferConcurrently()
@@ -118,45 +115,24 @@ func newTGMultiReader(
 }
 
 func (r *tgMultiReader) Close() error {
-	close(r.done)
-	close(r.bufferChan)
-	r.closed = true
-	for b := range r.bufferChan {
-		if b != nil {
-			b = nil
-		}
-	}
-	if r.cur != nil {
-		r.cur = nil
-	}
-	close(r.err)
+	r.cancel()
 	return nil
 }
 
 func (r *tgMultiReader) Read(p []byte) (int, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	if r.limit <= 0 {
 		return 0, io.EOF
 	}
 
-	if r.cur.isEmpty() {
-		if r.cur != nil {
-			r.cur = nil
-		}
+	if r.cur == nil || r.cur.isEmpty() {
 		select {
 		case cur, ok := <-r.bufferChan:
-			if !ok && r.limit > 0 {
-				return 0, ErrorStreamAbandoned
+			if !ok {
+				return 0, ErrStreamAbandoned
 			}
 			r.cur = cur
-
-		case err := <-r.err:
-			return 0, fmt.Errorf("error reading chunk: %w", err)
 		case <-r.ctx.Done():
 			return 0, r.ctx.Err()
-
 		}
 	}
 
@@ -171,91 +147,90 @@ func (r *tgMultiReader) Read(p []byte) (int, error) {
 	return n, nil
 }
 
-func (r *tgMultiReader) fillBufferConcurrently() error {
+func (r *tgMultiReader) fillBufferConcurrently() {
+	defer close(r.bufferChan)
 
-	var mapMu sync.Mutex
-
-	bufferMap := make(map[int]*buffer)
-
-	defer func() {
-
-		for i := range bufferMap {
-			delete(bufferMap, i)
+	for r.currentPart < r.totalParts {
+		if err := r.fillBatch(); err != nil {
+			r.cancel()
+			return
 		}
-	}()
+	}
+}
 
-	cb := func(ctx context.Context, i int) func() error {
-		return func() error {
+func (r *tgMultiReader) fillBatch() error {
+	g, ctx := errgroup.WithContext(r.ctx)
+	g.SetLimit(r.concurrency)
 
-			chunk, err := r.chunkSrc.Chunk(ctx, r.offset+(int64(i)*r.chunkSize), r.chunkSize)
+	buffers := make([]*buffer, r.concurrency)
+
+	for i := 0; i < r.concurrency && r.currentPart+i < r.totalParts; i++ {
+		g.Go(func() error {
+			chunkCtx, cancel := context.WithTimeout(ctx, r.timeout)
+			defer cancel()
+
+			chunk, err := r.fetchChunkWithTimeout(chunkCtx, int64(i))
 			if err != nil {
-				return err
+				if errors.Is(err, context.DeadlineExceeded) {
+					return fmt.Errorf("chunk %d: %w", r.currentPart+i, ErrChunkTimeout)
+				}
+				return fmt.Errorf("chunk %d: %w", r.currentPart+i, err)
 			}
+
 			if r.totalParts == 1 {
 				chunk = chunk[r.leftCut:r.rightCut]
-			} else if r.currentPart+i+1 == 1 {
+			} else if r.currentPart+i == 0 {
 				chunk = chunk[r.leftCut:]
 			} else if r.currentPart+i+1 == r.totalParts {
 				chunk = chunk[:r.rightCut]
 			}
-			buf := &buffer{buf: chunk}
-			mapMu.Lock()
-			bufferMap[i] = buf
-			mapMu.Unlock()
+
+			buffers[i] = &buffer{buf: chunk}
 			return nil
-		}
+		})
 	}
 
-	for {
+	if err := g.Wait(); err != nil {
+		return err
+	}
 
-		g := errgroup.Group{}
-
-		g.SetLimit(r.concurrency)
-
-		for i := range r.concurrency {
-			if r.currentPart+i+1 <= r.totalParts {
-				g.Go(cb(r.ctx, i))
-			}
+	for _, buf := range buffers {
+		if buf == nil {
+			break
 		}
-
-		done := make(chan error, 1)
-
-		go func() {
-			done <- g.Wait()
-		}()
-
 		select {
-		case err := <-done:
-			if err != nil {
-				r.err <- err
-				return nil
-			} else {
-				for i := range r.concurrency {
-					if r.currentPart+i+1 <= r.totalParts {
-						select {
-						case <-r.done:
-							return nil
-						case r.bufferChan <- bufferMap[i]:
-						}
-					}
-				}
-				r.currentPart += r.concurrency
-				r.offset += r.chunkSize * int64(r.concurrency)
-				for i := range bufferMap {
-					delete(bufferMap, i)
-				}
-				if r.currentPart >= r.totalParts {
-					return nil
-				}
-			}
-		case <-time.After(r.timeout):
-			return nil
-		case <-r.done:
-			return nil
+		case r.bufferChan <- buf:
 		case <-r.ctx.Done():
 			return r.ctx.Err()
 		}
+	}
 
+	r.currentPart += r.concurrency
+	r.offset += r.chunkSize * int64(r.concurrency)
+
+	return nil
+}
+
+func (r *tgMultiReader) fetchChunkWithTimeout(ctx context.Context, i int64) ([]byte, error) {
+	chunkChan := make(chan []byte, 1)
+	errChan := make(chan error, 1)
+
+	go func() {
+		chunk, err := r.chunkSrc.Chunk(ctx, r.offset+i*r.chunkSize, r.chunkSize)
+		if err != nil {
+			errChan <- err
+		} else {
+			chunkChan <- chunk
+		}
+	}()
+
+	select {
+	case chunk := <-chunkChan:
+		return chunk, nil
+	case err := <-errChan:
+		return nil, err
+	case <-ctx.Done():
+		return nil, ctx.Err()
 	}
 }
 
@@ -265,13 +240,7 @@ type buffer struct {
 }
 
 func (b *buffer) isEmpty() bool {
-	if b == nil {
-		return true
-	}
-	if len(b.buf)-b.offset <= 0 {
-		return true
-	}
-	return false
+	return b == nil || len(b.buf)-b.offset <= 0
 }
 
 func (b *buffer) buffer() []byte {

@@ -201,7 +201,7 @@ func GetBotInfo(ctx context.Context, KV kv.KV, config *config.TGConfig, token st
 
 func GetLocation(ctx context.Context, client *Client, cache cache.Cacher, fileId string, channelId int64, partId int64) (location *tg.InputDocumentFileLocation, err error) {
 
-	key := fmt.Sprintf("files:location:%s:%s:%d", client.UserId, fileId, partId)
+	key := fmt.Sprintf("files:location:%s:%s:%d", client.UserID, fileId, partId)
 
 	err = cache.Get(key, location)
 

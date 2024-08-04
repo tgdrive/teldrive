@@ -113,10 +113,15 @@ func (r *decrpytedReader) nextPart() (io.ReadCloser, error) {
 			if underlyingLimit >= 0 {
 				end = min(r.parts[r.ranges[r.pos].PartNo].Size-1, underlyingOffset+underlyingLimit-1)
 			}
-			chunkSrc := &chunkSource{channelId: r.channelId, worker: r.worker,
-				fileId: r.fileId, partId: r.parts[r.ranges[r.pos].PartNo].ID,
-				client: r.client, concurrency: r.concurrency, cache: r.cache}
-
+			chunkSrc := &chunkSource{
+				channelID:   r.channelId,
+				worker:      r.worker,
+				fileID:      r.fileId,
+				partID:      r.parts[r.ranges[r.pos].PartNo].ID,
+				client:      r.client,
+				concurrency: r.concurrency,
+				cache:       r.cache,
+			}
 			if r.concurrency < 2 {
 				return newTGReader(r.ctx, underlyingOffset, end, chunkSrc)
 			}

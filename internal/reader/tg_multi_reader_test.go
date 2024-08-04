@@ -92,7 +92,7 @@ func (suite *TestSuite) TestTimeout() {
 	assert.NoError(suite.T(), err)
 	test_data, err := io.ReadAll(reader)
 	assert.Greater(suite.T(), len(test_data), 0)
-	assert.Equal(suite.T(), err, ErrorStreamAbandoned)
+	assert.Equal(suite.T(), err, ErrStreamAbandoned)
 }
 
 func (suite *TestSuite) TestClose() {
