@@ -750,7 +750,7 @@ func (fs *FileService) GetFileStream(c *gin.Context, download bool) {
 		multiThreads = 0
 
 	} else if fs.cnf.TG.DisableBgBots && len(tokens) > 0 {
-		fs.botWorker.Set(tokens, file.ChannelID)
+		fs.botWorker.Set(tokens[0:min(len(tokens), fs.cnf.TG.Stream.BotsLimit)], file.ChannelID)
 		token, _ = fs.botWorker.Next(file.ChannelID)
 		client, err = tgc.BotClient(c, fs.kv, &fs.cnf.TG, token)
 		if err != nil {
@@ -758,7 +758,7 @@ func (fs *FileService) GetFileStream(c *gin.Context, download bool) {
 		}
 		multiThreads = 0
 	} else {
-		fs.worker.Set(tokens[0:fs.cnf.TG.Stream.BotsLimit], file.ChannelID)
+		fs.worker.Set(tokens[0:min(len(tokens), fs.cnf.TG.Stream.BotsLimit)], file.ChannelID)
 		c, err := fs.worker.Next(file.ChannelID)
 		if err != nil {
 			fs.handleError(err, w)
