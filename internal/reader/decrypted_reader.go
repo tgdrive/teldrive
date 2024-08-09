@@ -2,53 +2,55 @@ package reader
 
 import (
 	"context"
+	"fmt"
 	"io"
 
 	"github.com/divyam234/teldrive/internal/cache"
 	"github.com/divyam234/teldrive/internal/config"
 	"github.com/divyam234/teldrive/internal/crypt"
 	"github.com/divyam234/teldrive/internal/tgc"
+	"github.com/divyam234/teldrive/pkg/schemas"
 	"github.com/divyam234/teldrive/pkg/types"
+	"github.com/gotd/td/tg"
 )
 
 type decrpytedReader struct {
 	ctx         context.Context
+	file        *schemas.FileOutFull
 	parts       []types.Part
 	ranges      []types.Range
 	pos         int
 	reader      io.ReadCloser
 	limit       int64
 	config      *config.TGConfig
-	channelId   int64
 	worker      *tgc.StreamWorker
-	client      *tgc.Client
-	fileId      string
+	client      *tg.Client
 	concurrency int
 	cache       cache.Cacher
 }
 
 func NewDecryptedReader(
 	ctx context.Context,
-	fileId string,
+	client *tg.Client,
+	worker *tgc.StreamWorker,
+	cache cache.Cacher,
+	file *schemas.FileOutFull,
 	parts []types.Part,
-	start, end int64,
-	channelId int64,
+	start,
+	end int64,
 	config *config.TGConfig,
 	concurrency int,
-	client *tgc.Client,
-	worker *tgc.StreamWorker,
-	cache cache.Cacher) (*decrpytedReader, error) {
+) (*decrpytedReader, error) {
 
 	r := &decrpytedReader{
 		ctx:         ctx,
 		parts:       parts,
+		file:        file,
 		limit:       end - start + 1,
 		ranges:      calculatePartByteRanges(start, end, parts[0].DecryptedSize),
 		config:      config,
 		client:      client,
 		worker:      worker,
-		channelId:   channelId,
-		fileId:      fileId,
 		concurrency: concurrency,
 		cache:       cache,
 	}
@@ -113,14 +115,16 @@ func (r *decrpytedReader) nextPart() (io.ReadCloser, error) {
 			if underlyingLimit >= 0 {
 				end = min(r.parts[r.ranges[r.pos].PartNo].Size-1, underlyingOffset+underlyingLimit-1)
 			}
+			partID := r.parts[r.ranges[r.pos].PartNo].ID
+
 			chunkSrc := &chunkSource{
-				channelID:   r.channelId,
-				worker:      r.worker,
-				fileID:      r.fileId,
-				partID:      r.parts[r.ranges[r.pos].PartNo].ID,
+				channelID:   r.file.ChannelID,
+				partID:      partID,
 				client:      r.client,
 				concurrency: r.concurrency,
 				cache:       r.cache,
+				key:         fmt.Sprintf("files:location:%s:%d", r.file.Id, partID),
+				worker:      r.worker,
 			}
 			if r.concurrency < 2 {
 				return newTGReader(r.ctx, underlyingOffset, end, chunkSrc)

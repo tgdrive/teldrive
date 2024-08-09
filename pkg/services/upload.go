@@ -39,13 +39,13 @@ const saltLength = 32
 
 type UploadService struct {
 	db     *gorm.DB
-	worker *tgc.UploadWorker
+	worker *tgc.BotWorker
 	cnf    *config.TGConfig
 	kv     kv.KV
 	cache  cache.Cacher
 }
 
-func NewUploadService(db *gorm.DB, cnf *config.Config, worker *tgc.UploadWorker, kv kv.KV, cache cache.Cacher) *UploadService {
+func NewUploadService(db *gorm.DB, cnf *config.Config, worker *tgc.BotWorker, kv kv.KV, cache cache.Cacher) *UploadService {
 	return &UploadService{db: db, worker: worker, cnf: &cnf.TG, kv: kv, cache: cache}
 }
 

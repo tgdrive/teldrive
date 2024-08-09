@@ -2,12 +2,15 @@ package reader
 
 import (
 	"context"
+	"fmt"
 	"io"
 
 	"github.com/divyam234/teldrive/internal/cache"
 	"github.com/divyam234/teldrive/internal/config"
 	"github.com/divyam234/teldrive/internal/tgc"
+	"github.com/divyam234/teldrive/pkg/schemas"
 	"github.com/divyam234/teldrive/pkg/types"
+	"github.com/gotd/td/tg"
 )
 
 func calculatePartByteRanges(startByte, endByte, partSize int64) []types.Range {
@@ -41,34 +44,40 @@ func calculatePartByteRanges(startByte, endByte, partSize int64) []types.Range {
 
 type LinearReader struct {
 	ctx         context.Context
+	file        *schemas.FileOutFull
 	parts       []types.Part
 	ranges      []types.Range
 	pos         int
 	reader      io.ReadCloser
 	limit       int64
 	config      *config.TGConfig
-	channelID   int64
 	worker      *tgc.StreamWorker
-	client      *tgc.Client
-	fileID      string
+	client      *tg.Client
 	concurrency int
 	cache       cache.Cacher
 }
 
-func NewLinearReader(ctx context.Context, fileID string, parts []types.Part, start, end int64,
-	channelID int64, config *config.TGConfig, concurrency int, client *tgc.Client,
-	worker *tgc.StreamWorker, cache cache.Cacher) (io.ReadCloser, error) {
+func NewLinearReader(ctx context.Context,
+	client *tg.Client,
+	worker *tgc.StreamWorker,
+	cache cache.Cacher,
+	file *schemas.FileOutFull,
+	parts []types.Part,
+	start,
+	end int64,
+	config *config.TGConfig,
+	concurrency int,
+) (io.ReadCloser, error) {
 
 	r := &LinearReader{
 		ctx:         ctx,
 		parts:       parts,
+		file:        file,
 		limit:       end - start + 1,
 		ranges:      calculatePartByteRanges(start, end, parts[0].Size),
 		config:      config,
 		client:      client,
 		worker:      worker,
-		channelID:   channelID,
-		fileID:      fileID,
 		concurrency: concurrency,
 		cache:       cache,
 	}
@@ -108,14 +117,16 @@ func (r *LinearReader) nextPart() (io.ReadCloser, error) {
 	start := r.ranges[r.pos].Start
 	end := r.ranges[r.pos].End
 
+	partID := r.parts[r.ranges[r.pos].PartNo].ID
+
 	chunkSrc := &chunkSource{
-		channelID:   r.channelID,
-		worker:      r.worker,
-		fileID:      r.fileID,
-		partID:      r.parts[r.ranges[r.pos].PartNo].ID,
+		channelID:   r.file.ChannelID,
+		partID:      partID,
 		client:      r.client,
 		concurrency: r.concurrency,
 		cache:       r.cache,
+		key:         fmt.Sprintf("files:location:%s:%d", r.file.Id, partID),
+		worker:      r.worker,
 	}
 
 	if r.concurrency < 2 {

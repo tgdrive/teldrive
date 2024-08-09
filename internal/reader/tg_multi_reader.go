@@ -26,12 +26,12 @@ type ChunkSource interface {
 
 type chunkSource struct {
 	channelID   int64
-	worker      *tgc.StreamWorker
-	fileID      string
 	partID      int64
 	concurrency int
-	client      *tgc.Client
+	client      *tg.Client
+	key         string
 	cache       cache.Cacher
+	worker      *tgc.StreamWorker
 }
 
 func (c *chunkSource) ChunkSize(start, end int64) int64 {
@@ -42,27 +42,31 @@ func (c *chunkSource) Chunk(ctx context.Context, offset int64, limit int64) ([]b
 	var (
 		location *tg.InputDocumentFileLocation
 		err      error
-		client   *tgc.Client
+		client   *tg.Client
 	)
+
+	err = c.cache.Get(c.key, location)
 
 	client = c.client
 
-	defer func() {
-		if c.concurrency > 0 && client != nil {
-			defer c.worker.Release(client)
-		}
-	}()
-
 	if c.concurrency > 0 {
-		client, _, _ = c.worker.Next(c.channelID)
+		tc, err := c.worker.Next(c.channelID)
+		if err != nil {
+			return nil, err
+		}
+		client = tc.Tg.API()
+
 	}
-	location, err = tgc.GetLocation(ctx, client, c.cache, c.fileID, c.channelID, c.partID)
 
 	if err != nil {
-		return nil, err
+		location, err = tgc.GetLocation(ctx, client, c.channelID, c.partID)
+		if err != nil {
+			return nil, err
+		}
+		c.cache.Set(c.key, location, 30*time.Minute)
 	}
 
-	return tgc.GetChunk(ctx, client.Tg.API(), location, offset, limit)
+	return tgc.GetChunk(ctx, client, location, offset, limit)
 
 }
 

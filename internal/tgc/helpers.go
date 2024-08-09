@@ -8,9 +8,7 @@ import (
 	"math"
 	"runtime"
 	"sync"
-	"time"
 
-	"github.com/divyam234/teldrive/internal/cache"
 	"github.com/divyam234/teldrive/internal/config"
 	"github.com/divyam234/teldrive/internal/kv"
 	"github.com/divyam234/teldrive/pkg/types"
@@ -199,44 +197,39 @@ func GetBotInfo(ctx context.Context, KV kv.KV, config *config.TGConfig, token st
 	return &types.BotInfo{Id: user.ID, UserName: user.Username, Token: token}, nil
 }
 
-func GetLocation(ctx context.Context, client *Client, cache cache.Cacher, fileId string, channelId int64, partId int64) (location *tg.InputDocumentFileLocation, err error) {
+func GetLocation(ctx context.Context, client *tg.Client, channelId int64, partId int64) (location *tg.InputDocumentFileLocation, err error) {
 
-	key := fmt.Sprintf("files:location:%s:%s:%d", client.UserID, fileId, partId)
-
-	err = cache.Get(key, location)
+	channel, err := GetChannelById(ctx, client, channelId)
 
 	if err != nil {
-		channel, err := GetChannelById(ctx, client.Tg.API(), channelId)
-
-		if err != nil {
-			return nil, err
-		}
-		messageRequest := tg.ChannelsGetMessagesRequest{
-			Channel: channel,
-			ID:      []tg.InputMessageClass{&tg.InputMessageID{ID: int(partId)}},
-		}
-
-		res, err := client.Tg.API().ChannelsGetMessages(ctx, &messageRequest)
-		if err != nil {
-			return nil, err
-		}
-
-		messages, _ := res.(*tg.MessagesChannelMessages)
-
-		if len(messages.Messages) == 0 {
-			return nil, errors.New("no messages found")
-		}
-
-		switch item := messages.Messages[0].(type) {
-		case *tg.MessageEmpty:
-			return nil, errors.New("no messages found")
-		case *tg.Message:
-			media := item.Media.(*tg.MessageMediaDocument)
-			document := media.Document.(*tg.Document)
-			location = document.AsInputDocumentFileLocation()
-			cache.Set(key, location, 30*time.Minute)
-		}
+		return nil, err
 	}
+	messageRequest := tg.ChannelsGetMessagesRequest{
+		Channel: channel,
+		ID:      []tg.InputMessageClass{&tg.InputMessageID{ID: int(partId)}},
+	}
+
+	res, err := client.ChannelsGetMessages(ctx, &messageRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	messages, _ := res.(*tg.MessagesChannelMessages)
+
+	if len(messages.Messages) == 0 {
+		return nil, errors.New("no messages found")
+	}
+
+	switch item := messages.Messages[0].(type) {
+	case *tg.MessageEmpty:
+		return nil, errors.New("no messages found")
+	case *tg.Message:
+		media := item.Media.(*tg.MessageMediaDocument)
+		document := media.Document.(*tg.Document)
+		location = document.AsInputDocumentFileLocation()
+
+	}
+
 	return location, nil
 }
 

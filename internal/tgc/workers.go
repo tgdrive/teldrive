@@ -2,39 +2,37 @@ package tgc
 
 import (
 	"context"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/divyam234/teldrive/internal/config"
 	"github.com/divyam234/teldrive/internal/kv"
-	"github.com/divyam234/teldrive/internal/logging"
 	"github.com/gotd/td/telegram"
 	"go.uber.org/zap"
 )
 
-type UploadWorker struct {
+type BotWorker struct {
 	mu      sync.RWMutex
 	bots    map[int64][]string
 	currIdx map[int64]int
 }
 
-func NewUploadWorker() *UploadWorker {
-	return &UploadWorker{
+func NewBotWorker() *BotWorker {
+	return &BotWorker{
 		bots:    make(map[int64][]string),
 		currIdx: make(map[int64]int),
 	}
 }
 
-func (w *UploadWorker) Set(bots []string, channelID int64) {
+func (w *BotWorker) Set(bots []string, channelID int64) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	w.bots[channelID] = bots
 	w.currIdx[channelID] = 0
 }
 
-func (w *UploadWorker) Next(channelID int64) (string, int) {
+func (w *BotWorker) Next(channelID int64) (string, int) {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 	bots := w.bots[channelID]
@@ -43,40 +41,48 @@ func (w *UploadWorker) Next(channelID int64) (string, int) {
 	return bots[index], index
 }
 
+type ClientStatus int
+
+const (
+	StatusIdle ClientStatus = iota
+	StatusBusy
+)
+
 type Client struct {
-	Tg          *telegram.Client
-	Stop        StopFunc
-	Status      string
-	UserID      string
-	LastUsed    time.Time
-	Connections int
+	Tg     *telegram.Client
+	Stop   StopFunc
+	Status ClientStatus
+	UserID string
 }
 
 type StreamWorker struct {
-	mu          sync.RWMutex
-	clients     map[string]*Client
-	currIdx     map[int64]int
-	channelBots map[int64][]string
-	cnf         *config.TGConfig
-	kv          kv.KV
-	ctx         context.Context
-	logger      *zap.SugaredLogger
+	mu            sync.RWMutex
+	clients       map[string]*Client
+	currIdx       map[int64]int
+	channelBots   map[int64][]string
+	cnf           *config.TGConfig
+	kv            kv.KV
+	ctx           context.Context
+	logger        *zap.SugaredLogger
+	activeStreams int
+	cancel        context.CancelFunc
 }
 
-func NewStreamWorker(ctx context.Context) func(cnf *config.Config, kv kv.KV) *StreamWorker {
-	return func(cnf *config.Config, kv kv.KV) *StreamWorker {
-		worker := &StreamWorker{
-			cnf:         &cnf.TG,
-			kv:          kv,
-			ctx:         ctx,
-			clients:     make(map[string]*Client),
-			currIdx:     make(map[int64]int),
-			channelBots: make(map[int64][]string),
-			logger:      logging.FromContext(ctx),
-		}
-		go worker.startIdleClientMonitor()
-		return worker
+func NewStreamWorker(cnf *config.Config, kv kv.KV, logger *zap.SugaredLogger) *StreamWorker {
+	ctx, cancel := context.WithCancel(context.Background())
+	worker := &StreamWorker{
+		cnf:         &cnf.TG,
+		kv:          kv,
+		ctx:         ctx,
+		clients:     make(map[string]*Client),
+		currIdx:     make(map[int64]int),
+		channelBots: make(map[int64][]string),
+		logger:      logger,
+		cancel:      cancel,
 	}
+	go worker.startIdleClientMonitor()
+	return worker
+
 }
 
 func (w *StreamWorker) Set(bots []string, channelID int64) {
@@ -86,7 +92,7 @@ func (w *StreamWorker) Set(bots []string, channelID int64) {
 	w.currIdx[channelID] = 0
 }
 
-func (w *StreamWorker) Next(channelID int64) (*Client, int, error) {
+func (w *StreamWorker) Next(channelID int64) (*Client, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
@@ -97,72 +103,48 @@ func (w *StreamWorker) Next(channelID int64) (*Client, int, error) {
 
 	client, err := w.getOrCreateClient(userID, token)
 	if err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 
 	w.currIdx[channelID] = (index + 1) % len(bots)
-	client.LastUsed = time.Now()
-	client.Connections++
-	if client.Connections == 1 {
-		client.Status = "serving"
-	}
 
-	return client, index, nil
+	return client, nil
+}
+
+func (w *StreamWorker) IncActiveStream() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	w.activeStreams++
+	return nil
+}
+
+func (w *StreamWorker) DecActiveStreams() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	if w.activeStreams == 0 {
+		return nil
+	}
+	w.activeStreams--
+	return nil
 }
 
 func (w *StreamWorker) getOrCreateClient(userID, token string) (*Client, error) {
 	client, ok := w.clients[userID]
-	if !ok || (client.Status == "idle" && client.Stop == nil) {
+	if !ok || (client.Status == StatusIdle && client.Stop == nil) {
 		middlewares := Middlewares(w.cnf, 5)
 		tgClient, _ := BotClient(w.ctx, w.kv, w.cnf, token, middlewares...)
-		client = &Client{Tg: tgClient, Status: "idle", UserID: userID}
+		client = &Client{Tg: tgClient, Status: StatusIdle, UserID: userID}
 		w.clients[userID] = client
-
 		stop, err := Connect(client.Tg, WithBotToken(token))
 		if err != nil {
 			return nil, err
 		}
 		client.Stop = stop
-		w.logger.Debug("started bg client: ", client.UserID)
+		client.Status = StatusBusy
+		w.logger.Debug("started bg client: ", userID)
 	}
-	return client, nil
-}
-
-func (w *StreamWorker) Release(client *Client) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	client.Connections--
-	if client.Connections == 0 {
-		client.Status = "running"
-	}
-}
-
-func (w *StreamWorker) UserWorker(session string, userID int64) (*Client, error) {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-
-	id := strconv.FormatInt(userID, 10)
-	client, ok := w.clients[id]
-	if !ok || (client.Status == "idle" && client.Stop == nil) {
-		middlewares := Middlewares(w.cnf, 5)
-		tgClient, _ := AuthClient(w.ctx, w.cnf, session, middlewares...)
-		client = &Client{Tg: tgClient, Status: "idle", UserID: id}
-		w.clients[id] = client
-
-		stop, err := Connect(client.Tg, WithContext(w.ctx))
-		if err != nil {
-			return nil, err
-		}
-		client.Stop = stop
-		w.logger.Debug("started bg client: ", client.UserID)
-	}
-
-	client.LastUsed = time.Now()
-	client.Connections++
-	if client.Connections == 1 {
-		client.Status = "serving"
-	}
-
 	return client, nil
 }
 
@@ -183,15 +165,16 @@ func (w *StreamWorker) startIdleClientMonitor() {
 func (w *StreamWorker) checkIdleClients() {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-
-	for _, client := range w.clients {
-		if client.Status == "running" && time.Since(client.LastUsed) > w.cnf.BgBotsTimeout {
-			if client.Stop != nil {
+	if w.activeStreams == 0 {
+		for _, client := range w.clients {
+			if client.Status == StatusBusy && client.Stop != nil {
 				client.Stop()
 				client.Stop = nil
-				client.Status = "idle"
+				client.Tg = nil
+				client.Status = StatusIdle
 				w.logger.Debug("stopped bg client: ", client.UserID)
 			}
 		}
 	}
+
 }

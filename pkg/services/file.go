@@ -22,7 +22,7 @@ import (
 	"github.com/divyam234/teldrive/internal/config"
 	"github.com/divyam234/teldrive/internal/database"
 	"github.com/divyam234/teldrive/internal/http_range"
-	"github.com/divyam234/teldrive/internal/logging"
+	"github.com/divyam234/teldrive/internal/kv"
 	"github.com/divyam234/teldrive/internal/md5"
 	"github.com/divyam234/teldrive/internal/reader"
 	"github.com/divyam234/teldrive/internal/tgc"
@@ -32,6 +32,7 @@ import (
 	"github.com/divyam234/teldrive/pkg/schemas"
 	"github.com/divyam234/teldrive/pkg/types"
 	"github.com/gin-gonic/gin"
+	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/tg"
 	"go.uber.org/zap"
 
@@ -76,14 +77,24 @@ func randInt64() (int64, error) {
 }
 
 type FileService struct {
-	db     *gorm.DB
-	cnf    *config.Config
-	worker *tgc.StreamWorker
-	cache  cache.Cacher
+	db        *gorm.DB
+	cnf       *config.Config
+	worker    *tgc.StreamWorker
+	botWorker *tgc.BotWorker
+	cache     cache.Cacher
+	kv        kv.KV
+	logger    *zap.SugaredLogger
 }
 
-func NewFileService(db *gorm.DB, cnf *config.Config, worker *tgc.StreamWorker, cache cache.Cacher) *FileService {
-	return &FileService{db: db, cnf: cnf, worker: worker, cache: cache}
+func NewFileService(
+	db *gorm.DB,
+	cnf *config.Config,
+	worker *tgc.StreamWorker,
+	botWorker *tgc.BotWorker,
+	kv kv.KV,
+	cache cache.Cacher,
+	logger *zap.SugaredLogger) *FileService {
+	return &FileService{db: db, cnf: cnf, worker: worker, botWorker: botWorker, cache: cache, kv: kv, logger: logger}
 }
 
 func (fs *FileService) CreateFile(c *gin.Context, userId int64, fileIn *schemas.FileIn) (*schemas.FileOut, *types.AppError) {
@@ -716,82 +727,94 @@ func (fs *FileService) GetFileStream(c *gin.Context, download bool) {
 
 	tokens, err := getBotsToken(fs.db, fs.cache, session.UserId, file.ChannelID)
 
-	logger := logging.FromContext(c)
 	if err != nil {
-		logger.Error("failed to get bots", zap.Error(err))
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		fs.handleError(fmt.Errorf("failed to get bots: %w", err), w)
 		return
 	}
 
 	var (
-		channelUser  string
 		lr           io.ReadCloser
-		client       *tgc.Client
+		client       *telegram.Client
 		multiThreads int
+		token        string
 	)
 
 	multiThreads = fs.cnf.TG.Stream.MultiThreads
 
-	defer func() {
-		if client != nil {
-			fs.worker.Release(client)
-		}
-	}()
-
 	if fs.cnf.TG.DisableStreamBots || len(tokens) == 0 {
-		client, err = fs.worker.UserWorker(session.Session, session.UserId)
+		client, err = tgc.AuthClient(c, &fs.cnf.TG, session.Session)
 		if err != nil {
-			logger.Error(ErrorStreamAbandoned, err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			fs.handleError(err, w)
 			return
 		}
-		channelUser = strconv.FormatInt(session.UserId, 10)
 		multiThreads = 0
 
-	} else {
-		offset := fs.cnf.TG.Stream.BotsOffset - 1
-		limit := min(len(tokens), fs.cnf.TG.BgBotsLimit+offset)
-		fs.worker.Set(tokens[offset:limit], file.ChannelID)
-		client, _, err = fs.worker.Next(file.ChannelID)
+	} else if fs.cnf.TG.DisableBgBots && len(tokens) > 0 {
+		fs.botWorker.Set(tokens, file.ChannelID)
+		token, _ = fs.botWorker.Next(file.ChannelID)
+		client, err = tgc.BotClient(c, fs.kv, &fs.cnf.TG, token)
 		if err != nil {
-			logger.Error(ErrorStreamAbandoned, err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			fs.handleError(err, w)
+		}
+		multiThreads = 0
+	} else {
+		fs.worker.Set(tokens[0:fs.cnf.TG.Stream.BotsLimit], file.ChannelID)
+		c, err := fs.worker.Next(file.ChannelID)
+		if err != nil {
+			fs.handleError(err, w)
 			return
 		}
+		client = c.Tg
+	}
+
+	if download {
+		multiThreads = 0
 	}
 
 	if r.Method != "HEAD" {
-		parts, err := getParts(c, client.Tg.API(), fs.cache, file, channelUser)
-		if err != nil {
-			logger.Error(ErrorStreamAbandoned, err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+		handleStream := func() error {
+			parts, err := getParts(c, client, fs.cache, file)
+			if err != nil {
+				fs.handleError(err, w)
+				return nil
+			}
+			if file.Encrypted {
+				lr, err = reader.NewDecryptedReader(c, client.API(), fs.worker, fs.cache, file, parts, start, end, &fs.cnf.TG, multiThreads)
+			} else {
+				lr, err = reader.NewLinearReader(c, client.API(), fs.worker, fs.cache, file, parts, start, end, &fs.cnf.TG, multiThreads)
+			}
 
-		if download {
-			multiThreads = 0
+			if err != nil {
+				fs.handleError(err, w)
+				return nil
+			}
+			if lr == nil {
+				fs.handleError(fmt.Errorf("failed to initialise reader"), w)
+				return nil
+			}
+			_, err = io.CopyN(w, lr, contentLength)
+			if err != nil {
+				lr.Close()
+			}
+			return nil
 		}
-		if file.Encrypted {
-			lr, err = reader.NewDecryptedReader(c, file.Id, parts, start, end, file.ChannelID, &fs.cnf.TG, multiThreads, client, fs.worker, fs.cache)
+		if fs.cnf.TG.DisableBgBots {
+			tgc.RunWithAuth(c, client, token, func(ctx context.Context) error {
+				return handleStream()
+			})
 		} else {
-			lr, err = reader.NewLinearReader(c, file.Id, parts, start, end, file.ChannelID, &fs.cnf.TG, multiThreads, client, fs.worker, fs.cache)
+			fs.worker.IncActiveStream()
+			defer fs.worker.DecActiveStreams()
+			handleStream()
 		}
 
-		if err != nil {
-			logger.Error(ErrorStreamAbandoned, err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		if lr == nil {
-			http.Error(w, "failed to initialise reader", http.StatusInternalServerError)
-			return
-		}
-
-		_, err = io.CopyN(w, lr, contentLength)
-		if err != nil {
-			lr.Close()
-		}
 	}
+}
+
+func (fs *FileService) handleError(err error, w http.ResponseWriter) {
+	fs.logger.Error(err)
+	http.Error(w, err.Error(), http.StatusInternalServerError)
+
 }
 
 func getOrder(fquery *schemas.FileQuery) clause.OrderByColumn {

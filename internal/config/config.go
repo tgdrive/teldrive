@@ -47,9 +47,8 @@ type TGConfig struct {
 	SystemLangCode      string
 	LangPack            string
 	SessionFile         string
-	BgBotsLimit         int
+	DisableBgBots       bool
 	DisableStreamBots   bool
-	BgBotsTimeout       time.Duration
 	BgBotsCheckInterval time.Duration
 	Proxy               string
 	ReconnectTimeout    time.Duration
@@ -62,7 +61,7 @@ type TGConfig struct {
 		Retention     time.Duration
 	}
 	Stream struct {
-		BotsOffset   int
+		BotsLimit    int
 		MultiThreads int
 		Buffers      int
 		ChunkTimeout time.Duration
