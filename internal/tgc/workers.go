@@ -28,6 +28,9 @@ func NewBotWorker() *BotWorker {
 func (w *BotWorker) Set(bots []string, channelID int64) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	if _, ok := w.bots[channelID]; ok {
+		return
+	}
 	w.bots[channelID] = bots
 	w.currIdx[channelID] = 0
 }
