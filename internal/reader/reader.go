@@ -13,48 +13,41 @@ import (
 	"github.com/gotd/td/tg"
 )
 
-func calculatePartByteRanges(startByte, endByte, partSize int64) []types.Range {
-	partByteRanges := []types.Range{}
-	startPart := startByte / partSize
-	endPart := endByte / partSize
-	startOffset := startByte % partSize
-
-	for part := startPart; part <= endPart; part++ {
-		partStartByte := int64(0)
-		partEndByte := partSize - 1
-
-		if part == startPart {
-			partStartByte = startOffset
-		}
-		if part == endPart {
-			partEndByte = endByte % partSize
-		}
-
-		partByteRanges = append(partByteRanges, types.Range{
-			Start:  partStartByte,
-			End:    partEndByte,
-			PartNo: part,
-		})
-
-		startOffset = 0
-	}
-
-	return partByteRanges
+type Range struct {
+	Start, End int64
+	PartNo     int64
 }
 
 type LinearReader struct {
 	ctx         context.Context
 	file        *schemas.FileOutFull
 	parts       []types.Part
-	ranges      []types.Range
+	ranges      []Range
 	pos         int
 	reader      io.ReadCloser
-	limit       int64
+	remaining   int64
 	config      *config.TGConfig
 	worker      *tgc.StreamWorker
 	client      *tg.Client
 	concurrency int
 	cache       cache.Cacher
+}
+
+func calculatePartByteRanges(start, end, partSize int64) []Range {
+	ranges := make([]Range, 0)
+	startPart := start / partSize
+	endPart := end / partSize
+
+	for part := startPart; part <= endPart; part++ {
+		partStart := max(start-part*partSize, 0)
+		partEnd := min(partSize-1, end-part*partSize)
+		ranges = append(ranges, Range{
+			Start:  partStart,
+			End:    partEnd,
+			PartNo: part,
+		})
+	}
+	return ranges
 }
 
 func NewLinearReader(ctx context.Context,
@@ -73,7 +66,7 @@ func NewLinearReader(ctx context.Context,
 		ctx:         ctx,
 		parts:       parts,
 		file:        file,
-		limit:       end - start + 1,
+		remaining:   end - start + 1,
 		ranges:      calculatePartByteRanges(start, end, parts[0].Size),
 		config:      config,
 		client:      client,
@@ -82,42 +75,60 @@ func NewLinearReader(ctx context.Context,
 		cache:       cache,
 	}
 
-	var err error
-	r.reader, err = r.nextPart()
-	if err != nil {
+	if err := r.initializeReader(); err != nil {
 		return nil, err
 	}
-
 	return r, nil
 }
 
 func (r *LinearReader) Read(p []byte) (int, error) {
-	if r.limit <= 0 {
+	if r.remaining <= 0 {
 		return 0, io.EOF
 	}
 
 	n, err := r.reader.Read(p)
+	r.remaining -= int64(n)
 
-	if err == io.EOF && r.limit > 0 {
+	if err == io.EOF && r.remaining > 0 {
+		if err := r.moveToNextPart(); err != nil {
+			return n, err
+		}
 		err = nil
-		if r.reader != nil {
-			r.reader.Close()
-		}
-		r.pos++
-		if r.pos < len(r.ranges) {
-			r.reader, err = r.nextPart()
-		}
 	}
 
-	r.limit -= int64(n)
 	return n, err
 }
 
-func (r *LinearReader) nextPart() (io.ReadCloser, error) {
-	start := r.ranges[r.pos].Start
-	end := r.ranges[r.pos].End
+func (r *LinearReader) Close() error {
+	if r.reader != nil {
+		err := r.reader.Close()
+		r.reader = nil
+		return err
+	}
+	return nil
+}
 
-	partID := r.parts[r.ranges[r.pos].PartNo].ID
+func (r *LinearReader) initializeReader() error {
+	reader, err := r.getPartReader()
+	if err != nil {
+		return err
+	}
+	r.reader = reader
+	return nil
+}
+
+func (r *LinearReader) moveToNextPart() error {
+	r.reader.Close()
+	r.pos++
+	if r.pos < len(r.ranges) {
+		return r.initializeReader()
+	}
+	return io.EOF
+}
+
+func (r *LinearReader) getPartReader() (io.ReadCloser, error) {
+	currentRange := r.ranges[r.pos]
+	partID := r.parts[currentRange.PartNo].ID
 
 	chunkSrc := &chunkSource{
 		channelID:   r.file.ChannelID,
@@ -130,16 +141,7 @@ func (r *LinearReader) nextPart() (io.ReadCloser, error) {
 	}
 
 	if r.concurrency < 2 {
-		return newTGReader(r.ctx, start, end, chunkSrc)
+		return newTGReader(r.ctx, currentRange.Start, currentRange.End, chunkSrc)
 	}
-	return newTGMultiReader(r.ctx, start, end, r.config, chunkSrc)
-}
-
-func (r *LinearReader) Close() error {
-	if r.reader != nil {
-		err := r.reader.Close()
-		r.reader = nil
-		return err
-	}
-	return nil
+	return newTGMultiReader(r.ctx, currentRange.Start, currentRange.End, r.config, chunkSrc)
 }

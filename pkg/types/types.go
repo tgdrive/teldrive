@@ -46,9 +46,3 @@ type BotInfo struct {
 	AccessHash int64
 	Token      string
 }
-
-type Range struct {
-	Start  int64
-	End    int64
-	PartNo int64
-}

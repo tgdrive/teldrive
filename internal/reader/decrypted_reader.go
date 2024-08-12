@@ -14,14 +14,14 @@ import (
 	"github.com/gotd/td/tg"
 )
 
-type decrpytedReader struct {
+type DecrpytedReader struct {
 	ctx         context.Context
 	file        *schemas.FileOutFull
 	parts       []types.Part
-	ranges      []types.Range
+	ranges      []Range
 	pos         int
 	reader      io.ReadCloser
-	limit       int64
+	remaining   int64
 	config      *config.TGConfig
 	worker      *tgc.StreamWorker
 	client      *tg.Client
@@ -40,13 +40,13 @@ func NewDecryptedReader(
 	end int64,
 	config *config.TGConfig,
 	concurrency int,
-) (*decrpytedReader, error) {
+) (*DecrpytedReader, error) {
 
-	r := &decrpytedReader{
+	r := &DecrpytedReader{
 		ctx:         ctx,
 		parts:       parts,
 		file:        file,
-		limit:       end - start + 1,
+		remaining:   end - start + 1,
 		ranges:      calculatePartByteRanges(start, end, parts[0].DecryptedSize),
 		config:      config,
 		client:      client,
@@ -54,57 +54,73 @@ func NewDecryptedReader(
 		concurrency: concurrency,
 		cache:       cache,
 	}
-	res, err := r.nextPart()
-
-	if err != nil {
+	if err := r.initializeReader(); err != nil {
 		return nil, err
 	}
-
-	r.reader = res
-
 	return r, nil
 
 }
 
-func (r *decrpytedReader) Read(p []byte) (int, error) {
-
-	if r.limit <= 0 {
+func (r *DecrpytedReader) Read(p []byte) (int, error) {
+	if r.remaining <= 0 {
 		return 0, io.EOF
 	}
 
 	n, err := r.reader.Read(p)
+	r.remaining -= int64(n)
 
-	if err == io.EOF {
-		if r.limit > 0 {
-			err = nil
-			if r.reader != nil {
-				r.reader.Close()
-			}
+	if err == io.EOF && r.remaining > 0 {
+		if err := r.moveToNextPart(); err != nil {
+			return n, err
 		}
-		r.pos++
-		if r.pos < len(r.ranges) {
-			r.reader, err = r.nextPart()
-
-		}
+		err = nil
 	}
-	r.limit -= int64(n)
+
 	return n, err
 }
-func (r *decrpytedReader) Close() (err error) {
+
+func (r *DecrpytedReader) Close() error {
 	if r.reader != nil {
-		err = r.reader.Close()
+		err := r.reader.Close()
 		r.reader = nil
 		return err
 	}
 	return nil
 }
 
-func (r *decrpytedReader) nextPart() (io.ReadCloser, error) {
+func (r *DecrpytedReader) initializeReader() error {
+	reader, err := r.getPartReader()
+	if err != nil {
+		return err
+	}
+	r.reader = reader
+	return nil
+}
 
-	start := r.ranges[r.pos].Start
-	end := r.ranges[r.pos].End
+func (r *DecrpytedReader) moveToNextPart() error {
+	r.reader.Close()
+	r.pos++
+	if r.pos < len(r.ranges) {
+		return r.initializeReader()
+	}
+	return io.EOF
+}
+
+func (r *DecrpytedReader) getPartReader() (io.ReadCloser, error) {
+	currentRange := r.ranges[r.pos]
 	salt := r.parts[r.ranges[r.pos].PartNo].Salt
 	cipher, _ := crypt.NewCipher(r.config.Uploads.EncryptionKey, salt)
+	partID := r.parts[currentRange.PartNo].ID
+
+	chunkSrc := &chunkSource{
+		channelID:   r.file.ChannelID,
+		partID:      partID,
+		client:      r.client,
+		concurrency: r.concurrency,
+		cache:       r.cache,
+		key:         fmt.Sprintf("files:location:%s:%d", r.file.Id, partID),
+		worker:      r.worker,
+	}
 
 	return cipher.DecryptDataSeek(r.ctx,
 		func(ctx context.Context,
@@ -115,22 +131,11 @@ func (r *decrpytedReader) nextPart() (io.ReadCloser, error) {
 			if underlyingLimit >= 0 {
 				end = min(r.parts[r.ranges[r.pos].PartNo].Size-1, underlyingOffset+underlyingLimit-1)
 			}
-			partID := r.parts[r.ranges[r.pos].PartNo].ID
 
-			chunkSrc := &chunkSource{
-				channelID:   r.file.ChannelID,
-				partID:      partID,
-				client:      r.client,
-				concurrency: r.concurrency,
-				cache:       r.cache,
-				key:         fmt.Sprintf("files:location:%s:%d", r.file.Id, partID),
-				worker:      r.worker,
-			}
 			if r.concurrency < 2 {
 				return newTGReader(r.ctx, underlyingOffset, end, chunkSrc)
 			}
 			return newTGMultiReader(r.ctx, underlyingOffset, end, r.config, chunkSrc)
 
-		}, start, end-start+1)
-
+		}, currentRange.Start, currentRange.End-currentRange.Start+1)
 }
