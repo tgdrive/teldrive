@@ -1,0 +1,52 @@
+name: Goreleaser
+
+on:
+  push:
+    tags:
+      - "*"
+
+permissions: write-all
+
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Build UI
+        run: |
+          git clone https://github.com/divyam234/teldrive-ui
+          cd teldrive-ui
+          pnpm install --frozen-lockfile
+          export VITE_SERVER_VERSION=$GITHUB_REF_NAME
+          pnpm run build
+          cd ..
+          mv teldrive-ui/dist ui/dist
+          rm -rf teldrive-ui
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
