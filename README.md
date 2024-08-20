@@ -97,11 +97,13 @@ You can generate secret from [here](https://generate-secret.vercel.app/64).
 
 ```sh
 docker network create postgres
-mkdir imagestore
-chown -R 1000:1000 imagestore
 touch session.db
 docker compose -f postgres.yml up -d #Run this only if you want to use self-hosted db
-docker compose -f teldrive.yml -f image-resizer.yml up -d
+docker compose -f teldrive.yml  up -d
+#Image Resize Service
+mkdir imagestore
+chown -R 1000:1000 imagestore
+docker compose -f image-resizer.yml up -d
 ```
 - **Go to http://machine_ip:8080**
 - **Change Image resizer Host to http://machine_ip:8000 in  UI settings.**
