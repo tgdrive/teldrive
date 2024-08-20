@@ -107,7 +107,7 @@ docker compose -f teldrive.yml -f image-resizer.yml up -d
 - **Change Image resizer Host to http://machine_ip:8000 in  UI settings.**
 > [!WARNING]
 > Make sure to run ```touch session.db``` to create empty session file  if you are using docker compose otherwise app will not run.
-> Image Resizer will not work if you are accessing teldrive on localhot so use machine ip to access teldrive and image resizer.Otherwise change compose files to use host network.
+> Image Resizer will not work if you are accessing teldrive on localhost so use machine ip to access teldrive and image resizer.Otherwise change compose files to use host network.
 
 ### Use without docker
 
