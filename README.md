@@ -61,75 +61,13 @@ iwr https://instl.vercel.app/divyam234/teldrive/windows | iex
 ```bash
 curl -sSL https://instl.vercel.app/divyam234/teldrive/macos | bash
 ```
-
 ### Deploy using docker-compose
 
-```yml
-#docker-compose.yml
-services:
-  teldrive:
-    image: ghcr.io/divyam234/teldrive
-    restart: always
-    container_name: teldrive
-    volumes:
-      - ./session.db:/session.db:rw
-      - ./config.toml:/config.toml
-    ports:
-      - 8080:8080
-```
-***People Who want to use local Postgres instance with teldrive.***
-<br>
-<br>
-**Create separate service for postgres and teldrive and add it to docker-compose file.Separate services are needed so that postgres doesn't depends on teldrive and can be used with other services.**
+**Get compose files from docker directory in repository.**
 
-```sh
-docker network create postgres
-```
+**Prepare Config File**
 
-```yml
-#docker-compose.yml
-services:
-  postgres_db:
-    image: ghcr.io/divyam234/postgres
-    container_name: postgres_db
-    restart: always
-    networks:
-     - postgres
-    environment:
-      - POSTGRES_USER=teldrive
-      - POSTGRES_PASSWORD=secret
-      - POSTGRES_DB=postgres
-    volumes:
-      - ./postgres_data:/var/lib/postgresql/data
-networks:
-  postgres:                                 
-    external: true
-```
-
-```yml
-#docker-compose.yml
-services:
-  teldrive:
-    image: ghcr.io/divyam234/teldrive
-    restart: always
-    container_name: teldrive
-    command: ["--db-data-source=postgres://teldrive:secret@postgres_db/postgres"]
-    networks:
-     - postgres
-    volumes:
-      - ./session.db:/session.db:rw
-      - ./config.toml:/config.toml
-    ports:
-      - 8080:8080
-networks:
-  postgres:                                 
-    external: true
-```
-**These two services must be created in seperate folders.**
-
-**Follow Below Steps**
-
-- Create the `config.toml` file with your values and start your container. See how to fill file below.
+- Create the `config.toml` file with your values. See how to fill file below.
 
 ```toml
 [db]
@@ -142,16 +80,34 @@ secret = "abcd"
 app-id = 
 app-hash = "fwfwfwf"
 ```
-***Only these values are mandatory however you can change or
-tweak your config see more in advanced configurations below***.
-```sh
-touch session.db
-# Run below command for both teldrive and postgres
-docker compose up -d
+- **Only these values are mandatory however you can change or
+tweak your config see more in advanced configurations below or ``teldrive --help``.**
+
+```toml
+[db]
+data-source = "postgres://teldrive:secret@postgres_db/postgres"
 ```
-- **Go to http://localhost:8080**
+- **For Self Hosted DB use data source as above in config.toml file.Change user and password accordingly in postgres.yml**
+
+**Generate JWT**
+```bash
+$ openssl rand -hex 64
+```
+You can generate secret from [here](https://generate-secret.vercel.app/64).
+
+```sh
+docker network create postgres
+mkdir imagestore
+chown -R 1000:1000 imagestore
+touch session.db
+docker compose -f postgres.yml up -d #Run this only if you want to use self-hosted db
+docker compose -f teldrive.yml -f image-resizer.yml up -d
+```
+- **Go to http://machine_ip:8080**
+- **Change Image resizer Host to http://machine_ip:8080 in  UI settings.**
 > [!WARNING]
 > Make sure to run ```touch session.db``` to create empty session file  if you are using docker compose otherwise app will not run.
+> Image Resizer will not work if you are accessing teldrive on localhot so use machine ip to access teldrive and image resizer.Otherwise change compose files to use host network.
 
 ### Use without docker
 
@@ -166,19 +122,11 @@ docker compose up -d
 teldrive run --tg-app-id="" --tg-app-hash="" --jwt-secret="" --db-data-source=""
 ```
 
-**Generate JWT**
-```bash
-$ openssl rand -hex 32
-```
-You can generate secret from [here](https://generate-secret.vercel.app/32).
-
 ## Important
   - Default Channel can be selected through UI. Make sure to set it from account settings on first login.
   - Multi Bots Mode is recommended to avoid flood errors and enable maximum download speed, especially if you are using downloaders like IDM and aria2c, which use multiple connections for downloads.
   - To enable multi bots, generate new bot tokens from BotFather and add them through UI on first login.
   - Uploads from UI will be slower due to limitations of the browser. Use modified [Rclone](https://github.com/divyam234/rclone) version for teldrive.
-  - Teldrive supports image thumbnail resizing on the fly. To enable this, you have to deploy a separate image resize service from [here](https://github.com/divyam234/image-resize).
-  - After deploying this service, add its URL in Teldrive UI settings in the **Resize Host** field.
   - Files are deleted at regular interval of one hour through cron job from tg channel after its deleted from teldrive this is done so  that person can recover files if he/she accidently deletes them.
 
 ### Advanced Configuration

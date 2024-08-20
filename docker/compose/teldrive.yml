@@ -3,8 +3,13 @@ services:
     image: ghcr.io/divyam234/teldrive
     restart: always
     container_name: teldrive
+    networks:
+     - postgres
     volumes:
       - ./session.db:/session.db:rw
       - ./config.toml:/config.toml
     ports:
       - 8080:8080
+networks:
+  postgres:                                 
+    external: true
