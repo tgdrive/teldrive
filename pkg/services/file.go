@@ -752,7 +752,8 @@ func (fs *FileService) GetFileStream(c *gin.Context, download bool) {
 	} else if fs.cnf.TG.DisableBgBots && len(tokens) > 0 {
 		fs.botWorker.Set(tokens, file.ChannelID)
 		token, _ = fs.botWorker.Next(file.ChannelID)
-		client, err = tgc.BotClient(c, fs.kv, &fs.cnf.TG, token)
+		middlewares := tgc.Middlewares(&fs.cnf.TG, 5)
+		client, err = tgc.BotClient(c, fs.kv, &fs.cnf.TG, token, middlewares...)
 		if err != nil {
 			fs.handleError(err, w)
 		}
