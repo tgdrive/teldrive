@@ -1,6 +1,6 @@
 services:
   postgres_db:
-    image: ghcr.io/divyam234/postgres
+    image: ghcr.io/tgdrive/postgres
     container_name: postgres_db
     restart: always
     networks:
