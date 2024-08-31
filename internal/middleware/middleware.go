@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/divyam234/cors"
-	"github.com/divyam234/teldrive/internal/auth"
-	"github.com/divyam234/teldrive/internal/cache"
 	"github.com/gin-contrib/secure"
+	"github.com/tgdrive/teldrive/internal/auth"
+	"github.com/tgdrive/teldrive/internal/cache"
 	"gorm.io/gorm"
 
 	"github.com/gin-gonic/gin"

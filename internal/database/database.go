@@ -3,8 +3,8 @@ package database
 import (
 	"time"
 
-	"github.com/divyam234/teldrive/internal/config"
-	"github.com/divyam234/teldrive/internal/logging"
+	"github.com/tgdrive/teldrive/internal/config"
+	"github.com/tgdrive/teldrive/internal/logging"
 
 	extraClausePlugin "github.com/WinterYukky/gorm-extra-clause-plugin"
 	"go.uber.org/zap/zapcore"

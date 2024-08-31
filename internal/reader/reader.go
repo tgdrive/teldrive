@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/divyam234/teldrive/internal/cache"
-	"github.com/divyam234/teldrive/internal/config"
-	"github.com/divyam234/teldrive/internal/tgc"
-	"github.com/divyam234/teldrive/pkg/schemas"
-	"github.com/divyam234/teldrive/pkg/types"
 	"github.com/gotd/td/tg"
+	"github.com/tgdrive/teldrive/internal/cache"
+	"github.com/tgdrive/teldrive/internal/config"
+	"github.com/tgdrive/teldrive/internal/tgc"
+	"github.com/tgdrive/teldrive/pkg/schemas"
+	"github.com/tgdrive/teldrive/pkg/types"
 )
 
 type Range struct {

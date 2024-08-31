@@ -6,9 +6,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/divyam234/teldrive/internal/config"
-	"github.com/divyam234/teldrive/internal/kv"
 	"github.com/gotd/td/telegram"
+	"github.com/tgdrive/teldrive/internal/config"
+	"github.com/tgdrive/teldrive/internal/kv"
 	"go.uber.org/zap"
 )
 

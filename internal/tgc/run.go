@@ -3,9 +3,9 @@ package tgc
 import (
 	"context"
 
-	"github.com/divyam234/teldrive/internal/logging"
 	"github.com/gotd/td/telegram"
 	"github.com/pkg/errors"
+	"github.com/tgdrive/teldrive/internal/logging"
 	"go.uber.org/zap"
 )
 

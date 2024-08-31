@@ -1,7 +1,7 @@
 package controller
 
 import (
-	"github.com/divyam234/teldrive/pkg/services"
+	"github.com/tgdrive/teldrive/pkg/services"
 )
 
 type Controller struct {

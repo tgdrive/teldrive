@@ -3,8 +3,8 @@ package controller
 import (
 	"net/http"
 
-	"github.com/divyam234/teldrive/pkg/httputil"
 	"github.com/gin-gonic/gin"
+	"github.com/tgdrive/teldrive/pkg/httputil"
 )
 
 func (uc *Controller) GetStats(c *gin.Context) {

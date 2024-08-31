@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/divyam234/teldrive/pkg/schemas"
+	"github.com/tgdrive/teldrive/pkg/schemas"
 	"gorm.io/datatypes"
 )
 

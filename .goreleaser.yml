@@ -36,15 +36,15 @@ archives:
       - LICENSE
 dockers:
   - image_templates:
-      - "ghcr.io/divyam234/{{ .ProjectName }}:{{ .Tag }}-amd64"
+      - "ghcr.io/tgdrive/{{ .ProjectName }}:{{ .Tag }}-amd64"
     use: buildx
     dockerfile: goreleaser.dockerfile
     build_flag_templates:
     - "--platform=linux/amd64"
 
   - image_templates:
-      - "ghcr.io/divyam234/{{ .ProjectName }}:{{ .Tag }}-arm64"
-      - "ghcr.io/divyam234/{{ .ProjectName }}:latest"
+      - "ghcr.io/tgdrive/{{ .ProjectName }}:{{ .Tag }}-arm64"
+      - "ghcr.io/tgdrive/{{ .ProjectName }}:latest"
     use: buildx
     dockerfile: goreleaser.dockerfile
     goarch: arm64
@@ -52,14 +52,14 @@ dockers:
     - --platform=linux/arm64/v8
 
 docker_manifests:
-  - name_template: "ghcr.io/divyam234/{{ .ProjectName }}:{{ .Tag }}"
+  - name_template: "ghcr.io/tgdrive/{{ .ProjectName }}:{{ .Tag }}"
     image_templates:
-      - "ghcr.io/divyam234/{{ .ProjectName }}:{{ .Tag }}-amd64"
-      - "ghcr.io/divyam234/{{ .ProjectName }}:{{ .Tag }}-arm64"
-  - name_template: "ghcr.io/divyam234/{{ .ProjectName }}:latest"
+      - "ghcr.io/tgdrive/{{ .ProjectName }}:{{ .Tag }}-amd64"
+      - "ghcr.io/tgdrive/{{ .ProjectName }}:{{ .Tag }}-arm64"
+  - name_template: "ghcr.io/tgdrive/{{ .ProjectName }}:latest"
     image_templates:
-      - "ghcr.io/divyam234/{{ .ProjectName }}:{{ .Tag }}-amd64"
-      - "ghcr.io/divyam234/{{ .ProjectName }}:{{ .Tag }}-arm64"
+      - "ghcr.io/tgdrive/{{ .ProjectName }}:{{ .Tag }}-amd64"
+      - "ghcr.io/tgdrive/{{ .ProjectName }}:{{ .Tag }}-arm64"
 
 changelog:
   sort: asc

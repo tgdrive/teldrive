@@ -7,10 +7,10 @@ import (
 	"io"
 	"time"
 
-	"github.com/divyam234/teldrive/internal/cache"
-	"github.com/divyam234/teldrive/internal/config"
-	"github.com/divyam234/teldrive/internal/tgc"
 	"github.com/gotd/td/tg"
+	"github.com/tgdrive/teldrive/internal/cache"
+	"github.com/tgdrive/teldrive/internal/config"
+	"github.com/tgdrive/teldrive/internal/tgc"
 	"golang.org/x/sync/errgroup"
 )
 

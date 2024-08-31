@@ -5,9 +5,9 @@ import (
 	"context"
 	"sync"
 
-	"github.com/divyam234/teldrive/internal/logging"
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/tg"
+	"github.com/tgdrive/teldrive/internal/logging"
 	"go.uber.org/zap"
 )
 

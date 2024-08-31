@@ -5,9 +5,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/divyam234/teldrive/internal/config"
-	"github.com/divyam234/teldrive/internal/utils"
 	"github.com/mitchellh/go-homedir"
+	"github.com/tgdrive/teldrive/internal/config"
+	"github.com/tgdrive/teldrive/internal/utils"
 	"go.etcd.io/bbolt"
 )
 

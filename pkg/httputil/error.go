@@ -1,8 +1,8 @@
 package httputil
 
 import (
-	"github.com/divyam234/teldrive/internal/logging"
 	"github.com/gin-gonic/gin"
+	"github.com/tgdrive/teldrive/internal/logging"
 )
 
 func NewError(ctx *gin.Context, status int, err error) {

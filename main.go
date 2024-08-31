@@ -5,7 +5,7 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/divyam234/teldrive/cmd"
+	"github.com/tgdrive/teldrive/cmd"
 )
 
 func main() {

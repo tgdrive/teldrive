@@ -1,12 +1,12 @@
 package api
 
 import (
-	"github.com/divyam234/teldrive/internal/cache"
-	"github.com/divyam234/teldrive/internal/config"
-	"github.com/divyam234/teldrive/internal/middleware"
-	"github.com/divyam234/teldrive/pkg/controller"
-	"github.com/divyam234/teldrive/ui"
 	"github.com/gin-gonic/gin"
+	"github.com/tgdrive/teldrive/internal/cache"
+	"github.com/tgdrive/teldrive/internal/config"
+	"github.com/tgdrive/teldrive/internal/middleware"
+	"github.com/tgdrive/teldrive/pkg/controller"
+	"github.com/tgdrive/teldrive/ui"
 	"gorm.io/gorm"
 )
 

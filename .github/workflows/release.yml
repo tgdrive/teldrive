@@ -5,7 +5,11 @@ on:
     tags:
       - "*"
 
-permissions: write-all
+permissions:
+    packages: write
+    contents: read
+    attestations: write
+    id-token: write
 
 jobs:
   goreleaser:
@@ -34,7 +38,7 @@ jobs:
 
       - name: Build UI
         run: |
-          git clone https://github.com/divyam234/teldrive-ui
+          git clone https://github.com/tgdrive/teldrive-ui
           cd teldrive-ui
           pnpm install --frozen-lockfile
           export VITE_SERVER_VERSION=$GITHUB_REF_NAME
@@ -42,6 +46,7 @@ jobs:
           cd ..
           mv teldrive-ui/dist ui/dist
           rm -rf teldrive-ui
+          
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:

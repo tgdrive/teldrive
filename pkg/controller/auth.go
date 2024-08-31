@@ -3,9 +3,9 @@ package controller
 import (
 	"net/http"
 
-	"github.com/divyam234/teldrive/pkg/httputil"
-	"github.com/divyam234/teldrive/pkg/schemas"
 	"github.com/gin-gonic/gin"
+	"github.com/tgdrive/teldrive/pkg/httputil"
+	"github.com/tgdrive/teldrive/pkg/schemas"
 )
 
 func (ac *Controller) GetSession(c *gin.Context) {

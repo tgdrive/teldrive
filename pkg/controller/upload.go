@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/divyam234/teldrive/internal/auth"
-	"github.com/divyam234/teldrive/pkg/httputil"
 	"github.com/gin-gonic/gin"
+	"github.com/tgdrive/teldrive/internal/auth"
+	"github.com/tgdrive/teldrive/pkg/httputil"
 )
 
 func (uc *Controller) GetUploadFileById(c *gin.Context) {

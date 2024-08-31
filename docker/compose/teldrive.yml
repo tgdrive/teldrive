@@ -1,6 +1,6 @@
 services:
   teldrive:
-    image: ghcr.io/divyam234/teldrive
+    image: ghcr.io/tgdrive/teldrive
     restart: always
     container_name: teldrive
     networks:

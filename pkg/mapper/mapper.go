@@ -1,8 +1,8 @@
 package mapper
 
 import (
-	"github.com/divyam234/teldrive/pkg/models"
-	"github.com/divyam234/teldrive/pkg/schemas"
+	"github.com/tgdrive/teldrive/pkg/models"
+	"github.com/tgdrive/teldrive/pkg/schemas"
 )
 
 func ToFileOut(file models.File) *schemas.FileOut {

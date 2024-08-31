@@ -9,11 +9,11 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/divyam234/teldrive/internal/config"
-	"github.com/divyam234/teldrive/internal/kv"
-	"github.com/divyam234/teldrive/pkg/types"
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/tg"
+	"github.com/tgdrive/teldrive/internal/config"
+	"github.com/tgdrive/teldrive/internal/kv"
+	"github.com/tgdrive/teldrive/pkg/types"
 	"golang.org/x/sync/errgroup"
 )
 

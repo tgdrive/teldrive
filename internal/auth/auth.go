@@ -5,11 +5,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/divyam234/teldrive/internal/cache"
-	"github.com/divyam234/teldrive/pkg/models"
-	"github.com/divyam234/teldrive/pkg/types"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/tgdrive/teldrive/internal/cache"
+	"github.com/tgdrive/teldrive/pkg/models"
+	"github.com/tgdrive/teldrive/pkg/types"
 	"gorm.io/gorm"
 )
 

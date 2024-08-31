@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/divyam234/teldrive/pkg/schemas"
 	"github.com/stretchr/testify/assert"
+	"github.com/tgdrive/teldrive/pkg/schemas"
 )
 
 func TestCache(t *testing.T) {

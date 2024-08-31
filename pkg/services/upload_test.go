@@ -3,10 +3,10 @@ package services
 import (
 	"testing"
 
-	"github.com/divyam234/teldrive/internal/database"
+	"github.com/tgdrive/teldrive/internal/database"
 
-	"github.com/divyam234/teldrive/pkg/models"
 	"github.com/stretchr/testify/suite"
+	"github.com/tgdrive/teldrive/pkg/models"
 	"gorm.io/gorm"
 )
 

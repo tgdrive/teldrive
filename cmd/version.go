@@ -3,8 +3,8 @@ package cmd
 import (
 	"runtime"
 
-	"github.com/divyam234/teldrive/internal/config"
 	"github.com/spf13/cobra"
+	"github.com/tgdrive/teldrive/internal/config"
 )
 
 func NewVersion() *cobra.Command {

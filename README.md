@@ -36,7 +36,7 @@ Telegram Drive is a powerful utility that enables you to organise your telegram 
 
 <br>
 
-[UI Repo ](https://github.com/divyam234/teldrive-ui)
+[UI Repo ](https://github.com/tgdrive/teldrive-ui)
 
 [UI Library ](https://github.com/divyam234/tw-material)
 
@@ -47,19 +47,19 @@ Telegram Drive is a powerful utility that enables you to organise your telegram 
 #### Linux
 
 ```bash
-curl -sSL https://instl.vercel.app/divyam234/teldrive/linux | bash
+curl -sSL https://instl.vercel.app/tgdrive/teldrive/linux | bash
 ```
 
 #### Windows
 
 ```powershell
-iwr https://instl.vercel.app/divyam234/teldrive/windows | iex
+iwr https://instl.vercel.app/tgdrive/teldrive/windows | iex
 ```
 
 #### macOS
 
 ```bash
-curl -sSL https://instl.vercel.app/divyam234/teldrive/macos | bash
+curl -sSL https://instl.vercel.app/tgdrive/teldrive/macos | bash
 ```
 ### Deploy using docker-compose
 
@@ -128,7 +128,7 @@ teldrive run --tg-app-id="" --tg-app-hash="" --jwt-secret="" --db-data-source=""
   - Default Channel can be selected through UI. Make sure to set it from account settings on first login.
   - Multi Bots Mode is recommended to avoid flood errors and enable maximum download speed, especially if you are using downloaders like IDM and aria2c, which use multiple connections for downloads.
   - To enable multi bots, generate new bot tokens from BotFather and add them through UI on first login.
-  - Uploads from UI will be slower due to limitations of the browser. Use modified [Rclone](https://github.com/divyam234/rclone) version for teldrive.
+  - Uploads from UI will be slower due to limitations of the browser. Use modified [Rclone](https://github.com/tgdrive/rclone) version for teldrive.
   - Files are deleted at regular interval of one hour through cron job from tg channel after its deleted from teldrive this is done so  that person can recover files if he/she accidently deletes them.
 
 ### Advanced Configuration

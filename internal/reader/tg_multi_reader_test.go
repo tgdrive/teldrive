@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/divyam234/teldrive/internal/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
+	"github.com/tgdrive/teldrive/internal/config"
 )
 
 type testChunkSource struct {
