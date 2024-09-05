@@ -6,8 +6,10 @@ services:
     networks:
      - postgres
     volumes:
-      - ./session.db:/session.db:rw
       - ./config.toml:/config.toml
+      - type: bind
+        source: ./session.db
+        target: /session.db
     ports:
       - 8080:8080
 networks:
