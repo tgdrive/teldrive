@@ -97,6 +97,7 @@ You can generate secret from [here](https://generate-secret.vercel.app/64).
 
 ```sh
 docker network create postgres
+touch session.db
 docker compose -f postgres.yml up -d #Run this only if you want to use self-hosted db
 docker compose -f teldrive.yml  up -d
 #Image Resize Service
