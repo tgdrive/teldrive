@@ -120,6 +120,7 @@ docker compose -f image-resizer.yml up -d
 ```sh
 teldrive run --tg-app-id="" --tg-app-hash="" --jwt-secret="" --db-data-source=""
 ```
+Read [more](https://github.com/tgdrive/teldrive/wiki/Teldrive-setup-with-plex-jellyfin) how to setup teldrive with rclone volume driver.
 
 ## Important
   - Default Channel can be selected through UI. Make sure to set it from account settings on first login.
