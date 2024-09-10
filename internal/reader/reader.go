@@ -8,7 +8,7 @@ import (
 	"github.com/gotd/td/tg"
 	"github.com/tgdrive/teldrive/internal/cache"
 	"github.com/tgdrive/teldrive/internal/config"
-	"github.com/tgdrive/teldrive/internal/tgc"
+	"github.com/tgdrive/teldrive/internal/crypt"
 	"github.com/tgdrive/teldrive/pkg/schemas"
 	"github.com/tgdrive/teldrive/pkg/types"
 )
@@ -27,7 +27,6 @@ type LinearReader struct {
 	reader      io.ReadCloser
 	remaining   int64
 	config      *config.TGConfig
-	worker      *tgc.StreamWorker
 	client      *tg.Client
 	concurrency int
 	cache       cache.Cacher
@@ -52,7 +51,6 @@ func calculatePartByteRanges(start, end, partSize int64) []Range {
 
 func NewLinearReader(ctx context.Context,
 	client *tg.Client,
-	worker *tgc.StreamWorker,
 	cache cache.Cacher,
 	file *schemas.FileOutFull,
 	parts []types.Part,
@@ -70,7 +68,6 @@ func NewLinearReader(ctx context.Context,
 		ranges:      calculatePartByteRanges(start, end, parts[0].Size),
 		config:      config,
 		client:      client,
-		worker:      worker,
 		concurrency: concurrency,
 		cache:       cache,
 	}
@@ -137,11 +134,40 @@ func (r *LinearReader) getPartReader() (io.ReadCloser, error) {
 		concurrency: r.concurrency,
 		cache:       r.cache,
 		key:         fmt.Sprintf("files:location:%s:%d", r.file.Id, partID),
-		worker:      r.worker,
 	}
 
-	if r.concurrency < 2 {
-		return newTGReader(r.ctx, currentRange.Start, currentRange.End, chunkSrc)
+	var (
+		reader io.ReadCloser
+		err    error
+	)
+	if r.file.Encrypted {
+		salt := r.parts[r.ranges[r.pos].PartNo].Salt
+		cipher, _ := crypt.NewCipher(r.config.Uploads.EncryptionKey, salt)
+		reader, err = cipher.DecryptDataSeek(r.ctx,
+			func(ctx context.Context,
+				underlyingOffset,
+				underlyingLimit int64) (io.ReadCloser, error) {
+				var end int64
+
+				if underlyingLimit >= 0 {
+					end = min(r.parts[r.ranges[r.pos].PartNo].Size-1, underlyingOffset+underlyingLimit-1)
+				}
+
+				if r.concurrency < 2 {
+					return newTGReader(r.ctx, underlyingOffset, end, chunkSrc)
+				}
+				return newTGMultiReader(r.ctx, underlyingOffset, end, r.config, chunkSrc)
+
+			}, currentRange.Start, currentRange.End-currentRange.Start+1)
+
+	} else {
+		if r.concurrency < 2 {
+			reader, err = newTGReader(r.ctx, currentRange.Start, currentRange.End, chunkSrc)
+		} else {
+			reader, err = newTGMultiReader(r.ctx, currentRange.Start, currentRange.End, r.config, chunkSrc)
+		}
+
 	}
-	return newTGMultiReader(r.ctx, currentRange.Start, currentRange.End, r.config, chunkSrc)
+	return reader, err
+
 }

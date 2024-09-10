@@ -46,7 +46,6 @@ type TestSuite struct {
 
 func (suite *TestSuite) SetupTest() {
 	suite.config = &config.TGConfig{Stream: struct {
-		BotsLimit    int
 		MultiThreads int
 		Buffers      int
 		ChunkTimeout time.Duration

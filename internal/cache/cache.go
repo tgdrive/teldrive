@@ -25,10 +25,9 @@ type MemoryCache struct {
 
 func NewCache(ctx context.Context, conf *config.Config) Cacher {
 	var cacher Cacher
-	switch conf.Cache.Type {
-	case "memory":
+	if conf.Cache.RedisAddr == "" {
 		cacher = NewMemoryCache(conf.Cache.MaxSize)
-	case "redis":
+	} else {
 		cacher = NewRedisCache(ctx, redis.NewClient(&redis.Options{
 			Addr:     conf.Cache.RedisAddr,
 			Password: conf.Cache.RedisPass,

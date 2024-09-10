@@ -12,7 +12,6 @@ type Config struct {
 	TG       TGConfig
 	CronJobs CronJobConfig
 	Cache    struct {
-		Type      string
 		MaxSize   int
 		RedisAddr string
 		RedisPass string
@@ -47,7 +46,6 @@ type TGConfig struct {
 	SystemLangCode      string
 	LangPack            string
 	SessionFile         string
-	DisableBgBots       bool
 	DisableStreamBots   bool
 	BgBotsCheckInterval time.Duration
 	Proxy               string
@@ -61,7 +59,6 @@ type TGConfig struct {
 		Retention     time.Duration
 	}
 	Stream struct {
-		BotsLimit    int
 		MultiThreads int
 		Buffers      int
 		ChunkTimeout time.Duration

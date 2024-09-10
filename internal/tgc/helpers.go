@@ -234,7 +234,7 @@ func GetLocation(ctx context.Context, client *tg.Client, channelId int64, partId
 }
 
 func CalculateChunkSize(start, end int64) int64 {
-	chunkSize := int64(1024 * 1024)
+	chunkSize := int64(512 * 1024)
 
 	for chunkSize > 1024 && chunkSize > (end-start) {
 		chunkSize /= 2

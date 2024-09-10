@@ -79,7 +79,6 @@ func randInt64() (int64, error) {
 type FileService struct {
 	db        *gorm.DB
 	cnf       *config.Config
-	worker    *tgc.StreamWorker
 	botWorker *tgc.BotWorker
 	cache     cache.Cacher
 	kv        kv.KV
@@ -94,7 +93,7 @@ func NewFileService(
 	kv kv.KV,
 	cache cache.Cacher,
 	logger *zap.SugaredLogger) *FileService {
-	return &FileService{db: db, cnf: cnf, worker: worker, botWorker: botWorker, cache: cache, kv: kv, logger: logger}
+	return &FileService{db: db, cnf: cnf, botWorker: botWorker, cache: cache, kv: kv, logger: logger}
 }
 
 func (fs *FileService) CreateFile(c *gin.Context, userId int64, fileIn *schemas.FileIn) (*schemas.FileOut, *types.AppError) {
@@ -464,6 +463,7 @@ func (fs *FileService) UpdateParts(c *gin.Context, id string, userId int64, payl
 		fs.cache.Delete(keys...)
 
 	}
+	fs.cache.Delete(fmt.Sprintf("files:%s", id))
 
 	return &schemas.Message{Message: "file updated"}, nil
 }
@@ -749,25 +749,18 @@ func (fs *FileService) GetFileStream(c *gin.Context, download bool) {
 		}
 		multiThreads = 0
 
-	} else if fs.cnf.TG.DisableBgBots && len(tokens) > 0 {
+	} else {
 		fs.botWorker.Set(tokens, file.ChannelID)
+
 		token, _ = fs.botWorker.Next(file.ChannelID)
+
 		middlewares := tgc.Middlewares(&fs.cnf.TG, 5)
 		client, err = tgc.BotClient(c, fs.kv, &fs.cnf.TG, token, middlewares...)
 		if err != nil {
 			fs.handleError(err, w)
-		}
-		multiThreads = 0
-	} else {
-		fs.worker.Set(tokens[0:min(len(tokens), fs.cnf.TG.Stream.BotsLimit)], file.ChannelID)
-		c, err := fs.worker.Next(file.ChannelID)
-		if err != nil {
-			fs.handleError(err, w)
 			return
 		}
-		client = c.Tg
 	}
-
 	if download {
 		multiThreads = 0
 	}
@@ -779,11 +772,7 @@ func (fs *FileService) GetFileStream(c *gin.Context, download bool) {
 				fs.handleError(err, w)
 				return nil
 			}
-			if file.Encrypted {
-				lr, err = reader.NewDecryptedReader(c, client.API(), fs.worker, fs.cache, file, parts, start, end, &fs.cnf.TG, multiThreads)
-			} else {
-				lr, err = reader.NewLinearReader(c, client.API(), fs.worker, fs.cache, file, parts, start, end, &fs.cnf.TG, multiThreads)
-			}
+			lr, err = reader.NewLinearReader(c, client.API(), fs.cache, file, parts, start, end, &fs.cnf.TG, multiThreads)
 
 			if err != nil {
 				fs.handleError(err, w)
@@ -799,15 +788,9 @@ func (fs *FileService) GetFileStream(c *gin.Context, download bool) {
 			}
 			return nil
 		}
-		if fs.cnf.TG.DisableBgBots {
-			tgc.RunWithAuth(c, client, token, func(ctx context.Context) error {
-				return handleStream()
-			})
-		} else {
-			fs.worker.IncActiveStream()
-			defer fs.worker.DecActiveStreams()
-			handleStream()
-		}
+		tgc.RunWithAuth(c, client, token, func(ctx context.Context) error {
+			return handleStream()
+		})
 
 	}
 }
