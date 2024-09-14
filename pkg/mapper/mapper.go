@@ -18,7 +18,6 @@ func ToFileOut(file models.File) *schemas.FileOut {
 		Category:  file.Category,
 		Encrypted: file.Encrypted,
 		Size:      size,
-		Starred:   file.Starred,
 		ParentID:  file.ParentID.String,
 		UpdatedAt: file.UpdatedAt,
 	}

@@ -155,6 +155,7 @@ func runApplication(conf *config.Config) {
 			services.NewFileService,
 			services.NewUploadService,
 			services.NewUserService,
+			services.NewShareService,
 			controller.NewController,
 		),
 		fx.Invoke(

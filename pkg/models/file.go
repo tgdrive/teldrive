@@ -14,7 +14,6 @@ type File struct {
 	Type      string                            `gorm:"type:text;not null"`
 	MimeType  string                            `gorm:"type:text;not null"`
 	Size      *int64                            `gorm:"type:bigint"`
-	Starred   bool                              `gorm:"default:false"`
 	Category  string                            `gorm:"type:text"`
 	Encrypted bool                              `gorm:"default:false"`
 	UserID    int64                             `gorm:"type:bigint;not null"`

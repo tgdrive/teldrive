@@ -35,6 +35,7 @@ import (
 	"github.com/tgdrive/teldrive/pkg/schemas"
 	"github.com/tgdrive/teldrive/pkg/types"
 	"go.uber.org/zap"
+	"golang.org/x/crypto/bcrypt"
 
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
@@ -141,7 +142,6 @@ func (fs *FileService) CreateFile(c *gin.Context, userId int64, fileIn *schemas.
 		fileDB.MimeType = fileIn.MimeType
 		fileDB.Category = string(category.GetCategory(fileIn.Name))
 		fileDB.Parts = datatypes.NewJSONSlice(fileIn.Parts)
-		fileDB.Starred = false
 		fileDB.Size = &fileIn.Size
 	}
 	fileDB.Name = fileIn.Name
@@ -172,10 +172,6 @@ func (fs *FileService) UpdateFile(id string, userId int64, update *schemas.FileU
 		Name:      update.Name,
 		UpdatedAt: update.UpdatedAt,
 		Size:      update.Size,
-	}
-
-	if update.Starred != nil {
-		updateDb.Starred = *update.Starred
 	}
 
 	if len(update.Parts) > 0 {
@@ -286,8 +282,9 @@ func (fs *FileService) ListFiles(userId int64, fquery *schemas.FileQuery) (*sche
 		if fquery.Type != "" {
 			query.Where("type = ?", fquery.Type)
 		}
-		if fquery.Starred != nil {
-			query.Where("starred = ?", *fquery.Starred)
+
+		if fquery.Shared != nil && *fquery.Shared {
+			query.Where("id in (SELECT file_id FROM teldrive.file_shares where user_id = ?)", userId)
 		}
 	}
 
@@ -409,6 +406,78 @@ func (fs *FileService) DeleteFiles(userId int64, payload *schemas.DeleteOperatio
 	}
 
 	return &schemas.Message{Message: "files deleted"}, nil
+}
+
+func (fs *FileService) CreateShare(fileId string, userId int64, payload *schemas.FileShareIn) *types.AppError {
+
+	var fileShare models.FileShare
+
+	if payload.Password != "" {
+		bytes, err := bcrypt.GenerateFromPassword([]byte(payload.Password), bcrypt.MinCost)
+		if err != nil {
+			return &types.AppError{Error: err}
+		}
+		fileShare.Password = utils.StringPointer(string(bytes))
+	}
+
+	fileShare.FileID = fileId
+	fileShare.ExpiresAt = payload.ExpiresAt
+	fileShare.UserID = userId
+
+	if err := fs.db.Create(&fileShare).Error; err != nil {
+		return &types.AppError{Error: err}
+	}
+
+	return nil
+}
+
+func (fs *FileService) UpdateShare(fileId string, userId int64, payload *schemas.FileShareIn) *types.AppError {
+
+	var fileShareUpdate models.FileShare
+
+	if payload.Password != "" {
+		bytes, err := bcrypt.GenerateFromPassword([]byte(payload.Password), bcrypt.MinCost)
+		if err != nil {
+			return &types.AppError{Error: err}
+		}
+		fileShareUpdate.Password = utils.StringPointer(string(bytes))
+	}
+
+	fileShareUpdate.ExpiresAt = payload.ExpiresAt
+
+	if err := fs.db.Model(&models.FileShare{}).Where("file_id = ?", fileId).Where("user_id = ?", userId).
+		Updates(fileShareUpdate).Error; err != nil {
+		return &types.AppError{Error: err}
+	}
+
+	return nil
+}
+
+func (fs *FileService) GetShareByFileId(fileId string, userId int64) (*schemas.FileShareOut, *types.AppError) {
+
+	var result []models.FileShare
+
+	if err := fs.db.Model(&models.FileShare{}).Where("file_id = ?", fileId).Where("user_id = ?", userId).
+		Find(&result).Error; err != nil {
+		return nil, &types.AppError{Error: err}
+	}
+
+	if len(result) == 0 {
+		return nil, nil
+	}
+
+	res := &schemas.FileShareOut{ID: result[0].ID, ExpiresAt: result[0].ExpiresAt, Protected: result[0].Password != nil}
+
+	return res, nil
+}
+
+func (fs *FileService) DeleteShare(fileId string, userId int64) *types.AppError {
+
+	if err := fs.db.Where("file_id = ?", fileId).Where("user_id = ?", userId).Delete(&models.FileShare{}).Error; err != nil {
+		return &types.AppError{Error: err}
+	}
+
+	return nil
 }
 
 func (fs *FileService) UpdateParts(c *gin.Context, id string, userId int64, payload *schemas.PartUpdate) (*schemas.Message, *types.AppError) {
@@ -591,7 +660,6 @@ func (fs *FileService) CopyFile(c *gin.Context) (*schemas.FileOut, *types.AppErr
 	dbFile.MimeType = file.MimeType
 	dbFile.Parts = datatypes.NewJSONSlice(newIds)
 	dbFile.UserID = userId
-	dbFile.Starred = false
 	dbFile.Status = "active"
 	dbFile.ParentID = sql.NullString{
 		String: dest.Id,
@@ -608,15 +676,13 @@ func (fs *FileService) CopyFile(c *gin.Context) (*schemas.FileOut, *types.AppErr
 	return mapper.ToFileOut(dbFile), nil
 }
 
-func (fs *FileService) GetFileStream(c *gin.Context, download bool) {
+func (fs *FileService) GetFileStream(c *gin.Context, download bool, sharedFile *schemas.FileShareOut) {
 
 	w := c.Writer
 
 	r := c.Request
 
 	fileID := c.Param("fileID")
-
-	authHash := c.Query("hash")
 
 	var (
 		session *models.Session
@@ -625,20 +691,28 @@ func (fs *FileService) GetFileStream(c *gin.Context, download bool) {
 		user    *types.JWTClaims
 	)
 
-	if authHash == "" {
-		user, err = auth.VerifyUser(c, fs.db, fs.cache, fs.cnf.JWT.Secret)
-		if err != nil {
-			http.Error(w, "missing session or authash", http.StatusUnauthorized)
-			return
+	if sharedFile == nil {
+		authHash := c.Query("hash")
+
+		if authHash == "" {
+			user, err = auth.VerifyUser(c, fs.db, fs.cache, fs.cnf.JWT.Secret)
+			if err != nil {
+				http.Error(w, "missing session or authash", http.StatusUnauthorized)
+				return
+			}
+			userId, _ := strconv.ParseInt(user.Subject, 10, 64)
+			session = &models.Session{UserId: userId, Session: user.TgSession}
+		} else {
+			session, err = auth.GetSessionByHash(fs.db, fs.cache, authHash)
+			if err != nil {
+				http.Error(w, "invalid hash", http.StatusBadRequest)
+				return
+			}
 		}
-		userId, _ := strconv.ParseInt(user.Subject, 10, 64)
-		session = &models.Session{UserId: userId, Session: user.TgSession}
+
 	} else {
-		session, err = auth.GetSessionByHash(fs.db, fs.cache, authHash)
-		if err != nil {
-			http.Error(w, "invalid hash", http.StatusBadRequest)
-			return
-		}
+
+		session = &models.Session{UserId: sharedFile.UserID}
 	}
 
 	file := &schemas.FileOutFull{}

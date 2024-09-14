@@ -147,6 +147,70 @@ func (fc *Controller) DeleteFiles(c *gin.Context) {
 	c.JSON(http.StatusOK, res)
 }
 
+func (fc *Controller) CreateShare(c *gin.Context) {
+
+	userId, _ := auth.GetUser(c)
+
+	var payload schemas.FileShareIn
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		httputil.NewError(c, http.StatusBadRequest, err)
+		return
+	}
+
+	err := fc.FileService.CreateShare(c.Param("fileID"), userId, &payload)
+	if err != nil {
+		httputil.NewError(c, err.Code, err.Error)
+		return
+	}
+
+	c.Status(http.StatusCreated)
+}
+
+func (fc *Controller) EditShare(c *gin.Context) {
+
+	userId, _ := auth.GetUser(c)
+
+	var payload schemas.FileShareIn
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		httputil.NewError(c, http.StatusBadRequest, err)
+		return
+	}
+
+	err := fc.FileService.UpdateShare(c.Param("shareID"), userId, &payload)
+	if err != nil {
+		httputil.NewError(c, err.Code, err.Error)
+		return
+	}
+
+	c.Status(http.StatusOK)
+}
+
+func (fc *Controller) DeleteShare(c *gin.Context) {
+
+	userId, _ := auth.GetUser(c)
+
+	err := fc.FileService.DeleteShare(c.Param("fileID"), userId)
+	if err != nil {
+		httputil.NewError(c, err.Code, err.Error)
+		return
+	}
+
+	c.Status(http.StatusNoContent)
+}
+
+func (fc *Controller) GetShareByFileId(c *gin.Context) {
+
+	userId, _ := auth.GetUser(c)
+
+	res, err := fc.FileService.GetShareByFileId(c.Param("fileID"), userId)
+	if err != nil {
+		httputil.NewError(c, err.Code, err.Error)
+		return
+	}
+
+	c.JSON(http.StatusOK, res)
+}
+
 func (fc *Controller) UpdateParts(c *gin.Context) {
 
 	userId, _ := auth.GetUser(c)
@@ -196,9 +260,9 @@ func (fc *Controller) GetCategoryStats(c *gin.Context) {
 }
 
 func (fc *Controller) GetFileStream(c *gin.Context) {
-	fc.FileService.GetFileStream(c, false)
+	fc.FileService.GetFileStream(c, false, nil)
 }
 
 func (fc *Controller) GetFileDownload(c *gin.Context) {
-	fc.FileService.GetFileStream(c, true)
+	fc.FileService.GetFileStream(c, true, nil)
 }

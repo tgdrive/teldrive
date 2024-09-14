@@ -64,6 +64,10 @@ func Int64Pointer(b int64) *int64 {
 	return &b
 }
 
+func StringPointer(b string) *string {
+	return &b
+}
+
 func PathExists(path string) (bool, error) {
 	_, err := os.Stat(path)
 	if err == nil {

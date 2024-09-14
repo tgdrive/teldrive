@@ -16,7 +16,7 @@ type FileQuery struct {
 	Path       string `form:"path"`
 	Op         string `form:"op"`
 	DeepSearch bool   `form:"deepSearch"`
-	Starred    *bool  `form:"starred"`
+	Shared     *bool  `form:"shared"`
 	ParentID   string `form:"parentId"`
 	Category   string `form:"category"`
 	UpdatedAt  string `form:"updatedAt"`
@@ -46,7 +46,6 @@ type FileOut struct {
 	Category   string    `json:"category,omitempty"`
 	Encrypted  bool      `json:"encrypted"`
 	Size       int64     `json:"size,omitempty"`
-	Starred    bool      `json:"starred"`
 	ParentID   string    `json:"parentId,omitempty"`
 	ParentPath string    `json:"parentPath,omitempty"`
 	UpdatedAt  time.Time `json:"updatedAt,omitempty"`
@@ -61,7 +60,6 @@ type FileOutFull struct {
 
 type FileUpdate struct {
 	Name      string    `json:"name,omitempty"`
-	Starred   *bool     `json:"starred,omitempty"`
 	UpdatedAt time.Time `json:"updatedAt,omitempty"`
 	Parts     []Part    `json:"parts,omitempty"`
 	Size      *int64    `json:"size,omitempty"`
@@ -111,4 +109,24 @@ type FileCategoryStats struct {
 	TotalFiles int    `json:"totalFiles"`
 	TotalSize  int    `json:"totalSize"`
 	Category   string `json:"category"`
+}
+
+type FileShareIn struct {
+	Password  string     `json:"password,omitempty"`
+	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
+}
+
+type FileShareOut struct {
+	ID        string     `json:"id"`
+	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
+	Protected bool       `json:"protected"`
+	UserID    int64      `json:"userId,omitempty"`
+}
+
+type FileShare struct {
+	Password  *string
+	ExpiresAt *time.Time
+	Type      string
+	FileId    string
+	UserId    int64
 }
