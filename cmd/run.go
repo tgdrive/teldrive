@@ -65,7 +65,7 @@ func NewRun() *cobra.Command {
 	duration.DurationVar(runCmd.Flags(), &config.CronJobs.FolderSizeInterval, "cronjobs-folder-size-interval", 2*time.Hour, "Folder size update  interval")
 
 	runCmd.Flags().IntVar(&config.Cache.MaxSize, "cache-max-size", 10*1024*1024, "Max Cache max size (memory)")
-	runCmd.Flags().StringVar(&config.Cache.RedisAddr, "cache-redis-addr", "localhost:6379", "Redis address")
+	runCmd.Flags().StringVar(&config.Cache.RedisAddr, "cache-redis-addr", "", "Redis address")
 	runCmd.Flags().StringVar(&config.Cache.RedisPass, "cache-redis-pass", "", "Redis password")
 
 	runCmd.Flags().IntVarP(&config.Log.Level, "log-level", "", -1, "Logging level")

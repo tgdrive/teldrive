@@ -473,8 +473,15 @@ func (fs *FileService) GetShareByFileId(fileId string, userId int64) (*schemas.F
 
 func (fs *FileService) DeleteShare(fileId string, userId int64) *types.AppError {
 
-	if err := fs.db.Where("file_id = ?", fileId).Where("user_id = ?", userId).Delete(&models.FileShare{}).Error; err != nil {
+	var deletedShare models.FileShare
+
+	if err := fs.db.Clauses(clause.Returning{}).Where("file_id = ?", fileId).Where("user_id = ?", userId).
+		Delete(&deletedShare).Error; err != nil {
 		return &types.AppError{Error: err}
+	}
+
+	if deletedShare.ID != "" {
+		fs.cache.Delete(fmt.Sprintf("shares:%s", deletedShare.ID))
 	}
 
 	return nil
