@@ -36,9 +36,12 @@ func NewShareService(db *gorm.DB, fs *FileService, cache cache.Cacher) *ShareSer
 
 func (ss *ShareService) GetShareById(shareId string) (*schemas.FileShareOut, *types.AppError) {
 
-	var result []models.FileShare
+	var result []schemas.FileShare
 
-	if err := ss.db.Model(&models.FileShare{}).Where("id = ?", shareId).Find(&result).Error; err != nil {
+	if err := ss.db.Model(&models.FileShare{}).Where("file_shares.id = ?", shareId).
+		Select("file_shares.*", "f.type", "f.name").
+		Joins("left join teldrive.files as f on f.id = file_shares.file_id").
+		Scan(&result).Error; err != nil {
 		return nil, &types.AppError{Error: err}
 	}
 
@@ -54,6 +57,8 @@ func (ss *ShareService) GetShareById(shareId string) (*schemas.FileShareOut, *ty
 		ExpiresAt: result[0].ExpiresAt,
 		Protected: result[0].Password != nil,
 		UserID:    result[0].UserID,
+		Type:      result[0].Type,
+		Name:      result[0].Name,
 	}
 
 	return res, nil
@@ -82,7 +87,6 @@ func (ss *ShareService) ListShareFiles(shareId string, query *schemas.ShareFileQ
 	var (
 		userId   int64
 		fileType string
-		fileId   string
 	)
 
 	var result []schemas.FileShare
@@ -91,7 +95,8 @@ func (ss *ShareService) ListShareFiles(shareId string, query *schemas.ShareFileQ
 
 	if err := ss.cache.Get(key, &result); err != nil {
 		if err := ss.db.Model(&models.FileShare{}).Where("file_shares.id = ?", shareId).
-			Select("file_shares.*", "f.type").
+			Select("file_shares.*", "f.type",
+				"(select get_path_from_file_id as path from teldrive.get_path_from_file_id(f.id))").
 			Joins("left join teldrive.files as f on f.id = file_shares.file_id").
 			Scan(&result).Error; err != nil {
 			return nil, &types.AppError{Error: err}
@@ -118,34 +123,32 @@ func (ss *ShareService) ListShareFiles(shareId string, query *schemas.ShareFileQ
 
 	}
 
-	userId = result[0].UserId
+	userId = result[0].UserID
 
 	fileType = "folder"
 
-	fileId = query.ParentID
-
-	if query.ParentID == "" {
+	if query.Path == "" {
 		fileType = result[0].Type
-		fileId = result[0].FileId
 	}
 
 	if fileType == "folder" {
 		return ss.fs.ListFiles(userId, &schemas.FileQuery{
-			ParentID: fileId,
-			Limit:    query.Limit,
-			Page:     query.Page,
-			Order:    query.Order,
-			Sort:     query.Sort,
-			Op:       "list"})
+			Path:  result[0].Path + query.Path,
+			Limit: query.Limit,
+			Page:  query.Page,
+			Order: query.Order,
+			Sort:  query.Sort,
+			Op:    "list"})
 	} else {
 		var file models.File
-		if err := ss.db.Where("id = ?", fileId).First(&file).Error; err != nil {
+		if err := ss.db.Where("id = ?", result[0].FileID).First(&file).Error; err != nil {
 			if database.IsRecordNotFoundErr(err) {
 				return nil, &types.AppError{Error: database.ErrNotFound, Code: http.StatusNotFound}
 			}
 			return nil, &types.AppError{Error: err}
 		}
-		return &schemas.FileResponse{Files: []schemas.FileOut{*mapper.ToFileOut(file)}}, nil
+		return &schemas.FileResponse{Files: []schemas.FileOut{*mapper.ToFileOut(file)},
+			Meta: schemas.Meta{TotalPages: 1, Count: 1, CurrentPage: 1}}, nil
 	}
 
 }

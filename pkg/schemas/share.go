@@ -5,9 +5,9 @@ type ShareAccess struct {
 }
 
 type ShareFileQuery struct {
-	ParentID string `form:"parentId"`
-	Sort     string `form:"sort"`
-	Order    string `form:"order"`
-	Limit    int    `form:"limit"`
-	Page     int    `form:"page"`
+	Path  string `form:"path"`
+	Sort  string `form:"sort"`
+	Order string `form:"order"`
+	Limit int    `form:"limit"`
+	Page  int    `form:"page"`
 }

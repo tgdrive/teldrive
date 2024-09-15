@@ -117,16 +117,20 @@ type FileShareIn struct {
 }
 
 type FileShareOut struct {
-	ID        string     `json:"id"`
+	ID        string     `json:"id,omitempty"`
 	ExpiresAt *time.Time `json:"expiresAt,omitempty"`
 	Protected bool       `json:"protected"`
 	UserID    int64      `json:"userId,omitempty"`
+	Type      string     `json:"type"`
+	Name      string     `json:"name"`
 }
 
 type FileShare struct {
 	Password  *string
 	ExpiresAt *time.Time
 	Type      string
-	FileId    string
-	UserId    int64
+	FileID    string
+	UserID    int64
+	Path      string
+	Name      string
 }
