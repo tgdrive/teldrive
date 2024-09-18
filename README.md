@@ -122,6 +122,8 @@ teldrive run --tg-app-id="" --tg-app-hash="" --jwt-secret="" --db-data-source=""
 ```
 Read [more](https://github.com/tgdrive/teldrive/wiki/Teldrive-setup-with-Rclone-Volume-Driver) how to setup teldrive with rclone volume driver.
 
+Follow [this](https://github.com/tgdrive/player-protocol) to open file links directly in VLC and PotPlayer.
+
 ## Important
   - Default Channel can be selected through UI. Make sure to set it from account settings on first login.
   - Multi Bots Mode is recommended to avoid flood errors and enable maximum download speed, especially if you are using downloaders like IDM and aria2c, which use multiple connections for downloads.
