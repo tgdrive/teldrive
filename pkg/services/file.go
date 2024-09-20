@@ -248,7 +248,7 @@ func (fs *FileService) ListFiles(userId int64, fquery *schemas.FileQuery) (*sche
 		}
 
 		if fquery.Query != "" {
-			query = query.Where("name &@~ REGEXP_REPLACE(?, '[.,-_]', ' ', 'g')", fquery.Query)
+			query = query.Where("name &@~ REGEXP_REPLACE(?, '[.,-_]', ' ', 'g')", strings.ToLower(fquery.Query))
 		}
 
 		if fquery.Category != "" {
