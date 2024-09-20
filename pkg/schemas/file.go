@@ -2,11 +2,13 @@ package schemas
 
 import (
 	"time"
+
+	"gorm.io/datatypes"
 )
 
 type Part struct {
 	ID   int64  `json:"id"`
-	Salt string `json:"salt"`
+	Salt string `json:"salt,omitempty"`
 }
 
 type FileQuery struct {
@@ -54,8 +56,9 @@ type FileOut struct {
 
 type FileOutFull struct {
 	*FileOut
-	Parts     []Part `json:"parts,omitempty"`
-	ChannelID int64  `json:"channelId,omitempty"`
+	Parts     datatypes.JSONSlice[Part] `json:"parts,omitempty"`
+	ChannelID *int64                    `json:"channelId,omitempty"`
+	Path      string                    `json:"path,omitempty"`
 }
 
 type FileUpdate struct {

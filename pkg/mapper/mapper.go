@@ -25,16 +25,10 @@ func ToFileOut(file models.File) *schemas.FileOut {
 
 func ToFileOutFull(file models.File) *schemas.FileOutFull {
 
-	var channelId int64
-
-	if file.ChannelID != nil {
-		channelId = *file.ChannelID
-	}
-
 	return &schemas.FileOutFull{
 		FileOut:   ToFileOut(file),
 		Parts:     file.Parts,
-		ChannelID: channelId,
+		ChannelID: file.ChannelID,
 	}
 }
 

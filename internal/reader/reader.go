@@ -128,7 +128,7 @@ func (r *LinearReader) getPartReader() (io.ReadCloser, error) {
 	partID := r.parts[currentRange.PartNo].ID
 
 	chunkSrc := &chunkSource{
-		channelID:   r.file.ChannelID,
+		channelID:   *r.file.ChannelID,
 		partID:      partID,
 		client:      r.client,
 		concurrency: r.concurrency,

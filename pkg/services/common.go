@@ -33,7 +33,7 @@ func getParts(ctx context.Context, client *telegram.Client, cache cache.Cacher, 
 	for _, part := range file.Parts {
 		ids = append(ids, int(part.ID))
 	}
-	messages, err := tgc.GetMessages(ctx, client.API(), ids, file.ChannelID)
+	messages, err := tgc.GetMessages(ctx, client.API(), ids, *file.ChannelID)
 
 	if err != nil {
 		return nil, err

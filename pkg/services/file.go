@@ -193,15 +193,16 @@ func (fs *FileService) UpdateFile(id string, userId int64, update *schemas.FileU
 }
 
 func (fs *FileService) GetFileByID(id string) (*schemas.FileOutFull, *types.AppError) {
-	var file models.File
-	if err := fs.db.Where("id = ?", id).First(&file).Error; err != nil {
-		if database.IsRecordNotFoundErr(err) {
-			return nil, &types.AppError{Error: database.ErrNotFound, Code: http.StatusNotFound}
-		}
+	var result []schemas.FileOutFull
+	if err := fs.db.Model(&models.File{}).Select("*", "(select get_path_from_file_id as path from teldrive.get_path_from_file_id(id))").
+		Where("id = ?", id).Scan(&result).Error; err != nil {
 		return nil, &types.AppError{Error: err}
 	}
+	if len(result) == 0 {
+		return nil, &types.AppError{Error: database.ErrNotFound, Code: http.StatusNotFound}
+	}
 
-	return mapper.ToFileOutFull(file), nil
+	return &result[0], nil
 }
 
 func (fs *FileService) ListFiles(userId int64, fquery *schemas.FileQuery) (*schemas.FileResponse, *types.AppError) {
@@ -600,7 +601,7 @@ func (fs *FileService) CopyFile(c *gin.Context) (*schemas.FileOut, *types.AppErr
 		for _, part := range file.Parts {
 			ids = append(ids, int(part.ID))
 		}
-		messages, err := tgc.GetMessages(c, client.API(), ids, file.ChannelID)
+		messages, err := tgc.GetMessages(c, client.API(), ids, *file.ChannelID)
 
 		if err != nil {
 			return err
@@ -806,7 +807,7 @@ func (fs *FileService) GetFileStream(c *gin.Context, download bool, sharedFile *
 
 	c.Header("Content-Disposition", mime.FormatMediaType(disposition, map[string]string{"filename": file.Name}))
 
-	tokens, err := getBotsToken(fs.db, fs.cache, session.UserId, file.ChannelID)
+	tokens, err := getBotsToken(fs.db, fs.cache, session.UserId, *file.ChannelID)
 
 	if err != nil {
 		fs.handleError(fmt.Errorf("failed to get bots: %w", err), w)
@@ -831,9 +832,9 @@ func (fs *FileService) GetFileStream(c *gin.Context, download bool, sharedFile *
 		multiThreads = 0
 
 	} else {
-		fs.botWorker.Set(tokens, file.ChannelID)
+		fs.botWorker.Set(tokens, *file.ChannelID)
 
-		token, _ = fs.botWorker.Next(file.ChannelID)
+		token, _ = fs.botWorker.Next(*file.ChannelID)
 
 		middlewares := tgc.Middlewares(&fs.cnf.TG, 5)
 		client, err = tgc.BotClient(c, fs.kv, &fs.cnf.TG, token, middlewares...)
