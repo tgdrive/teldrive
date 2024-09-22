@@ -68,6 +68,7 @@ changelog:
       - '^docs:'
       - '^test:'
       - '^ci:'
-      - 'README'
+      - '^README'
+      - '^Update'
       - Merge pull request
       - Merge branch
