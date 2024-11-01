@@ -181,7 +181,7 @@ api_host = http://localhost:8080 # default host
 access_token = #session token obtained from cookies
 chunk_size = 500M
 upload_concurrency = 4
-encrypt_files = false # Enable this to encrypt files make sure ENCRYPTION_KEY env variable is not empty in teldrive instance.
+encrypt_files = false # Enable this to encrypt files make sure encryption key is not empty in teldrive config file.
 random_chunk_name= true # Use random chunk names when uploading files to channel instead of original filename.
 ```
 **See all options in rclone config command**
