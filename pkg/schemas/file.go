@@ -91,6 +91,7 @@ type PartUpdate struct {
 	UploadId  string    `json:"uploadId"`
 	UpdatedAt time.Time `json:"updatedAt" binding:"required"`
 	Size      int64     `json:"size"`
+	ChannelID int64     `json:"channelId"`
 }
 
 type DirMove struct {

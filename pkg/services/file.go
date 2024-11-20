@@ -496,6 +496,16 @@ func (fs *FileService) UpdateParts(c *gin.Context, id string, userId int64, payl
 		UpdatedAt: payload.UpdatedAt,
 		Size:      utils.Int64Pointer(payload.Size),
 	}
+	if payload.ChannelID == 0 {
+		channelId, err := getDefaultChannel(fs.db, fs.cache, userId)
+		if err != nil {
+			return nil, &types.AppError{Error: err, Code: http.StatusNotFound}
+
+		}
+		updatePayload.ChannelID = &channelId
+	} else {
+		updatePayload.ChannelID = &payload.ChannelID
+	}
 
 	if len(payload.Parts) > 0 {
 		updatePayload.Parts = datatypes.NewJSONSlice(payload.Parts)
