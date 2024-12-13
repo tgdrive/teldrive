@@ -14,6 +14,7 @@ type Part struct {
 type FileQuery struct {
 	Name       string `form:"name"`
 	Query      string `form:"query"`
+	SearchType string `form:"searchType"`
 	Type       string `form:"type"`
 	Path       string `form:"path"`
 	Op         string `form:"op"`

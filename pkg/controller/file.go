@@ -62,11 +62,12 @@ func (fc *Controller) ListFiles(c *gin.Context) {
 	userId, _ := auth.GetUser(c)
 
 	fquery := schemas.FileQuery{
-		Limit: 500,
-		Page:  1,
-		Order: "asc",
-		Sort:  "name",
-		Op:    "list",
+		Limit:      500,
+		Page:       1,
+		Order:      "asc",
+		Sort:       "name",
+		Op:         "list",
+		SearchType: "text",
 	}
 
 	if err := c.ShouldBindQuery(&fquery); err != nil {
