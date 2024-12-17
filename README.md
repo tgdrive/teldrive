@@ -48,6 +48,10 @@ Telegram Drive is a powerful utility that enables you to organise your telegram 
 
 ```bash
 curl -sSL https://instl.vercel.app/tgdrive/teldrive/linux | bash
+
+#Use command below if above fails to identify cpu arch only works for linux systems
+
+curl -s https://sh-install.vercel.app/tgdrive/teldrive?move=1 | bash
 ```
 
 #### Windows
