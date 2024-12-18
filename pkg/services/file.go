@@ -735,7 +735,8 @@ func (fs *FileService) GetFileStream(c *gin.Context, download bool, sharedFile *
 
 	} else {
 
-		session = &models.Session{UserId: sharedFile.UserID}
+		fs.db.Model(&models.Session{}).Where("user_id = ?", sharedFile.UserID).First(&session)
+
 	}
 
 	file := &schemas.FileOutFull{}
