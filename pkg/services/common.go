@@ -5,23 +5,23 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-faster/errors"
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/tg"
-	"github.com/pkg/errors"
+	"github.com/tgdrive/teldrive/internal/api"
 	"github.com/tgdrive/teldrive/internal/cache"
 	"github.com/tgdrive/teldrive/internal/crypt"
 	"github.com/tgdrive/teldrive/internal/tgc"
 	"github.com/tgdrive/teldrive/pkg/models"
-	"github.com/tgdrive/teldrive/pkg/schemas"
 	"github.com/tgdrive/teldrive/pkg/types"
 	"gorm.io/gorm"
 )
 
-func getParts(ctx context.Context, client *telegram.Client, cache cache.Cacher, file *schemas.FileOutFull) ([]types.Part, error) {
+func getParts(ctx context.Context, client *telegram.Client, cache cache.Cacher, file *api.File) ([]types.Part, error) {
 
 	parts := []types.Part{}
 
-	key := fmt.Sprintf("files:messages:%s", file.Id)
+	key := fmt.Sprintf("files:messages:%s", file.ID.Value)
 
 	err := cache.Get(key, &parts)
 
@@ -33,7 +33,7 @@ func getParts(ctx context.Context, client *telegram.Client, cache cache.Cacher, 
 	for _, part := range file.Parts {
 		ids = append(ids, int(part.ID))
 	}
-	messages, err := tgc.GetMessages(ctx, client.API(), ids, *file.ChannelID)
+	messages, err := tgc.GetMessages(ctx, client.API(), ids, file.ChannelId.Value)
 
 	if err != nil {
 		return nil, err
@@ -45,11 +45,11 @@ func getParts(ctx context.Context, client *telegram.Client, cache cache.Cacher, 
 		document := media.Document.(*tg.Document)
 
 		part := types.Part{
-			ID:   file.Parts[i].ID,
+			ID:   int64(file.Parts[i].ID),
 			Size: document.Size,
-			Salt: file.Parts[i].Salt,
+			Salt: file.Parts[i].Salt.Value,
 		}
-		if file.Encrypted {
+		if file.Encrypted.IsSet() && file.Encrypted.Value {
 			part.DecryptedSize, _ = crypt.DecryptedSize(document.Size)
 		}
 		parts = append(parts, part)

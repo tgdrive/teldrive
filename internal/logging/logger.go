@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -17,7 +16,7 @@ type contextKey = string
 const loggerKey = contextKey("logger")
 
 var (
-	defaultLogger     *zap.SugaredLogger
+	defaultLogger     *zap.Logger
 	defaultLoggerOnce sync.Once
 )
 
@@ -44,7 +43,7 @@ func SetLevel(l zapcore.Level) {
 	conf.Level = l
 }
 
-func NewLogger(conf *Config) *zap.SugaredLogger {
+func NewLogger(conf *Config) *zap.Logger {
 
 	ec := zap.NewProductionEncoderConfig()
 	ec.EncodeTime = zapcore.ISO8601TimeEncoder
@@ -76,32 +75,27 @@ func NewLogger(conf *Config) *zap.SugaredLogger {
 		options = append(options, zap.Development())
 
 	}
-	return zap.New(zapcore.NewTee(cores...), options...).Sugar()
+	return zap.New(zapcore.NewTee(cores...), options...)
 }
 
-func DefaultLogger() *zap.SugaredLogger {
+func DefaultLogger() *zap.Logger {
 	defaultLoggerOnce.Do(func() {
 		defaultLogger = NewLogger(conf)
 	})
 	return defaultLogger
 }
 
-func WithLogger(ctx context.Context, logger *zap.SugaredLogger) context.Context {
-	if gCtx, ok := ctx.(*gin.Context); ok {
-		ctx = gCtx.Request.Context()
-	}
+func WithLogger(ctx context.Context, logger *zap.Logger) context.Context {
 	return context.WithValue(ctx, loggerKey, logger)
 }
 
-func FromContext(ctx context.Context) *zap.SugaredLogger {
+func FromContext(ctx context.Context) *zap.Logger {
 	if ctx == nil {
 		return DefaultLogger()
 	}
-	if gCtx, ok := ctx.(*gin.Context); ok && gCtx != nil {
-		ctx = gCtx.Request.Context()
-	}
-	if logger, ok := ctx.Value(loggerKey).(*zap.SugaredLogger); ok {
+	if logger, ok := ctx.Value(loggerKey).(*zap.Logger); ok {
 		return logger
 	}
+
 	return DefaultLogger()
 }

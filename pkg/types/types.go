@@ -5,11 +5,6 @@ import (
 	"github.com/gotd/td/session"
 )
 
-type AppError struct {
-	Error error
-	Code  int
-}
-
 type Part struct {
 	DecryptedSize int64
 	Size          int64
@@ -21,7 +16,6 @@ type JWTClaims struct {
 	jwt.RegisteredClaims
 	Name      string `json:"name"`
 	UserName  string `json:"userName"`
-	Bot       bool   `json:"bot"`
 	IsPremium bool   `json:"isPremium"`
 	Hash      string `json:"hash"`
 	TgSession string `json:"tgSession,omitempty"`

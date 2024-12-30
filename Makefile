@@ -17,7 +17,7 @@ GOARCH ?= $(shell go env GOARCH)
 VERSION:= $(GIT_TAG)
 BINARY_EXTENSION :=
 
-.PHONY: all build run clean frontend backend run sync-ui retag patch-version minor-version
+.PHONY: all build run clean frontend backend run sync-ui retag patch-version minor-version generate
  
 all: build
 
@@ -77,3 +77,6 @@ minor-version:
 	@echo "Minoring version..."
 	git tag -a $(shell semver -i minor $(GIT_TAG)) -m "Release $(shell semver -i minor $(GIT_TAG))"
 	git push origin $(shell semver -i minor $(GIT_TAG))
+	
+gen:
+	go generate ./...

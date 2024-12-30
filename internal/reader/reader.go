@@ -6,10 +6,10 @@ import (
 	"io"
 
 	"github.com/gotd/td/tg"
+	"github.com/tgdrive/teldrive/internal/api"
 	"github.com/tgdrive/teldrive/internal/cache"
 	"github.com/tgdrive/teldrive/internal/config"
 	"github.com/tgdrive/teldrive/internal/crypt"
-	"github.com/tgdrive/teldrive/pkg/schemas"
 	"github.com/tgdrive/teldrive/pkg/types"
 )
 
@@ -20,7 +20,7 @@ type Range struct {
 
 type LinearReader struct {
 	ctx         context.Context
-	file        *schemas.FileOutFull
+	file        *api.File
 	parts       []types.Part
 	ranges      []Range
 	pos         int
@@ -52,7 +52,7 @@ func calculatePartByteRanges(start, end, partSize int64) []Range {
 func NewLinearReader(ctx context.Context,
 	client *tg.Client,
 	cache cache.Cacher,
-	file *schemas.FileOutFull,
+	file *api.File,
 	parts []types.Part,
 	start,
 	end int64,
@@ -128,19 +128,19 @@ func (r *LinearReader) getPartReader() (io.ReadCloser, error) {
 	partID := r.parts[currentRange.PartNo].ID
 
 	chunkSrc := &chunkSource{
-		channelID:   *r.file.ChannelID,
+		channelID:   r.file.ChannelId.Value,
 		partID:      partID,
 		client:      r.client,
 		concurrency: r.concurrency,
 		cache:       r.cache,
-		key:         fmt.Sprintf("files:location:%s:%d", r.file.Id, partID),
+		key:         fmt.Sprintf("files:location:%s:%d", r.file.ID.Value, partID),
 	}
 
 	var (
 		reader io.ReadCloser
 		err    error
 	)
-	if r.file.Encrypted {
+	if r.file.Encrypted.IsSet() && r.file.Encrypted.Value {
 		salt := r.parts[r.ranges[r.pos].PartNo].Salt
 		cipher, _ := crypt.NewCipher(r.config.Uploads.EncryptionKey, salt)
 		reader, err = cipher.DecryptDataSeek(r.ctx,

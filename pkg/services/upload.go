@@ -8,70 +8,48 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/tgdrive/teldrive/internal/api"
 	"github.com/tgdrive/teldrive/internal/auth"
-	"github.com/tgdrive/teldrive/internal/cache"
 	"github.com/tgdrive/teldrive/internal/crypt"
-	"github.com/tgdrive/teldrive/internal/kv"
 	"github.com/tgdrive/teldrive/internal/logging"
 	"github.com/tgdrive/teldrive/internal/pool"
 	"github.com/tgdrive/teldrive/internal/tgc"
-	"github.com/tgdrive/teldrive/pkg/mapper"
-	"github.com/tgdrive/teldrive/pkg/schemas"
+	"go.uber.org/zap"
 
-	"github.com/tgdrive/teldrive/pkg/types"
-
-	"github.com/gin-gonic/gin"
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/telegram/message"
 	"github.com/gotd/td/telegram/uploader"
 	"github.com/gotd/td/tg"
-	"github.com/tgdrive/teldrive/internal/config"
 	"github.com/tgdrive/teldrive/pkg/models"
-	"gorm.io/gorm"
 )
 
 const saltLength = 32
 
-type UploadService struct {
-	db     *gorm.DB
-	worker *tgc.BotWorker
-	cnf    *config.TGConfig
-	kv     kv.KV
-	cache  cache.Cacher
+func (a *apiService) UploadsDelete(ctx context.Context, params api.UploadsDeleteParams) error {
+	if err := a.db.Where("upload_id = ?", params.ID).Delete(&models.Upload{}).Error; err != nil {
+		return &api.ErrorStatusCode{StatusCode: 500, Response: api.Error{Message: err.Error(), Code: 500}}
+	}
+	return nil
 }
 
-func NewUploadService(db *gorm.DB, cnf *config.Config, worker *tgc.BotWorker, kv kv.KV, cache cache.Cacher) *UploadService {
-	return &UploadService{db: db, worker: worker, cnf: &cnf.TG, kv: kv, cache: cache}
-}
-
-func (us *UploadService) GetUploadFileById(c *gin.Context) (*schemas.UploadOut, *types.AppError) {
-	uploadId := c.Param("id")
-	parts := []schemas.UploadPartOut{}
-	if err := us.db.Model(&models.Upload{}).Order("part_no").Where("upload_id = ?", uploadId).
-		Where("created_at < ?", time.Now().UTC().Add(us.cnf.Uploads.Retention)).
+func (a *apiService) UploadsPartsById(ctx context.Context, params api.UploadsPartsByIdParams) ([]api.UploadPart, error) {
+	parts := []api.UploadPart{}
+	if err := a.db.Model(&models.Upload{}).Order("part_no").Where("upload_id = ?", params.ID).
+		Where("created_at < ?", time.Now().UTC().Add(a.cnf.TG.Uploads.Retention)).
 		Find(&parts).Error; err != nil {
-		return nil, &types.AppError{Error: err}
+		return nil, &apiError{err: err}
 	}
-
-	return &schemas.UploadOut{Parts: parts}, nil
+	return parts, nil
 }
 
-func (us *UploadService) DeleteUploadFile(c *gin.Context) (*schemas.Message, *types.AppError) {
-	uploadId := c.Param("id")
-	if err := us.db.Where("upload_id = ?", uploadId).Delete(&models.Upload{}).Error; err != nil {
-		return nil, &types.AppError{Error: err}
-	}
-	return &schemas.Message{Message: "upload deleted"}, nil
-}
-
-func (us *UploadService) GetUploadStats(userId int64, days int) ([]schemas.UploadStats, *types.AppError) {
-	var stats []schemas.UploadStats
-	err := us.db.Raw(`
+func (a *apiService) UploadsStats(ctx context.Context, params api.UploadsStatsParams) ([]api.UploadStats, error) {
+	userId, _ := auth.GetUser(ctx)
+	var stats []api.UploadStats
+	err := a.db.Raw(`
     SELECT 
         dates.upload_date::date AS upload_date,
         COALESCE(SUM(files.size), 0)::bigint AS total_uploaded
@@ -87,19 +65,17 @@ func (us *UploadService) GetUploadStats(userId int64, days int) ([]schemas.Uploa
         dates.upload_date
     ORDER BY 
         dates.upload_date
-  `, sql.Named("days", days-1), sql.Named("userId", userId)).Scan(&stats).Error
+  `, sql.Named("days", params.Days-1), sql.Named("userId", userId)).Scan(&stats).Error
 
 	if err != nil {
-		return nil, &types.AppError{Error: err}
+		return nil, &apiError{err: err}
 
 	}
-
 	return stats, nil
 }
 
-func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *types.AppError) {
+func (a *apiService) UploadsUpload(ctx context.Context, req api.UploadsUploadReq, params api.UploadsUploadParams) (*api.UploadPart, error) {
 	var (
-		uploadQuery schemas.UploadQuery
 		channelId   int64
 		err         error
 		client      *telegram.Client
@@ -107,75 +83,70 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 		token       string
 		index       int
 		channelUser string
-		out         *schemas.UploadPartOut
+		out         api.UploadPart
 	)
 
-	if err := c.ShouldBindQuery(&uploadQuery); err != nil {
-		return nil, &types.AppError{Error: err, Code: http.StatusBadRequest}
+	if !params.Encrypted.IsSet() && a.cnf.TG.Uploads.EncryptionKey == "" {
+		return nil, &apiError{err: errors.New("encryption is not enabled"), code: 400}
 	}
 
-	if uploadQuery.Encrypted && us.cnf.Uploads.EncryptionKey == "" {
-		return nil, &types.AppError{Error: errors.New("encryption key not found"),
-			Code: http.StatusBadRequest}
-	}
+	userId, session := auth.GetUser(ctx)
 
-	userId, session := auth.GetUser(c)
+	fileStream := req.Data
 
-	uploadId := c.Param("id")
+	fileSize := params.ContentLength
 
-	fileStream := c.Request.Body
-
-	fileSize := c.Request.ContentLength
-
-	defer fileStream.Close()
-
-	if uploadQuery.ChannelID == 0 {
-		channelId, err = getDefaultChannel(us.db, us.cache, userId)
+	if !params.ChannelId.IsSet() {
+		channelId, err = getDefaultChannel(a.db, a.cache, userId)
 		if err != nil {
-			return nil, &types.AppError{Error: err}
+			return nil, err
 		}
 	} else {
-		channelId = uploadQuery.ChannelID
+		channelId = params.ChannelId.Value
 	}
 
-	tokens, err := getBotsToken(us.db, us.cache, userId, channelId)
+	tokens, err := getBotsToken(a.db, a.cache, userId, channelId)
 
 	if err != nil {
-		return nil, &types.AppError{Error: err}
+		return nil, err
 	}
 
 	if len(tokens) == 0 {
-		client, err = tgc.AuthClient(c, us.cnf, session)
+		client, err = tgc.AuthClient(ctx, &a.cnf.TG, session)
 		if err != nil {
-			return nil, &types.AppError{Error: err}
+			return nil, err
 		}
 		channelUser = strconv.FormatInt(userId, 10)
 	} else {
-		us.worker.Set(tokens, channelId)
-		token, index = us.worker.Next(channelId)
-		client, err = tgc.BotClient(c, us.kv, us.cnf, token)
+		a.worker.Set(tokens, channelId)
+		token, index = a.worker.Next(channelId)
+		client, err = tgc.BotClient(ctx, a.kv, &a.cnf.TG, token)
 
 		if err != nil {
-			return nil, &types.AppError{Error: err}
+			return nil, err
 		}
 
 		channelUser = strings.Split(token, ":")[0]
 	}
 
-	middlewares = tgc.Middlewares(us.cnf, us.cnf.Uploads.MaxRetries)
+	middlewares = tgc.Middlewares(&a.cnf.TG, a.cnf.TG.Uploads.MaxRetries)
 
-	uploadPool := pool.NewPool(client, int64(us.cnf.PoolSize), middlewares...)
+	uploadPool := pool.NewPool(client, int64(a.cnf.TG.PoolSize), middlewares...)
 
 	defer uploadPool.Close()
 
-	logger := logging.FromContext(c)
+	logger := logging.FromContext(ctx)
 
-	logger.Debugw("uploading chunk", "fileName", uploadQuery.FileName,
-		"partName", uploadQuery.PartName,
-		"bot", channelUser, "botNo", index,
-		"chunkNo", uploadQuery.PartNo, "partSize", fileSize)
+	logger.Debug("uploading chunk",
+		zap.String("fileName", params.FileName),
+		zap.String("partName", params.PartName),
+		zap.String("bot", channelUser),
+		zap.Int("botNo", index),
+		zap.Int("chunkNo", params.PartNo),
+		zap.Int64("partSize", fileSize),
+	)
 
-	err = tgc.RunWithAuth(c, client, token, func(ctx context.Context) error {
+	err = tgc.RunWithAuth(ctx, client, token, func(ctx context.Context) error {
 
 		channel, err := tgc.GetChannelById(ctx, client.API(), channelId)
 
@@ -185,25 +156,31 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 
 		var salt string
 
-		if uploadQuery.Encrypted {
+		if params.Encrypted.IsSet() {
 			//gen random Salt
 			salt, _ = generateRandomSalt()
-			cipher, _ := crypt.NewCipher(us.cnf.Uploads.EncryptionKey, salt)
+			cipher, err := crypt.NewCipher(a.cnf.TG.Uploads.EncryptionKey, salt)
+			if err != nil {
+				return err
+			}
 			fileSize = crypt.EncryptedSize(fileSize)
-			fileStream, _ = cipher.EncryptData(fileStream)
+			fileStream, err = cipher.EncryptData(req.Data)
+			if err != nil {
+				return err
+			}
 		}
 
 		client := uploadPool.Default(ctx)
 
-		u := uploader.NewUploader(client).WithThreads(us.cnf.Uploads.Threads).WithPartSize(512 * 1024)
+		u := uploader.NewUploader(client).WithThreads(a.cnf.TG.Uploads.Threads).WithPartSize(512 * 1024)
 
-		upload, err := u.Upload(ctx, uploader.NewUpload(uploadQuery.PartName, fileStream, fileSize))
+		upload, err := u.Upload(ctx, uploader.NewUpload(params.PartName, fileStream, fileSize))
 
 		if err != nil {
 			return err
 		}
 
-		document := message.UploadedDocument(upload).Filename(uploadQuery.PartName).ForceFile(true)
+		document := message.UploadedDocument(upload).Filename(params.PartName).ForceFile(true)
 
 		sender := message.NewSender(client)
 
@@ -233,47 +210,53 @@ func (us *UploadService) UploadFile(c *gin.Context) (*schemas.UploadPartOut, *ty
 		}
 
 		partUpload := &models.Upload{
-			Name:      uploadQuery.PartName,
-			UploadId:  uploadId,
+			Name:      params.PartName,
+			UploadId:  params.ID,
 			PartId:    message.ID,
 			ChannelID: channelId,
 			Size:      fileSize,
-			PartNo:    uploadQuery.PartNo,
+			PartNo:    int(params.PartNo),
 			UserId:    userId,
-			Encrypted: uploadQuery.Encrypted,
+			Encrypted: params.Encrypted.IsSet(),
 			Salt:      salt,
 		}
 
-		if err := us.db.Create(partUpload).Error; err != nil {
+		if err := a.db.Create(partUpload).Error; err != nil {
 			if message.ID != 0 {
 				client.ChannelsDeleteMessages(ctx, &tg.ChannelsDeleteMessagesRequest{Channel: channel, ID: []int{message.ID}})
 			}
 			return err
 		}
 
-		//verify if the part is uploaded
 		msgs, _ := client.ChannelsGetMessages(ctx,
 			&tg.ChannelsGetMessagesRequest{Channel: channel, ID: []tg.InputMessageClass{&tg.InputMessageID{ID: message.ID}}})
 
 		if msgs != nil && len(msgs.(*tg.MessagesChannelMessages).Messages) == 0 {
 			return errors.New("upload failed")
 		}
-
-		out = mapper.ToUploadOut(partUpload)
-
+		out = api.UploadPart{
+			Name:      partUpload.Name,
+			PartId:    partUpload.PartId,
+			ChannelId: partUpload.ChannelID,
+			PartNo:    partUpload.PartNo,
+			Size:      partUpload.Size,
+			Encrypted: partUpload.Encrypted,
+		}
+		out.SetSalt(api.NewOptString(partUpload.Salt))
 		return nil
+
 	})
 
 	if err != nil {
-		logger.Debugw("upload failed", "fileName", uploadQuery.FileName,
-			"partName", uploadQuery.PartName,
-			"chunkNo", uploadQuery.PartNo)
-		return nil, &types.AppError{Error: err}
+		logger.Debug("upload failed", zap.String("fileName", params.FileName),
+			zap.String("partName", params.PartName),
+			zap.Int("chunkNo", params.PartNo))
+		return nil, err
 	}
-	logger.Debugw("upload finished", "fileName", uploadQuery.FileName,
-		"partName", uploadQuery.PartName,
-		"chunkNo", uploadQuery.PartNo)
-	return out, nil
+	logger.Debug("upload finished", zap.String("fileName", params.FileName),
+		zap.String("partName", params.PartName),
+		zap.Int("chunkNo", params.PartNo))
+	return &out, nil
 
 }
 

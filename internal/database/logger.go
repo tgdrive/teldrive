@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/tgdrive/teldrive/internal/logging"
-
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gorm.io/gorm"
@@ -19,10 +17,10 @@ const msgPrefix = "[DB] "
 
 type Logger struct {
 	cfg glogger.Config
+	lg  *zap.SugaredLogger
 }
 
-// NewLogger returns a new logger for gorm. *zap.SugaredLogger will use from context.Context.
-func NewLogger(slowThreshold time.Duration, ignoreRecordNotFoundError bool, level zapcore.Level) *Logger {
+func NewLogger(lg *zap.SugaredLogger, slowThreshold time.Duration, ignoreRecordNotFoundError bool, level zapcore.Level) *Logger {
 	cfg := glogger.Config{
 		SlowThreshold:             slowThreshold,
 		Colorful:                  false,
@@ -38,7 +36,7 @@ func NewLogger(slowThreshold time.Duration, ignoreRecordNotFoundError bool, leve
 	default:
 		cfg.LogLevel = glogger.Silent
 	}
-	return &Logger{cfg: cfg}
+	return &Logger{cfg: cfg, lg: lg.WithOptions(zap.AddCallerSkip(3))}
 }
 
 func (l *Logger) LogMode(level glogger.LogLevel) glogger.Interface {
@@ -49,19 +47,19 @@ func (l *Logger) LogMode(level glogger.LogLevel) glogger.Interface {
 
 func (l *Logger) Info(ctx context.Context, s string, i ...interface{}) {
 	if l.cfg.LogLevel >= glogger.Info {
-		l.fromContext(ctx).Infof(msgPrefix+s, i)
+		l.lg.Infof(msgPrefix+s, i)
 	}
 }
 
 func (l *Logger) Warn(ctx context.Context, s string, i ...interface{}) {
 	if l.cfg.LogLevel >= glogger.Warn {
-		l.fromContext(ctx).Warnf(msgPrefix+s, i)
+		l.lg.Warnf(msgPrefix+s, i)
 	}
 }
 
 func (l *Logger) Error(ctx context.Context, s string, i ...interface{}) {
 	if l.cfg.LogLevel >= glogger.Error {
-		l.fromContext(ctx).Errorf(msgPrefix+s, i)
+		l.lg.Errorf(msgPrefix+s, i)
 	}
 }
 
@@ -71,7 +69,7 @@ func (l *Logger) Trace(ctx context.Context, begin time.Time, fc func() (string, 
 	}
 
 	elapsed := time.Since(begin)
-	logger := l.fromContext(ctx)
+	logger := l.lg
 
 	const (
 		traceStr     = msgPrefix + "%s\n[%.3fms] [rows:%v] %s"
@@ -103,8 +101,4 @@ func (l *Logger) Trace(ctx context.Context, begin time.Time, fc func() (string, 
 			logger.Infof(traceStr, utils.FileWithLineNum(), float64(elapsed.Nanoseconds())/1e6, rows, sql)
 		}
 	}
-}
-
-func (l *Logger) fromContext(ctx context.Context) *zap.SugaredLogger {
-	return logging.FromContext(ctx).WithOptions(zap.AddCallerSkip(3))
 }

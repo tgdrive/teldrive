@@ -53,6 +53,10 @@ func GetField(v interface{}, field string) string {
 	}
 }
 
+func Ptr[T any](t T) *T {
+	return &t
+}
+
 func BoolPointer(b bool) *bool {
 	return &b
 }

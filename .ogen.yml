@@ -1,0 +1,7 @@
+generator:
+  features:
+    disable:
+      - "ogen/otel"
+      - "paths/client"
+      - "client/request/validation"
+  convenient_errors: "on"

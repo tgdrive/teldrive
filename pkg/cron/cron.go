@@ -6,19 +6,19 @@ import (
 
 	"github.com/go-co-op/gocron"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/tgdrive/teldrive/internal/api"
 	"github.com/tgdrive/teldrive/internal/config"
 	"github.com/tgdrive/teldrive/internal/logging"
 	"github.com/tgdrive/teldrive/internal/tgc"
 	"github.com/tgdrive/teldrive/pkg/models"
-	"github.com/tgdrive/teldrive/pkg/schemas"
 	"go.uber.org/zap"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
 type File struct {
-	ID    string         `json:"id"`
-	Parts []schemas.Part `json:"parts"`
+	ID    string     `json:"id"`
+	Parts []api.Part `json:"parts"`
 }
 
 type Result struct {
@@ -47,7 +47,7 @@ func StartCronJobs(scheduler *gocron.Scheduler, db *gorm.DB, cnf *config.Config)
 	}
 	ctx := context.Background()
 
-	cron := CronService{db: db, cnf: cnf, logger: logging.DefaultLogger()}
+	cron := CronService{db: db, cnf: cnf, logger: logging.DefaultLogger().Sugar()}
 
 	scheduler.Every(cnf.CronJobs.CleanFilesInterval).Do(cron.CleanFiles, ctx)
 

@@ -5,12 +5,12 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
+	"github.com/go-faster/errors"
 	"github.com/gotd/contrib/middleware/floodwait"
 	"github.com/gotd/contrib/middleware/ratelimit"
 	"github.com/gotd/td/session"
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/telegram/dcs"
-	"github.com/pkg/errors"
 	"github.com/tgdrive/teldrive/internal/config"
 	"github.com/tgdrive/teldrive/internal/kv"
 	"github.com/tgdrive/teldrive/internal/logging"
@@ -35,7 +35,7 @@ func New(ctx context.Context, config *config.TGConfig, handler telegram.UpdateHa
 
 	var logger *zap.Logger
 	if config.EnableLogging {
-		logger = logging.FromContext(ctx).Desugar().Named("td")
+		logger = logging.FromContext(ctx).Named("td")
 
 	}
 

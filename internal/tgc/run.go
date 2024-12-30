@@ -3,8 +3,8 @@ package tgc
 import (
 	"context"
 
+	"github.com/go-faster/errors"
 	"github.com/gotd/td/telegram"
-	"github.com/pkg/errors"
 	"github.com/tgdrive/teldrive/internal/logging"
 	"go.uber.org/zap"
 )
@@ -20,18 +20,18 @@ func RunWithAuth(ctx context.Context, client *telegram.Client, token string, f f
 			if !status.Authorized {
 				return errors.Errorf("not authorized. please login first")
 			}
-			logger.Debugw("User Session",
+			logger.Debug("User Session",
 				zap.Int64("id", status.User.ID),
 				zap.String("username", status.User.Username))
 		} else {
 			if !status.Authorized {
-				logger.Debugw("creating bot session")
+				logger.Debug("creating bot session")
 				_, err := client.Auth().Bot(ctx, token)
 				if err != nil {
 					return err
 				}
 				status, _ = client.Auth().Status(ctx)
-				logger.Debugw("Bot Session",
+				logger.Debug("Bot Session",
 					zap.Int64("id", status.User.ID),
 					zap.String("username", status.User.Username))
 			}

@@ -5,16 +5,16 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/tgdrive/teldrive/pkg/schemas"
+	"github.com/tgdrive/teldrive/internal/api"
 )
 
 func TestCache(t *testing.T) {
 
-	var value = schemas.FileIn{
+	var value = api.File{
 		Name: "file.jpeg",
 		Type: "file",
 	}
-	var result schemas.FileIn
+	var result api.File
 
 	cache := NewMemoryCache(1 * 1024 * 1024)
 

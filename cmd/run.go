@@ -3,25 +3,31 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
+	"os"
+	"os/signal"
 	"path/filepath"
 	"reflect"
 	"regexp"
 	"strings"
+	"syscall"
 	"time"
 	"unicode"
 
-	"github.com/gin-contrib/gzip"
-	"github.com/gin-contrib/pprof"
-	ginzap "github.com/gin-contrib/zap"
-	"github.com/gin-gonic/gin"
+	"github.com/go-chi/chi/v5"
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
 	"github.com/go-co-op/gocron"
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"github.com/tgdrive/teldrive/api"
+	"github.com/tgdrive/teldrive/internal/api"
+	"github.com/tgdrive/teldrive/internal/appcontext"
+	"github.com/tgdrive/teldrive/internal/auth"
 	"github.com/tgdrive/teldrive/internal/cache"
+	"github.com/tgdrive/teldrive/internal/chizap"
 	"github.com/tgdrive/teldrive/internal/config"
 	"github.com/tgdrive/teldrive/internal/database"
 	"github.com/tgdrive/teldrive/internal/duration"
@@ -30,10 +36,11 @@ import (
 	"github.com/tgdrive/teldrive/internal/middleware"
 	"github.com/tgdrive/teldrive/internal/tgc"
 	"github.com/tgdrive/teldrive/internal/utils"
-	"github.com/tgdrive/teldrive/pkg/controller"
+	"github.com/tgdrive/teldrive/ui"
+
 	"github.com/tgdrive/teldrive/pkg/cron"
 	"github.com/tgdrive/teldrive/pkg/services"
-	"go.uber.org/fx"
+	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gorm.io/gorm"
 )
@@ -54,7 +61,7 @@ func NewRun() *cobra.Command {
 
 	runCmd.Flags().StringP("config", "c", "", "Config file path (default $HOME/.teldrive/config.toml)")
 	runCmd.Flags().IntVarP(&config.Server.Port, "server-port", "p", 8080, "Server port")
-	duration.DurationVar(runCmd.Flags(), &config.Server.GracefulShutdown, "server-graceful-shutdown", 15*time.Second, "Server graceful shutdown timeout")
+	duration.DurationVar(runCmd.Flags(), &config.Server.GracefulShutdown, "server-graceful-shutdown", 10*time.Second, "Server graceful shutdown timeout")
 	runCmd.Flags().BoolVar(&config.Server.EnablePprof, "server-enable-pprof", false, "Enable Pprof Profiling")
 	duration.DurationVar(runCmd.Flags(), &config.Server.ReadTimeout, "server-read-timeout", 1*time.Hour, "Server read timeout")
 	duration.DurationVar(runCmd.Flags(), &config.Server.WriteTimeout, "server-write-timeout", 1*time.Hour, "Server write timeout")
@@ -117,6 +124,18 @@ func NewRun() *cobra.Command {
 
 	return runCmd
 }
+func findAvailablePort(startPort int) (int, error) {
+	for port := startPort; port < startPort+100; port++ {
+		addr := fmt.Sprintf(":%d", port)
+		listener, err := net.Listen("tcp", addr)
+		if err != nil {
+			continue
+		}
+		listener.Close()
+		return port, nil
+	}
+	return 0, fmt.Errorf("no available ports found between %d and %d", startPort, startPort+100)
+}
 
 func runApplication(conf *config.Config) {
 	logging.SetConfig(&logging.Config{
@@ -127,44 +146,112 @@ func runApplication(conf *config.Config) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 
+	lg := logging.DefaultLogger().Sugar()
+
 	defer func() {
 		logging.DefaultLogger().Sync()
 		cancel()
 	}()
 
+	port, err := findAvailablePort(conf.Server.Port)
+	if err != nil {
+		lg.Fatalw("failed to find available port", "err", err)
+	}
+	if port != conf.Server.Port {
+		lg.Infof("Port %d is occupied, using port %d instead", conf.Server.Port, port)
+		conf.Server.Port = port
+	}
+
 	scheduler := gocron.NewScheduler(time.UTC)
 
 	cacher := cache.NewCache(ctx, conf)
 
-	app := fx.New(
-		fx.Supply(conf),
-		fx.Supply(scheduler),
-		fx.Provide(func() cache.Cacher {
-			return cacher
-		}),
-		fx.Supply(logging.DefaultLogger().Desugar()),
-		fx.Supply(logging.DefaultLogger()),
-		fx.NopLogger,
-		fx.StopTimeout(conf.Server.GracefulShutdown+time.Second),
-		fx.Provide(
-			database.NewDatabase,
-			kv.NewBoltKV,
-			tgc.NewBotWorker,
-			tgc.NewStreamWorker,
-			services.NewAuthService,
-			services.NewFileService,
-			services.NewUploadService,
-			services.NewUserService,
-			services.NewShareService,
-			controller.NewController,
-		),
-		fx.Invoke(
-			initApp,
-			cron.StartCronJobs,
-		),
-	)
+	db, err := database.NewDatabase(conf, lg)
 
-	app.Run()
+	if err != nil {
+		lg.Fatalw("failed to create database", "err", err)
+	}
+
+	kv := kv.NewBoltKV(conf)
+
+	worker := tgc.NewBotWorker()
+
+	srv := setupServer(conf, db, cacher, kv, worker)
+
+	stop := make(chan os.Signal, 1)
+
+	signal.Notify(stop, os.Interrupt, syscall.SIGTERM)
+
+	cron.StartCronJobs(scheduler, db, conf)
+
+	go func() {
+		lg.Infof("Server started at http://localhost:%d", conf.Server.Port)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			lg.Errorw("failed to start server", "err", err)
+		}
+	}()
+
+	<-stop
+
+	lg.Info("Shutting down server...")
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), conf.Server.GracefulShutdown)
+
+	defer shutdownCancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		lg.Errorw("server shutdown failed", "err", err)
+	}
+
+	scheduler.Stop()
+
+	lg.Info("Server stopped")
+}
+
+func setupServer(cfg *config.Config, db *gorm.DB, cache cache.Cacher, kv kv.KV, worker *tgc.BotWorker) *http.Server {
+
+	lg := logging.DefaultLogger()
+
+	apiSrv := services.NewApiService(db, cfg, cache, kv, worker)
+
+	srv, err := api.NewServer(apiSrv, auth.NewSecurityHandler(db, cache, cfg))
+
+	if err != nil {
+		lg.Fatal("failed to create server", zap.Error(err))
+	}
+
+	extendedSrv := services.NewExtendedMiddleware(srv, services.NewExtendedService(apiSrv))
+
+	mux := chi.NewRouter()
+
+	mux.Use(chimiddleware.Recoverer)
+	mux.Use(cors.Handler(cors.Options{
+		AllowedOrigins: []string{"*"},
+		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"},
+		AllowedHeaders: []string{"Accept", "Authorization", "Content-Type"},
+		MaxAge:         86400,
+	}))
+	mux.Use(chimiddleware.RealIP)
+	mux.Use(middleware.InjectLogger(lg))
+	mux.Use(chizap.ChizapWithConfig(lg, &chizap.Config{
+		TimeFormat: time.RFC3339,
+		UTC:        true,
+		SkipPathRegexps: []*regexp.Regexp{
+			regexp.MustCompile(`^/(assets|images|docs)/.*`),
+		},
+	}))
+	mux.Use(appcontext.Middleware)
+	mux.Mount("/api/", http.StripPrefix("/api", extendedSrv))
+	mux.Handle("/*", middleware.SPAHandler(ui.StaticFS))
+
+	return &http.Server{
+		Addr:              fmt.Sprintf(":%d", cfg.Server.Port),
+		Handler:           mux,
+		ReadTimeout:       cfg.Server.ReadTimeout,
+		WriteTimeout:      cfg.Server.WriteTimeout,
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
 }
 
 func initViperConfig(cmd *cobra.Command) error {
@@ -234,68 +321,4 @@ func modifyFlag(s string) string {
 	}
 
 	return string(result)
-}
-
-func initApp(lc fx.Lifecycle, cfg *config.Config, c *controller.Controller, db *gorm.DB, cache cache.Cacher) *gin.Engine {
-
-	gin.SetMode(gin.ReleaseMode)
-
-	r := gin.New()
-
-	if cfg.Server.EnablePprof {
-		pprof.Register(r)
-	}
-
-	r.Use(gin.Recovery())
-
-	skipPathRegexps := []*regexp.Regexp{
-		regexp.MustCompile(`^/assets/.*`),
-		regexp.MustCompile(`^/images/.*`),
-	}
-
-	r.Use(ginzap.GinzapWithConfig(logging.DefaultLogger().Desugar(), &ginzap.Config{
-		TimeFormat:      time.RFC3339,
-		UTC:             true,
-		SkipPathRegexps: skipPathRegexps,
-	}))
-
-	r.Use(middleware.Cors())
-
-	r.Use(func(c *gin.Context) {
-		pattern := `/(assets|images|fonts)/.*\.(js|css|svg|jpeg|jpg|png|woff|woff2|ttf|json|webp|png|ico|txt)$`
-		re, _ := regexp.Compile(pattern)
-		if re.MatchString(c.Request.URL.Path) {
-			c.Writer.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
-			gzip.Gzip(gzip.DefaultCompression)(c)
-		}
-		c.Next()
-	})
-
-	r = api.InitRouter(r, c, cfg, db, cache)
-	srv := &http.Server{
-		Addr:              fmt.Sprintf(":%d", cfg.Server.Port),
-		Handler:           r,
-		ReadTimeout:       cfg.Server.ReadTimeout,
-		WriteTimeout:      cfg.Server.WriteTimeout,
-		ReadHeaderTimeout: 10 * time.Second,
-		IdleTimeout:       60 * time.Second,
-	}
-	lc.Append(fx.Hook{
-		OnStart: func(ctx context.Context) error {
-			logging.FromContext(ctx).Infof("Started server http://localhost:%d", cfg.Server.Port)
-
-			go func() {
-
-				if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-					logging.DefaultLogger().Errorw("failed to close http server", "err", err)
-				}
-			}()
-			return nil
-		},
-		OnStop: func(ctx context.Context) error {
-			logging.FromContext(ctx).Info("Stopped server")
-			return srv.Shutdown(ctx)
-		},
-	})
-	return r
 }

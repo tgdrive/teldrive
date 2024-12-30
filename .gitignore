@@ -31,4 +31,6 @@ sslcerts
 logs
 bin
 ui/dist
+docs/dist
 teldrive-ui.zip
+internal/api
