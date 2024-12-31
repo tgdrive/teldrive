@@ -443,7 +443,16 @@ func (a *apiService) FilesShareByid(ctx context.Context, params api.FilesShareBy
 	if len(result) == 0 {
 		return nil, notFoundErr
 	}
-	return &api.FileShare{ExpiresAt: api.NewOptDateTime(*result[0].ExpiresAt), Protected: result[0].Password != nil}, nil
+	res := &api.FileShare{
+		ID: result[0].ID,
+	}
+	if result[0].Password != nil {
+		res.Protected = true
+	}
+	if result[0].ExpiresAt != nil {
+		res.ExpiresAt = api.NewOptDateTime(*result[0].ExpiresAt)
+	}
+	return res, nil
 }
 
 func (a *apiService) FilesStream(ctx context.Context, params api.FilesStreamParams) (api.FilesStreamRes, error) {

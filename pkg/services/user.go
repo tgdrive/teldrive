@@ -132,7 +132,7 @@ func (a *apiService) UsersListSessions(ctx context.Context) ([]api.UserSession, 
 	return sessionsOut, nil
 }
 
-func (a *apiService) UsersProfileImage(ctx context.Context) (*api.UsersProfileImageOKHeaders, error) {
+func (a *apiService) UsersProfileImage(ctx context.Context, params api.UsersProfileImageParams) (*api.UsersProfileImageOKHeaders, error) {
 	_, session := auth.GetUser(ctx)
 
 	client, err := tgc.AuthClient(ctx, &a.cnf.TG, session)
@@ -156,14 +156,16 @@ func (a *apiService) UsersProfileImage(ctx context.Context) (*api.UsersProfileIm
 		if !ok {
 			return errors.New("profile not found")
 		}
+		photo.GetPersonal()
 		location := &tg.InputPeerPhotoFileLocation{Big: false, Peer: peer, PhotoID: photo.PhotoID}
 		buff, err := tgc.GetMediaContent(ctx, client.API(), location)
 		if err != nil {
 			return err
 		}
 		content := buff.Bytes()
-		res.SetCacheControl("public, max-age=86400")
+		res.SetCacheControl("public, max-age=86400, must-revalidate")
 		res.SetContentLength(int64(len(content)))
+		res.SetEtag(fmt.Sprintf("\"%v\"", photo.PhotoID))
 		res.SetContentDisposition(fmt.Sprintf("inline; filename=\"%s\"", "profile.jpeg"))
 		res.Response = api.UsersProfileImageOK{Data: bytes.NewReader(content)}
 		return nil

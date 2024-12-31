@@ -48,6 +48,11 @@ func GetUser(c context.Context) (int64, string) {
 	return userId, authUser.TgSession
 }
 
+func GetJWTUser(c context.Context) *types.JWTClaims {
+	authUser, _ := c.Value(authKey).(*types.JWTClaims)
+	return authUser
+}
+
 func VerifyUser(db *gorm.DB, cache cache.Cacher, secret, authCookie string) (*types.JWTClaims, error) {
 	claims, err := Decode(secret, authCookie)
 

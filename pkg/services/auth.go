@@ -121,7 +121,7 @@ func (a *apiService) AuthLogin(ctx context.Context, session *api.SessionCreate) 
 }
 
 func (a *apiService) AuthLogout(ctx context.Context) (*api.AuthLogoutNoContent, error) {
-	authUser, _ := ctx.Value("authUser").(*types.JWTClaims)
+	authUser := auth.GetJWTUser(ctx)
 	client, _ := tgc.AuthClient(ctx, &a.cnf.TG, authUser.TgSession)
 	tgc.RunWithAuth(ctx, client, "", func(ctx context.Context) error {
 		_, err := client.API().AuthLogOut(ctx)

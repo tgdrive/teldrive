@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -39,7 +40,7 @@ func (afb *fileQueryBuilder) execute(filesQuery *api.FilesListParams, userId int
 	res := []fileResponse{}
 	if err := query.Scan(&res).Error; err != nil {
 		if strings.Contains(err.Error(), "file not found") {
-			return nil, &apiError{err: err}
+			return nil, &apiError{err: errors.New("invalid path"), code: 404}
 		}
 		return nil, &apiError{err: err}
 	}
