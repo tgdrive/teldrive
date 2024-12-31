@@ -6,6 +6,7 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/go-faster/errors"
+	"github.com/gotd/contrib/clock"
 	"github.com/gotd/contrib/middleware/floodwait"
 	"github.com/gotd/contrib/middleware/ratelimit"
 	"github.com/gotd/td/session"
@@ -38,6 +39,10 @@ func New(ctx context.Context, config *config.TGConfig, handler telegram.UpdateHa
 		logger = logging.FromContext(ctx).Named("td")
 
 	}
+	c, err := clock.NewNTP()
+	if err != nil {
+		return nil, errors.Wrap(err, "create clock")
+	}
 
 	opts := telegram.Options{
 		Resolver: dcs.Plain(dcs.PlainOptions{
@@ -61,6 +66,7 @@ func New(ctx context.Context, config *config.TGConfig, handler telegram.UpdateHa
 		Middlewares:    middlewares,
 		UpdateHandler:  handler,
 		Logger:         logger,
+		Clock:          c,
 	}
 
 	return telegram.NewClient(config.AppId, config.AppHash, opts), nil
