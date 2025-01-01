@@ -39,10 +39,6 @@ func New(ctx context.Context, config *config.TGConfig, handler telegram.UpdateHa
 		logger = logging.FromContext(ctx).Named("td")
 
 	}
-	c, err := clock.NewNTP()
-	if err != nil {
-		return nil, errors.Wrap(err, "create clock")
-	}
 
 	opts := telegram.Options{
 		Resolver: dcs.Plain(dcs.PlainOptions{
@@ -66,7 +62,14 @@ func New(ctx context.Context, config *config.TGConfig, handler telegram.UpdateHa
 		Middlewares:    middlewares,
 		UpdateHandler:  handler,
 		Logger:         logger,
-		Clock:          c,
+	}
+	if config.Ntp {
+		c, err := clock.NewNTP()
+		if err != nil {
+			return nil, errors.Wrap(err, "create clock")
+		}
+		opts.Clock = c
+
 	}
 
 	return telegram.NewClient(config.AppId, config.AppHash, opts), nil
@@ -106,17 +109,50 @@ func BotClient(ctx context.Context, KV kv.KV, config *config.TGConfig, token str
 
 }
 
-func Middlewares(config *config.TGConfig, retries int) []telegram.Middleware {
-	middlewares := []telegram.Middleware{
-		floodwait.NewSimpleWaiter(),
-		recovery.New(context.Background(), newBackoff(config.ReconnectTimeout)),
-		retry.New(retries),
-	}
-	if config.RateLimit {
-		middlewares = append(middlewares, ratelimit.New(rate.Every(time.Millisecond*time.Duration(config.Rate)), config.RateBurst))
-	}
-	return middlewares
+type middlewareOption func(*middlewareConfig)
 
+type middlewareConfig struct {
+	config      *config.TGConfig
+	middlewares []telegram.Middleware
+}
+
+func NewMiddleware(config *config.TGConfig, opts ...middlewareOption) []telegram.Middleware {
+	mc := &middlewareConfig{
+		config:      config,
+		middlewares: []telegram.Middleware{},
+	}
+	for _, opt := range opts {
+		opt(mc)
+	}
+	return mc.middlewares
+}
+
+func WithFloodWait() middlewareOption {
+	return func(mc *middlewareConfig) {
+		mc.middlewares = append(mc.middlewares, floodwait.NewSimpleWaiter())
+	}
+}
+
+func WithRecovery(ctx context.Context) middlewareOption {
+	return func(mc *middlewareConfig) {
+		mc.middlewares = append(mc.middlewares,
+			recovery.New(ctx, newBackoff(mc.config.ReconnectTimeout)))
+	}
+}
+
+func WithRetry(retries int) middlewareOption {
+	return func(mc *middlewareConfig) {
+		mc.middlewares = append(mc.middlewares, retry.New(retries))
+	}
+}
+
+func WithRateLimit() middlewareOption {
+	return func(mc *middlewareConfig) {
+		if mc.config.RateLimit {
+			mc.middlewares = append(mc.middlewares,
+				ratelimit.New(rate.Every(time.Millisecond*time.Duration(mc.config.Rate)), mc.config.RateBurst))
+		}
+	}
 }
 
 func newBackoff(timeout time.Duration) backoff.BackOff {

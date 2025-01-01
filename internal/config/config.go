@@ -45,6 +45,7 @@ type TGConfig struct {
 	LangCode            string
 	SystemLangCode      string
 	LangPack            string
+	Ntp                 bool
 	SessionFile         string
 	DisableStreamBots   bool
 	BgBotsCheckInterval time.Duration

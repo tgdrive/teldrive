@@ -105,7 +105,7 @@ func (a *apiService) FilesCopy(ctx context.Context, req *api.FileCopy, params ap
 
 	userId, session := auth.GetUser(ctx)
 
-	client, _ := tgc.AuthClient(ctx, &a.cnf.TG, session)
+	client, _ := tgc.AuthClient(ctx, &a.cnf.TG, session, a.middlewares...)
 
 	var res []models.File
 
@@ -541,7 +541,7 @@ func (a *apiService) FilesUpdateParts(ctx context.Context, req *api.FilePartsUpd
 		for _, part := range file.Parts {
 			ids = append(ids, int(part.ID))
 		}
-		client, _ := tgc.AuthClient(ctx, &a.cnf.TG, session)
+		client, _ := tgc.AuthClient(ctx, &a.cnf.TG, session, a.middlewares...)
 		tgc.DeleteMessages(ctx, client, *file.ChannelID, ids)
 		keys := []string{fmt.Sprintf("files:%s", params.ID), fmt.Sprintf("files:messages:%s:%d", params.ID, userId)}
 		for _, part := range file.Parts {
@@ -691,9 +691,12 @@ func (e *extendedService) FilesStream(w http.ResponseWriter, r *http.Request, fi
 	)
 
 	multiThreads = e.api.cnf.TG.Stream.MultiThreads
-
+	middlewares := tgc.NewMiddleware(&e.api.cnf.TG, tgc.WithFloodWait(),
+		tgc.WithRecovery(ctx),
+		tgc.WithRetry(5),
+		tgc.WithRateLimit())
 	if e.api.cnf.TG.DisableStreamBots || len(tokens) == 0 {
-		client, err = tgc.AuthClient(ctx, &e.api.cnf.TG, session.Session)
+		client, err = tgc.AuthClient(ctx, &e.api.cnf.TG, session.Session, middlewares...)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -705,7 +708,6 @@ func (e *extendedService) FilesStream(w http.ResponseWriter, r *http.Request, fi
 
 		token, _ = e.api.worker.Next(file.ChannelId.Value)
 
-		middlewares := tgc.Middlewares(&e.api.cnf.TG, 5)
 		client, err = tgc.BotClient(ctx, e.api.kv, &e.api.cnf.TG, token, middlewares...)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)

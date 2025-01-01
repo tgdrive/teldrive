@@ -79,7 +79,6 @@ func (a *apiService) UploadsUpload(ctx context.Context, req api.UploadsUploadReq
 		channelId   int64
 		err         error
 		client      *telegram.Client
-		middlewares []telegram.Middleware
 		token       string
 		index       int
 		channelUser string
@@ -129,7 +128,10 @@ func (a *apiService) UploadsUpload(ctx context.Context, req api.UploadsUploadReq
 		channelUser = strings.Split(token, ":")[0]
 	}
 
-	middlewares = tgc.Middlewares(&a.cnf.TG, a.cnf.TG.Uploads.MaxRetries)
+	middlewares := tgc.NewMiddleware(&a.cnf.TG, tgc.WithFloodWait(),
+		tgc.WithRecovery(ctx),
+		tgc.WithRetry(a.cnf.TG.Uploads.MaxRetries),
+		tgc.WithRateLimit())
 
 	uploadPool := pool.NewPool(client, int64(a.cnf.TG.PoolSize), middlewares...)
 

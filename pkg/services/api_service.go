@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/go-faster/errors"
+	"github.com/gotd/td/telegram"
 	"github.com/ogen-go/ogen/ogenerrors"
 
 	ht "github.com/ogen-go/ogen/http"
@@ -17,11 +18,12 @@ import (
 )
 
 type apiService struct {
-	db     *gorm.DB
-	cnf    *config.Config
-	cache  cache.Cacher
-	kv     kv.KV
-	worker *tgc.BotWorker
+	db          *gorm.DB
+	cnf         *config.Config
+	cache       cache.Cacher
+	kv          kv.KV
+	worker      *tgc.BotWorker
+	middlewares []telegram.Middleware
 }
 
 func (a *apiService) NewError(ctx context.Context, err error) *api.ErrorStatusCode {
@@ -50,7 +52,8 @@ func NewApiService(db *gorm.DB,
 	cache cache.Cacher,
 	kv kv.KV,
 	worker *tgc.BotWorker) *apiService {
-	return &apiService{db: db, cnf: cnf, cache: cache, kv: kv, worker: worker}
+	return &apiService{db: db, cnf: cnf, cache: cache, kv: kv, worker: worker,
+		middlewares: tgc.NewMiddleware(&cnf.TG, tgc.WithFloodWait(), tgc.WithRateLimit())}
 }
 
 type extendedService struct {

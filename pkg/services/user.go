@@ -26,7 +26,7 @@ import (
 
 func (a *apiService) UsersAddBots(ctx context.Context, req *api.AddBots) error {
 	userId, session := auth.GetUser(ctx)
-	client, _ := tgc.AuthClient(ctx, &a.cnf.TG, session)
+	client, _ := tgc.AuthClient(ctx, &a.cnf.TG, session, a.middlewares...)
 
 	if len(req.Bots) > 0 {
 		channelId, err := getDefaultChannel(a.db, a.cache, userId)
@@ -45,7 +45,13 @@ func (a *apiService) UsersAddBots(ctx context.Context, req *api.AddBots) error {
 
 func (a *apiService) UsersListChannels(ctx context.Context) ([]api.Channel, error) {
 	_, session := auth.GetUser(ctx)
-	client, _ := tgc.AuthClient(ctx, &a.cnf.TG, session)
+	client, err := tgc.AuthClient(ctx, &a.cnf.TG, session, a.middlewares...)
+	if err != nil {
+		return nil, &apiError{err: err}
+	}
+	if client == nil {
+		return nil, &apiError{err: errors.New("failed to initialise tg client")}
+	}
 
 	channels := make(map[int64]*api.Channel)
 
@@ -81,7 +87,7 @@ func (a *apiService) UsersListChannels(ctx context.Context) ([]api.Channel, erro
 func (a *apiService) UsersListSessions(ctx context.Context) ([]api.UserSession, error) {
 	userId, userSession := auth.GetUser(ctx)
 
-	client, _ := tgc.AuthClient(ctx, &a.cnf.TG, userSession)
+	client, _ := tgc.AuthClient(ctx, &a.cnf.TG, userSession, a.middlewares...)
 
 	var (
 		auth *tg.AccountAuthorizations
@@ -135,7 +141,7 @@ func (a *apiService) UsersListSessions(ctx context.Context) ([]api.UserSession, 
 func (a *apiService) UsersProfileImage(ctx context.Context, params api.UsersProfileImageParams) (*api.UsersProfileImageOKHeaders, error) {
 	_, session := auth.GetUser(ctx)
 
-	client, err := tgc.AuthClient(ctx, &a.cnf.TG, session)
+	client, err := tgc.AuthClient(ctx, &a.cnf.TG, session, a.middlewares...)
 
 	if err != nil {
 		return nil, &apiError{err: err}
@@ -203,7 +209,7 @@ func (a *apiService) UsersRemoveSession(ctx context.Context, params api.UsersRem
 		return &apiError{err: err}
 	}
 
-	client, _ := tgc.AuthClient(ctx, &a.cnf.TG, session.Session)
+	client, _ := tgc.AuthClient(ctx, &a.cnf.TG, session.Session, a.middlewares...)
 
 	client.Run(ctx, func(ctx context.Context) error {
 		_, err := client.API().AuthLogOut(ctx)
