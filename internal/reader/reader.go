@@ -140,7 +140,7 @@ func (r *LinearReader) getPartReader() (io.ReadCloser, error) {
 		reader io.ReadCloser
 		err    error
 	)
-	if r.file.Encrypted.IsSet() && r.file.Encrypted.Value {
+	if r.file.Encrypted.Value {
 		salt := r.parts[r.ranges[r.pos].PartNo].Salt
 		cipher, _ := crypt.NewCipher(r.config.Uploads.EncryptionKey, salt)
 		reader, err = cipher.DecryptDataSeek(r.ctx,

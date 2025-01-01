@@ -2,6 +2,10 @@ version: 2
 project_name: teldrive
 env:
   - GO111MODULE=on
+
+before:
+  hooks:
+  - go generate ./...
   
 builds:
   - env:

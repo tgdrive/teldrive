@@ -3,13 +3,8 @@ package chizap
 
 import (
 	"context"
-	"net"
 	"net/http"
-	"net/http/httputil"
-	"os"
 	"regexp"
-	"runtime/debug"
-	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5/middleware"
@@ -112,61 +107,6 @@ func ChizapWithConfig(logger ZapLogger, conf *Config) func(next http.Handler) ht
 			}()
 
 			next.ServeHTTP(ww, r)
-		})
-	}
-}
-
-func defaultHandleRecovery(w http.ResponseWriter, r *http.Request, err interface{}) {
-	w.WriteHeader(http.StatusInternalServerError)
-}
-
-func RecoveryWithZap(logger ZapLogger, stack bool) func(next http.Handler) http.Handler {
-	return CustomRecoveryWithZap(logger, stack, defaultHandleRecovery)
-}
-
-func CustomRecoveryWithZap(logger ZapLogger, stack bool, recovery func(w http.ResponseWriter, r *http.Request, err interface{})) func(next http.Handler) http.Handler {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			defer func() {
-				if err := recover(); err != nil {
-					var brokenPipe bool
-					if ne, ok := err.(*net.OpError); ok {
-						if se, ok := ne.Err.(*os.SyscallError); ok {
-							if strings.Contains(strings.ToLower(se.Error()), "broken pipe") ||
-								strings.Contains(strings.ToLower(se.Error()), "connection reset by peer") {
-								brokenPipe = true
-							}
-						}
-					}
-
-					httpRequest, _ := httputil.DumpRequest(r, false)
-					if brokenPipe {
-						logger.Error(r.URL.Path,
-							zap.Any("error", err),
-							zap.String("request", string(httpRequest)),
-						)
-						http.Error(w, "connection broken", http.StatusInternalServerError)
-						return
-					}
-
-					if stack {
-						logger.Error("[Recovery from panic]",
-							zap.Time("time", time.Now()),
-							zap.Any("error", err),
-							zap.String("request", string(httpRequest)),
-							zap.String("stack", string(debug.Stack())),
-						)
-					} else {
-						logger.Error("[Recovery from panic]",
-							zap.Time("time", time.Now()),
-							zap.Any("error", err),
-							zap.String("request", string(httpRequest)),
-						)
-					}
-					recovery(w, r, err)
-				}
-			}()
-			next.ServeHTTP(w, r)
 		})
 	}
 }

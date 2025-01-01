@@ -246,10 +246,10 @@ func (a *apiService) UsersUpdateChannel(ctx context.Context, req *api.ChannelUpd
 
 	channel := &models.Channel{UserID: userId, Selected: true}
 
-	if req.ChannelId.IsSet() {
+	if req.ChannelId.Value != 0 {
 		channel.ChannelID = req.ChannelId.Value
 	}
-	if req.ChannelName.IsSet() {
+	if req.ChannelName.Value != "" {
 		channel.ChannelName = req.ChannelName.Value
 	}
 

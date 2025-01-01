@@ -29,3 +29,20 @@ func ToFileOut(file models.File, extended bool) *api.File {
 	}
 	return res
 }
+
+func ToUploadOut(parts []models.Upload) []api.UploadPart {
+	res := []api.UploadPart{}
+	for _, part := range parts {
+		res = append(res, api.UploadPart{
+			Name:      part.Name,
+			PartId:    part.PartId,
+			ChannelId: part.ChannelID,
+			PartNo:    part.PartNo,
+			Size:      part.Size,
+			Encrypted: part.Encrypted,
+			Salt:      api.NewOptString(part.Salt),
+		})
+
+	}
+	return res
+}

@@ -17,7 +17,7 @@ GOARCH ?= $(shell go env GOARCH)
 VERSION:= $(GIT_TAG)
 BINARY_EXTENSION :=
 
-.PHONY: all build run clean frontend backend run sync-ui retag patch-version minor-version generate
+.PHONY: all build run clean frontend backend run sync-ui retag patch-version minor-version gen
  
 all: build
 

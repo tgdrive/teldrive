@@ -28,13 +28,21 @@ func SPAHandler(filesystem fs.FS) http.HandlerFunc {
 		logging.DefaultLogger().Fatal(err.Error())
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
-		f, err := spaFS.Open(strings.TrimPrefix(path.Clean(r.URL.Path), "/"))
+		filePath := strings.TrimPrefix(path.Clean(r.URL.Path), "/")
+		f, err := spaFS.Open(filePath)
 		if err == nil {
 			defer f.Close()
 		}
 		if os.IsNotExist(err) {
 			r.URL.Path = "/"
+			filePath = "index.html"
 		}
+		if filePath == "index.html" {
+			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		} else {
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		}
+
 		http.FileServer(http.FS(spaFS)).ServeHTTP(w, r)
 	}
 }

@@ -196,7 +196,7 @@ func (a *apiService) FilesCopy(ctx context.Context, req *api.FileCopy, params ap
 	dbFile.Name = req.NewName.Or(file.Name)
 	dbFile.Size = utils.Ptr(file.Size.Value)
 	dbFile.Type = string(file.Type)
-	dbFile.MimeType = file.MimeType.Value
+	dbFile.MimeType = file.MimeType.Or(defaultContentType)
 	dbFile.Parts = datatypes.NewJSONSlice(newIds)
 	dbFile.UserID = userId
 	dbFile.Status = "active"
@@ -226,7 +226,7 @@ func (a *apiService) FilesCreate(ctx context.Context, fileIn *api.File) (*api.Fi
 		channelId int64
 	)
 
-	if fileIn.Path.IsSet() {
+	if fileIn.Path.Value != "" {
 		path = strings.TrimSpace(fileIn.Path.Value)
 		path = strings.ReplaceAll(path, "//", "/")
 		if path != "/" {
@@ -234,7 +234,7 @@ func (a *apiService) FilesCreate(ctx context.Context, fileIn *api.File) (*api.Fi
 		}
 	}
 
-	if path != "" && !fileIn.ParentId.IsSet() {
+	if path != "" && fileIn.ParentId.Value == "" {
 		parent, err = a.getFileFromPath(path, userId)
 		if err != nil {
 			return nil, &apiError{err: err, code: 404}
@@ -243,7 +243,7 @@ func (a *apiService) FilesCreate(ctx context.Context, fileIn *api.File) (*api.Fi
 			String: parent.Id,
 			Valid:  true,
 		}
-	} else if fileIn.ParentId.IsSet() {
+	} else if fileIn.ParentId.Value != "" {
 		fileDB.ParentID = sql.NullString{
 			String: fileIn.ParentId.Value,
 			Valid:  true,
@@ -257,7 +257,7 @@ func (a *apiService) FilesCreate(ctx context.Context, fileIn *api.File) (*api.Fi
 		fileDB.MimeType = "drive/folder"
 		fileDB.Parts = nil
 	} else if fileIn.Type == "file" {
-		if !fileIn.ChannelId.IsSet() {
+		if fileIn.ChannelId.Value == 0 {
 			channelId, err = getDefaultChannel(a.db, a.cache, userId)
 			if err != nil {
 				return nil, &apiError{err: err}
@@ -266,10 +266,18 @@ func (a *apiService) FilesCreate(ctx context.Context, fileIn *api.File) (*api.Fi
 			channelId = fileIn.ChannelId.Value
 		}
 		fileDB.ChannelID = &channelId
-		fileDB.MimeType = fileIn.MimeType.Or("application/octet-stream")
+		fileDB.MimeType = fileIn.MimeType.Value
 		fileDB.Category = string(category.GetCategory(fileIn.Name))
 		if len(fileIn.Parts) > 0 {
-			fileDB.Parts = datatypes.NewJSONSlice(fileIn.Parts)
+			parts := []api.Part{}
+			for _, part := range fileIn.Parts {
+				p := api.Part{ID: part.ID}
+				if part.Salt.Value != "" {
+					p.Salt = part.Salt
+				}
+				parts = append(parts, p)
+			}
+			fileDB.Parts = datatypes.NewJSONSlice(parts)
 		}
 		fileDB.Size = utils.Ptr(fileIn.Size.Or(0))
 	}
@@ -277,7 +285,7 @@ func (a *apiService) FilesCreate(ctx context.Context, fileIn *api.File) (*api.Fi
 	fileDB.Type = string(fileIn.Type)
 	fileDB.UserID = userId
 	fileDB.Status = "active"
-	fileDB.Encrypted = fileIn.Encrypted.Or(false)
+	fileDB.Encrypted = fileIn.Encrypted.Value
 	if err := a.db.Create(&fileDB).Error; err != nil {
 		if database.IsKeyConflictErr(err) {
 			return nil, &apiError{err: errors.New("file already exists"), code: 409}
@@ -292,7 +300,7 @@ func (a *apiService) FilesCreateShare(ctx context.Context, req *api.FileShareCre
 
 	var fileShare models.FileShare
 
-	if req.Password.IsSet() {
+	if req.Password.Value != "" {
 		bytes, err := bcrypt.GenerateFromPassword([]byte(req.Password.Value), bcrypt.MinCost)
 		if err != nil {
 			return &apiError{err: err}
@@ -315,14 +323,14 @@ func (a *apiService) FilesCreateShare(ctx context.Context, req *api.FileShareCre
 
 func (a *apiService) FilesDelete(ctx context.Context, req *api.FileDelete) error {
 	userId, _ := auth.GetUser(ctx)
-	if !req.Source.IsSet() && len(req.Ids) == 0 {
+	if req.Source.Value == "" && len(req.Ids) == 0 {
 		return &apiError{err: errors.New("source or ids is required"), code: 409}
 	}
-	if req.Source.IsSet() && len(req.Ids) == 0 {
+	if req.Source.Value != "" && len(req.Ids) == 0 {
 		if err := a.db.Exec("call teldrive.delete_folder_recursive($1 , $2)", req.Source.Value, userId).Error; err != nil {
 			return &apiError{err: err}
 		}
-	} else if !req.Source.IsSet() && len(req.Ids) > 0 {
+	} else if req.Source.Value == "" && len(req.Ids) > 0 {
 		if err := a.db.Exec("call teldrive.delete_files_bulk($1 , $2)", req.Ids, userId).Error; err != nil {
 			return &apiError{err: err}
 		}
@@ -351,7 +359,7 @@ func (a *apiService) FilesEditShare(ctx context.Context, req *api.FileShareCreat
 
 	var fileShareUpdate models.FileShare
 
-	if req.Password.IsSet() {
+	if req.Password.Value != "" {
 		bytes, err := bcrypt.GenerateFromPassword([]byte(req.Password.Value), bcrypt.MinCost)
 		if err != nil {
 			return &apiError{err: err}
@@ -409,15 +417,15 @@ func (a *apiService) FilesMkdir(ctx context.Context, req *api.FileMkDir) error {
 
 func (a *apiService) FilesMove(ctx context.Context, req *api.FileMove) error {
 	userId, _ := auth.GetUser(ctx)
-	if !req.Source.IsSet() && len(req.Ids) == 0 {
+	if req.Source.Value == "" && len(req.Ids) == 0 {
 		return &apiError{err: errors.New("source or ids is required"), code: 409}
 	}
-	if !req.Source.IsSet() && len(req.Ids) > 0 {
+	if req.Source.Value != "" && len(req.Ids) > 0 {
 		if err := a.db.Exec("select * from teldrive.move_items($1 , $2 , $3)", req.Ids, req.Destination, userId).Error; err != nil {
 			return &apiError{err: err}
 		}
 	}
-	if req.Source.IsSet() && len(req.Ids) == 0 {
+	if req.Source.Value == "" && len(req.Ids) == 0 {
 		if err := a.db.Exec("select * from teldrive.move_directory(? , ? , ?)", req.Source.Value,
 			req.Destination, userId).Error; err != nil {
 			return &apiError{err: err}
@@ -466,13 +474,21 @@ func (a *apiService) FilesUpdate(ctx context.Context, req *api.FileUpdate, param
 		chain *gorm.DB
 	)
 	updateDb := models.File{}
-	if req.Name.IsSet() {
+	if req.Name.Value != "" {
 		updateDb.Name = req.Name.Value
 	}
 	if len(req.Parts) > 0 {
-		updateDb.Parts = datatypes.NewJSONSlice(req.Parts)
+		parts := []api.Part{}
+		for _, part := range req.Parts {
+			p := api.Part{ID: part.ID}
+			if part.Salt.Value != "" {
+				p.Salt = part.Salt
+			}
+			parts = append(parts, p)
+		}
+		updateDb.Parts = datatypes.NewJSONSlice(parts)
 	}
-	if req.Size.IsSet() {
+	if req.Size.Value != 0 {
 		updateDb.Size = utils.Ptr(req.Size.Value)
 	}
 	if req.UpdatedAt.IsSet() {
@@ -503,7 +519,7 @@ func (a *apiService) FilesUpdateParts(ctx context.Context, req *api.FilePartsUpd
 		Size:      utils.Ptr(req.Size),
 	}
 
-	if !req.ChannelId.IsSet() {
+	if req.ChannelId.Value == 0 {
 		channelId, err := getDefaultChannel(a.db, a.cache, userId)
 		if err != nil {
 			return &apiError{err: err}
@@ -513,7 +529,15 @@ func (a *apiService) FilesUpdateParts(ctx context.Context, req *api.FilePartsUpd
 		updatePayload.ChannelID = &req.ChannelId.Value
 	}
 	if len(req.Parts) > 0 {
-		updatePayload.Parts = datatypes.NewJSONSlice(req.Parts)
+		parts := []api.Part{}
+		for _, part := range req.Parts {
+			p := api.Part{ID: part.ID}
+			if part.Salt.Value != "" {
+				p.Salt = part.Salt
+			}
+			parts = append(parts, p)
+		}
+		updatePayload.Parts = datatypes.NewJSONSlice(parts)
 	}
 	err := a.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("id = ?", params.ID).First(&file).Error; err != nil {
@@ -522,7 +546,7 @@ func (a *apiService) FilesUpdateParts(ctx context.Context, req *api.FilePartsUpd
 		if err := tx.Model(models.File{}).Where("id = ?", params.ID).Updates(updatePayload).Error; err != nil {
 			return err
 		}
-		if req.UploadId.IsSet() {
+		if req.UploadId.Value != "" {
 			if err := tx.Where("upload_id = ?", req.UploadId.Value).Delete(&models.Upload{}).Error; err != nil {
 				return err
 			}

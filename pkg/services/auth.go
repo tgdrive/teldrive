@@ -134,7 +134,7 @@ func (a *apiService) AuthLogout(ctx context.Context) (*api.AuthLogoutNoContent, 
 }
 
 func (a *apiService) AuthSession(ctx context.Context, params api.AuthSessionParams) (api.AuthSessionRes, error) {
-	if !params.AccessToken.IsSet() {
+	if params.AccessToken.Value == "" {
 		return &api.AuthSessionNoContent{}, nil
 	}
 	claims, err := auth.VerifyUser(a.db, a.cache, a.cnf.JWT.Secret, params.AccessToken.Value)

@@ -63,24 +63,24 @@ func (afb *fileQueryBuilder) execute(filesQuery *api.FilesListParams, userId int
 }
 
 func (afb *fileQueryBuilder) applyListFilters(query *gorm.DB, filesQuery *api.FilesListParams, userId int64) *gorm.DB {
-	if filesQuery.Path.IsSet() && !filesQuery.ParentId.IsSet() {
+	if filesQuery.Path.Value != "" && filesQuery.ParentId.Value == "" {
 		query = query.Where("parent_id in (SELECT id FROM teldrive.get_file_from_path(?, ?, ?))", filesQuery.Path.Value, userId, true)
 	}
-	if filesQuery.ParentId.IsSet() {
+	if filesQuery.ParentId.Value != "" {
 		query = query.Where("parent_id = ?", filesQuery.ParentId.Value)
 	}
 	return query
 }
 
 func (afb *fileQueryBuilder) applyFindFilters(query *gorm.DB, filesQuery *api.FilesListParams, userId int64) *gorm.DB {
-	if filesQuery.DeepSearch.IsSet() && filesQuery.DeepSearch.Value && filesQuery.Query.IsSet() && filesQuery.Path.IsSet() {
+	if filesQuery.DeepSearch.Value && filesQuery.Query.Value != "" && filesQuery.Path.Value != "" {
 		query = query.Where("files.id in (select id  from subdirs)")
 	}
-	if filesQuery.UpdatedAt.IsSet() {
+	if filesQuery.UpdatedAt.Value != "" {
 		query, _ = afb.applyDateFilters(query, filesQuery.UpdatedAt.Value)
 	}
 
-	if filesQuery.Query.IsSet() {
+	if filesQuery.Query.Value != "" {
 		query = afb.applySearchQuery(query, filesQuery)
 	}
 
@@ -92,23 +92,24 @@ func (afb *fileQueryBuilder) applyFindFilters(query *gorm.DB, filesQuery *api.Fi
 }
 
 func (afb *fileQueryBuilder) applyFileSpecificFilters(query *gorm.DB, filesQuery *api.FilesListParams, userId int64) *gorm.DB {
-	if filesQuery.Name.IsSet() {
+	if filesQuery.Name.Value != "" {
 		query = query.Where("name = ?", filesQuery.Name.Value)
 	}
 
-	if filesQuery.ParentId.IsSet() {
+	if filesQuery.ParentId.Value != "" {
 		query = query.Where("parent_id = ?", filesQuery.ParentId.Value)
 	}
 
-	if !filesQuery.ParentId.IsSet() && filesQuery.Path.IsSet() && !filesQuery.Query.IsSet() {
-		query = query.Where("parent_id in (SELECT id FROM teldrive.get_file_from_path(?, ?, ?))", filesQuery.Path.Value, userId, true)
+	if filesQuery.ParentId.Value == "" && filesQuery.Path.Value != "" && filesQuery.Query.Value == "" {
+		query = query.Where("parent_id in (SELECT id FROM teldrive.get_file_from_path(?, ?, ?))",
+			filesQuery.Path.Value, userId, true)
 	}
 
-	if filesQuery.Type.IsSet() {
+	if filesQuery.Type.Value != "" {
 		query = query.Where("type = ?", filesQuery.Type.Value)
 	}
 
-	if filesQuery.Shared.IsSet() && filesQuery.Shared.Value {
+	if filesQuery.Shared.Value {
 		query = query.Where("id in (SELECT file_id FROM teldrive.file_shares where user_id = ?)", userId)
 	}
 
@@ -201,7 +202,7 @@ func (afb *fileQueryBuilder) buildFileQuery(query *gorm.DB, filesQuery *api.File
 }
 
 func (afb *fileQueryBuilder) buildSubqueryCTE(query *gorm.DB, filesQuery *api.FilesListParams, userId int64) *gorm.DB {
-	if filesQuery.DeepSearch.IsSet() && filesQuery.DeepSearch.Value && filesQuery.Query.IsSet() && filesQuery.Path.IsSet() {
+	if filesQuery.DeepSearch.Value && filesQuery.Query.Value != "" && filesQuery.Path.Value != "" {
 		return afb.db.Clauses(exclause.With{Recursive: true, CTEs: []exclause.CTE{{Name: "subdirs",
 			Subquery: exclause.Subquery{DB: afb.db.Model(&models.File{}).Select("id", "parent_id").
 				Where("id in (SELECT id FROM teldrive.get_file_from_path(?, ?, ?))", filesQuery.Path.Value, userId, true).

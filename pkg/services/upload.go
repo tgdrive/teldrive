@@ -24,6 +24,7 @@ import (
 	"github.com/gotd/td/telegram/message"
 	"github.com/gotd/td/telegram/uploader"
 	"github.com/gotd/td/tg"
+	"github.com/tgdrive/teldrive/pkg/mapper"
 	"github.com/tgdrive/teldrive/pkg/models"
 )
 
@@ -37,13 +38,13 @@ func (a *apiService) UploadsDelete(ctx context.Context, params api.UploadsDelete
 }
 
 func (a *apiService) UploadsPartsById(ctx context.Context, params api.UploadsPartsByIdParams) ([]api.UploadPart, error) {
-	parts := []api.UploadPart{}
+	parts := []models.Upload{}
 	if err := a.db.Model(&models.Upload{}).Order("part_no").Where("upload_id = ?", params.ID).
 		Where("created_at < ?", time.Now().UTC().Add(a.cnf.TG.Uploads.Retention)).
 		Find(&parts).Error; err != nil {
 		return nil, &apiError{err: err}
 	}
-	return parts, nil
+	return mapper.ToUploadOut(parts), nil
 }
 
 func (a *apiService) UploadsStats(ctx context.Context, params api.UploadsStatsParams) ([]api.UploadStats, error) {
@@ -74,7 +75,7 @@ func (a *apiService) UploadsStats(ctx context.Context, params api.UploadsStatsPa
 	return stats, nil
 }
 
-func (a *apiService) UploadsUpload(ctx context.Context, req api.UploadsUploadReq, params api.UploadsUploadParams) (*api.UploadPart, error) {
+func (a *apiService) UploadsUpload(ctx context.Context, req *api.UploadsUploadReqWithContentType, params api.UploadsUploadParams) (*api.UploadPart, error) {
 	var (
 		channelId   int64
 		err         error
@@ -85,17 +86,17 @@ func (a *apiService) UploadsUpload(ctx context.Context, req api.UploadsUploadReq
 		out         api.UploadPart
 	)
 
-	if !params.Encrypted.IsSet() && a.cnf.TG.Uploads.EncryptionKey == "" {
+	if params.Encrypted.Value && a.cnf.TG.Uploads.EncryptionKey == "" {
 		return nil, &apiError{err: errors.New("encryption is not enabled"), code: 400}
 	}
 
 	userId, session := auth.GetUser(ctx)
 
-	fileStream := req.Data
+	fileStream := req.Content.Data
 
 	fileSize := params.ContentLength
 
-	if !params.ChannelId.IsSet() {
+	if params.ChannelId.Value == 0 {
 		channelId, err = getDefaultChannel(a.db, a.cache, userId)
 		if err != nil {
 			return nil, err
@@ -158,7 +159,7 @@ func (a *apiService) UploadsUpload(ctx context.Context, req api.UploadsUploadReq
 
 		var salt string
 
-		if params.Encrypted.IsSet() {
+		if params.Encrypted.Value {
 			//gen random Salt
 			salt, _ = generateRandomSalt()
 			cipher, err := crypt.NewCipher(a.cnf.TG.Uploads.EncryptionKey, salt)
@@ -166,7 +167,7 @@ func (a *apiService) UploadsUpload(ctx context.Context, req api.UploadsUploadReq
 				return err
 			}
 			fileSize = crypt.EncryptedSize(fileSize)
-			fileStream, err = cipher.EncryptData(req.Data)
+			fileStream, err = cipher.EncryptData(fileStream)
 			if err != nil {
 				return err
 			}
@@ -219,7 +220,7 @@ func (a *apiService) UploadsUpload(ctx context.Context, req api.UploadsUploadReq
 			Size:      fileSize,
 			PartNo:    int(params.PartNo),
 			UserId:    userId,
-			Encrypted: params.Encrypted.IsSet(),
+			Encrypted: params.Encrypted.Value,
 			Salt:      salt,
 		}
 

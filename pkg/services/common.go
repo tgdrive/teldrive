@@ -49,7 +49,7 @@ func getParts(ctx context.Context, client *telegram.Client, cache cache.Cacher, 
 			Size: document.Size,
 			Salt: file.Parts[i].Salt.Value,
 		}
-		if file.Encrypted.IsSet() && file.Encrypted.Value {
+		if file.Encrypted.Value {
 			part.DecryptedSize, _ = crypt.DecryptedSize(document.Size)
 		}
 		parts = append(parts, part)
