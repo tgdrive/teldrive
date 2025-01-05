@@ -97,7 +97,12 @@ func (afb *fileQueryBuilder) applyFileSpecificFilters(query *gorm.DB, filesQuery
 	}
 
 	if filesQuery.ParentId.Value != "" {
-		query = query.Where("parent_id = ?", filesQuery.ParentId.Value)
+		if filesQuery.ParentId.Value == "nil" {
+			query = query.Where("parent_id is NULL")
+		} else {
+			query = query.Where("parent_id = ?", filesQuery.ParentId.Value)
+		}
+
 	}
 
 	if filesQuery.ParentId.Value == "" && filesQuery.Path.Value != "" && filesQuery.Query.Value == "" {
