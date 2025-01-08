@@ -217,6 +217,11 @@ func (a *apiService) FilesCopy(ctx context.Context, req *api.FileCopy, params ap
 	dbFile.ChannelID = &channelId
 	dbFile.Encrypted = file.Encrypted.Value
 	dbFile.Category = string(file.Category.Value)
+	if req.UpdatedAt.IsSet() && !req.UpdatedAt.Value.IsZero() {
+		dbFile.UpdatedAt = req.UpdatedAt.Value
+	} else {
+		dbFile.UpdatedAt = time.Now().UTC()
+	}
 
 	if err := a.db.Create(&dbFile).Error; err != nil {
 		return nil, &apiError{err: err}
@@ -236,8 +241,12 @@ func (a *apiService) FilesCreate(ctx context.Context, fileIn *api.File) (*api.Fi
 		channelId int64
 	)
 
+	if fileIn.Path.Value == "" && fileIn.ParentId.Value == "" {
+		return nil, &apiError{err: errors.New("parent id or path is required"), code: 409}
+	}
+
 	if fileIn.Path.Value != "" {
-		path = strings.ReplaceAll(path, "//", "/")
+		path = strings.ReplaceAll(fileIn.Path.Value, "//", "/")
 		if path != "/" {
 			path = strings.TrimSuffix(path, "/")
 		}
@@ -258,8 +267,6 @@ func (a *apiService) FilesCreate(ctx context.Context, fileIn *api.File) (*api.Fi
 			Valid:  true,
 		}
 
-	} else {
-		return nil, &apiError{err: errors.New("parent id or path is required"), code: 409}
 	}
 
 	if fileIn.Type == "folder" {
@@ -295,6 +302,13 @@ func (a *apiService) FilesCreate(ctx context.Context, fileIn *api.File) (*api.Fi
 	fileDB.UserID = userId
 	fileDB.Status = "active"
 	fileDB.Encrypted = fileIn.Encrypted.Value
+	if fileIn.UpdatedAt.IsSet() && !fileIn.UpdatedAt.Value.IsZero() {
+		fileDB.UpdatedAt = fileIn.UpdatedAt.Value
+		fileDB.CreatedAt = fileIn.UpdatedAt.Value
+	} else {
+		fileDB.UpdatedAt = time.Now().UTC()
+		fileDB.CreatedAt = time.Now().UTC()
+	}
 	if err := a.db.Create(&fileDB).Error; err != nil {
 		if database.IsKeyConflictErr(err) {
 			return nil, &apiError{err: errors.New("file already exists"), code: 409}
@@ -491,9 +505,9 @@ func (a *apiService) FilesUpdate(ctx context.Context, req *api.FileUpdate, param
 	if req.Size.Value != 0 {
 		updateDb.Size = utils.Ptr(req.Size.Value)
 	}
-	if req.UpdatedAt.IsSet() {
+	if req.UpdatedAt.IsSet() && !req.UpdatedAt.Value.IsZero() {
 		updateDb.UpdatedAt = req.UpdatedAt.Value
-	} else {
+	} else if !req.UpdatedAt.IsSet() && params.Skiputs.Value == "0" {
 		updateDb.UpdatedAt = time.Now().UTC()
 	}
 
@@ -578,9 +592,9 @@ func (a *apiService) FilesUpdateParts(ctx context.Context, req *api.FilePartsUpd
 		}
 		client, _ := tgc.AuthClient(ctx, &a.cnf.TG, session, a.middlewares...)
 		tgc.DeleteMessages(ctx, client, *file.ChannelID, ids)
-		keys := []string{fmt.Sprintf("files:%s", params.ID), fmt.Sprintf("files:messages:%s:%d", params.ID, userId)}
+		keys := []string{fmt.Sprintf("files:%s", params.ID), fmt.Sprintf("files:messages:%s", params.ID)}
 		for _, part := range file.Parts {
-			keys = append(keys, fmt.Sprintf("files:location:%d:%s:%d", userId, params.ID, part.ID))
+			keys = append(keys, fmt.Sprintf("files:location:%s:%d", params.ID, part.ID))
 
 		}
 		a.cache.Delete(keys...)
