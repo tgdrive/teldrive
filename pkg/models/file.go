@@ -21,6 +21,6 @@ type File struct {
 	ParentID  sql.NullString                `gorm:"type:uuid;index"`
 	Parts     datatypes.JSONSlice[api.Part] `gorm:"type:jsonb"`
 	ChannelID *int64                        `gorm:"type:bigint"`
-	CreatedAt time.Time                     `gorm:"default:timezone('utc'::text, now())"`
-	UpdatedAt time.Time                     `gorm:"default:timezone('utc'::text, now())"`
+	CreatedAt time.Time                     `gorm:"autoCreateTime:false"`
+	UpdatedAt time.Time                     `gorm:"autoUpdateTime:false"`
 }

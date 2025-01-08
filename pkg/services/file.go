@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gotd/td/telegram"
@@ -492,6 +493,8 @@ func (a *apiService) FilesUpdate(ctx context.Context, req *api.FileUpdate, param
 	}
 	if req.UpdatedAt.IsSet() {
 		updateDb.UpdatedAt = req.UpdatedAt.Value
+	} else {
+		updateDb.UpdatedAt = time.Now().UTC()
 	}
 
 	if err := a.db.Model(&models.File{}).Where("id = ?", params.ID).Updates(updateDb).Error; err != nil {
@@ -544,12 +547,14 @@ func (a *apiService) FilesUpdateParts(ctx context.Context, req *api.FilePartsUpd
 			Valid:  true,
 		}
 	}
+
+	updatePayload.UpdatedAt = req.UpdatedAt
+
 	err := a.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("id = ?", params.ID).First(&file).Error; err != nil {
 			return err
 		}
-		if err := tx.Model(models.File{}).Where("id = ?", params.ID).Updates(updatePayload).
-			Update("updated_at", req.UpdatedAt).Error; err != nil {
+		if err := tx.Model(models.File{}).Where("id = ?", params.ID).Updates(updatePayload).Error; err != nil {
 			return err
 		}
 		if req.UploadId.Value != "" {
