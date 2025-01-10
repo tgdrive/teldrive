@@ -229,10 +229,8 @@ func (a *apiService) FilesCopy(ctx context.Context, req *api.FileCopy, params ap
 	dbFile.Category = string(file.Category)
 	if req.UpdatedAt.IsSet() && !req.UpdatedAt.Value.IsZero() {
 		dbFile.UpdatedAt = req.UpdatedAt.Value
-		dbFile.CreatedAt = req.UpdatedAt.Value
 	} else {
 		dbFile.UpdatedAt = time.Now().UTC()
-		dbFile.CreatedAt = time.Now().UTC()
 	}
 
 	if err := a.db.Create(&dbFile).Error; err != nil {
@@ -316,10 +314,8 @@ func (a *apiService) FilesCreate(ctx context.Context, fileIn *api.File) (*api.Fi
 	fileDB.Encrypted = fileIn.Encrypted.Value
 	if fileIn.UpdatedAt.IsSet() && !fileIn.UpdatedAt.Value.IsZero() {
 		fileDB.UpdatedAt = fileIn.UpdatedAt.Value
-		fileDB.CreatedAt = fileIn.UpdatedAt.Value
 	} else {
 		fileDB.UpdatedAt = time.Now().UTC()
-		fileDB.CreatedAt = time.Now().UTC()
 	}
 	if err := a.db.Create(&fileDB).Error; err != nil {
 		if database.IsKeyConflictErr(err) {
