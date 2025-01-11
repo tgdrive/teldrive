@@ -9,6 +9,7 @@ require (
 	github.com/go-chi/cors v1.2.1
 	github.com/go-co-op/gocron v1.37.0
 	github.com/golang-jwt/jwt/v5 v5.2.1
+	github.com/google/uuid v1.6.0
 	github.com/gotd/contrib v0.21.0
 	github.com/gotd/td v0.116.0
 	github.com/iyear/connectproxy v0.1.1
@@ -41,7 +42,6 @@ require (
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-faster/yaml v0.4.6 // indirect
 	github.com/go-sql-driver/mysql v1.8.1 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect

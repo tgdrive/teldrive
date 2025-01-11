@@ -17,8 +17,15 @@ GOOS ?= $(shell go env GOOS)
 GOARCH ?= $(shell go env GOARCH)
 GIT_COMMIT := $(shell git rev-parse --short HEAD)
 VERSION_PACKAGE := $(MODULE_PATH)/internal/version
-VERSION := $(GIT_TAG)
 BINARY_EXTENSION :=
+
+ifeq ($(IS_WINDOWS),true)
+    TAG_FILTER:=Sort-Object -Descending | Select-Object -First 1
+else
+    TAG_FILTER:=head -n 1
+endif
+
+GIT_TAG := $(shell git tag -l '[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | $(TAG_FILTER))
 
 ifeq ($(IS_WINDOWS),true)
     BINARY_EXTENSION := .exe
@@ -27,14 +34,12 @@ ifeq ($(IS_WINDOWS),true)
     MKDIR := powershell -Command "New-Item -ItemType Directory -Force"
     DOWNLOAD := powershell -Command "Invoke-WebRequest -Uri"
     UNZIP := powershell -Command "Expand-Archive"
-	GIT_TAG := $(shell git tag -l '[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | Sort-Object -Descending | Select-Object -First 1)
 else
     RM := rm -f
     RMDIR := rm -rf
     MKDIR := mkdir -p
     DOWNLOAD := curl -sLO
     UNZIP := unzip -q -d
-	GIT_TAG := $(shell git tag -l '[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1)
 endif
 
 .PHONY: all build run clean frontend backend run sync-ui retag patch-version minor-version major-version gen check-semver install-semver
