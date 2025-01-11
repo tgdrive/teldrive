@@ -31,7 +31,7 @@ By following these guidelines, you contribute to the responsible and effective u
 
 ## Contributing
 
-Feel free to contribute to this project if you have any further ideas.
+Feel free to contribute to this project.See [CONTRIBUTING.md](CONTRIBUTING.md) for more information.
 
 ## Donate
 

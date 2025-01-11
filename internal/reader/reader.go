@@ -60,12 +60,16 @@ func NewLinearReader(ctx context.Context,
 	concurrency int,
 ) (io.ReadCloser, error) {
 
+	size := parts[0].Size
+	if file.Encrypted.Value {
+		size = parts[0].DecryptedSize
+	}
 	r := &LinearReader{
 		ctx:         ctx,
 		parts:       parts,
 		file:        file,
 		remaining:   end - start + 1,
-		ranges:      calculatePartByteRanges(start, end, parts[0].Size),
+		ranges:      calculatePartByteRanges(start, end, size),
 		config:      config,
 		client:      client,
 		concurrency: concurrency,

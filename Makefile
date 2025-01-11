@@ -10,10 +10,6 @@ APP_NAME := teldrive
 BUILD_DIR := bin
 FRONTEND_DIR := ui/dist
 FRONTEND_ASSET := https://github.com/tgdrive/teldrive-ui/releases/download/latest/teldrive-ui.zip
-GIT_TAG := $(shell git tag -l '[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1)
-ifeq ($(GIT_TAG),)
-    GIT_TAG := 1.0.0
-endif
 GIT_COMMIT := $(shell git rev-parse --short HEAD)
 GIT_LINK := $(shell git remote get-url origin)
 MODULE_PATH := $(shell go list -m)
@@ -23,7 +19,6 @@ GIT_COMMIT := $(shell git rev-parse --short HEAD)
 VERSION_PACKAGE := $(MODULE_PATH)/internal/version
 VERSION := $(GIT_TAG)
 BINARY_EXTENSION :=
-BUILD_TIME :=
 
 ifeq ($(IS_WINDOWS),true)
     BINARY_EXTENSION := .exe
@@ -32,18 +27,14 @@ ifeq ($(IS_WINDOWS),true)
     MKDIR := powershell -Command "New-Item -ItemType Directory -Force"
     DOWNLOAD := powershell -Command "Invoke-WebRequest -Uri"
     UNZIP := powershell -Command "Expand-Archive"
+	GIT_TAG := $(shell git tag -l '[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | Sort-Object -Descending | Select-Object -First 1)
 else
     RM := rm -f
     RMDIR := rm -rf
     MKDIR := mkdir -p
     DOWNLOAD := curl -sLO
     UNZIP := unzip -q -d
-endif
-
-ifeq ($(IS_WINDOWS),true)
-    BUILD_TIME := $(shell powershell -Command "(Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')")
-else
-    BUILD_TIME := $(shell date -u '+%Y-%m-%dT%H:%M:%S.000Z')
+	GIT_TAG := $(shell git tag -l '[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1)
 endif
 
 .PHONY: all build run clean frontend backend run sync-ui retag patch-version minor-version major-version gen check-semver install-semver
@@ -77,12 +68,8 @@ gen:
 
 backend: gen
 	@echo "Building backend for $(GOOS)/$(GOARCH)..."
-	go build -trimpath \
-		-ldflags "-s -w \
-			-X '$(VERSION_PACKAGE).Version=$(VERSION)' \
-			-X '$(VERSION_PACKAGE).CommitSHA=$(GIT_COMMIT)' \
-			-extldflags=-static" \
-		-o $(BUILD_DIR)/$(APP_NAME)$(BINARY_EXTENSION)
+	go build -trimpath -ldflags "-s -w -X '$(VERSION_PACKAGE).Version=$(GIT_TAG)' -X '$(VERSION_PACKAGE).CommitSHA=$(GIT_COMMIT)' -extldflags=-static" -o $(BUILD_DIR)/$(APP_NAME)$(BINARY_EXTENSION)
+
 
 build: frontend backend
 	@echo "Building complete."
