@@ -14,6 +14,7 @@ import (
 	"github.com/tgdrive/teldrive/internal/config"
 	"github.com/tgdrive/teldrive/internal/kv"
 	"github.com/tgdrive/teldrive/internal/tgc"
+	"github.com/tgdrive/teldrive/internal/version"
 	"gorm.io/gorm"
 )
 
@@ -24,6 +25,10 @@ type apiService struct {
 	kv          kv.KV
 	worker      *tgc.BotWorker
 	middlewares []telegram.Middleware
+}
+
+func (a *apiService) VersionVersion(ctx context.Context) (*api.ApiVersion, error) {
+	return version.GetVersionInfo(), nil
 }
 
 func (a *apiService) NewError(ctx context.Context, err error) *api.ErrorStatusCode {

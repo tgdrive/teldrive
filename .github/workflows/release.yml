@@ -27,22 +27,7 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
-
-      - name: Build UI
-        run: |
-          git clone https://github.com/tgdrive/teldrive-ui
-          cd teldrive-ui
-          pnpm install --frozen-lockfile
-          export VITE_SERVER_VERSION=$GITHUB_REF_NAME
-          pnpm run build
-          cd ..
-          mv teldrive-ui/dist ui/dist
-          rm -rf teldrive-ui
-
+          
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:

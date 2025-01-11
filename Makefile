@@ -1,49 +1,88 @@
 ifdef ComSpec
 SHELL := powershell.exe
+IS_WINDOWS := true
 else
 SHELL := /bin/bash
+IS_WINDOWS := false
 endif
 
 APP_NAME := teldrive
 BUILD_DIR := bin
 FRONTEND_DIR := ui/dist
-FRONTEND_ASSET := https://github.com/tgdrive/teldrive-ui/releases/download/v1/teldrive-ui.zip
-GIT_TAG := $(shell git describe --tags --abbrev=0)
+FRONTEND_ASSET := https://github.com/tgdrive/teldrive-ui/releases/download/latest/teldrive-ui.zip
+GIT_TAG := $(shell git tag -l '[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1)
+ifeq ($(GIT_TAG),)
+    GIT_TAG := 1.0.0
+endif
 GIT_COMMIT := $(shell git rev-parse --short HEAD)
 GIT_LINK := $(shell git remote get-url origin)
 MODULE_PATH := $(shell go list -m)
 GOOS ?= $(shell go env GOOS)
 GOARCH ?= $(shell go env GOARCH)
-VERSION:= $(GIT_TAG)
+GIT_COMMIT := $(shell git rev-parse --short HEAD)
+VERSION_PACKAGE := $(MODULE_PATH)/internal/version
+VERSION := $(GIT_TAG)
 BINARY_EXTENSION :=
+BUILD_TIME :=
 
-.PHONY: all build run clean frontend backend run sync-ui retag patch-version minor-version gen
- 
+ifeq ($(IS_WINDOWS),true)
+    BINARY_EXTENSION := .exe
+    RM := powershell -Command "Remove-Item"
+    RMDIR := powershell -Command "Remove-Item -Recurse -Force"
+    MKDIR := powershell -Command "New-Item -ItemType Directory -Force"
+    DOWNLOAD := powershell -Command "Invoke-WebRequest -Uri"
+    UNZIP := powershell -Command "Expand-Archive"
+else
+    RM := rm -f
+    RMDIR := rm -rf
+    MKDIR := mkdir -p
+    DOWNLOAD := curl -sLO
+    UNZIP := unzip -q -d
+endif
+
+ifeq ($(IS_WINDOWS),true)
+    BUILD_TIME := $(shell powershell -Command "(Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')")
+else
+    BUILD_TIME := $(shell date -u '+%Y-%m-%dT%H:%M:%S.000Z')
+endif
+
+.PHONY: all build run clean frontend backend run sync-ui retag patch-version minor-version major-version gen check-semver install-semver
+
 all: build
+
+check-semver:
+ifeq ($(IS_WINDOWS),true)
+	@powershell -Command "if (-not (Get-Command semver -ErrorAction SilentlyContinue)) { Write-Host 'Installing semver...'; npm install -g semver }"
+else
+	@which semver > /dev/null || (echo "Installing semver..." && npm install -g semver)
+endif
 
 frontend:
 	@echo "Extract UI"
-ifeq ($(OS),Windows_NT)
-	powershell -Command "Remove-Item -Path $(FRONTEND_DIR) -Recurse -Force"
-	powershell -Command "Invoke-WebRequest -Uri $(FRONTEND_ASSET) -OutFile teldrive-ui.zip"
-	powershell -Command "if (!(Test-Path -Path $(subst /,\\,$(FRONTEND_DIR)))) { New-Item -ItemType Directory -Force -Path $(subst /,\\,$(FRONTEND_DIR)) }"
-	powershell -Command "Expand-Archive -Path teldrive-ui.zip -DestinationPath $(FRONTEND_DIR) -Force"
-	powershell -Command "Remove-Item -Path teldrive-ui.zip -Force"
+	$(RMDIR) $(FRONTEND_DIR)
+ifeq ($(IS_WINDOWS),true)
+	$(DOWNLOAD) $(FRONTEND_ASSET) -OutFile teldrive-ui.zip
+	$(MKDIR) $(subst /,\\,$(FRONTEND_DIR))
+	$(UNZIP) -Path teldrive-ui.zip -DestinationPath $(FRONTEND_DIR) -Force
+	$(RM) teldrive-ui.zip
 else
-	rm -rf $(FRONTEND_DIR)
-	curl -LO $(FRONTEND_ASSET) -o teldrive-ui.zip
-	mkdir -p $(FRONTEND_DIR)
-	unzip -d $(FRONTEND_DIR) teldrive-ui.zip
-	rm -rf teldrive-ui.zip
+	$(DOWNLOAD) $(FRONTEND_ASSET)
+	$(MKDIR) $(FRONTEND_DIR)
+	$(UNZIP) $(FRONTEND_DIR) teldrive-ui.zip
+	$(RM) teldrive-ui.zip
 endif
 
-ifeq ($(OS),Windows_NT)
-    BINARY_EXTENSION := .exe
-endif
+gen:
+	go generate ./...
 
-backend:
+backend: gen
 	@echo "Building backend for $(GOOS)/$(GOARCH)..."
-	go build -trimpath -ldflags "-s -w -X $(MODULE_PATH)/internal/config.Version=$(VERSION) -extldflags=-static" -o $(BUILD_DIR)/$(APP_NAME)$(BINARY_EXTENSION)
+	go build -trimpath \
+		-ldflags "-s -w \
+			-X '$(VERSION_PACKAGE).Version=$(VERSION)' \
+			-X '$(VERSION_PACKAGE).CommitSHA=$(GIT_COMMIT)' \
+			-extldflags=-static" \
+		-o $(BUILD_DIR)/$(APP_NAME)$(BINARY_EXTENSION)
 
 build: frontend backend
 	@echo "Building complete."
@@ -54,29 +93,53 @@ run:
 
 clean:
 	@echo "Cleaning up..."
-	rm -rf $(BUILD_DIR)
-	cd $(FRONTEND_DIR) && rm -rf dist node_modules
+	$(RMDIR) $(BUILD_DIR)
+ifeq ($(IS_WINDOWS),true)
+	if exist "$(FRONTEND_DIR)" $(RMDIR) "$(FRONTEND_DIR)"
+else
+	$(RMDIR) $(FRONTEND_DIR)
+endif
 
 deps:
 	@echo "Installing Go dependencies..."
 	go mod download
 
 retag:
-	@echo "Retagging..."
-	git tag -d $(GIT_TAG)
-	git push --delete origin $(GIT_TAG)
+	@echo "Retagging $(GIT_TAG)..."
+	-git tag -d $(GIT_TAG)
+	-git push --delete origin $(GIT_TAG)
 	git tag -a $(GIT_TAG) -m "Recreated tag $(GIT_TAG)"
 	git push origin $(GIT_TAG)
 
-patch-version:
-	@echo "Patching version..."
-	git tag -a $(shell semver -i patch $(GIT_TAG)) -m "Release $(shell semver -i patch $(GIT_TAG))"
-	git push origin $(shell semver -i patch $(GIT_TAG))
+patch-version: check-semver
+	@echo "Current version: $(GIT_TAG)"
+ifeq ($(GIT_TAG),)
+	$(eval NEW_VERSION := 1.0.0)
+else
+	$(eval NEW_VERSION := $(shell semver -i patch $(GIT_TAG)))
+endif
+	@echo "Creating new patch version: $(NEW_VERSION)"
+	git tag -a $(NEW_VERSION) -m "Release $(NEW_VERSION)"
+	git push origin $(NEW_VERSION)
 
-minor-version:
-	@echo "Minoring version..."
-	git tag -a $(shell semver -i minor $(GIT_TAG)) -m "Release $(shell semver -i minor $(GIT_TAG))"
-	git push origin $(shell semver -i minor $(GIT_TAG))
-	
-gen:
-	go generate ./...
+minor-version: check-semver
+	@echo "Current version: $(GIT_TAG)"
+ifeq ($(GIT_TAG),)
+	$(eval NEW_VERSION := 1.0.0)
+else
+	$(eval NEW_VERSION := $(shell semver -i minor $(GIT_TAG)))
+endif
+	@echo "Creating new minor version: $(NEW_VERSION)"
+	git tag -a $(NEW_VERSION) -m "Release $(NEW_VERSION)"
+	git push origin $(NEW_VERSION)
+
+major-version: check-semver
+	@echo "Current version: $(GIT_TAG)"
+ifeq ($(GIT_TAG),)
+	$(eval NEW_VERSION := 1.0.0)
+else
+	$(eval NEW_VERSION := $(shell semver -i major $(GIT_TAG)))
+endif
+	@echo "Creating new major version: $(NEW_VERSION)"
+	git tag -a $(NEW_VERSION) -m "Release $(NEW_VERSION)"
+	git push origin $(NEW_VERSION)

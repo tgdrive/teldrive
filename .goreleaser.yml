@@ -5,7 +5,8 @@ env:
 
 before:
   hooks:
-  - go generate ./...
+  - make frontend
+  - make gen
   
 builds:
   - env:
@@ -16,7 +17,8 @@ builds:
     ldflags:
      - -extldflags=-static
      - -s -w
-     - -X {{ .ModulePath }}/internal/config.Version={{ .Version }}
+     - -X {{ .ModulePath }}/internal/version.Version={{ .Version }}
+     - -X {{ .ModulePath }}/internal/version.CommitSHA={{ .ShortCommit }}
     mod_timestamp: "{{ .CommitTimestamp }}"
     goos:
       - linux
@@ -64,15 +66,28 @@ docker_manifests:
     image_templates:
       - "ghcr.io/tgdrive/{{ .ProjectName }}:{{ .Tag }}-amd64"
       - "ghcr.io/tgdrive/{{ .ProjectName }}:{{ .Tag }}-arm64"
-
+      
 changelog:
+  use: github
   sort: asc
+  groups:
+    - title: Features
+      regexp: "^.*feat[(\\w)]*:+.*$"
+      order: 0
+    - title: Bug fixes
+      regexp: "^.*fix[(\\w)]*:+.*$"
+      order: 1
+    - title: Refactoring
+      regexp: "^.*refactor[(\\w)]*:+.*$"
+      order: 2
+    - title: Others
+      order: 3
   filters:
     exclude:
-      - '^docs:'
-      - '^test:'
-      - '^ci:'
       - '^README'
       - '^Update'
       - Merge pull request
       - Merge branch
+
+release:
+  draft: true
