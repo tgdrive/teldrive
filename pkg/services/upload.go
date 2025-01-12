@@ -52,16 +52,20 @@ func (a *apiService) UploadsStats(ctx context.Context, params api.UploadsStatsPa
 	var stats []api.UploadStats
 	err := a.db.Raw(`
     SELECT 
-        dates.upload_date::date AS upload_date,
-        COALESCE(SUM(files.size), 0)::bigint AS total_uploaded
+    dates.upload_date::date AS upload_date,
+    COALESCE(SUM(files.size), 0)::bigint AS total_uploaded
     FROM 
-        generate_series(CURRENT_DATE - INTERVAL '1 day' * @days, CURRENT_DATE, '1 day') AS dates(upload_date)
+        generate_series(
+            (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date - INTERVAL '1 day' * @days,
+            (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date,
+            '1 day'
+        ) AS dates(upload_date)
     LEFT JOIN 
-        teldrive.files AS files
+    teldrive.files AS files
     ON 
-        dates.upload_date = DATE_TRUNC('day', files.created_at)
-    WHERE 
-	    dates.upload_date >= CURRENT_DATE - INTERVAL '1 day' * @days and (files.type='file' or files.type is null) and (files.user_id=@userId or files.user_id is null)
+        dates.upload_date = DATE_TRUNC('day', files.created_at)::date
+        AND files.type = 'file'
+        AND files.user_id = @userId
     GROUP BY 
         dates.upload_date
     ORDER BY 
