@@ -87,10 +87,11 @@ func (p *pool) Default(ctx context.Context) *tg.Client {
 	return p.Client(ctx, p.current())
 }
 
-func (p *pool) Close() (err error) {
+func (p *pool) Close() error {
 
 	if p.close != nil {
 		return p.close()
 	}
+
 	return nil
 }

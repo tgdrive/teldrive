@@ -23,14 +23,14 @@ type MemoryCache struct {
 	mu     sync.RWMutex
 }
 
-func NewCache(ctx context.Context, conf *config.Config) Cacher {
+func NewCache(ctx context.Context, conf *config.CacheConfig) Cacher {
 	var cacher Cacher
-	if conf.Cache.RedisAddr == "" {
-		cacher = NewMemoryCache(conf.Cache.MaxSize)
+	if conf.RedisAddr == "" {
+		cacher = NewMemoryCache(conf.MaxSize)
 	} else {
 		cacher = NewRedisCache(ctx, redis.NewClient(&redis.Options{
-			Addr:     conf.Cache.RedisAddr,
-			Password: conf.Cache.RedisPass,
+			Addr:     conf.RedisAddr,
+			Password: conf.RedisPass,
 		}))
 	}
 	return cacher

@@ -1,7 +1,6 @@
 package database
 
 import (
-	"database/sql"
 	"embed"
 	"errors"
 	"fmt"
@@ -44,7 +43,7 @@ func NewTestDatabase(tb testing.TB, migration bool) *gorm.DB {
 	sqlDB.SetConnMaxIdleTime(10 * time.Minute)
 
 	if migration {
-		migrateDB(sqlDB)
+		MigrateDB(db)
 	}
 
 	return db
@@ -69,14 +68,15 @@ func DeleteRecordAll(_ testing.TB, db *gorm.DB, tableWhereClauses []string) erro
 	return nil
 }
 
-func migrateDB(db *sql.DB) error {
+func MigrateDB(db *gorm.DB) error {
+	sqlDb, _ := db.DB()
 	goose.SetBaseFS(embedMigrations)
 
 	if err := goose.SetDialect("postgres"); err != nil {
-		return fmt.Errorf("failed run migrate: %w", err)
+		return err
 	}
-	if err := goose.Up(db, "migrations"); err != nil {
-		return fmt.Errorf("failed run migrate: %w", err)
+	if err := goose.Up(sqlDb, "migrations"); err != nil {
+		return err
 	}
 	return nil
 }

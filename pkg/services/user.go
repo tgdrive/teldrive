@@ -21,6 +21,8 @@ import (
 	"github.com/tgdrive/teldrive/pkg/types"
 	"golang.org/x/sync/errgroup"
 
+	tgbbolt "github.com/gotd/contrib/bbolt"
+	"github.com/gotd/contrib/storage"
 	"gorm.io/gorm/clause"
 )
 
@@ -44,36 +46,28 @@ func (a *apiService) UsersAddBots(ctx context.Context, req *api.AddBots) error {
 }
 
 func (a *apiService) UsersListChannels(ctx context.Context) ([]api.Channel, error) {
-	_, session := auth.GetUser(ctx)
-	client, err := tgc.AuthClient(ctx, &a.cnf.TG, session, a.middlewares...)
-	if err != nil {
-		return nil, &apiError{err: err}
-	}
-	if client == nil {
-		return nil, &apiError{err: errors.New("failed to initialise tg client")}
-	}
+
+	userID, _ := auth.GetUser(ctx)
 
 	channels := make(map[int64]*api.Channel)
 
-	client.Run(ctx, func(ctx context.Context) error {
+	peerStorage := tgbbolt.NewPeerStorage(a.boltdb, []byte(fmt.Sprintf("peers:%d", userID)))
 
-		dialogs, _ := query.GetDialogs(client.API()).BatchSize(100).Collect(ctx)
-
-		for _, dialog := range dialogs {
-			if !dialog.Deleted() {
-				for _, channel := range dialog.Entities.Channels() {
-					_, exists := channels[channel.ID]
-					if !exists && channel.AdminRights.AddAdmins {
-						channels[channel.ID] = &api.Channel{ChannelId: channel.ID, ChannelName: channel.Title}
-					}
-				}
+	iter, err := peerStorage.Iterate(ctx)
+	if err != nil {
+		return []api.Channel{}, nil
+	}
+	for iter.Next(ctx) {
+		peer := iter.Value()
+		if peer.Channel != nil && peer.Channel.AdminRights.AddAdmins {
+			_, exists := channels[peer.Channel.ID]
+			if !exists {
+				channels[peer.Channel.ID] = &api.Channel{ChannelId: peer.Channel.ID, ChannelName: peer.Channel.Title}
 			}
 		}
-		return nil
 
-	})
+	}
 	res := []api.Channel{}
-
 	for _, channel := range channels {
 		res = append(res, *channel)
 
@@ -82,6 +76,23 @@ func (a *apiService) UsersListChannels(ctx context.Context) ([]api.Channel, erro
 		return res[i].ChannelName < res[j].ChannelName
 	})
 	return res, nil
+}
+
+func (a *apiService) UsersSyncChannels(ctx context.Context) error {
+	userId, session := auth.GetUser(ctx)
+	peerStorage := tgbbolt.NewPeerStorage(a.boltdb, []byte(fmt.Sprintf("peers:%d", userId)))
+	collector := storage.CollectPeers(peerStorage)
+	client, err := tgc.AuthClient(ctx, &a.cnf.TG, session, a.middlewares...)
+	if err != nil {
+		return &apiError{err: err}
+	}
+	err = client.Run(ctx, func(ctx context.Context) error {
+		return collector.Dialogs(ctx, query.GetDialogs(client.API()).Iter())
+	})
+	if err != nil {
+		return &apiError{err: err}
+	}
+	return nil
 }
 
 func (a *apiService) UsersListSessions(ctx context.Context) ([]api.UserSession, error) {
@@ -287,7 +298,7 @@ func (a *apiService) addBots(c context.Context, client *telegram.Client, userId 
 
 		for _, token := range botsTokens {
 			g.Go(func() error {
-				info, err := tgc.GetBotInfo(c, a.kv, &a.cnf.TG, token)
+				info, err := tgc.GetBotInfo(c, a.boltdb, &a.cnf.TG, token)
 				if err != nil {
 					return err
 				}

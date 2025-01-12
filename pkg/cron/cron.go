@@ -37,11 +37,11 @@ type UploadResult struct {
 
 type CronService struct {
 	db     *gorm.DB
-	cnf    *config.Config
+	cnf    *config.ServerCmdConfig
 	logger *zap.SugaredLogger
 }
 
-func StartCronJobs(scheduler *gocron.Scheduler, db *gorm.DB, cnf *config.Config) {
+func StartCronJobs(scheduler *gocron.Scheduler, db *gorm.DB, cnf *config.ServerCmdConfig) {
 	if !cnf.CronJobs.Enable {
 		return
 	}

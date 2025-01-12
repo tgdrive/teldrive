@@ -12,8 +12,8 @@ import (
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/tg"
 	"github.com/tgdrive/teldrive/internal/config"
-	"github.com/tgdrive/teldrive/internal/kv"
 	"github.com/tgdrive/teldrive/pkg/types"
+	"go.etcd.io/bbolt"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -100,7 +100,7 @@ func GetMessages(ctx context.Context, client *tg.Client, ids []int, channelId in
 		return nil, err
 	}
 
-	batchSize := 200
+	batchSize := 100
 
 	batchCount := int(math.Ceil(float64(len(ids)) / float64(batchSize)))
 
@@ -184,10 +184,10 @@ func GetMediaContent(ctx context.Context, client *tg.Client, location tg.InputFi
 	return buff, nil
 }
 
-func GetBotInfo(ctx context.Context, KV kv.KV, config *config.TGConfig, token string) (*types.BotInfo, error) {
+func GetBotInfo(ctx context.Context, boltdb *bbolt.DB, config *config.TGConfig, token string) (*types.BotInfo, error) {
 	var user *tg.User
 	middlewares := NewMiddleware(config, WithFloodWait(), WithRateLimit())
-	client, _ := BotClient(ctx, KV, config, token, middlewares...)
+	client, _ := BotClient(ctx, boltdb, config, token, middlewares...)
 	err := RunWithAuth(ctx, client, token, func(ctx context.Context) error {
 		user, _ = client.Self(ctx)
 		return nil

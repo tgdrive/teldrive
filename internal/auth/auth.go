@@ -93,7 +93,7 @@ func GetSessionByHash(db *gorm.DB, cache cache.Cacher, hash string) (*models.Ses
 type securityHandler struct {
 	db    *gorm.DB
 	cache cache.Cacher
-	cfg   *config.Config
+	cfg   *config.JWTConfig
 }
 
 func (s *securityHandler) HandleApiKeyAuth(ctx context.Context, operationName api.OperationName, t api.ApiKeyAuth) (context.Context, error) {
@@ -105,14 +105,14 @@ func (s *securityHandler) HandleBearerAuth(ctx context.Context, operationName ap
 }
 
 func (s *securityHandler) handleAuth(ctx context.Context, token string) (context.Context, error) {
-	claims, err := VerifyUser(s.db, s.cache, s.cfg.JWT.Secret, token)
+	claims, err := VerifyUser(s.db, s.cache, s.cfg.Secret, token)
 	if err != nil {
 		return nil, &ogenerrors.SecurityError{Err: err}
 	}
 	return context.WithValue(ctx, authKey, claims), nil
 }
 
-func NewSecurityHandler(db *gorm.DB, cache cache.Cacher, cfg *config.Config) api.SecurityHandler {
+func NewSecurityHandler(db *gorm.DB, cache cache.Cacher, cfg *config.JWTConfig) api.SecurityHandler {
 	return &securityHandler{db: db, cache: cache, cfg: cfg}
 }
 

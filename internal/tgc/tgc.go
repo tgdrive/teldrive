@@ -2,10 +2,12 @@ package tgc
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/go-faster/errors"
+	tgbbolt "github.com/gotd/contrib/bbolt"
 	"github.com/gotd/contrib/clock"
 	"github.com/gotd/contrib/middleware/floodwait"
 	"github.com/gotd/contrib/middleware/ratelimit"
@@ -13,17 +15,21 @@ import (
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/telegram/dcs"
 	"github.com/tgdrive/teldrive/internal/config"
-	"github.com/tgdrive/teldrive/internal/kv"
 	"github.com/tgdrive/teldrive/internal/logging"
 	"github.com/tgdrive/teldrive/internal/recovery"
 	"github.com/tgdrive/teldrive/internal/retry"
 	"github.com/tgdrive/teldrive/internal/utils"
+	"go.etcd.io/bbolt"
 	"go.uber.org/zap"
 	"golang.org/x/net/proxy"
 	"golang.org/x/time/rate"
 )
 
-func New(ctx context.Context, config *config.TGConfig, handler telegram.UpdateHandler, storage session.Storage, middlewares ...telegram.Middleware) (*telegram.Client, error) {
+func sessionKey(indexes ...string) string {
+	return strings.Join(indexes, ":")
+}
+
+func newClient(ctx context.Context, config *config.TGConfig, handler telegram.UpdateHandler, storage session.Storage, middlewares ...telegram.Middleware) (*telegram.Client, error) {
 
 	var dialer dcs.DialFunc = proxy.Direct.DialContext
 	if config.Proxy != "" {
@@ -80,7 +86,7 @@ func NoAuthClient(ctx context.Context, config *config.TGConfig, handler telegram
 		floodwait.NewSimpleWaiter(),
 	}
 	middlewares = append(middlewares, ratelimit.New(rate.Every(time.Millisecond*100), 5))
-	return New(ctx, config, handler, storage, middlewares...)
+	return newClient(ctx, config, handler, storage, middlewares...)
 }
 
 func AuthClient(ctx context.Context, config *config.TGConfig, sessionStr string, middlewares ...telegram.Middleware) (*telegram.Client, error) {
@@ -98,14 +104,14 @@ func AuthClient(ctx context.Context, config *config.TGConfig, sessionStr string,
 	if err := loader.Save(context.TODO(), data); err != nil {
 		return nil, err
 	}
-	return New(ctx, config, nil, storage, middlewares...)
+	return newClient(ctx, config, nil, storage, middlewares...)
 }
 
-func BotClient(ctx context.Context, KV kv.KV, config *config.TGConfig, token string, middlewares ...telegram.Middleware) (*telegram.Client, error) {
+func BotClient(ctx context.Context, boltdb *bbolt.DB, config *config.TGConfig, token string, middlewares ...telegram.Middleware) (*telegram.Client, error) {
 
-	storage := kv.NewSession(KV, kv.Key("botsession", token))
+	storage := tgbbolt.NewSessionStorage(boltdb, sessionKey("botsession", token), []byte("teldrive"))
 
-	return New(ctx, config, nil, storage, middlewares...)
+	return newClient(ctx, config, nil, storage, middlewares...)
 
 }
 
