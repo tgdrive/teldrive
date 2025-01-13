@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"crypto/rand"
-	"database/sql"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -20,6 +19,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/tgdrive/teldrive/internal/api"
 	"github.com/tgdrive/teldrive/internal/auth"
+	"github.com/tgdrive/teldrive/internal/cache"
 	"github.com/tgdrive/teldrive/internal/category"
 	"github.com/tgdrive/teldrive/internal/database"
 	"github.com/tgdrive/teldrive/internal/http_range"
@@ -71,7 +71,7 @@ func randInt64() (int64, error) {
 	b := &buffer{Buf: buf[:]}
 	return b.long()
 }
-func isUUID(str string) bool {
+func isUUId(str string) bool {
 	_, err := uuid.Parse(str)
 	return err == nil
 }
@@ -97,10 +97,10 @@ func (a *apiService) getFileFromPath(path string, userId int64) (*models.File, e
 }
 
 func (a *apiService) FilesCategoryStats(ctx context.Context) ([]api.CategoryStats, error) {
-	userId, _ := auth.GetUser(ctx)
+	userId := auth.GetUser(ctx)
 	var stats []api.CategoryStats
 	if err := a.db.Model(&models.File{}).Select("category", "COUNT(*) as total_files", "coalesce(SUM(size),0) as total_size").
-		Where(&models.File{UserID: userId, Type: "file", Status: "active"}).
+		Where(&models.File{UserId: userId, Type: "file", Status: "active"}).
 		Order("category ASC").Group("category").Find(&stats).Error; err != nil {
 		return nil, &apiError{err: err}
 	}
@@ -110,9 +110,9 @@ func (a *apiService) FilesCategoryStats(ctx context.Context) ([]api.CategoryStat
 
 func (a *apiService) FilesCopy(ctx context.Context, req *api.FileCopy, params api.FilesCopyParams) (*api.File, error) {
 
-	userId, session := auth.GetUser(ctx)
+	userId := auth.GetUser(ctx)
 
-	client, _ := tgc.AuthClient(ctx, &a.cnf.TG, session, a.middlewares...)
+	client, _ := tgc.AuthClient(ctx, &a.cnf.TG, auth.GetJWTUser(ctx).TgSession, a.middlewares...)
 
 	var res []models.File
 
@@ -133,12 +133,9 @@ func (a *apiService) FilesCopy(ctx context.Context, req *api.FileCopy, params ap
 	}
 
 	err = tgc.RunWithAuth(ctx, client, "", func(ctx context.Context) error {
-		ids := []int{}
 
-		for _, part := range file.Parts {
-			ids = append(ids, int(part.ID))
-		}
-		messages, err := tgc.GetMessages(ctx, client.API(), ids, *file.ChannelID)
+		ids := utils.Map(file.Parts, func(part api.Part) int { return part.ID })
+		messages, err := tgc.GetMessages(ctx, client.API(), ids, *file.ChannelId)
 
 		if err != nil {
 			return err
@@ -198,13 +195,13 @@ func (a *apiService) FilesCopy(ctx context.Context, req *api.FileCopy, params ap
 	}
 
 	var parentId string
-	if !isUUID(req.Destination) {
+	if !isUUId(req.Destination) {
 		var destRes []models.File
 		if err := a.db.Raw("select * from teldrive.create_directories(?, ?)", userId, req.Destination).
 			Scan(&destRes).Error; err != nil {
 			return nil, &apiError{err: err}
 		}
-		parentId = destRes[0].Id
+		parentId = destRes[0].ID
 	} else {
 		parentId = req.Destination
 	}
@@ -218,13 +215,10 @@ func (a *apiService) FilesCopy(ctx context.Context, req *api.FileCopy, params ap
 	if len(newIds) > 0 {
 		dbFile.Parts = datatypes.NewJSONSlice(newIds)
 	}
-	dbFile.UserID = userId
+	dbFile.UserId = userId
 	dbFile.Status = "active"
-	dbFile.ParentID = sql.NullString{
-		String: parentId,
-		Valid:  true,
-	}
-	dbFile.ChannelID = &channelId
+	dbFile.ParentId = utils.Ptr(parentId)
+	dbFile.ChannelId = &channelId
 	dbFile.Encrypted = file.Encrypted
 	dbFile.Category = string(file.Category)
 	if req.UpdatedAt.IsSet() && !req.UpdatedAt.Value.IsZero() {
@@ -237,11 +231,11 @@ func (a *apiService) FilesCopy(ctx context.Context, req *api.FileCopy, params ap
 		return nil, &apiError{err: err}
 	}
 
-	return mapper.ToFileOut(dbFile, false), nil
+	return mapper.ToFileOut(dbFile), nil
 }
 
 func (a *apiService) FilesCreate(ctx context.Context, fileIn *api.File) (*api.File, error) {
-	userId, _ := auth.GetUser(ctx)
+	userId := auth.GetUser(ctx)
 
 	var (
 		fileDB    models.File
@@ -267,15 +261,9 @@ func (a *apiService) FilesCreate(ctx context.Context, fileIn *api.File) (*api.Fi
 		if err != nil {
 			return nil, &apiError{err: err, code: 404}
 		}
-		fileDB.ParentID = sql.NullString{
-			String: parent.Id,
-			Valid:  true,
-		}
+		fileDB.ParentId = utils.Ptr(parent.ID)
 	} else if fileIn.ParentId.Value != "" {
-		fileDB.ParentID = sql.NullString{
-			String: fileIn.ParentId.Value,
-			Valid:  true,
-		}
+		fileDB.ParentId = utils.Ptr(fileIn.ParentId.Value)
 
 	}
 
@@ -291,25 +279,17 @@ func (a *apiService) FilesCreate(ctx context.Context, fileIn *api.File) (*api.Fi
 		} else {
 			channelId = fileIn.ChannelId.Value
 		}
-		fileDB.ChannelID = &channelId
+		fileDB.ChannelId = &channelId
 		fileDB.MimeType = fileIn.MimeType.Value
 		fileDB.Category = string(category.GetCategory(fileIn.Name))
 		if len(fileIn.Parts) > 0 {
-			parts := []api.Part{}
-			for _, part := range fileIn.Parts {
-				p := api.Part{ID: part.ID}
-				if part.Salt.Value != "" {
-					p.Salt = part.Salt
-				}
-				parts = append(parts, p)
-			}
-			fileDB.Parts = datatypes.NewJSONSlice(parts)
+			fileDB.Parts = datatypes.NewJSONSlice(mapParts(fileIn.Parts))
 		}
 		fileDB.Size = utils.Ptr(fileIn.Size.Or(0))
 	}
 	fileDB.Name = fileIn.Name
 	fileDB.Type = string(fileIn.Type)
-	fileDB.UserID = userId
+	fileDB.UserId = userId
 	fileDB.Status = "active"
 	fileDB.Encrypted = fileIn.Encrypted.Value
 	if fileIn.UpdatedAt.IsSet() && !fileIn.UpdatedAt.Value.IsZero() {
@@ -323,11 +303,11 @@ func (a *apiService) FilesCreate(ctx context.Context, fileIn *api.File) (*api.Fi
 		}
 		return nil, &apiError{err: err}
 	}
-	return mapper.ToFileOut(fileDB, false), nil
+	return mapper.ToFileOut(fileDB), nil
 }
 
 func (a *apiService) FilesCreateShare(ctx context.Context, req *api.FileShareCreate, params api.FilesCreateShareParams) error {
-	userId, _ := auth.GetUser(ctx)
+	userId := auth.GetUser(ctx)
 
 	var fileShare models.FileShare
 
@@ -339,11 +319,11 @@ func (a *apiService) FilesCreateShare(ctx context.Context, req *api.FileShareCre
 		fileShare.Password = utils.Ptr(string(bytes))
 	}
 
-	fileShare.FileID = params.ID
+	fileShare.FileId = params.ID
 	if req.ExpiresAt.IsSet() {
 		fileShare.ExpiresAt = utils.Ptr(req.ExpiresAt.Value)
 	}
-	fileShare.UserID = userId
+	fileShare.UserId = userId
 
 	if err := a.db.Create(&fileShare).Error; err != nil {
 		return &apiError{err: err}
@@ -353,7 +333,7 @@ func (a *apiService) FilesCreateShare(ctx context.Context, req *api.FileShareCre
 }
 
 func (a *apiService) FilesDelete(ctx context.Context, req *api.FileDelete) error {
-	userId, _ := auth.GetUser(ctx)
+	userId := auth.GetUser(ctx)
 	if err := a.db.Exec("call teldrive.delete_files_bulk($1 , $2)", req.Ids, userId).Error; err != nil {
 		return &apiError{err: err}
 	}
@@ -362,7 +342,7 @@ func (a *apiService) FilesDelete(ctx context.Context, req *api.FileDelete) error
 }
 
 func (a *apiService) FilesDeleteShare(ctx context.Context, params api.FilesDeleteShareParams) error {
-	userId, _ := auth.GetUser(ctx)
+	userId := auth.GetUser(ctx)
 
 	var deletedShare models.FileShare
 
@@ -371,14 +351,14 @@ func (a *apiService) FilesDeleteShare(ctx context.Context, params api.FilesDelet
 		return &apiError{err: err}
 	}
 	if deletedShare.ID != "" {
-		a.cache.Delete(fmt.Sprintf("shares:%s", deletedShare.ID))
+		a.cache.Delete(cache.Key("shared", deletedShare.ID))
 	}
 
 	return nil
 }
 
 func (a *apiService) FilesEditShare(ctx context.Context, req *api.FileShareCreate, params api.FilesEditShareParams) error {
-	userId, _ := auth.GetUser(ctx)
+	userId := auth.GetUser(ctx)
 
 	var fileShareUpdate models.FileShare
 
@@ -387,7 +367,7 @@ func (a *apiService) FilesEditShare(ctx context.Context, req *api.FileShareCreat
 		if err != nil {
 			return &apiError{err: err}
 		}
-		fileShareUpdate.Password = utils.StringPointer(string(bytes))
+		fileShareUpdate.Password = utils.Ptr(string(bytes))
 	}
 	if req.ExpiresAt.IsSet() {
 		fileShareUpdate.ExpiresAt = utils.Ptr(req.ExpiresAt.Value)
@@ -403,26 +383,25 @@ func (a *apiService) FilesEditShare(ctx context.Context, req *api.FileShareCreat
 
 func (a *apiService) FilesGetById(ctx context.Context, params api.FilesGetByIdParams) (*api.File, error) {
 	var result []fullFileDB
-	notFoundResponse := &apiError{err: errors.New("file not found"), code: 404}
 	if err := a.db.Model(&models.File{}).Select("*",
 		"(select get_path_from_file_id as path from teldrive.get_path_from_file_id(id))").
 		Where("id = ?", params.ID).Scan(&result).Error; err != nil {
-		if database.IsRecordNotFoundErr(err) {
-			return nil, notFoundResponse
-		}
 		return nil, &apiError{err: err}
 	}
 	if len(result) == 0 {
-		return nil, notFoundResponse
+		return nil, &apiError{err: errors.New("file not found"), code: 404}
 	}
-	res := mapper.ToFileOut(result[0].File, true)
+	res := mapper.ToFileOut(result[0].File)
 	res.Path = api.NewOptString(result[0].Path)
+	if result[0].ChannelId != nil {
+		res.ChannelId = api.NewOptInt64(*result[0].ChannelId)
+	}
 
 	return res, nil
 }
 
 func (a *apiService) FilesList(ctx context.Context, params api.FilesListParams) (*api.FileList, error) {
-	userId, _ := auth.GetUser(ctx)
+	userId := auth.GetUser(ctx)
 
 	queryBuilder := &fileQueryBuilder{db: a.db}
 
@@ -430,7 +409,7 @@ func (a *apiService) FilesList(ctx context.Context, params api.FilesListParams) 
 }
 
 func (a *apiService) FilesMkdir(ctx context.Context, req *api.FileMkDir) error {
-	userId, _ := auth.GetUser(ctx)
+	userId := auth.GetUser(ctx)
 
 	if err := a.db.Exec("select * from teldrive.create_directories(?, ?)", userId, req.Path).Error; err != nil {
 		return &apiError{err: err}
@@ -439,18 +418,18 @@ func (a *apiService) FilesMkdir(ctx context.Context, req *api.FileMkDir) error {
 }
 
 func (a *apiService) FilesMove(ctx context.Context, req *api.FileMove) error {
-	userId, _ := auth.GetUser(ctx)
+	userId := auth.GetUser(ctx)
 	items := pgtype.Array[string]{
 		Elements: req.Ids,
 		Valid:    true,
 		Dims:     []pgtype.ArrayDimension{{Length: int32(len(req.Ids)), LowerBound: 1}},
 	}
-	if !isUUID(req.Destination) {
+	if !isUUId(req.Destination) {
 		r, err := a.getFileFromPath(req.Destination, userId)
 		if err != nil {
 			return &apiError{err: err}
 		}
-		req.Destination = r.Id
+		req.Destination = r.ID
 	}
 	if err := a.db.Model(&models.File{}).Where("id = any(?)", items).Where("user_id = ?", userId).
 		Update("parent_id", req.Destination).Error; err != nil {
@@ -462,7 +441,7 @@ func (a *apiService) FilesMove(ctx context.Context, req *api.FileMove) error {
 }
 
 func (a *apiService) FilesShareByid(ctx context.Context, params api.FilesShareByidParams) (*api.FileShare, error) {
-	userId, _ := auth.GetUser(ctx)
+	userId := auth.GetUser(ctx)
 	var result []models.FileShare
 
 	notFoundErr := &apiError{err: errors.New("invalid share"), code: 404}
@@ -500,15 +479,7 @@ func (a *apiService) FilesUpdate(ctx context.Context, req *api.FileUpdate, param
 		updateDb.Name = req.Name.Value
 	}
 	if len(req.Parts) > 0 {
-		parts := []api.Part{}
-		for _, part := range req.Parts {
-			p := api.Part{ID: part.ID}
-			if part.Salt.Value != "" {
-				p.Salt = part.Salt
-			}
-			parts = append(parts, p)
-		}
-		updateDb.Parts = datatypes.NewJSONSlice(parts)
+		updateDb.Parts = datatypes.NewJSONSlice(mapParts(req.Parts))
 	}
 	if req.Size.Value != 0 {
 		updateDb.Size = utils.Ptr(req.Size.Value)
@@ -523,17 +494,18 @@ func (a *apiService) FilesUpdate(ctx context.Context, req *api.FileUpdate, param
 		return nil, &apiError{err: err}
 	}
 
-	a.cache.Delete(fmt.Sprintf("files:%s", params.ID))
+	a.cache.Delete(cache.Key("files", params.ID))
 
 	file := models.File{}
 	if err := a.db.Where("id = ?", params.ID).First(&file).Error; err != nil {
 		return nil, &apiError{err: err}
 	}
-	return mapper.ToFileOut(file, false), nil
+	return mapper.ToFileOut(file), nil
 }
 
 func (a *apiService) FilesUpdateParts(ctx context.Context, req *api.FilePartsUpdate, params api.FilesUpdatePartsParams) error {
-	userId, _ := auth.GetUser(ctx)
+
+	userId := auth.GetUser(ctx)
 
 	var file models.File
 
@@ -545,29 +517,18 @@ func (a *apiService) FilesUpdateParts(ctx context.Context, req *api.FilePartsUpd
 		if err != nil {
 			return &apiError{err: err}
 		}
-		updatePayload.ChannelID = &channelId
+		updatePayload.ChannelId = &channelId
 	} else {
-		updatePayload.ChannelID = &req.ChannelId.Value
+		updatePayload.ChannelId = &req.ChannelId.Value
 	}
 	if len(req.Parts) > 0 {
-		parts := []api.Part{}
-		for _, part := range req.Parts {
-			p := api.Part{ID: part.ID}
-			if part.Salt.Value != "" {
-				p.Salt = part.Salt
-			}
-			parts = append(parts, p)
-		}
-		updatePayload.Parts = datatypes.NewJSONSlice(parts)
+		updatePayload.Parts = datatypes.NewJSONSlice(mapParts(req.Parts))
 	}
 	if req.Name.Value != "" {
 		updatePayload.Name = req.Name.Value
 	}
 	if req.ParentId.Value != "" {
-		updatePayload.ParentID = sql.NullString{
-			String: req.ParentId.Value,
-			Valid:  true,
-		}
+		updatePayload.ParentId = utils.Ptr(req.ParentId.Value)
 	}
 
 	updatePayload.UpdatedAt = req.UpdatedAt
@@ -592,28 +553,23 @@ func (a *apiService) FilesUpdateParts(ctx context.Context, req *api.FilePartsUpd
 		return &apiError{err: err}
 	}
 
-	if len(file.Parts) > 0 && file.ChannelID != nil {
-		_, session := auth.GetUser(ctx)
-		ids := []int{}
+	keys := []string{cache.Key("files", params.ID)}
+	if len(file.Parts) > 0 && file.ChannelId != nil {
+		ids := utils.Map(file.Parts, func(part api.Part) int { return part.ID })
+		client, _ := tgc.AuthClient(ctx, &a.cnf.TG, auth.GetJWTUser(ctx).TgSession, a.middlewares...)
+		tgc.DeleteMessages(ctx, client, *file.ChannelId, ids)
+		keys = append(keys, cache.Key("files", "messages", params.ID))
 		for _, part := range file.Parts {
-			ids = append(ids, int(part.ID))
+			keys = append(keys, cache.Key("files", "location", params.ID, part.ID))
 		}
-		client, _ := tgc.AuthClient(ctx, &a.cnf.TG, session, a.middlewares...)
-		tgc.DeleteMessages(ctx, client, *file.ChannelID, ids)
-		keys := []string{fmt.Sprintf("files:%s", params.ID), fmt.Sprintf("files:messages:%s", params.ID)}
-		for _, part := range file.Parts {
-			keys = append(keys, fmt.Sprintf("files:location:%s:%d", params.ID, part.ID))
-
-		}
-		a.cache.Delete(keys...)
 
 	}
-	a.cache.Delete(fmt.Sprintf("files:%s", params.ID))
+	a.cache.Delete(keys...)
 
 	return nil
 }
 
-func (e *extendedService) FilesStream(w http.ResponseWriter, r *http.Request, fileID string, userId int64) {
+func (e *extendedService) FilesStream(w http.ResponseWriter, r *http.Request, fileId string, userId int64) {
 	ctx := r.Context()
 	var (
 		session *models.Session
@@ -646,19 +602,17 @@ func (e *extendedService) FilesStream(w http.ResponseWriter, r *http.Request, fi
 		session = &models.Session{UserId: userId}
 	}
 
-	file := &api.File{}
-
-	key := fmt.Sprintf("files:%s", fileID)
-
-	err = e.api.cache.Get(key, file)
+	file, err := cache.Fetch(e.api.cache, cache.Key("files", fileId), 0, func() (*models.File, error) {
+		var result models.File
+		if err := e.api.db.Model(&result).Where("id = ?", fileId).First(&result).Error; err != nil {
+			return nil, err
+		}
+		return &result, nil
+	})
 
 	if err != nil {
-		file, err = e.api.FilesGetById(ctx, api.FilesGetByIdParams{ID: fileID})
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusNotFound)
-			return
-		}
-		e.api.cache.Set(key, file, 0)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 
 	w.Header().Set("Accept-Ranges", "bytes")
@@ -666,16 +620,15 @@ func (e *extendedService) FilesStream(w http.ResponseWriter, r *http.Request, fi
 	var start, end int64
 
 	rangeHeader := r.Header.Get("Range")
+	contentType := defaultContentType
 
-	if file.Size.Value == 0 {
-		w.Header().Set("Content-Type", file.MimeType.Or(defaultContentType))
+	if file.MimeType != "" {
+		contentType = file.MimeType
+	}
+
+	if file.Size == nil || *file.Size == 0 {
+		w.Header().Set("Content-Type", contentType)
 		w.Header().Set("Content-Length", "0")
-
-		if rangeHeader != "" {
-			w.Header().Set("Content-Range", fmt.Sprintf("bytes */%d", file.Size.Value))
-			http.Error(w, "Requested Range Not Satisfiable", http.StatusRequestedRangeNotSatisfiable)
-			return
-		}
 		w.Header().Set("Content-Disposition", mime.FormatMediaType("inline", map[string]string{"filename": file.Name}))
 		w.WriteHeader(http.StatusOK)
 		return
@@ -684,11 +637,11 @@ func (e *extendedService) FilesStream(w http.ResponseWriter, r *http.Request, fi
 	status := http.StatusOK
 	if rangeHeader == "" {
 		start = 0
-		end = file.Size.Value - 1
+		end = *file.Size - 1
 	} else {
-		ranges, err := http_range.Parse(rangeHeader, file.Size.Value)
+		ranges, err := http_range.Parse(rangeHeader, *file.Size)
 		if err == http_range.ErrNoOverlap {
-			w.Header().Set("Content-Range", fmt.Sprintf("bytes */%d", file.Size.Value))
+			w.Header().Set("Content-Range", fmt.Sprintf("bytes */%d", *file.Size))
 			http.Error(w, http_range.ErrNoOverlap.Error(), http.StatusRequestedRangeNotSatisfiable)
 			return
 		}
@@ -702,20 +655,18 @@ func (e *extendedService) FilesStream(w http.ResponseWriter, r *http.Request, fi
 		}
 		start = ranges[0].Start
 		end = ranges[0].End
-		w.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, file.Size.Value))
+		w.Header().Set("Content-Range", fmt.Sprintf("bytes %d-%d/%d", start, end, *file.Size))
 		status = http.StatusPartialContent
 
 	}
 
 	contentLength := end - start + 1
 
-	mimeType := file.MimeType.Or(defaultContentType)
-
-	w.Header().Set("Content-Type", mimeType)
+	w.Header().Set("Content-Type", contentType)
 
 	w.Header().Set("Content-Length", strconv.FormatInt(contentLength, 10))
-	w.Header().Set("E-Tag", fmt.Sprintf("\"%s\"", md5.FromString(fileID+strconv.FormatInt(file.Size.Value, 10))))
-	w.Header().Set("Last-Modified", file.UpdatedAt.Value.UTC().Format(http.TimeFormat))
+	w.Header().Set("E-Tag", fmt.Sprintf("\"%s\"", md5.FromString(fileId+strconv.FormatInt(*file.Size, 10))))
+	w.Header().Set("Last-Modified", file.UpdatedAt.UTC().Format(http.TimeFormat))
 
 	disposition := "inline"
 
@@ -733,7 +684,7 @@ func (e *extendedService) FilesStream(w http.ResponseWriter, r *http.Request, fi
 		return
 	}
 
-	tokens, err := getBotsToken(e.api.db, e.api.cache, session.UserId, file.ChannelId.Value)
+	tokens, err := getBotsToken(e.api.db, e.api.cache, session.UserId, *file.ChannelId)
 
 	if err != nil {
 		http.Error(w, "failed to get bots", http.StatusInternalServerError)
@@ -761,9 +712,9 @@ func (e *extendedService) FilesStream(w http.ResponseWriter, r *http.Request, fi
 		multiThreads = 0
 
 	} else {
-		e.api.worker.Set(tokens, file.ChannelId.Value)
+		e.api.worker.Set(tokens, *file.ChannelId)
 
-		token, _ = e.api.worker.Next(file.ChannelId.Value)
+		token, _ = e.api.worker.Next(*file.ChannelId)
 
 		client, err = tgc.BotClient(ctx, e.api.boltdb, &e.api.cnf.TG, token, middlewares...)
 		if err != nil {
@@ -816,5 +767,16 @@ func (e *extendedService) SharesStream(w http.ResponseWriter, r *http.Request, s
 		http.Error(w, err.Error(), http.StatusUnauthorized)
 		return
 	}
-	e.FilesStream(w, r, fileId, share.UserID)
+	e.FilesStream(w, r, fileId, share.UserId)
+}
+
+func mapParts(_parts []api.Part) []api.Part {
+	return utils.Map(_parts, func(part api.Part) api.Part {
+		p := api.Part{ID: part.ID}
+		if part.Salt.Value != "" {
+			p.Salt = part.Salt
+		}
+		return p
+	})
+
 }

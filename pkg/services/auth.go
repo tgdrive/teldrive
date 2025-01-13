@@ -25,6 +25,7 @@ import (
 	"github.com/gotd/td/tgerr"
 	"github.com/tgdrive/teldrive/internal/api"
 	"github.com/tgdrive/teldrive/internal/auth"
+	"github.com/tgdrive/teldrive/internal/cache"
 	"github.com/tgdrive/teldrive/internal/logging"
 	"github.com/tgdrive/teldrive/internal/tgc"
 	"github.com/tgdrive/teldrive/pkg/models"
@@ -80,7 +81,7 @@ func (a *apiService) AuthLogin(ctx context.Context, session *api.SessionCreate) 
 			Name:     "root",
 			Type:     "folder",
 			MimeType: "drive/folder",
-			UserID:   session.UserId,
+			UserId:   session.UserId,
 			Status:   "active",
 			Parts:    nil,
 		}
@@ -129,7 +130,7 @@ func (a *apiService) AuthLogout(ctx context.Context) (*api.AuthLogoutNoContent, 
 		return err
 	})
 	a.db.Where("hash = ?", authUser.Hash).Delete(&models.Session{})
-	a.cache.Delete(fmt.Sprintf("sessions:%s", authUser.Hash))
+	a.cache.Delete(cache.Key("sessions", authUser.Hash))
 	return &api.AuthLogoutNoContent{SetCookie: setCookie(authCookieName, "", -1)}, nil
 }
 
@@ -360,7 +361,7 @@ func pack32BinaryIP4(ip4Address string) []byte {
 	return buf.Bytes()
 }
 
-func generateTgSession(dcID int, authKey []byte, port int) string {
+func generateTgSession(dcId int, authKey []byte, port int) string {
 
 	dcMaps := map[int]string{
 		1: "149.154.175.53",
@@ -370,8 +371,8 @@ func generateTgSession(dcID int, authKey []byte, port int) string {
 		5: "91.108.56.130",
 	}
 
-	dcIDByte := byte(dcID)
-	serverAddressBytes := pack32BinaryIP4(dcMaps[dcID])
+	dcIDByte := byte(dcId)
+	serverAddressBytes := pack32BinaryIP4(dcMaps[dcId])
 	portByte := make([]byte, 2)
 	binary.BigEndian.PutUint16(portByte, uint16(port))
 

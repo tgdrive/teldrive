@@ -16,6 +16,7 @@ import (
 	"github.com/gotd/td/tgerr"
 	"github.com/tgdrive/teldrive/internal/api"
 	"github.com/tgdrive/teldrive/internal/auth"
+	"github.com/tgdrive/teldrive/internal/cache"
 	"github.com/tgdrive/teldrive/internal/tgc"
 	"github.com/tgdrive/teldrive/pkg/models"
 	"github.com/tgdrive/teldrive/pkg/types"
@@ -27,8 +28,8 @@ import (
 )
 
 func (a *apiService) UsersAddBots(ctx context.Context, req *api.AddBots) error {
-	userId, session := auth.GetUser(ctx)
-	client, _ := tgc.AuthClient(ctx, &a.cnf.TG, session, a.middlewares...)
+	userId := auth.GetUser(ctx)
+	client, _ := tgc.AuthClient(ctx, &a.cnf.TG, auth.GetJWTUser(ctx).TgSession, a.middlewares...)
 
 	if len(req.Bots) > 0 {
 		channelId, err := getDefaultChannel(a.db, a.cache, userId)
@@ -47,11 +48,11 @@ func (a *apiService) UsersAddBots(ctx context.Context, req *api.AddBots) error {
 
 func (a *apiService) UsersListChannels(ctx context.Context) ([]api.Channel, error) {
 
-	userID, _ := auth.GetUser(ctx)
+	userId := auth.GetUser(ctx)
 
 	channels := make(map[int64]*api.Channel)
 
-	peerStorage := tgbbolt.NewPeerStorage(a.boltdb, []byte(fmt.Sprintf("peers:%d", userID)))
+	peerStorage := tgbbolt.NewPeerStorage(a.boltdb, []byte(fmt.Sprintf("peers:%d", userId)))
 
 	iter, err := peerStorage.Iterate(ctx)
 	if err != nil {
@@ -67,6 +68,7 @@ func (a *apiService) UsersListChannels(ctx context.Context) ([]api.Channel, erro
 		}
 
 	}
+
 	res := []api.Channel{}
 	for _, channel := range channels {
 		res = append(res, *channel)
@@ -79,10 +81,10 @@ func (a *apiService) UsersListChannels(ctx context.Context) ([]api.Channel, erro
 }
 
 func (a *apiService) UsersSyncChannels(ctx context.Context) error {
-	userId, session := auth.GetUser(ctx)
+	userId := auth.GetUser(ctx)
 	peerStorage := tgbbolt.NewPeerStorage(a.boltdb, []byte(fmt.Sprintf("peers:%d", userId)))
 	collector := storage.CollectPeers(peerStorage)
-	client, err := tgc.AuthClient(ctx, &a.cnf.TG, session, a.middlewares...)
+	client, err := tgc.AuthClient(ctx, &a.cnf.TG, auth.GetJWTUser(ctx).TgSession, a.middlewares...)
 	if err != nil {
 		return &apiError{err: err}
 	}
@@ -96,7 +98,9 @@ func (a *apiService) UsersSyncChannels(ctx context.Context) error {
 }
 
 func (a *apiService) UsersListSessions(ctx context.Context) ([]api.UserSession, error) {
-	userId, userSession := auth.GetUser(ctx)
+	userId := auth.GetUser(ctx)
+
+	userSession := auth.GetJWTUser(ctx).TgSession
 
 	client, _ := tgc.AuthClient(ctx, &a.cnf.TG, userSession, a.middlewares...)
 
@@ -150,9 +154,8 @@ func (a *apiService) UsersListSessions(ctx context.Context) ([]api.UserSession, 
 }
 
 func (a *apiService) UsersProfileImage(ctx context.Context, params api.UsersProfileImageParams) (*api.UsersProfileImageOKHeaders, error) {
-	_, session := auth.GetUser(ctx)
 
-	client, err := tgc.AuthClient(ctx, &a.cnf.TG, session, a.middlewares...)
+	client, err := tgc.AuthClient(ctx, &a.cnf.TG, auth.GetJWTUser(ctx).TgSession, a.middlewares...)
 
 	if err != nil {
 		return nil, &apiError{err: err}
@@ -194,25 +197,25 @@ func (a *apiService) UsersProfileImage(ctx context.Context, params api.UsersProf
 }
 
 func (a *apiService) UsersRemoveBots(ctx context.Context) error {
-	userID, _ := auth.GetUser(ctx)
+	userId := auth.GetUser(ctx)
 
-	channelId, err := getDefaultChannel(a.db, a.cache, userID)
+	channelId, err := getDefaultChannel(a.db, a.cache, userId)
 	if err != nil {
 		return &apiError{err: err}
 	}
 
-	if err := a.db.Where("user_id = ?", userID).Where("channel_id = ?", channelId).
+	if err := a.db.Where("user_id = ?", userId).Where("channel_id = ?", channelId).
 		Delete(&models.Bot{}).Error; err != nil {
 		return &apiError{err: err}
 	}
 
-	a.cache.Delete(fmt.Sprintf("users:bots:%d:%d", userID, channelId))
+	a.cache.Delete(cache.Key("users", "bots", userId, channelId))
 
 	return nil
 }
 
 func (a *apiService) UsersRemoveSession(ctx context.Context, params api.UsersRemoveSessionParams) error {
-	userId, _ := auth.GetUser(ctx)
+	userId := auth.GetUser(ctx)
 
 	session := &models.Session{}
 
@@ -236,15 +239,18 @@ func (a *apiService) UsersRemoveSession(ctx context.Context, params api.UsersRem
 }
 
 func (a *apiService) UsersStats(ctx context.Context) (*api.UserConfig, error) {
-	userID, _ := auth.GetUser(ctx)
+	userId := auth.GetUser(ctx)
 	var (
 		channelId int64
 		err       error
 	)
 
-	channelId, _ = getDefaultChannel(a.db, a.cache, userID)
+	channelId, err = getDefaultChannel(a.db, a.cache, userId)
+	if err != nil {
+		return nil, &apiError{err: err}
+	}
 
-	tokens, err := getBotsToken(a.db, a.cache, userID, channelId)
+	tokens, err := getBotsToken(a.db, a.cache, userId, channelId)
 
 	if err != nil {
 		return nil, &apiError{err: err}
@@ -253,12 +259,12 @@ func (a *apiService) UsersStats(ctx context.Context) (*api.UserConfig, error) {
 }
 
 func (a *apiService) UsersUpdateChannel(ctx context.Context, req *api.ChannelUpdate) error {
-	userId, _ := auth.GetUser(ctx)
+	userId := auth.GetUser(ctx)
 
-	channel := &models.Channel{UserID: userId, Selected: true}
+	channel := &models.Channel{UserId: userId, Selected: true}
 
 	if req.ChannelId.Value != 0 {
-		channel.ChannelID = req.ChannelId.Value
+		channel.ChannelId = req.ChannelId.Value
 	}
 	if req.ChannelName.Value != "" {
 		channel.ChannelName = req.ChannelName.Value
@@ -270,11 +276,10 @@ func (a *apiService) UsersUpdateChannel(ctx context.Context, req *api.ChannelUpd
 	}).Create(channel).Error; err != nil {
 		return &apiError{err: errors.New("failed to update channel")}
 	}
-	a.db.Model(&models.Channel{}).Where("channel_id != ?", channel.ChannelID).
+	a.db.Model(&models.Channel{}).Where("channel_id != ?", channel.ChannelId).
 		Where("user_id = ?", userId).Update("selected", false)
 
-	key := fmt.Sprintf("users:channel:%d", userId)
-	a.cache.Set(key, channel.ChannelID, 0)
+	a.cache.Set(cache.Key("users", "channel", userId), channel.ChannelId, 0)
 	return nil
 }
 
@@ -359,12 +364,12 @@ func (a *apiService) addBots(c context.Context, client *telegram.Client, userId 
 	payload := []models.Bot{}
 
 	for _, info := range botInfoMap {
-		payload = append(payload, models.Bot{UserID: userId, Token: info.Token, BotID: info.Id,
-			BotUserName: info.UserName, ChannelID: channelId,
+		payload = append(payload, models.Bot{UserId: userId, Token: info.Token, BotId: info.Id,
+			BotUserName: info.UserName, ChannelId: channelId,
 		})
 	}
 
-	a.cache.Delete(fmt.Sprintf("users:bots:%d:%d", userId, channelId))
+	a.cache.Delete(cache.Key("users", "bots", userId, channelId))
 
 	if err := a.db.Clauses(clause.OnConflict{DoNothing: true}).Create(&payload).Error; err != nil {
 		return err

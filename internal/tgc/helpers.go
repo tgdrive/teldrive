@@ -12,13 +12,14 @@ import (
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/tg"
 	"github.com/tgdrive/teldrive/internal/config"
+	"github.com/tgdrive/teldrive/internal/utils"
 	"github.com/tgdrive/teldrive/pkg/types"
 	"go.etcd.io/bbolt"
 	"golang.org/x/sync/errgroup"
 )
 
 var (
-	ErrInValidChannelID       = errors.New("invalid channel id")
+	ErrInValidChannelId       = errors.New("invalid channel id")
 	ErrInvalidChannelMessages = errors.New("invalid channel messages")
 )
 
@@ -33,7 +34,7 @@ func GetChannelById(ctx context.Context, client *tg.Client, channelId int64) (*t
 	}
 
 	if len(channels.GetChats()) == 0 {
-		return nil, ErrInValidChannelID
+		return nil, ErrInValidChannelId
 	}
 	return channels.GetChats()[0].(*tg.Channel).AsInput(), nil
 }
@@ -71,15 +72,11 @@ func DeleteMessages(ctx context.Context, client *telegram.Client, channelId int6
 
 func getTGMessagesBatch(ctx context.Context, client *tg.Client, channel *tg.InputChannel, ids []int) (tg.MessagesMessagesClass, error) {
 
-	msgIds := []tg.InputMessageClass{}
-
-	for _, id := range ids {
-		msgIds = append(msgIds, &tg.InputMessageID{ID: id})
-	}
-
 	messageRequest := tg.ChannelsGetMessagesRequest{
 		Channel: channel,
-		ID:      msgIds,
+		ID: utils.Map(ids, func(id int) tg.InputMessageClass {
+			return &tg.InputMessageID{ID: id}
+		}),
 	}
 
 	res, err := client.ChannelsGetMessages(ctx, &messageRequest)

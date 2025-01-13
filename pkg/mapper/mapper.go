@@ -2,18 +2,21 @@ package mapper
 
 import (
 	"github.com/tgdrive/teldrive/internal/api"
+	"github.com/tgdrive/teldrive/internal/utils"
 	"github.com/tgdrive/teldrive/pkg/models"
 )
 
-func ToFileOut(file models.File, extended bool) *api.File {
+func ToFileOut(file models.File) *api.File {
 	res := &api.File{
-		ID:        api.NewOptString(file.Id),
+		ID:        api.NewOptString(file.ID),
 		Name:      file.Name,
 		Type:      api.FileType(file.Type),
 		MimeType:  api.NewOptString(file.MimeType),
 		Encrypted: api.NewOptBool(file.Encrypted),
-		ParentId:  api.NewOptString(file.ParentID.String),
 		UpdatedAt: api.NewOptDateTime(file.UpdatedAt),
+	}
+	if file.ParentId != nil {
+		res.ParentId = api.NewOptString(*file.ParentId)
 	}
 	if file.Size != nil {
 		res.Size = api.NewOptInt64(*file.Size)
@@ -21,28 +24,19 @@ func ToFileOut(file models.File, extended bool) *api.File {
 	if file.Category != "" {
 		res.Category = api.NewOptFileCategory(api.FileCategory(file.Category))
 	}
-	if extended {
-		res.Parts = file.Parts
-		if file.ChannelID != nil {
-			res.ChannelId = api.NewOptInt64(*file.ChannelID)
-		}
-	}
 	return res
 }
 
 func ToUploadOut(parts []models.Upload) []api.UploadPart {
-	res := []api.UploadPart{}
-	for _, part := range parts {
-		res = append(res, api.UploadPart{
+	return utils.Map(parts, func(part models.Upload) api.UploadPart {
+		return api.UploadPart{
 			Name:      part.Name,
 			PartId:    part.PartId,
-			ChannelId: part.ChannelID,
+			ChannelId: part.ChannelId,
 			PartNo:    part.PartNo,
 			Size:      part.Size,
 			Encrypted: part.Encrypted,
 			Salt:      api.NewOptString(part.Salt),
-		})
-
-	}
-	return res
+		}
+	})
 }

@@ -5,14 +5,13 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/mitchellh/go-homedir"
 	"github.com/tgdrive/teldrive/internal/utils"
 	"go.etcd.io/bbolt"
 )
 
 func NewBoltDB(sessionFile string) (*bbolt.DB, error) {
 	if sessionFile == "" {
-		dir, err := homedir.Dir()
+		dir, err := os.UserHomeDir()
 		if err != nil {
 			dir = utils.ExecutableDir()
 		} else {

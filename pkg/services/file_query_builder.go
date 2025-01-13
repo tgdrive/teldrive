@@ -17,8 +17,7 @@ import (
 )
 
 type fileQueryBuilder struct {
-	db              *gorm.DB
-	selectAllFields bool
+	db *gorm.DB
 }
 
 type fileResponse struct {
@@ -26,7 +25,7 @@ type fileResponse struct {
 	Total int
 }
 
-var selectedFields = []string{"id", "name", "type", "mime_type", "category", "encrypted", "size", "parent_id", "updated_at"}
+var selectedFields = []string{"id", "name", "type", "mime_type", "category", "channel_id", "encrypted", "size", "parent_id", "updated_at"}
 
 func (afb *fileQueryBuilder) execute(filesQuery *api.FilesListParams, userId int64) (*api.FileList, error) {
 	query := afb.db.Where("user_id = ?", userId).Where("status = ?", filesQuery.Status.Value)
@@ -50,11 +49,7 @@ func (afb *fileQueryBuilder) execute(filesQuery *api.FilesListParams, userId int
 		count = res[0].Total
 	}
 
-	files := []api.File{}
-
-	for _, file := range res {
-		files = append(files, *mapper.ToFileOut(file.File, afb.selectAllFields))
-	}
+	files := utils.Map(res, func(item fileResponse) api.File { return *mapper.ToFileOut(item.File) })
 
 	return &api.FileList{Items: files,
 		Meta: api.FileListMeta{Count: count,
@@ -192,15 +187,10 @@ func (afb *fileQueryBuilder) buildFileQuery(query *gorm.DB, filesQuery *api.File
 	orderField := utils.CamelToSnake(string(filesQuery.Sort.Value))
 	op := getOrderOperation(filesQuery)
 
-	fields := selectedFields
-	if afb.selectAllFields {
-		fields = append(fields, "parts", "channel_id")
-	}
-
 	return afb.buildSubqueryCTE(query, filesQuery, userId).Clauses(exclause.NewWith("ranked_scores", afb.db.Model(&models.File{}).Select(orderField, "count(*) OVER () as total",
 		fmt.Sprintf("ROW_NUMBER() OVER (ORDER BY %s %s) AS rank", orderField, strings.ToUpper(string(filesQuery.Order.Value)))).
 		Where(query))).Model(&models.File{}).
-		Select(fields, "(select total from ranked_scores limit 1) as total").
+		Select(selectedFields, "(select total from ranked_scores limit 1) as total").
 		Where(fmt.Sprintf("%s %s (SELECT %s FROM ranked_scores WHERE rank = ?)", orderField, op, orderField),
 			max((filesQuery.Page.Value-1)*filesQuery.Limit.Value, 1)).
 		Where(query).Order(getOrder(filesQuery)).Limit(filesQuery.Limit.Value)
@@ -221,13 +211,6 @@ func (afb *fileQueryBuilder) buildSubqueryCTE(query *gorm.DB, filesQuery *api.Fi
 func getOrder(filesQuery *api.FilesListParams) string {
 	orderField := utils.CamelToSnake(string(filesQuery.Sort.Value))
 	return fmt.Sprintf("%s %s", orderField, strings.ToUpper(string(filesQuery.Order.Value)))
-}
-
-func max(x int, y int) int {
-	if x > y {
-		return x
-	}
-	return y
 }
 
 func getOrderOperation(filesQuery *api.FilesListParams) string {

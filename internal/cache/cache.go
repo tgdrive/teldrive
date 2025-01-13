@@ -2,6 +2,10 @@ package cache
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"reflect"
+	"strings"
 	"sync"
 	"time"
 
@@ -29,8 +33,16 @@ func NewCache(ctx context.Context, conf *config.CacheConfig) Cacher {
 		cacher = NewMemoryCache(conf.MaxSize)
 	} else {
 		cacher = NewRedisCache(ctx, redis.NewClient(&redis.Options{
-			Addr:     conf.RedisAddr,
-			Password: conf.RedisPass,
+			Addr:            conf.RedisAddr,
+			Password:        conf.RedisPass,
+			DialTimeout:     5 * time.Second,
+			ReadTimeout:     3 * time.Second,
+			WriteTimeout:    3 * time.Second,
+			PoolSize:        10,
+			MinIdleConns:    5,
+			MaxIdleConns:    10,
+			ConnMaxIdleTime: 5 * time.Minute,
+			ConnMaxLifetime: 1 * time.Hour,
 		}))
 	}
 	return cacher
@@ -118,4 +130,62 @@ func (r *RedisCache) Delete(keys ...string) error {
 		keys[i] = r.prefix + keys[i]
 	}
 	return r.client.Del(r.ctx, keys...).Err()
+}
+
+func Fetch[T any](cache Cacher, key string, expiration time.Duration, fn func() (T, error)) (T, error) {
+	var zero, value T
+	err := cache.Get(key, &value)
+	if err != nil {
+		if errors.Is(err, freecache.ErrNotFound) || errors.Is(err, redis.Nil) {
+			value, err = fn()
+			if err != nil {
+				return zero, err
+			}
+			cache.Set(key, &value, expiration)
+			return value, nil
+		}
+		return zero, err
+	}
+	return value, nil
+}
+
+func Key(args ...interface{}) string {
+	parts := make([]string, len(args))
+	for i, arg := range args {
+		parts[i] = formatValue(arg)
+	}
+	return strings.Join(parts, ":")
+}
+
+func formatValue(v interface{}) string {
+	if v == nil {
+		return "nil"
+	}
+
+	val := reflect.ValueOf(v)
+	switch val.Kind() {
+	case reflect.Ptr:
+		if val.IsNil() {
+			return "nil"
+		}
+		return formatValue(val.Elem().Interface())
+	case reflect.Array, reflect.Slice:
+		parts := make([]string, val.Len())
+		for i := 0; i < val.Len(); i++ {
+			parts[i] = formatValue(val.Index(i).Interface())
+		}
+		return fmt.Sprintf("[%s]", strings.Join(parts, ","))
+	case reflect.Map:
+		parts := make([]string, 0, val.Len())
+		for _, key := range val.MapKeys() {
+			k := formatValue(key.Interface())
+			v := formatValue(val.MapIndex(key).Interface())
+			parts = append(parts, fmt.Sprintf("%s=%s", k, v))
+		}
+		return fmt.Sprintf("{%s}", strings.Join(parts, ","))
+	case reflect.Struct:
+		return fmt.Sprintf("%+v", v)
+	default:
+		return fmt.Sprintf("%v", v)
+	}
 }

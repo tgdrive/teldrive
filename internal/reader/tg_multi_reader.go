@@ -25,8 +25,8 @@ type ChunkSource interface {
 }
 
 type chunkSource struct {
-	channelID   int64
-	partID      int64
+	channelId   int64
+	partId      int64
 	concurrency int
 	client      *tg.Client
 	key         string
@@ -46,7 +46,7 @@ func (c *chunkSource) Chunk(ctx context.Context, offset int64, limit int64) ([]b
 	err = c.cache.Get(c.key, location)
 
 	if err != nil {
-		location, err = tgc.GetLocation(ctx, c.client, c.channelID, c.partID)
+		location, err = tgc.GetLocation(ctx, c.client, c.channelId, c.partId)
 		if err != nil {
 			return nil, err
 		}

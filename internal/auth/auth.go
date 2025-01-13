@@ -42,10 +42,10 @@ func Decode(secret string, token string) (*types.JWTClaims, error) {
 
 }
 
-func GetUser(c context.Context) (int64, string) {
+func GetUser(c context.Context) int64 {
 	authUser, _ := c.Value(authKey).(*types.JWTClaims)
 	userId, _ := strconv.ParseInt(authUser.Subject, 10, 64)
-	return userId, authUser.TgSession
+	return userId
 }
 
 func GetJWTUser(c context.Context) *types.JWTClaims {

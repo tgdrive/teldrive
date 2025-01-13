@@ -2,13 +2,13 @@ package config
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"time"
 
-	"github.com/mitchellh/go-homedir"
-	"github.com/mitchellh/mapstructure"
+	"github.com/go-viper/mapstructure/v2"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -144,7 +144,7 @@ func (cl *ConfigLoader) InitializeConfig(cmd *cobra.Command) error {
 	if cfgFile != "" {
 		cl.v.SetConfigFile(cfgFile)
 	} else {
-		home, err := homedir.Dir()
+		home, err := os.UserHomeDir()
 		if err != nil {
 			return fmt.Errorf("error getting home directory: %v", err)
 		}

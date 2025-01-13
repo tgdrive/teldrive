@@ -60,7 +60,7 @@ func (a *apiService) SharesGetById(ctx context.Context, params api.SharesGetById
 	}
 	res := &api.FileShareInfo{
 		Protected: share.Password != nil,
-		UserId:    share.UserID,
+		UserId:    share.UserId,
 		Type:      share.Type,
 		Name:      share.Name,
 	}
@@ -104,16 +104,16 @@ func (a *apiService) SharesListFiles(ctx context.Context, params api.SharesListF
 			Status:    api.NewOptFileQueryStatus(api.FileQueryStatusActive),
 			Order:     api.NewOptFileQueryOrder(api.FileQueryOrder(string(params.Order.Value))),
 			Sort:      api.NewOptFileQuerySort(api.FileQuerySort(string(params.Sort.Value))),
-			Operation: api.NewOptFileQueryOperation(api.FileQueryOperationList)}, share.UserID)
+			Operation: api.NewOptFileQueryOperation(api.FileQueryOperationList)}, share.UserId)
 	} else {
 		var file models.File
-		if err := a.db.Where("id = ?", share.FileID).First(&file).Error; err != nil {
+		if err := a.db.Where("id = ?", share.FileId).First(&file).Error; err != nil {
 			if database.IsRecordNotFoundErr(err) {
 				return nil, &apiError{err: database.ErrNotFound, code: http.StatusNotFound}
 			}
 			return nil, &apiError{err: err}
 		}
-		return &api.FileList{Items: []api.File{*mapper.ToFileOut(file, false)},
+		return &api.FileList{Items: []api.File{*mapper.ToFileOut(file)},
 			Meta: api.FileListMeta{Count: 1, TotalPages: 1, CurrentPage: 1}}, nil
 	}
 

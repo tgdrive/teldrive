@@ -48,7 +48,7 @@ func (a *apiService) UploadsPartsById(ctx context.Context, params api.UploadsPar
 }
 
 func (a *apiService) UploadsStats(ctx context.Context, params api.UploadsStatsParams) ([]api.UploadStats, error) {
-	userId, _ := auth.GetUser(ctx)
+	userId := auth.GetUser(ctx)
 	var stats []api.UploadStats
 	err := a.db.Raw(`
     SELECT 
@@ -94,7 +94,7 @@ func (a *apiService) UploadsUpload(ctx context.Context, req *api.UploadsUploadRe
 		return nil, &apiError{err: errors.New("encryption is not enabled"), code: 400}
 	}
 
-	userId, session := auth.GetUser(ctx)
+	userId := auth.GetUser(ctx)
 
 	fileStream := req.Content.Data
 
@@ -116,7 +116,7 @@ func (a *apiService) UploadsUpload(ctx context.Context, req *api.UploadsUploadRe
 	}
 
 	if len(tokens) == 0 {
-		client, err = tgc.AuthClient(ctx, &a.cnf.TG, session)
+		client, err = tgc.AuthClient(ctx, &a.cnf.TG, auth.GetJWTUser(ctx).TgSession)
 		if err != nil {
 			return nil, err
 		}
@@ -220,7 +220,7 @@ func (a *apiService) UploadsUpload(ctx context.Context, req *api.UploadsUploadRe
 			Name:      params.PartName,
 			UploadId:  params.ID,
 			PartId:    message.ID,
-			ChannelID: channelId,
+			ChannelId: channelId,
 			Size:      fileSize,
 			PartNo:    int(params.PartNo),
 			UserId:    userId,
@@ -244,7 +244,7 @@ func (a *apiService) UploadsUpload(ctx context.Context, req *api.UploadsUploadRe
 		out = api.UploadPart{
 			Name:      partUpload.Name,
 			PartId:    partUpload.PartId,
-			ChannelId: partUpload.ChannelID,
+			ChannelId: partUpload.ChannelId,
 			PartNo:    partUpload.PartNo,
 			Size:      partUpload.Size,
 			Encrypted: partUpload.Encrypted,

@@ -5,32 +5,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"time"
-
-	"reflect"
-
-	"unicode"
 )
-
-func CamelToPascalCase(input string) string {
-	var result strings.Builder
-	upperNext := true
-
-	for _, char := range input {
-		if unicode.IsLetter(char) || unicode.IsDigit(char) {
-			if upperNext {
-				result.WriteRune(unicode.ToUpper(char))
-				upperNext = false
-			} else {
-				result.WriteRune(char)
-			}
-		} else {
-			upperNext = true
-		}
-	}
-
-	return result.String()
-}
 
 func CamelToSnake(input string) string {
 	re := regexp.MustCompile("([a-z0-9])([A-Z])")
@@ -38,38 +13,8 @@ func CamelToSnake(input string) string {
 	return strings.ToLower(snake)
 }
 
-func GetField(v interface{}, field string) string {
-	r := reflect.ValueOf(v)
-	f := reflect.Indirect(r).FieldByName(field)
-	fieldValue := f.Interface()
-
-	switch v := fieldValue.(type) {
-	case string:
-		return v
-	case time.Time:
-		return v.Format(time.RFC3339)
-	default:
-		return ""
-	}
-}
-
 func Ptr[T any](t T) *T {
 	return &t
-}
-
-func BoolPointer(b bool) *bool {
-	return &b
-}
-
-func IntPointer(b int) *int {
-	return &b
-}
-func Int64Pointer(b int64) *int64 {
-	return &b
-}
-
-func StringPointer(b string) *string {
-	return &b
 }
 
 func PathExists(path string) (bool, error) {
@@ -84,8 +29,34 @@ func PathExists(path string) (bool, error) {
 }
 
 func ExecutableDir() string {
-
 	path, _ := os.Executable()
-
 	return filepath.Dir(path)
+}
+
+func Filter[T any](slice []T, predicate func(T) bool) []T {
+	var result []T
+	for _, v := range slice {
+		if predicate(v) {
+			result = append(result, v)
+		}
+	}
+	return result
+}
+
+func Map[T any, U any](slice []T, mapper func(T) U) []U {
+	var result []U
+	for _, v := range slice {
+		result = append(result, mapper(v))
+	}
+	return result
+}
+
+func Find[T any](slice []T, predicate func(T) bool) (T, bool) {
+	for _, v := range slice {
+		if predicate(v) {
+			return v, true
+		}
+	}
+	var zero T
+	return zero, false
 }

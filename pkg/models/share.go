@@ -6,10 +6,10 @@ import (
 
 type FileShare struct {
 	ID        string     `gorm:"type:uuid;default:uuid_generate_v4();primary_key"`
-	FileID    string     `gorm:"type:uuid;not null"`
+	FileId    string     `gorm:"type:uuid;not null"`
 	Password  *string    `gorm:"type:text"`
 	ExpiresAt *time.Time `gorm:"type:timestamp"`
 	CreatedAt time.Time  `gorm:"type:timestamp;not null;default:current_timestamp"`
 	UpdatedAt time.Time  `gorm:"type:timestamp;not null;default:current_timestamp"`
-	UserID    int64      `gorm:"type:bigint;not null"`
+	UserId    int64      `gorm:"type:bigint;not null"`
 }
