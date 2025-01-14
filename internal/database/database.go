@@ -14,17 +14,19 @@ import (
 )
 
 func NewDatabase(cfg *config.DBConfig, lg *zap.SugaredLogger) (*gorm.DB, error) {
-	var (
-		db     *gorm.DB
-		err    error
-		logger = NewLogger(lg, time.Second, true, zapcore.Level(cfg.LogLevel))
-	)
+	level, err := zapcore.ParseLevel(cfg.LogLevel)
+	if err != nil {
+		level = zapcore.InfoLevel
+	}
+
+	var db *gorm.DB
+
 	for i := 0; i <= 5; i++ {
 		db, err = gorm.Open(postgres.New(postgres.Config{
 			DSN:                  cfg.DataSource,
 			PreferSimpleProtocol: !cfg.PrepareStmt,
 		}), &gorm.Config{
-			Logger: logger,
+			Logger: NewLogger(lg, time.Second, true, level),
 			NamingStrategy: schema.NamingStrategy{
 				TablePrefix:   "teldrive.",
 				SingularTable: false,

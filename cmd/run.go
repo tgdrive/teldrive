@@ -139,10 +139,13 @@ func findAvailablePort(startPort int) (int, error) {
 }
 
 func runApplication(ctx context.Context, conf *config.ServerCmdConfig) {
+	lvl, err := zapcore.ParseLevel(conf.Log.Level)
+	if err != nil {
+		lvl = zapcore.InfoLevel
+	}
 	logging.SetConfig(&logging.Config{
-		Level:       zapcore.Level(conf.Log.Level),
-		Development: conf.Log.Development,
-		FilePath:    conf.Log.File,
+		Level:    lvl,
+		FilePath: conf.Log.File,
 	})
 
 	lg := logging.DefaultLogger().Sugar()

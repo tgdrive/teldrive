@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"github.com/tgdrive/teldrive/internal/duration"
+	"go.uber.org/zap/zapcore"
 )
 
 type ServerConfig struct {
@@ -30,9 +31,8 @@ type CacheConfig struct {
 }
 
 type LoggingConfig struct {
-	Level       int    `mapstructure:"level"`
-	Development bool   `mapstructure:"development"`
-	File        string `mapstructure:"file"`
+	Level string `mapstructure:"level"`
+	File  string `mapstructure:"file"`
 }
 
 type JWTConfig struct {
@@ -44,7 +44,7 @@ type JWTConfig struct {
 type DBConfig struct {
 	DataSource  string `mapstructure:"data-source"`
 	PrepareStmt bool   `mapstructure:"prepare-stmt"`
-	LogLevel    int    `mapstructure:"log-level"`
+	LogLevel    string `mapstructure:"log-level"`
 	Pool        struct {
 		Enable             bool          `mapstructure:"enable"`
 		MaxOpenConnections int           `mapstructure:"max-open-connections"`
@@ -196,13 +196,12 @@ func AddCommonFlags(flags *pflag.FlagSet, config *ServerCmdConfig) {
 	flags.StringP("config", "c", "", "Config file path (default $HOME/.teldrive/config.toml)")
 
 	// Log config
-	flags.IntVarP(&config.Log.Level, "log-level", "", -1, "Logging level")
+	flags.StringVar(&config.Log.Level, "log-level", zapcore.InfoLevel.String(), "Logging level")
 	flags.StringVar(&config.Log.File, "log-file", "", "Logging file path")
-	flags.BoolVar(&config.Log.Development, "log-development", false, "Enable development mode")
 
 	// DB config
 	flags.StringVar(&config.DB.DataSource, "db-data-source", "", "Database connection string")
-	flags.IntVar(&config.DB.LogLevel, "db-log-level", 1, "Database log level")
+	flags.StringVar(&config.DB.LogLevel, "db-log-level", zapcore.InfoLevel.String(), "Database log level")
 	flags.BoolVar(&config.DB.PrepareStmt, "db-prepare-stmt", true, "Enable prepared statements")
 	flags.BoolVar(&config.DB.Pool.Enable, "db-pool-enable", true, "Enable database pool")
 	flags.IntVar(&config.DB.Pool.MaxIdleConnections, "db-pool-max-open-connections", 25, "Database max open connections")

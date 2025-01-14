@@ -21,21 +21,18 @@ var (
 )
 
 var conf = &Config{
-	Level:       zapcore.InfoLevel,
-	Development: true,
+	Level: zapcore.InfoLevel,
 }
 
 type Config struct {
-	Level       zapcore.Level
-	Development bool
-	FilePath    string
+	Level    zapcore.Level
+	FilePath string
 }
 
 func SetConfig(c *Config) {
 	conf = &Config{
-		Level:       c.Level,
-		Development: c.Development,
-		FilePath:    c.FilePath,
+		Level:    c.Level,
+		FilePath: c.FilePath,
 	}
 }
 
@@ -70,12 +67,7 @@ func NewLogger(conf *Config) *zap.Logger {
 			zapcore.AddSync(lumberjackLogger), zap.NewAtomicLevelAt(conf.Level)))
 	}
 
-	options := []zap.Option{}
-	if conf.Development {
-		options = append(options, zap.Development())
-
-	}
-	return zap.New(zapcore.NewTee(cores...), options...)
+	return zap.New(zapcore.NewTee(cores...))
 }
 
 func DefaultLogger() *zap.Logger {
