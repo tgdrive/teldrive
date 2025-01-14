@@ -1,0 +1,110 @@
+version: '3'
+
+vars:
+  APP_NAME: teldrive
+  BUILD_DIR: bin
+  FRONTEND_DIR: ui/dist
+  FRONTEND_ASSET: https://github.com/tgdrive/teldrive-ui/releases/download/latest/teldrive-ui.zip
+  GIT_COMMIT:
+    sh: git rev-parse --short HEAD
+  MODULE_PATH:
+    sh: go list -m
+  GOOS:
+    sh: go env GOOS
+  GOARCH:
+    sh: go env GOARCH
+  BINARY_EXTENSION: '{{if eq OS "windows"}}.exe{{end}}'
+
+tasks:
+  default:
+    cmds:
+      - task: ui
+      - task: server
+
+  ui:
+    desc: Download UI assets
+    cmds:
+      - go run scripts/extract.go -url {{.FRONTEND_ASSET}} -output {{.FRONTEND_DIR}}
+
+  gen:
+    desc: Generate API code
+    cmds:
+      - go generate ./...
+
+  server:
+    desc: Build Server
+    deps: [gen]
+    vars:
+      VERSION:
+        sh: go run scripts/release.go --version current
+    cmds:
+      - echo "Building backend for {{.GOOS}}/{{.GOARCH}}..."
+      - >
+        go build -trimpath -ldflags "-s -w 
+          -X '{{.MODULE_PATH}}/internal/version.Version={{.VERSION}}' 
+          -X '{{.MODULE_PATH}}/internal/version.CommitSHA={{.GIT_COMMIT}}' 
+          -extldflags=-static
+          " -o {{.BUILD_DIR}}/{{.APP_NAME}}{{.BINARY_EXTENSION}}
+
+  run:
+    desc: Run Server
+    cmds:
+      - ./{{.BUILD_DIR}}/{{.APP_NAME}}{{.BINARY_EXTENSION}} run
+
+  deps:
+    desc: Install dependencies
+    cmds:
+      - go mod download
+      - go mod tidy
+
+  retag:
+    desc: Retag a version
+    vars:
+      VERSION:
+        sh: go run scripts/release.go --version current
+    preconditions:
+      - sh: test $(git rev-parse --abbrev-ref HEAD) = "main"
+        msg: "You must be on the main branch to retag"
+      - sh: "[[ -z $(git diff --shortstat main) ]]"
+        msg: "You must have a clean working tree to retag"
+    prompt: "This will recreate tag {{.VERSION}}. Are you sure?"
+    cmds:
+      - echo "Retagging {{.VERSION}}..."
+      - cmd: git rev-list -n 1 {{.VERSION}} || true
+        silent: true
+        vars:
+          OLD_COMMIT: out
+      - git tag -d {{.VERSION}} || true
+      - git push --delete origin {{.VERSION}} || true
+      - cmd: |
+          if [ ! -z "{{.OLD_COMMIT}}" ]; then
+            if ! git cherry-pick {{.OLD_COMMIT}}; then
+              git cherry-pick --abort
+              echo "Failed to cherry-pick version commit"
+              exit 1
+            fi
+          fi
+      - git tag -a {{.VERSION}} -m "Release {{.VERSION}}"
+      - git push origin {{.VERSION}}
+      - git push origin main
+  
+  release:*:
+    desc: Prepare for a new release
+    vars:
+      VERSION:
+        sh: "go run scripts/release.go --version {{index .MATCH 0}}"
+    preconditions:
+      - sh: test $(git rev-parse --abbrev-ref HEAD) = "main"
+        msg: "You must be on the main branch to release"
+      - sh: "[[ -z $(git diff --shortstat main) ]]"
+        msg: "You must have a clean working tree to release"
+    prompt: "Are you sure you want to release version {{.VERSION}}?"
+    cmds:
+      - cmd: echo "Releasing {{.VERSION}}"
+        silent: true
+      - "go run scripts/release.go {{.VERSION}}"
+      - "git add --all"
+      - 'git commit -m "Version {{.VERSION}}"'
+      - "git push"
+      - "git tag {{.VERSION}}"
+      - "git push origin tag {{.VERSION}}"

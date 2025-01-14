@@ -3,6 +3,7 @@ module github.com/tgdrive/teldrive
 go 1.23.3
 
 require (
+	github.com/Masterminds/semver/v3 v3.3.1
 	github.com/WinterYukky/gorm-extra-clause-plugin v0.3.0
 	github.com/coocood/freecache v1.2.4
 	github.com/go-chi/chi/v5 v5.2.0
