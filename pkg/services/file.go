@@ -716,7 +716,7 @@ func (e *extendedService) FilesStream(w http.ResponseWriter, r *http.Request, fi
 
 		token, _ = e.api.worker.Next(*file.ChannelId)
 
-		client, err = tgc.BotClient(ctx, e.api.boltdb, &e.api.cnf.TG, token, middlewares...)
+		client, err = tgc.BotClient(ctx, e.api.tgdb, &e.api.cnf.TG, token, middlewares...)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

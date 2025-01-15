@@ -18,11 +18,11 @@ import (
 	"github.com/tgdrive/teldrive/internal/auth"
 	"github.com/tgdrive/teldrive/internal/cache"
 	"github.com/tgdrive/teldrive/internal/tgc"
+	"github.com/tgdrive/teldrive/internal/tgstorage"
 	"github.com/tgdrive/teldrive/pkg/models"
 	"github.com/tgdrive/teldrive/pkg/types"
 	"golang.org/x/sync/errgroup"
 
-	tgbbolt "github.com/gotd/contrib/bbolt"
 	"github.com/gotd/contrib/storage"
 	"gorm.io/gorm/clause"
 )
@@ -52,12 +52,13 @@ func (a *apiService) UsersListChannels(ctx context.Context) ([]api.Channel, erro
 
 	channels := make(map[int64]*api.Channel)
 
-	peerStorage := tgbbolt.NewPeerStorage(a.boltdb, []byte(fmt.Sprintf("peers:%d", userId)))
+	peerStorage := tgstorage.NewPeerStorage(a.tgdb, cache.Key("peers", userId))
 
 	iter, err := peerStorage.Iterate(ctx)
 	if err != nil {
 		return []api.Channel{}, nil
 	}
+	defer iter.Close()
 	for iter.Next(ctx) {
 		peer := iter.Value()
 		if peer.Channel != nil && peer.Channel.AdminRights.AddAdmins {
@@ -82,7 +83,7 @@ func (a *apiService) UsersListChannels(ctx context.Context) ([]api.Channel, erro
 
 func (a *apiService) UsersSyncChannels(ctx context.Context) error {
 	userId := auth.GetUser(ctx)
-	peerStorage := tgbbolt.NewPeerStorage(a.boltdb, []byte(fmt.Sprintf("peers:%d", userId)))
+	peerStorage := tgstorage.NewPeerStorage(a.tgdb, cache.Key("peers", userId))
 	collector := storage.CollectPeers(peerStorage)
 	client, err := tgc.AuthClient(ctx, &a.cnf.TG, auth.GetJWTUser(ctx).TgSession, a.middlewares...)
 	if err != nil {
@@ -99,58 +100,62 @@ func (a *apiService) UsersSyncChannels(ctx context.Context) error {
 
 func (a *apiService) UsersListSessions(ctx context.Context) ([]api.UserSession, error) {
 	userId := auth.GetUser(ctx)
+	return cache.Fetch(a.cache, cache.Key("users", "sessions", userId), 0, func() ([]api.UserSession, error) {
 
-	userSession := auth.GetJWTUser(ctx).TgSession
+		userSession := auth.GetJWTUser(ctx).TgSession
 
-	client, _ := tgc.AuthClient(ctx, &a.cnf.TG, userSession, a.middlewares...)
+		client, _ := tgc.AuthClient(ctx, &a.cnf.TG, userSession, a.middlewares...)
 
-	var (
-		auth *tg.AccountAuthorizations
-		err  error
-	)
+		var (
+			auth *tg.AccountAuthorizations
+			err  error
+		)
 
-	err = client.Run(ctx, func(ctx context.Context) error {
-		auth, err = client.API().AccountGetAuthorizations(ctx)
-		if err != nil {
-			return err
+		err = client.Run(ctx, func(ctx context.Context) error {
+			auth, err = client.API().AccountGetAuthorizations(ctx)
+			if err != nil {
+				return err
+			}
+			return nil
+		})
+
+		if err != nil && !tgerr.Is(err, "AUTH_KEY_UNREGISTERED") {
+			return nil, err
 		}
-		return nil
-	})
 
-	if err != nil && !tgerr.Is(err, "AUTH_KEY_UNREGISTERED") {
-		return nil, err
-	}
+		dbSessions := []models.Session{}
 
-	dbSessions := []models.Session{}
+		if err = a.db.Where("user_id = ?", userId).Order("created_at DESC").Find(&dbSessions).Error; err != nil {
+			return nil, err
+		}
 
-	if err = a.db.Where("user_id = ?", userId).Order("created_at DESC").Find(&dbSessions).Error; err != nil {
-		return nil, err
-	}
+		sessionsOut := []api.UserSession{}
 
-	sessionsOut := []api.UserSession{}
+		for _, session := range dbSessions {
 
-	for _, session := range dbSessions {
+			s := api.UserSession{Hash: session.Hash,
+				CreatedAt: session.CreatedAt.UTC(),
+				Current:   session.Session == userSession}
 
-		s := api.UserSession{Hash: session.Hash,
-			CreatedAt: session.CreatedAt.UTC(),
-			Current:   session.Session == userSession}
-
-		if auth != nil {
-			for _, a := range auth.Authorizations {
-				if session.SessionDate == a.DateCreated {
-					s.AppName = api.NewOptString(strings.Trim(strings.Replace(a.AppName, "Telegram", "", -1), " "))
-					s.Location = api.NewOptString(a.Country)
-					s.OfficialApp = api.NewOptBool(a.OfficialApp)
-					s.Valid = true
-					break
+			if auth != nil {
+				for _, a := range auth.Authorizations {
+					if session.SessionDate == a.DateCreated {
+						s.AppName = api.NewOptString(strings.Trim(strings.Replace(a.AppName, "Telegram", "", -1), " "))
+						s.Location = api.NewOptString(a.Country)
+						s.OfficialApp = api.NewOptBool(a.OfficialApp)
+						s.Valid = true
+						break
+					}
 				}
 			}
+
+			sessionsOut = append(sessionsOut, s)
 		}
 
-		sessionsOut = append(sessionsOut, s)
-	}
+		return sessionsOut, nil
 
-	return sessionsOut, nil
+	})
+
 }
 
 func (a *apiService) UsersProfileImage(ctx context.Context, params api.UsersProfileImageParams) (*api.UsersProfileImageOKHeaders, error) {
@@ -234,6 +239,7 @@ func (a *apiService) UsersRemoveSession(ctx context.Context, params api.UsersRem
 	})
 
 	a.db.Where("user_id = ?", userId).Where("hash = ?", session.Hash).Delete(&models.Session{})
+	a.cache.Delete(cache.Key("users", "sessions", userId))
 
 	return nil
 }
@@ -247,13 +253,13 @@ func (a *apiService) UsersStats(ctx context.Context) (*api.UserConfig, error) {
 
 	channelId, err = getDefaultChannel(a.db, a.cache, userId)
 	if err != nil {
-		return nil, &apiError{err: err}
+		channelId = 0
 	}
 
 	tokens, err := getBotsToken(a.db, a.cache, userId, channelId)
 
 	if err != nil {
-		return nil, &apiError{err: err}
+		tokens = []string{}
 	}
 	return &api.UserConfig{Bots: tokens, ChannelId: channelId}, nil
 }
@@ -303,7 +309,7 @@ func (a *apiService) addBots(c context.Context, client *telegram.Client, userId 
 
 		for _, token := range botsTokens {
 			g.Go(func() error {
-				info, err := tgc.GetBotInfo(c, a.boltdb, &a.cnf.TG, token)
+				info, err := tgc.GetBotInfo(c, a.tgdb, &a.cnf.TG, token)
 				if err != nil {
 					return err
 				}

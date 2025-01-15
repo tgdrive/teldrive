@@ -7,27 +7,24 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/go-faster/errors"
-	tgbbolt "github.com/gotd/contrib/bbolt"
 	"github.com/gotd/contrib/clock"
 	"github.com/gotd/contrib/middleware/floodwait"
 	"github.com/gotd/contrib/middleware/ratelimit"
 	"github.com/gotd/td/session"
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/telegram/dcs"
+	"github.com/tgdrive/teldrive/internal/cache"
 	"github.com/tgdrive/teldrive/internal/config"
 	"github.com/tgdrive/teldrive/internal/logging"
 	"github.com/tgdrive/teldrive/internal/recovery"
 	"github.com/tgdrive/teldrive/internal/retry"
+	"github.com/tgdrive/teldrive/internal/tgstorage"
 	"github.com/tgdrive/teldrive/internal/utils"
-	"go.etcd.io/bbolt"
 	"go.uber.org/zap"
 	"golang.org/x/net/proxy"
 	"golang.org/x/time/rate"
+	"gorm.io/gorm"
 )
-
-func sessionKey(indexes ...string) string {
-	return strings.Join(indexes, ":")
-}
 
 func newClient(ctx context.Context, config *config.TGConfig, handler telegram.UpdateHandler, storage session.Storage, middlewares ...telegram.Middleware) (*telegram.Client, error) {
 
@@ -107,9 +104,9 @@ func AuthClient(ctx context.Context, config *config.TGConfig, sessionStr string,
 	return newClient(ctx, config, nil, storage, middlewares...)
 }
 
-func BotClient(ctx context.Context, boltdb *bbolt.DB, config *config.TGConfig, token string, middlewares ...telegram.Middleware) (*telegram.Client, error) {
+func BotClient(ctx context.Context, db *gorm.DB, config *config.TGConfig, token string, middlewares ...telegram.Middleware) (*telegram.Client, error) {
 
-	storage := tgbbolt.NewSessionStorage(boltdb, sessionKey("botsession", token), []byte("teldrive"))
+	storage := tgstorage.NewSessionStorage(db, cache.Key("sessions", strings.Split(token, ":")[0]))
 
 	return newClient(ctx, config, nil, storage, middlewares...)
 

@@ -74,7 +74,7 @@ type TGConfig struct {
 	SystemLangCode    string        `mapstructure:"system-lang-code"`
 	LangPack          string        `mapstructure:"lang-pack"`
 	Ntp               bool          `mapstructure:"ntp"`
-	SessionFile       string        `mapstructure:"session-file"`
+	StorageFile       string        `mapstructure:"storage-file"`
 	DisableStreamBots bool          `mapstructure:"disable-stream-bots"`
 	Proxy             string        `mapstructure:"proxy"`
 	ReconnectTimeout  time.Duration `mapstructure:"reconnect-timeout"`
@@ -211,7 +211,7 @@ func AddCommonFlags(flags *pflag.FlagSet, config *ServerCmdConfig) {
 	// Telegram config
 	flags.IntVar(&config.TG.AppId, "tg-app-id", 0, "Telegram app ID")
 	flags.StringVar(&config.TG.AppHash, "tg-app-hash", "", "Telegram app hash")
-	flags.StringVar(&config.TG.SessionFile, "tg-session-file", "", "Bot session file path")
+	flags.StringVar(&config.TG.StorageFile, "tg-storage-file", "", "Sqlite Storage file path")
 	flags.BoolVar(&config.TG.RateLimit, "tg-rate-limit", true, "Enable rate limiting for telegram client")
 	flags.IntVar(&config.TG.RateBurst, "tg-rate-burst", 5, "Limiting burst for telegram client")
 	flags.IntVar(&config.TG.Rate, "tg-rate", 100, "Limiting rate for telegram client")

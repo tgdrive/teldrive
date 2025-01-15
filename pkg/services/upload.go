@@ -124,7 +124,7 @@ func (a *apiService) UploadsUpload(ctx context.Context, req *api.UploadsUploadRe
 	} else {
 		a.worker.Set(tokens, channelId)
 		token, index = a.worker.Next(channelId)
-		client, err = tgc.BotClient(ctx, a.boltdb, &a.cnf.TG, token)
+		client, err = tgc.BotClient(ctx, a.tgdb, &a.cnf.TG, token)
 
 		if err != nil {
 			return nil, err

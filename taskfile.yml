@@ -15,6 +15,9 @@ vars:
     sh: go env GOARCH
   BINARY_EXTENSION: '{{if eq OS "windows"}}.exe{{end}}'
 
+env:
+  CGO_ENABLED: 0
+
 tasks:
   default:
     cmds:

@@ -25,8 +25,8 @@ import (
 	"github.com/tgdrive/teldrive/internal/logging"
 	"github.com/tgdrive/teldrive/internal/middleware"
 	"github.com/tgdrive/teldrive/internal/tgc"
+	"github.com/tgdrive/teldrive/internal/tgstorage"
 	"github.com/tgdrive/teldrive/ui"
-	"go.etcd.io/bbolt"
 
 	"github.com/tgdrive/teldrive/pkg/cron"
 	"github.com/tgdrive/teldrive/pkg/services"
@@ -177,15 +177,19 @@ func runApplication(ctx context.Context, conf *config.ServerCmdConfig) {
 		lg.Fatalw("failed to migrate database", "err", err)
 	}
 
-	boltDb, err := tgc.NewBoltDB(conf.TG.SessionFile)
-
+	tgdb, err := tgstorage.NewDatabase(conf.TG.StorageFile)
 	if err != nil {
-		lg.Fatalw("failed to create bolt db", "err", err)
+		lg.Fatalw("failed to create tg db", "err", err)
+	}
+
+	err = tgstorage.MigrateDB(tgdb)
+	if err != nil {
+		lg.Fatalw("failed to migrate tg db", "err", err)
 	}
 
 	worker := tgc.NewBotWorker()
 
-	srv := setupServer(conf, db, cacher, boltDb, worker)
+	srv := setupServer(conf, db, cacher, tgdb, worker)
 
 	cron.StartCronJobs(scheduler, db, conf)
 
@@ -213,11 +217,11 @@ func runApplication(ctx context.Context, conf *config.ServerCmdConfig) {
 	lg.Info("Server stopped")
 }
 
-func setupServer(cfg *config.ServerCmdConfig, db *gorm.DB, cache cache.Cacher, boltdb *bbolt.DB, worker *tgc.BotWorker) *http.Server {
+func setupServer(cfg *config.ServerCmdConfig, db *gorm.DB, cache cache.Cacher, tgdb *gorm.DB, worker *tgc.BotWorker) *http.Server {
 
 	lg := logging.DefaultLogger()
 
-	apiSrv := services.NewApiService(db, cfg, cache, boltdb, worker)
+	apiSrv := services.NewApiService(db, cfg, cache, tgdb, worker)
 
 	srv, err := api.NewServer(apiSrv, auth.NewSecurityHandler(db, cache, &cfg.JWT))
 

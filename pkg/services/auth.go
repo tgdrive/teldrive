@@ -130,7 +130,7 @@ func (a *apiService) AuthLogout(ctx context.Context) (*api.AuthLogoutNoContent, 
 		return err
 	})
 	a.db.Where("hash = ?", authUser.Hash).Delete(&models.Session{})
-	a.cache.Delete(cache.Key("sessions", authUser.Hash))
+	a.cache.Delete(cache.Key("sessions", authUser.Hash), cache.Key("users", "sessions", authUser.ID))
 	return &api.AuthLogoutNoContent{SetCookie: setCookie(authCookieName, "", -1)}, nil
 }
 
