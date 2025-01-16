@@ -285,7 +285,7 @@ func (a *apiService) FilesCreate(ctx context.Context, fileIn *api.File) (*api.Fi
 		if len(fileIn.Parts) > 0 {
 			fileDB.Parts = datatypes.NewJSONSlice(mapParts(fileIn.Parts))
 		}
-		fileDB.Size = utils.Ptr(fileIn.Size.Or(0))
+		fileDB.Size = utils.Ptr(fileIn.Size.Value)
 	}
 	fileDB.Name = fileIn.Name
 	fileDB.Type = string(fileIn.Type)

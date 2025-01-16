@@ -90,6 +90,17 @@ func addServerFlags(cmd *cobra.Command, cfg *config.ServerCmdConfig) {
 	duration.DurationVar(flags, &cfg.JWT.SessionTime, "jwt-session-time", (30*24)*time.Hour, "JWT session duration")
 	flags.StringSliceVar(&cfg.JWT.AllowedUsers, "jwt-allowed-users", []string{}, "Allowed users")
 
+	// Telegram config
+	flags.StringVar(&cfg.TG.StorageFile, "tg-storage-file", "", "Sqlite Storage file path")
+	flags.BoolVar(&cfg.TG.RateLimit, "tg-rate-limit", true, "Enable rate limiting for telegram client")
+	flags.IntVar(&cfg.TG.RateBurst, "tg-rate-burst", 5, "Limiting burst for telegram client")
+	flags.IntVar(&cfg.TG.Rate, "tg-rate", 100, "Limiting rate for telegram client")
+	flags.StringVar(&cfg.TG.Proxy, "tg-proxy", "", "HTTP OR SOCKS5 proxy URL")
+	flags.BoolVar(&cfg.TG.DisableStreamBots, "tg-disable-stream-bots", false, "Disable Stream bots")
+	flags.BoolVar(&cfg.TG.Ntp, "tg-ntp", false, "Use NTP server time")
+	flags.BoolVar(&cfg.TG.EnableLogging, "tg-enable-logging", false, "Enable telegram client logging")
+	flags.Int64Var(&cfg.TG.PoolSize, "tg-pool-size", 8, "Telegram Session pool size")
+
 	// Telegram Uploads config
 	flags.StringVar(&cfg.TG.Uploads.EncryptionKey, "tg-uploads-encryption-key", "", "Uploads encryption key")
 	flags.IntVar(&cfg.TG.Uploads.Threads, "tg-uploads-threads", 8, "Uploads threads")

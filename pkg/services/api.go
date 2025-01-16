@@ -7,11 +7,13 @@ import (
 	"github.com/go-faster/errors"
 	"github.com/gotd/td/telegram"
 	"github.com/ogen-go/ogen/ogenerrors"
+	"go.uber.org/zap"
 
 	ht "github.com/ogen-go/ogen/http"
 	"github.com/tgdrive/teldrive/internal/api"
 	"github.com/tgdrive/teldrive/internal/cache"
 	"github.com/tgdrive/teldrive/internal/config"
+	"github.com/tgdrive/teldrive/internal/logging"
 	"github.com/tgdrive/teldrive/internal/tgc"
 	"github.com/tgdrive/teldrive/internal/version"
 	"gorm.io/gorm"
@@ -45,8 +47,14 @@ func (a *apiService) NewError(ctx context.Context, err error) *api.ErrorStatusCo
 		code = ogenErr.Code()
 		message = ogenErr.Error()
 	case errors.As(err, &apiError):
-		code = apiError.Code()
-		message = apiError.Error()
+		if apiError.code == 0 {
+			code = http.StatusInternalServerError
+			message = http.StatusText(code)
+		} else {
+			code = apiError.code
+			message = apiError.Error()
+		}
+		logging.FromContext(ctx).Error("api error", zap.Error(apiError))
 	}
 	return &api.ErrorStatusCode{StatusCode: code, Response: api.Error{Code: code, Message: message}}
 }
@@ -106,13 +114,6 @@ type apiError struct {
 
 func (a apiError) Error() string {
 	return a.err.Error()
-}
-
-func (a *apiError) Code() int {
-	if a.code == 0 {
-		return http.StatusInternalServerError
-	}
-	return a.code
 }
 
 func (a *apiError) Unwrap() error {

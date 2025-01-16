@@ -10,6 +10,7 @@ import (
 
 	"github.com/tgdrive/teldrive/internal/api"
 	"github.com/tgdrive/teldrive/internal/appcontext"
+	"github.com/tgdrive/teldrive/internal/cache"
 	"github.com/tgdrive/teldrive/internal/database"
 	"github.com/tgdrive/teldrive/pkg/mapper"
 	"github.com/tgdrive/teldrive/pkg/models"
@@ -120,16 +121,10 @@ func (a *apiService) SharesListFiles(ctx context.Context, params api.SharesListF
 }
 func (a *apiService) validFileShare(r *http.Request, id string) (*fileShare, error) {
 
-	share := &fileShare{}
+	share, err := cache.FetchArg(a.cache, cache.Key("shares", id), 0, a.shareGetById, id)
 
-	key := "shares:" + id
-
-	if err := a.cache.Get(key, share); err != nil {
-		share, err = a.shareGetById(id)
-		if err != nil {
-			return nil, &apiError{err: err}
-		}
-		a.cache.Set(key, share, 0)
+	if err != nil {
+		return nil, &apiError{err: err}
 	}
 
 	if share.Password != nil {
@@ -138,10 +133,11 @@ func (a *apiService) validFileShare(r *http.Request, id string) (*fileShare, err
 			return nil, &apiError{err: ErrEmptyAuth, code: http.StatusUnauthorized}
 		}
 		bytes, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(authHeader, "Basic "))
-		password := strings.Split(string(bytes), ":")[1]
 		if err != nil {
 			return nil, &apiError{err: err}
 		}
+		password := strings.Split(string(bytes), ":")[1]
+
 		if err := bcrypt.CompareHashAndPassword([]byte(*share.Password), []byte(password)); err != nil {
 			return nil, &apiError{err: ErrInvalidPassword, code: http.StatusUnauthorized}
 		}

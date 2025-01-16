@@ -149,6 +149,16 @@ func Fetch[T any](cache Cacher, key string, expiration time.Duration, fn func() 
 	return value, nil
 }
 
+func FetchArg[T any, A any](
+	cache Cacher,
+	key string,
+	expiration time.Duration,
+	fn func(a A) (T, error), a A) (T, error) {
+	return Fetch(cache, key, expiration, func() (T, error) {
+		return fn(a)
+	})
+}
+
 func Key(args ...interface{}) string {
 	parts := make([]string, len(args))
 	for i, arg := range args {
