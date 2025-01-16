@@ -52,8 +52,6 @@ type channelExport struct {
 	Files     []exportFile `json:"files"`
 }
 
-const dateLayout = "2006-01-02_15-04-05"
-
 var termWidth = func() (width int, err error) {
 	width, _, err = term.GetSize(int(os.Stdout.Fd()))
 	if err == nil {
@@ -65,6 +63,7 @@ var termWidth = func() (width int, err error) {
 
 func NewCheckCmd() *cobra.Command {
 	var cfg config.ServerCmdConfig
+	loader := config.NewConfigLoader()
 	cmd := &cobra.Command{
 		Use:   "check",
 		Short: "Check and purge incomplete files",
@@ -72,11 +71,7 @@ func NewCheckCmd() *cobra.Command {
 			runCheckCmd(cmd, &cfg)
 		},
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
-			loader := config.NewConfigLoader()
-			if err := loader.InitializeConfig(cmd); err != nil {
-				return err
-			}
-			if err := loader.Load(&cfg); err != nil {
+			if err := loader.Load(cmd, &cfg); err != nil {
 				return err
 			}
 			if err := checkRequiredCheckFlags(&cfg); err != nil {
@@ -85,16 +80,11 @@ func NewCheckCmd() *cobra.Command {
 			return nil
 		},
 	}
-	addChecktFlags(cmd, &cfg)
+	loader.RegisterPlags(cmd.Flags(), "", cfg, true)
+	cmd.Flags().Bool("export", true, "Export incomplete files to json file")
+	cmd.Flags().Bool("clean", false, "Clean missing and orphan file parts")
+	cmd.Flags().String("user", "", "Telegram User Name")
 	return cmd
-}
-
-func addChecktFlags(cmd *cobra.Command, cfg *config.ServerCmdConfig) {
-	flags := cmd.Flags()
-	config.AddCommonFlags(flags, cfg)
-	flags.Bool("export", true, "Export incomplete files to json file")
-	flags.Bool("clean", false, "Clean missing and orphan file parts")
-	flags.String("user", "", "Telegram User Name")
 }
 
 func checkRequiredCheckFlags(cfg *config.ServerCmdConfig) error {
@@ -245,6 +235,9 @@ func runCheckCmd(cmd *cobra.Command, cfg *config.ServerCmdConfig) {
 			lg.Fatalf("Channel %d: found %d messages out of %d", id, len(msgs), total)
 			continue
 		}
+
+		msgIds := utils.Map(msgs, func(m tg.NotEmptyMessage) int { return m.GetID() })
+
 		uploadPartIds := []int{}
 		if err := db.Model(&models.Upload{}).Where("user_id = ?", user.UserId).Where("channel_id = ?", id).
 			Pluck("part_id", &uploadPartIds).Error; err != nil {
@@ -256,8 +249,9 @@ func runCheckCmd(cmd *cobra.Command, cfg *config.ServerCmdConfig) {
 		for _, partID := range uploadPartIds {
 			uploadPartMap[partID] = true
 		}
+
 		msgMap := make(map[int]bool)
-		for _, m := range msgs {
+		for _, m := range msgIds {
 			if m > 0 && !uploadPartMap[m] {
 				msgMap[m] = true
 			}
@@ -343,7 +337,7 @@ func runCheckCmd(cmd *cobra.Command, cfg *config.ServerCmdConfig) {
 
 }
 
-func loadChannelMessages(ctx context.Context, client *telegram.Client, channelId int64) (msgs []int, total int, err error) {
+func loadChannelMessages(ctx context.Context, client *telegram.Client, channelId int64) (msgs []tg.NotEmptyMessage, total int, err error) {
 	errChan := make(chan error, 1)
 
 	go func() {
@@ -392,7 +386,7 @@ func loadChannelMessages(ctx context.Context, client *telegram.Client, channelId
 
 			for msgiter.Next(ctx) {
 				msg := msgiter.Value()
-				msgs = append(msgs, msg.Msg.GetID())
+				msgs = append(msgs, msg.Msg)
 				count++
 				bar.Set(count)
 			}

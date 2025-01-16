@@ -1,53 +1,57 @@
-[db]
-  data-source = ""
-  prepare-stmt = true
-  log-level = 1
-  [db.pool]
-    enable = true
-    max-idle-connections = 25
-    max-lifetime = "10m"
-    max-open-connections = 25
+[cache]
+max-size = 10485760
+redis-addr = ''
+redis-pass = ''
 
 [cronjobs]
-  enable = true
+clean-files-interval = '1h'
+clean-uploads-interval = '12h'
+enable = true
+folder-size-interval = '2h'
+
+[db]
+log-level = 'info'
+prepare-stmt = true
+
+[db.pool]
+enable = true
+max-idle-connections = 25
+max-lifetime = '10m'
+max-open-connections = 25
 
 [jwt]
-  allowed-users = [""]
-  secret = ""
-  session-time = "30d"
+session-time = '30d'
+secret = ''
+allowed-users = []
 
 [log]
-  development = true
-  level = -1
+level = 'info'
+file = ''
 
 [server]
-  graceful-shutdown = "15s"
-  port = 8080
-  read-timeout = "1h"
-  write-timeout = "1h"
+graceful-shutdown = '10s'
+port = 8080
+read-timeout = '1h'
+write-timeout = '1h'
 
 [tg]
-  app-hash = ""
-  app-id = 0
-  app-version = "4.6.3 K"
-  bg-bots-limit = 5
-  device-model = "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/116.0"
-  disable-stream-bots = false
-  lang-code = "en"
-  lang-pack = "webk"
-  rate = 100
-  rate-burst = 5
-  rate-limit = true
-  session-file = ""
-  system-lang-code = "en-US"
-  system-version = "Win32"
-  proxy= "http://127.0.0.1:8080"
-  
-  [tg.uploads]
-    encryption-key = ""
-    retention = "7d"
-    threads = 8
-  [tg.stream]
-    multi-threads = 0
-    buffers = 8
+pool-size = 8
+rate = 100
+rate-burst = 5
+ntp = false
+disable-stream-bots = false
+storage-file = ''
+proxy = ''
+rate-limit = true
+reconnect-timeout = '5m'
 
+[tg.stream]
+buffers = 8
+chunk-timeout = '20s'
+
+[tg.uploads]
+multi-threads = 0
+encryption-key = ''
+max-retries = 10
+retention = '7d'
+threads = '8'

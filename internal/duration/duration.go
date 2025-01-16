@@ -5,8 +5,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/spf13/pflag"
 )
 
 type Duration time.Duration
@@ -83,10 +81,6 @@ func parseDurationFromNow(age string) (d time.Duration, err error) {
 func newDurationValue(val time.Duration, p *time.Duration) *Duration {
 	*p = val
 	return (*Duration)(p)
-}
-
-func DurationVar(f *pflag.FlagSet, p *time.Duration, name string, value time.Duration, usage string) {
-	f.VarP(newDurationValue(value, p), name, "", usage)
 }
 
 func ParseDuration(age string) (time.Duration, error) {
