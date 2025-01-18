@@ -23,6 +23,10 @@ tasks:
     cmds:
       - task: ui
       - task: server
+  deps:
+    cmds:
+     - go mod download
+     - go mod tidy
 
   ui:
     desc: Download UI assets

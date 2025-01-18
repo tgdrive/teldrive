@@ -6,11 +6,22 @@ This guide will help you get started with contributing to TelDrive.
 
 ### Prerequisites
 
-- Go (1.19 or later)
-- Node.js (for semver dependency)
+- Go (1.22 or later)
 - Git
-- Make
+- Task
 - PowerShell (for Windows) or Bash (for Unix-like systems)
+
+### Install Task
+
+##### macOS/Linux (curl)
+```sh
+curl https://instl.vercel.app/go-task/task | bash
+```
+
+#### PowerShell/cmd.exe
+```powershell
+powershell -c "irm https://instl.vercel.app/go-task/task?platform=windows|iex"
+```
 
 ### Initial Setup
 
@@ -22,7 +33,7 @@ cd teldrive
 
 2. Install dependencies:
 ```bash
-make deps
+task deps
 ```
 
 ## Building TelDrive
@@ -30,7 +41,7 @@ make deps
 ### Complete Build
 To build both frontend and backend:
 ```bash
-make build
+task
 ```
 
 ### Frontend Development
@@ -38,19 +49,19 @@ The frontend is managed in a separate repository ([teldrive-ui](https://github.c
 
 To set up the frontend:
 ```bash
-make frontend
+task ui
 ```
 
 ### Backend Development
 To build the backend only:
 ```bash
-make backend
+task server
 ```
 
 ### Running TelDrive
 After building, run the application:
 ```bash
-make run
+task run
 ```
 
 ## Feature Development
@@ -62,26 +73,7 @@ git checkout -b feature/your-feature-name
 
 2. Generate API Spec:
 ```bash
-make gen
-```
-
-## Version Management
-
-We follow semantic versioning (MAJOR.MINOR.PATCH):
-
-- For bug fixes:
-```bash
-make patch-version
-```
-
-- For new features:
-```bash
-make minor-version
-```
-
-- For breaking changes:
-```bash
-make major-version
+task gen
 ```
 
 ## Pull Request Guidelines
