@@ -59,7 +59,7 @@ type DBPool struct {
 type DBConfig struct {
 	DataSource  string `config:"data-source" description:"Database connection string" required:"true"`
 	PrepareStmt bool   `config:"prepare-stmt" description:"Use prepared statements" default:"true"`
-	LogLevel    string `config:"log-level" description:"Database logging level" default:"info"`
+	LogLevel    string `config:"log-level" description:"Database logging level" default:"error"`
 	Pool        DBPool `config:"pool"`
 }
 
