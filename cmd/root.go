@@ -12,6 +12,6 @@ func New() *cobra.Command {
 			cmd.Help()
 		},
 	}
-	cmd.AddCommand(NewRun(), NewCheckCmd(), NewVersion())
+	cmd.AddCommand(NewRun(), NewCheckCmd(), NewUpdateCmd(), NewVersion())
 	return cmd
 }

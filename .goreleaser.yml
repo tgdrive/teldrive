@@ -91,6 +91,7 @@ changelog:
       - '^Update'
       - '^Version'
       - '^ci:'
+      - '^docs:'
       - Merge pull request
       - Merge branch
 
