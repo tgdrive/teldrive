@@ -123,7 +123,7 @@ func runApplication(ctx context.Context, conf *config.ServerCmdConfig) {
 
 	srv := setupServer(conf, db, cacher, tgdb, worker)
 
-	cron.StartCronJobs(scheduler, db, conf)
+	cron.StartCronJobs(ctx, scheduler, db, conf)
 
 	go func() {
 		lg.Infof("Server started at http://localhost:%d", conf.Server.Port)
@@ -143,8 +143,6 @@ func runApplication(ctx context.Context, conf *config.ServerCmdConfig) {
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		lg.Errorw("server shutdown failed", "err", err)
 	}
-
-	scheduler.Stop()
 
 	lg.Info("Server stopped")
 }

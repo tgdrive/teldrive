@@ -71,7 +71,7 @@ func randInt64() (int64, error) {
 	b := &buffer{Buf: buf[:]}
 	return b.long()
 }
-func isUUId(str string) bool {
+func isUUID(str string) bool {
 	_, err := uuid.Parse(str)
 	return err == nil
 }
@@ -195,7 +195,7 @@ func (a *apiService) FilesCopy(ctx context.Context, req *api.FileCopy, params ap
 	}
 
 	var parentId string
-	if !isUUId(req.Destination) {
+	if !isUUID(req.Destination) {
 		var destRes []models.File
 		if err := a.db.Raw("select * from teldrive.create_directories(?, ?)", userId, req.Destination).
 			Scan(&destRes).Error; err != nil {
@@ -297,10 +297,33 @@ func (a *apiService) FilesCreate(ctx context.Context, fileIn *api.File) (*api.Fi
 	} else {
 		fileDB.UpdatedAt = time.Now().UTC()
 	}
-	if err := a.db.Create(&fileDB).Error; err != nil {
-		if database.IsKeyConflictErr(err) {
-			return nil, &apiError{err: errors.New("file already exists"), code: 409}
-		}
+
+	//For some reason, gorm conflict clauses are not working with partial index so using raw query
+
+	if err := a.db.Raw(`
+    INSERT INTO teldrive.files (
+        name, parent_id, user_id, mime_type, category, parts, 
+        size, type, encrypted, updated_at, channel_id, status
+    ) 
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (name, COALESCE(parent_id, '00000000-0000-0000-0000-000000000000'::uuid), user_id) 
+    WHERE status = 'active'
+    DO UPDATE SET 
+        mime_type = EXCLUDED.mime_type,
+        category = EXCLUDED.category,
+        parts = EXCLUDED.parts,
+        size = EXCLUDED.size,
+        type = EXCLUDED.type,
+        encrypted = EXCLUDED.encrypted,
+        updated_at = EXCLUDED.updated_at,
+        channel_id = EXCLUDED.channel_id,
+        status = EXCLUDED.status
+    RETURNING *
+`,
+		fileDB.Name, fileDB.ParentId, fileDB.UserId, fileDB.MimeType,
+		fileDB.Category, fileDB.Parts, fileDB.Size, fileDB.Type,
+		fileDB.Encrypted, fileDB.UpdatedAt, fileDB.ChannelId, fileDB.Status,
+	).Scan(&fileDB).Error; err != nil {
 		return nil, &apiError{err: err}
 	}
 	return mapper.ToFileOut(fileDB), nil
@@ -419,25 +442,65 @@ func (a *apiService) FilesMkdir(ctx context.Context, req *api.FileMkDir) error {
 
 func (a *apiService) FilesMove(ctx context.Context, req *api.FileMove) error {
 	userId := auth.GetUser(ctx)
+
+	if !isUUID(req.DestinationParent) {
+		r, err := a.getFileFromPath(req.DestinationParent, userId)
+		if err != nil {
+			return &apiError{err: err}
+		}
+		req.DestinationParent = r.ID
+	}
+
+	if len(req.Ids) == 1 && req.DestinationName.Value != "" {
+		err := a.db.Transaction(func(tx *gorm.DB) error {
+			var srcFile models.File
+			if err := tx.Where("id = ? AND user_id = ?", req.Ids[0], userId).First(&srcFile).Error; err != nil {
+				return err
+			}
+			var existing models.File
+			if err := tx.Where("name = ? AND parent_id = ? AND user_id = ? AND status = 'active'",
+				req.DestinationName.Value, req.DestinationParent, userId).First(&existing).Error; err == nil {
+				if srcFile.Type == "folder" && existing.Type == "folder" {
+					if err := tx.Model(&models.File{}).
+						Where("parent_id = ? AND status = 'active'", existing.ID).
+						Where("name NOT IN (?)",
+							tx.Model(&models.File{}).
+								Select("name").
+								Where("parent_id = ? AND status = 'active'", srcFile.ID),
+						).
+						Update("parent_id", srcFile.ID).Error; err != nil {
+						return err
+					}
+				}
+				if err := tx.Exec("call teldrive.delete_files_bulk($1 , $2)", []string{existing.ID}, userId).Error; err != nil {
+					return err
+				}
+			}
+			return tx.Model(&models.File{}).
+				Where("id = ? AND user_id = ?", req.Ids[0], userId).
+				Updates(map[string]interface{}{
+					"parent_id": req.DestinationParent,
+					"name":      req.DestinationName.Value,
+				}).Error
+		})
+		if err != nil {
+			return &apiError{err: err}
+		}
+		return nil
+	}
+
 	items := pgtype.Array[string]{
 		Elements: req.Ids,
 		Valid:    true,
 		Dims:     []pgtype.ArrayDimension{{Length: int32(len(req.Ids)), LowerBound: 1}},
 	}
-	if !isUUId(req.Destination) {
-		r, err := a.getFileFromPath(req.Destination, userId)
-		if err != nil {
-			return &apiError{err: err}
-		}
-		req.Destination = r.ID
-	}
+
 	if err := a.db.Model(&models.File{}).Where("id = any(?)", items).Where("user_id = ?", userId).
-		Update("parent_id", req.Destination).Error; err != nil {
+		Update("parent_id", req.DestinationParent).Error; err != nil {
 		return &apiError{err: err}
 	}
 
 	return nil
-
 }
 
 func (a *apiService) FilesShareByid(ctx context.Context, params api.FilesShareByidParams) (*api.FileShare, error) {
@@ -484,9 +547,10 @@ func (a *apiService) FilesUpdate(ctx context.Context, req *api.FileUpdate, param
 	if req.Size.Value != 0 {
 		updateDb.Size = utils.Ptr(req.Size.Value)
 	}
-	if req.UpdatedAt.IsSet() && !req.UpdatedAt.Value.IsZero() {
-		updateDb.UpdatedAt = req.UpdatedAt.Value
-	} else if !req.UpdatedAt.IsSet() && params.Skiputs.Value == "0" {
+
+	updateDb.UpdatedAt = req.UpdatedAt.Value
+
+	if req.UpdatedAt.Value.IsZero() {
 		updateDb.UpdatedAt = time.Now().UTC()
 	}
 
