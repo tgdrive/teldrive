@@ -93,6 +93,14 @@ type TGConfig struct {
 	ReconnectTimeout  time.Duration `config:"reconnect-timeout" description:"Client reconnection timeout" default:"5m"`
 	PoolSize          int           `config:"pool-size" description:"Session pool size" default:"8"`
 	EnableLogging     bool          `config:"enable-logging" description:"Enable Telegram client logging"`
+	AppId             int           `config:"app-id" description:"Telegram app ID" default:"2496"`
+	AppHash           string        `config:"app-hash" description:"Telegram app hash" default:"8da85b0d5bfe62527e5b244c209159c3"`
+	DeviceModel       string        `config:"device-model" description:"Device model" default:"Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/116.0"`
+	SystemVersion     string        `config:"system-version" description:"System version" default:"Win32"`
+	AppVersion        string        `config:"app-version" description:"App version" default:"6.1.4 K"`
+	LangCode          string        `config:"lang-code" description:"Language code" default:"en"`
+	SystemLangCode    string        `config:"system-lang-code" description:"System language code" default:"en-US"`
+	LangPack          string        `config:"lang-pack" description:"Language pack" default:"webk"`
 	Uploads           TGUpload      `config:"uploads"`
 	Stream            TGStream      `config:"stream"`
 }

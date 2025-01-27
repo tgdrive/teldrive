@@ -26,20 +26,6 @@ import (
 	"gorm.io/gorm"
 )
 
-const (
-	AppId   = 2040
-	AppHash = "b18441a1ff607e10a989891a5462e627"
-)
-
-var Device = telegram.DeviceConfig{
-	DeviceModel:    "Desktop",
-	SystemVersion:  "Windows 11",
-	AppVersion:     "5.10.3 x64",
-	LangCode:       "en",
-	SystemLangCode: "en-US",
-	LangPack:       "tdesktop",
-}
-
 func newClient(ctx context.Context, config *config.TGConfig, handler telegram.UpdateHandler, storage session.Storage, middlewares ...telegram.Middleware) (*telegram.Client, error) {
 
 	var dialer dcs.DialFunc = proxy.Direct.DialContext
@@ -64,7 +50,14 @@ func newClient(ctx context.Context, config *config.TGConfig, handler telegram.Up
 		ReconnectionBackoff: func() backoff.BackOff {
 			return newBackoff(config.ReconnectTimeout)
 		},
-		Device:         Device,
+		Device: telegram.DeviceConfig{
+			DeviceModel:    config.DeviceModel,
+			SystemVersion:  config.SystemVersion,
+			AppVersion:     config.AppVersion,
+			SystemLangCode: config.SystemLangCode,
+			LangPack:       config.LangPack,
+			LangCode:       config.LangCode,
+		},
 		SessionStorage: storage,
 		RetryInterval:  2 * time.Second,
 		MaxRetries:     10,
@@ -82,7 +75,7 @@ func newClient(ctx context.Context, config *config.TGConfig, handler telegram.Up
 
 	}
 
-	return telegram.NewClient(AppId, AppHash, opts), nil
+	return telegram.NewClient(config.AppId, config.AppHash, opts), nil
 }
 
 func NoAuthClient(ctx context.Context, config *config.TGConfig, handler telegram.UpdateHandler, storage session.Storage) (*telegram.Client, error) {
