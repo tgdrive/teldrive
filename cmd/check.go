@@ -398,13 +398,7 @@ func runCheckCmd(cmd *cobra.Command, cfg *config.ServerCmdConfig) {
 		lg.Fatalw("no channels found")
 	}
 
-	tgconfig := &config.TGConfig{
-		RateLimit: true,
-		RateBurst: 5,
-		Rate:      100,
-	}
-
-	middlewares := tgc.NewMiddleware(tgconfig, tgc.WithFloodWait(), tgc.WithRateLimit())
+	middlewares := tgc.NewMiddleware(&cfg.TG, tgc.WithFloodWait(), tgc.WithRateLimit())
 	export, _ := cmd.Flags().GetBool("export")
 	clean, _ := cmd.Flags().GetBool("clean")
 	concurrent, _ := cmd.Flags().GetInt("concurrent")
@@ -441,7 +435,7 @@ func runCheckCmd(cmd *cobra.Command, cfg *config.ServerCmdConfig) {
 
 		g.Go(func() error {
 
-			client, err := tgc.AuthClient(ctx, tgconfig, session.Session, middlewares...)
+			client, err := tgc.AuthClient(ctx, &cfg.TG, session.Session, middlewares...)
 			if err != nil {
 				lg.Errorw("failed to create client", "err", err, "channel", id)
 				return fmt.Errorf("failed to create client for channel %d: %w", id, err)
