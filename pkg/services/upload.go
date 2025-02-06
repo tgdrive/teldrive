@@ -28,7 +28,10 @@ import (
 	"github.com/tgdrive/teldrive/pkg/models"
 )
 
-const saltLength = 32
+var (
+	saltLength      = 32
+	ErrUploadFailed = errors.New("upload failed")
+)
 
 func (a *apiService) UploadsDelete(ctx context.Context, params api.UploadsDeleteParams) error {
 	if err := a.db.Where("upload_id = ?", params.ID).Delete(&models.Upload{}).Error; err != nil {
@@ -164,7 +167,6 @@ func (a *apiService) UploadsUpload(ctx context.Context, req *api.UploadsUploadRe
 		var salt string
 
 		if params.Encrypted.Value {
-			//gen random Salt
 			salt, _ = generateRandomSalt()
 			cipher, err := crypt.NewCipher(a.cnf.TG.Uploads.EncryptionKey, salt)
 			if err != nil {
@@ -229,18 +231,32 @@ func (a *apiService) UploadsUpload(ctx context.Context, req *api.UploadsUploadRe
 		}
 
 		if err := a.db.Create(partUpload).Error; err != nil {
-			if message.ID != 0 {
-				client.ChannelsDeleteMessages(ctx, &tg.ChannelsDeleteMessagesRequest{Channel: channel, ID: []int{message.ID}})
-			}
 			return err
 		}
 
-		msgs, _ := client.ChannelsGetMessages(ctx,
-			&tg.ChannelsGetMessagesRequest{Channel: channel, ID: []tg.InputMessageClass{&tg.InputMessageID{ID: message.ID}}})
+		v, err := client.ChannelsGetMessages(ctx, &tg.ChannelsGetMessagesRequest{Channel: channel, ID: []tg.InputMessageClass{&tg.InputMessageID{ID: message.ID}}})
 
-		if msgs != nil && len(msgs.(*tg.MessagesChannelMessages).Messages) == 0 {
-			return errors.New("upload failed")
+		if err != nil || v == nil {
+			return ErrUploadFailed
 		}
+
+		switch msgs := v.(type) {
+		case *tg.MessagesChannelMessages:
+			if len(msgs.Messages) == 0 {
+				return ErrUploadFailed
+			}
+			doc, ok := msgDocument(msgs.Messages[0])
+			if !ok {
+				return ErrUploadFailed
+			}
+			if doc.Size != fileSize {
+				client.ChannelsDeleteMessages(ctx, &tg.ChannelsDeleteMessagesRequest{Channel: channel, ID: []int{message.ID}})
+				return ErrUploadFailed
+			}
+		default:
+			return ErrUploadFailed
+		}
+
 		out = api.UploadPart{
 			Name:      partUpload.Name,
 			PartId:    partUpload.PartId,
@@ -255,7 +271,7 @@ func (a *apiService) UploadsUpload(ctx context.Context, req *api.UploadsUploadRe
 	})
 
 	if err != nil {
-		logger.Debug("upload failed", zap.String("fileName", params.FileName),
+		logger.Error("upload failed", zap.String("fileName", params.FileName),
 			zap.String("partName", params.PartName),
 			zap.Int("chunkNo", params.PartNo))
 		return nil, err
@@ -265,6 +281,23 @@ func (a *apiService) UploadsUpload(ctx context.Context, req *api.UploadsUploadRe
 		zap.Int("chunkNo", params.PartNo))
 	return &out, nil
 
+}
+
+func msgDocument(m tg.MessageClass) (*tg.Document, bool) {
+	res, ok := m.AsNotEmpty()
+	if !ok {
+		return nil, false
+	}
+	msg, ok := res.(*tg.Message)
+	if !ok {
+		return nil, false
+	}
+
+	media, ok := msg.Media.(*tg.MessageMediaDocument)
+	if !ok {
+		return nil, false
+	}
+	return media.Document.AsNotEmpty()
 }
 
 func generateRandomSalt() (string, error) {
