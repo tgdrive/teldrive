@@ -20,6 +20,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tgdrive/teldrive/internal/api"
 	"github.com/tgdrive/teldrive/internal/config"
+	"github.com/tgdrive/teldrive/internal/crypt"
 	"github.com/tgdrive/teldrive/internal/database"
 	"github.com/tgdrive/teldrive/internal/logging"
 	"github.com/tgdrive/teldrive/internal/tgc"
@@ -41,9 +42,11 @@ var termWidth = func() (width int, err error) {
 }
 
 type file struct {
-	ID    string
-	Name  string
-	Parts datatypes.JSONSlice[api.Part]
+	ID        string
+	Name      string
+	Size      int64
+	Encrypted bool
+	Parts     datatypes.JSONSlice[api.Part]
 }
 
 type exportFile struct {
@@ -176,7 +179,6 @@ func (cp *channelProcessor) process() error {
 	}
 
 	cp.updateStatus("Processing messages and parts", 0)
-	msgIds := utils.Map(msgs, func(m messages.Elem) int { return m.Msg.GetID() })
 	uploadPartIds := []int{}
 	if err := cp.db.Model(&models.Upload{}).
 		Where("user_id = ?", cp.userId).
@@ -190,22 +192,44 @@ func (cp *channelProcessor) process() error {
 		uploadPartMap[partID] = true
 	}
 
-	msgMap := make(map[int]bool)
-	for _, m := range msgIds {
-		if m > 0 && !uploadPartMap[m] {
-			msgMap[m] = true
+	msgMap := make(map[int]int64)
+	for _, m := range msgs {
+		id := m.Msg.GetID()
+		_, ok := uploadPartMap[id]
+		if id > 0 && !ok {
+			doc, ok := m.Document()
+			if !ok {
+				msgMap[id] = 0
+			} else {
+				msgMap[id] = doc.GetSize()
+			}
 		}
 	}
 
 	cp.updateStatus("Checking file integrity", 0)
+
 	allPartIDs := make(map[int]bool)
+
 	for _, f := range cp.files {
+		size := int64(0)
 		for _, p := range f.Parts {
-			if p.ID == 0 {
+			if p.ID != 0 {
+				allPartIDs[p.ID] = true
+			}
+			_, ok := msgMap[p.ID]
+			if !ok {
 				cp.missingFiles = append(cp.missingFiles, f)
 				break
 			}
-			allPartIDs[p.ID] = true
+			if f.Encrypted {
+				d, _ := crypt.DecryptedSize(msgMap[p.ID])
+				size += d
+			} else {
+				size += msgMap[p.ID]
+			}
+		}
+		if size != f.Size {
+			cp.missingFiles = append(cp.missingFiles, f)
 		}
 	}
 
@@ -214,17 +238,9 @@ func (cp *channelProcessor) process() error {
 		return nil
 	}
 
-	for _, f := range cp.files {
-		for _, p := range f.Parts {
-			if !msgMap[p.ID] {
-				cp.missingFiles = append(cp.missingFiles, f)
-				break
-			}
-		}
-	}
-
 	for msgID := range msgMap {
-		if !allPartIDs[msgID] {
+		_, ok := allPartIDs[msgID]
+		if !ok {
 			cp.orphanMessages = append(cp.orphanMessages, msgID)
 		}
 	}
@@ -488,12 +504,12 @@ func runCheckCmd(cmd *cobra.Command, cfg *config.ServerCmdConfig) {
 			return
 		}
 
-		err = os.WriteFile("missing_files.json", jsonData, 0644)
+		err = os.WriteFile("results.json", jsonData, 0644)
 		if err != nil {
 			lg.Errorw("failed to write JSON file", "err", err)
 			return
 		}
 
-		lg.Infof("Exported data to missing_files.json")
+		lg.Infof("Exported data to results.json")
 	}
 }
