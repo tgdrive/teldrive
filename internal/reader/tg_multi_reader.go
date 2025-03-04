@@ -101,7 +101,7 @@ func newTGMultiReader(
 		timeout:     config.Stream.ChunkTimeout,
 	}
 
-	go r.fillBufferConcurrently()
+	go r.fillBuffer()
 	return r, nil
 }
 
@@ -138,7 +138,7 @@ func (r *tgMultiReader) Read(p []byte) (int, error) {
 	return n, nil
 }
 
-func (r *tgMultiReader) fillBufferConcurrently() {
+func (r *tgMultiReader) fillBuffer() {
 	defer close(r.bufferChan)
 
 	for r.currentPart < r.totalParts {
