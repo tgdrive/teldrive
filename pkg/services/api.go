@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/go-faster/errors"
 	"github.com/gotd/td/telegram"
@@ -13,9 +14,12 @@ import (
 	"github.com/tgdrive/teldrive/internal/api"
 	"github.com/tgdrive/teldrive/internal/cache"
 	"github.com/tgdrive/teldrive/internal/config"
+	"github.com/tgdrive/teldrive/internal/events"
 	"github.com/tgdrive/teldrive/internal/logging"
 	"github.com/tgdrive/teldrive/internal/tgc"
+	"github.com/tgdrive/teldrive/internal/utils"
 	"github.com/tgdrive/teldrive/internal/version"
+	"github.com/tgdrive/teldrive/pkg/models"
 	"gorm.io/gorm"
 )
 
@@ -26,10 +30,30 @@ type apiService struct {
 	tgdb        *gorm.DB
 	worker      *tgc.BotWorker
 	middlewares []telegram.Middleware
+	events      *events.Recorder
 }
 
 func (a *apiService) VersionVersion(ctx context.Context) (*api.ApiVersion, error) {
 	return version.GetVersionInfo(), nil
+}
+
+func (a *apiService) EventsGetEvents(ctx context.Context) ([]api.Event, error) {
+	//Get latest events within 5 minutes
+	res := []models.Event{}
+	a.db.Model(&models.Event{}).Where("created_at > ?", time.Now().UTC().Add(-5*time.Minute).Format(time.RFC3339)).
+		Find(&res)
+	return utils.Map(res, func(item models.Event) api.Event {
+		return api.Event{
+			ID:        item.ID,
+			Type:      item.Type,
+			CreatedAt: item.CreatedAt,
+			Data: api.EventData{
+				FileId:      api.NewOptString(item.Data.Data().FileID),
+				FolderId:    item.Data.Data().FolderID,
+				OldFolderId: api.NewOptString(item.Data.Data().OldFolderID),
+			},
+		}
+	}), nil
 }
 
 func (a *apiService) NewError(ctx context.Context, err error) *api.ErrorStatusCode {
@@ -63,9 +87,17 @@ func NewApiService(db *gorm.DB,
 	cnf *config.ServerCmdConfig,
 	cache cache.Cacher,
 	tgdb *gorm.DB,
-	worker *tgc.BotWorker) *apiService {
-	return &apiService{db: db, cnf: cnf, cache: cache, tgdb: tgdb, worker: worker,
-		middlewares: tgc.NewMiddleware(&cnf.TG, tgc.WithFloodWait(), tgc.WithRateLimit())}
+	worker *tgc.BotWorker,
+	events *events.Recorder) *apiService {
+	return &apiService{
+		db:          db,
+		cnf:         cnf,
+		cache:       cache,
+		tgdb:        tgdb,
+		worker:      worker,
+		middlewares: tgc.NewMiddleware(&cnf.TG, tgc.WithFloodWait(), tgc.WithRateLimit()),
+		events:      events,
+	}
 }
 
 type extendedService struct {

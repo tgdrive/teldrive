@@ -20,6 +20,7 @@ import (
 	"github.com/tgdrive/teldrive/internal/chizap"
 	"github.com/tgdrive/teldrive/internal/config"
 	"github.com/tgdrive/teldrive/internal/database"
+	"github.com/tgdrive/teldrive/internal/events"
 	"github.com/tgdrive/teldrive/internal/logging"
 	"github.com/tgdrive/teldrive/internal/middleware"
 	"github.com/tgdrive/teldrive/internal/tgc"
@@ -121,7 +122,11 @@ func runApplication(ctx context.Context, conf *config.ServerCmdConfig) {
 
 	worker := tgc.NewBotWorker()
 
-	srv := setupServer(conf, db, cacher, tgdb, worker)
+	logger := logging.DefaultLogger()
+
+	eventRecorder := events.NewRecorder(ctx, db, logger)
+
+	srv := setupServer(conf, db, cacher, logger, tgdb, worker, eventRecorder)
 
 	cron.StartCronJobs(ctx, scheduler, db, conf)
 
@@ -136,6 +141,8 @@ func runApplication(ctx context.Context, conf *config.ServerCmdConfig) {
 
 	lg.Info("Shutting down server...")
 
+	eventRecorder.Shutdown()
+
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), conf.Server.GracefulShutdown)
 
 	defer shutdownCancel()
@@ -147,11 +154,9 @@ func runApplication(ctx context.Context, conf *config.ServerCmdConfig) {
 	lg.Info("Server stopped")
 }
 
-func setupServer(cfg *config.ServerCmdConfig, db *gorm.DB, cache cache.Cacher, tgdb *gorm.DB, worker *tgc.BotWorker) *http.Server {
+func setupServer(cfg *config.ServerCmdConfig, db *gorm.DB, cache cache.Cacher, lg *zap.Logger, tgdb *gorm.DB, worker *tgc.BotWorker, eventRecorder *events.Recorder) *http.Server {
 
-	lg := logging.DefaultLogger()
-
-	apiSrv := services.NewApiService(db, cfg, cache, tgdb, worker)
+	apiSrv := services.NewApiService(db, cfg, cache, tgdb, worker, eventRecorder)
 
 	srv, err := api.NewServer(apiSrv, auth.NewSecurityHandler(db, cache, &cfg.JWT))
 

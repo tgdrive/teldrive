@@ -22,6 +22,7 @@ import (
 	"github.com/tgdrive/teldrive/internal/cache"
 	"github.com/tgdrive/teldrive/internal/category"
 	"github.com/tgdrive/teldrive/internal/database"
+	"github.com/tgdrive/teldrive/internal/events"
 	"github.com/tgdrive/teldrive/internal/http_range"
 	"github.com/tgdrive/teldrive/internal/md5"
 	"github.com/tgdrive/teldrive/internal/reader"
@@ -109,7 +110,6 @@ func (a *apiService) FilesCategoryStats(ctx context.Context) ([]api.CategoryStat
 }
 
 func (a *apiService) FilesCopy(ctx context.Context, req *api.FileCopy, params api.FilesCopyParams) (*api.File, error) {
-
 	userId := auth.GetUser(ctx)
 
 	client, _ := tgc.AuthClient(ctx, &a.cnf.TG, auth.GetJWTUser(ctx).TgSession, a.middlewares...)
@@ -231,6 +231,10 @@ func (a *apiService) FilesCopy(ctx context.Context, req *api.FileCopy, params ap
 		return nil, &apiError{err: err}
 	}
 
+	a.events.Record(events.OpCopy, userId, &models.EventData{
+		FileID:   dbFile.ID,
+		FolderID: parentId,
+	})
 	return mapper.ToFileOut(dbFile), nil
 }
 
@@ -326,6 +330,10 @@ func (a *apiService) FilesCreate(ctx context.Context, fileIn *api.File) (*api.Fi
 	).Scan(&fileDB).Error; err != nil {
 		return nil, &apiError{err: err}
 	}
+	a.events.Record(events.OpCreate, userId, &models.EventData{
+		FileID:   fileDB.ID,
+		FolderID: *fileDB.ParentId,
+	})
 	return mapper.ToFileOut(fileDB), nil
 }
 
@@ -357,9 +365,25 @@ func (a *apiService) FilesCreateShare(ctx context.Context, req *api.FileShareCre
 
 func (a *apiService) FilesDelete(ctx context.Context, req *api.FileDelete) error {
 	userId := auth.GetUser(ctx)
+
+	if len(req.Ids) == 0 {
+		return &apiError{err: errors.New("ids should not be empty"), code: 409}
+	}
+
+	var fileDB models.File
+
+	if err := a.db.Model(&models.File{}).Where("id = ?", req.Ids[0]).Where("user_id = ?", userId).
+		First(&fileDB).Error; err != nil {
+		return &apiError{err: err}
+	}
+
 	if err := a.db.Exec("call teldrive.delete_files_bulk($1 , $2)", req.Ids, userId).Error; err != nil {
 		return &apiError{err: err}
 	}
+
+	a.events.Record(events.OpDelete, userId, &models.EventData{
+		FolderID: *fileDB.ParentId,
+	})
 
 	return nil
 }
@@ -451,12 +475,12 @@ func (a *apiService) FilesMove(ctx context.Context, req *api.FileMove) error {
 		req.DestinationParent = r.ID
 	}
 
-	if len(req.Ids) == 1 && req.DestinationName.Value != "" {
-		err := a.db.Transaction(func(tx *gorm.DB) error {
-			var srcFile models.File
-			if err := tx.Where("id = ? AND user_id = ?", req.Ids[0], userId).First(&srcFile).Error; err != nil {
-				return err
-			}
+	err := a.db.Transaction(func(tx *gorm.DB) error {
+		var srcFile models.File
+		if err := tx.Where("id = ? AND user_id = ?", req.Ids[0], userId).First(&srcFile).Error; err != nil {
+			return err
+		}
+		if len(req.Ids) == 1 && req.DestinationName.Value != "" {
 			var existing models.File
 			if err := tx.Where("name = ? AND parent_id = ? AND user_id = ? AND status = 'active'",
 				req.DestinationName.Value, req.DestinationParent, userId).First(&existing).Error; err == nil {
@@ -478,29 +502,32 @@ func (a *apiService) FilesMove(ctx context.Context, req *api.FileMove) error {
 			}
 			return tx.Model(&models.File{}).
 				Where("id = ? AND user_id = ?", req.Ids[0], userId).
-				Updates(map[string]interface{}{
+				Updates(map[string]any{
 					"parent_id": req.DestinationParent,
 					"name":      req.DestinationName.Value,
 				}).Error
-		})
-		if err != nil {
-			return &apiError{err: err}
 		}
+		items := pgtype.Array[string]{
+			Elements: req.Ids,
+			Valid:    true,
+			Dims:     []pgtype.ArrayDimension{{Length: int32(len(req.Ids)), LowerBound: 1}},
+		}
+		if err := a.db.Model(&models.File{}).Where("id = any(?)", items).Where("user_id = ?", userId).
+			Update("parent_id", req.DestinationParent).Error; err != nil {
+			return err
+		}
+		a.events.Record(events.OpMove, userId, &models.EventData{
+			FolderID:    req.DestinationParent,
+			OldFolderID: *srcFile.ParentId,
+		})
 		return nil
-	}
 
-	items := pgtype.Array[string]{
-		Elements: req.Ids,
-		Valid:    true,
-		Dims:     []pgtype.ArrayDimension{{Length: int32(len(req.Ids)), LowerBound: 1}},
-	}
-
-	if err := a.db.Model(&models.File{}).Where("id = any(?)", items).Where("user_id = ?", userId).
-		Update("parent_id", req.DestinationParent).Error; err != nil {
+	})
+	if err != nil {
 		return &apiError{err: err}
 	}
-
 	return nil
+
 }
 
 func (a *apiService) FilesShareByid(ctx context.Context, params api.FilesShareByidParams) (*api.FileShare, error) {
@@ -537,6 +564,8 @@ func (a *apiService) FilesStream(ctx context.Context, params api.FilesStreamPara
 
 func (a *apiService) FilesUpdate(ctx context.Context, req *api.FileUpdate, params api.FilesUpdateParams) (*api.File, error) {
 
+	userId := auth.GetUser(ctx)
+
 	updateDb := models.File{}
 	if req.Name.Value != "" {
 		updateDb.Name = req.Name.Value
@@ -564,6 +593,11 @@ func (a *apiService) FilesUpdate(ctx context.Context, req *api.FileUpdate, param
 	if err := a.db.Where("id = ?", params.ID).First(&file).Error; err != nil {
 		return nil, &apiError{err: err}
 	}
+
+	a.events.Record(events.OpUpdate, userId, &models.EventData{
+		FileID:   file.ID,
+		FolderID: *file.ParentId,
+	})
 	return mapper.ToFileOut(file), nil
 }
 

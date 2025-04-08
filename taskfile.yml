@@ -57,13 +57,7 @@ tasks:
     desc: Run Server
     cmds:
       - ./{{.BUILD_DIR}}/{{.APP_NAME}}{{.BINARY_EXTENSION}} run
-
-  deps:
-    desc: Install dependencies
-    cmds:
-      - go mod download
-      - go mod tidy
-
+      
   retag:
     desc: Retag a version
     vars:
