@@ -47,10 +47,12 @@ func (a *apiService) EventsGetEvents(ctx context.Context) ([]api.Event, error) {
 			ID:        item.ID,
 			Type:      item.Type,
 			CreatedAt: item.CreatedAt,
-			Data: api.EventData{
-				FileId:      api.NewOptString(item.Data.Data().FileID),
-				FolderId:    item.Data.Data().FolderID,
-				OldFolderId: api.NewOptString(item.Data.Data().OldFolderID),
+			Source: api.EventSource{
+				ID:           item.Source.Data().ID,
+				Type:         api.EventSourceType(item.Source.Data().Type),
+				Name:         item.Source.Data().Name,
+				ParentId:     item.Source.Data().ParentID,
+				DestParentId: api.NewOptString(item.Source.Data().DestParentID),
 			},
 		}
 	}), nil

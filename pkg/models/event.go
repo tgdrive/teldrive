@@ -7,15 +7,17 @@ import (
 )
 
 type Event struct {
-	ID        string                         `gorm:"type:uuid;primaryKey;default:gen_random_uuid()()"`
-	Type      string                         `gorm:"type:text;not null"`
-	UserID    int64                          `gorm:"type:bigint"`
-	Data      datatypes.JSONType[*EventData] `gorm:"type:jsonb"`
-	CreatedAt time.Time                      `gorm:"default:timezone('utc'::text, now())"`
+	ID        string                      `gorm:"type:uuid;primaryKey;default:gen_random_uuid()()"`
+	Type      string                      `gorm:"type:text;not null"`
+	UserID    int64                       `gorm:"type:bigint"`
+	Source    datatypes.JSONType[*Source] `gorm:"type:jsonb"`
+	CreatedAt time.Time                   `gorm:"default:timezone('utc'::text, now())"`
 }
 
-type EventData struct {
-	FileID      string `json:"id,omitempty"`
-	FolderID    string `json:"folderId,omitempty"`
-	OldFolderID string `json:"oldFolderId,omitempty"`
+type Source struct {
+	ID           string `json:"id,omitempty"`
+	Type         string `json:"type,omitempty"`
+	Name         string `json:"name,omitempty"`
+	ParentID     string `json:"parentId,omitempty"`
+	DestParentID string `json:"destParentId,omitempty"`
 }

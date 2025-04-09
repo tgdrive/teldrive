@@ -38,12 +38,12 @@ func NewRecorder(ctx context.Context, db *gorm.DB, logger *zap.Logger) *Recorder
 	return r
 }
 
-func (r *Recorder) Record(eventType EventType, userID int64, details *models.EventData) {
+func (r *Recorder) Record(eventType EventType, userID int64, source *models.Source) {
 
 	evt := models.Event{
 		Type:   string(eventType),
 		UserID: userID,
-		Data:   datatypes.NewJSONType(details),
+		Source: datatypes.NewJSONType(source),
 	}
 
 	select {

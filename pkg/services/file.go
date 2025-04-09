@@ -231,9 +231,11 @@ func (a *apiService) FilesCopy(ctx context.Context, req *api.FileCopy, params ap
 		return nil, &apiError{err: err}
 	}
 
-	a.events.Record(events.OpCopy, userId, &models.EventData{
-		FileID:   dbFile.ID,
-		FolderID: parentId,
+	a.events.Record(events.OpCopy, userId, &models.Source{
+		ID:       dbFile.ID,
+		Type:     dbFile.Type,
+		Name:     dbFile.Name,
+		ParentID: parentId,
 	})
 	return mapper.ToFileOut(dbFile), nil
 }
@@ -330,9 +332,11 @@ func (a *apiService) FilesCreate(ctx context.Context, fileIn *api.File) (*api.Fi
 	).Scan(&fileDB).Error; err != nil {
 		return nil, &apiError{err: err}
 	}
-	a.events.Record(events.OpCreate, userId, &models.EventData{
-		FileID:   fileDB.ID,
-		FolderID: *fileDB.ParentId,
+	a.events.Record(events.OpCreate, userId, &models.Source{
+		ID:       fileDB.ID,
+		Type:     fileDB.Type,
+		Name:     fileDB.Name,
+		ParentID: *fileDB.ParentId,
 	})
 	return mapper.ToFileOut(fileDB), nil
 }
@@ -381,8 +385,11 @@ func (a *apiService) FilesDelete(ctx context.Context, req *api.FileDelete) error
 		return &apiError{err: err}
 	}
 
-	a.events.Record(events.OpDelete, userId, &models.EventData{
-		FolderID: *fileDB.ParentId,
+	a.events.Record(events.OpDelete, userId, &models.Source{
+		ID:       fileDB.ID,
+		Type:     fileDB.Type,
+		Name:     fileDB.Name,
+		ParentID: *fileDB.ParentId,
 	})
 
 	return nil
@@ -516,9 +523,12 @@ func (a *apiService) FilesMove(ctx context.Context, req *api.FileMove) error {
 			Update("parent_id", req.DestinationParent).Error; err != nil {
 			return err
 		}
-		a.events.Record(events.OpMove, userId, &models.EventData{
-			FolderID:    req.DestinationParent,
-			OldFolderID: *srcFile.ParentId,
+		a.events.Record(events.OpMove, userId, &models.Source{
+			ID:           req.DestinationParent,
+			Type:         srcFile.Type,
+			Name:         srcFile.Name,
+			ParentID:     *srcFile.ParentId,
+			DestParentID: req.DestinationParent,
 		})
 		return nil
 
@@ -594,9 +604,11 @@ func (a *apiService) FilesUpdate(ctx context.Context, req *api.FileUpdate, param
 		return nil, &apiError{err: err}
 	}
 
-	a.events.Record(events.OpUpdate, userId, &models.EventData{
-		FileID:   file.ID,
-		FolderID: *file.ParentId,
+	a.events.Record(events.OpUpdate, userId, &models.Source{
+		ID:       file.ID,
+		Type:     file.Type,
+		Name:     file.Name,
+		ParentID: *file.ParentId,
 	})
 	return mapper.ToFileOut(file), nil
 }
