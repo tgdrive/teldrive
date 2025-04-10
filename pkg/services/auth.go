@@ -223,7 +223,7 @@ func (e *extendedService) AuthWs(w http.ResponseWriter, r *http.Request) {
 			case "qr":
 				go func() {
 					authorization, err := tgClient.QR().Auth(ctx, loggedIn, func(ctx context.Context, token qrlogin.Token) error {
-						conn.WriteJSON(map[string]interface{}{"type": "auth", "payload": map[string]string{"token": token.URL()}})
+						conn.WriteJSON(map[string]any{"type": "auth", "payload": map[string]string{"token": token.URL()}})
 						return nil
 					})
 
@@ -231,22 +231,22 @@ func (e *extendedService) AuthWs(w http.ResponseWriter, r *http.Request) {
 						return
 					}
 					if tgerr.Is(err, "SESSION_PASSWORD_NEEDED") {
-						conn.WriteJSON(map[string]interface{}{"type": "auth", "message": "2FA required"})
+						conn.WriteJSON(map[string]any{"type": "auth", "message": "2FA required"})
 						return
 					}
 
 					if err != nil {
 						logger.Error("QR auth error", zap.Error(err))
-						conn.WriteJSON(map[string]interface{}{"type": "error", "message": err.Error()})
+						conn.WriteJSON(map[string]any{"type": "error", "message": err.Error()})
 						return
 					}
 					user, ok := authorization.User.AsNotEmpty()
 					if !ok {
-						conn.WriteJSON(map[string]interface{}{"type": "error", "message": "auth failed"})
+						conn.WriteJSON(map[string]any{"type": "error", "message": "auth failed"})
 						return
 					}
 					if !checkUserIsAllowed(e.api.cnf.JWT.AllowedUsers, user.Username) {
-						conn.WriteJSON(map[string]interface{}{"type": "error", "message": "user not allowed"})
+						conn.WriteJSON(map[string]any{"type": "error", "message": "user not allowed"})
 						tgClient.API().AuthLogOut(ctx)
 						return
 					}
@@ -254,7 +254,7 @@ func (e *extendedService) AuthWs(w http.ResponseWriter, r *http.Request) {
 					sessionData := &types.SessionData{}
 					json.Unmarshal(res, sessionData)
 					session := prepareSession(user, &sessionData.Data)
-					conn.WriteJSON(map[string]interface{}{"type": "auth", "payload": session, "message": "success"})
+					conn.WriteJSON(map[string]any{"type": "auth", "payload": session, "message": "success"})
 				}()
 			case "phone":
 				if message.Message == "sendcode" {
@@ -265,11 +265,11 @@ func (e *extendedService) AuthWs(w http.ResponseWriter, r *http.Request) {
 						}
 						logger.Error("error sending code", zap.Error(err))
 						if err != nil {
-							conn.WriteJSON(map[string]interface{}{"type": "error", "message": err.Error()})
+							conn.WriteJSON(map[string]any{"type": "error", "message": err.Error()})
 							return
 						}
 						code := res.(*tg.AuthSentCode)
-						conn.WriteJSON(map[string]interface{}{"type": "auth", "payload": map[string]string{"phoneCodeHash": code.PhoneCodeHash}})
+						conn.WriteJSON(map[string]any{"type": "auth", "payload": map[string]string{"phoneCodeHash": code.PhoneCodeHash}})
 					}()
 				} else if message.Message == "signin" {
 					go func() {
@@ -278,26 +278,26 @@ func (e *extendedService) AuthWs(w http.ResponseWriter, r *http.Request) {
 							return
 						}
 						if errors.Is(err, tgauth.ErrPasswordAuthNeeded) {
-							conn.WriteJSON(map[string]interface{}{"type": "auth",
+							conn.WriteJSON(map[string]any{"type": "auth",
 								"message": tgauth.ErrPasswordAuthNeeded.Error()})
 							return
 						}
 						if tgerr.Is(err, "PHONE_CODE_INVALID") {
-							conn.WriteJSON(map[string]interface{}{"type": "auth", "message": "PHONE_CODE_INVALID"})
+							conn.WriteJSON(map[string]any{"type": "auth", "message": "PHONE_CODE_INVALID"})
 							return
 						}
 						if err != nil {
 							logger.Error("phone sign-in error", zap.Error(err))
-							conn.WriteJSON(map[string]interface{}{"type": "error", "message": err.Error()})
+							conn.WriteJSON(map[string]any{"type": "error", "message": err.Error()})
 							return
 						}
 						user, ok := auth.User.AsNotEmpty()
 						if !ok {
-							conn.WriteJSON(map[string]interface{}{"type": "error", "message": "auth failed"})
+							conn.WriteJSON(map[string]any{"type": "error", "message": "auth failed"})
 							return
 						}
 						if !checkUserIsAllowed(e.api.cnf.JWT.AllowedUsers, user.Username) {
-							conn.WriteJSON(map[string]interface{}{"type": "error", "message": "user not allowed"})
+							conn.WriteJSON(map[string]any{"type": "error", "message": "user not allowed"})
 							tgClient.API().AuthLogOut(ctx)
 							return
 						}
@@ -305,7 +305,7 @@ func (e *extendedService) AuthWs(w http.ResponseWriter, r *http.Request) {
 						sessionData := &types.SessionData{}
 						json.Unmarshal(res, sessionData)
 						session := prepareSession(user, &sessionData.Data)
-						conn.WriteJSON(map[string]interface{}{"type": "auth", "payload": session, "message": "success"})
+						conn.WriteJSON(map[string]any{"type": "auth", "payload": session, "message": "success"})
 					}()
 				}
 			case "2fa":
@@ -317,16 +317,16 @@ func (e *extendedService) AuthWs(w http.ResponseWriter, r *http.Request) {
 						}
 						if err != nil {
 							logger.Error("phone sign-in error", zap.Error(err))
-							conn.WriteJSON(map[string]interface{}{"type": "error", "message": err.Error()})
+							conn.WriteJSON(map[string]any{"type": "error", "message": err.Error()})
 							return
 						}
 						user, ok := auth.User.AsNotEmpty()
 						if !ok {
-							conn.WriteJSON(map[string]interface{}{"type": "error", "message": "auth failed"})
+							conn.WriteJSON(map[string]any{"type": "error", "message": "auth failed"})
 							return
 						}
 						if !checkUserIsAllowed(e.api.cnf.JWT.AllowedUsers, user.Username) {
-							conn.WriteJSON(map[string]interface{}{"type": "error", "message": "user not allowed"})
+							conn.WriteJSON(map[string]any{"type": "error", "message": "user not allowed"})
 							tgClient.API().AuthLogOut(ctx)
 							return
 						}
@@ -334,7 +334,7 @@ func (e *extendedService) AuthWs(w http.ResponseWriter, r *http.Request) {
 						sessionData := &types.SessionData{}
 						json.Unmarshal(res, sessionData)
 						session := prepareSession(user, &sessionData.Data)
-						conn.WriteJSON(map[string]interface{}{"type": "auth", "payload": session, "message": "success"})
+						conn.WriteJSON(map[string]any{"type": "auth", "payload": session, "message": "success"})
 					}()
 				}
 			}

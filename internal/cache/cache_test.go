@@ -29,32 +29,32 @@ func TestCache(t *testing.T) {
 func TestKey(t *testing.T) {
 	tests := []struct {
 		name     string
-		args     []interface{}
+		args     []any
 		expected string
 	}{
 		{
 			name:     "simple strings",
-			args:     []interface{}{"user", "123"},
+			args:     []any{"user", "123"},
 			expected: "user:123",
 		},
 		{
 			name:     "mixed types",
-			args:     []interface{}{"cache", 123, true},
+			args:     []any{"cache", 123, true},
 			expected: "cache:123:true",
 		},
 		{
 			name:     "with nil",
-			args:     []interface{}{"key", nil, "value"},
+			args:     []any{"key", nil, "value"},
 			expected: "key:nil:value",
 		},
 		{
 			name:     "empty args",
-			args:     []interface{}{},
+			args:     []any{},
 			expected: "",
 		},
 		{
 			name:     "single arg",
-			args:     []interface{}{"solo"},
+			args:     []any{"solo"},
 			expected: "solo",
 		},
 	}
@@ -77,7 +77,7 @@ func TestFormatValue(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		input    interface{}
+		input    any
 		expected string
 	}{
 		{
@@ -132,12 +132,12 @@ func TestFormatValue(t *testing.T) {
 		},
 		{
 			name:     "pointer to string",
-			input:    func() interface{} { s := "test"; return &s }(),
+			input:    func() any { s := "test"; return &s }(),
 			expected: "test",
 		},
 		{
 			name:     "nil pointer",
-			input:    func() interface{} { var s *string; return s }(),
+			input:    func() any { var s *string; return s }(),
 			expected: "nil",
 		},
 		{
@@ -150,12 +150,12 @@ func TestFormatValue(t *testing.T) {
 			input: struct {
 				ID    int
 				Tags  []string
-				Meta  map[string]interface{}
+				Meta  map[string]any
 				Valid bool
 			}{
 				ID:    1,
 				Tags:  []string{"a", "b"},
-				Meta:  map[string]interface{}{"count": 42},
+				Meta:  map[string]any{"count": 42},
 				Valid: true,
 			},
 			expected: "{ID:1 Tags:[a b] Meta:map[count:42] Valid:true}",

@@ -16,8 +16,8 @@ import (
 )
 
 type Cacher interface {
-	Get(key string, value interface{}) error
-	Set(key string, value interface{}, expiration time.Duration) error
+	Get(key string, value any) error
+	Set(key string, value any, expiration time.Duration) error
 	Delete(keys ...string) error
 }
 
@@ -55,7 +55,7 @@ func NewMemoryCache(size int) *MemoryCache {
 	}
 }
 
-func (m *MemoryCache) Get(key string, value interface{}) error {
+func (m *MemoryCache) Get(key string, value any) error {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	key = m.prefix + key
@@ -66,7 +66,7 @@ func (m *MemoryCache) Get(key string, value interface{}) error {
 	return msgpack.Unmarshal(data, value)
 }
 
-func (m *MemoryCache) Set(key string, value interface{}, expiration time.Duration) error {
+func (m *MemoryCache) Set(key string, value any, expiration time.Duration) error {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	key = m.prefix + key
@@ -101,7 +101,7 @@ func NewRedisCache(ctx context.Context, client *redis.Client) *RedisCache {
 	}
 }
 
-func (r *RedisCache) Get(key string, value interface{}) error {
+func (r *RedisCache) Get(key string, value any) error {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	key = r.prefix + key
@@ -112,7 +112,7 @@ func (r *RedisCache) Get(key string, value interface{}) error {
 	return msgpack.Unmarshal(data, value)
 }
 
-func (r *RedisCache) Set(key string, value interface{}, expiration time.Duration) error {
+func (r *RedisCache) Set(key string, value any, expiration time.Duration) error {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	key = r.prefix + key
@@ -159,7 +159,7 @@ func FetchArg[T any, A any](
 	})
 }
 
-func Key(args ...interface{}) string {
+func Key(args ...any) string {
 	parts := make([]string, len(args))
 	for i, arg := range args {
 		parts[i] = formatValue(arg)
@@ -167,7 +167,7 @@ func Key(args ...interface{}) string {
 	return strings.Join(parts, ":")
 }
 
-func formatValue(v interface{}) string {
+func formatValue(v any) string {
 	if v == nil {
 		return "nil"
 	}

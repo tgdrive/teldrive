@@ -117,7 +117,7 @@ func NewConfigLoader() *ConfigLoader {
 }
 
 func StringToDurationHook() mapstructure.DecodeHookFunc {
-	return func(f reflect.Type, t reflect.Type, data interface{}) (interface{}, error) {
+	return func(f reflect.Type, t reflect.Type, data any) (any, error) {
 		if f.Kind() != reflect.String {
 			return data, nil
 		}
@@ -134,7 +134,7 @@ func StringToDurationHook() mapstructure.DecodeHookFunc {
 	}
 }
 
-func (cl *ConfigLoader) Load(cmd *cobra.Command, cfg interface{}) error {
+func (cl *ConfigLoader) Load(cmd *cobra.Command, cfg any) error {
 
 	cl.v.SetConfigType("toml")
 
@@ -173,7 +173,7 @@ func (cl *ConfigLoader) Validate() error {
 	return nil
 }
 
-func (cl *ConfigLoader) RegisterPlags(flags *pflag.FlagSet, prefix string, v interface{}, skipFlags bool) error {
+func (cl *ConfigLoader) RegisterPlags(flags *pflag.FlagSet, prefix string, v any, skipFlags bool) error {
 	flags.StringP("config", "c", "", "Config file path (default $HOME/.teldrive/config.toml)")
 	return cl.walkStruct(v, prefix, func(key string, field reflect.StructField, value reflect.Value) error {
 		return cl.setDefault(flags, key, field, skipFlags)
@@ -231,7 +231,7 @@ func (cl *ConfigLoader) setDefault(flags *pflag.FlagSet, key string, field refle
 	return nil
 }
 
-func (cl *ConfigLoader) walkStruct(v interface{}, prefix string, fn func(key string, field reflect.StructField, value reflect.Value) error) error {
+func (cl *ConfigLoader) walkStruct(v any, prefix string, fn func(key string, field reflect.StructField, value reflect.Value) error) error {
 	val := reflect.ValueOf(v)
 	if val.Kind() == reflect.Ptr {
 		val = val.Elem()
@@ -250,7 +250,7 @@ func (cl *ConfigLoader) walkStruct(v interface{}, prefix string, fn func(key str
 			key = prefix + "." + configTag
 		}
 		if field.Type.Kind() == reflect.Struct {
-			var nestedValue interface{}
+			var nestedValue any
 			if value.CanAddr() {
 				nestedValue = value.Addr().Interface()
 			} else {
@@ -276,7 +276,7 @@ func decodeTag(tag string) viper.DecoderConfigOption {
 	}
 }
 
-func (cl *ConfigLoader) load(cfg interface{}) error {
+func (cl *ConfigLoader) load(cfg any) error {
 	return cl.v.Unmarshal(&cfg, viper.DecodeHook(mapstructure.ComposeDecodeHookFunc(
 		StringToDurationHook(),
 	)), decodeTag("config"))

@@ -278,7 +278,7 @@ func (a *apiService) UsersUpdateChannel(ctx context.Context, req *api.ChannelUpd
 
 	if err := a.db.Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "channel_id"}},
-		DoUpdates: clause.Assignments(map[string]interface{}{"selected": true}),
+		DoUpdates: clause.Assignments(map[string]any{"selected": true}),
 	}).Create(channel).Error; err != nil {
 		return &apiError{err: errors.New("failed to update channel")}
 	}

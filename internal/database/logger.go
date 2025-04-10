@@ -45,19 +45,19 @@ func (l *Logger) LogMode(level glogger.LogLevel) glogger.Interface {
 	return &newlogger
 }
 
-func (l *Logger) Info(ctx context.Context, s string, i ...interface{}) {
+func (l *Logger) Info(ctx context.Context, s string, i ...any) {
 	if l.cfg.LogLevel >= glogger.Info {
 		l.lg.Infof(msgPrefix+s, i)
 	}
 }
 
-func (l *Logger) Warn(ctx context.Context, s string, i ...interface{}) {
+func (l *Logger) Warn(ctx context.Context, s string, i ...any) {
 	if l.cfg.LogLevel >= glogger.Warn {
 		l.lg.Warnf(msgPrefix+s, i)
 	}
 }
 
-func (l *Logger) Error(ctx context.Context, s string, i ...interface{}) {
+func (l *Logger) Error(ctx context.Context, s string, i ...any) {
 	if l.cfg.LogLevel >= glogger.Error {
 		l.lg.Errorf(msgPrefix+s, i)
 	}

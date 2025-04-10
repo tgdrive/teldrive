@@ -68,7 +68,7 @@ func NewCipher(password, salt string) (*Cipher, error) {
 	c := &Cipher{
 		cryptoRand: rand.Reader,
 	}
-	c.buffers.New = func() interface{} {
+	c.buffers.New = func() any {
 		return new([blockSize]byte)
 	}
 	err := c.Key(password, salt)

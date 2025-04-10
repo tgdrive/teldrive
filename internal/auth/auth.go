@@ -29,7 +29,7 @@ func Encode(secret string, claims *types.JWTClaims) (string, error) {
 func Decode(secret string, token string) (*types.JWTClaims, error) {
 	claims := &types.JWTClaims{}
 
-	tkn, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (interface{}, error) {
+	tkn, err := jwt.ParseWithClaims(token, claims, func(token *jwt.Token) (any, error) {
 		return []byte(secret), nil
 	})
 	if err != nil {
