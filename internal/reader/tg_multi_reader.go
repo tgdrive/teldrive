@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"sync"
 	"time"
 
 	"github.com/gotd/td/tg"
@@ -14,12 +13,6 @@ import (
 	"github.com/tgdrive/teldrive/internal/tgc"
 	"golang.org/x/sync/errgroup"
 )
-
-var bufferPool = sync.Pool{
-	New: func() any {
-		return &buffer{}
-	},
-}
 
 var (
 	ErrStreamAbandoned = errors.New("stream abandoned")
@@ -46,15 +39,13 @@ func (c *chunkSource) ChunkSize(start, end int64) int64 {
 
 func (c *chunkSource) Chunk(ctx context.Context, offset int64, limit int64) ([]byte, error) {
 	var (
-		cachedLocation tg.InputDocumentFileLocation
-		location       *tg.InputDocumentFileLocation
-		err            error
+		location *tg.InputDocumentFileLocation
+		err      error
 	)
 
-	err = c.cache.Get(c.key, &cachedLocation)
-	if err == nil {
-		location = &cachedLocation
-	} else {
+	err = c.cache.Get(c.key, location)
+
+	if err != nil {
 		location, err = tgc.GetLocation(ctx, c.client, c.channelId, c.partId)
 		if err != nil {
 			return nil, err
@@ -63,6 +54,7 @@ func (c *chunkSource) Chunk(ctx context.Context, offset int64, limit int64) ([]b
 	}
 
 	return tgc.GetChunk(ctx, c.client, location, offset, limit)
+
 }
 
 type tgMultiReader struct {
@@ -139,13 +131,6 @@ func (r *tgMultiReader) Read(p []byte) (int, error) {
 	r.cur.increment(n)
 	r.limit -= int64(n)
 
-	if r.cur.isEmpty() {
-		if r.cur != nil {
-			bufferPool.Put(r.cur)
-			r.cur = nil
-		}
-	}
-
 	if r.limit <= 0 {
 		return n, io.EOF
 	}
@@ -168,34 +153,30 @@ func (r *tgMultiReader) fillBatch() error {
 	g, ctx := errgroup.WithContext(r.ctx)
 	g.SetLimit(r.concurrency)
 
-	batchSize := min(r.totalParts-r.currentPart, r.concurrency)
-	buffers := make([]*buffer, batchSize)
+	buffers := make([]*buffer, r.concurrency)
 
-	for index := range batchSize {
-		partIndex := r.currentPart + index
+	for i := 0; i < r.concurrency && r.currentPart+i < r.totalParts; i++ {
 		g.Go(func() error {
 			chunkCtx, cancel := context.WithTimeout(ctx, r.timeout)
 			defer cancel()
 
-			chunk, err := r.fetchChunkWithTimeout(chunkCtx, int64(index))
+			chunk, err := r.fetchChunkWithTimeout(chunkCtx, int64(i))
 			if err != nil {
 				if errors.Is(err, context.DeadlineExceeded) {
-					return fmt.Errorf("chunk %d: %w", partIndex, ErrChunkTimeout)
+					return fmt.Errorf("chunk %d: %w", r.currentPart+i, ErrChunkTimeout)
 				}
-				return fmt.Errorf("chunk %d: %w", partIndex, err)
+				return fmt.Errorf("chunk %d: %w", r.currentPart+i, err)
 			}
 
 			if r.totalParts == 1 {
 				chunk = chunk[r.leftCut:r.rightCut]
-			} else if partIndex == 0 {
+			} else if r.currentPart+i == 0 {
 				chunk = chunk[r.leftCut:]
-			} else if partIndex+1 == r.totalParts {
+			} else if r.currentPart+i+1 == r.totalParts {
 				chunk = chunk[:r.rightCut]
 			}
 
-			buf := bufferPool.Get().(*buffer)
-			buf.buf = chunk
-			buffers[index] = buf
+			buffers[i] = &buffer{buf: chunk}
 			return nil
 		})
 	}
@@ -204,12 +185,10 @@ func (r *tgMultiReader) fillBatch() error {
 		return err
 	}
 
-	processedChunks := 0
 	for _, buf := range buffers {
 		if buf == nil {
 			break
 		}
-		processedChunks++
 		select {
 		case r.bufferChan <- buf:
 		case <-r.ctx.Done():
@@ -217,31 +196,30 @@ func (r *tgMultiReader) fillBatch() error {
 		}
 	}
 
-	r.currentPart += processedChunks
-	r.offset += r.chunkSize * int64(processedChunks)
+	r.currentPart += r.concurrency
+	r.offset += r.chunkSize * int64(r.concurrency)
 
 	return nil
 }
 
 func (r *tgMultiReader) fetchChunkWithTimeout(ctx context.Context, i int64) ([]byte, error) {
-	type result struct {
-		chunk []byte
-		err   error
-	}
-	resultChan := make(chan result, 1)
+	chunkChan := make(chan []byte, 1)
+	errChan := make(chan error, 1)
 
 	go func() {
 		chunk, err := r.chunkSrc.Chunk(ctx, r.offset+i*r.chunkSize, r.chunkSize)
-		select {
-		case resultChan <- result{chunk: chunk, err: err}:
-		case <-ctx.Done():
-			// Context canceled, exit goroutine without blocking
+		if err != nil {
+			errChan <- err
+		} else {
+			chunkChan <- chunk
 		}
 	}()
 
 	select {
-	case res := <-resultChan:
-		return res.chunk, res.err
+	case chunk := <-chunkChan:
+		return chunk, nil
+	case err := <-errChan:
+		return nil, err
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}

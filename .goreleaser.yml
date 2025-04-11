@@ -5,20 +5,19 @@ env:
 
 before:
   hooks:
-  - task ui
-  - task gen
-  
+    - task ui
+    - task gen
+
 builds:
   - env:
       - CGO_ENABLED=0
-      
     main: main.go
     flags: -trimpath
     ldflags:
-     - -extldflags=-static
-     - -s -w
-     - -X {{ .ModulePath }}/internal/version.Version={{ .Version }}
-     - -X {{ .ModulePath }}/internal/version.CommitSHA={{ .ShortCommit }}
+      - -extldflags=-static
+      - -s -w
+      - -X {{ .ModulePath }}/internal/version.Version={{ .Version }}
+      - -X {{ .ModulePath }}/internal/version.CommitSHA={{ .ShortCommit }}
     mod_timestamp: "{{ .CommitTimestamp }}"
     goos:
       - linux
@@ -34,7 +33,7 @@ builds:
 
 checksum:
   name_template: "{{ .ProjectName }}_checksums.txt"
-  
+
 archives:
   - name_template: "{{ .ProjectName }}-{{ .Tag }}-{{ .Os }}-{{ .Arch }}"
     format_overrides:
@@ -43,33 +42,54 @@ archives:
     files:
       - README*.md
       - LICENSE
+
 dockers:
   - image_templates:
       - "ghcr.io/tgdrive/{{ .ProjectName }}:{{ .Tag }}-amd64"
+      - "docker.io/{{ .ProjectName }}/{{ .ProjectName }}:{{ .Tag }}-amd64"
     use: buildx
     dockerfile: goreleaser.dockerfile
     build_flag_templates:
-    - "--platform=linux/amd64"
+      - "--platform=linux/amd64"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
 
   - image_templates:
       - "ghcr.io/tgdrive/{{ .ProjectName }}:{{ .Tag }}-arm64"
-      - "ghcr.io/tgdrive/{{ .ProjectName }}:latest"
+      - "docker.io/{{ .ProjectName }}/{{ .ProjectName }}:{{ .Tag }}-arm64"
     use: buildx
     dockerfile: goreleaser.dockerfile
     goarch: arm64
     build_flag_templates:
-    - --platform=linux/arm64/v8
+      - "--platform=linux/arm64/v8"
+      - "--label=org.opencontainers.image.created={{.Date}}"
+      - "--label=org.opencontainers.image.title={{.ProjectName}}"
+      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
+      - "--label=org.opencontainers.image.version={{.Version}}"
 
 docker_manifests:
   - name_template: "ghcr.io/tgdrive/{{ .ProjectName }}:{{ .Tag }}"
     image_templates:
       - "ghcr.io/tgdrive/{{ .ProjectName }}:{{ .Tag }}-amd64"
       - "ghcr.io/tgdrive/{{ .ProjectName }}:{{ .Tag }}-arm64"
+
   - name_template: "ghcr.io/tgdrive/{{ .ProjectName }}:latest"
     image_templates:
       - "ghcr.io/tgdrive/{{ .ProjectName }}:{{ .Tag }}-amd64"
       - "ghcr.io/tgdrive/{{ .ProjectName }}:{{ .Tag }}-arm64"
-      
+
+  - name_template: "docker.io/{{ .ProjectName }}/{{ .ProjectName }}:{{ .Tag }}"
+    image_templates:
+      - "docker.io/{{ .ProjectName }}/{{ .ProjectName }}:{{ .Tag }}-amd64"
+      - "docker.io/{{ .ProjectName }}/{{ .ProjectName }}:{{ .Tag }}-arm64"
+
+  - name_template: "docker.io/{{ .ProjectName }}/{{ .ProjectName }}:latest"
+    image_templates:
+      - "docker.io/{{ .ProjectName }}/{{ .ProjectName }}:{{ .Tag }}-amd64"
+      - "docker.io/{{ .ProjectName }}/{{ .ProjectName }}:{{ .Tag }}-arm64"
+
 changelog:
   use: github
   sort: asc

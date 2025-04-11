@@ -56,7 +56,7 @@ tasks:
   run:
     desc: Run Server
     cmds:
-      - ./{{.BUILD_DIR}}/{{.APP_NAME}}{{.BINARY_EXTENSION}} run
+      - ./{{.BUILD_DIR}}/{{.APP_NAME}}{{.BINARY_EXTENSION}} run --server-port=8888
       
   retag:
     desc: Retag a version
