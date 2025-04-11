@@ -41,7 +41,7 @@ func (a *apiService) EventsGetEvents(ctx context.Context) ([]api.Event, error) {
 	//Get latest events within 5 minutes
 	res := []models.Event{}
 	a.db.Model(&models.Event{}).Where("created_at > ?", time.Now().UTC().Add(-5*time.Minute).Format(time.RFC3339)).
-		Find(&res)
+		Order("created_at desc").Find(&res)
 	return utils.Map(res, func(item models.Event) api.Event {
 		return api.Event{
 			ID:        item.ID,

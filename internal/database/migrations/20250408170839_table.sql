@@ -7,4 +7,5 @@ CREATE TABLE IF NOT EXISTS teldrive.events (
     source jsonb,
     created_at timestamp DEFAULT timezone('utc'::text, now()) NOT NULL
 );
+CREATE INDEX IF NOT EXISTS idx_events_created_at ON teldrive.events (created_at DESC);
 -- +goose StatementEnd
