@@ -12,6 +12,7 @@ import (
 
 	ht "github.com/ogen-go/ogen/http"
 	"github.com/tgdrive/teldrive/internal/api"
+	"github.com/tgdrive/teldrive/internal/auth"
 	"github.com/tgdrive/teldrive/internal/cache"
 	"github.com/tgdrive/teldrive/internal/config"
 	"github.com/tgdrive/teldrive/internal/events"
@@ -39,17 +40,18 @@ func (a *apiService) VersionVersion(ctx context.Context) (*api.ApiVersion, error
 
 func (a *apiService) EventsGetEvents(ctx context.Context) ([]api.Event, error) {
 	//Get latest events within 5 minutes
+	userId := auth.GetUser(ctx)
 	res := []models.Event{}
-	a.db.Model(&models.Event{}).Where("created_at > ?", time.Now().UTC().Add(-5*time.Minute).Format(time.RFC3339)).
-		Order("created_at desc").Find(&res)
+	a.db.Model(&models.Event{}).Where("created_at > ?", time.Now().UTC().Add(-10*time.Minute).Format(time.RFC3339)).
+		Where("user_id = ?", userId).Order("created_at desc").Find(&res)
 	return utils.Map(res, func(item models.Event) api.Event {
 		return api.Event{
 			ID:        item.ID,
 			Type:      item.Type,
 			CreatedAt: item.CreatedAt,
-			Source: api.EventSource{
+			Source: api.Source{
 				ID:           item.Source.Data().ID,
-				Type:         api.EventSourceType(item.Source.Data().Type),
+				Type:         api.SourceType(item.Source.Data().Type),
 				Name:         item.Source.Data().Name,
 				ParentId:     item.Source.Data().ParentID,
 				DestParentId: api.NewOptString(item.Source.Data().DestParentID),

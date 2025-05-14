@@ -115,7 +115,7 @@ func (a *apiService) SharesListFiles(ctx context.Context, params api.SharesListF
 			return nil, &apiError{err: err}
 		}
 		return &api.FileList{Items: []api.File{*mapper.ToFileOut(file)},
-			Meta: api.FileListMeta{Count: 1, TotalPages: 1, CurrentPage: 1}}, nil
+			Meta: api.Meta{Count: 1, TotalPages: 1, CurrentPage: 1}}, nil
 	}
 
 }

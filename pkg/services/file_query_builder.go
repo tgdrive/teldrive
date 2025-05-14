@@ -52,7 +52,7 @@ func (afb *fileQueryBuilder) execute(filesQuery *api.FilesListParams, userId int
 	files := utils.Map(res, func(item fileResponse) api.File { return *mapper.ToFileOut(item.File) })
 
 	return &api.FileList{Items: files,
-		Meta: api.FileListMeta{Count: count,
+		Meta: api.Meta{Count: count,
 			TotalPages:  int(math.Ceil(float64(count) / float64(filesQuery.Limit.Value))),
 			CurrentPage: filesQuery.Page.Value}}, nil
 }

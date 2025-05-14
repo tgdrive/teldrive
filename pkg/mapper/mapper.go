@@ -22,7 +22,7 @@ func ToFileOut(file models.File) *api.File {
 		res.Size = api.NewOptInt64(*file.Size)
 	}
 	if file.Category != "" {
-		res.Category = api.NewOptFileCategory(api.FileCategory(file.Category))
+		res.Category = api.NewOptCategory(api.Category(file.Category))
 	}
 	return res
 }
