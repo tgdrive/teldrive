@@ -379,7 +379,7 @@ func runCheckCmd(cmd *cobra.Command, cfg *config.ServerCmdConfig) {
 	defer logging.DefaultLogger().Sync()
 
 	cfg.DB.LogLevel = "fatal"
-	db, err := database.NewDatabase(&cfg.DB, lg)
+	db, err := database.NewDatabase(ctx, &cfg.DB, lg)
 	if err != nil {
 		lg.Fatalw("failed to create database", "err", err)
 	}

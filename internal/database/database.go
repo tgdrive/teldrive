@@ -3,9 +3,10 @@ package database
 import (
 	"time"
 
-	"github.com/tgdrive/teldrive/internal/config"
+	"context"
 
 	extraClausePlugin "github.com/WinterYukky/gorm-extra-clause-plugin"
+	"github.com/tgdrive/teldrive/internal/config"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gorm.io/driver/postgres"
@@ -13,7 +14,7 @@ import (
 	"gorm.io/gorm/schema"
 )
 
-func NewDatabase(cfg *config.DBConfig, lg *zap.SugaredLogger) (*gorm.DB, error) {
+func NewDatabase(ctx context.Context, cfg *config.DBConfig, lg *zap.SugaredLogger) (*gorm.DB, error) {
 	level, err := zapcore.ParseLevel(cfg.LogLevel)
 	if err != nil {
 		level = zapcore.InfoLevel
@@ -22,26 +23,31 @@ func NewDatabase(cfg *config.DBConfig, lg *zap.SugaredLogger) (*gorm.DB, error) 
 	var db *gorm.DB
 
 	for i := 0; i <= 5; i++ {
-		db, err = gorm.Open(postgres.New(postgres.Config{
-			DSN:                  cfg.DataSource,
-			PreferSimpleProtocol: !cfg.PrepareStmt,
-		}), &gorm.Config{
-			Logger: NewLogger(lg, time.Second, true, level),
-			NamingStrategy: schema.NamingStrategy{
-				TablePrefix:   "teldrive.",
-				SingularTable: false,
-			},
-			NowFunc: func() time.Time {
-				return time.Now().UTC()
-			},
-		})
-		if err == nil {
-			break
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+			db, err = gorm.Open(postgres.New(postgres.Config{
+				DSN:                  cfg.DataSource,
+				PreferSimpleProtocol: !cfg.PrepareStmt,
+			}), &gorm.Config{
+				Logger: NewLogger(lg, time.Second, true, level),
+				NamingStrategy: schema.NamingStrategy{
+					TablePrefix:   "teldrive.",
+					SingularTable: false,
+				},
+				NowFunc: func() time.Time {
+					return time.Now().UTC()
+				},
+			})
+			if err == nil {
+				break
+			}
+			lg.Warnf("failed to open database: %v", err)
+			time.Sleep(500 * time.Millisecond)
 		}
-		lg.Warnf("failed to open database: %v", err)
-		time.Sleep(500 * time.Millisecond)
-	}
 
+	}
 	if err != nil {
 		lg.Fatalf("database: %v", err)
 	}

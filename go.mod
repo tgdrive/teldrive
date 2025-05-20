@@ -19,7 +19,7 @@ require (
 	github.com/iyear/connectproxy v0.1.1
 	github.com/jedib0t/go-pretty/v6 v6.6.7
 	github.com/manifoldco/promptui v0.9.0
-	github.com/ogen-go/ogen v1.12.0
+	github.com/ogen-go/ogen v1.13.0
 	github.com/redis/go-redis/v9 v9.8.0
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/pflag v1.0.6
@@ -73,9 +73,9 @@ require (
 	golang.org/x/tools v0.33.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gorm.io/driver/mysql v1.5.7 // indirect
-	modernc.org/libc v1.65.6 // indirect
+	modernc.org/libc v1.65.7 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
-	modernc.org/memory v1.10.0 // indirect
+	modernc.org/memory v1.11.0 // indirect
 	modernc.org/sqlite v1.37.0 // indirect
 
 )
@@ -90,7 +90,7 @@ require (
 	github.com/gotd/neo v0.1.5 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
-	github.com/jackc/pgx/v5 v5.7.4
+	github.com/jackc/pgx/v5 v5.7.5
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
@@ -113,3 +113,5 @@ require (
 )
 
 tool github.com/ogen-go/ogen/cmd/ogen
+
+replace gorm.io/driver/postgres => github.com/divyam234/postgres v0.0.0-20250520164515-3701d5363f8d

@@ -98,7 +98,7 @@ func runApplication(ctx context.Context, conf *config.ServerCmdConfig) {
 
 	cacher := cache.NewCache(ctx, &conf.Cache)
 
-	db, err := database.NewDatabase(&conf.DB, lg)
+	db, err := database.NewDatabase(ctx, &conf.DB, lg)
 
 	if err != nil {
 		lg.Fatalw("failed to create database", "err", err)
