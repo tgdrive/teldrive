@@ -74,6 +74,14 @@ func (s PeerStorage) Iterate(ctx context.Context) (storage.PeerIterator, error) 
 	return &sqliteIterator{rows: rows}, nil
 }
 
+func (s PeerStorage) Purge(ctx context.Context) error {
+	err := s.db.Where("key LIKE ?", s.prefix+"%").Delete(&KeyValue{})
+	if err != nil {
+		return err.Error
+	}
+	return nil
+}
+
 func (s PeerStorage) add(associated []string, value storage.Peer) error {
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		data, err := json.Marshal(value)
@@ -122,6 +130,18 @@ func (s PeerStorage) Find(ctx context.Context, key storage.PeerKey) (storage.Pee
 	}
 
 	return p, nil
+}
+
+func (s PeerStorage) Delete(ctx context.Context, key storage.PeerKey) error {
+	var entry KeyValue
+	if err := s.db.Delete(&entry, "key = ?", cache.Key(s.prefix, key.String())).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return storage.ErrPeerNotFound
+		}
+		return errors.Wrap(err, "query")
+	}
+
+	return nil
 }
 
 func (s PeerStorage) Assign(ctx context.Context, key string, value storage.Peer) error {

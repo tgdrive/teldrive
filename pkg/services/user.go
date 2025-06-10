@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -64,12 +65,11 @@ func (a *apiService) UsersListChannels(ctx context.Context) ([]api.Channel, erro
 		if peer.Channel != nil && peer.Channel.AdminRights.AddAdmins {
 			_, exists := channels[peer.Channel.ID]
 			if !exists {
-				channels[peer.Channel.ID] = &api.Channel{ChannelId: peer.Channel.ID, ChannelName: peer.Channel.Title}
+				channels[peer.Channel.ID] = &api.Channel{ChannelId: api.NewOptInt64(peer.Channel.ID), ChannelName: peer.Channel.Title}
 			}
 		}
 
 	}
-
 	res := []api.Channel{}
 	for _, channel := range channels {
 		res = append(res, *channel)
@@ -81,9 +81,83 @@ func (a *apiService) UsersListChannels(ctx context.Context) ([]api.Channel, erro
 	return res, nil
 }
 
+func (a *apiService) UsersCreateChannel(ctx context.Context, req *api.Channel) error {
+	userId := auth.GetUser(ctx)
+	peerStorage := tgstorage.NewPeerStorage(a.tgdb, cache.Key("peers", userId))
+	client, _ := tgc.AuthClient(ctx, &a.cnf.TG, auth.GetJWTUser(ctx).TgSession, a.middlewares...)
+	var (
+		res     tg.UpdatesClass
+		channel *tg.Channel
+		err     error
+	)
+	err = client.Run(ctx, func(ctx context.Context) error {
+		res, err = client.API().ChannelsCreateChannel(ctx, &tg.ChannelsCreateChannelRequest{
+			Title:     req.ChannelName,
+			Broadcast: true,
+		})
+		if err != nil {
+			return err
+		}
+		var ok, found bool
+		updates := res.(*tg.Updates)
+		for _, update := range updates.Chats {
+			channel, ok = update.(*tg.Channel)
+			if ok {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return errors.New("faield to create channel")
+		}
+		return nil
+	})
+	if err != nil {
+		return &apiError{err: err}
+	}
+	peer := storage.Peer{}
+	peer.FromChat(channel)
+	peerStorage.Add(ctx, peer)
+	return nil
+}
+
+func (a *apiService) UsersDeleteChannel(ctx context.Context, params api.UsersDeleteChannelParams) error {
+	userId := auth.GetUser(ctx)
+	client, _ := tgc.AuthClient(ctx, &a.cnf.TG, auth.GetJWTUser(ctx).TgSession, a.middlewares...)
+	channelId, _ := strconv.ParseInt(params.ID, 10, 64)
+	peerStorage := tgstorage.NewPeerStorage(a.tgdb, cache.Key("peers", userId))
+	var (
+		channel *tg.Channel
+		err     error
+	)
+	err = client.Run(ctx, func(ctx context.Context) error {
+		channel, err = tgc.GetChannelFull(ctx, client.API(), channelId)
+		if err != nil {
+			return err
+		}
+		_, err = client.API().ChannelsDeleteChannel(ctx, channel.AsInput())
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return &apiError{err: err}
+	}
+	a.db.Where("channel_id = ?", channelId).Model(&models.Channel{})
+	peer := storage.Peer{}
+	peer.FromChat(channel)
+	peerStorage.Delete(ctx, storage.KeyFromPeer(peer))
+	return nil
+}
+
 func (a *apiService) UsersSyncChannels(ctx context.Context) error {
 	userId := auth.GetUser(ctx)
 	peerStorage := tgstorage.NewPeerStorage(a.tgdb, cache.Key("peers", userId))
+	err := peerStorage.Purge(ctx)
+	if err != nil {
+		return &apiError{err: err}
+	}
 	collector := storage.CollectPeers(peerStorage)
 	client, err := tgc.AuthClient(ctx, &a.cnf.TG, auth.GetJWTUser(ctx).TgSession, a.middlewares...)
 	if err != nil {
@@ -101,16 +175,12 @@ func (a *apiService) UsersSyncChannels(ctx context.Context) error {
 func (a *apiService) UsersListSessions(ctx context.Context) ([]api.UserSession, error) {
 	userId := auth.GetUser(ctx)
 	return cache.Fetch(a.cache, cache.Key("users", "sessions", userId), 0, func() ([]api.UserSession, error) {
-
 		userSession := auth.GetJWTUser(ctx).TgSession
-
 		client, _ := tgc.AuthClient(ctx, &a.cnf.TG, userSession, a.middlewares...)
-
 		var (
 			auth *tg.AccountAuthorizations
 			err  error
 		)
-
 		err = client.Run(ctx, func(ctx context.Context) error {
 			auth, err = client.API().AccountGetAuthorizations(ctx)
 			if err != nil {

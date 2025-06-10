@@ -24,6 +24,14 @@ var (
 )
 
 func GetChannelById(ctx context.Context, client *tg.Client, channelId int64) (*tg.InputChannel, error) {
+	channel, err := GetChannelFull(ctx, client, channelId)
+	if err != nil {
+		return nil, err
+	}
+	return channel.AsInput(), nil
+}
+
+func GetChannelFull(ctx context.Context, client *tg.Client, channelId int64) (*tg.Channel, error) {
 	inputChannel := &tg.InputChannel{
 		ChannelID: channelId,
 	}
@@ -35,7 +43,7 @@ func GetChannelById(ctx context.Context, client *tg.Client, channelId int64) (*t
 	if len(channels.GetChats()) == 0 {
 		return nil, ErrInValidChannelId
 	}
-	return channels.GetChats()[0].(*tg.Channel).AsInput(), nil
+	return channels.GetChats()[0].(*tg.Channel), nil
 }
 
 func DeleteMessages(ctx context.Context, client *telegram.Client, channelId int64, ids []int) error {
