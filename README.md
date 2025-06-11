@@ -1,4 +1,5 @@
 # Teldrive
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/tgdrive/teldrive)
 
 Teldrive is a powerful utility that enables you to organise your telegram files and much more.
 
