@@ -273,10 +273,11 @@ func (a *apiService) FilesCreate(ctx context.Context, fileIn *api.File) (*api.Fi
 
 	}
 
-	if fileIn.Type == "folder" {
+	switch fileIn.Type {
+	case "folder":
 		fileDB.MimeType = "drive/folder"
 		fileDB.Parts = nil
-	} else if fileIn.Type == "file" {
+	case "file":
 		if fileIn.ChannelId.Value == 0 {
 			channelId, err = getDefaultChannel(a.db, a.cache, userId)
 			if err != nil {

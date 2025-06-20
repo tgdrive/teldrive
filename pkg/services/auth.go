@@ -12,6 +12,7 @@ import (
 	"math/big"
 	"net"
 	"net/http"
+	"slices"
 	"strconv"
 	"time"
 
@@ -257,7 +258,8 @@ func (e *extendedService) AuthWs(w http.ResponseWriter, r *http.Request) {
 					conn.WriteJSON(map[string]any{"type": "auth", "payload": session, "message": "success"})
 				}()
 			case "phone":
-				if message.Message == "sendcode" {
+				switch message.Message {
+				case "sendcode":
 					go func() {
 						res, err := tgClient.Auth().SendCode(ctx, message.PhoneNo, tgauth.SendCodeOptions{})
 						if errors.Is(err, context.Canceled) {
@@ -271,7 +273,7 @@ func (e *extendedService) AuthWs(w http.ResponseWriter, r *http.Request) {
 						code := res.(*tg.AuthSentCode)
 						conn.WriteJSON(map[string]any{"type": "auth", "payload": map[string]string{"phoneCodeHash": code.PhoneCodeHash}})
 					}()
-				} else if message.Message == "signin" {
+				case "signin":
 					go func() {
 						auth, err := tgClient.Auth().SignIn(ctx, message.PhoneNo, message.PhoneCode, message.PhoneCodeHash)
 						if errors.Is(err, context.Canceled) {
@@ -389,11 +391,8 @@ func generateTgSession(dcId int, authKey []byte, port int) string {
 func checkUserIsAllowed(allowedUsers []string, userName string) bool {
 	found := false
 	if len(allowedUsers) > 0 {
-		for _, user := range allowedUsers {
-			if user == userName {
-				found = true
-				break
-			}
+		if slices.Contains(allowedUsers, userName) {
+			found = true
 		}
 	} else {
 		found = true

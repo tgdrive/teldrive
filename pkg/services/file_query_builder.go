@@ -29,9 +29,10 @@ var selectedFields = []string{"id", "name", "type", "mime_type", "category", "ch
 
 func (afb *fileQueryBuilder) execute(filesQuery *api.FilesListParams, userId int64) (*api.FileList, error) {
 	query := afb.db.Where("user_id = ?", userId).Where("status = ?", filesQuery.Status.Value)
-	if filesQuery.Operation.Value == api.FileQueryOperationList {
+	switch filesQuery.Operation.Value {
+	case api.FileQueryOperationList:
 		query = afb.applyListFilters(query, filesQuery, userId)
-	} else if filesQuery.Operation.Value == api.FileQueryOperationFind {
+	case api.FileQueryOperationFind:
 		query = afb.applyFindFilters(query, filesQuery, userId)
 
 	}
@@ -152,9 +153,10 @@ func (afb *fileQueryBuilder) applySingleDateFilter(query *gorm.DB, dateFilter st
 }
 
 func (afb *fileQueryBuilder) applySearchQuery(query *gorm.DB, filesQuery *api.FilesListParams) *gorm.DB {
-	if filesQuery.SearchType.Value == api.FileQuerySearchTypeText {
+	switch filesQuery.SearchType.Value {
+	case api.FileQuerySearchTypeText:
 		query = query.Where("name &@~ lower(regexp_replace(?, '[^[:alnum:]\\s]', ' ', 'g'))", filesQuery.Query.Value)
-	} else if filesQuery.SearchType.Value == api.FileQuerySearchTypeRegex {
+	case api.FileQuerySearchTypeRegex:
 		query = query.Where("name &~ ?", filesQuery.Query.Value)
 	}
 	return query
