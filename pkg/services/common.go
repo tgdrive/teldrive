@@ -46,7 +46,7 @@ func getParts(ctx context.Context, client *telegram.Client, c cache.Cacher, file
 					Size: document.Size,
 					Salt: file.Parts[i].Salt.Value,
 				}
-				if file.Encrypted {
+				if *file.Encrypted {
 					part.DecryptedSize, _ = crypt.DecryptedSize(document.Size)
 				}
 				parts = append(parts, part)

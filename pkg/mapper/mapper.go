@@ -12,7 +12,7 @@ func ToFileOut(file models.File) *api.File {
 		Name:      file.Name,
 		Type:      api.FileType(file.Type),
 		MimeType:  api.NewOptString(file.MimeType),
-		Encrypted: api.NewOptBool(file.Encrypted),
+		Encrypted: api.NewOptBool(*file.Encrypted),
 		UpdatedAt: api.NewOptDateTime(file.UpdatedAt),
 	}
 	if file.ParentId != nil {
