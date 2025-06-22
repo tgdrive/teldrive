@@ -49,13 +49,15 @@ func StartCronJobs(ctx context.Context, db *gorm.DB, cnf *config.ServerCmdConfig
 		return err
 	}
 
-	locker, err := gormlock.NewGormLocker(db, cnf.CronJobs.LockerInstance)
+	locker, err := gormlock.NewGormLocker(db, cnf.CronJobs.LockerInstance,
+		gormlock.WithCleanInterval(time.Hour*12))
 
 	if err != nil {
 		return err
 	}
 
-	scheduler, err := gocron.NewScheduler(gocron.WithDistributedLocker(locker))
+	scheduler, err := gocron.NewScheduler(gocron.WithLocation(time.UTC),
+		gocron.WithDistributedLocker(locker))
 
 	if err != nil {
 		return err
@@ -63,13 +65,13 @@ func StartCronJobs(ctx context.Context, db *gorm.DB, cnf *config.ServerCmdConfig
 
 	cron := CronService{db: db, cnf: cnf, logger: logging.DefaultLogger().Sugar()}
 	scheduler.NewJob(gocron.DurationJob(cnf.CronJobs.CleanFilesInterval),
-		gocron.NewTask(cron.cleanFiles, ctx), gocron.WithName("clean-files"))
+		gocron.NewTask(cron.cleanFiles, ctx))
 	scheduler.NewJob(gocron.DurationJob(cnf.CronJobs.FolderSizeInterval),
-		gocron.NewTask(cron.updateFolderSize), gocron.WithName("folder-size"))
+		gocron.NewTask(cron.updateFolderSize))
 	scheduler.NewJob(gocron.DurationJob(cnf.CronJobs.CleanUploadsInterval),
-		gocron.NewTask(cron.cleanUploads, ctx), gocron.WithName("clean-uploads"))
+		gocron.NewTask(cron.cleanUploads, ctx))
 	scheduler.NewJob(gocron.DurationJob(time.Hour*12),
-		gocron.NewTask(cron.cleanOldEvents), gocron.WithName("clean-events"))
+		gocron.NewTask(cron.cleanOldEvents))
 
 	scheduler.Start()
 	return nil
