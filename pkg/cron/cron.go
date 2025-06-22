@@ -4,7 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/go-co-op/gocron"
+	gormlock "github.com/go-co-op/gocron-gorm-lock/v2"
+	"github.com/go-co-op/gocron/v2"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/tgdrive/teldrive/internal/api"
 	"github.com/tgdrive/teldrive/internal/config"
@@ -41,24 +42,41 @@ type CronService struct {
 	logger *zap.SugaredLogger
 }
 
-func StartCronJobs(ctx context.Context, scheduler *gocron.Scheduler, db *gorm.DB, cnf *config.ServerCmdConfig) {
-	if !cnf.CronJobs.Enable {
-		return
+func StartCronJobs(ctx context.Context, db *gorm.DB, cnf *config.ServerCmdConfig) error {
+
+	err := db.AutoMigrate(&gormlock.CronJobLock{})
+	if err != nil {
+		return err
+	}
+
+	locker, err := gormlock.NewGormLocker(db, cnf.CronJobs.LockerInstance)
+
+	if err != nil {
+		return err
+	}
+
+	scheduler, err := gocron.NewScheduler(gocron.WithDistributedLocker(locker))
+
+	if err != nil {
+		return err
 	}
 
 	cron := CronService{db: db, cnf: cnf, logger: logging.DefaultLogger().Sugar()}
+	scheduler.NewJob(gocron.DurationJob(cnf.CronJobs.CleanFilesInterval),
+		gocron.NewTask(cron.cleanFiles, ctx), gocron.WithName("clean-files"))
+	scheduler.NewJob(gocron.DurationJob(cnf.CronJobs.FolderSizeInterval),
+		gocron.NewTask(cron.updateFolderSize), gocron.WithName("folder-size"))
+	scheduler.NewJob(gocron.DurationJob(cnf.CronJobs.CleanUploadsInterval),
+		gocron.NewTask(cron.cleanUploads, ctx), gocron.WithName("clean-uploads"))
+	scheduler.NewJob(gocron.DurationJob(time.Hour*12),
+		gocron.NewTask(cron.cleanOldEvents), gocron.WithName("clean-events"))
 
-	scheduler.Every(cnf.CronJobs.CleanFilesInterval).Do(cron.cleanFiles, ctx)
-
-	scheduler.Every(cnf.CronJobs.FolderSizeInterval).Do(cron.updateFolderSize)
-
-	scheduler.Every(cnf.CronJobs.CleanUploadsInterval).Do(cron.cleanUploads, ctx)
-
-	scheduler.StartAsync()
+	scheduler.Start()
+	return nil
 }
 
 func (c *CronService) cleanFiles(ctx context.Context) {
-
+	c.logger.Debugf("running clean-files")
 	var results []result
 	if err := c.db.Table("teldrive.files as f").
 		Select("JSONB_AGG(jsonb_build_object('id', f.id, 'parts', f.parts)) as files,f.channel_id,f.user_id,s.session").
@@ -121,6 +139,7 @@ func (c *CronService) cleanFiles(ctx context.Context) {
 }
 
 func (c *CronService) cleanUploads(ctx context.Context) {
+	c.logger.Debugf("running clean-uploads")
 	var results []uploadResult
 	if err := c.db.Table("teldrive.uploads as up").
 		Select("JSONB_AGG(up.part_id) as parts,up.channel_id,up.user_id,s.session").
@@ -166,5 +185,10 @@ func (c *CronService) cleanUploads(ctx context.Context) {
 }
 
 func (c *CronService) updateFolderSize() {
+	c.logger.Debugf("running folder-size")
 	c.db.Exec("call teldrive.update_size();")
+}
+
+func (c *CronService) cleanOldEvents() {
+	c.db.Exec("DELETE FROM teldrive.events WHERE created_at < NOW() - INTERVAL '5 days';")
 }

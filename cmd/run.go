@@ -11,7 +11,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
-	"github.com/go-co-op/gocron"
 	"github.com/spf13/cobra"
 	"github.com/tgdrive/teldrive/internal/api"
 	"github.com/tgdrive/teldrive/internal/appcontext"
@@ -94,8 +93,6 @@ func runApplication(ctx context.Context, conf *config.ServerCmdConfig) {
 		conf.Server.Port = port
 	}
 
-	scheduler := gocron.NewScheduler(time.UTC)
-
 	cacher := cache.NewCache(ctx, &conf.Cache)
 
 	db, err := database.NewDatabase(ctx, &conf.DB, lg)
@@ -128,7 +125,12 @@ func runApplication(ctx context.Context, conf *config.ServerCmdConfig) {
 
 	srv := setupServer(conf, db, cacher, logger, tgdb, worker, eventRecorder)
 
-	cron.StartCronJobs(ctx, scheduler, db, conf)
+	if conf.CronJobs.Enable {
+		err = cron.StartCronJobs(ctx, db, conf)
+		if err != nil {
+			lg.Fatalw("failed to start cron scheduler", "err", err)
+		}
+	}
 
 	go func() {
 		lg.Infof("Server started at http://localhost:%d", conf.Server.Port)

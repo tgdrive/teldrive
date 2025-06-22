@@ -65,6 +65,7 @@ type DBConfig struct {
 
 type CronJobConfig struct {
 	Enable               bool          `config:"enable" description:"Enable scheduled background jobs" default:"true"`
+	LockerInstance       string        `config:"locker-instance" description:"Distributed unique cron locker name" default:"cron-locker"`
 	CleanFilesInterval   time.Duration `config:"clean-files-interval" description:"Interval for cleaning expired files" default:"1h"`
 	CleanUploadsInterval time.Duration `config:"clean-uploads-interval" description:"Interval for cleaning incomplete uploads" default:"12h"`
 	FolderSizeInterval   time.Duration `config:"folder-size-interval" description:"Interval for updating folder sizes" default:"2h"`
