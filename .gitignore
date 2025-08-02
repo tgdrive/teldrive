@@ -35,3 +35,8 @@ docs/dist
 teldrive-ui.zip
 internal/api
 .aider*
+
+# Configuration files with sensitive data
+config.toml
+config*.toml
+!config.sample.toml

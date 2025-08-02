@@ -44,6 +44,7 @@ storage-file = ''
 proxy = ''
 rate-limit = true
 reconnect-timeout = '5m'
+message-limit = 699500
 
 [tg.stream]
 buffers = 8
