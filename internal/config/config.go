@@ -93,6 +93,7 @@ type TGConfig struct {
 	Proxy             string        `config:"proxy" description:"HTTP/SOCKS5 proxy URL"`
 	ReconnectTimeout  time.Duration `config:"reconnect-timeout" description:"Client reconnection timeout" default:"5m"`
 	PoolSize          int           `config:"pool-size" description:"Session pool size" default:"8"`
+	MessageLimit      int64         `config:"message-limit" description:"Channel message limit before rollover" default:"700000"`
 	EnableLogging     bool          `config:"enable-logging" description:"Enable Telegram client logging"`
 	AppId             int           `config:"app-id" description:"Telegram app ID" default:"2496"`
 	AppHash           string        `config:"app-hash" description:"Telegram app hash" default:"8da85b0d5bfe62527e5b244c209159c3"`
