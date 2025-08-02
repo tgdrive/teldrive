@@ -104,9 +104,15 @@ func (a *apiService) UploadsUpload(ctx context.Context, req *api.UploadsUploadRe
 	fileSize := params.ContentLength
 
 	if params.ChannelId.Value == 0 {
-		channelId, err = getDefaultChannel(a.db, a.cache, userId)
+		// Use ChannelManager to get channel that can handle the upload
+		channelManager := NewChannelManager(a.db, a.cache, a.tgdb, &a.cnf.TG, a.middlewares)
+		channelId, err = channelManager.GetChannelForUpload(ctx, userId)
 		if err != nil {
-			return nil, err
+			// Fallback to default channel if ChannelManager fails
+			channelId, err = getDefaultChannel(a.db, a.cache, userId)
+			if err != nil {
+				return nil, err
+			}
 		}
 	} else {
 		channelId = params.ChannelId.Value
