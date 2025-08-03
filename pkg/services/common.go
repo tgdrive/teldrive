@@ -4,12 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/gotd/td/telegram"
+	"github.com/gotd/td/telegram/message/peer"
 	"github.com/gotd/td/tg"
 	"github.com/tgdrive/teldrive/internal/api"
 	"github.com/tgdrive/teldrive/internal/cache"
+	"github.com/tgdrive/teldrive/internal/config"
 	"github.com/tgdrive/teldrive/internal/crypt"
 	"github.com/tgdrive/teldrive/internal/logging"
 	"github.com/tgdrive/teldrive/internal/tgc"
@@ -17,7 +20,9 @@ import (
 	"github.com/tgdrive/teldrive/pkg/models"
 	"github.com/tgdrive/teldrive/pkg/types"
 	"go.uber.org/zap"
+	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 func getParts(ctx context.Context, client *telegram.Client, c cache.Cacher, file *models.File) ([]types.Part, error) {
@@ -85,5 +90,137 @@ func getBotsToken(db *gorm.DB, c cache.Cacher, userId, channelId int64) ([]strin
 		}
 		return bots, nil
 	})
+}
 
+// addBotsToChannel adds bots to both the Telegram channel and database
+// This is a common function used by both the UI and rollover system
+func addBotsToChannel(ctx context.Context, db *gorm.DB, tgdb *gorm.DB, cacher cache.Cacher, cnf *config.TGConfig,
+	client *telegram.Client, userID, channelID int64, botTokens []string) error {
+
+	logger := logging.FromContext(ctx)
+
+	if len(botTokens) == 0 {
+		return nil
+	}
+
+	logger.Debug("adding bots to channel",
+		zap.Int("botCount", len(botTokens)),
+		zap.Int64("channelID", channelID))
+
+	botInfoMap := make(map[string]*types.BotInfo)
+
+	err := tgc.RunWithAuth(ctx, client, "", func(botCtx context.Context) error {
+		channel, err := tgc.GetChannelById(botCtx, client.API(), channelID)
+		if err != nil {
+			return fmt.Errorf("failed to get channel: %w", err)
+		}
+
+		g, _ := errgroup.WithContext(botCtx)
+		g.SetLimit(8)
+		mapMu := sync.Mutex{}
+
+		// Fetch bot info in parallel
+		for _, token := range botTokens {
+			token := token // capture loop variable
+			g.Go(func() error {
+				info, err := tgc.GetBotInfo(ctx, tgdb, cnf, token)
+				if err != nil {
+					logger.Warn("failed to get bot info",
+						zap.String("token", token),
+						zap.Error(err))
+					return err
+				}
+
+				// Resolve bot domain to get access hash
+				botPeerClass, err := peer.DefaultResolver(client.API()).ResolveDomain(botCtx, info.UserName)
+				if err != nil {
+					logger.Warn("failed to resolve bot domain",
+						zap.String("userName", info.UserName),
+						zap.Error(err))
+					return err
+				}
+
+				botPeer := botPeerClass.(*tg.InputPeerUser)
+				info.AccessHash = botPeer.AccessHash
+
+				mapMu.Lock()
+				botInfoMap[token] = info
+				mapMu.Unlock()
+				return nil
+			})
+		}
+
+		if err = g.Wait(); err != nil {
+			return err
+		}
+
+		// Only proceed if we got info for all bots
+		if len(botTokens) == len(botInfoMap) {
+			users := []tg.InputUser{}
+			for _, info := range botInfoMap {
+				users = append(users, tg.InputUser{UserID: info.Id, AccessHash: info.AccessHash})
+			}
+
+			// Add each bot as admin to the channel
+			for _, user := range users {
+				payload := &tg.ChannelsEditAdminRequest{
+					Channel: channel,
+					UserID:  tg.InputUserClass(&user),
+					AdminRights: tg.ChatAdminRights{
+						ChangeInfo:     true,
+						PostMessages:   true,
+						EditMessages:   true,
+						DeleteMessages: true,
+						BanUsers:       true,
+						InviteUsers:    true,
+						PinMessages:    true,
+						ManageCall:     true,
+						Other:          true,
+						ManageTopics:   true,
+					},
+					Rank: "bot",
+				}
+				_, err := client.API().ChannelsEditAdmin(botCtx, payload)
+				if err != nil {
+					logger.Warn("failed to add bot as admin to channel",
+						zap.Int64("channelID", channelID),
+						zap.Error(err))
+					return err
+				}
+			}
+		} else {
+			return fmt.Errorf("failed to fetch info for all bots: got %d out of %d", len(botInfoMap), len(botTokens))
+		}
+		return nil
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to add bots to Telegram channel: %w", err)
+	}
+
+	// Save bots to database
+	payload := []models.Bot{}
+	for _, info := range botInfoMap {
+		payload = append(payload, models.Bot{
+			UserId:      userID,
+			Token:       info.Token,
+			BotId:       info.Id,
+			BotUserName: info.UserName,
+			ChannelId:   channelID,
+		})
+	}
+
+	// Clear bot cache for this channel
+	cacher.Delete(cache.Key("users", "bots", userID, channelID))
+
+	// Insert bots with conflict handling
+	if err := db.Clauses(clause.OnConflict{DoNothing: true}).Create(&payload).Error; err != nil {
+		logger.Warn("failed to save bots to database", zap.Error(err))
+		return fmt.Errorf("failed to save bots to database: %w", err)
+	}
+
+	logger.Info("successfully added bots to channel",
+		zap.Int("botCount", len(botInfoMap)),
+		zap.Int64("channelID", channelID))
+	return nil
 }
