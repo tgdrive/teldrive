@@ -54,24 +54,24 @@ func (a *apiService) UploadsStats(ctx context.Context, params api.UploadsStatsPa
 	userId := auth.GetUser(ctx)
 	var stats []api.UploadStats
 	err := a.db.Raw(`
-    SELECT 
+    SELECT
     dates.upload_date::date AS upload_date,
     COALESCE(SUM(files.size), 0)::bigint AS total_uploaded
-    FROM 
+    FROM
         generate_series(
             (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date - INTERVAL '1 day' * @days,
             (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date,
             '1 day'
         ) AS dates(upload_date)
-    LEFT JOIN 
+    LEFT JOIN
     teldrive.files AS files
-    ON 
+    ON
         dates.upload_date = DATE_TRUNC('day', files.created_at)::date
         AND files.type = 'file'
         AND files.user_id = @userId
-    GROUP BY 
+    GROUP BY
         dates.upload_date
-    ORDER BY 
+    ORDER BY
         dates.upload_date
   `, sql.Named("days", params.Days-1), sql.Named("userId", userId)).Scan(&stats).Error
 
@@ -104,7 +104,7 @@ func (a *apiService) UploadsUpload(ctx context.Context, req *api.UploadsUploadRe
 	fileSize := params.ContentLength
 
 	if params.ChannelId.Value == 0 {
-		channelId, err = getDefaultChannel(a.db, a.cache, userId)
+		channelId, err = a.channelManager.GetChannelForUpload(ctx, userId)
 		if err != nil {
 			return nil, err
 		}
@@ -112,7 +112,7 @@ func (a *apiService) UploadsUpload(ctx context.Context, req *api.UploadsUploadRe
 		channelId = params.ChannelId.Value
 	}
 
-	tokens, err := getBotsToken(a.db, a.cache, userId, channelId)
+	tokens, err := a.channelManager.BotTokens(userId)
 
 	if err != nil {
 		return nil, err
@@ -125,9 +125,9 @@ func (a *apiService) UploadsUpload(ctx context.Context, req *api.UploadsUploadRe
 		}
 		channelUser = strconv.FormatInt(userId, 10)
 	} else {
-		a.worker.Set(tokens, channelId)
-		token, index = a.worker.Next(channelId)
-		client, err = tgc.BotClient(ctx, a.tgdb, &a.cnf.TG, token)
+		a.worker.Set(tokens, userId)
+		token, index = a.worker.Next(userId)
+		client, err = tgc.BotClient(ctx, a.db, a.cache, &a.cnf.TG, token)
 
 		if err != nil {
 			return nil, err

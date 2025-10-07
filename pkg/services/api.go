@@ -25,13 +25,13 @@ import (
 )
 
 type apiService struct {
-	db          *gorm.DB
-	cnf         *config.ServerCmdConfig
-	cache       cache.Cacher
-	tgdb        *gorm.DB
-	worker      *tgc.BotWorker
-	middlewares []telegram.Middleware
-	events      *events.Recorder
+	db             *gorm.DB
+	cnf            *config.ServerCmdConfig
+	cache          cache.Cacher
+	worker         *tgc.BotWorker
+	middlewares    []telegram.Middleware
+	events         *events.Recorder
+	channelManager *tgc.ChannelManager
 }
 
 func (a *apiService) VersionVersion(ctx context.Context) (*api.ApiVersion, error) {
@@ -90,17 +90,17 @@ func (a *apiService) NewError(ctx context.Context, err error) *api.ErrorStatusCo
 func NewApiService(db *gorm.DB,
 	cnf *config.ServerCmdConfig,
 	cache cache.Cacher,
-	tgdb *gorm.DB,
 	worker *tgc.BotWorker,
 	events *events.Recorder) *apiService {
+	middlewares := tgc.NewMiddleware(&cnf.TG, tgc.WithFloodWait(), tgc.WithRateLimit())
 	return &apiService{
-		db:          db,
-		cnf:         cnf,
-		cache:       cache,
-		tgdb:        tgdb,
-		worker:      worker,
-		middlewares: tgc.NewMiddleware(&cnf.TG, tgc.WithFloodWait(), tgc.WithRateLimit()),
-		events:      events,
+		db:             db,
+		cnf:            cnf,
+		cache:          cache,
+		worker:         worker,
+		middlewares:    middlewares,
+		events:         events,
+		channelManager: tgc.NewChannelManager(db, cache, &cnf.TG, middlewares),
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/tg"
+	"github.com/tgdrive/teldrive/internal/cache"
 	"github.com/tgdrive/teldrive/internal/config"
 	"github.com/tgdrive/teldrive/internal/utils"
 	"github.com/tgdrive/teldrive/pkg/types"
@@ -188,10 +189,10 @@ func GetMediaContent(ctx context.Context, client *tg.Client, location tg.InputFi
 	return buff, nil
 }
 
-func GetBotInfo(ctx context.Context, db *gorm.DB, config *config.TGConfig, token string) (*types.BotInfo, error) {
+func GetBotInfo(ctx context.Context, db *gorm.DB, cache cache.Cacher, config *config.TGConfig, token string) (*types.BotInfo, error) {
 	var user *tg.User
 	middlewares := NewMiddleware(config, WithFloodWait(), WithRateLimit())
-	client, _ := BotClient(ctx, db, config, token, middlewares...)
+	client, _ := BotClient(ctx, db, cache, config, token, middlewares...)
 	err := RunWithAuth(ctx, client, token, func(ctx context.Context) error {
 		user, _ = client.Self(ctx)
 		return nil

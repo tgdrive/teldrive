@@ -8,10 +8,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 
-	"github.com/gotd/td/telegram"
-	"github.com/gotd/td/telegram/message/peer"
 	"github.com/gotd/td/telegram/query"
 	"github.com/gotd/td/tg"
 	"github.com/gotd/td/tgerr"
@@ -21,27 +18,33 @@ import (
 	"github.com/tgdrive/teldrive/internal/tgc"
 	"github.com/tgdrive/teldrive/internal/tgstorage"
 	"github.com/tgdrive/teldrive/pkg/models"
-	"github.com/tgdrive/teldrive/pkg/types"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/gotd/contrib/storage"
 	"gorm.io/gorm/clause"
 )
 
 func (a *apiService) UsersAddBots(ctx context.Context, req *api.AddBots) error {
-	userId := auth.GetUser(ctx)
-	client, _ := tgc.AuthClient(ctx, &a.cnf.TG, auth.GetJWTUser(ctx).TgSession, a.middlewares...)
+	userID := auth.GetUser(ctx)
 
+	payload := []models.Bot{}
 	if len(req.Bots) > 0 {
-		channelId, err := getDefaultChannel(a.db, a.cache, userId)
-
-		if err != nil {
-			return &apiError{err: err}
+		for _, token := range req.Bots {
+			botID, _ := strconv.ParseInt(strings.Split(token, ":")[0], 10, 64)
+			payload = append(payload, models.Bot{UserId: userID, Token: token, BotId: botID})
 		}
-		err = a.addBots(ctx, client, userId, channelId, req.Bots)
-		if err != nil {
-			return &apiError{err: err}
+		if err := a.db.Clauses(clause.OnConflict{DoNothing: true}).Create(&payload).Error; err != nil {
+			return err
 		}
+		var channels []int64
+		if err := a.db.Model(&models.Channel{}).Where("user_id = ?", userID).Pluck("channel_id", &channels).Error; err != nil {
+			return err
+		}
+		if len(channels) > 0 {
+			for _, channel := range channels {
+				a.channelManager.AddBotsToChannel(ctx, userID, channel, req.Bots, false)
+			}
+		}
+		a.cache.Delete(cache.Key("users", "bots", userID))
 	}
 	return nil
 
@@ -53,7 +56,7 @@ func (a *apiService) UsersListChannels(ctx context.Context) ([]api.Channel, erro
 
 	channels := make(map[int64]*api.Channel)
 
-	peerStorage := tgstorage.NewPeerStorage(a.tgdb, cache.Key("peers", userId))
+	peerStorage := tgstorage.NewPeerStorage(a.db, cache.Key("peers", userId))
 
 	iter, err := peerStorage.Iterate(ctx)
 	if err != nil {
@@ -82,42 +85,11 @@ func (a *apiService) UsersListChannels(ctx context.Context) ([]api.Channel, erro
 }
 
 func (a *apiService) UsersCreateChannel(ctx context.Context, req *api.Channel) error {
-	userId := auth.GetUser(ctx)
-	peerStorage := tgstorage.NewPeerStorage(a.tgdb, cache.Key("peers", userId))
-	client, _ := tgc.AuthClient(ctx, &a.cnf.TG, auth.GetJWTUser(ctx).TgSession, a.middlewares...)
-	var (
-		res     tg.UpdatesClass
-		channel *tg.Channel
-		err     error
-	)
-	err = client.Run(ctx, func(ctx context.Context) error {
-		res, err = client.API().ChannelsCreateChannel(ctx, &tg.ChannelsCreateChannelRequest{
-			Title:     req.ChannelName,
-			Broadcast: true,
-		})
-		if err != nil {
-			return err
-		}
-		var ok, found bool
-		updates := res.(*tg.Updates)
-		for _, update := range updates.Chats {
-			channel, ok = update.(*tg.Channel)
-			if ok {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return errors.New("faield to create channel")
-		}
-		return nil
-	})
+	userID := auth.GetUser(ctx)
+	_, err := a.channelManager.CreateNewChannel(ctx, req.ChannelName, userID, false)
 	if err != nil {
 		return &apiError{err: err}
 	}
-	peer := storage.Peer{}
-	peer.FromChat(channel)
-	peerStorage.Add(ctx, peer)
 	return nil
 }
 
@@ -125,7 +97,7 @@ func (a *apiService) UsersDeleteChannel(ctx context.Context, params api.UsersDel
 	userId := auth.GetUser(ctx)
 	client, _ := tgc.AuthClient(ctx, &a.cnf.TG, auth.GetJWTUser(ctx).TgSession, a.middlewares...)
 	channelId, _ := strconv.ParseInt(params.ID, 10, 64)
-	peerStorage := tgstorage.NewPeerStorage(a.tgdb, cache.Key("peers", userId))
+	peerStorage := tgstorage.NewPeerStorage(a.db, cache.Key("peers", userId))
 	var (
 		channel *tg.Channel
 		err     error
@@ -144,7 +116,7 @@ func (a *apiService) UsersDeleteChannel(ctx context.Context, params api.UsersDel
 	if err != nil {
 		return &apiError{err: err}
 	}
-	a.db.Where("channel_id = ?", channelId).Model(&models.Channel{})
+	a.db.Where("channel_id = ?", channelId).Delete(&models.Channel{})
 	peer := storage.Peer{}
 	peer.FromChat(channel)
 	peerStorage.Delete(ctx, storage.KeyFromPeer(peer))
@@ -153,7 +125,7 @@ func (a *apiService) UsersDeleteChannel(ctx context.Context, params api.UsersDel
 
 func (a *apiService) UsersSyncChannels(ctx context.Context) error {
 	userId := auth.GetUser(ctx)
-	peerStorage := tgstorage.NewPeerStorage(a.tgdb, cache.Key("peers", userId))
+	peerStorage := tgstorage.NewPeerStorage(a.db, cache.Key("peers", userId))
 	err := peerStorage.Purge(ctx)
 	if err != nil {
 		return &apiError{err: err}
@@ -274,17 +246,10 @@ func (a *apiService) UsersProfileImage(ctx context.Context, params api.UsersProf
 func (a *apiService) UsersRemoveBots(ctx context.Context) error {
 	userId := auth.GetUser(ctx)
 
-	channelId, err := getDefaultChannel(a.db, a.cache, userId)
-	if err != nil {
+	if err := a.db.Where("user_id = ?", userId).Delete(&models.Bot{}).Error; err != nil {
 		return &apiError{err: err}
 	}
-
-	if err := a.db.Where("user_id = ?", userId).Where("channel_id = ?", channelId).
-		Delete(&models.Bot{}).Error; err != nil {
-		return &apiError{err: err}
-	}
-
-	a.cache.Delete(cache.Key("users", "bots", userId, channelId))
+	a.cache.Delete(cache.Key("users", "bots", userId))
 
 	return nil
 }
@@ -321,12 +286,12 @@ func (a *apiService) UsersStats(ctx context.Context) (*api.UserConfig, error) {
 		err       error
 	)
 
-	channelId, err = getDefaultChannel(a.db, a.cache, userId)
+	channelId, err = a.channelManager.CurrentChannel(userId)
 	if err != nil {
 		channelId = 0
 	}
 
-	tokens, err := getBotsToken(a.db, a.cache, userId, channelId)
+	tokens, err := a.channelManager.BotTokens(userId)
 
 	if err != nil {
 		tokens = []string{}
@@ -357,99 +322,4 @@ func (a *apiService) UsersUpdateChannel(ctx context.Context, req *api.ChannelUpd
 
 	a.cache.Set(cache.Key("users", "channel", userId), channel.ChannelId, 0)
 	return nil
-}
-
-func (a *apiService) addBots(c context.Context, client *telegram.Client, userId int64, channelId int64, botsTokens []string) error {
-
-	botInfoMap := make(map[string]*types.BotInfo)
-
-	err := tgc.RunWithAuth(c, client, "", func(ctx context.Context) error {
-
-		channel, err := tgc.GetChannelById(ctx, client.API(), channelId)
-
-		if err != nil {
-			return err
-		}
-
-		g, _ := errgroup.WithContext(ctx)
-
-		g.SetLimit(8)
-
-		mapMu := sync.Mutex{}
-
-		for _, token := range botsTokens {
-			g.Go(func() error {
-				info, err := tgc.GetBotInfo(c, a.tgdb, &a.cnf.TG, token)
-				if err != nil {
-					return err
-				}
-				botPeerClass, err := peer.DefaultResolver(client.API()).ResolveDomain(ctx, info.UserName)
-				if err != nil {
-					return err
-				}
-				botPeer := botPeerClass.(*tg.InputPeerUser)
-				info.AccessHash = botPeer.AccessHash
-				mapMu.Lock()
-				botInfoMap[token] = info
-				mapMu.Unlock()
-				return nil
-			})
-
-		}
-		if err = g.Wait(); err != nil {
-			return err
-		}
-		if len(botsTokens) == len(botInfoMap) {
-			users := []tg.InputUser{}
-			for _, info := range botInfoMap {
-				users = append(users, tg.InputUser{UserID: info.Id, AccessHash: info.AccessHash})
-			}
-			for _, user := range users {
-				payload := &tg.ChannelsEditAdminRequest{
-					Channel: channel,
-					UserID:  tg.InputUserClass(&user),
-					AdminRights: tg.ChatAdminRights{
-						ChangeInfo:     true,
-						PostMessages:   true,
-						EditMessages:   true,
-						DeleteMessages: true,
-						BanUsers:       true,
-						InviteUsers:    true,
-						PinMessages:    true,
-						ManageCall:     true,
-						Other:          true,
-						ManageTopics:   true,
-					},
-					Rank: "bot",
-				}
-				_, err := client.API().ChannelsEditAdmin(ctx, payload)
-				if err != nil {
-					return err
-				}
-			}
-		} else {
-			return errors.New("failed to fetch bots")
-		}
-		return nil
-	})
-
-	if err != nil {
-		return err
-	}
-
-	payload := []models.Bot{}
-
-	for _, info := range botInfoMap {
-		payload = append(payload, models.Bot{UserId: userId, Token: info.Token, BotId: info.Id,
-			BotUserName: info.UserName, ChannelId: channelId,
-		})
-	}
-
-	a.cache.Delete(cache.Key("users", "bots", userId, channelId))
-
-	if err := a.db.Clauses(clause.OnConflict{DoNothing: true}).Create(&payload).Error; err != nil {
-		return err
-	}
-	return nil
-
 }

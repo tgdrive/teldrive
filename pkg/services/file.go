@@ -127,7 +127,7 @@ func (a *apiService) FilesCopy(ctx context.Context, req *api.FileCopy, params ap
 
 	newIds := []api.Part{}
 
-	channelId, err := getDefaultChannel(a.db, a.cache, userId)
+	channelId, err := a.channelManager.CurrentChannel(userId)
 	if err != nil {
 		return nil, &apiError{err: err}
 	}
@@ -279,7 +279,7 @@ func (a *apiService) FilesCreate(ctx context.Context, fileIn *api.File) (*api.Fi
 		fileDB.Parts = nil
 	case "file":
 		if fileIn.ChannelId.Value == 0 {
-			channelId, err = getDefaultChannel(a.db, a.cache, userId)
+			channelId, err = a.channelManager.CurrentChannel(userId)
 			if err != nil {
 				return nil, &apiError{err: err}
 			}
@@ -309,13 +309,13 @@ func (a *apiService) FilesCreate(ctx context.Context, fileIn *api.File) (*api.Fi
 
 	if err := a.db.Raw(`
     INSERT INTO teldrive.files (
-        name, parent_id, user_id, mime_type, category, parts, 
+        name, parent_id, user_id, mime_type, category, parts,
         size, type, encrypted, updated_at, channel_id, status
-    ) 
+    )
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT (name, COALESCE(parent_id, '00000000-0000-0000-0000-000000000000'::uuid), user_id) 
+    ON CONFLICT (name, COALESCE(parent_id, '00000000-0000-0000-0000-000000000000'::uuid), user_id)
     WHERE status = 'active'
-    DO UPDATE SET 
+    DO UPDATE SET
         mime_type = EXCLUDED.mime_type,
         category = EXCLUDED.category,
         parts = EXCLUDED.parts,
@@ -624,7 +624,7 @@ func (a *apiService) FilesUpdateParts(ctx context.Context, req *api.FilePartsUpd
 		Size: utils.Ptr(req.Size),
 	}
 	if req.ChannelId.Value == 0 {
-		channelId, err := getDefaultChannel(a.db, a.cache, userId)
+		channelId, err := a.channelManager.CurrentChannel(userId)
 		if err != nil {
 			return &apiError{err: err}
 		}
@@ -796,7 +796,7 @@ func (e *extendedService) FilesStream(w http.ResponseWriter, r *http.Request, fi
 		return
 	}
 
-	tokens, err := getBotsToken(e.api.db, e.api.cache, session.UserId, *file.ChannelId)
+	tokens, err := e.api.channelManager.BotTokens(session.UserId)
 
 	if err != nil {
 		http.Error(w, "failed to get bots", http.StatusInternalServerError)
@@ -824,11 +824,11 @@ func (e *extendedService) FilesStream(w http.ResponseWriter, r *http.Request, fi
 		multiThreads = 0
 
 	} else {
-		e.api.worker.Set(tokens, *file.ChannelId)
+		e.api.worker.Set(tokens, session.UserId)
 
-		token, _ = e.api.worker.Next(*file.ChannelId)
+		token, _ = e.api.worker.Next(session.UserId)
 
-		client, err = tgc.BotClient(ctx, e.api.tgdb, &e.api.cnf.TG, token, middlewares...)
+		client, err = tgc.BotClient(ctx, e.api.db, e.api.cache, &e.api.cnf.TG, token, middlewares...)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

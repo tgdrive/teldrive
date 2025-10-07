@@ -4,12 +4,11 @@ services:
     restart: always
     container_name: teldrive
     networks:
-     - postgres
+      - postgres
     volumes:
       - ./config.toml:/config.toml
-      - ./storage.db:/storage.db
     ports:
       - 8080:8080
 networks:
-  postgres:                                 
+  postgres:
     external: true

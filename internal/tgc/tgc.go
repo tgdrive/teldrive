@@ -104,9 +104,9 @@ func AuthClient(ctx context.Context, config *config.TGConfig, sessionStr string,
 	return newClient(ctx, config, nil, storage, middlewares...)
 }
 
-func BotClient(ctx context.Context, db *gorm.DB, config *config.TGConfig, token string, middlewares ...telegram.Middleware) (*telegram.Client, error) {
+func BotClient(ctx context.Context, db *gorm.DB, c cache.Cacher, config *config.TGConfig, token string, middlewares ...telegram.Middleware) (*telegram.Client, error) {
 
-	storage := tgstorage.NewSessionStorage(db, cache.Key("sessions", strings.Split(token, ":")[0]))
+	storage := tgstorage.NewSessionStorage(db, c, cache.Key("sessions", config.SessionInstance, strings.Split(token, ":")[0]))
 
 	return newClient(ctx, config, nil, storage, middlewares...)
 

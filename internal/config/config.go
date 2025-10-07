@@ -88,7 +88,6 @@ type TGConfig struct {
 	RateBurst         int           `config:"rate-burst" description:"Maximum burst size for rate limiting" default:"5"`
 	Rate              int           `config:"rate" description:"Rate limit in requests per minute" default:"100"`
 	Ntp               bool          `config:"ntp" description:"Use NTP for time synchronization"`
-	StorageFile       string        `config:"storage-file" description:"Path to SQLite storage file"`
 	DisableStreamBots bool          `config:"disable-stream-bots" description:"Disable streaming bots"`
 	Proxy             string        `config:"proxy" description:"HTTP/SOCKS5 proxy URL"`
 	ReconnectTimeout  time.Duration `config:"reconnect-timeout" description:"Client reconnection timeout" default:"5m"`
@@ -102,6 +101,9 @@ type TGConfig struct {
 	LangCode          string        `config:"lang-code" description:"Language code" default:"en"`
 	SystemLangCode    string        `config:"system-lang-code" description:"System language code" default:"en-US"`
 	LangPack          string        `config:"lang-pack" description:"Language pack" default:"webk"`
+	SessionInstance   string        `config:"session-instance" description:"Bot Sessions Instance Name" default:"teldrive"`
+	AutoChannelCreate bool          `config:"auto-channel-create" description:"Auto Create Channel" default:"true"`
+	ChannelLimit      int64         `config:"channel-limit" description:"Channel message limit before auto channel creation" default:"500000"`
 	Uploads           TGUpload      `config:"uploads"`
 	Stream            TGStream      `config:"stream"`
 }

@@ -17,21 +17,21 @@ func NewBotWorker() *BotWorker {
 	}
 }
 
-func (w *BotWorker) Set(bots []string, channelId int64) {
+func (w *BotWorker) Set(bots []string, userID int64) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	if _, ok := w.bots[channelId]; ok {
+	if _, ok := w.bots[userID]; ok {
 		return
 	}
-	w.bots[channelId] = bots
-	w.currIdx[channelId] = 0
+	w.bots[userID] = bots
+	w.currIdx[userID] = 0
 }
 
-func (w *BotWorker) Next(channelId int64) (string, int) {
+func (w *BotWorker) Next(userID int64) (string, int) {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
-	bots := w.bots[channelId]
-	index := w.currIdx[channelId]
-	w.currIdx[channelId] = (index + 1) % len(bots)
+	bots := w.bots[userID]
+	index := w.currIdx[userID]
+	w.currIdx[userID] = (index + 1) % len(bots)
 	return bots[index], index
 }

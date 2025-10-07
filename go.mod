@@ -7,7 +7,6 @@ require (
 	github.com/WinterYukky/gorm-extra-clause-plugin v0.3.1
 	github.com/coocood/freecache v1.2.4
 	github.com/fatih/color v1.18.0
-	github.com/glebarez/sqlite v1.11.0
 	github.com/go-chi/chi/v5 v5.2.2
 	github.com/go-chi/cors v1.2.2
 	github.com/go-co-op/gocron-gorm-lock/v2 v2.0.2
@@ -44,12 +43,9 @@ require (
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/dlclark/regexp2 v1.11.5 // indirect
-	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/ghodss/yaml v1.0.0 // indirect
-	github.com/glebarez/go-sqlite v1.22.0 // indirect
 	github.com/go-faster/yaml v0.4.6 // indirect
-	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-sql-driver/mysql v1.9.3 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
@@ -58,9 +54,7 @@ require (
 	github.com/mattn/go-runewidth v0.0.16 // indirect
 	github.com/mattn/go-sqlite3 v1.14.28 // indirect
 	github.com/mfridman/interpolate v0.0.2 // indirect
-	github.com/ncruces/go-strftime v0.1.9 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
-	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/sagikazarmark/locafero v0.10.0 // indirect
@@ -77,10 +71,7 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gorm.io/driver/mysql v1.6.0 // indirect
 	modernc.org/libc v1.66.6 // indirect
-	modernc.org/mathutil v1.7.1 // indirect
-	modernc.org/memory v1.11.0 // indirect
 	modernc.org/sqlite v1.38.2 // indirect
-
 )
 
 require (

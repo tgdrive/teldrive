@@ -1,4 +1,4 @@
-version: '3'
+version: "3"
 
 vars:
   APP_NAME: teldrive
@@ -25,8 +25,8 @@ tasks:
       - task: server
   deps:
     cmds:
-     - go mod download
-     - go mod tidy
+      - go mod download
+      - go mod tidy
 
   ui:
     desc: Download UI assets
@@ -47,9 +47,9 @@ tasks:
     cmds:
       - echo "Building backend for {{.GOOS}}/{{.GOARCH}}..."
       - >
-        go build -trimpath -ldflags "-s -w 
-          -X '{{.MODULE_PATH}}/internal/version.Version={{.VERSION}}' 
-          -X '{{.MODULE_PATH}}/internal/version.CommitSHA={{.GIT_COMMIT}}' 
+        go build -trimpath -ldflags "-s -w
+          -X '{{.MODULE_PATH}}/internal/version.Version={{.VERSION}}'
+          -X '{{.MODULE_PATH}}/internal/version.CommitSHA={{.GIT_COMMIT}}'
           -extldflags=-static
           " -o {{.BUILD_DIR}}/{{.APP_NAME}}{{.BINARY_EXTENSION}}
 
@@ -57,7 +57,7 @@ tasks:
     desc: Run Server
     cmds:
       - ./{{.BUILD_DIR}}/{{.APP_NAME}}{{.BINARY_EXTENSION}} run
-      
+
   retag:
     desc: Retag a version
     vars:
@@ -88,7 +88,7 @@ tasks:
       - git tag -a {{.VERSION}} -m "Release {{.VERSION}}"
       - git push origin {{.VERSION}}
       - git push origin main
-  
+
   release:*:
     desc: Prepare for a new release
     vars:

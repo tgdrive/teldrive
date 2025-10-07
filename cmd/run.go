@@ -23,7 +23,6 @@ import (
 	"github.com/tgdrive/teldrive/internal/logging"
 	"github.com/tgdrive/teldrive/internal/middleware"
 	"github.com/tgdrive/teldrive/internal/tgc"
-	"github.com/tgdrive/teldrive/internal/tgstorage"
 	"github.com/tgdrive/teldrive/ui"
 
 	"github.com/tgdrive/teldrive/pkg/cron"
@@ -107,23 +106,13 @@ func runApplication(ctx context.Context, conf *config.ServerCmdConfig) {
 		lg.Fatalw("failed to migrate database", "err", err)
 	}
 
-	tgdb, err := tgstorage.NewDatabase(conf.TG.StorageFile)
-	if err != nil {
-		lg.Fatalw("failed to create tg db", "err", err)
-	}
-
-	err = tgstorage.MigrateDB(tgdb)
-	if err != nil {
-		lg.Fatalw("failed to migrate tg db", "err", err)
-	}
-
 	worker := tgc.NewBotWorker()
 
 	logger := logging.DefaultLogger()
 
 	eventRecorder := events.NewRecorder(ctx, db, logger)
 
-	srv := setupServer(conf, db, cacher, logger, tgdb, worker, eventRecorder)
+	srv := setupServer(conf, db, cacher, logger, worker, eventRecorder)
 
 	if conf.CronJobs.Enable {
 		err = cron.StartCronJobs(ctx, db, conf)
@@ -156,9 +145,9 @@ func runApplication(ctx context.Context, conf *config.ServerCmdConfig) {
 	lg.Info("Server stopped")
 }
 
-func setupServer(cfg *config.ServerCmdConfig, db *gorm.DB, cache cache.Cacher, lg *zap.Logger, tgdb *gorm.DB, worker *tgc.BotWorker, eventRecorder *events.Recorder) *http.Server {
+func setupServer(cfg *config.ServerCmdConfig, db *gorm.DB, cache cache.Cacher, lg *zap.Logger, worker *tgc.BotWorker, eventRecorder *events.Recorder) *http.Server {
 
-	apiSrv := services.NewApiService(db, cfg, cache, tgdb, worker, eventRecorder)
+	apiSrv := services.NewApiService(db, cfg, cache, worker, eventRecorder)
 
 	srv, err := api.NewServer(apiSrv, auth.NewSecurityHandler(db, cache, &cfg.JWT))
 
