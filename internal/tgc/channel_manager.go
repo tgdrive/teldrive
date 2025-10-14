@@ -86,7 +86,7 @@ func (cm *ChannelManager) isChannelNearLimit(channelID int64) bool {
 
 	err := cm.db.Model(&models.File{}).
 		Where("channel_id = ?", channelID).
-		Select("COALESCE(SUM(jsonb_array_length(parts)), 0) as total_parts").
+		Select("COALESCE(SUM(CASE WHEN jsonb_typeof(parts) = 'array' THEN jsonb_array_length(parts) ELSE 0 END), 0) as total_parts").
 		Scan(&totalParts).Error
 
 	if err != nil {
