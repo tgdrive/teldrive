@@ -52,7 +52,7 @@ func NewRun() *cobra.Command {
 			return nil
 		},
 	}
-	loader.RegisterPlags(cmd.Flags(), "", cfg, false)
+	loader.RegisterFlags(cmd.Flags(), "", cfg, false)
 	return cmd
 }
 

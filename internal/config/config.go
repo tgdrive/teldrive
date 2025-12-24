@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -72,9 +73,9 @@ type CronJobConfig struct {
 }
 
 type TGStream struct {
-	MultiThreads int           `config:"multi-threads" description:"Number of download threads"`
+	Concurrency  int           `config:"concurrency" description:"Number of concurrent threads for concurrent reader" default:"1"`
 	Buffers      int           `config:"buffers" description:"Number of stream buffers" default:"8"`
-	ChunkTimeout time.Duration `config:"chunk-timeout" description:"Chunk download timeout" default:"20s"`
+	ChunkTimeout time.Duration `config:"chunk-timeout" description:"Chunk download timeout" default:"30s"`
 }
 
 type TGUpload struct {
@@ -88,7 +89,6 @@ type TGConfig struct {
 	RateBurst         int           `config:"rate-burst" description:"Maximum burst size for rate limiting" default:"5"`
 	Rate              int           `config:"rate" description:"Rate limit in requests per minute" default:"100"`
 	Ntp               bool          `config:"ntp" description:"Use NTP for time synchronization"`
-	DisableStreamBots bool          `config:"disable-stream-bots" description:"Disable streaming bots"`
 	Proxy             string        `config:"proxy" description:"HTTP/SOCKS5 proxy URL"`
 	ReconnectTimeout  time.Duration `config:"reconnect-timeout" description:"Client reconnection timeout" default:"5m"`
 	PoolSize          int           `config:"pool-size" description:"Session pool size" default:"8"`
@@ -139,12 +139,17 @@ func StringToDurationHook() mapstructure.DecodeHookFunc {
 
 func (cl *ConfigLoader) Load(cmd *cobra.Command, cfg any) error {
 
-	cl.v.SetConfigType("toml")
-
 	cfgFile := cmd.Flags().Lookup("config").Value.String()
 	if cfgFile != "" {
 		cl.v.SetConfigFile(cfgFile)
+		// Set config type based on file extension
+		if strings.HasSuffix(cfgFile, ".yaml") || strings.HasSuffix(cfgFile, ".yml") {
+			cl.v.SetConfigType("yaml")
+		} else {
+			cl.v.SetConfigType("toml")
+		}
 	} else {
+		cl.v.SetConfigType("toml")
 		home, err := os.UserHomeDir()
 		if err != nil {
 			return fmt.Errorf("error getting home directory: %v", err)
@@ -176,7 +181,7 @@ func (cl *ConfigLoader) Validate() error {
 	return nil
 }
 
-func (cl *ConfigLoader) RegisterPlags(flags *pflag.FlagSet, prefix string, v any, skipFlags bool) error {
+func (cl *ConfigLoader) RegisterFlags(flags *pflag.FlagSet, prefix string, v any, skipFlags bool) error {
 	flags.StringP("config", "c", "", "Config file path (default $HOME/.teldrive/config.toml)")
 	return cl.walkStruct(v, prefix, func(key string, field reflect.StructField, value reflect.Value) error {
 		return cl.setDefault(flags, key, field, skipFlags)
@@ -204,27 +209,76 @@ func (cl *ConfigLoader) setDefault(flags *pflag.FlagSet, key string, field refle
 		return nil
 	}
 
-	switch field.Type.Kind() {
-	case reflect.String:
-		flags.String(flagKey, "", description)
-	case reflect.Int:
-		flags.Int(flagKey, 0, description)
-	case reflect.Int64:
-		flags.Int64(flagKey, 0, description)
-	case reflect.Bool:
-		flags.Bool(flagKey, false, description)
-	case reflect.Slice:
-		switch field.Type.Elem().Kind() {
-		case reflect.String:
-			flags.StringSlice(flagKey, nil, description)
-		case reflect.Int:
-			flags.IntSlice(flagKey, nil, description)
-
+	// Handle time.Duration first since it's a named type that would otherwise be treated as int64
+	if field.Type == reflect.TypeOf(time.Duration(0)) {
+		defaultDuration := time.Duration(0)
+		if defaultVal != "" {
+			if val, err := duration.ParseDuration(defaultVal); err == nil {
+				defaultDuration = val
+			}
 		}
-	default:
-		if field.Type == reflect.TypeOf(time.Duration(0)) {
-			flags.Duration(flagKey, time.Duration(0), description)
-
+		flags.Duration(flagKey, defaultDuration, description)
+	} else {
+		switch field.Type.Kind() {
+		case reflect.String:
+			defaultStr := ""
+			if defaultVal != "" {
+				defaultStr = defaultVal
+			}
+			flags.String(flagKey, defaultStr, description)
+		case reflect.Int:
+			defaultInt := 0
+			if defaultVal != "" {
+				if val, err := strconv.Atoi(defaultVal); err == nil {
+					defaultInt = val
+				}
+			}
+			flags.Int(flagKey, defaultInt, description)
+		case reflect.Int64:
+			defaultInt64 := int64(0)
+			if defaultVal != "" {
+				if val, err := strconv.ParseInt(defaultVal, 10, 64); err == nil {
+					defaultInt64 = val
+				}
+			}
+			flags.Int64(flagKey, defaultInt64, description)
+		case reflect.Bool:
+			defaultBool := false
+			if defaultVal != "" {
+				if val, err := strconv.ParseBool(defaultVal); err == nil {
+					defaultBool = val
+				}
+			}
+			flags.Bool(flagKey, defaultBool, description)
+		case reflect.Slice:
+			switch field.Type.Elem().Kind() {
+			case reflect.String:
+				var defaultStrSlice []string
+				if defaultVal != "" {
+					defaultStrSlice = strings.Split(defaultVal, ",")
+					for i, s := range defaultStrSlice {
+						defaultStrSlice[i] = strings.TrimSpace(s)
+					}
+				}
+				flags.StringSlice(flagKey, defaultStrSlice, description)
+			case reflect.Int:
+				var defaultIntSlice []int
+				if defaultVal != "" {
+					parts := strings.Split(defaultVal, ",")
+					for _, part := range parts {
+						if val, err := strconv.Atoi(strings.TrimSpace(part)); err == nil {
+							defaultIntSlice = append(defaultIntSlice, val)
+						}
+					}
+				}
+				flags.IntSlice(flagKey, defaultIntSlice, description)
+			}
+		case reflect.Map:
+			// Skip map fields as they are not supported for command line flags
+			return nil
+		default:
+			// Skip unsupported field types
+			return nil
 		}
 	}
 	if err := cl.v.BindPFlag(key, flags.Lookup(flagKey)); err != nil {

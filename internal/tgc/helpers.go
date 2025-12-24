@@ -64,7 +64,7 @@ func DeleteMessages(ctx context.Context, client *telegram.Client, channelId int6
 
 		g.SetLimit(runtime.NumCPU())
 
-		for i := 0; i < batchCount; i++ {
+		for i := range batchCount {
 			start := i * batchSize
 			end := min((i+1)*batchSize, len(ids))
 			batchIds := ids[start:end]

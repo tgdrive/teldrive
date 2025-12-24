@@ -92,7 +92,9 @@ func NewApiService(db *gorm.DB,
 	cache cache.Cacher,
 	worker *tgc.BotWorker,
 	events *events.Recorder) *apiService {
+
 	middlewares := tgc.NewMiddleware(&cnf.TG, tgc.WithFloodWait(), tgc.WithRateLimit())
+
 	return &apiService{
 		db:             db,
 		cnf:            cnf,

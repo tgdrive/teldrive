@@ -29,6 +29,7 @@ import (
 	"github.com/tgdrive/teldrive/internal/cache"
 	"github.com/tgdrive/teldrive/internal/logging"
 	"github.com/tgdrive/teldrive/internal/tgc"
+	"github.com/tgdrive/teldrive/internal/utils"
 	"github.com/tgdrive/teldrive/pkg/models"
 	"github.com/tgdrive/teldrive/pkg/types"
 	"go.uber.org/zap"
@@ -79,12 +80,12 @@ func (a *apiService) AuthLogin(ctx context.Context, session *api.SessionCreate) 
 			return err
 		}
 		file := &models.File{
-			Name:     "root",
-			Type:     "folder",
-			MimeType: "drive/folder",
-			UserId:   session.UserId,
-			Status:   "active",
-			Parts:    nil,
+			Name:      "root",
+			Type:      "folder",
+			MimeType:  "drive/folder",
+			UserId:    session.UserId,
+			Status:    "active",
+			UpdatedAt: utils.Ptr(time.Now().UTC()),
 		}
 		if err := a.db.Clauses(clause.OnConflict{DoNothing: true}).Create(file).Error; err != nil {
 			return err

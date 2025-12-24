@@ -13,7 +13,7 @@ func ToFileOut(file models.File) *api.File {
 		Type:      api.FileType(file.Type),
 		MimeType:  api.NewOptString(file.MimeType),
 		Encrypted: api.NewOptBool(*file.Encrypted),
-		UpdatedAt: api.NewOptDateTime(file.UpdatedAt),
+		UpdatedAt: api.NewOptDateTime(*file.UpdatedAt),
 	}
 	if file.ParentId != nil {
 		res.ParentId = api.NewOptString(*file.ParentId)
@@ -21,8 +21,8 @@ func ToFileOut(file models.File) *api.File {
 	if file.Size != nil {
 		res.Size = api.NewOptInt64(*file.Size)
 	}
-	if file.Category != "" {
-		res.Category = api.NewOptCategory(api.Category(file.Category))
+	if file.Category != nil && *file.Category != "" {
+		res.Category = api.NewOptCategory(api.Category(*file.Category))
 	}
 	return res
 }

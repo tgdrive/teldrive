@@ -20,7 +20,7 @@ import (
 
 func getParts(ctx context.Context, client *telegram.Client, c cache.Cacher, file *models.File) ([]types.Part, error) {
 	return cache.Fetch(c, cache.Key("files", "messages", file.ID), 60*time.Minute, func() ([]types.Part, error) {
-		messages, err := tgc.GetMessages(ctx, client.API(), utils.Map(file.Parts, func(part api.Part) int {
+		messages, err := tgc.GetMessages(ctx, client.API(), utils.Map(*file.Parts, func(part api.Part) int {
 			return part.ID
 		}), *file.ChannelId)
 
@@ -40,9 +40,9 @@ func getParts(ctx context.Context, client *telegram.Client, c cache.Cacher, file
 					continue
 				}
 				part := types.Part{
-					ID:   int64(file.Parts[i].ID),
+					ID:   int64((*file.Parts)[i].ID),
 					Size: document.Size,
-					Salt: file.Parts[i].Salt.Value,
+					Salt: (*file.Parts)[i].Salt.Value,
 				}
 				if *file.Encrypted {
 					part.DecryptedSize, _ = crypt.DecryptedSize(document.Size)
@@ -50,10 +50,10 @@ func getParts(ctx context.Context, client *telegram.Client, c cache.Cacher, file
 				parts = append(parts, part)
 			}
 		}
-		if len(parts) != len(file.Parts) {
+		if len(parts) != len(*file.Parts) {
 			msg := "file parts mismatch"
 			logging.FromContext(ctx).Error(msg, zap.String("name", file.Name),
-				zap.Int("expected", len(file.Parts)), zap.Int("actual", len(parts)))
+				zap.Int("expected", len(*file.Parts)), zap.Int("actual", len(parts)))
 			return nil, errors.New(msg)
 		}
 		return parts, nil

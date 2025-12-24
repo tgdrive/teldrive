@@ -1,0 +1,67 @@
+cache:
+  max-size: 10485760
+  redis-addr: ""
+  redis-pass: ""
+
+cronjobs:
+  clean-files-interval: "1h"
+  clean-uploads-interval: "12h"
+  enable: true
+  folder-size-interval: "2h"
+  locker-instance: "cron-locker"
+
+db:
+  data-source: ""
+  log-level: "info"
+  prepare-stmt: true
+  pool:
+    enable: true
+    max-idle-connections: 25
+    max-lifetime: "10m"
+    max-open-connections: 25
+
+jwt:
+  session-time: "30d"
+  secret: ""
+  allowed-users: []
+
+log:
+  file: ""
+  level: "info"
+
+server:
+  enable-pprof: false
+  graceful-shutdown: "10s"
+  port: 8080
+  read-timeout: "1h"
+  write-timeout: "1h"
+
+tg:
+  app-hash: "8da85b0d5bfe62527e5b244c209159c3"
+  app-id: 2496
+  app-version: "6.1.4 K"
+  auto-channel-create: true
+  channel-limit: 500000
+  device-model: "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/116.0"
+  enable-logging: false
+  lang-code: "en"
+  lang-pack: "webk"
+  ntp: false
+  pool-size: 8
+  proxy: ""
+  rate: 100
+  rate-burst: 5
+  rate-limit: true
+  reconnect-timeout: "5m"
+  session-instance: "teldrive"
+  system-lang-code: "en-US"
+  system-version: "Win32"
+  stream:
+    buffers: 8
+    chunk-timeout: "20s"
+    concurrency: 1
+  uploads:
+    encryption-key: ""
+    max-retries: 10
+    retention: "7d"
+    threads: 8
