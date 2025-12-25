@@ -186,16 +186,43 @@ func (afb *fileQueryBuilder) applyCategoryFilter(query *gorm.DB, categories []ap
 }
 
 func (afb *fileQueryBuilder) buildFileQuery(query *gorm.DB, filesQuery *api.FilesListParams, userId int64) *gorm.DB {
-	orderField := utils.CamelToSnake(string(filesQuery.Sort.Value))
+	orderField := getValidSortField(filesQuery.Sort.Value)
+	orderDir := getValidOrderDirection(filesQuery.Order.Value)
 	op := getOrderOperation(filesQuery)
 
 	return afb.buildSubqueryCTE(query, filesQuery, userId).Clauses(exclause.NewWith("ranked_scores", afb.db.Model(&models.File{}).Select(orderField, "count(*) OVER () as total",
-		fmt.Sprintf("ROW_NUMBER() OVER (ORDER BY %s %s) AS rank", orderField, strings.ToUpper(string(filesQuery.Order.Value)))).
+		fmt.Sprintf("ROW_NUMBER() OVER (ORDER BY %s %s) AS rank", orderField, orderDir)).
 		Where(query))).Model(&models.File{}).
 		Select(selectedFields, "(select total from ranked_scores limit 1) as total").
 		Where(fmt.Sprintf("%s %s (SELECT %s FROM ranked_scores WHERE rank = ?)", orderField, op, orderField),
 			max((filesQuery.Page.Value-1)*filesQuery.Limit.Value, 1)).
 		Where(query).Order(getOrder(filesQuery)).Limit(filesQuery.Limit.Value)
+}
+
+func getValidSortField(sort api.FileQuerySort) string {
+	switch sort {
+	case api.FileQuerySortName:
+		return "name"
+	case api.FileQuerySortUpdatedAt:
+		return "updated_at"
+	case api.FileQuerySortSize:
+		return "size"
+	case api.FileQuerySortID:
+		return "id"
+	default:
+		return "updated_at"
+	}
+}
+
+func getValidOrderDirection(order api.FileQueryOrder) string {
+	switch order {
+	case api.FileQueryOrderAsc:
+		return "ASC"
+	case api.FileQueryOrderDesc:
+		return "DESC"
+	default:
+		return "DESC"
+	}
 }
 
 func (afb *fileQueryBuilder) buildSubqueryCTE(query *gorm.DB, filesQuery *api.FilesListParams, userId int64) *gorm.DB {
@@ -211,8 +238,9 @@ func (afb *fileQueryBuilder) buildSubqueryCTE(query *gorm.DB, filesQuery *api.Fi
 }
 
 func getOrder(filesQuery *api.FilesListParams) string {
-	orderField := utils.CamelToSnake(string(filesQuery.Sort.Value))
-	return fmt.Sprintf("%s %s", orderField, strings.ToUpper(string(filesQuery.Order.Value)))
+	orderField := getValidSortField(filesQuery.Sort.Value)
+	orderDir := getValidOrderDirection(filesQuery.Order.Value)
+	return fmt.Sprintf("%s %s", orderField, orderDir)
 }
 
 func getOrderOperation(filesQuery *api.FilesListParams) string {

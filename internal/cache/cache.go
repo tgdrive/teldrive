@@ -67,8 +67,8 @@ func (m *MemoryCache) Get(key string, value any) error {
 }
 
 func (m *MemoryCache) Set(key string, value any, expiration time.Duration) error {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	key = m.prefix + key
 	data, err := msgpack.Marshal(value)
 	if err != nil {
@@ -78,8 +78,8 @@ func (m *MemoryCache) Set(key string, value any, expiration time.Duration) error
 }
 
 func (m *MemoryCache) Delete(keys ...string) error {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	for _, key := range keys {
 		m.cache.Del([]byte(m.prefix + key))
 	}
@@ -113,8 +113,8 @@ func (r *RedisCache) Get(key string, value any) error {
 }
 
 func (r *RedisCache) Set(key string, value any, expiration time.Duration) error {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	key = r.prefix + key
 	data, err := msgpack.Marshal(value)
 	if err != nil {
@@ -124,8 +124,8 @@ func (r *RedisCache) Set(key string, value any, expiration time.Duration) error 
 }
 
 func (r *RedisCache) Delete(keys ...string) error {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	for i := range keys {
 		keys[i] = r.prefix + keys[i]
 	}

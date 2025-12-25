@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cenkalti/backoff/v4"
 	"github.com/gotd/contrib/storage"
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/telegram/message/peer"
@@ -221,7 +222,6 @@ func (cm *ChannelManager) AddBotsToChannel(ctx context.Context, userId int64, ch
 	if err != nil {
 		return err
 	}
-	botInfoMap := make(map[string]*types.BotInfo)
 
 	err = RunWithAuth(ctx, client, "", func(ctx context.Context) error {
 
@@ -231,83 +231,112 @@ func (cm *ChannelManager) AddBotsToChannel(ctx context.Context, userId int64, ch
 			return err
 		}
 
-		g, _ := errgroup.WithContext(ctx)
+		errChan := make(chan error, len(botsTokens))
 
-		g.SetLimit(8)
+		infoChan := make(chan *types.BotInfo, len(botsTokens))
 
-		mapMu := sync.Mutex{}
+		g, ctx := errgroup.WithContext(ctx)
+
+		g.SetLimit(4)
 
 		for _, token := range botsTokens {
 			g.Go(func() error {
-				info, err := GetBotInfo(ctx, cm.db, cm.cache, cm.cnf, token)
+				var info *types.BotInfo
+
+				backoffCfg := backoff.WithMaxRetries(backoff.NewExponentialBackOff(), 3)
+
+				err := backoff.RetryNotify(func() error {
+					var err error
+					info, err = GetBotInfo(ctx, cm.db, cm.cache, cm.cnf, token)
+					if err != nil {
+						return err
+					}
+
+					peerClass, err := peer.DefaultResolver(client.API()).ResolveDomain(ctx, info.UserName)
+					if err != nil {
+						return err
+					}
+
+					var ok bool
+					botPeer, ok := peerClass.(*tg.InputPeerUser)
+					if !ok {
+						return fmt.Errorf("invalid peer type for bot %s", info.UserName)
+					}
+					info.AccessHash = botPeer.AccessHash
+					payload := &tg.ChannelsEditAdminRequest{
+						Channel: channel,
+						UserID:  tg.InputUserClass(&tg.InputUser{UserID: info.Id, AccessHash: info.AccessHash}),
+						AdminRights: tg.ChatAdminRights{
+							ChangeInfo:     true,
+							PostMessages:   true,
+							EditMessages:   true,
+							DeleteMessages: true,
+							BanUsers:       true,
+							InviteUsers:    true,
+							PinMessages:    true,
+							ManageCall:     true,
+							Other:          true,
+							ManageTopics:   true,
+						},
+						Rank: "bot",
+					}
+
+					_, err = client.API().ChannelsEditAdmin(ctx, payload)
+					if err != nil {
+						return err
+					}
+					return nil
+				}, backoffCfg, nil)
+
 				if err != nil {
-					return err
+					errChan <- err
+					return nil
 				}
-				botPeerClass, err := peer.DefaultResolver(client.API()).ResolveDomain(ctx, info.UserName)
-				if err != nil {
-					return err
-				}
-				botPeer := botPeerClass.(*tg.InputPeerUser)
-				info.AccessHash = botPeer.AccessHash
-				mapMu.Lock()
-				botInfoMap[token] = info
-				mapMu.Unlock()
+				infoChan <- info
 				return nil
 			})
+		}
 
-		}
-		if err = g.Wait(); err != nil {
-			return err
-		}
-		if len(botsTokens) == len(botInfoMap) {
-			users := []tg.InputUser{}
-			for _, info := range botInfoMap {
-				users = append(users, tg.InputUser{UserID: info.Id, AccessHash: info.AccessHash})
-			}
-			for _, user := range users {
-				payload := &tg.ChannelsEditAdminRequest{
-					Channel: channel,
-					UserID:  tg.InputUserClass(&user),
-					AdminRights: tg.ChatAdminRights{
-						ChangeInfo:     true,
-						PostMessages:   true,
-						EditMessages:   true,
-						DeleteMessages: true,
-						BanUsers:       true,
-						InviteUsers:    true,
-						PinMessages:    true,
-						ManageCall:     true,
-						Other:          true,
-						ManageTopics:   true,
-					},
-					Rank: "bot",
+		done := make(chan struct{})
+		go func() {
+			g.Wait()
+			close(infoChan)
+			close(errChan)
+			close(done)
+		}()
+
+		var botInfos []*types.BotInfo
+		var botErrors []error
+
+		for {
+			select {
+			case info, ok := <-infoChan:
+				if ok {
+					botInfos = append(botInfos, info)
 				}
-				_, err := client.API().ChannelsEditAdmin(ctx, payload)
-				if err != nil {
-					return err
+			case botErr, ok := <-errChan:
+				if ok {
+					botErrors = append(botErrors, botErr)
 				}
+			case <-done:
+				if len(botErrors) > 2 {
+					return fmt.Errorf("failed to process %d out of %d bots", len(botErrors), len(botsTokens))
+				}
+				if save && len(botInfos) > 0 {
+					payload := []models.Bot{}
+					for _, info := range botInfos {
+						payload = append(payload, models.Bot{UserId: userId, Token: info.Token, BotId: info.Id})
+					}
+					if err := cm.db.Clauses(clause.OnConflict{DoNothing: true}).Create(&payload).Error; err != nil {
+						return fmt.Errorf("failed to save bots: %w", err)
+					}
+				}
+				return nil
+			case <-ctx.Done():
+				return ctx.Err()
 			}
-		} else {
-			return errors.New("failed to fetch bots")
 		}
-		return nil
 	})
 
-	if err != nil {
-		return err
-	}
-
-	if save {
-		payload := []models.Bot{}
-
-		for _, info := range botInfoMap {
-			payload = append(payload, models.Bot{UserId: userId, Token: info.Token, BotId: info.Id})
-		}
-
-		if err := cm.db.Clauses(clause.OnConflict{DoNothing: true}).Create(&payload).Error; err != nil {
-			return err
-		}
-	}
-	return nil
-
+	return err
 }

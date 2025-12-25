@@ -39,7 +39,6 @@ func Decode(secret string, token string) (*types.JWTClaims, error) {
 		return nil, fmt.Errorf("invalid token")
 	}
 	return claims, err
-
 }
 
 func GetUser(c context.Context) int64 {
