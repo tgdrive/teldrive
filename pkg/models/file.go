@@ -3,8 +3,9 @@ package models
 import (
 	"time"
 
-	"github.com/tgdrive/teldrive/internal/api"
 	"gorm.io/datatypes"
+
+	"github.com/tgdrive/teldrive/internal/api"
 )
 
 type File struct {

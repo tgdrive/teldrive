@@ -25,6 +25,8 @@ type fileResponse struct {
 	Total int
 }
 
+const folderCategory = "folder"
+
 var selectedFields = []string{"id", "name", "type", "mime_type", "category", "channel_id", "encrypted", "size", "parent_id", "updated_at"}
 
 func (afb *fileQueryBuilder) execute(filesQuery *api.FilesListParams, userId int64) (*api.FileList, error) {
@@ -33,7 +35,11 @@ func (afb *fileQueryBuilder) execute(filesQuery *api.FilesListParams, userId int
 	case api.FileQueryOperationList:
 		query = afb.applyListFilters(query, filesQuery, userId)
 	case api.FileQueryOperationFind:
-		query = afb.applyFindFilters(query, filesQuery, userId)
+		var err error
+		query, err = afb.applyFindFilters(query, filesQuery, userId)
+		if err != nil {
+			return nil, &apiError{err: err, code: 400}
+		}
 
 	}
 	query = afb.buildFileQuery(query, filesQuery, userId)
@@ -68,12 +74,16 @@ func (afb *fileQueryBuilder) applyListFilters(query *gorm.DB, filesQuery *api.Fi
 	return query
 }
 
-func (afb *fileQueryBuilder) applyFindFilters(query *gorm.DB, filesQuery *api.FilesListParams, userId int64) *gorm.DB {
+func (afb *fileQueryBuilder) applyFindFilters(query *gorm.DB, filesQuery *api.FilesListParams, userId int64) (*gorm.DB, error) {
+	var err error
 	if filesQuery.DeepSearch.Value && filesQuery.Query.Value != "" && filesQuery.Path.Value != "" {
 		query = query.Where("files.id in (select id  from subdirs)")
 	}
 	if filesQuery.UpdatedAt.Value != "" {
-		query, _ = afb.applyDateFilters(query, filesQuery.UpdatedAt.Value)
+		query, err = afb.applyDateFilters(query, filesQuery.UpdatedAt.Value)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if filesQuery.Query.Value != "" {
@@ -84,7 +94,7 @@ func (afb *fileQueryBuilder) applyFindFilters(query *gorm.DB, filesQuery *api.Fi
 
 	query = afb.applyFileSpecificFilters(query, filesQuery, userId)
 
-	return query
+	return query, nil
 }
 
 func (afb *fileQueryBuilder) applyFileSpecificFilters(query *gorm.DB, filesQuery *api.FilesListParams, userId int64) *gorm.DB {
@@ -167,7 +177,7 @@ func (afb *fileQueryBuilder) applyCategoryFilter(query *gorm.DB, categories []ap
 		return query
 	}
 	var filterQuery *gorm.DB
-	if categories[0] == "folder" {
+	if categories[0] == folderCategory {
 		filterQuery = afb.db.Where("type = ?", categories[0])
 	} else {
 		filterQuery = afb.db.Where("category = ?", categories[0])
@@ -175,7 +185,7 @@ func (afb *fileQueryBuilder) applyCategoryFilter(query *gorm.DB, categories []ap
 
 	if len(categories) > 1 {
 		for _, category := range categories[1:] {
-			if category == "folder" {
+			if category == folderCategory {
 				filterQuery = filterQuery.Or("type = ?", category)
 			} else {
 				filterQuery = filterQuery.Or("category = ?", category)

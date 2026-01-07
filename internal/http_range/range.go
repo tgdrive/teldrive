@@ -24,7 +24,6 @@ func Parse(header string, size int64) ([]*Range, error) {
 		return nil, ErrInvalid
 	}
 
-	size64 := int64(size)
 	arr := strings.Split(header[index+1:], ",")
 	ranges := make([]*Range, 0, len(arr))
 
@@ -39,14 +38,14 @@ func Parse(header string, size int64) ([]*Range, error) {
 
 		// -nnn and nnn-
 		if startErr != nil {
-			start = size64 - end
-			end = size64 - 1
+			start = size - end
+			end = size - 1
 		} else if endErr != nil {
-			end = size64 - 1
+			end = size - 1
 		}
 
-		if end >= size64 {
-			end = size64 - 1
+		if end >= size {
+			end = size - 1
 		}
 
 		if start > end || start < 0 {

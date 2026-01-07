@@ -3,10 +3,11 @@ package events
 import (
 	"context"
 
-	"github.com/tgdrive/teldrive/pkg/models"
 	"go.uber.org/zap"
 	"gorm.io/datatypes"
 	"gorm.io/gorm"
+
+	"github.com/tgdrive/teldrive/pkg/models"
 )
 
 type EventType string
@@ -64,7 +65,7 @@ func (r *Recorder) processEvents() {
 			if err := r.db.Create(&evt).Error; err != nil {
 				r.logger.Error("failed to save event",
 					zap.Error(err),
-					zap.String("type", string(evt.Type)),
+					zap.String("type", string(evt.Type)), //nolint:unconvert
 					zap.Int64("user_id", evt.UserID))
 			}
 		}

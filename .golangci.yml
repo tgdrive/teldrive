@@ -1,0 +1,48 @@
+version: "2"
+linters:
+  default: none
+  enable:
+    - exhaustive
+    - goconst
+    - govet
+    - ineffassign
+    - misspell
+    - nakedret
+    - staticcheck
+    - unconvert
+    - unused
+    - usestdlibvars
+  settings:
+    exhaustive:
+      default-signifies-exhaustive: true
+    nakedret:
+      max-func-lines: 0
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - gci
+    - gofumpt
+  settings:
+    gci:
+      sections:
+        - standard
+        - default
+        - prefix(github.com/tgdrive/teldrive)
+        - dot
+      custom-order: true
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

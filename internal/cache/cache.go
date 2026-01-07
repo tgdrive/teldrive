@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -141,7 +142,7 @@ func Fetch[T any](cache Cacher, key string, expiration time.Duration, fn func() 
 			if err != nil {
 				return zero, err
 			}
-			cache.Set(key, &value, expiration)
+			_ = cache.Set(key, &value, expiration)
 			return value, nil
 		}
 		return zero, err
@@ -192,6 +193,7 @@ func formatValue(v any) string {
 			v := formatValue(val.MapIndex(key).Interface())
 			parts = append(parts, fmt.Sprintf("%s=%s", k, v))
 		}
+		sort.Strings(parts)
 		return fmt.Sprintf("{%s}", strings.Join(parts, ","))
 	case reflect.Struct:
 		return fmt.Sprintf("%+v", v)

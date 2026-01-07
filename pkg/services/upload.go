@@ -143,7 +143,9 @@ func (a *apiService) UploadsUpload(ctx context.Context, req *api.UploadsUploadRe
 
 	uploadPool := pool.NewPool(client, int64(a.cnf.TG.PoolSize), middlewares...)
 
-	defer uploadPool.Close()
+	defer func() {
+		_ = uploadPool.Close()
+	}()
 
 	logger := logging.FromContext(ctx)
 
@@ -167,7 +169,11 @@ func (a *apiService) UploadsUpload(ctx context.Context, req *api.UploadsUploadRe
 		var salt string
 
 		if params.Encrypted.Value {
-			salt, _ = generateRandomSalt()
+			logger.Debug("upload: preparing encryption", zap.String("partName", params.PartName))
+			salt, err = generateRandomSalt()
+			if err != nil {
+				return err
+			}
 			cipher, err := crypt.NewCipher(a.cnf.TG.Uploads.EncryptionKey, salt)
 			if err != nil {
 				return err
@@ -180,6 +186,8 @@ func (a *apiService) UploadsUpload(ctx context.Context, req *api.UploadsUploadRe
 		}
 
 		client := uploadPool.Default(ctx)
+
+		logger.Debug("upload: starting telegram upload", zap.String("partName", params.PartName), zap.Int64("size", fileSize))
 
 		u := uploader.NewUploader(client).WithThreads(a.cnf.TG.Uploads.Threads).WithPartSize(512 * 1024)
 
@@ -202,6 +210,8 @@ func (a *apiService) UploadsUpload(ctx context.Context, req *api.UploadsUploadRe
 			return err
 		}
 
+		logger.Debug("upload: telegram upload complete", zap.String("partName", params.PartName))
+
 		updates := res.(*tg.Updates)
 
 		var message *tg.Message
@@ -215,8 +225,10 @@ func (a *apiService) UploadsUpload(ctx context.Context, req *api.UploadsUploadRe
 		}
 
 		if message.ID == 0 {
-			return fmt.Errorf("upload failed")
+			return fmt.Errorf("upload failed: invalid message ID 0 from telegram")
 		}
+
+		logger.Debug("upload: saving to database", zap.String("partName", params.PartName))
 
 		partUpload := &models.Upload{
 			Name:      params.PartName,
@@ -250,7 +262,7 @@ func (a *apiService) UploadsUpload(ctx context.Context, req *api.UploadsUploadRe
 				return ErrUploadFailed
 			}
 			if doc.Size != fileSize {
-				client.ChannelsDeleteMessages(ctx, &tg.ChannelsDeleteMessagesRequest{Channel: channel, ID: []int{message.ID}})
+				_, _ = client.ChannelsDeleteMessages(ctx, &tg.ChannelsDeleteMessagesRequest{Channel: channel, ID: []int{message.ID}})
 				return ErrUploadFailed
 			}
 		default:

@@ -39,7 +39,7 @@ type uploadResult struct {
 type CronService struct {
 	db     *gorm.DB
 	cnf    *config.ServerCmdConfig
-	logger *zap.SugaredLogger
+	logger *zap.Logger
 }
 
 func StartCronJobs(ctx context.Context, db *gorm.DB, cnf *config.ServerCmdConfig) error {
@@ -63,22 +63,34 @@ func StartCronJobs(ctx context.Context, db *gorm.DB, cnf *config.ServerCmdConfig
 		return err
 	}
 
-	cron := CronService{db: db, cnf: cnf, logger: logging.DefaultLogger().Sugar()}
-	scheduler.NewJob(gocron.DurationJob(cnf.CronJobs.CleanFilesInterval),
+	cron := CronService{db: db, cnf: cnf, logger: logging.DefaultLogger()}
+	_, err = scheduler.NewJob(gocron.DurationJob(cnf.CronJobs.CleanFilesInterval),
 		gocron.NewTask(cron.cleanFiles, ctx))
-	scheduler.NewJob(gocron.DurationJob(cnf.CronJobs.FolderSizeInterval),
+	if err != nil {
+		return err
+	}
+	_, err = scheduler.NewJob(gocron.DurationJob(cnf.CronJobs.FolderSizeInterval),
 		gocron.NewTask(cron.updateFolderSize))
-	scheduler.NewJob(gocron.DurationJob(cnf.CronJobs.CleanUploadsInterval),
+	if err != nil {
+		return err
+	}
+	_, err = scheduler.NewJob(gocron.DurationJob(cnf.CronJobs.CleanUploadsInterval),
 		gocron.NewTask(cron.cleanUploads, ctx))
-	scheduler.NewJob(gocron.DurationJob(time.Hour*12),
+	if err != nil {
+		return err
+	}
+	_, err = scheduler.NewJob(gocron.DurationJob(time.Hour*12),
 		gocron.NewTask(cron.cleanOldEvents))
+	if err != nil {
+		return err
+	}
 
 	scheduler.Start()
 	return nil
 }
 
 func (c *CronService) cleanFiles(ctx context.Context) {
-	c.logger.Debugf("running clean-files")
+	c.logger.Debug("running clean-files")
 	var results []result
 	if err := c.db.Table("teldrive.files as f").
 		Select("JSONB_AGG(jsonb_build_object('id', f.id, 'parts', f.parts)) as files,f.channel_id,f.user_id,s.session").
@@ -124,7 +136,7 @@ func (c *CronService) cleanFiles(ctx context.Context) {
 		err := tgc.DeleteMessages(ctx, client, row.ChannelId, ids)
 
 		if err != nil {
-			c.logger.Errorw("failed to delete messages", err)
+			c.logger.Error("failed to delete messages", zap.Error(err))
 			return
 		}
 
@@ -136,12 +148,12 @@ func (c *CronService) cleanFiles(ctx context.Context) {
 
 		c.db.Where("id = any($1)", items).Delete(&models.File{})
 
-		c.logger.Infow("cleaned files", "user", row.UserId, "channel", row.ChannelId)
+		c.logger.Info("cleaned files", zap.Int64("user", row.UserId), zap.Int64("channel", row.ChannelId))
 	}
 }
 
 func (c *CronService) cleanUploads(ctx context.Context) {
-	c.logger.Debugf("running clean-uploads")
+	c.logger.Debug("running clean-uploads")
 	var results []uploadResult
 	if err := c.db.Table("teldrive.uploads as up").
 		Select("JSONB_AGG(up.part_id) as parts,up.channel_id,up.user_id,s.session").
@@ -171,7 +183,7 @@ func (c *CronService) cleanUploads(ctx context.Context) {
 
 			err := tgc.DeleteMessages(ctx, client, result.ChannelId, result.Parts)
 			if err != nil {
-				c.logger.Errorw("failed to delete messages", err)
+				c.logger.Error("failed to delete messages", zap.Error(err))
 				return
 			}
 		}
@@ -187,7 +199,7 @@ func (c *CronService) cleanUploads(ctx context.Context) {
 }
 
 func (c *CronService) updateFolderSize() {
-	c.logger.Debugf("running folder-size")
+	c.logger.Debug("running folder-size")
 	c.db.Exec("call teldrive.update_size();")
 }
 

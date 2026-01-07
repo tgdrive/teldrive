@@ -78,11 +78,6 @@ func parseDurationFromNow(age string) (d time.Duration, err error) {
 	return d, err
 }
 
-func newDurationValue(val time.Duration, p *time.Duration) *Duration {
-	*p = val
-	return (*Duration)(p)
-}
-
 func ParseDuration(age string) (time.Duration, error) {
 	return parseDurationFromNow(age)
 }

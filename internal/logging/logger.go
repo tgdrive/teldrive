@@ -11,7 +11,7 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-type contextKey = string
+type contextKey string
 
 const loggerKey = contextKey("logger")
 
@@ -45,7 +45,6 @@ func NewLogger(conf *Config) *zap.Logger {
 	ec := zap.NewProductionEncoderConfig()
 	ec.EncodeTime = zapcore.ISO8601TimeEncoder
 	ec.EncodeLevel = zapcore.CapitalColorLevelEncoder
-	ec.CallerKey = ""
 	ec.EncodeTime = func(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
 		enc.AppendString(t.Format("02/01/2006 03:04 PM"))
 	}

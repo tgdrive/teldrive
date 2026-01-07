@@ -192,10 +192,14 @@ func GetMediaContent(ctx context.Context, client *tg.Client, location tg.InputFi
 func GetBotInfo(ctx context.Context, db *gorm.DB, cache cache.Cacher, config *config.TGConfig, token string) (*types.BotInfo, error) {
 	var user *tg.User
 	middlewares := NewMiddleware(config, WithFloodWait(), WithRateLimit())
-	client, _ := BotClient(ctx, db, cache, config, token, middlewares...)
-	err := RunWithAuth(ctx, client, token, func(ctx context.Context) error {
-		user, _ = client.Self(ctx)
-		return nil
+	client, err := BotClient(ctx, db, cache, config, token, middlewares...)
+	if err != nil {
+		return nil, err
+	}
+	err = RunWithAuth(ctx, client, token, func(ctx context.Context) error {
+		var err error
+		user, err = client.Self(ctx)
+		return err
 	})
 	if err != nil {
 		return nil, err

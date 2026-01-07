@@ -17,10 +17,10 @@ const msgPrefix = "[DB] "
 
 type Logger struct {
 	cfg glogger.Config
-	lg  *zap.SugaredLogger
+	lg  *zap.Logger
 }
 
-func NewLogger(lg *zap.SugaredLogger, slowThreshold time.Duration, ignoreRecordNotFoundError bool, level zapcore.Level) *Logger {
+func NewLogger(lg *zap.Logger, slowThreshold time.Duration, ignoreRecordNotFoundError bool, level zapcore.Level) *Logger {
 	cfg := glogger.Config{
 		SlowThreshold:             slowThreshold,
 		Colorful:                  false,
@@ -47,19 +47,19 @@ func (l *Logger) LogMode(level glogger.LogLevel) glogger.Interface {
 
 func (l *Logger) Info(ctx context.Context, s string, i ...any) {
 	if l.cfg.LogLevel >= glogger.Info {
-		l.lg.Infof(msgPrefix+s, i)
+		l.lg.Info(fmt.Sprintf(msgPrefix+s, i...))
 	}
 }
 
 func (l *Logger) Warn(ctx context.Context, s string, i ...any) {
 	if l.cfg.LogLevel >= glogger.Warn {
-		l.lg.Warnf(msgPrefix+s, i)
+		l.lg.Warn(fmt.Sprintf(msgPrefix+s, i...))
 	}
 }
 
 func (l *Logger) Error(ctx context.Context, s string, i ...any) {
 	if l.cfg.LogLevel >= glogger.Error {
-		l.lg.Errorf(msgPrefix+s, i)
+		l.lg.Error(fmt.Sprintf(msgPrefix+s, i...))
 	}
 }
 
@@ -69,36 +69,25 @@ func (l *Logger) Trace(ctx context.Context, begin time.Time, fc func() (string, 
 	}
 
 	elapsed := time.Since(begin)
-	logger := l.lg
+	duration := float64(elapsed.Nanoseconds()) / 1e6
 
-	const (
-		traceStr     = msgPrefix + "%s\n[%.3fms] [rows:%v] %s"
-		traceWarnStr = msgPrefix + "%s %s\n[%.3fms] [rows:%v] %s"
-		traceErrStr  = msgPrefix + "%s %s\n[%.3fms] [rows:%v] %s"
-	)
+	sql, rows := fc()
+
+	fields := []zap.Field{
+		zap.String("source", utils.FileWithLineNum()),
+		zap.Float64("duration_ms", duration),
+		zap.String("sql", sql),
+	}
+	if rows != -1 {
+		fields = append(fields, zap.Int64("rows", rows))
+	}
 
 	switch {
 	case err != nil && l.cfg.LogLevel >= glogger.Error && (!errors.Is(err, gorm.ErrRecordNotFound) || !l.cfg.IgnoreRecordNotFoundError):
-		sql, rows := fc()
-		if rows == -1 {
-			logger.Errorf(traceErrStr, utils.FileWithLineNum(), err, float64(elapsed.Nanoseconds())/1e6, "-", sql)
-		} else {
-			logger.Errorf(traceErrStr, utils.FileWithLineNum(), err, float64(elapsed.Nanoseconds())/1e6, rows, sql)
-		}
+		l.lg.Error("trace error", append(fields, zap.Error(err))...)
 	case elapsed > l.cfg.SlowThreshold && l.cfg.SlowThreshold != 0 && l.cfg.LogLevel >= glogger.Warn:
-		sql, rows := fc()
-		slowLog := fmt.Sprintf("SLOW SQL >= %v", l.cfg.SlowThreshold)
-		if rows == -1 {
-			logger.Warnf(traceWarnStr, utils.FileWithLineNum(), slowLog, float64(elapsed.Nanoseconds())/1e6, "-", sql)
-		} else {
-			logger.Warnf(traceWarnStr, utils.FileWithLineNum(), slowLog, float64(elapsed.Nanoseconds())/1e6, rows, sql)
-		}
+		l.lg.Warn("slow sql", append(fields, zap.Duration("threshold", l.cfg.SlowThreshold))...)
 	case l.cfg.LogLevel == glogger.Info:
-		sql, rows := fc()
-		if rows == -1 {
-			logger.Infof(traceStr, utils.FileWithLineNum(), float64(elapsed.Nanoseconds())/1e6, "-", sql)
-		} else {
-			logger.Infof(traceStr, utils.FileWithLineNum(), float64(elapsed.Nanoseconds())/1e6, rows, sql)
-		}
+		l.lg.Info("trace", fields...)
 	}
 }

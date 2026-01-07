@@ -30,7 +30,10 @@ func RunWithAuth(ctx context.Context, client *telegram.Client, token string, f f
 				if err != nil {
 					return err
 				}
-				status, _ = client.Auth().Status(ctx)
+				status, err = client.Auth().Status(ctx)
+				if err != nil {
+					return err
+				}
 				logger.Debug("Bot Session",
 					zap.Int64("id", status.User.ID),
 					zap.String("username", status.User.Username))

@@ -82,7 +82,7 @@ func (a *apiService) NewError(ctx context.Context, err error) *api.ErrorStatusCo
 			code = apiError.code
 			message = apiError.Error()
 		}
-		logging.FromContext(ctx).Error("api error", zap.Error(apiError))
+		logging.FromContext(ctx).Error("api error", zap.Error(apiError.err))
 	}
 	return &api.ErrorStatusCode{StatusCode: code, Response: api.Error{Code: code, Message: message}}
 }
@@ -93,7 +93,7 @@ func NewApiService(db *gorm.DB,
 	worker *tgc.BotWorker,
 	events *events.Recorder) *apiService {
 
-	middlewares := tgc.NewMiddleware(&cnf.TG, tgc.WithFloodWait(), tgc.WithRateLimit())
+	middlewares := tgc.NewMiddleware(&cnf.TG, tgc.WithFloodWait(), tgc.WithRateLimit(), tgc.WithRetry(5))
 
 	return &apiService{
 		db:             db,

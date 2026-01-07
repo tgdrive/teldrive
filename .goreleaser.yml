@@ -38,57 +38,27 @@ archives:
   - name_template: "{{ .ProjectName }}-{{ .Tag }}-{{ .Os }}-{{ .Arch }}"
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
     files:
       - README*.md
       - LICENSE
 
-dockers:
-  - image_templates:
-      - "ghcr.io/tgdrive/{{ .ProjectName }}:{{ .Tag }}-amd64"
-      - "docker.io/{{ .ProjectName }}/{{ .ProjectName }}:{{ .Tag }}-amd64"
-    use: buildx
+dockers_v2:
+  - images:
+      - "ghcr.io/tgdrive/{{ .ProjectName }}"
+      - "docker.io/{{ .ProjectName }}/{{ .ProjectName }}"
+    tags:
+      - "{{ .Tag }}"
+      - "latest"
     dockerfile: goreleaser.dockerfile
-    build_flag_templates:
-      - "--platform=linux/amd64"
-      - "--label=org.opencontainers.image.created={{.Date}}"
-      - "--label=org.opencontainers.image.title={{.ProjectName}}"
-      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-      - "--label=org.opencontainers.image.version={{.Version}}"
-
-  - image_templates:
-      - "ghcr.io/tgdrive/{{ .ProjectName }}:{{ .Tag }}-arm64"
-      - "docker.io/{{ .ProjectName }}/{{ .ProjectName }}:{{ .Tag }}-arm64"
-    use: buildx
-    dockerfile: goreleaser.dockerfile
-    goarch: arm64
-    build_flag_templates:
-      - "--platform=linux/arm64/v8"
-      - "--label=org.opencontainers.image.created={{.Date}}"
-      - "--label=org.opencontainers.image.title={{.ProjectName}}"
-      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-      - "--label=org.opencontainers.image.version={{.Version}}"
-
-docker_manifests:
-  - name_template: "ghcr.io/tgdrive/{{ .ProjectName }}:{{ .Tag }}"
-    image_templates:
-      - "ghcr.io/tgdrive/{{ .ProjectName }}:{{ .Tag }}-amd64"
-      - "ghcr.io/tgdrive/{{ .ProjectName }}:{{ .Tag }}-arm64"
-
-  - name_template: "ghcr.io/tgdrive/{{ .ProjectName }}:latest"
-    image_templates:
-      - "ghcr.io/tgdrive/{{ .ProjectName }}:{{ .Tag }}-amd64"
-      - "ghcr.io/tgdrive/{{ .ProjectName }}:{{ .Tag }}-arm64"
-
-  - name_template: "docker.io/{{ .ProjectName }}/{{ .ProjectName }}:{{ .Tag }}"
-    image_templates:
-      - "docker.io/{{ .ProjectName }}/{{ .ProjectName }}:{{ .Tag }}-amd64"
-      - "docker.io/{{ .ProjectName }}/{{ .ProjectName }}:{{ .Tag }}-arm64"
-
-  - name_template: "docker.io/{{ .ProjectName }}/{{ .ProjectName }}:latest"
-    image_templates:
-      - "docker.io/{{ .ProjectName }}/{{ .ProjectName }}:{{ .Tag }}-amd64"
-      - "docker.io/{{ .ProjectName }}/{{ .ProjectName }}:{{ .Tag }}-arm64"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    labels:
+      "org.opencontainers.image.created": "{{.Date}}"
+      "org.opencontainers.image.title": "{{.ProjectName}}"
+      "org.opencontainers.image.revision": "{{.FullCommit}}"
+      "org.opencontainers.image.version": "{{.Version}}"
 
 changelog:
   use: github

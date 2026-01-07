@@ -15,9 +15,11 @@ import (
 	"github.com/tgdrive/teldrive/internal/auth"
 	"github.com/tgdrive/teldrive/internal/cache"
 	"github.com/tgdrive/teldrive/internal/config"
+	"github.com/tgdrive/teldrive/internal/logging"
 	"github.com/tgdrive/teldrive/internal/tgstorage"
 	"github.com/tgdrive/teldrive/pkg/models"
 	"github.com/tgdrive/teldrive/pkg/types"
+	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -68,17 +70,21 @@ func (cm *ChannelManager) GetChannelForUpload(ctx context.Context, userID int64)
 	mutex.Lock()
 	defer mutex.Unlock()
 
+	logger := logging.FromContext(ctx)
+
 	currentChannelID, err := cm.CurrentChannel(userID)
 	if err != nil && err != ErrNoDefaultChannel {
 		return 0, err
 	}
 	if err == ErrNoDefaultChannel || (cm.isChannelNearLimit(currentChannelID) && cm.cnf.AutoChannelCreate) {
+		logger.Debug("channel limit reached or no default channel, creating new channel")
 		newChannelID, err := cm.CreateNewChannel(ctx, "", userID, true)
 		if err != nil {
 			return 0, err
 		}
 		return newChannelID, nil
 	}
+	logger.Debug("using existing channel", zap.Int64("channelId", currentChannelID))
 	return currentChannelID, nil
 }
 

@@ -15,6 +15,7 @@ import (
 const (
 	installer = "https://instl.vercel.app"
 	repo      = "tgdrive/teldrive"
+	windowsOS = "windows"
 )
 
 type scriptExecutor struct {

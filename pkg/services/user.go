@@ -41,10 +41,10 @@ func (a *apiService) UsersAddBots(ctx context.Context, req *api.AddBots) error {
 		}
 		if len(channels) > 0 {
 			for _, channel := range channels {
-				a.channelManager.AddBotsToChannel(ctx, userID, channel, req.Bots, false)
+				_ = a.channelManager.AddBotsToChannel(ctx, userID, channel, req.Bots, false)
 			}
 		}
-		a.cache.Delete(cache.Key("users", "bots", userID))
+		_ = a.cache.Delete(cache.Key("users", "bots", userID))
 	}
 	return nil
 
@@ -119,7 +119,7 @@ func (a *apiService) UsersDeleteChannel(ctx context.Context, params api.UsersDel
 	a.db.Where("channel_id = ?", channelId).Delete(&models.Channel{})
 	peer := storage.Peer{}
 	peer.FromChat(channel)
-	peerStorage.Delete(ctx, storage.KeyFromPeer(peer))
+	_ = peerStorage.Delete(ctx, storage.KeyFromPeer(peer))
 	return nil
 }
 
@@ -182,7 +182,7 @@ func (a *apiService) UsersListSessions(ctx context.Context) ([]api.UserSession, 
 			if auth != nil {
 				for _, a := range auth.Authorizations {
 					if session.SessionDate == a.DateCreated {
-						s.AppName = api.NewOptString(strings.Trim(strings.Replace(a.AppName, "Telegram", "", -1), " "))
+						s.AppName = api.NewOptString(strings.Trim(strings.ReplaceAll(a.AppName, "Telegram", ""), " "))
 						s.Location = api.NewOptString(a.Country)
 						s.OfficialApp = api.NewOptBool(a.OfficialApp)
 						s.Valid = true
@@ -249,7 +249,7 @@ func (a *apiService) UsersRemoveBots(ctx context.Context) error {
 	if err := a.db.Where("user_id = ?", userId).Delete(&models.Bot{}).Error; err != nil {
 		return &apiError{err: err}
 	}
-	a.cache.Delete(cache.Key("users", "bots", userId))
+	_ = a.cache.Delete(cache.Key("users", "bots", userId))
 
 	return nil
 }
@@ -265,7 +265,7 @@ func (a *apiService) UsersRemoveSession(ctx context.Context, params api.UsersRem
 
 	client, _ := tgc.AuthClient(ctx, &a.cnf.TG, session.Session, a.middlewares...)
 
-	client.Run(ctx, func(ctx context.Context) error {
+	_ = client.Run(ctx, func(ctx context.Context) error {
 		_, err := client.API().AuthLogOut(ctx)
 		if err != nil {
 			return err
@@ -274,7 +274,7 @@ func (a *apiService) UsersRemoveSession(ctx context.Context, params api.UsersRem
 	})
 
 	a.db.Where("user_id = ?", userId).Where("hash = ?", session.Hash).Delete(&models.Session{})
-	a.cache.Delete(cache.Key("users", "sessions", userId))
+	_ = a.cache.Delete(cache.Key("users", "sessions", userId))
 
 	return nil
 }
@@ -320,6 +320,6 @@ func (a *apiService) UsersUpdateChannel(ctx context.Context, req *api.ChannelUpd
 	a.db.Model(&models.Channel{}).Where("channel_id != ?", channel.ChannelId).
 		Where("user_id = ?", userId).Update("selected", false)
 
-	a.cache.Set(cache.Key("users", "channel", userId), channel.ChannelId, 0)
+	_ = a.cache.Set(cache.Key("users", "channel", userId), channel.ChannelId, 0)
 	return nil
 }

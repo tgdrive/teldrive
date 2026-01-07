@@ -14,7 +14,6 @@ import (
 var (
 	versionFile = "VERSION"
 	versionFlag bool
-	commitFlag  bool
 )
 
 func init() {

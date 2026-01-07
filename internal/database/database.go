@@ -1,9 +1,8 @@
 package database
 
 import (
-	"time"
-
 	"context"
+	"time"
 
 	extraClausePlugin "github.com/WinterYukky/gorm-extra-clause-plugin"
 	"github.com/tgdrive/teldrive/internal/config"
@@ -14,7 +13,7 @@ import (
 	"gorm.io/gorm/schema"
 )
 
-func NewDatabase(ctx context.Context, cfg *config.DBConfig, lg *zap.SugaredLogger) (*gorm.DB, error) {
+func NewDatabase(ctx context.Context, cfg *config.DBConfig, lg *zap.Logger) (*gorm.DB, error) {
 	level, err := zapcore.ParseLevel(cfg.LogLevel)
 	if err != nil {
 		level = zapcore.InfoLevel
@@ -43,13 +42,13 @@ func NewDatabase(ctx context.Context, cfg *config.DBConfig, lg *zap.SugaredLogge
 			if err == nil {
 				break
 			}
-			lg.Warnf("failed to open database: %v", err)
+			lg.Warn("failed to open database", zap.Error(err))
 			time.Sleep(500 * time.Millisecond)
 		}
 
 	}
 	if err != nil {
-		lg.Fatalf("database: %v", err)
+		lg.Fatal("database", zap.Error(err))
 	}
 
 	db.Use(extraClausePlugin.New())

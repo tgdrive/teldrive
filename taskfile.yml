@@ -38,6 +38,11 @@ tasks:
     cmds:
       - go generate ./...
 
+  lint:
+    desc: Run linters
+    cmds:
+      - golangci-lint run
+
   server:
     desc: Build Server
     deps: [gen]
