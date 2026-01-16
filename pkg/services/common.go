@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/gotd/td/telegram"
@@ -16,10 +17,11 @@ import (
 	"github.com/tgdrive/teldrive/pkg/models"
 	"github.com/tgdrive/teldrive/pkg/types"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 )
 
 func getParts(ctx context.Context, client *telegram.Client, c cache.Cacher, file *models.File) ([]types.Part, error) {
-	return cache.Fetch(c, cache.Key("files", "messages", file.ID), 60*time.Minute, func() ([]types.Part, error) {
+	return cache.Fetch(ctx, c, cache.KeyFileMessages(file.ID), 60*time.Minute, func() ([]types.Part, error) {
 		messages, err := tgc.GetMessages(ctx, client.API(), utils.Map(*file.Parts, func(part api.Part) int {
 			return part.ID
 		}), *file.ChannelId)
@@ -58,4 +60,41 @@ func getParts(ctx context.Context, client *telegram.Client, c cache.Cacher, file
 		}
 		return parts, nil
 	})
+}
+
+func resolvePathID(db *gorm.DB, path string, userId int64) (*string, error) {
+	if !strings.HasPrefix(path, "/root") {
+		path = "/root/" + strings.Trim(path, "/")
+	}
+	var id string
+	query := `
+	WITH RECURSIVE path_parts AS (
+		SELECT ordinality as depth, part as name
+		FROM unnest(string_to_array(trim(both '/' from ?), '/')) WITH ORDINALITY as part
+	),
+	max_depth AS (
+		SELECT max(depth) as val FROM path_parts
+	),
+	hierarchy AS (
+		SELECT f.id, 1 as depth
+		FROM teldrive.files f
+		JOIN path_parts p ON p.depth = 1 AND f.name = p.name
+		WHERE f.user_id = ? AND f.parent_id IS NULL AND f.status = 'active'
+		UNION ALL
+		SELECT child.id, h.depth + 1
+		FROM teldrive.files child
+		JOIN hierarchy h ON child.parent_id = h.id
+		JOIN path_parts p ON p.depth = h.depth + 1 AND child.name = p.name
+		JOIN max_depth md ON h.depth < md.val
+		WHERE child.status = 'active'
+	)
+	SELECT id FROM hierarchy WHERE depth = (SELECT val FROM max_depth) LIMIT 1;
+	`
+	if err := db.Raw(query, path, userId).Scan(&id).Error; err != nil {
+		return nil, err
+	}
+	if id == "" {
+		return nil, gorm.ErrRecordNotFound
+	}
+	return &id, nil
 }

@@ -250,6 +250,7 @@ type decrypter struct {
 	err          error
 	limit        int64
 	open         OpenRangeSeek
+	ctx          context.Context
 }
 
 func (c *Cipher) newDecrypter(rc io.ReadCloser) (*decrypter, error) {
@@ -309,10 +310,11 @@ func (c *Cipher) newDecrypterSeek(ctx context.Context, open OpenRangeSeek, offse
 		return nil, err
 	}
 	fh.open = open
+	fh.ctx = ctx
 	if doRangeSeek {
 		_, err = fh.RangeSeek(ctx, offset, io.SeekStart, limit)
 		if err != nil {
-			_ = fh.Close()
+			fh.Close()
 			return nil, err
 		}
 	}
@@ -454,7 +456,11 @@ func (fh *decrypter) RangeSeek(ctx context.Context, offset int64, whence int, li
 }
 
 func (fh *decrypter) Seek(offset int64, whence int) (int64, error) {
-	return fh.RangeSeek(context.TODO(), offset, whence, -1)
+	ctx := fh.ctx
+	if ctx == nil {
+		ctx = context.TODO()
+	}
+	return fh.RangeSeek(ctx, offset, whence, -1)
 }
 
 func (fh *decrypter) finish(err error) error {
@@ -489,7 +495,7 @@ func (fh *decrypter) Close() error {
 	}
 
 	if fh.err == nil {
-		_ = fh.finish(io.EOF)
+		fh.finish(io.EOF)
 	}
 
 	fh.err = ErrorFileClosed
@@ -500,8 +506,8 @@ func (fh *decrypter) Close() error {
 }
 
 func (fh *decrypter) finishAndClose(err error) error {
-	_ = fh.finish(err)
-	_ = fh.Close()
+	fh.finish(err)
+	fh.Close()
 	return err
 }
 

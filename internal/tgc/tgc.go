@@ -98,18 +98,17 @@ func AuthClient(ctx context.Context, config *config.TGConfig, sessionStr string,
 		loader  = session.Loader{Storage: storage}
 	)
 
-	if err := loader.Save(context.TODO(), data); err != nil {
+	if err := loader.Save(ctx, data); err != nil {
 		return nil, err
 	}
 	return newClient(ctx, config, nil, storage, middlewares...)
 }
 
+// BotClient creates a Telegram client for bot authentication.
+// Uses database-backed session storage for persistent bot sessions.
 func BotClient(ctx context.Context, db *gorm.DB, c cache.Cacher, config *config.TGConfig, token string, middlewares ...telegram.Middleware) (*telegram.Client, error) {
-
-	storage := tgstorage.NewSessionStorage(db, c, cache.Key("sessions", config.SessionInstance, strings.Split(token, ":")[0]))
-
+	storage := tgstorage.NewSessionStorage(db, c, cache.KeySessionToken(config.SessionInstance, strings.Split(token, ":")[0]))
 	return newClient(ctx, config, nil, storage, middlewares...)
-
 }
 
 type middlewareOption func(*middlewareConfig)

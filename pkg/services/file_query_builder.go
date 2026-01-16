@@ -66,7 +66,15 @@ func (afb *fileQueryBuilder) execute(filesQuery *api.FilesListParams, userId int
 
 func (afb *fileQueryBuilder) applyListFilters(query *gorm.DB, filesQuery *api.FilesListParams, userId int64) *gorm.DB {
 	if filesQuery.Path.Value != "" && filesQuery.ParentId.Value == "" {
-		query = query.Where("parent_id in (SELECT id FROM teldrive.get_file_from_path(?, ?, ?))", filesQuery.Path.Value, userId, true)
+		id, err := resolvePathID(afb.db, filesQuery.Path.Value, userId)
+		if err != nil {
+			return query.Where("1 = 0")
+		}
+		if id == nil {
+			query = query.Where("parent_id IS NULL")
+		} else {
+			query = query.Where("parent_id = ?", *id)
+		}
 	}
 	if filesQuery.ParentId.Value != "" {
 		query = query.Where("parent_id = ?", filesQuery.ParentId.Value)
@@ -112,8 +120,15 @@ func (afb *fileQueryBuilder) applyFileSpecificFilters(query *gorm.DB, filesQuery
 	}
 
 	if filesQuery.ParentId.Value == "" && filesQuery.Path.Value != "" && filesQuery.Query.Value == "" {
-		query = query.Where("parent_id in (SELECT id FROM teldrive.get_file_from_path(?, ?, ?))",
-			filesQuery.Path.Value, userId, true)
+		id, err := resolvePathID(afb.db, filesQuery.Path.Value, userId)
+		if err != nil {
+			return query.Where("1 = 0")
+		}
+		if id == nil {
+			query = query.Where("parent_id IS NULL")
+		} else {
+			query = query.Where("parent_id = ?", *id)
+		}
 	}
 
 	if filesQuery.Type.Value != "" {
@@ -128,8 +143,8 @@ func (afb *fileQueryBuilder) applyFileSpecificFilters(query *gorm.DB, filesQuery
 }
 
 func (afb *fileQueryBuilder) applyDateFilters(query *gorm.DB, dateFilters string) (*gorm.DB, error) {
-	dateFiltersArr := strings.Split(dateFilters, ",")
-	for _, dateFilter := range dateFiltersArr {
+	dateFiltersArr := strings.SplitSeq(dateFilters, ",")
+	for dateFilter := range dateFiltersArr {
 		query = afb.applySingleDateFilter(query, dateFilter)
 	}
 	return query, nil
@@ -165,7 +180,7 @@ func (afb *fileQueryBuilder) applySingleDateFilter(query *gorm.DB, dateFilter st
 func (afb *fileQueryBuilder) applySearchQuery(query *gorm.DB, filesQuery *api.FilesListParams) *gorm.DB {
 	switch filesQuery.SearchType.Value {
 	case api.FileQuerySearchTypeText:
-		query = query.Where("name &@~ lower(regexp_replace(?, '[^[:alnum:]\\s]', ' ', 'g'))", filesQuery.Query.Value)
+		query = query.Where("teldrive.clean_name(name) &@~ teldrive.clean_name(?)", filesQuery.Query.Value)
 	case api.FileQuerySearchTypeRegex:
 		query = query.Where("name &~ ?", filesQuery.Query.Value)
 	}
@@ -237,9 +252,18 @@ func getValidOrderDirection(order api.FileQueryOrder) string {
 
 func (afb *fileQueryBuilder) buildSubqueryCTE(query *gorm.DB, filesQuery *api.FilesListParams, userId int64) *gorm.DB {
 	if filesQuery.DeepSearch.Value && filesQuery.Query.Value != "" && filesQuery.Path.Value != "" {
+		id, _ := resolvePathID(afb.db, filesQuery.Path.Value, userId)
+		var whereClause string
+		var args []any
+		if id == nil {
+			whereClause = "parent_id IS NULL"
+		} else {
+			whereClause = "id = ?"
+			args = []any{*id}
+		}
 		return afb.db.Clauses(exclause.With{Recursive: true, CTEs: []exclause.CTE{{Name: "subdirs",
 			Subquery: exclause.Subquery{DB: afb.db.Model(&models.File{}).Select("id", "parent_id").
-				Where("id in (SELECT id FROM teldrive.get_file_from_path(?, ?, ?))", filesQuery.Path.Value, userId, true).
+				Where(whereClause, args...).
 				Clauses(exclause.NewUnion("ALL ?",
 					afb.db.Table("teldrive.files as f").Select("f.id", "f.parent_id").
 						Joins("inner join subdirs ON f.parent_id = subdirs.id")))}}}})

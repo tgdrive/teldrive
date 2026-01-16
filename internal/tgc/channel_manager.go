@@ -2,109 +2,57 @@ package tgc
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
-	"github.com/gotd/contrib/storage"
-	"github.com/gotd/td/telegram"
+	storage "github.com/gotd/contrib/storage"
 	"github.com/gotd/td/telegram/message/peer"
 	"github.com/gotd/td/tg"
 	"github.com/tgdrive/teldrive/internal/auth"
 	"github.com/tgdrive/teldrive/internal/cache"
 	"github.com/tgdrive/teldrive/internal/config"
-	"github.com/tgdrive/teldrive/internal/logging"
 	"github.com/tgdrive/teldrive/internal/tgstorage"
 	"github.com/tgdrive/teldrive/pkg/models"
 	"github.com/tgdrive/teldrive/pkg/types"
-	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
 var (
-	rolloverMutexes     = make(map[int64]*sync.Mutex)
-	rolloverMutexesLock sync.RWMutex
-	ErrNoDefaultChannel = errors.New("no default channel found")
+	ErrNoDefaultChannel = fmt.Errorf("no default channel found")
 )
 
 type ChannelManager struct {
-	db          *gorm.DB
-	cache       cache.Cacher
-	cnf         *config.TGConfig
-	middlewares []telegram.Middleware
+	db    *gorm.DB
+	cache cache.Cacher
+	cnf   *config.TGConfig
 }
 
-func NewChannelManager(db *gorm.DB, cache cache.Cacher, cnf *config.TGConfig, middlewares []telegram.Middleware) *ChannelManager {
+func NewChannelManager(db *gorm.DB, cache cache.Cacher, cnf *config.TGConfig) *ChannelManager {
 	return &ChannelManager{
-		db:          db,
-		cache:       cache,
-		cnf:         cnf,
-		middlewares: middlewares,
+		db:    db,
+		cache: cache,
+		cnf:   cnf,
 	}
 }
 
-func getUserRolloverMutex(userID int64) *sync.Mutex {
-	rolloverMutexesLock.RLock()
-	mutex, exists := rolloverMutexes[userID]
-	rolloverMutexesLock.RUnlock()
-
-	if !exists {
-		rolloverMutexesLock.Lock()
-		if mutex, exists = rolloverMutexes[userID]; !exists {
-			mutex = &sync.Mutex{}
-			rolloverMutexes[userID] = mutex
-		}
-		rolloverMutexesLock.Unlock()
-	}
-
-	return mutex
+func (cm *ChannelManager) GetChannel(ctx context.Context, userID int64) (int64, error) {
+	return cm.CurrentChannel(ctx, userID)
 }
 
-func (cm *ChannelManager) GetChannelForUpload(ctx context.Context, userID int64) (int64, error) {
-
-	mutex := getUserRolloverMutex(userID)
-	mutex.Lock()
-	defer mutex.Unlock()
-
-	logger := logging.FromContext(ctx)
-
-	currentChannelID, err := cm.CurrentChannel(userID)
-	if err != nil && err != ErrNoDefaultChannel {
-		return 0, err
-	}
-	if err == ErrNoDefaultChannel || (cm.isChannelNearLimit(currentChannelID) && cm.cnf.AutoChannelCreate) {
-		logger.Debug("channel limit reached or no default channel, creating new channel")
-		newChannelID, err := cm.CreateNewChannel(ctx, "", userID, true)
-		if err != nil {
-			return 0, err
-		}
-		return newChannelID, nil
-	}
-	logger.Debug("using existing channel", zap.Int64("channelId", currentChannelID))
-	return currentChannelID, nil
-}
-
-func (cm *ChannelManager) isChannelNearLimit(channelID int64) bool {
+func (cm *ChannelManager) ChannelLimitReached(userID int64) bool {
 	var totalParts int64
-
-	err := cm.db.Model(&models.File{}).
-		Where("channel_id = ?", channelID).
-		Select("COALESCE(SUM(CASE WHEN jsonb_typeof(parts) = 'array' THEN jsonb_array_length(parts) ELSE 0 END), 0) as total_parts").
-		Scan(&totalParts).Error
-
+	err := cm.db.Model(&models.Channel{}).Where("user_id = ?", userID).Count(&totalParts).Error
 	if err != nil {
 		return false
 	}
-
-	return totalParts >= cm.cnf.ChannelLimit
+	return totalParts >= int64(cm.cnf.ChannelLimit)
 }
 
-func (cm *ChannelManager) CurrentChannel(userID int64) (int64, error) {
-	return cache.Fetch(cm.cache, cache.Key("users", "channel", userID), 0, func() (int64, error) {
+func (cm *ChannelManager) CurrentChannel(ctx context.Context, userID int64) (int64, error) {
+	return cache.Fetch(ctx, cm.cache, cache.KeyUserChannel(userID), 0, func() (int64, error) {
 		var channelIds []int64
 		if err := cm.db.Model(&models.Channel{}).Where("user_id = ?", userID).Where("selected = ?", true).
 			Pluck("channel_id", &channelIds).Error; err != nil {
@@ -117,8 +65,8 @@ func (cm *ChannelManager) CurrentChannel(userID int64) (int64, error) {
 	})
 }
 
-func (cm *ChannelManager) BotTokens(userID int64) ([]string, error) {
-	return cache.Fetch(cm.cache, cache.Key("users", "bots", userID), 0, func() ([]string, error) {
+func (cm *ChannelManager) BotTokens(ctx context.Context, userID int64) ([]string, error) {
+	return cache.Fetch(ctx, cm.cache, cache.KeyUserBots(userID), 0, func() ([]string, error) {
 		var bots []string
 		if err := cm.db.Model(&models.Bot{}).Where("user_id = ?", userID).Pluck("token", &bots).Error; err != nil {
 			return nil, err
@@ -139,8 +87,9 @@ func (cm *ChannelManager) CreateNewChannel(ctx context.Context, newChannelName s
 		return 0, fmt.Errorf("no JWT user found in context")
 	}
 
-	peerStorage := tgstorage.NewPeerStorage(cm.db, cache.Key("peers", userID))
-	client, err := AuthClient(ctx, cm.cnf, jwtUser.TgSession, cm.middlewares...)
+	peerStorage := tgstorage.NewPeerStorage(cm.db, cache.KeyPeer(userID))
+	middlewares := NewMiddleware(cm.cnf, WithFloodWait(), WithRetry(5), WithRateLimit())
+	client, err := AuthClient(ctx, cm.cnf, jwtUser.TgSession, middlewares...)
 	if err != nil {
 		return 0, fmt.Errorf("failed to create Telegram client: %w", err)
 	}
@@ -181,7 +130,7 @@ func (cm *ChannelManager) CreateNewChannel(ctx context.Context, newChannelName s
 	peer := storage.Peer{}
 	peer.FromChat(newChannel)
 	peerStorage.Add(ctx, peer)
-	botTokens, err := cm.BotTokens(userID)
+	botTokens, err := cm.BotTokens(ctx, userID)
 	if err != nil {
 		return 0, err
 	}
@@ -194,16 +143,15 @@ func (cm *ChannelManager) CreateNewChannel(ctx context.Context, newChannelName s
 		return 0, fmt.Errorf("add bot tokens before continuing")
 	}
 
-	if setDefault {
-		newChannelRecord := models.Channel{
-			ChannelId:   newChannelID,
-			ChannelName: newChannelName,
-			UserId:      userID,
-			Selected:    true,
-		}
+	newChannelRecord := models.Channel{
+		ChannelId: newChannelID,
+		UserId:    userID,
+		Selected:  setDefault,
+	}
 
+	if setDefault {
 		err = cm.db.Transaction(func(tx *gorm.DB) error {
-			err := tx.Model(&models.Channel{}).Where("user_id = ? AND selected = ?", userID, true).
+			err := tx.Model(&models.Channel{}).Where("user_id = ?", userID).
 				Update("selected", false).Error
 			if err != nil {
 				return err
@@ -214,7 +162,11 @@ func (cm *ChannelManager) CreateNewChannel(ctx context.Context, newChannelName s
 		if err != nil {
 			return 0, fmt.Errorf("failed to update channel database: %w", err)
 		}
-		cm.cache.Delete(cache.Key("users", "channel", userID))
+		cm.cache.Delete(ctx, cache.KeyUserChannel(userID))
+	} else {
+		if err := cm.db.Create(&newChannelRecord).Error; err != nil {
+			return 0, fmt.Errorf("failed to create channel record: %w", err)
+		}
 	}
 
 	return newChannelID, nil
@@ -224,7 +176,9 @@ func (cm *ChannelManager) AddBotsToChannel(ctx context.Context, userId int64, ch
 
 	jwtUser := auth.GetJWTUser(ctx)
 
-	client, err := AuthClient(ctx, cm.cnf, jwtUser.TgSession, cm.middlewares...)
+	middlewares := NewMiddleware(cm.cnf, WithFloodWait(), WithRateLimit())
+
+	client, err := AuthClient(ctx, cm.cnf, jwtUser.TgSession, middlewares...)
 	if err != nil {
 		return err
 	}
@@ -336,6 +290,7 @@ func (cm *ChannelManager) AddBotsToChannel(ctx context.Context, userId int64, ch
 					if err := cm.db.Clauses(clause.OnConflict{DoNothing: true}).Create(&payload).Error; err != nil {
 						return fmt.Errorf("failed to save bots: %w", err)
 					}
+					cm.cache.Delete(ctx, cache.KeyUserBots(userId))
 				}
 				return nil
 			case <-ctx.Done():

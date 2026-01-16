@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"sync"
 	"time"
 
 	"github.com/go-faster/errors"
@@ -42,21 +43,22 @@ func (c *chunkSource) ChunkSize(start, end int64) int64 {
 
 func (c *chunkSource) Chunk(ctx context.Context, offset int64, limit int64) ([]byte, error) {
 	var (
-		location *tg.InputDocumentFileLocation
+		location tg.InputDocumentFileLocation
 		err      error
 	)
 
-	err = c.cache.Get(c.key, location)
+	err = c.cache.Get(ctx, c.key, &location)
 
 	if err != nil {
-		location, err = tgc.GetLocation(ctx, c.client, c.channelId, c.partId)
+		loc, err := tgc.GetLocation(ctx, c.client, c.channelId, c.partId)
 		if err != nil {
 			return nil, err
 		}
-		c.cache.Set(c.key, location, 30*time.Minute)
+		c.cache.Set(ctx, c.key, loc, 30*time.Minute)
+		location = *loc
 	}
 
-	return tgc.GetChunk(ctx, c.client, location, offset, limit)
+	return tgc.GetChunk(ctx, c.client, &location, offset, limit)
 
 }
 
@@ -76,6 +78,7 @@ type tgMultiReader struct {
 	chunkSrc    ChunkSource
 	timeout     time.Duration
 	logger      *zap.Logger
+	closeOnce   sync.Once
 }
 
 func newTGMultiReader(
@@ -111,7 +114,9 @@ func newTGMultiReader(
 }
 
 func (r *tgMultiReader) Close() error {
-	r.cancel()
+	r.closeOnce.Do(func() {
+		r.cancel()
+	})
 	return nil
 }
 
@@ -165,7 +170,7 @@ func (r *tgMultiReader) fillBatch() error {
 			chunkCtx, cancel := context.WithTimeout(ctx, r.timeout)
 			defer cancel()
 
-			chunk, err := r.fetchChunk(chunkCtx, int64(i))
+			chunk, err := r.chunkSrc.Chunk(chunkCtx, r.offset+int64(i)*r.chunkSize, r.chunkSize)
 			if err != nil {
 				if errors.Is(err, context.DeadlineExceeded) {
 					return fmt.Errorf("chunk %d: %w", r.currentPart+i, ErrChunkTimeout)
@@ -209,27 +214,4 @@ func (r *tgMultiReader) fillBatch() error {
 	r.offset += r.chunkSize * int64(r.concurrency)
 
 	return nil
-}
-
-func (r *tgMultiReader) fetchChunk(ctx context.Context, i int64) ([]byte, error) {
-	chunkChan := make(chan []byte, 1)
-	errChan := make(chan error, 1)
-
-	go func() {
-		chunk, err := r.chunkSrc.Chunk(ctx, r.offset+i*r.chunkSize, r.chunkSize)
-		if err != nil {
-			errChan <- err
-		} else {
-			chunkChan <- chunk
-		}
-	}()
-
-	select {
-	case chunk := <-chunkChan:
-		return chunk, nil
-	case err := <-errChan:
-		return nil, err
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	}
 }

@@ -42,17 +42,23 @@ func Decode(secret string, token string) (*types.JWTClaims, error) {
 }
 
 func GetUser(c context.Context) int64 {
-	authUser, _ := c.Value(authKey).(*types.JWTClaims)
+	authUser, ok := c.Value(authKey).(*types.JWTClaims)
+	if !ok || authUser == nil {
+		return 0
+	}
 	userId, _ := strconv.ParseInt(authUser.Subject, 10, 64)
 	return userId
 }
 
 func GetJWTUser(c context.Context) *types.JWTClaims {
-	authUser, _ := c.Value(authKey).(*types.JWTClaims)
+	authUser, ok := c.Value(authKey).(*types.JWTClaims)
+	if !ok {
+		return nil
+	}
 	return authUser
 }
 
-func VerifyUser(db *gorm.DB, cache cache.Cacher, secret, authCookie string) (*types.JWTClaims, error) {
+func VerifyUser(ctx context.Context, db *gorm.DB, cache cache.Cacher, secret, authCookie string) (*types.JWTClaims, error) {
 	claims, err := Decode(secret, authCookie)
 
 	if err != nil {
@@ -61,7 +67,7 @@ func VerifyUser(db *gorm.DB, cache cache.Cacher, secret, authCookie string) (*ty
 
 	var session *models.Session
 
-	session, err = GetSessionByHash(db, cache, claims.Hash)
+	session, err = GetSessionByHash(ctx, db, cache, claims.Hash)
 
 	if err != nil {
 		return nil, fmt.Errorf("invalid session")
@@ -72,17 +78,17 @@ func VerifyUser(db *gorm.DB, cache cache.Cacher, secret, authCookie string) (*ty
 	return claims, nil
 }
 
-func GetSessionByHash(db *gorm.DB, cache cache.Cacher, hash string) (*models.Session, error) {
+func GetSessionByHash(ctx context.Context, db *gorm.DB, cache cache.Cacher, hash string) (*models.Session, error) {
 	var session models.Session
 	key := fmt.Sprintf("sessions:%s", hash)
 
-	err := cache.Get(key, &session)
+	err := cache.Get(ctx, key, &session)
 
 	if err != nil {
 		if err := db.Model(&models.Session{}).Where("hash = ?", hash).First(&session).Error; err != nil {
 			return nil, err
 		}
-		cache.Set(key, &session, 0)
+		cache.Set(ctx, key, &session, 0)
 	}
 
 	return &session, nil
@@ -104,7 +110,7 @@ func (s *securityHandler) HandleBearerAuth(ctx context.Context, operationName ap
 }
 
 func (s *securityHandler) handleAuth(ctx context.Context, token string) (context.Context, error) {
-	claims, err := VerifyUser(s.db, s.cache, s.cfg.Secret, token)
+	claims, err := VerifyUser(ctx, s.db, s.cache, s.cfg.Secret, token)
 	if err != nil {
 		return nil, &ogenerrors.SecurityError{Err: err}
 	}

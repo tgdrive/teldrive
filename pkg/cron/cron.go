@@ -200,7 +200,29 @@ func (c *CronService) cleanUploads(ctx context.Context) {
 
 func (c *CronService) updateFolderSize() {
 	c.logger.Debug("running folder-size")
-	c.db.Exec("call teldrive.update_size();")
+	query := `
+	WITH RECURSIVE folder_hierarchy AS (
+		SELECT id, id as root_id
+		FROM teldrive.files
+		WHERE type = 'folder'
+		UNION ALL
+		SELECT f.id, fh.root_id
+		FROM teldrive.files f
+		JOIN folder_hierarchy fh ON f.parent_id = fh.id
+	),
+	folder_sizes AS (
+		SELECT root_id, COALESCE(SUM(size), 0) as total_size
+		FROM folder_hierarchy fh
+		JOIN teldrive.files f ON fh.id = f.id
+		WHERE f.type = 'file' AND f.status = 'active'
+		GROUP BY root_id
+	)
+	UPDATE teldrive.files f
+	SET size = fs.total_size
+	FROM folder_sizes fs
+	WHERE f.id = fs.root_id;
+	`
+	c.db.Exec(query)
 }
 
 func (c *CronService) cleanOldEvents() {

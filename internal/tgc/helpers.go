@@ -184,7 +184,7 @@ func GetMediaContent(ctx context.Context, client *tg.Client, location tg.InputFi
 			break
 		}
 		buff.Write(r)
-		offset += int64(limit)
+		offset += limit
 	}
 	return buff, nil
 }

@@ -93,7 +93,17 @@ func runApplication(ctx context.Context, conf *config.ServerCmdConfig) {
 		conf.Server.Port = port
 	}
 
-	cacher := cache.NewCache(ctx, &conf.Cache)
+	// Create Redis client globally (nil if not configured)
+	redisClient, err := cache.NewRedisClient(ctx, &conf.Redis)
+	if err != nil {
+		lg.Fatal("failed to connect to redis", zap.Error(err))
+	}
+
+	// Create cache with shared Redis client
+	cacher := cache.NewCache(ctx, conf.Cache.MaxSize, redisClient)
+
+	// Create bot selector with shared Redis client
+	botSelector := tgc.NewBotSelector(redisClient)
 
 	db, err := database.NewDatabase(ctx, &conf.DB, lg)
 
@@ -107,13 +117,11 @@ func runApplication(ctx context.Context, conf *config.ServerCmdConfig) {
 		lg.Fatal("failed to migrate database", zap.Error(err))
 	}
 
-	worker := tgc.NewBotWorker()
-
 	logger := logging.DefaultLogger()
 
 	eventRecorder := events.NewRecorder(ctx, db, logger)
 
-	srv := setupServer(conf, db, cacher, logger, worker, eventRecorder)
+	srv := setupServer(conf, db, cacher, logger, botSelector, eventRecorder)
 
 	if conf.CronJobs.Enable {
 		err = cron.StartCronJobs(ctx, db, conf)
@@ -133,6 +141,11 @@ func runApplication(ctx context.Context, conf *config.ServerCmdConfig) {
 
 	lg.Info("shutting down server")
 
+	// Close Redis client if it was created
+	if redisClient != nil {
+		redisClient.Close()
+	}
+
 	eventRecorder.Shutdown()
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), conf.Server.GracefulShutdown)
@@ -146,9 +159,9 @@ func runApplication(ctx context.Context, conf *config.ServerCmdConfig) {
 	lg.Info("server stopped")
 }
 
-func setupServer(cfg *config.ServerCmdConfig, db *gorm.DB, cache cache.Cacher, lg *zap.Logger, worker *tgc.BotWorker, eventRecorder *events.Recorder) *http.Server {
+func setupServer(cfg *config.ServerCmdConfig, db *gorm.DB, cache cache.Cacher, lg *zap.Logger, botSelector tgc.BotSelector, eventRecorder *events.Recorder) *http.Server {
 
-	apiSrv := services.NewApiService(db, cfg, cache, worker, eventRecorder)
+	apiSrv := services.NewApiService(db, cfg, cache, botSelector, eventRecorder)
 
 	srv, err := api.NewServer(apiSrv, auth.NewSecurityHandler(db, cache, &cfg.JWT))
 

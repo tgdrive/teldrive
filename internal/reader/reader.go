@@ -3,6 +3,7 @@ package reader
 import (
 	"context"
 	"io"
+	"sync"
 
 	"github.com/gotd/td/tg"
 	"github.com/tgdrive/teldrive/internal/cache"
@@ -29,6 +30,9 @@ type Reader struct {
 	client      *tg.Client
 	concurrency int
 	cache       cache.Cacher
+	closeOnce   sync.Once
+	closeErr    error
+	botID       string
 }
 
 func calculatePartByteRanges(start, end, partSize int64) []Range {
@@ -56,6 +60,7 @@ func NewReader(ctx context.Context,
 	start,
 	end int64,
 	config *config.TGConfig,
+	botID string,
 ) (io.ReadCloser, error) {
 
 	size := parts[0].Size
@@ -71,6 +76,7 @@ func NewReader(ctx context.Context,
 		config:    config,
 		client:    client,
 		cache:     cache,
+		botID:     botID,
 	}
 
 	if err := r.initializeReader(); err != nil {
@@ -98,12 +104,13 @@ func (r *Reader) Read(p []byte) (int, error) {
 }
 
 func (r *Reader) Close() error {
-	if r.reader != nil {
-		err := r.reader.Close()
-		r.reader = nil
-		return err
-	}
-	return nil
+	r.closeOnce.Do(func() {
+		if r.reader != nil {
+			r.closeErr = r.reader.Close()
+			r.reader = nil
+		}
+	})
+	return r.closeErr
 }
 
 func (r *Reader) initializeReader() error {
@@ -134,7 +141,7 @@ func (r *Reader) getPartReader() (io.ReadCloser, error) {
 		client:      r.client,
 		concurrency: r.concurrency,
 		cache:       r.cache,
-		key:         cache.Key("files", "location", r.file.ID, partId),
+		key:         cache.KeyFileLocation(r.config.SessionInstance, r.botID, r.file.ID, partId),
 	}
 
 	var (

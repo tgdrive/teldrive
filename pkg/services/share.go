@@ -32,11 +32,14 @@ type fileShare struct {
 }
 
 func (a *apiService) shareGetById(id string) (*fileShare, error) {
-	var result []fileShare
+	var result []struct {
+		models.FileShare
+		Type api.FileShareInfoType `gorm:"column:type"`
+		Name string                `gorm:"column:name"`
+	}
 
 	if err := a.db.Model(&models.FileShare{}).Where("file_shares.id = ?", id).
-		Select("file_shares.*", "f.type", "f.name",
-			"(select get_path_from_file_id as path from teldrive.get_path_from_file_id(f.id))").
+		Select("file_shares.*", "f.type", "f.name").
 		Joins("left join teldrive.files as f on f.id = file_shares.file_id").
 		Scan(&result).Error; err != nil {
 		return nil, &apiError{err: err}
@@ -50,7 +53,17 @@ func (a *apiService) shareGetById(id string) (*fileShare, error) {
 		return nil, &apiError{err: ErrShareExpired, code: http.StatusNotFound}
 	}
 
-	return &result[0], nil
+	path, err := a.getFullPath(a.db, result[0].FileId)
+	if err != nil {
+		return nil, &apiError{err: err}
+	}
+
+	return &fileShare{
+		FileShare: result[0].FileShare,
+		Type:      result[0].Type,
+		Name:      result[0].Name,
+		Path:      path,
+	}, nil
 }
 
 func (a *apiService) SharesGetById(ctx context.Context, params api.SharesGetByIdParams) (*api.FileShareInfo, error) {
@@ -121,7 +134,7 @@ func (a *apiService) SharesListFiles(ctx context.Context, params api.SharesListF
 }
 func (a *apiService) validFileShare(r *http.Request, id string) (*fileShare, error) {
 
-	share, err := cache.FetchArg(a.cache, cache.Key("shares", id), 0, a.shareGetById, id)
+	share, err := cache.FetchArg(r.Context(), a.cache, cache.KeyShare(id), 0, a.shareGetById, id)
 
 	if err != nil {
 		return nil, &apiError{err: err}
@@ -144,8 +157,4 @@ func (a *apiService) validFileShare(r *http.Request, id string) (*fileShare, err
 
 	}
 	return share, nil
-}
-
-func (a *apiService) SharesStream(ctx context.Context, params api.SharesStreamParams) (api.SharesStreamRes, error) {
-	return nil, nil
 }

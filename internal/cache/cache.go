@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
@@ -12,14 +13,14 @@ import (
 
 	"github.com/coocood/freecache"
 	"github.com/redis/go-redis/v9"
-	"github.com/tgdrive/teldrive/internal/config"
 	"github.com/vmihailenco/msgpack/v5"
 )
 
 type Cacher interface {
-	Get(key string, value any) error
-	Set(key string, value any, expiration time.Duration) error
-	Delete(keys ...string) error
+	Get(ctx context.Context, key string, value any) error
+	Set(ctx context.Context, key string, value any, expiration time.Duration) error
+	Delete(ctx context.Context, keys ...string) error
+	DeletePattern(ctx context.Context, pattern string) error
 }
 
 type MemoryCache struct {
@@ -28,25 +29,13 @@ type MemoryCache struct {
 	mu     sync.RWMutex
 }
 
-func NewCache(ctx context.Context, conf *config.CacheConfig) Cacher {
-	var cacher Cacher
-	if conf.RedisAddr == "" {
-		cacher = NewMemoryCache(conf.MaxSize)
-	} else {
-		cacher = NewRedisCache(ctx, redis.NewClient(&redis.Options{
-			Addr:            conf.RedisAddr,
-			Password:        conf.RedisPass,
-			DialTimeout:     5 * time.Second,
-			ReadTimeout:     3 * time.Second,
-			WriteTimeout:    3 * time.Second,
-			PoolSize:        10,
-			MinIdleConns:    5,
-			MaxIdleConns:    10,
-			ConnMaxIdleTime: 5 * time.Minute,
-			ConnMaxLifetime: 1 * time.Hour,
-		}))
+// NewCache creates a new cache instance.
+// If redisClient is provided, uses Redis; otherwise falls back to in-memory cache.
+func NewCache(ctx context.Context, maxSize int, redisClient *redis.Client) Cacher {
+	if redisClient != nil {
+		return NewRedisCache(redisClient)
 	}
-	return cacher
+	return NewMemoryCache(maxSize)
 }
 
 func NewMemoryCache(size int) *MemoryCache {
@@ -56,7 +45,7 @@ func NewMemoryCache(size int) *MemoryCache {
 	}
 }
 
-func (m *MemoryCache) Get(key string, value any) error {
+func (m *MemoryCache) Get(ctx context.Context, key string, value any) error {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	key = m.prefix + key
@@ -67,7 +56,7 @@ func (m *MemoryCache) Get(key string, value any) error {
 	return msgpack.Unmarshal(data, value)
 }
 
-func (m *MemoryCache) Set(key string, value any, expiration time.Duration) error {
+func (m *MemoryCache) Set(ctx context.Context, key string, value any, expiration time.Duration) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	key = m.prefix + key
@@ -78,7 +67,7 @@ func (m *MemoryCache) Set(key string, value any, expiration time.Duration) error
 	return m.cache.Set([]byte(key), data, int(expiration.Seconds()))
 }
 
-func (m *MemoryCache) Delete(keys ...string) error {
+func (m *MemoryCache) Delete(ctx context.Context, keys ...string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for _, key := range keys {
@@ -87,62 +76,89 @@ func (m *MemoryCache) Delete(keys ...string) error {
 	return nil
 }
 
-type RedisCache struct {
-	client *redis.Client
-	ctx    context.Context
-	prefix string
-	mu     sync.RWMutex
+func (m *MemoryCache) DeletePattern(ctx context.Context, pattern string) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	pattern = m.prefix + pattern
+	iter := m.cache.NewIterator()
+	for {
+		entry := iter.Next()
+		if entry == nil {
+			break
+		}
+		key := string(entry.Key)
+		if matched, _ := filepath.Match(pattern, key); matched {
+			m.cache.Del(entry.Key)
+		}
+	}
+	return nil
 }
 
-func NewRedisCache(ctx context.Context, client *redis.Client) *RedisCache {
+type RedisCache struct {
+	client *redis.Client
+	prefix string
+}
+
+func NewRedisCache(client *redis.Client) *RedisCache {
 	return &RedisCache{
 		client: client,
 		prefix: "teldrive:",
-		ctx:    ctx,
 	}
 }
 
-func (r *RedisCache) Get(key string, value any) error {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
+func (r *RedisCache) Get(ctx context.Context, key string, value any) error {
 	key = r.prefix + key
-	data, err := r.client.Get(r.ctx, key).Bytes()
+	data, err := r.client.Get(ctx, key).Bytes()
 	if err != nil {
 		return err
 	}
 	return msgpack.Unmarshal(data, value)
 }
 
-func (r *RedisCache) Set(key string, value any, expiration time.Duration) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+func (r *RedisCache) Set(ctx context.Context, key string, value any, expiration time.Duration) error {
 	key = r.prefix + key
 	data, err := msgpack.Marshal(value)
 	if err != nil {
 		return err
 	}
-	return r.client.Set(r.ctx, key, data, expiration).Err()
+	return r.client.Set(ctx, key, data, expiration).Err()
 }
 
-func (r *RedisCache) Delete(keys ...string) error {
-	r.mu.Lock()
-	defer r.mu.Unlock()
+func (r *RedisCache) Delete(ctx context.Context, keys ...string) error {
 	for i := range keys {
 		keys[i] = r.prefix + keys[i]
 	}
-	return r.client.Del(r.ctx, keys...).Err()
+	return r.client.Del(ctx, keys...).Err()
 }
 
-func Fetch[T any](cache Cacher, key string, expiration time.Duration, fn func() (T, error)) (T, error) {
+func (r *RedisCache) DeletePattern(ctx context.Context, pattern string) error {
+	pattern = r.prefix + pattern
+	iter := r.client.Scan(ctx, 0, pattern, 0).Iterator()
+	var errs []error
+	for iter.Next(ctx) {
+		if err := r.client.Del(ctx, iter.Val()).Err(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if err := iter.Err(); err != nil {
+		errs = append(errs, err)
+	}
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+	return nil
+}
+
+func Fetch[T any](ctx context.Context, cache Cacher, key string, expiration time.Duration, fn func() (T, error)) (T, error) {
 	var zero, value T
-	err := cache.Get(key, &value)
+	err := cache.Get(ctx, key, &value)
 	if err != nil {
 		if errors.Is(err, freecache.ErrNotFound) || errors.Is(err, redis.Nil) {
 			value, err = fn()
 			if err != nil {
 				return zero, err
 			}
-			_ = cache.Set(key, &value, expiration)
+			cache.Set(ctx, key, &value, expiration)
 			return value, nil
 		}
 		return zero, err
@@ -151,11 +167,12 @@ func Fetch[T any](cache Cacher, key string, expiration time.Duration, fn func() 
 }
 
 func FetchArg[T any, A any](
+	ctx context.Context,
 	cache Cacher,
 	key string,
 	expiration time.Duration,
 	fn func(a A) (T, error), a A) (T, error) {
-	return Fetch(cache, key, expiration, func() (T, error) {
+	return Fetch(ctx, cache, key, expiration, func() (T, error) {
 		return fn(a)
 	})
 }
@@ -175,7 +192,7 @@ func formatValue(v any) string {
 
 	val := reflect.ValueOf(v)
 	switch val.Kind() {
-	case reflect.Ptr:
+	case reflect.Pointer:
 		if val.IsNil() {
 			return "nil"
 		}

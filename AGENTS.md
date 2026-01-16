@@ -4,7 +4,7 @@ This file contains instructions for agentic coding agents working on the TelDriv
 
 ## 1. Build, Lint, and Test Commands
 
-The project uses `task` (Taskfile.yml) for build automation and standard Go toolchain.
+The project uses `task` (taskfile.yml) for build automation and standard Go toolchain.
 
 ### Build
 - **Build Server:** `task server` (builds binary to `bin/teldrive`)

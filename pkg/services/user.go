@@ -29,8 +29,7 @@ func (a *apiService) UsersAddBots(ctx context.Context, req *api.AddBots) error {
 	payload := []models.Bot{}
 	if len(req.Bots) > 0 {
 		for _, token := range req.Bots {
-			botID, _ := strconv.ParseInt(strings.Split(token, ":")[0], 10, 64)
-			payload = append(payload, models.Bot{UserId: userID, Token: token, BotId: botID})
+			payload = append(payload, models.Bot{UserId: userID, Token: token})
 		}
 		if err := a.db.Clauses(clause.OnConflict{DoNothing: true}).Create(&payload).Error; err != nil {
 			return err
@@ -41,10 +40,10 @@ func (a *apiService) UsersAddBots(ctx context.Context, req *api.AddBots) error {
 		}
 		if len(channels) > 0 {
 			for _, channel := range channels {
-				_ = a.channelManager.AddBotsToChannel(ctx, userID, channel, req.Bots, false)
+				a.channelManager.AddBotsToChannel(ctx, userID, channel, req.Bots, false)
 			}
 		}
-		_ = a.cache.Delete(cache.Key("users", "bots", userID))
+		a.cache.Delete(ctx, cache.KeyUserBots(userID))
 	}
 	return nil
 
@@ -56,7 +55,7 @@ func (a *apiService) UsersListChannels(ctx context.Context) ([]api.Channel, erro
 
 	channels := make(map[int64]*api.Channel)
 
-	peerStorage := tgstorage.NewPeerStorage(a.db, cache.Key("peers", userId))
+	peerStorage := tgstorage.NewPeerStorage(a.db, cache.KeyPeer(userId))
 
 	iter, err := peerStorage.Iterate(ctx)
 	if err != nil {
@@ -95,9 +94,9 @@ func (a *apiService) UsersCreateChannel(ctx context.Context, req *api.Channel) e
 
 func (a *apiService) UsersDeleteChannel(ctx context.Context, params api.UsersDeleteChannelParams) error {
 	userId := auth.GetUser(ctx)
-	client, _ := tgc.AuthClient(ctx, &a.cnf.TG, auth.GetJWTUser(ctx).TgSession, a.middlewares...)
+	client, _ := tgc.AuthClient(ctx, &a.cnf.TG, auth.GetJWTUser(ctx).TgSession, a.newMiddlewares(ctx, 5)...)
 	channelId, _ := strconv.ParseInt(params.ID, 10, 64)
-	peerStorage := tgstorage.NewPeerStorage(a.db, cache.Key("peers", userId))
+	peerStorage := tgstorage.NewPeerStorage(a.db, cache.KeyPeer(userId))
 	var (
 		channel *tg.Channel
 		err     error
@@ -119,19 +118,19 @@ func (a *apiService) UsersDeleteChannel(ctx context.Context, params api.UsersDel
 	a.db.Where("channel_id = ?", channelId).Delete(&models.Channel{})
 	peer := storage.Peer{}
 	peer.FromChat(channel)
-	_ = peerStorage.Delete(ctx, storage.KeyFromPeer(peer))
+	peerStorage.Delete(ctx, storage.KeyFromPeer(peer))
 	return nil
 }
 
 func (a *apiService) UsersSyncChannels(ctx context.Context) error {
 	userId := auth.GetUser(ctx)
-	peerStorage := tgstorage.NewPeerStorage(a.db, cache.Key("peers", userId))
+	peerStorage := tgstorage.NewPeerStorage(a.db, cache.KeyPeer(userId))
 	err := peerStorage.Purge(ctx)
 	if err != nil {
 		return &apiError{err: err}
 	}
 	collector := storage.CollectPeers(peerStorage)
-	client, err := tgc.AuthClient(ctx, &a.cnf.TG, auth.GetJWTUser(ctx).TgSession, a.middlewares...)
+	client, err := tgc.AuthClient(ctx, &a.cnf.TG, auth.GetJWTUser(ctx).TgSession, a.newMiddlewares(ctx, 5)...)
 	if err != nil {
 		return &apiError{err: err}
 	}
@@ -146,9 +145,9 @@ func (a *apiService) UsersSyncChannels(ctx context.Context) error {
 
 func (a *apiService) UsersListSessions(ctx context.Context) ([]api.UserSession, error) {
 	userId := auth.GetUser(ctx)
-	return cache.Fetch(a.cache, cache.Key("users", "sessions", userId), 0, func() ([]api.UserSession, error) {
+	return cache.Fetch(ctx, a.cache, cache.KeyUserSessions(userId), 0, func() ([]api.UserSession, error) {
 		userSession := auth.GetJWTUser(ctx).TgSession
-		client, _ := tgc.AuthClient(ctx, &a.cnf.TG, userSession, a.middlewares...)
+		client, _ := tgc.AuthClient(ctx, &a.cnf.TG, userSession, a.newMiddlewares(ctx, 5)...)
 		var (
 			auth *tg.AccountAuthorizations
 			err  error
@@ -202,7 +201,7 @@ func (a *apiService) UsersListSessions(ctx context.Context) ([]api.UserSession, 
 
 func (a *apiService) UsersProfileImage(ctx context.Context, params api.UsersProfileImageParams) (*api.UsersProfileImageOKHeaders, error) {
 
-	client, err := tgc.AuthClient(ctx, &a.cnf.TG, auth.GetJWTUser(ctx).TgSession, a.middlewares...)
+	client, err := tgc.AuthClient(ctx, &a.cnf.TG, auth.GetJWTUser(ctx).TgSession, a.newMiddlewares(ctx, 5)...)
 
 	if err != nil {
 		return nil, &apiError{err: err}
@@ -249,7 +248,7 @@ func (a *apiService) UsersRemoveBots(ctx context.Context) error {
 	if err := a.db.Where("user_id = ?", userId).Delete(&models.Bot{}).Error; err != nil {
 		return &apiError{err: err}
 	}
-	_ = a.cache.Delete(cache.Key("users", "bots", userId))
+	a.cache.Delete(ctx, cache.KeyUserBots(userId))
 
 	return nil
 }
@@ -263,9 +262,9 @@ func (a *apiService) UsersRemoveSession(ctx context.Context, params api.UsersRem
 		return &apiError{err: err}
 	}
 
-	client, _ := tgc.AuthClient(ctx, &a.cnf.TG, session.Session, a.middlewares...)
+	client, _ := tgc.AuthClient(ctx, &a.cnf.TG, session.Session, a.newMiddlewares(ctx, 5)...)
 
-	_ = client.Run(ctx, func(ctx context.Context) error {
+	client.Run(ctx, func(ctx context.Context) error {
 		_, err := client.API().AuthLogOut(ctx)
 		if err != nil {
 			return err
@@ -274,7 +273,7 @@ func (a *apiService) UsersRemoveSession(ctx context.Context, params api.UsersRem
 	})
 
 	a.db.Where("user_id = ?", userId).Where("hash = ?", session.Hash).Delete(&models.Session{})
-	_ = a.cache.Delete(cache.Key("users", "sessions", userId))
+	a.cache.Delete(ctx, cache.KeyUserSessions(userId))
 
 	return nil
 }
@@ -286,12 +285,12 @@ func (a *apiService) UsersStats(ctx context.Context) (*api.UserConfig, error) {
 		err       error
 	)
 
-	channelId, err = a.channelManager.CurrentChannel(userId)
+	channelId, err = a.channelManager.CurrentChannel(ctx, userId)
 	if err != nil {
 		channelId = 0
 	}
 
-	tokens, err := a.channelManager.BotTokens(userId)
+	tokens, err := a.channelManager.BotTokens(ctx, userId)
 
 	if err != nil {
 		tokens = []string{}
@@ -320,6 +319,6 @@ func (a *apiService) UsersUpdateChannel(ctx context.Context, req *api.ChannelUpd
 	a.db.Model(&models.Channel{}).Where("channel_id != ?", channel.ChannelId).
 		Where("user_id = ?", userId).Update("selected", false)
 
-	_ = a.cache.Set(cache.Key("users", "channel", userId), channel.ChannelId, 0)
+	a.cache.Set(ctx, cache.KeyUserChannel(userId), channel.ChannelId, 0)
 	return nil
 }

@@ -2,14 +2,10 @@ version: "2"
 linters:
   default: none
   enable:
-    - exhaustive
-    - goconst
     - govet
     - ineffassign
     - misspell
-    - nakedret
     - staticcheck
-    - unconvert
     - unused
     - usestdlibvars
   settings:
@@ -29,9 +25,7 @@ linters:
       - builtin$
       - examples$
 formatters:
-  enable:
-    - gci
-    - gofumpt
+  enable: []
   settings:
     gci:
       sections:

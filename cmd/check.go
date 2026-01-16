@@ -162,6 +162,23 @@ func (cp *channelProcessor) updateStatus(status string, value int64) {
 	}
 }
 
+func (cp *channelProcessor) deleteFilesBulk(fileIds []string, userId int64) error {
+	query := `
+	WITH RECURSIVE target_folders AS (
+		SELECT id FROM teldrive.files WHERE id IN (?) AND user_id = ?
+		UNION ALL
+		SELECT f.id FROM teldrive.files f JOIN target_folders tf ON f.parent_id = tf.id
+	),
+	mark_deleted AS (
+		UPDATE teldrive.files SET status = 'pending_deletion'
+		WHERE (parent_id IN (SELECT id FROM target_folders) OR id IN (?))
+		AND type = 'file'
+	)
+	DELETE FROM teldrive.files WHERE id IN (SELECT id FROM target_folders) AND type = 'folder';
+	`
+	return cp.db.Exec(query, fileIds, userId, fileIds).Error
+}
+
 func (cp *channelProcessor) process() error {
 	cleanPending := cp.cfg.CleanPending
 	cleanUploads := cp.cfg.CleanUploads
@@ -298,8 +315,7 @@ func (cp *channelProcessor) process() error {
 
 		if !cp.dryRun {
 			cp.updateStatus("Cleaning files", 0)
-			err = cp.db.Exec("call teldrive.delete_files_bulk($1 , $2)",
-				utils.Map(cp.missingFiles, func(f file) string { return f.ID }), cp.userId).Error
+			err = cp.deleteFilesBulk(utils.Map(cp.missingFiles, func(f file) string { return f.ID }), cp.userId)
 			if err != nil {
 				return fmt.Errorf("failed to clean files for channel %d: %w", cp.id, err)
 			}
@@ -598,5 +614,5 @@ func runCheckCmd(cmd *cobra.Command, cfg *config.CheckCmdConfig) {
 		data = append(data, []string{"Cleaned Orphans", fmt.Sprint(totalCleanedOrphans)})
 	}
 
-	_ = pterm.DefaultTable.WithHasHeader().WithBoxed().WithData(data).Render()
+	pterm.DefaultTable.WithHasHeader().WithBoxed().WithData(data).Render()
 }

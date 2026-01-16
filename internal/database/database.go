@@ -22,30 +22,30 @@ func NewDatabase(ctx context.Context, cfg *config.DBConfig, lg *zap.Logger) (*go
 	var db *gorm.DB
 
 	for i := 0; i <= 5; i++ {
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		default:
-			db, err = gorm.Open(postgres.New(postgres.Config{
-				DSN:                  cfg.DataSource,
-				PreferSimpleProtocol: !cfg.PrepareStmt,
-			}), &gorm.Config{
-				Logger: NewLogger(lg, time.Second, true, level),
-				NamingStrategy: schema.NamingStrategy{
-					TablePrefix:   "teldrive.",
-					SingularTable: false,
-				},
-				NowFunc: func() time.Time {
-					return time.Now().UTC()
-				},
-			})
-			if err == nil {
-				break
-			}
-			lg.Warn("failed to open database", zap.Error(err))
-			time.Sleep(500 * time.Millisecond)
+		db, err = gorm.Open(postgres.New(postgres.Config{
+			DSN:                  cfg.DataSource,
+			PreferSimpleProtocol: !cfg.PrepareStmt,
+		}), &gorm.Config{
+			Logger: NewLogger(lg, time.Second, true, level),
+			NamingStrategy: schema.NamingStrategy{
+				TablePrefix:   "teldrive.",
+				SingularTable: false,
+			},
+			NowFunc: func() time.Time {
+				return time.Now().UTC()
+			},
+		})
+		if err == nil {
+			break
 		}
-
+		lg.Warn("failed to open database", zap.Error(err))
+		if i < 5 {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(500 * time.Millisecond):
+			}
+		}
 	}
 	if err != nil {
 		lg.Fatal("database", zap.Error(err))
