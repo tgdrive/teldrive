@@ -93,6 +93,13 @@ tasks:
       - git push origin {{.VERSION}}
       - git push origin main
 
+  migration:*:
+    desc: Create a new database migration using goose
+    vars:
+      MIGRATION_NAME: "{{index .MATCH 0}}"
+    cmds:
+      - goose -dir internal/database/migrations create {{.MIGRATION_NAME}} sql
+
   release:*:
     desc: Prepare for a new release
     vars:

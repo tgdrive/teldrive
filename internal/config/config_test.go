@@ -51,7 +51,7 @@ func TestConfigLoader_LoadDefaults(t *testing.T) {
 	assert.Equal(t, 25, cfg.DB.Pool.MaxIdleConnections)
 	assert.Equal(t, 10*time.Minute, cfg.DB.Pool.MaxLifetime)
 	assert.Equal(t, true, cfg.DB.PrepareStmt)
-	assert.Equal(t, "error", cfg.DB.LogLevel)
+	assert.Equal(t, "error", cfg.Log.DB)
 	assert.Equal(t, true, cfg.CronJobs.Enable)
 	assert.Equal(t, "cron-locker", cfg.CronJobs.LockerInstance)
 	assert.Equal(t, time.Hour, cfg.CronJobs.CleanFilesInterval)

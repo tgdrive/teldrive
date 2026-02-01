@@ -16,7 +16,7 @@ type Middleware = func(http.Handler) http.Handler
 func InjectLogger(lg *zap.Logger) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			req := r.WithContext(logging.WithLogger(r.Context(), lg))
+			req := r.WithContext(logging.WithContext(r.Context(), lg))
 			next.ServeHTTP(w, req)
 		})
 	}

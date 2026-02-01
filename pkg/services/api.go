@@ -90,7 +90,8 @@ func (a *apiService) NewError(ctx context.Context, err error) *api.ErrorStatusCo
 			code = apiError.code
 			message = apiError.Error()
 		}
-		logging.FromContext(ctx).Error("api error", zap.Error(apiError.err))
+		logger := logging.Component("API")
+		logger.Error("request.failed", zap.Error(apiError.err))
 	}
 	return &api.ErrorStatusCode{StatusCode: code, Response: api.Error{Code: code, Message: message}}
 }

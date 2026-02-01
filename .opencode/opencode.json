@@ -2,5 +2,8 @@
   "$schema": "https://opencode.ai/config.json",
   "watcher": {
     "ignore": ["ui/dist/**"]
+  },
+  "tools": {
+    "task": false
   }
 }

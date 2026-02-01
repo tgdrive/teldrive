@@ -20,30 +20,32 @@ func RunWithAuth(ctx context.Context, client *telegram.Client, token string, f f
 
 func Auth(ctx context.Context, client *telegram.Client, token string) error {
 	status, err := client.Auth().Status(ctx)
-	logger := logging.FromContext(ctx)
 	if err != nil {
 		return err
 	}
+
+	logger := logging.Component("TG")
+
 	if token == "" {
 		if !status.Authorized {
 			return errors.Errorf("not authorized. please login first")
 		}
-		logger.Debug("User Session",
-			zap.Int64("id", status.User.ID),
+		logger.Info("session.user",
+			zap.Int64("user_id", status.User.ID),
 			zap.String("username", status.User.Username))
 	} else {
 		if !status.Authorized {
-			logger.Debug("creating bot session")
 			_, err := client.Auth().Bot(ctx, token)
 			if err != nil {
+				logger.Error("auth.bot_failed", zap.Error(err))
 				return err
 			}
 			status, err = client.Auth().Status(ctx)
 			if err != nil {
 				return err
 			}
-			logger.Debug("Bot Session",
-				zap.Int64("id", status.User.ID),
+			logger.Info("session.bot",
+				zap.Int64("bot_id", status.User.ID),
 				zap.String("username", status.User.Username))
 		}
 	}

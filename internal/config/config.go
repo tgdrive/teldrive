@@ -86,9 +86,41 @@ type RedisConfig struct {
 	ConnMaxLifetime time.Duration `default:"1h" description:"Redis connection maximum lifetime"`
 }
 
+// HTTPLoggingConfig holds HTTP request logging configuration
+type HTTPLoggingConfig struct {
+	Enabled            bool     `default:"true" description:"Enable HTTP request logging"`
+	LogQueries         bool     `default:"false" description:"Log full query strings (use with caution)"`
+	SanitizeQueries    bool     `default:"true" description:"Remove sensitive params from query preview"`
+	MaxQueryLength     int      `default:"100" description:"Maximum length of query preview"`
+	LogUserAgent       bool     `default:"true" description:"Log user agent (truncated)"`
+	LogRequestBodySize bool     `default:"true" description:"Log request Content-Length"`
+	LogResponseSize    bool     `default:"true" description:"Log response bytes written"`
+	SkipPaths          []string `default:"/health,/metrics" description:"Paths to skip from logging"`
+}
+
+// DBLoggingConfig holds database query logging configuration
+type DBLoggingConfig struct {
+	Level                string        `default:"error" description:"Database logging level (silent, error, warn, info, debug)"`
+	SlowThreshold        time.Duration `default:"1s" description:"Log queries slower than this threshold"`
+	IgnoreRecordNotFound bool          `default:"true" description:"Don't log 'record not found' errors"`
+	LogSQLPreview        bool          `default:"true" description:"Log truncated SQL preview"`
+	LogOperationType     bool          `default:"true" description:"Log operation type (SELECT/INSERT/UPDATE/DELETE)"`
+	LogTableName         bool          `default:"true" description:"Extract and log table name"`
+}
+
+// TGLoggingConfig holds Telegram client logging configuration
+type TGLoggingConfig struct {
+	Enabled bool   `default:"false" description:"Enable Telegram client internal logging"`
+	Level   string `default:"warn" description:"Telegram client logging level (debug, info, warn, error)"`
+}
+
 type LoggingConfig struct {
-	Level string `default:"info" description:"Logging level (debug, info, warn, error)"`
-	File  string `default:"" description:"Log file path, if empty logs to stdout"`
+	Level      string `default:"info" description:"Global logging level (debug, info, warn, error)"`
+	TimeFormat string `default:"2006-01-02 15:04:05" description:"Log time format"`
+	File       string `default:"" description:"Log file path, if empty logs to stdout only"`
+	HTTP       HTTPLoggingConfig
+	DB         DBLoggingConfig
+	TG         TGLoggingConfig
 }
 
 type JWTConfig struct {
@@ -106,7 +138,6 @@ type DBPool struct {
 type DBConfig struct {
 	DataSource  string `validate:"required" default:"" description:"Database connection string"`
 	PrepareStmt bool   `default:"true" description:"Use prepared statements"`
-	LogLevel    string `default:"error" description:"Database logging level"`
 	Pool        DBPool
 }
 
@@ -139,7 +170,7 @@ type TGConfig struct {
 	Proxy             string        `default:"" description:"HTTP/SOCKS5 proxy URL"`
 	ReconnectTimeout  time.Duration `default:"5m" description:"Client reconnection timeout"`
 	PoolSize          int           `default:"8" description:"Session pool size"`
-	EnableLogging     bool          `default:"false" description:"Enable Telegram client logging"`
+	EnableLogging     bool          `default:"false" description:"Enable Telegram client logging (deprecated: use logging.tg.enabled instead)"`
 	AppId             int           `default:"2496" description:"Telegram app ID"`
 	AppHash           string        `default:"8da85b0d5bfe62527e5b244c209159c3" description:"Telegram app hash"`
 	DeviceModel       string        `default:"Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/116.0" description:"Device model"`

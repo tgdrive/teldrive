@@ -21,6 +21,7 @@ import (
 	"github.com/tgdrive/teldrive/internal/category"
 	"github.com/tgdrive/teldrive/internal/database"
 	"github.com/tgdrive/teldrive/internal/events"
+	"github.com/tgdrive/teldrive/internal/hash"
 	"github.com/tgdrive/teldrive/internal/http_range"
 	"github.com/tgdrive/teldrive/internal/logging"
 	"github.com/tgdrive/teldrive/internal/md5"
@@ -171,6 +172,7 @@ func (a *apiService) FilesCopy(ctx context.Context, req *api.FileCopy, params ap
 	dbFile.ChannelId = &channelId
 	dbFile.Encrypted = file.Encrypted
 	dbFile.Category = file.Category
+	dbFile.Hash = file.Hash // Preserve hash during copy (content is identical)
 	if req.UpdatedAt.IsSet() && !req.UpdatedAt.Value.IsZero() {
 		dbFile.UpdatedAt = utils.Ptr(req.UpdatedAt.Value)
 	} else {
@@ -199,6 +201,8 @@ func (a *apiService) FilesCreate(ctx context.Context, fileIn *api.File) (*api.Fi
 		err       error
 		path      string
 		channelId int64
+		uploadId  string
+		uploads   []models.Upload
 	)
 
 	if fileIn.Path.Value == "" && fileIn.ParentId.Value == "" {
@@ -237,9 +241,62 @@ func (a *apiService) FilesCreate(ctx context.Context, fileIn *api.File) (*api.Fi
 		fileDB.ChannelId = &channelId
 		fileDB.MimeType = fileIn.MimeType.Value
 		fileDB.Category = utils.Ptr(string(category.GetCategory(fileIn.Name)))
+
+		// Handle parts - either from direct input or fetch by uploadId
+		var parts []api.Part
 		if len(fileIn.Parts) > 0 {
-			fileDB.Parts = utils.Ptr(datatypes.NewJSONSlice(mapParts(fileIn.Parts)))
+			parts = fileIn.Parts
+		} else if fileIn.UploadId.Value != "" {
+			uploadId = fileIn.UploadId.Value
+			// Fetch parts from uploads table
+			if err := a.db.Where("upload_id = ?", uploadId).Order("part_no").Find(&uploads).Error; err != nil {
+				return nil, &apiError{err: err}
+			}
+
+			// Validate parts: sum of sizes must equal file size and no partId should be 0
+			var totalSize int64
+			for _, upload := range uploads {
+				if upload.PartId == 0 {
+					return nil, &apiError{err: errors.New("invalid part: part_id cannot be zero"), code: 400}
+				}
+				totalSize += upload.Size
+			}
+			if totalSize != fileIn.Size.Value {
+				return nil, &apiError{err: fmt.Errorf("size mismatch: sum of part sizes (%d) does not equal file size (%d)", totalSize, fileIn.Size.Value), code: 400}
+			}
+
+			// Convert uploads to parts
+			for _, upload := range uploads {
+				parts = append(parts, api.Part{
+					ID:   upload.PartId,
+					Salt: api.NewOptString(upload.Salt),
+				})
+			}
 		}
+
+		if len(parts) > 0 {
+			fileDB.Parts = utils.Ptr(datatypes.NewJSONSlice(mapParts(parts)))
+		}
+
+		// Compute BLAKE3 tree hash from block hashes if uploadId is provided
+		if uploadId != "" && len(uploads) > 0 {
+			var allBlockHashes []byte
+			for _, upload := range uploads {
+				allBlockHashes = append(allBlockHashes, upload.BlockHashes...)
+			}
+
+			if len(allBlockHashes) > 0 {
+				treeHashBytes := hash.ComputeTreeHash(allBlockHashes)
+				treeHash := hash.SumToHex(treeHashBytes)
+				fileDB.Hash = &treeHash
+			}
+		} else if fileIn.Size.Value == 0 {
+			// For zero-length files, compute hash of empty data
+			treeHashBytes := hash.ComputeTreeHash([]byte{})
+			treeHash := hash.SumToHex(treeHashBytes)
+			fileDB.Hash = &treeHash
+		}
+
 		fileDB.Size = utils.Ptr(fileIn.Size.Value)
 	}
 	fileDB.Name = fileIn.Name
@@ -253,32 +310,49 @@ func (a *apiService) FilesCreate(ctx context.Context, fileIn *api.File) (*api.Fi
 		fileDB.UpdatedAt = utils.Ptr(time.Now().UTC())
 	}
 
-	//For some reason, gorm conflict clauses are not working with partial index so using raw query
+	// Use transaction to ensure file creation and upload cleanup are atomic
+	err = a.db.Transaction(func(tx *gorm.DB) error {
+		//For some reason, gorm conflict clauses are not working with partial index so using raw query
+		if err := tx.Raw(`
+			INSERT INTO teldrive.files (
+				name, parent_id, user_id, mime_type, category, parts,
+				size, type, encrypted, updated_at, channel_id, status, hash
+			)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			ON CONFLICT (name, COALESCE(parent_id, '00000000-0000-0000-0000-000000000000'::uuid), user_id)
+			WHERE status = 'active'
+			DO UPDATE SET
+				mime_type = EXCLUDED.mime_type,
+				category = EXCLUDED.category,
+				parts = EXCLUDED.parts,
+				size = EXCLUDED.size,
+				type = EXCLUDED.type,
+				encrypted = EXCLUDED.encrypted,
+				updated_at = EXCLUDED.updated_at,
+				channel_id = EXCLUDED.channel_id,
+				status = EXCLUDED.status,
+				hash = EXCLUDED.hash
+			RETURNING *
+		`,
+			fileDB.Name, fileDB.ParentId, fileDB.UserId, fileDB.MimeType,
+			fileDB.Category, fileDB.Parts, fileDB.Size, fileDB.Type,
+			fileDB.Encrypted, fileDB.UpdatedAt, fileDB.ChannelId, fileDB.Status,
+			fileDB.Hash,
+		).Scan(&fileDB).Error; err != nil {
+			return err
+		}
 
-	if err := a.db.Raw(`
-    INSERT INTO teldrive.files (
-        name, parent_id, user_id, mime_type, category, parts,
-        size, type, encrypted, updated_at, channel_id, status
-    )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT (name, COALESCE(parent_id, '00000000-0000-0000-0000-000000000000'::uuid), user_id)
-    WHERE status = 'active'
-    DO UPDATE SET
-        mime_type = EXCLUDED.mime_type,
-        category = EXCLUDED.category,
-        parts = EXCLUDED.parts,
-        size = EXCLUDED.size,
-        type = EXCLUDED.type,
-        encrypted = EXCLUDED.encrypted,
-        updated_at = EXCLUDED.updated_at,
-        channel_id = EXCLUDED.channel_id,
-        status = EXCLUDED.status
-    RETURNING *
-`,
-		fileDB.Name, fileDB.ParentId, fileDB.UserId, fileDB.MimeType,
-		fileDB.Category, fileDB.Parts, fileDB.Size, fileDB.Type,
-		fileDB.Encrypted, fileDB.UpdatedAt, fileDB.ChannelId, fileDB.Status,
-	).Scan(&fileDB).Error; err != nil {
+		// Delete uploads after successful file creation
+		if uploadId != "" {
+			if err := tx.Where("upload_id = ?", uploadId).Delete(&models.Upload{}).Error; err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
 		return nil, &apiError{err: err}
 	}
 
@@ -602,36 +676,111 @@ func (a *apiService) FilesUpdate(ctx context.Context, req *api.FileUpdate, param
 	userId := auth.GetUser(ctx)
 
 	updateDb := models.File{}
-	if req.Name.Value != "" {
+	isContentUpdate := false
+	uploadId := ""
+	var uploads []models.Upload
+
+	if req.UploadId.IsSet() && req.UploadId.Value != "" {
+		uploadId = req.UploadId.Value
+		if err := a.db.Where("upload_id = ?", uploadId).Order("part_no").Find(&uploads).Error; err != nil {
+			return nil, &apiError{err: err}
+		}
+		var totalSize int64
+		for _, u := range uploads {
+			req.Parts = append(req.Parts, api.Part{
+				ID:   u.PartId,
+				Salt: api.NewOptString(u.Salt),
+			})
+			totalSize += u.Size
+		}
+		if req.Size.Value == 0 {
+			req.Size.SetTo(totalSize)
+		}
+	}
+
+	if req.Name.IsSet() && req.Name.Value != "" {
 		updateDb.Name = req.Name.Value
 	}
-	if len(req.Parts) > 0 {
+
+	if req.ParentId.IsSet() && req.ParentId.Value != "" {
+		updateDb.ParentId = utils.Ptr(req.ParentId.Value)
+	}
+
+	if req.ChannelId.IsSet() && req.ChannelId.Value != 0 {
+		updateDb.ChannelId = utils.Ptr(req.ChannelId.Value)
+	}
+
+	if req.Size.IsSet() && req.Size.Value != 0 && len(req.Parts) > 0 {
 		updateDb.Parts = utils.Ptr(datatypes.NewJSONSlice(mapParts(req.Parts)))
-	}
-	if req.Size.Value != 0 {
 		updateDb.Size = utils.Ptr(req.Size.Value)
+		isContentUpdate = true
+	}
+	if req.Size.IsSet() && req.Size.Value == 0 {
+		updateDb.Size = utils.Ptr(req.Size.Value)
+		isContentUpdate = true
 	}
 
-	updateDb.UpdatedAt = utils.Ptr(req.UpdatedAt.Value)
-
-	if req.UpdatedAt.Value.IsZero() {
-		updateDb.UpdatedAt = utils.Ptr(time.Now().UTC())
+	if req.Encrypted.IsSet() {
+		updateDb.Encrypted = utils.Ptr(req.Encrypted.Value)
+		isContentUpdate = true
 	}
 
-	if err := a.db.Model(&models.File{}).Where("id = ?", params.ID).Updates(updateDb).Error; err != nil {
+	// Update UpdatedAt if content changed OR if explicitly set (e.g., SetModTime)
+	if isContentUpdate || req.UpdatedAt.IsSet() {
+		if req.UpdatedAt.IsSet() && !req.UpdatedAt.Value.IsZero() {
+			updateDb.UpdatedAt = utils.Ptr(req.UpdatedAt.Value)
+		} else {
+			updateDb.UpdatedAt = utils.Ptr(time.Now().UTC())
+		}
+	}
+
+	// Use transaction for atomic update
+	var file models.File
+	err := a.db.Transaction(func(tx *gorm.DB) error {
+		// Compute BLAKE3 tree hash if uploadId provided
+		if uploadId != "" && len(uploads) > 0 {
+			var allBlockHashes []byte
+			for _, upload := range uploads {
+				allBlockHashes = append(allBlockHashes, upload.BlockHashes...)
+			}
+
+			if len(allBlockHashes) > 0 {
+				treeHashBytes := hash.ComputeTreeHash(allBlockHashes)
+				treeHash := hash.SumToHex(treeHashBytes)
+				updateDb.Hash = &treeHash
+			}
+		}
+
+		// Build update query - explicitly select UpdatedAt if it's the only change
+		query := tx.Model(&models.File{}).Where("id = ?", params.ID)
+		if req.UpdatedAt.IsSet() && !isContentUpdate {
+			// Force update of updated_at field even when only metadata changes
+			query = query.Select("updated_at")
+		}
+		if err := query.Updates(updateDb).Error; err != nil {
+			return err
+		}
+
+		// Delete uploads after successful update
+		if uploadId != "" {
+			if err := tx.Where("upload_id = ?", uploadId).Delete(&models.Upload{}).Error; err != nil {
+				return err
+			}
+		}
+
+		return tx.Where("id = ?", params.ID).First(&file).Error
+	})
+
+	if err != nil {
 		return nil, &apiError{err: err}
 	}
 
 	keys := []string{cache.KeyFile(params.ID)}
 	if len(req.Parts) > 0 {
 		keys = append(keys, cache.KeyFileMessages(params.ID))
+		a.cache.DeletePattern(ctx, cache.KeyFileLocationPattern(params.ID))
 	}
 	a.cache.Delete(ctx, keys...)
-
-	file := models.File{}
-	if err := a.db.Where("id = ?", params.ID).First(&file).Error; err != nil {
-		return nil, &apiError{err: err}
-	}
 
 	var parentID string
 	if file.ParentId != nil {
@@ -647,73 +796,12 @@ func (a *apiService) FilesUpdate(ctx context.Context, req *api.FileUpdate, param
 	return mapper.ToFileOut(file), nil
 }
 
-func (a *apiService) FilesUpdateParts(ctx context.Context, req *api.FilePartsUpdate, params api.FilesUpdatePartsParams) error {
-
-	userId := auth.GetUser(ctx)
-
-	var file models.File
-
-	updatePayload := models.File{
-		Size: utils.Ptr(req.Size),
-	}
-	if req.ChannelId.Value == 0 {
-		channelId, err := a.channelManager.CurrentChannel(ctx, userId)
-		if err != nil {
-			return &apiError{err: err}
-		}
-		updatePayload.ChannelId = &channelId
-	} else {
-		updatePayload.ChannelId = &req.ChannelId.Value
-	}
-	if len(req.Parts) > 0 {
-		updatePayload.Parts = utils.Ptr(datatypes.NewJSONSlice(mapParts(req.Parts)))
-	}
-	if req.Name.Value != "" {
-		updatePayload.Name = req.Name.Value
-	}
-	if req.ParentId.Value != "" {
-		updatePayload.ParentId = utils.Ptr(req.ParentId.Value)
-	}
-
-	updatePayload.UpdatedAt = utils.Ptr(req.UpdatedAt)
-	updatePayload.Encrypted = utils.Ptr(req.Encrypted.Value)
-
-	err := a.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("id = ?", params.ID).First(&file).Error; err != nil {
-			return err
-		}
-		if err := tx.Model(models.File{}).Where("id = ?", params.ID).Updates(updatePayload).Error; err != nil {
-			return err
-		}
-		if req.UploadId.Value != "" {
-			if err := tx.Where("upload_id = ?", req.UploadId.Value).Delete(&models.Upload{}).Error; err != nil {
-				return err
-			}
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		return &apiError{err: err}
-	}
-
-	keys := []string{cache.KeyFile(params.ID)}
-	if len(*file.Parts) > 0 && file.ChannelId != nil {
-		ids := utils.Map(*file.Parts, func(part api.Part) int { return part.ID })
-		client, _ := tgc.AuthClient(ctx, &a.cnf.TG, auth.GetJWTUser(ctx).TgSession, a.newMiddlewares(ctx, 5)...)
-		tgc.DeleteMessages(ctx, client, *file.ChannelId, ids)
-		keys = append(keys, cache.KeyFileMessages(params.ID))
-		a.cache.DeletePattern(ctx, cache.KeyFileLocationPattern(params.ID))
-
-	}
-	a.cache.Delete(ctx, keys...)
-
-	return nil
-}
 func (e *extendedService) FilesStream(w http.ResponseWriter, r *http.Request, fileId string, userId int64) {
 	ctx := r.Context()
-	logger := logging.FromContext(ctx)
+	logger := logging.Component("FILE").With(
+		zap.String("file_id", fileId),
+		zap.Int64("user_id", userId),
+	)
 	var (
 		session *models.Session
 		err     error
@@ -830,7 +918,7 @@ func (e *extendedService) FilesStream(w http.ResponseWriter, r *http.Request, fi
 	tokens, err := e.api.channelManager.BotTokens(ctx, session.UserId)
 
 	if err != nil {
-		logger.Error("failed to get bots", zap.Error(err))
+		logger.Error("stream.bots_fetch_failed", zap.Error(err))
 		http.Error(w, "failed to get bots", http.StatusInternalServerError)
 		return
 	}
@@ -849,7 +937,7 @@ func (e *extendedService) FilesStream(w http.ResponseWriter, r *http.Request, fi
 	if len(tokens) == 0 {
 		client, err = tgc.AuthClient(ctx, &e.api.cnf.TG, session.Session, e.api.newMiddlewares(ctx, 5)...)
 		if err != nil {
-			logger.Error("failed to create auth client", zap.Error(err))
+			logger.Error("stream.auth_client_failed", zap.Error(err))
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -857,13 +945,13 @@ func (e *extendedService) FilesStream(w http.ResponseWriter, r *http.Request, fi
 	} else {
 		token, _, err = e.api.botSelector.Next(ctx, tgc.BotOpStream, session.UserId, tokens)
 		if err != nil {
-			logger.Error("failed to select bot", zap.Error(err))
+			logger.Error("stream.bot_selection_failed", zap.Error(err))
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		client, err = tgc.BotClient(ctx, e.api.db, e.api.cache, &e.api.cnf.TG, token, e.api.newMiddlewares(ctx, 5)...)
 		if err != nil {
-			logger.Error("failed to create bot client", zap.Error(err))
+			logger.Error("stream.bot_client_failed", zap.Error(err))
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -881,7 +969,7 @@ func (e *extendedService) FilesStream(w http.ResponseWriter, r *http.Request, fi
 		handleStream := func() error {
 			parts, err := getParts(ctx, client, e.api.cache, file)
 			if err != nil {
-				logger.Error("failed to get file parts", zap.Error(err))
+				logger.Error("stream.parts_fetch_failed", zap.Error(err))
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return nil
 			}
@@ -898,12 +986,12 @@ func (e *extendedService) FilesStream(w http.ResponseWriter, r *http.Request, fi
 			)
 
 			if err != nil {
-				logger.Error("failed to create reader", zap.Error(err))
+				logger.Error("stream.reader_create_failed", zap.Error(err))
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return nil
 			}
 			if lr == nil {
-				logger.Error("reader is nil")
+				logger.Error("stream.reader_nil")
 				http.Error(w, "failed to initialise reader", http.StatusInternalServerError)
 				return nil
 			}

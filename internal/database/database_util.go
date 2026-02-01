@@ -51,6 +51,7 @@ func NewTestDatabase(tb testing.TB, migration bool) *gorm.DB {
 func MigrateDB(db *gorm.DB) error {
 	sqlDb, _ := db.DB()
 	goose.SetBaseFS(embedMigrations)
+	goose.SetLogger(goose.NopLogger())
 
 	if err := goose.SetDialect("postgres"); err != nil {
 		return err

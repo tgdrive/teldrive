@@ -13,8 +13,8 @@ import (
 	"gorm.io/gorm/schema"
 )
 
-func NewDatabase(ctx context.Context, cfg *config.DBConfig, lg *zap.Logger) (*gorm.DB, error) {
-	level, err := zapcore.ParseLevel(cfg.LogLevel)
+func NewDatabase(ctx context.Context, cfg *config.DBConfig, logCfg *config.DBLoggingConfig, lg *zap.Logger) (*gorm.DB, error) {
+	level, err := zapcore.ParseLevel(logCfg.Level)
 	if err != nil {
 		level = zapcore.InfoLevel
 	}
@@ -26,7 +26,7 @@ func NewDatabase(ctx context.Context, cfg *config.DBConfig, lg *zap.Logger) (*go
 			DSN:                  cfg.DataSource,
 			PreferSimpleProtocol: !cfg.PrepareStmt,
 		}), &gorm.Config{
-			Logger: NewLogger(lg, time.Second, true, level),
+			Logger: NewLogger(lg, logCfg.SlowThreshold, logCfg.IgnoreRecordNotFound, level, logCfg),
 			NamingStrategy: schema.NamingStrategy{
 				TablePrefix:   "teldrive.",
 				SingularTable: false,

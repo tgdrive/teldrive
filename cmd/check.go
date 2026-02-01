@@ -462,8 +462,10 @@ func runCheckCmd(cmd *cobra.Command, cfg *config.CheckCmdConfig) {
 
 	ctx := cmd.Context()
 
-	cfg.DB.LogLevel = "fatal"
-	db, err := database.NewDatabase(ctx, &cfg.DB, zap.NewNop())
+	logCfg := &config.DBLoggingConfig{
+		Level: "fatal",
+	}
+	db, err := database.NewDatabase(ctx, &cfg.DB, logCfg, zap.NewNop())
 	if err != nil {
 		pterm.Error.Println("failed to connect to database", err)
 		os.Exit(1)

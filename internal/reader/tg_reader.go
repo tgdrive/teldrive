@@ -193,7 +193,7 @@ func (r *tgMultiReader) fillBatch() error {
 
 	if err := g.Wait(); err != nil {
 		if !errors.Is(err, context.Canceled) {
-			r.logger.Error("reader error", zap.Error(err))
+			r.logger.Error("stream.chunk_failed", zap.Error(err), zap.Int("part", r.currentPart), zap.Int("total_parts", r.totalParts))
 		}
 
 		return err

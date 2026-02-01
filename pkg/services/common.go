@@ -53,10 +53,13 @@ func getParts(ctx context.Context, client *telegram.Client, c cache.Cacher, file
 			}
 		}
 		if len(parts) != len(*file.Parts) {
-			msg := "file parts mismatch"
-			logging.FromContext(ctx).Error(msg, zap.String("name", file.Name),
-				zap.Int("expected", len(*file.Parts)), zap.Int("actual", len(parts)))
-			return nil, errors.New(msg)
+			logger := logging.Component("FILE")
+			logger.Error("parts.mismatch",
+				zap.String("file_id", file.ID),
+				zap.String("file_name", file.Name),
+				zap.Int("expected", len(*file.Parts)),
+				zap.Int("actual", len(parts)))
+			return nil, errors.New("file parts mismatch")
 		}
 		return parts, nil
 	})

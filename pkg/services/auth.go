@@ -192,17 +192,20 @@ func (e *extendedService) AuthWs(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	logger := logging.FromContext(ctx)
+	logger := logging.Component("AUTH").With(
+		zap.String("remote_addr", r.RemoteAddr),
+		zap.String("auth_method", "qr"),
+	)
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		logger.Error("websocket upgrade error", zap.Error(err))
+		logger.Error("websocket.upgrade_failed", zap.Error(err))
 		http.Error(w, "could not upgrade connection", http.StatusBadRequest)
 		return
 	}
 
 	defer func() {
 		if err := conn.Close(); err != nil {
-			logger.Error("error closing websocket connection", zap.Error(err))
+			logger.Error("websocket.close_failed", zap.Error(err))
 		}
 	}()
 
@@ -211,7 +214,7 @@ func (e *extendedService) AuthWs(w http.ResponseWriter, r *http.Request) {
 	sessionStorage := &session.StorageMemory{}
 	tgClient, err := tgc.NoAuthClient(ctx, &e.api.cnf.TG, dispatcher, sessionStorage)
 	if err != nil {
-		logger.Error("error creating telegram client", zap.Error(err))
+		logger.Error("telegram.client_create_failed", zap.Error(err))
 		return
 	}
 
@@ -240,7 +243,7 @@ func (e *extendedService) AuthWs(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		logger.Error("error running telegram client", zap.Error(err))
+		logger.Error("telegram.client_run_failed", zap.Error(err))
 		return
 	}
 }
@@ -260,7 +263,7 @@ func (e *extendedService) handleQRAuth(ctx context.Context, conn *websocket.Conn
 	}
 
 	if err != nil {
-		logger.Error("QR auth error", zap.Error(err))
+		logger.Error("auth.qr_login_failed", zap.Error(err))
 		conn.WriteJSON(map[string]any{"type": "error", "message": err.Error()})
 		return
 	}
@@ -290,7 +293,7 @@ func (e *extendedService) handlePhoneAuth(ctx context.Context, conn *websocket.C
 		}
 
 		if err != nil {
-			logger.Error("error sending code", zap.Error(err))
+			logger.Error("auth.phone_code_failed", zap.Error(err), zap.String("phone", message.PhoneNo))
 			conn.WriteJSON(map[string]any{"type": "error", "message": err.Error()})
 			return
 		}
@@ -311,7 +314,7 @@ func (e *extendedService) handlePhoneAuth(ctx context.Context, conn *websocket.C
 			return
 		}
 		if err != nil {
-			logger.Error("phone sign-in error", zap.Error(err))
+			logger.Error("auth.phone_signin_failed", zap.Error(err), zap.String("phone", message.PhoneNo))
 			conn.WriteJSON(map[string]any{"type": "error", "message": err.Error()})
 			return
 		}
@@ -339,7 +342,7 @@ func (e *extendedService) handle2FAAuth(ctx context.Context, conn *websocket.Con
 		return
 	}
 	if err != nil {
-		logger.Error("phone sign-in error", zap.Error(err))
+		logger.Error("auth.2fa_failed", zap.Error(err))
 		conn.WriteJSON(map[string]any{"type": "error", "message": err.Error()})
 		return
 	}

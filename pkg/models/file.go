@@ -21,6 +21,7 @@ type File struct {
 	ParentId  *string                        `gorm:"type:uuid;index"`
 	Parts     *datatypes.JSONSlice[api.Part] `gorm:"type:jsonb"`
 	ChannelId *int64                         `gorm:"type:bigint"`
+	Hash      *string                        `gorm:"type:text"` // BLAKE3 tree hash
 	CreatedAt *time.Time                     `gorm:"default:timezone('utc'::text, now())"`
 	UpdatedAt *time.Time                     `gorm:"autoUpdateTime:false"`
 }

@@ -39,8 +39,7 @@ func newClient(ctx context.Context, config *config.TGConfig, handler telegram.Up
 
 	var logger *zap.Logger
 	if config.EnableLogging {
-		logger = logging.FromContext(ctx).Named("td")
-
+		logger = logging.Component("TG")
 	}
 
 	opts := telegram.Options{

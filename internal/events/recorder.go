@@ -42,19 +42,28 @@ func NewRecorder(ctx context.Context, db *gorm.DB, logger *zap.Logger) *Recorder
 }
 
 func (r *Recorder) Record(eventType EventType, userID int64, source *models.Source) {
-
 	evt := models.Event{
 		Type:   string(eventType),
 		UserID: userID,
 		Source: datatypes.NewJSONType(source),
 	}
 
+	// Try to send to channel (non-blocking)
 	select {
 	case r.events <- evt:
+		// Event queued successfully
 	default:
-		r.logger.Warn("event queue full, dropping event",
+		// Channel full, log warning but still save synchronously to not lose events
+		r.logger.Warn("events.queue_full_saving_sync",
 			zap.String("type", string(eventType)),
 			zap.Int64("user_id", userID))
+		// Save synchronously to avoid losing events
+		if err := r.db.Create(&evt).Error; err != nil {
+			r.logger.Error("events.sync_save_failed",
+				zap.Error(err),
+				zap.String("type", string(evt.Type)),
+				zap.Int64("user_id", evt.UserID))
+		}
 	}
 }
 
@@ -70,7 +79,7 @@ func (r *Recorder) processEvents() {
 				return
 			}
 			if err := r.db.Create(&evt).Error; err != nil {
-				r.logger.Error("failed to save event",
+				r.logger.Error("events.save_failed",
 					zap.Error(err),
 					zap.String("type", string(evt.Type)), //nolint:unconvert
 					zap.Int64("user_id", evt.UserID))
@@ -87,7 +96,7 @@ func (r *Recorder) drainEvents() {
 				return
 			}
 			if err := r.db.Create(&evt).Error; err != nil {
-				r.logger.Error("failed to save event during shutdown",
+				r.logger.Error("events.save_failed_shutdown",
 					zap.Error(err),
 					zap.String("type", string(evt.Type)), //nolint:unconvert
 					zap.Int64("user_id", evt.UserID))

@@ -16,6 +16,7 @@ import (
 	"github.com/tgdrive/teldrive/internal/api"
 	"github.com/tgdrive/teldrive/internal/appcontext"
 	"github.com/tgdrive/teldrive/internal/auth"
+	"github.com/tgdrive/teldrive/internal/banner"
 	"github.com/tgdrive/teldrive/internal/cache"
 	"github.com/tgdrive/teldrive/internal/chizap"
 	"github.com/tgdrive/teldrive/internal/config"
@@ -24,6 +25,7 @@ import (
 	"github.com/tgdrive/teldrive/internal/logging"
 	"github.com/tgdrive/teldrive/internal/middleware"
 	"github.com/tgdrive/teldrive/internal/tgc"
+	"github.com/tgdrive/teldrive/internal/version"
 	"github.com/tgdrive/teldrive/ui"
 
 	"github.com/tgdrive/teldrive/pkg/cron"
@@ -80,7 +82,7 @@ func runApplication(ctx context.Context, conf *config.ServerCmdConfig) {
 		FilePath: conf.Log.File,
 	})
 
-	lg := logging.DefaultLogger()
+	lg := logging.Component("APP")
 
 	defer lg.Sync()
 
@@ -89,7 +91,7 @@ func runApplication(ctx context.Context, conf *config.ServerCmdConfig) {
 		lg.Fatal("failed to find available port", zap.Error(err))
 	}
 	if port != conf.Server.Port {
-		lg.Info("port occupied", zap.Int("occupied_port", conf.Server.Port), zap.Int("new_port", port))
+		lg.Info("server.port_occupied", zap.Int("occupied_port", conf.Server.Port), zap.Int("new_port", port))
 		conf.Server.Port = port
 	}
 
@@ -105,7 +107,7 @@ func runApplication(ctx context.Context, conf *config.ServerCmdConfig) {
 	// Create bot selector with shared Redis client
 	botSelector := tgc.NewBotSelector(redisClient)
 
-	db, err := database.NewDatabase(ctx, &conf.DB, lg)
+	db, err := database.NewDatabase(ctx, &conf.DB, &conf.Log.DB, lg)
 
 	if err != nil {
 		lg.Fatal("failed to create database", zap.Error(err))
@@ -131,15 +133,21 @@ func runApplication(ctx context.Context, conf *config.ServerCmdConfig) {
 	}
 
 	go func() {
-		lg.Info("server started", zap.String("address", fmt.Sprintf("http://localhost:%d", conf.Server.Port)))
+		// Print startup banner
+		banner.PrintBanner(banner.StartupInfo{
+			Version:  version.Version,
+			Addr:     fmt.Sprintf(":%d", conf.Server.Port),
+			LogLevel: conf.Log.Level,
+		})
+		lg.Info("server.started", zap.String("address", fmt.Sprintf("http://localhost:%d", conf.Server.Port)))
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			lg.Error("failed to start server", zap.Error(err))
+			lg.Error("server.start_failed", zap.Error(err))
 		}
 	}()
 
 	<-ctx.Done()
 
-	lg.Info("shutting down server")
+	lg.Info("server.shutdown")
 
 	// Close Redis client if it was created
 	if redisClient != nil {
@@ -153,10 +161,10 @@ func runApplication(ctx context.Context, conf *config.ServerCmdConfig) {
 	defer shutdownCancel()
 
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		lg.Error("server shutdown failed", zap.Error(err))
+		lg.Error("server.shutdown_failed", zap.Error(err))
 	}
 
-	lg.Info("server stopped")
+	lg.Info("server.stopped")
 }
 
 func setupServer(cfg *config.ServerCmdConfig, db *gorm.DB, cache cache.Cacher, lg *zap.Logger, botSelector tgc.BotSelector, eventRecorder *events.Recorder) *http.Server {
@@ -182,9 +190,7 @@ func setupServer(cfg *config.ServerCmdConfig, db *gorm.DB, cache cache.Cacher, l
 	}))
 	mux.Use(chimiddleware.RealIP)
 	mux.Use(middleware.InjectLogger(lg))
-	mux.Use(chizap.ChizapWithConfig(lg, &chizap.Config{
-		TimeFormat: time.RFC3339,
-		UTC:        true,
+	mux.Use(chizap.ChizapWithConfig(logging.Component("HTTP"), &chizap.Config{
 		SkipPathRegexps: []*regexp.Regexp{
 			regexp.MustCompile(`^/(assets|images|docs)/.*`),
 		},

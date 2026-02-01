@@ -24,12 +24,15 @@ func ToFileOut(file models.File) *api.File {
 	if file.Category != nil && *file.Category != "" {
 		res.Category = api.NewOptCategory(api.Category(*file.Category))
 	}
+	if file.Hash != nil && *file.Hash != "" {
+		res.Hash = api.NewOptString(*file.Hash)
+	}
 	return res
 }
 
 func ToUploadOut(parts []models.Upload) []api.UploadPart {
 	return utils.Map(parts, func(part models.Upload) api.UploadPart {
-		return api.UploadPart{
+		res := api.UploadPart{
 			Name:      part.Name,
 			PartId:    part.PartId,
 			ChannelId: part.ChannelId,
@@ -38,5 +41,7 @@ func ToUploadOut(parts []models.Upload) []api.UploadPart {
 			Encrypted: part.Encrypted,
 			Salt:      api.NewOptString(part.Salt),
 		}
+		// Note: BlockHashes are internal, not exposed in API response
+		return res
 	})
 }

@@ -34,4 +34,4 @@ ui/dist
 docs/dist
 teldrive-ui.zip
 internal/api
-.aider*
+.opencode/plans

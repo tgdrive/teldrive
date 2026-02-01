@@ -22,8 +22,6 @@ type ZapLogger interface {
 }
 
 type Config struct {
-	TimeFormat      string
-	UTC             bool
 	SkipPaths       []string
 	SkipPathRegexps []*regexp.Regexp
 	Context         Fn
@@ -33,7 +31,7 @@ type Config struct {
 }
 
 func Chizap(logger ZapLogger, timeFormat string, utc bool) func(next http.Handler) http.Handler {
-	return ChizapWithConfig(logger, &Config{TimeFormat: timeFormat, UTC: utc, DefaultLevel: zapcore.InfoLevel})
+	return ChizapWithConfig(logger, &Config{DefaultLevel: zapcore.InfoLevel})
 }
 
 func ChizapWithConfig(logger ZapLogger, conf *Config) func(next http.Handler) http.Handler {
@@ -71,9 +69,6 @@ func ChizapWithConfig(logger ZapLogger, conf *Config) func(next http.Handler) ht
 				if track {
 					end := time.Now()
 					latency := end.Sub(start)
-					if conf.UTC {
-						end = end.UTC()
-					}
 
 					fields := []zapcore.Field{
 						zap.Int("status", ww.Status()),
@@ -83,9 +78,6 @@ func ChizapWithConfig(logger ZapLogger, conf *Config) func(next http.Handler) ht
 						zap.String("ip", r.RemoteAddr),
 						zap.String("user-agent", r.UserAgent()),
 						zap.Duration("latency", latency),
-					}
-					if conf.TimeFormat != "" {
-						fields = append(fields, zap.String("time", end.Format(conf.TimeFormat)))
 					}
 
 					if conf.Context != nil {

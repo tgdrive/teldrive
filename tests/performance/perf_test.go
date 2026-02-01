@@ -434,7 +434,7 @@ func TestRcloneParallel_UUIDv7(t *testing.T) {
 
 	var wg sync.WaitGroup
 	start := time.Now()
-	for i := 0; i < 8; i++ {
+	for i := range 8 {
 		wg.Add(1)
 		go func(page int) {
 			defer wg.Done()

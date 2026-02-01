@@ -73,7 +73,7 @@ func (p *pool) invoker(ctx context.Context, dc int) tg.Invoker {
 	}
 
 	if err != nil {
-		logging.FromContext(ctx).Error("create invoker", zap.Error(err))
+		logging.Component("POOL").Error("invoker.create_failed", zap.Error(err))
 		return p.api
 	}
 

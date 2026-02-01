@@ -90,7 +90,7 @@ func StartCronJobs(ctx context.Context, db *gorm.DB, cnf *config.ServerCmdConfig
 }
 
 func (c *CronService) cleanFiles(ctx context.Context) {
-	c.logger.Debug("running clean-files")
+	c.logger.Info("cron.clean_files.started")
 	var results []result
 	if err := c.db.Table("teldrive.files as f").
 		Select("JSONB_AGG(jsonb_build_object('id', f.id, 'parts', f.parts)) as files,f.channel_id,f.user_id,s.session").
@@ -136,7 +136,7 @@ func (c *CronService) cleanFiles(ctx context.Context) {
 		err := tgc.DeleteMessages(ctx, client, row.ChannelId, ids)
 
 		if err != nil {
-			c.logger.Error("failed to delete messages", zap.Error(err))
+			c.logger.Error("cron.file_delete_failed", zap.Error(err), zap.Int64("channel_id", row.ChannelId))
 			return
 		}
 
@@ -148,12 +148,12 @@ func (c *CronService) cleanFiles(ctx context.Context) {
 
 		c.db.Where("id = any($1)", items).Delete(&models.File{})
 
-		c.logger.Info("cleaned files", zap.Int64("user", row.UserId), zap.Int64("channel", row.ChannelId))
+		c.logger.Info("cron.files_cleaned", zap.Int64("user_id", row.UserId), zap.Int64("channel_id", row.ChannelId), zap.Int("file_count", len(fileIds)))
 	}
 }
 
 func (c *CronService) cleanUploads(ctx context.Context) {
-	c.logger.Debug("running clean-uploads")
+	c.logger.Info("cron.clean_uploads.started")
 	var results []uploadResult
 	if err := c.db.Table("teldrive.uploads as up").
 		Select("JSONB_AGG(up.part_id) as parts,up.channel_id,up.user_id,s.session").
@@ -199,7 +199,7 @@ func (c *CronService) cleanUploads(ctx context.Context) {
 }
 
 func (c *CronService) updateFolderSize() {
-	c.logger.Debug("running folder-size")
+	c.logger.Info("cron.folder_size.started")
 	query := `
 	WITH RECURSIVE folder_hierarchy AS (
 		SELECT id, id as root_id
