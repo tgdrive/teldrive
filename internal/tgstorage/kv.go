@@ -42,6 +42,18 @@ func (s kvStorage) Set(ctx context.Context, k, v string) error {
 }
 
 func (s kvStorage) Get(ctx context.Context, key string) (string, error) {
+	// Skip cache if not configured
+	if s.cache == nil {
+		var entry KeyValue
+		if err := s.db.First(&entry, "key = ?", key).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return "", kv.ErrKeyNotFound
+			}
+			return "", errors.Wrap(err, "query")
+		}
+		return string(entry.Value), nil
+	}
+
 	return cache.Fetch(ctx, s.cache, cache.Key(key), 30*time.Minute, func() (string, error) {
 		var entry KeyValue
 		if err := s.db.First(&entry, "key = ?", key).Error; err != nil {
@@ -52,7 +64,6 @@ func (s kvStorage) Get(ctx context.Context, key string) (string, error) {
 		}
 		return string(entry.Value), nil
 	})
-
 }
 
 func (s kvStorage) Delete(ctx context.Context, k string) error {

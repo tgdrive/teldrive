@@ -192,6 +192,20 @@ type TGConfig struct {
 	ChannelLimit      int64         `default:"500000" description:"Channel message limit before auto channel creation"`
 	Uploads           TGUpload
 	Stream            TGStream
+	// Session storage configuration for Telegram sessions
+	Session SessionStorageConfig
+}
+
+type BoltSessionConfig struct {
+	Path       string        `default:"" description:"Path to BoltDB session file (empty for auto-detect)"`
+	Timeout    time.Duration `default:"1s" description:"Timeout for opening BoltDB"`
+	NoGrowSync bool          `default:"false" description:"Disable grow sync for performance"`
+}
+
+type SessionStorageConfig struct {
+	Type string            `default:"postgres" description:"Session storage type: postgres, bolt, memory"`
+	Key  string            `default:"session" description:"Key prefix for session storage"`
+	Bolt BoltSessionConfig `koanf:"bolt"`
 }
 
 type ConfigLoader struct {

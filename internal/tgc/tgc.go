@@ -105,8 +105,16 @@ func AuthClient(ctx context.Context, config *config.TGConfig, sessionStr string,
 
 // BotClient creates a Telegram client for bot authentication.
 // Uses database-backed session storage for persistent bot sessions.
-func BotClient(ctx context.Context, db *gorm.DB, c cache.Cacher, config *config.TGConfig, token string, middlewares ...telegram.Middleware) (*telegram.Client, error) {
-	storage := tgstorage.NewSessionStorage(db, c, cache.KeySessionToken(config.SessionInstance, strings.Split(token, ":")[0]))
+// Note: storage remains open for client's lifetime - do not close it here
+func BotClient(ctx context.Context, db *gorm.DB, cache cache.Cacher, config *config.TGConfig, token string, middlewares ...telegram.Middleware) (*telegram.Client, error) {
+	// Use bot token ID (part before colon) as session key
+	botID := strings.Split(token, ":")[0]
+	storage, err := tgstorage.NewSessionStorage(config.Session, db, cache, botID)
+	if err != nil {
+		return nil, err
+	}
+	// Storage must remain open for the client's entire lifetime
+	// It will be garbage collected when the client is no longer referenced
 	return newClient(ctx, config, nil, storage, middlewares...)
 }
 
