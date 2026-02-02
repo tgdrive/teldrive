@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/tgdrive/teldrive/internal/config"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -17,8 +18,8 @@ type Fn func(ctx context.Context) []zapcore.Field
 type Skipper func(ctx context.Context) bool
 
 type ZapLogger interface {
-	Info(msg string, fields ...zap.Field)
-	Error(msg string, fields ...zap.Field)
+	Info(msg string, fields ...zapcore.Field)
+	Error(msg string, fields ...zapcore.Field)
 }
 
 type Config struct {
@@ -26,8 +27,7 @@ type Config struct {
 	SkipPathRegexps []*regexp.Regexp
 	Context         Fn
 	DefaultLevel    zapcore.Level
-
-	Skipper Skipper
+	HTTPConfig      *config.HTTPLoggingConfig
 }
 
 func Chizap(logger ZapLogger, timeFormat string, utc bool) func(next http.Handler) http.Handler {
@@ -51,7 +51,7 @@ func ChizapWithConfig(logger ZapLogger, conf *Config) func(next http.Handler) ht
 			defer func() {
 				track := true
 
-				if _, ok := skipPaths[path]; ok || (conf.Skipper != nil && conf.Skipper(r.Context())) {
+				if _, ok := skipPaths[path]; ok {
 					track = false
 				}
 
@@ -76,8 +76,30 @@ func ChizapWithConfig(logger ZapLogger, conf *Config) func(next http.Handler) ht
 						zap.String("path", path),
 						zap.String("query", query),
 						zap.String("ip", r.RemoteAddr),
-						zap.String("user-agent", r.UserAgent()),
 						zap.Duration("latency", latency),
+					}
+
+					// Add user agent if configured
+					if conf.HTTPConfig != nil && conf.HTTPConfig.LogUserAgent {
+						ua := r.UserAgent()
+						if len(ua) > 50 {
+							ua = ua[:50] + "..."
+						}
+						fields = append(fields, zap.String("user-agent", ua))
+					}
+
+					// Add request body size if configured
+					if conf.HTTPConfig != nil && conf.HTTPConfig.LogRequestBodySize {
+						if r.ContentLength > 0 {
+							fields = append(fields, zap.Int64("request_size", r.ContentLength))
+						}
+					}
+
+					// Add response size if configured
+					if conf.HTTPConfig != nil && conf.HTTPConfig.LogResponseSize {
+						if ww.BytesWritten() > 0 {
+							fields = append(fields, zap.Int64("response_size", int64(ww.BytesWritten())))
+						}
 					}
 
 					if conf.Context != nil {

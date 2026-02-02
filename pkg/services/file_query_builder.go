@@ -27,7 +27,7 @@ type fileResponse struct {
 
 const folderCategory = "folder"
 
-var selectedFields = []string{"id", "name", "type", "mime_type", "category", "channel_id", "encrypted", "size", "parent_id", "updated_at"}
+var selectedFields = []string{"id", "name", "type", "mime_type", "category", "hash", "channel_id", "encrypted", "size", "parent_id", "updated_at"}
 
 func (afb *fileQueryBuilder) execute(filesQuery *api.FilesListParams, userId int64) (*api.FileList, error) {
 	query := afb.db.Where("user_id = ?", userId).Where("status = ?", filesQuery.Status.Value)

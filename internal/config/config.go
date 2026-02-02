@@ -111,9 +111,7 @@ type DBLoggingConfig struct {
 	Level                string        `default:"error" description:"Database logging level (silent, error, warn, info, debug)"`
 	SlowThreshold        time.Duration `default:"1s" description:"Log queries slower than this threshold"`
 	IgnoreRecordNotFound bool          `default:"true" description:"Don't log 'record not found' errors"`
-	LogSQLPreview        bool          `default:"true" description:"Log truncated SQL preview"`
-	LogOperationType     bool          `default:"true" description:"Log operation type (SELECT/INSERT/UPDATE/DELETE)"`
-	LogTableName         bool          `default:"true" description:"Extract and log table name"`
+	LogSQL               bool          `default:"true" description:"LogSQL"`
 }
 
 // TGLoggingConfig holds Telegram client logging configuration

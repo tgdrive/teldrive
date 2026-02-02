@@ -30,7 +30,7 @@ func Auth(ctx context.Context, client *telegram.Client, token string) error {
 		if !status.Authorized {
 			return errors.Errorf("not authorized. please login first")
 		}
-		logger.Info("session.user",
+		logger.Debug("session.user",
 			zap.Int64("user_id", status.User.ID),
 			zap.String("username", status.User.Username))
 	} else {
@@ -44,7 +44,7 @@ func Auth(ctx context.Context, client *telegram.Client, token string) error {
 			if err != nil {
 				return err
 			}
-			logger.Info("session.bot",
+			logger.Debug("session.bot",
 				zap.Int64("bot_id", status.User.ID),
 				zap.String("username", status.User.Username))
 		}

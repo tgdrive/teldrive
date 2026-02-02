@@ -281,7 +281,7 @@ func (a *apiService) UploadsUpload(ctx context.Context, req *api.UploadsUploadRe
 			zap.Int("part_no", params.PartNo), zap.Error(err))
 		return nil, &apiError{err: err}
 	}
-	logger.Info("upload.complete", zap.Int("message_id", out.PartId), zap.Int64("final_size", out.Size), zap.Bool("encrypted", out.Encrypted))
+	logger.Debug("upload.complete", zap.Int("message_id", out.PartId), zap.Int64("final_size", out.Size), zap.Bool("encrypted", out.Encrypted))
 	return &out, nil
 }
 

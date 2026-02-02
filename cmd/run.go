@@ -269,6 +269,7 @@ func setupServer(cfg *config.ServerCmdConfig, db *gorm.DB, cache cache.Cacher, l
 		SkipPathRegexps: []*regexp.Regexp{
 			regexp.MustCompile(`^/(assets|images|docs)/.*`),
 		},
+		HTTPConfig: &cfg.Log.HTTP,
 	}))
 	mux.Use(appcontext.Middleware)
 	mux.Mount("/api/", http.StripPrefix("/api", extendedSrv))
