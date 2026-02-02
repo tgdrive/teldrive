@@ -41,6 +41,13 @@ func getKey(f reflect.StructField) string {
 	return toKebabCase(f.Name)
 }
 
+type EventConfig struct {
+	PollInterval     time.Duration `default:"10s" description:"Event polling interval for single-instance mode"`
+	DBWorkers        int           `default:"10" description:"Number of DB worker goroutines for event persistence"`
+	DBBufferSize     int           `default:"1000" description:"Size of DB worker queue buffer"`
+	DeduplicationTTL time.Duration `default:"5s" description:"Event deduplication time-to-live"`
+}
+
 type ServerCmdConfig struct {
 	Server   ServerConfig
 	Log      LoggingConfig
@@ -50,6 +57,7 @@ type ServerCmdConfig struct {
 	CronJobs CronJobConfig
 	Cache    CacheConfig
 	Redis    RedisConfig
+	Events   EventConfig
 }
 
 type CheckCmdConfig struct {

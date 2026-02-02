@@ -116,13 +116,13 @@ func (c *prettyCore) Write(ent zapcore.Entry, fields []zapcore.Field) error {
 	case zapcore.DebugLevel:
 		icon, color = "🐛", "\x1b[35m" // Magenta
 	case zapcore.InfoLevel:
-		icon, color = "✓", "\x1b[32m" // Green
+		icon, color = "✓ ", "\x1b[32m" // Green
 	case zapcore.WarnLevel:
-		icon, color = "⚠", "\x1b[33m" // Yellow
+		icon, color = "⚠ ", "\x1b[33m" // Yellow
 	case zapcore.ErrorLevel, zapcore.DPanicLevel, zapcore.PanicLevel, zapcore.FatalLevel:
-		icon, color = "✗", "\x1b[31m" // Red
+		icon, color = "✗ ", "\x1b[31m" // Red
 	default:
-		icon, color = "·", "\x1b[37m" // White
+		icon, color = "· ", "\x1b[37m" // White
 	}
 
 	// Format Component

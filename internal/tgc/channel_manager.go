@@ -80,6 +80,27 @@ func (cm *ChannelManager) BotTokens(ctx context.Context, userID int64) ([]string
 }
 
 func (cm *ChannelManager) CreateNewChannel(ctx context.Context, newChannelName string, userID int64, setDefault bool) (int64, error) {
+	// Acquire distributed lock to prevent race conditions in multi-instance setups
+	lockID := cm.generateLockID(userID, "channel_rollover")
+
+	// Try to acquire lock (10 second timeout)
+	lockCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	if err := cm.acquireAdvisoryLock(lockCtx, lockID); err != nil {
+		return 0, fmt.Errorf("failed to acquire channel creation lock: %w", err)
+	}
+	defer cm.releaseAdvisoryLock(context.Background(), lockID)
+
+	// Double-check: Was a channel created recently by another instance?
+	recentChannel, err := cm.getChannelCreatedAfter(ctx, userID, time.Now().Add(-10*time.Second))
+	if err != nil {
+		return 0, err
+	}
+	if recentChannel != nil {
+		// Another instance already created channel - use it!
+		return recentChannel.ChannelId, nil
+	}
 
 	if newChannelName == "" {
 		newChannelName = fmt.Sprintf("storage_%d", time.Now().Unix())
@@ -173,6 +194,51 @@ func (cm *ChannelManager) CreateNewChannel(ctx context.Context, newChannelName s
 	}
 
 	return newChannelID, nil
+}
+
+// generateLockID creates a unique lock ID from user ID and operation
+func (cm *ChannelManager) generateLockID(userID int64, operation string) int64 {
+	// Use hash to generate unique int64 from userID + operation
+	// PostgreSQL advisory locks use int64
+	return userID*1000000 + int64(len(operation)) // Simple but effective
+}
+
+// acquireAdvisoryLock attempts to acquire PostgreSQL advisory lock
+func (cm *ChannelManager) acquireAdvisoryLock(ctx context.Context, lockID int64) error {
+	var acquired bool
+	err := cm.db.WithContext(ctx).Raw(
+		"SELECT pg_try_advisory_lock(?)", lockID,
+	).Scan(&acquired).Error
+	if err != nil {
+		return err
+	}
+	if !acquired {
+		return fmt.Errorf("lock already held by another instance")
+	}
+	return nil
+}
+
+// releaseAdvisoryLock releases PostgreSQL advisory lock
+func (cm *ChannelManager) releaseAdvisoryLock(ctx context.Context, lockID int64) error {
+	return cm.db.WithContext(ctx).Exec(
+		"SELECT pg_advisory_unlock(?)", lockID,
+	).Error
+}
+
+// getChannelCreatedAfter checks if a channel was created for user after given time
+func (cm *ChannelManager) getChannelCreatedAfter(ctx context.Context, userID int64, after time.Time) (*models.Channel, error) {
+	var channel models.Channel
+	err := cm.db.WithContext(ctx).
+		Where("user_id = ? AND created_at > ?", userID, after).
+		Order("created_at DESC").
+		First(&channel).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil // No channel found
+		}
+		return nil, err
+	}
+	return &channel, nil
 }
 
 func (cm *ChannelManager) AddBotsToChannel(ctx context.Context, userId int64, channelId int64, botsTokens []string, save bool) error {

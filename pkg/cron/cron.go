@@ -63,7 +63,7 @@ func StartCronJobs(ctx context.Context, db *gorm.DB, cnf *config.ServerCmdConfig
 		return err
 	}
 
-	cron := CronService{db: db, cnf: cnf, logger: logging.DefaultLogger()}
+	cron := CronService{db: db, cnf: cnf, logger: logging.Component("CRON")}
 	_, err = scheduler.NewJob(gocron.DurationJob(cnf.CronJobs.CleanFilesInterval),
 		gocron.NewTask(cron.cleanFiles, ctx))
 	if err != nil {

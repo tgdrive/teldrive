@@ -20,4 +20,5 @@ type Source struct {
 	Name         string `json:"name,omitempty"`
 	ParentID     string `json:"parentId,omitempty"`
 	DestParentID string `json:"destParentId,omitempty"`
+	Path         string `json:"path,omitempty"`
 }

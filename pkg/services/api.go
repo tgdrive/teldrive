@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+	"encoding/json"
+	"io"
 	"net/http"
 	"time"
 
@@ -29,7 +31,7 @@ type apiService struct {
 	cnf            *config.ServerCmdConfig
 	cache          cache.Cacher
 	botSelector    tgc.BotSelector
-	events         *events.Recorder
+	events         events.EventBroadcaster
 	channelManager *tgc.ChannelManager
 }
 
@@ -68,6 +70,63 @@ func (a *apiService) EventsGetEvents(ctx context.Context) ([]api.Event, error) {
 	}), nil
 }
 
+func (a *apiService) EventsEventsStream(ctx context.Context, params api.EventsEventsStreamParams) (*api.EventsEventsStreamOKHeaders, error) {
+	userId := auth.GetUser(ctx)
+
+	pr, pw := io.Pipe()
+
+	eventChan := a.events.Subscribe(userId)
+	defer a.events.Unsubscribe(userId, eventChan) // Cleanup subscription on exit
+
+	heartbeatInterval := time.Duration(30) * time.Second
+	if params.Interval.IsSet() && params.Interval.Value > 0 {
+		heartbeatInterval = time.Duration(params.Interval.Value) * time.Millisecond
+	}
+
+	go func() {
+		defer pw.Close()
+		heartbeatTicker := time.NewTicker(heartbeatInterval)
+		defer heartbeatTicker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case event := <-eventChan:
+				src := event.Source.Data()
+
+				eventData := api.Event{
+					ID:        event.ID,
+					Type:      event.Type,
+					CreatedAt: event.CreatedAt,
+					Source: api.Source{
+						ID:           src.ID,
+						Type:         api.SourceType(src.Type),
+						Name:         src.Name,
+						ParentId:     src.ParentID,
+						DestParentId: api.NewOptString(src.DestParentID),
+					},
+				}
+
+				data, _ := json.Marshal(eventData)
+				if _, err := pw.Write([]byte("data: " + string(data) + "\n\n")); err != nil {
+					return
+				}
+			case <-heartbeatTicker.C:
+				if _, err := pw.Write([]byte(":heartbeat\n\n")); err != nil {
+					return
+				}
+			}
+		}
+	}()
+
+	return &api.EventsEventsStreamOKHeaders{
+		CacheControl: api.EventsEventsStreamOKCacheControlNoCache,
+		Connection:   api.EventsEventsStreamOKConnectionKeepAlive,
+		Response:     api.EventsEventsStreamOK{Data: pr},
+	}, nil
+}
+
 func (a *apiService) NewError(ctx context.Context, err error) *api.ErrorStatusCode {
 	var (
 		code     = http.StatusInternalServerError
@@ -100,7 +159,7 @@ func NewApiService(db *gorm.DB,
 	cnf *config.ServerCmdConfig,
 	cache cache.Cacher,
 	botSelector tgc.BotSelector,
-	events *events.Recorder) *apiService {
+	events events.EventBroadcaster) *apiService {
 
 	return &apiService{
 		db:             db,
