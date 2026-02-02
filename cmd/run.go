@@ -119,18 +119,16 @@ func runApplication(ctx context.Context, conf *config.ServerCmdConfig) {
 	var redisReady = make(chan struct{})
 
 	go func() {
-		lg.Debug("cache.init.started")
 		client, err := cache.NewRedisClient(bgCtx, &conf.Redis)
 		if err != nil {
-			lg.Error("cache.redis.failed", zap.Error(err))
+			lg.Error("redis.client_failed", zap.Error(err))
 			initErrCh <- fmt.Errorf("redis connection failed: %w", err)
 			return
 		}
 		redisClient = client
-		cacher = cache.NewCache(bgCtx, conf.Cache.MaxSize, redisClient)
+		cacher = cache.NewCache(bgCtx, conf.Cache.MaxSize, redisClient, lg)
 		botSelector = tgc.NewBotSelector(redisClient)
 		redisOnce.Do(func() { close(redisReady) })
-		lg.Info("cache.init.completed")
 	}()
 
 	// Initialize database (blocking - server needs this)
@@ -167,10 +165,8 @@ func runApplication(ctx context.Context, conf *config.ServerCmdConfig) {
 	var eventsReady = make(chan struct{})
 
 	go func() {
-		lg.Debug("events.init.started")
 		eventBroadcaster = events.NewBroadcaster(bgCtx, db, redisClient, conf.Events.PollInterval, broadcasterConfig, logging.Component("EVENT"))
 		eventsOnce.Do(func() { close(eventsReady) })
-		lg.Info("events.init.completed")
 	}()
 
 	// Wait for events to be ready
@@ -196,13 +192,12 @@ func runApplication(ctx context.Context, conf *config.ServerCmdConfig) {
 	// Start cron jobs in background if enabled
 	if conf.CronJobs.Enable {
 		go func() {
-			lg.Debug("cron.init.started")
 			if err := cron.StartCronJobs(bgCtx, db, conf); err != nil {
 				lg.Error("cron.init.failed", zap.Error(err))
 				initErrCh <- fmt.Errorf("cron scheduler failed: %w", err)
 				return
 			}
-			lg.Info("cron.init.completed")
+			lg.Debug("cron.init.completed")
 		}()
 	}
 

@@ -14,6 +14,7 @@ import (
 	"github.com/coocood/freecache"
 	"github.com/redis/go-redis/v9"
 	"github.com/vmihailenco/msgpack/v5"
+	"go.uber.org/zap"
 )
 
 type Cacher interface {
@@ -31,10 +32,12 @@ type MemoryCache struct {
 
 // NewCache creates a new cache instance.
 // If redisClient is provided, uses Redis; otherwise falls back to in-memory cache.
-func NewCache(ctx context.Context, maxSize int, redisClient *redis.Client) Cacher {
+func NewCache(ctx context.Context, maxSize int, redisClient *redis.Client, lg *zap.Logger) Cacher {
 	if redisClient != nil {
+		lg.Debug("using cache", zap.String("type", "redis"))
 		return NewRedisCache(redisClient)
 	}
+	lg.Debug("using cache", zap.String("type", "memory"), zap.Int("size", maxSize))
 	return NewMemoryCache(maxSize)
 }
 

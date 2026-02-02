@@ -32,7 +32,7 @@ const (
 	// Default values (used if not configured)
 	defaultDBWorkers        = 10
 	defaultDBBufferSize     = 1000
-	defaultDeduplicationTTL = 5 * time.Second
+	defaultDeduplicationTTL = 30 * time.Minute
 )
 
 // EventBroadcaster defines the interface for event broadcasting
@@ -104,11 +104,6 @@ func newBaseBroadcaster(db *gorm.DB, logger *zap.Logger, ctx context.Context, ca
 		go b.dbWorker()
 	}
 
-	logger.Debug("events.broadcaster_config",
-		zap.Int("db_workers", config.DBWorkers),
-		zap.Int("db_buffer_size", config.DBBufferSize),
-		zap.Duration("dedup_ttl", config.DeduplicationTTL))
-
 	return b
 }
 
@@ -177,21 +172,15 @@ func (b *baseBroadcaster) broadcast(evt models.Event) {
 	}
 
 	sent := 0
-	for _, ch := range subs {
+	for i, ch := range subs {
 		select {
 		case ch <- evt:
 			sent++
 		default:
-			// Channel full, drop event
+			b.logger.Debug("events.channel_full",
+				zap.String("id", evt.ID),
+				zap.Int("subscriber_index", i))
 		}
-	}
-
-	if sent > 0 {
-		b.logger.Debug("events.broadcasted",
-			zap.String("id", evt.ID),
-			zap.Int64("user_id", evt.UserID),
-			zap.Int("sent", sent),
-			zap.Int("total", len(subs)))
 	}
 }
 
@@ -268,7 +257,7 @@ func createEvent(eventType EventType, userID int64, source *models.Source) model
 		Type:      string(eventType),
 		UserID:    userID,
 		Source:    datatypes.NewJSONType(source),
-		CreatedAt: time.Now(),
+		CreatedAt: time.Now().UTC(),
 	}
 }
 

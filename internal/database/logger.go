@@ -80,6 +80,11 @@ func (l *Logger) Trace(ctx context.Context, begin time.Time, fc func() (string, 
 	}
 
 	elapsed := time.Since(begin)
+
+	// Handle negative elapsed time (system clock changes)
+	if elapsed < 0 {
+		elapsed = 0
+	}
 	sql, rows := fc()
 
 	// Extract operation type and table

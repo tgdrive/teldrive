@@ -36,7 +36,7 @@ func TestWholeFileFlow(t *testing.T) {
 	require.True(t, ok, "AuthSession should return SessionHeaders")
 
 	// Set up authenticated context
-	c := cache.NewCache(context.Background(), config.CacheConfig{}.MaxSize, nil)
+	c := cache.NewCache(context.Background(), config.CacheConfig{}.MaxSize, nil,nil)
 	security := auth.NewSecurityHandler(testDB, c, &config.JWTConfig{Secret: testJWTSecret})
 	ctx, err = security.HandleBearerAuth(ctx, "FilesCreate", api.BearerAuth{Token: token})
 	require.NoError(t, err)

@@ -83,7 +83,7 @@ func newTestApiService(db *gorm.DB) api.Handler {
 			},
 		},
 	}
-	c := cache.NewCache(context.Background(), config.CacheConfig{}.MaxSize, nil)
+	c := cache.NewCache(context.Background(), config.CacheConfig{}.MaxSize, nil,nil)
 	botSelector := tgc.NewBotSelector(nil)
 	ev := events.NewBroadcaster(context.Background(), db, nil, time.Duration(10*time.Second), events.BroadcasterConfig{}, zap.NewNop())
 	return services.NewApiService(db, cnf, c, botSelector, ev)

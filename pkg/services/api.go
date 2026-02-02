@@ -2,9 +2,9 @@ package services
 
 import (
 	"context"
-	"encoding/json"
-	"io"
+	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-faster/errors"
@@ -71,60 +71,76 @@ func (a *apiService) EventsGetEvents(ctx context.Context) ([]api.Event, error) {
 }
 
 func (a *apiService) EventsEventsStream(ctx context.Context, params api.EventsEventsStreamParams) (*api.EventsEventsStreamOKHeaders, error) {
-	userId := auth.GetUser(ctx)
+	return nil, nil
+}
 
-	pr, pw := io.Pipe()
+func (e *extendedService) EventsEventsStream(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 
-	eventChan := a.events.Subscribe(userId)
-	defer a.events.Unsubscribe(userId, eventChan) // Cleanup subscription on exit
+	cookie, err := r.Cookie(authCookieName)
+	if err != nil {
+		http.Error(w, "missing token or authash", http.StatusUnauthorized)
+		return
+	}
+	user, err := auth.VerifyUser(r.Context(), e.api.db, e.api.cache, e.api.cnf.JWT.Secret, cookie.Value)
+	if err != nil {
+		http.Error(w, "invalid token", http.StatusUnauthorized)
+		return
+	}
+	userId, _ := strconv.ParseInt(user.Subject, 10, 64)
 
-	heartbeatInterval := time.Duration(30) * time.Second
-	if params.Interval.IsSet() && params.Interval.Value > 0 {
-		heartbeatInterval = time.Duration(params.Interval.Value) * time.Millisecond
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.WriteHeader(http.StatusOK)
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
+		return
 	}
 
-	go func() {
-		defer pw.Close()
-		heartbeatTicker := time.NewTicker(heartbeatInterval)
-		defer heartbeatTicker.Stop()
+	eventChan := e.api.events.Subscribe(userId)
+	defer e.api.events.Unsubscribe(userId, eventChan)
+	fmt.Fprintf(w, ": connected\n\n")
+	flusher.Flush()
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
 
-		for {
-			select {
-			case <-ctx.Done():
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case event, ok := <-eventChan:
+			if !ok {
 				return
-			case event := <-eventChan:
-				src := event.Source.Data()
-
-				eventData := api.Event{
-					ID:        event.ID,
-					Type:      event.Type,
-					CreatedAt: event.CreatedAt,
-					Source: api.Source{
-						ID:           src.ID,
-						Type:         api.SourceType(src.Type),
-						Name:         src.Name,
-						ParentId:     src.ParentID,
-						DestParentId: api.NewOptString(src.DestParentID),
-					},
-				}
-
-				data, _ := json.Marshal(eventData)
-				if _, err := pw.Write([]byte("data: " + string(data) + "\n\n")); err != nil {
-					return
-				}
-			case <-heartbeatTicker.C:
-				if _, err := pw.Write([]byte(":heartbeat\n\n")); err != nil {
-					return
-				}
 			}
-		}
-	}()
+			src := event.Source.Data()
+			if src == nil {
+				continue
+			}
+			eventData := api.Event{
+				ID:        event.ID,
+				Type:      event.Type,
+				CreatedAt: event.CreatedAt,
+				Source: api.Source{
+					ID:           src.ID,
+					Type:         api.SourceType(src.Type),
+					Name:         src.Name,
+					ParentId:     src.ParentID,
+					DestParentId: api.NewOptString(src.DestParentID),
+				},
+			}
 
-	return &api.EventsEventsStreamOKHeaders{
-		CacheControl: api.EventsEventsStreamOKCacheControlNoCache,
-		Connection:   api.EventsEventsStreamOKConnectionKeepAlive,
-		Response:     api.EventsEventsStreamOK{Data: pr},
-	}, nil
+			jsonData, _ := eventData.MarshalJSON()
+			fmt.Fprintf(w, "data: %s\n\n", jsonData)
+			flusher.Flush()
+
+		case <-ticker.C:
+			fmt.Fprintf(w, ": keepalive\n\n")
+			flusher.Flush()
+		}
+	}
 }
 
 func (a *apiService) NewError(ctx context.Context, err error) *api.ErrorStatusCode {
@@ -201,6 +217,10 @@ func (m *extendedMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	case api.SharesStreamOperation:
 		args := route.Args()
 		m.srv.SharesStream(w, r, args[0], args[1])
+		return
+
+	case api.EventsEventsStreamOperation:
+		m.srv.EventsEventsStream(w, r)
 		return
 	}
 	m.next.ServeHTTP(w, r)
