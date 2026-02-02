@@ -56,6 +56,20 @@ tg:
   session-instance: "teldrive"
   system-lang-code: "en-US"
   system-version: "Win32"
+  # Session storage configuration
+  session:
+    # Session storage type: postgres, bolt, or memory
+    type: "postgres"
+    # Key prefix for session storage
+    key: "session"
+    # BoltDB-specific settings (only used when type: bolt)
+    bolt:
+      # Path to BoltDB file (empty = auto-detect ~/.teldrive/session.db)
+      path: ""
+      # Timeout for opening BoltDB
+      timeout: "1s"
+      # Disable grow sync for performance
+      no-grow-sync: false
   stream:
     buffers: 8
     chunk-timeout: "20s"
