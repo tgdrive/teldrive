@@ -186,6 +186,17 @@ func (a *apiService) UploadsUpload(ctx context.Context, req *api.UploadsUploadRe
 		if err != nil {
 			return nil, &apiError{err: err}
 		}
+		// Check if channel limit reached and auto-create new channel if enabled
+		if a.channelManager.ChannelLimitReached(channelId) && a.cnf.TG.AutoChannelCreate {
+			logger.Info("channel.limit.reached", zap.Int64("channel_id", channelId), zap.Int64("limit", a.cnf.TG.ChannelLimit))
+			newChannelId, err := a.channelManager.CreateNewChannel(ctx, "", userId, true)
+			if err != nil {
+				logger.Error("channel.create.failed", zap.Error(err))
+				return nil, &apiError{err: err}
+			}
+			channelId = newChannelId
+			logger.Info("channel.created", zap.Int64("new_channel_id", channelId))
+		}
 	} else {
 		channelId = params.ChannelId.Value
 	}

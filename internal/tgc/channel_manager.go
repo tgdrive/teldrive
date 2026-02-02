@@ -42,9 +42,12 @@ func (cm *ChannelManager) GetChannel(ctx context.Context, userID int64) (int64, 
 	return cm.CurrentChannel(ctx, userID)
 }
 
-func (cm *ChannelManager) ChannelLimitReached(userID int64) bool {
+func (cm *ChannelManager) ChannelLimitReached(channelID int64) bool {
 	var totalParts int64
-	err := cm.db.Model(&models.Channel{}).Where("user_id = ?", userID).Count(&totalParts).Error
+	err := cm.db.Model(&models.File{}).
+		Where("channel_id = ?", channelID).
+		Select("COALESCE(SUM(CASE WHEN jsonb_typeof(parts) = 'array' THEN jsonb_array_length(parts) ELSE 0 END), 0) as total_parts").
+		Scan(&totalParts).Error
 	if err != nil {
 		return false
 	}

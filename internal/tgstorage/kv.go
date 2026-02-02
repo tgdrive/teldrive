@@ -27,24 +27,22 @@ type kvStorage struct {
 }
 
 func (s kvStorage) Set(ctx context.Context, k, v string) error {
-	_, err := s.Get(ctx, k)
-	if err != nil {
-		return s.db.Transaction(func(tx *gorm.DB) error {
-			if err := tx.Save(&KeyValue{
-				Key:       k,
-				Value:     []byte(v),
-				CreatedAt: time.Now().UTC(),
-			}).Error; err != nil {
-				return errors.Wrap(err, "save value")
-			}
-			return nil
-		})
-	}
-	return err
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Exec(`
+			INSERT INTO teldrive.kv (key, value, created_at)
+			VALUES (?, ?, ?)
+			ON CONFLICT (key) DO UPDATE SET
+				value = EXCLUDED.value,
+				created_at = EXCLUDED.created_at
+		`, k, []byte(v), time.Now().UTC()).Error; err != nil {
+			return errors.Wrap(err, "upsert value")
+		}
+		return nil
+	})
 }
 
 func (s kvStorage) Get(ctx context.Context, key string) (string, error) {
-	return cache.Fetch(ctx, s.cache, cache.Key(key), 60*time.Minute, func() (string, error) {
+	return cache.Fetch(ctx, s.cache, cache.Key(key), 30*time.Minute, func() (string, error) {
 		var entry KeyValue
 		if err := s.db.First(&entry, "key = ?", key).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
