@@ -208,44 +208,41 @@ func (a *apiService) UploadsUpload(ctx context.Context, req *api.UploadsUploadRe
 
 	logger.Debug("upload.started", zap.String("bot", channelUser), zap.Int("bot_no", index), zap.Int64("size", params.ContentLength))
 
-	fileStream, fileSize, salt, err := a.prepareEncryption(&params, req.Content.Data, params.ContentLength, logger)
-	if err != nil {
-		return nil, &apiError{err: err}
-	}
-
 	uploadPool := pool.NewPool(client, int64(a.cnf.TG.PoolSize), a.newMiddlewares(ctx, a.cnf.TG.Uploads.MaxRetries)...)
 	defer func() { uploadPool.Close() }()
 
 	var out api.UploadPart
+	// Compute BLAKE3 block hashes on plaintext BEFORE encryption
+	var blockHasher *hash.BlockHasher
+	var reader io.Reader = req.Content.Data
+
+	if params.Hashing.Value {
+		blockHasher = hash.NewBlockHasher()
+		reader = io.TeeReader(req.Content.Data, blockHasher)
+	}
 
 	err = tgc.RunWithAuth(ctx, client, token, func(ctx context.Context) error {
+
 		client := uploadPool.Default(ctx)
 
-		// Compute BLAKE3 block hashes only when hashing=true
-		var blockHasher *hash.BlockHasher
-		var reader io.Reader = fileStream
-
-		if params.Hashing.Value {
-			blockHasher = hash.NewBlockHasher()
-			reader = io.TeeReader(fileStream, blockHasher)
-		}
-
-		message, err := a.uploadToTelegram(ctx, client, channelId, &params, reader, fileSize, logger)
+		fileStream, fileSize, salt, err := a.prepareEncryption(&params, reader, params.ContentLength, logger)
 		if err != nil {
 			return err
 		}
 
-		// Get computed block hashes if hashing was enabled
-		var blockHashes []byte
-		if blockHasher != nil {
-			blockHashes = blockHasher.Sum()
-		}
+		message, err := a.uploadToTelegram(ctx, client, channelId, &params, fileStream, fileSize, logger)
 
 		doc, ok := msgDocument(message)
 
 		if !ok || (doc.Size == 0 && doc.Size != fileSize) {
 			return ErrUploadFailed
 		}
+
+		var blockHashes []byte
+		if blockHasher != nil {
+			blockHashes = blockHasher.Sum()
+		}
+
 		partUpload := &models.Upload{
 			Name:        params.PartName,
 			UploadId:    params.ID,

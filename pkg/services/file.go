@@ -254,17 +254,12 @@ func (a *apiService) FilesCreate(ctx context.Context, fileIn *api.File) (*api.Fi
 			}
 
 			// Validate parts: sum of sizes must equal file size and no partId should be 0
-			var totalSize int64
 			for _, upload := range uploads {
 				if upload.PartId == 0 {
 					return nil, &apiError{err: errors.New("invalid part: part_id cannot be zero"), code: 400}
 				}
-				totalSize += upload.Size
 			}
-			if totalSize != fileIn.Size.Value {
-				return nil, &apiError{err: fmt.Errorf("size mismatch: sum of part sizes (%d) does not equal file size (%d)", totalSize, fileIn.Size.Value), code: 400}
-			}
-
+			
 			// Convert uploads to parts
 			for _, upload := range uploads {
 				parts = append(parts, api.Part{
