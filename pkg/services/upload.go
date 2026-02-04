@@ -154,8 +154,12 @@ func (a *apiService) uploadToTelegram(ctx context.Context, client *tg.Client, ch
 	var message *tg.Message
 	for _, update := range updates.Updates {
 		if channelMsg, ok := update.(*tg.UpdateNewChannelMessage); ok {
-			message = channelMsg.Message.(*tg.Message)
-			break
+			if msg, ok := channelMsg.Message.AsNotEmpty(); ok {
+				if m, ok := msg.(*tg.Message); ok {
+					message = m
+					break
+				}
+			}
 		}
 	}
 
@@ -293,10 +297,14 @@ func msgDocument(m tg.MessageClass) (*tg.Document, bool) {
 	}
 
 	media, ok := msg.Media.(*tg.MessageMediaDocument)
+	if msg.Media == nil || !ok {
+		return nil, false
+	}
+	doc, ok := media.Document.AsNotEmpty()
 	if !ok {
 		return nil, false
 	}
-	return media.Document.AsNotEmpty()
+	return doc, true
 }
 
 func generateRandomSalt() (string, error) {
