@@ -297,7 +297,7 @@ func msgDocument(m tg.MessageClass) (*tg.Document, bool) {
 	}
 
 	media, ok := msg.Media.(*tg.MessageMediaDocument)
-	if msg.Media == nil || !ok {
+if !ok || media == nil {
 		return nil, false
 	}
 	doc, ok := media.Document.AsNotEmpty()
