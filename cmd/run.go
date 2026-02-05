@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"net/http/pprof"
 	"os"
 	"reflect"
 	"regexp"
@@ -282,22 +281,12 @@ func setupServer(cfg *config.ServerCmdConfig, db *gorm.DB, cache cache.Cacher, l
 	}))
 	mux.Use(appcontext.Middleware)
 
-	// Mount pprof endpoints if enabled
 	if cfg.Server.EnablePprof {
-		mux.HandleFunc("/debug/pprof/", pprof.Index)
-		mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-		mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-		mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
-		mux.HandleFunc("/debug/pprof/heap", pprof.Handler("heap").ServeHTTP)
-		mux.HandleFunc("/debug/pprof/goroutine", pprof.Handler("goroutine").ServeHTTP)
-		mux.HandleFunc("/debug/pprof/threadcreate", pprof.Handler("threadcreate").ServeHTTP)
-		mux.HandleFunc("/debug/pprof/block", pprof.Handler("block").ServeHTTP)
-		lg.Info("pprof endpoints enabled at /debug/pprof/*")
+		mux.Mount("/debug", chimiddleware.Profiler())
 	}
 
 	mux.Mount("/api/", http.StripPrefix("/api", extendedSrv))
-	mux.NotFound(middleware.SPAHandler(ui.StaticFS))
+	mux.Handle("/*", middleware.SPAHandler(ui.StaticFS))
 
 	return &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.Server.Port),

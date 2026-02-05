@@ -1,0 +1,44 @@
+version: 2
+project_name: teldrive
+env:
+  - GO111MODULE=on
+
+before:
+  hooks:
+    - task ui
+    - task gen
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    main: main.go
+    flags: -trimpath
+    ldflags:
+      - -extldflags=-static
+      - -s -w
+      - -X {{ .ModulePath }}/internal/version.Version={{ .Version }}
+      - -X {{ .ModulePath }}/internal/version.CommitSHA={{ .ShortCommit }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+
+dockers_v2:
+  - images:
+      - "ghcr.io/tgdrive/{{ .ProjectName }}"
+    tags:
+      - "dev"
+    dockerfile: goreleaser.dockerfile
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    labels:
+      "org.opencontainers.image.created": "{{.Date}}"
+      "org.opencontainers.image.title": "{{.ProjectName}}"
+      "org.opencontainers.image.revision": "{{.FullCommit}}"
+      "org.opencontainers.image.version": "{{ .Version }}"
+
+snapshot:
+  version_template: "{{ .Version }}-dev-{{.ShortCommit}}"

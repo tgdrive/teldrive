@@ -1,0 +1,62 @@
+name: Dev Docker Push
+
+on:
+  push:
+    branches:
+      - dev
+
+permissions: write-all
+
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install Task
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean --snapshot --config .goreleaser.dev.yml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create and Push Manifest List
+        env:
+          REPO: ghcr.io/${{ github.repository }}
+        run: |
+          IMG_AMD64="${REPO}:dev-amd64"
+          IMG_ARM64="${REPO}:dev-arm64"
+          docker image push $IMG_AMD64
+          docker image push $IMG_ARM64
+          docker manifest create --amend "${REPO}:dev" \
+            "${IMG_AMD64}" \
+            "${IMG_ARM64}"
+          docker manifest annotate "${REPO}:dev" "${IMG_AMD64}" --os linux --arch amd64
+          docker manifest annotate "${REPO}:dev" "${IMG_ARM64}" --os linux --arch arm64
+          docker manifest push "${REPO}:dev"
