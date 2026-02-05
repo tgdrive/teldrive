@@ -7,8 +7,6 @@ import (
 
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/tg"
-	"github.com/tgdrive/teldrive/internal/logging"
-	"go.uber.org/zap"
 )
 
 type Pool interface {
@@ -73,7 +71,6 @@ func (p *pool) invoker(ctx context.Context, dc int) tg.Invoker {
 	}
 
 	if err != nil {
-		logging.Component("POOL").Error("invoker.create_failed", zap.Error(err))
 		return p.api
 	}
 

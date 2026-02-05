@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/tg"
 	"github.com/tgdrive/teldrive/internal/api"
 	"github.com/tgdrive/teldrive/internal/cache"
@@ -20,9 +19,9 @@ import (
 	"gorm.io/gorm"
 )
 
-func getParts(ctx context.Context, client *telegram.Client, c cache.Cacher, file *models.File) ([]types.Part, error) {
+func getParts(ctx context.Context, client *tg.Client, c cache.Cacher, file *models.File) ([]types.Part, error) {
 	return cache.Fetch(ctx, c, cache.KeyFileMessages(file.ID), 60*time.Minute, func() ([]types.Part, error) {
-		messages, err := tgc.GetMessages(ctx, client.API(), utils.Map(*file.Parts, func(part api.Part) int {
+		messages, err := tgc.GetMessages(ctx, client, utils.Map(*file.Parts, func(part api.Part) int {
 			return part.ID
 		}), *file.ChannelId)
 

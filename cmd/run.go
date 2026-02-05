@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"reflect"
 	"regexp"
@@ -178,8 +179,11 @@ func runApplication(ctx context.Context, conf *config.ServerCmdConfig) {
 		os.Exit(1)
 	}
 
+	// Create client pool for telegram connections
+	clientPool := tgc.NewClientPool(db, cacher, &conf.TG)
+
 	// Setup and start HTTP server immediately
-	srv := setupServer(conf, db, cacher, lg, botSelector, eventBroadcaster)
+	srv := setupServer(conf, db, cacher, lg, botSelector, eventBroadcaster, clientPool)
 
 	serverErrCh := make(chan error, 1)
 	go func() {
@@ -237,12 +241,17 @@ func runApplication(ctx context.Context, conf *config.ServerCmdConfig) {
 		redisClient.Close()
 	}
 
+	// Close Telegram client pool
+	if clientPool != nil {
+		clientPool.Close()
+	}
+
 	lg.Info("server.stopped")
 }
 
-func setupServer(cfg *config.ServerCmdConfig, db *gorm.DB, cache cache.Cacher, lg *zap.Logger, botSelector tgc.BotSelector, eventBroadcaster events.EventBroadcaster) *http.Server {
+func setupServer(cfg *config.ServerCmdConfig, db *gorm.DB, cache cache.Cacher, lg *zap.Logger, botSelector tgc.BotSelector, eventBroadcaster events.EventBroadcaster, clientPool *tgc.ClientPool) *http.Server {
 
-	apiSrv := services.NewApiService(db, cfg, cache, botSelector, eventBroadcaster)
+	apiSrv := services.NewApiService(db, cfg, cache, botSelector, eventBroadcaster, clientPool)
 
 	srv, err := api.NewServer(apiSrv, auth.NewSecurityHandler(db, cache, &cfg.JWT))
 
@@ -272,8 +281,23 @@ func setupServer(cfg *config.ServerCmdConfig, db *gorm.DB, cache cache.Cacher, l
 		HTTPConfig: &cfg.Log.HTTP,
 	}))
 	mux.Use(appcontext.Middleware)
+
+	// Mount pprof endpoints if enabled
+	if cfg.Server.EnablePprof {
+		mux.HandleFunc("/debug/pprof/", pprof.Index)
+		mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+		mux.HandleFunc("/debug/pprof/heap", pprof.Handler("heap").ServeHTTP)
+		mux.HandleFunc("/debug/pprof/goroutine", pprof.Handler("goroutine").ServeHTTP)
+		mux.HandleFunc("/debug/pprof/threadcreate", pprof.Handler("threadcreate").ServeHTTP)
+		mux.HandleFunc("/debug/pprof/block", pprof.Handler("block").ServeHTTP)
+		lg.Info("pprof endpoints enabled at /debug/pprof/*")
+	}
+
 	mux.Mount("/api/", http.StripPrefix("/api", extendedSrv))
-	mux.Handle("/*", middleware.SPAHandler(ui.StaticFS))
+	mux.NotFound(middleware.SPAHandler(ui.StaticFS))
 
 	return &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.Server.Port),

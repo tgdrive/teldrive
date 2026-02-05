@@ -159,7 +159,7 @@ type TGStream struct {
 	Concurrency  int           `default:"1" description:"Number of concurrent threads for concurrent reader"`
 	Buffers      int           `default:"8" description:"Number of stream buffers"`
 	ChunkTimeout time.Duration `default:"30s" description:"Chunk download timeout"`
-	BotsLimit    int           `default:"0" description:"Maximum number of bots for streaming (0 = use all bots)"`
+	BotsLimit    int           `default:"2" description:"Maximum number of bots for streaming (0 = use all bots)"`
 }
 
 type TGUpload struct {
@@ -169,27 +169,29 @@ type TGUpload struct {
 	Retention     time.Duration `default:"7d" description:"Upload retention period"`
 }
 type TGConfig struct {
-	RateLimit         bool          `default:"true" description:"Enable rate limiting for API calls"`
-	RateBurst         int           `default:"5" description:"Maximum burst size for rate limiting"`
-	Rate              int           `default:"100" description:"Rate limit in requests per minute"`
-	Ntp               bool          `default:"false" description:"Use NTP for time synchronization"`
-	Proxy             string        `default:"" description:"HTTP/SOCKS5 proxy URL"`
-	ReconnectTimeout  time.Duration `default:"5m" description:"Client reconnection timeout"`
-	PoolSize          int           `default:"8" description:"Session pool size"`
-	EnableLogging     bool          `default:"false" description:"Enable Telegram client logging (deprecated: use logging.tg.enabled instead)"`
-	AppId             int           `default:"2496" description:"Telegram app ID"`
-	AppHash           string        `default:"8da85b0d5bfe62527e5b244c209159c3" description:"Telegram app hash"`
-	DeviceModel       string        `default:"Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/116.0" description:"Device model"`
-	SystemVersion     string        `default:"Win32" description:"System version"`
-	AppVersion        string        `default:"6.1.4 K" description:"App version"`
-	LangCode          string        `default:"en" description:"Language code"`
-	SystemLangCode    string        `default:"en-US" description:"System language code"`
-	LangPack          string        `default:"webk" description:"Language pack"`
-	SessionInstance   string        `default:"teldrive" description:"Bot session instance name for multi-instance deployments"`
-	AutoChannelCreate bool          `default:"true" description:"Auto Create Channel"`
-	ChannelLimit      int64         `default:"500000" description:"Channel message limit before auto channel creation"`
-	Uploads           TGUpload
-	Stream            TGStream
+	RateLimit           bool          `default:"true" description:"Enable rate limiting for API calls"`
+	RateBurst           int           `default:"5" description:"Maximum burst size for rate limiting"`
+	Rate                int           `default:"100" description:"Rate limit in requests per minute"`
+	Ntp                 bool          `default:"false" description:"Use NTP for time synchronization"`
+	Proxy               string        `default:"" description:"HTTP/SOCKS5 proxy URL"`
+	ReconnectTimeout    time.Duration `default:"5m" description:"Client reconnection timeout"`
+	PoolSize            int           `default:"8" description:"Session pool size"`
+	PoolIdleTimeout     time.Duration `default:"5m" description:"Idle timeout before client is removed from pool"`
+	PoolRoutingStrategy string        `default:"least_connections" description:"Routing strategy: round_robin, least_connections, consistent_hashing"`
+	EnableLogging       bool          `default:"false" description:"Enable Telegram client logging (deprecated: use logging.tg.enabled instead)"`
+	AppId               int           `default:"2496" description:"Telegram app ID"`
+	AppHash             string        `default:"8da85b0d5bfe62527e5b244c209159c3" description:"Telegram app hash"`
+	DeviceModel         string        `default:"Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/116.0" description:"Device model"`
+	SystemVersion       string        `default:"Win32" description:"System version"`
+	AppVersion          string        `default:"6.1.4 K" description:"App version"`
+	LangCode            string        `default:"en" description:"Language code"`
+	SystemLangCode      string        `default:"en-US" description:"System language code"`
+	LangPack            string        `default:"webk" description:"Language pack"`
+	SessionInstance     string        `default:"teldrive" description:"Bot session instance name for multi-instance deployments"`
+	AutoChannelCreate   bool          `default:"true" description:"Auto Create Channel"`
+	ChannelLimit        int64         `default:"500000" description:"Channel message limit before auto channel creation"`
+	Uploads             TGUpload
+	Stream              TGStream
 	// Session storage configuration for Telegram sessions
 	Session SessionStorageConfig
 }

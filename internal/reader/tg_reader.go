@@ -14,6 +14,7 @@ import (
 	"github.com/tgdrive/teldrive/internal/config"
 	"github.com/tgdrive/teldrive/internal/logging"
 	"github.com/tgdrive/teldrive/internal/tgc"
+	"github.com/valyala/bytebufferpool"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
@@ -116,6 +117,11 @@ func newTGMultiReader(
 func (r *tgMultiReader) Close() error {
 	r.closeOnce.Do(func() {
 		r.cancel()
+		// Return current buffer to pool if exists
+		if r.cur != nil && r.cur.buf != nil {
+			bytebufferpool.Put(r.cur.buf)
+			r.cur.buf = nil
+		}
 	})
 	return nil
 }
@@ -142,6 +148,11 @@ func (r *tgMultiReader) Read(p []byte) (int, error) {
 	r.limit -= int64(n)
 
 	if r.limit <= 0 {
+		// Return buffer to pool when fully consumed
+		if r.cur != nil && r.cur.buf != nil {
+			bytebufferpool.Put(r.cur.buf)
+			r.cur.buf = nil
+		}
 		return n, io.EOF
 	}
 
@@ -178,15 +189,18 @@ func (r *tgMultiReader) fillBatch() error {
 				return err
 			}
 
+			buf := bytebufferpool.Get()
+			_, _ = buf.Write(chunk)
+
 			if r.totalParts == 1 {
-				chunk = chunk[r.leftCut:r.rightCut]
+				buf.B = buf.B[r.leftCut:r.rightCut]
 			} else if r.currentPart+i == 0 {
-				chunk = chunk[r.leftCut:]
+				buf.B = buf.B[r.leftCut:]
 			} else if r.currentPart+i+1 == r.totalParts {
-				chunk = chunk[:r.rightCut]
+				buf.B = buf.B[:r.rightCut]
 			}
 
-			buffers[i] = &buffer{buf: chunk}
+			buffers[i] = &buffer{buf: buf}
 			return nil
 		})
 	}
