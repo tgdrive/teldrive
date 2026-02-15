@@ -168,9 +168,10 @@ func (cm *ChannelManager) CreateNewChannel(ctx context.Context, newChannelName s
 	}
 
 	newChannelRecord := models.Channel{
-		ChannelId: newChannelID,
-		UserId:    userID,
-		Selected:  setDefault,
+		ChannelName: newChannelName,
+		ChannelId:   newChannelID,
+		UserId:      userID,
+		Selected:    setDefault,
 	}
 
 	if setDefault {

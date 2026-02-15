@@ -191,14 +191,13 @@ func (a *apiService) UploadsUpload(ctx context.Context, req *api.UploadsUploadRe
 			return nil, &apiError{err: err}
 		}
 		if err == tgc.ErrNoDefaultChannel || (a.cnf.TG.AutoChannelCreate && a.channelManager.ChannelLimitReached(channelId)) {
-			logger.Info("channel.limit.reached", zap.Int64("channel_id", channelId), zap.Int64("limit", a.cnf.TG.ChannelLimit))
 			newChannelId, err := a.channelManager.CreateNewChannel(ctx, "", userId, true)
 			if err != nil {
 				logger.Error("channel.create.failed", zap.Error(err))
 				return nil, &apiError{err: err}
 			}
 			channelId = newChannelId
-			logger.Info("channel.created", zap.Int64("new_channel_id", channelId))
+			logger.Debug("channel.created", zap.Int64("new_channel_id", channelId))
 		}
 
 	} else {
@@ -235,6 +234,10 @@ func (a *apiService) UploadsUpload(ctx context.Context, req *api.UploadsUploadRe
 		}
 
 		message, err := a.uploadToTelegram(ctx, client, channelId, &params, fileStream, fileSize, logger)
+
+		if err != nil {
+			return err
+		}
 
 		doc, ok := msgDocument(message)
 
@@ -297,7 +300,7 @@ func msgDocument(m tg.MessageClass) (*tg.Document, bool) {
 	}
 
 	media, ok := msg.Media.(*tg.MessageMediaDocument)
-if !ok || media == nil {
+	if !ok || media == nil {
 		return nil, false
 	}
 	doc, ok := media.Document.AsNotEmpty()
