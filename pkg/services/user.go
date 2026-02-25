@@ -8,35 +8,37 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
-	"github.com/gotd/td/telegram/query"
-	"github.com/gotd/td/tg"
-	"github.com/gotd/td/tgerr"
 	"github.com/tgdrive/teldrive/internal/api"
 	"github.com/tgdrive/teldrive/internal/auth"
 	"github.com/tgdrive/teldrive/internal/cache"
-	"github.com/tgdrive/teldrive/internal/tgc"
+	jetmodel "github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/model"
 	"github.com/tgdrive/teldrive/internal/tgstorage"
-	"github.com/tgdrive/teldrive/pkg/models"
-
-	"github.com/gotd/contrib/storage"
-	"gorm.io/gorm/clause"
+	"github.com/tgdrive/teldrive/pkg/repositories"
 )
 
 func (a *apiService) UsersAddBots(ctx context.Context, req *api.AddBots) error {
-	userID := auth.GetUser(ctx)
+	userID := auth.User(ctx)
 
-	payload := []models.Bot{}
+	payload := []jetmodel.Bots{}
 	if len(req.Bots) > 0 {
 		for _, token := range req.Bots {
-			payload = append(payload, models.Bot{UserId: userID, Token: token})
+			payload = append(payload, jetmodel.Bots{UserID: userID, Token: token})
 		}
-		if err := a.db.Clauses(clause.OnConflict{DoNothing: true}).Create(&payload).Error; err != nil {
+		for _, bot := range payload {
+			err := a.repo.Bots.Create(ctx, &bot)
+			if err != nil && !strings.Contains(err.Error(), "duplicate") {
+				return err
+			}
+		}
+		channelRows, err := a.repo.Channels.GetByUserID(ctx, userID)
+		if err != nil {
 			return err
 		}
-		var channels []int64
-		if err := a.db.Model(&models.Channel{}).Where("user_id = ?", userID).Pluck("channel_id", &channels).Error; err != nil {
-			return err
+		channels := make([]int64, 0, len(channelRows))
+		for _, c := range channelRows {
+			channels = append(channels, c.ChannelID)
 		}
 		if len(channels) > 0 {
 			for _, channel := range channels {
@@ -51,11 +53,11 @@ func (a *apiService) UsersAddBots(ctx context.Context, req *api.AddBots) error {
 
 func (a *apiService) UsersListChannels(ctx context.Context) ([]api.Channel, error) {
 
-	userId := auth.GetUser(ctx)
+	userId := auth.User(ctx)
 
 	channels := make(map[int64]*api.Channel)
 
-	peerStorage := tgstorage.NewPeerStorage(a.db, cache.KeyPeer(userId))
+	peerStorage := tgstorage.NewPeerStorage(a.repo.KV, cache.KeyPeer(userId))
 
 	iter, err := peerStorage.Iterate(ctx)
 	if err != nil {
@@ -84,7 +86,7 @@ func (a *apiService) UsersListChannels(ctx context.Context) ([]api.Channel, erro
 }
 
 func (a *apiService) UsersCreateChannel(ctx context.Context, req *api.Channel) error {
-	userID := auth.GetUser(ctx)
+	userID := auth.User(ctx)
 	_, err := a.channelManager.CreateNewChannel(ctx, req.ChannelName, userID, false)
 	if err != nil {
 		return &apiError{err: err}
@@ -93,50 +95,39 @@ func (a *apiService) UsersCreateChannel(ctx context.Context, req *api.Channel) e
 }
 
 func (a *apiService) UsersDeleteChannel(ctx context.Context, params api.UsersDeleteChannelParams) error {
-	userId := auth.GetUser(ctx)
-	client, _ := tgc.AuthClient(ctx, &a.cnf.TG, auth.GetJWTUser(ctx).TgSession, a.newMiddlewares(ctx, 5)...)
-	channelId, _ := strconv.ParseInt(params.ID, 10, 64)
-	peerStorage := tgstorage.NewPeerStorage(a.db, cache.KeyPeer(userId))
-	var (
-		channel *tg.Channel
-		err     error
-	)
-	err = client.Run(ctx, func(ctx context.Context) error {
-		channel, err = tgc.GetChannelFull(ctx, client.API(), channelId)
-		if err != nil {
-			return err
-		}
-		_, err = client.API().ChannelsDeleteChannel(ctx, channel.AsInput())
-		if err != nil {
-			return err
-		}
-		return nil
-	})
+	userId := auth.User(ctx)
+	client, err := a.telegram.AuthClient(ctx, auth.JWTUser(ctx).TgSession, 5)
 	if err != nil {
 		return &apiError{err: err}
 	}
-	a.db.Where("channel_id = ?", channelId).Delete(&models.Channel{})
-	peer := storage.Peer{}
-	peer.FromChat(channel)
-	peerStorage.Delete(ctx, storage.KeyFromPeer(peer))
+	channelId, err := strconv.ParseInt(params.ID, 10, 64)
+	if err != nil {
+		return &apiError{err: fmt.Errorf("invalid channel id: %w", err), code: 400}
+	}
+	peerStorage := tgstorage.NewPeerStorage(a.repo.KV, cache.KeyPeer(userId))
+	peerKey, err := a.telegram.DeleteChannel(ctx, client, channelId)
+	if err != nil {
+		return &apiError{err: err}
+	}
+	if err := a.repo.Channels.Delete(ctx, channelId); err != nil {
+		return &apiError{err: err}
+	}
+	peerStorage.Delete(ctx, peerKey)
 	return nil
 }
 
 func (a *apiService) UsersSyncChannels(ctx context.Context) error {
-	userId := auth.GetUser(ctx)
-	peerStorage := tgstorage.NewPeerStorage(a.db, cache.KeyPeer(userId))
+	userId := auth.User(ctx)
+	peerStorage := tgstorage.NewPeerStorage(a.repo.KV, cache.KeyPeer(userId))
 	err := peerStorage.Purge(ctx)
 	if err != nil {
 		return &apiError{err: err}
 	}
-	collector := storage.CollectPeers(peerStorage)
-	client, err := tgc.AuthClient(ctx, &a.cnf.TG, auth.GetJWTUser(ctx).TgSession, a.newMiddlewares(ctx, 5)...)
+	client, err := a.telegram.AuthClient(ctx, auth.JWTUser(ctx).TgSession, 5)
 	if err != nil {
 		return &apiError{err: err}
 	}
-	err = client.Run(ctx, func(ctx context.Context) error {
-		return collector.Dialogs(ctx, query.GetDialogs(client.API()).Iter())
-	})
+	err = a.telegram.SyncDialogs(ctx, client, peerStorage)
 	if err != nil {
 		return &apiError{err: err}
 	}
@@ -144,29 +135,21 @@ func (a *apiService) UsersSyncChannels(ctx context.Context) error {
 }
 
 func (a *apiService) UsersListSessions(ctx context.Context) ([]api.UserSession, error) {
-	userId := auth.GetUser(ctx)
+	userId := auth.User(ctx)
 	return cache.Fetch(ctx, a.cache, cache.KeyUserSessions(userId), 0, func() ([]api.UserSession, error) {
-		userSession := auth.GetJWTUser(ctx).TgSession
-		client, _ := tgc.AuthClient(ctx, &a.cnf.TG, userSession, a.newMiddlewares(ctx, 5)...)
-		var (
-			auth *tg.AccountAuthorizations
-			err  error
-		)
-		err = client.Run(ctx, func(ctx context.Context) error {
-			auth, err = client.API().AccountGetAuthorizations(ctx)
-			if err != nil {
-				return err
-			}
-			return nil
-		})
+		userSession := auth.JWTUser(ctx).TgSession
+		client, err := a.telegram.AuthClient(ctx, userSession, 5)
+		if err != nil {
+			return nil, err
+		}
+		auths, err := a.telegram.ListAuthorizations(ctx, client)
 
-		if err != nil && !tgerr.Is(err, "AUTH_KEY_UNREGISTERED") {
+		if err != nil && !a.telegram.IsAuthKeyUnregistered(err) {
 			return nil, err
 		}
 
-		dbSessions := []models.Session{}
-
-		if err = a.db.Where("user_id = ?", userId).Order("created_at DESC").Find(&dbSessions).Error; err != nil {
+		dbSessions, err := a.repo.Sessions.GetByUserID(ctx, userId)
+		if err != nil {
 			return nil, err
 		}
 
@@ -174,19 +157,17 @@ func (a *apiService) UsersListSessions(ctx context.Context) ([]api.UserSession, 
 
 		for _, session := range dbSessions {
 
-			s := api.UserSession{Hash: session.Hash,
+			s := api.UserSession{SessionId: session.ID.String(),
 				CreatedAt: session.CreatedAt.UTC(),
-				Current:   session.Session == userSession}
+				Current:   session.TgSession == userSession}
 
-			if auth != nil {
-				for _, a := range auth.Authorizations {
-					if session.SessionDate == a.DateCreated {
-						s.AppName = api.NewOptString(strings.Trim(strings.ReplaceAll(a.AppName, "Telegram", ""), " "))
-						s.Location = api.NewOptString(a.Country)
-						s.OfficialApp = api.NewOptBool(a.OfficialApp)
-						s.Valid = true
-						break
-					}
+			for _, authorization := range auths {
+				if session.SessionDate != nil && *session.SessionDate == authorization.DateCreated {
+					s.AppName = api.NewOptString(strings.Trim(strings.ReplaceAll(authorization.AppName, "Telegram", ""), " "))
+					s.Location = api.NewOptString(authorization.Country)
+					s.OfficialApp = api.NewOptBool(authorization.OfficialApp)
+					s.Valid = true
+					break
 				}
 			}
 
@@ -199,9 +180,9 @@ func (a *apiService) UsersListSessions(ctx context.Context) ([]api.UserSession, 
 
 }
 
-func (a *apiService) UsersProfileImage(ctx context.Context, params api.UsersProfileImageParams) (*api.UsersProfileImageOKHeaders, error) {
+func (a *apiService) UsersProfileImage(ctx context.Context) (*api.UsersProfileImageOKHeaders, error) {
 
-	client, err := tgc.AuthClient(ctx, &a.cnf.TG, auth.GetJWTUser(ctx).TgSession, a.newMiddlewares(ctx, 5)...)
+	client, err := a.telegram.AuthClient(ctx, auth.JWTUser(ctx).TgSession, 5)
 
 	if err != nil {
 		return nil, &apiError{err: err}
@@ -209,43 +190,24 @@ func (a *apiService) UsersProfileImage(ctx context.Context, params api.UsersProf
 
 	res := &api.UsersProfileImageOKHeaders{}
 
-	err = tgc.RunWithAuth(ctx, client, "", func(ctx context.Context) error {
-		self, err := client.Self(ctx)
-		if err != nil {
-			return err
-		}
-		peer := self.AsInputPeer()
-		if self.Photo == nil {
-			return nil
-		}
-		photo, ok := self.Photo.AsNotEmpty()
-		if !ok {
-			return errors.New("profile not found")
-		}
-		photo.GetPersonal()
-		location := &tg.InputPeerPhotoFileLocation{Big: false, Peer: peer, PhotoID: photo.PhotoID}
-		buff, err := tgc.GetMediaContent(ctx, client.API(), location)
-		if err != nil {
-			return err
-		}
-		content := buff.Bytes()
-		res.SetCacheControl("public, max-age=86400, must-revalidate")
-		res.SetContentLength(int64(len(content)))
-		res.SetEtag(fmt.Sprintf("\"%v\"", photo.PhotoID))
-		res.SetContentDisposition(fmt.Sprintf("inline; filename=\"%s\"", "profile.jpeg"))
-		res.Response = api.UsersProfileImageOK{Data: bytes.NewReader(content)}
-		return nil
-	})
+	content, photoID, found, err := a.telegram.GetProfilePhoto(ctx, client)
 	if err != nil {
 		return nil, &apiError{err: err}
+	}
+	if found {
+		res.SetCacheControl("public, max-age=86400, must-revalidate")
+		res.SetContentLength(int64(len(content)))
+		res.SetEtag(fmt.Sprintf("\"%v\"", photoID))
+		res.SetContentDisposition(fmt.Sprintf("inline; filename=\"%s\"", "profile.jpeg"))
+		res.Response = api.UsersProfileImageOK{Data: bytes.NewReader(content)}
 	}
 	return res, nil
 }
 
 func (a *apiService) UsersRemoveBots(ctx context.Context) error {
-	userId := auth.GetUser(ctx)
+	userId := auth.User(ctx)
 
-	if err := a.db.Where("user_id = ?", userId).Delete(&models.Bot{}).Error; err != nil {
+	if err := a.repo.Bots.DeleteByUserID(ctx, userId); err != nil {
 		return &apiError{err: err}
 	}
 	a.cache.Delete(ctx, cache.KeyUserBots(userId))
@@ -253,33 +215,118 @@ func (a *apiService) UsersRemoveBots(ctx context.Context) error {
 	return nil
 }
 
-func (a *apiService) UsersRemoveSession(ctx context.Context, params api.UsersRemoveSessionParams) error {
-	userId := auth.GetUser(ctx)
-
-	session := &models.Session{}
-
-	if err := a.db.Where("user_id = ?", userId).Where("hash = ?", params.ID).First(session).Error; err != nil {
-		return &apiError{err: err}
+func (a *apiService) UsersListApiKeys(ctx context.Context) ([]api.UserApiKey, error) {
+	userID := auth.User(ctx)
+	keys, err := a.repo.APIKeys.ListByUserID(ctx, userID)
+	if err != nil {
+		return nil, &apiError{err: err}
 	}
 
-	client, _ := tgc.AuthClient(ctx, &a.cnf.TG, session.Session, a.newMiddlewares(ctx, 5)...)
-
-	client.Run(ctx, func(ctx context.Context) error {
-		_, err := client.API().AuthLogOut(ctx)
-		if err != nil {
-			return err
+	out := make([]api.UserApiKey, 0, len(keys))
+	for _, key := range keys {
+		item := api.UserApiKey{
+			ID:        key.ID.String(),
+			Name:      key.Name,
+			CreatedAt: key.CreatedAt.UTC(),
 		}
-		return nil
-	})
+		if key.ExpiresAt != nil {
+			item.ExpiresAt = api.NewOptDateTime(key.ExpiresAt.UTC())
+		}
+		if key.LastUsedAt != nil {
+			item.LastUsedAt = api.NewOptDateTime(key.LastUsedAt.UTC())
+		}
+		out = append(out, item)
+	}
 
-	a.db.Where("user_id = ?", userId).Where("hash = ?", session.Hash).Delete(&models.Session{})
-	a.cache.Delete(ctx, cache.KeyUserSessions(userId))
+	return out, nil
+}
+
+func (a *apiService) UsersCreateApiKey(ctx context.Context, req *api.UserApiKeyCreate) (*api.UserApiKeyCreateResult, error) {
+	userID := auth.User(ctx)
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
+		return nil, &apiError{err: errors.New("name is required"), code: 400}
+	}
+
+	var expiresAt *time.Time
+	if req.ExpiresAt.Set {
+		expires := req.ExpiresAt.Value.UTC()
+		if !expires.After(time.Now().UTC()) {
+			return nil, &apiError{err: errors.New("expiresAt must be in the future"), code: 400}
+		}
+		expiresAt = &expires
+	}
+
+	raw, err := generateToken(32)
+	if err != nil {
+		return nil, &apiError{err: err}
+	}
+	keyValue := "tdk_" + raw
+
+	row := jetmodel.APIKeys{
+		UserID:    userID,
+		Name:      name,
+		TokenHash: hashToken(keyValue),
+		ExpiresAt: expiresAt,
+	}
+	if err := a.repo.APIKeys.Create(ctx, &row); err != nil {
+		return nil, &apiError{err: err}
+	}
+
+	res := &api.UserApiKeyCreateResult{}
+	res.ID = row.ID.String()
+	res.Name = row.Name
+	res.Key = keyValue
+	res.CreatedAt = row.CreatedAt.UTC()
+	if row.ExpiresAt != nil {
+		res.ExpiresAt = api.NewOptDateTime(row.ExpiresAt.UTC())
+	}
+
+	return res, nil
+}
+
+func (a *apiService) UsersRemoveApiKey(ctx context.Context, params api.UsersRemoveApiKeyParams) error {
+	userID := auth.User(ctx)
+	if err := a.repo.APIKeys.Revoke(ctx, userID, params.ID); err != nil {
+		if errors.Is(err, repositories.ErrNotFound) {
+			return &apiError{err: errors.New("api key not found"), code: 404}
+		}
+		return &apiError{err: err}
+	}
+	_ = a.cache.DeletePattern(ctx, cache.KeyAPIKeyAuthPattern())
+
+	return nil
+}
+
+func (a *apiService) UsersRemoveSession(ctx context.Context, params api.UsersRemoveSessionParams) error {
+	userId := auth.User(ctx)
+
+	session, err := a.repo.Sessions.GetByID(ctx, params.ID)
+	if err != nil {
+		return &apiError{err: err}
+	}
+	if session.UserID != userId {
+		return &apiError{err: errors.New("session not found"), code: 404}
+	}
+	if err := a.repo.Sessions.Revoke(ctx, session.ID.String()); err != nil {
+		return &apiError{err: err}
+	}
+	a.cache.Delete(ctx, cache.KeySessionID(session.ID.String()), cache.KeyUserSessions(userId))
+	_ = a.cache.DeletePattern(ctx, cache.KeyAPIKeyAuthPattern())
+	client, err := a.telegram.AuthClient(ctx, session.TgSession, 5)
+	if err != nil {
+		return nil
+	}
+
+	if err := a.telegram.LogOut(ctx, client); err != nil {
+		return nil
+	}
 
 	return nil
 }
 
 func (a *apiService) UsersStats(ctx context.Context) (*api.UserConfig, error) {
-	userId := auth.GetUser(ctx)
+	userId := auth.User(ctx)
 	var (
 		channelId int64
 		err       error
@@ -299,26 +346,47 @@ func (a *apiService) UsersStats(ctx context.Context) (*api.UserConfig, error) {
 }
 
 func (a *apiService) UsersUpdateChannel(ctx context.Context, req *api.ChannelUpdate) error {
-	userId := auth.GetUser(ctx)
+	userId := auth.User(ctx)
 
-	channel := &models.Channel{UserId: userId, Selected: true}
-
-	if req.ChannelId.Value != 0 {
-		channel.ChannelId = req.ChannelId.Value
-	}
-	if req.ChannelName.Value != "" {
-		channel.ChannelName = req.ChannelName.Value
+	channelID := req.ChannelId.Value
+	if channelID == 0 {
+		return &apiError{err: errors.New("channel id is required"), code: 400}
 	}
 
-	if err := a.db.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "channel_id"}},
-		DoUpdates: clause.Assignments(map[string]any{"selected": true}),
-	}).Create(channel).Error; err != nil {
-		return &apiError{err: errors.New("failed to update channel")}
-	}
-	a.db.Model(&models.Channel{}).Where("channel_id != ?", channel.ChannelId).
-		Where("user_id = ?", userId).Update("selected", false)
+	err := a.repo.WithTx(ctx, func(txCtx context.Context) error {
+		channel, err := a.repo.Channels.GetByChannelID(txCtx, channelID)
+		if err != nil {
+			if errors.Is(err, repositories.ErrNotFound) {
+				name := req.ChannelName.Value
+				if name == "" {
+					name = strconv.FormatInt(channelID, 10)
+				}
+				selected := true
+				channel = &jetmodel.Channels{UserID: userId, ChannelID: channelID, ChannelName: name, Selected: &selected}
+				if err := a.repo.Channels.Create(txCtx, channel); err != nil {
+					return errors.New("failed to update channel")
+				}
+			} else {
+				return errors.New("failed to update channel")
+			}
+		}
 
-	a.cache.Set(ctx, cache.KeyUserChannel(userId), channel.ChannelId, 0)
+		allChannels, err := a.repo.Channels.GetByUserID(txCtx, userId)
+		if err == nil {
+			for _, c := range allChannels {
+				selected := c.ChannelID == channelID
+				if err := a.repo.Channels.Update(txCtx, c.ChannelID, repositories.ChannelUpdate{Selected: &selected}); err != nil {
+					return err
+				}
+			}
+		}
+
+		return nil
+	})
+	if err != nil {
+		return &apiError{err: err}
+	}
+
+	a.cache.Set(ctx, cache.KeyUserChannel(userId), channelID, 0)
 	return nil
 }

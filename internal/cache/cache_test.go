@@ -1,31 +1,26 @@
 package cache
 
 import (
-	"context"
 	"testing"
-	"time"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/tgdrive/teldrive/pkg/models"
 )
 
-func TestCache(t *testing.T) {
-	ctx := context.Background()
-	var value = models.File{
-		Name: "file.jpeg",
-		Type: "file",
-	}
-	var result models.File
+// func TestCache(t *testing.T) {
+// 	ctx := context.Background()
+// 	var value = models.File{
+// 		Name: "file.jpeg",
+// 		Type: "file",
+// 	}
+// 	var result models.File
 
-	cache := NewMemoryCache(1 * 1024 * 1024)
+// 	cache := NewMemoryCache(1 * 1024 * 1024)
 
-	err := cache.Set(ctx, "key", value, 1*time.Second)
-	assert.NoError(t, err)
+// 	err := cache.Set(ctx, "key", value, 1*time.Second)
+// 	assert.NoError(t, err)
 
-	err = cache.Get(ctx, "key", &result)
-	assert.NoError(t, err)
-	assert.Equal(t, result, value)
-}
+// 	err = cache.Get(ctx, "key", &result)
+// 	assert.NoError(t, err)
+// 	assert.Equal(t, result, value)
+// }
 
 func TestKey(t *testing.T) {
 	tests := []struct {

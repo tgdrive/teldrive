@@ -9,7 +9,6 @@ import (
 	"github.com/tgdrive/teldrive/internal/cache"
 	"github.com/tgdrive/teldrive/internal/config"
 	"github.com/tgdrive/teldrive/internal/crypt"
-	"github.com/tgdrive/teldrive/pkg/models"
 	"github.com/tgdrive/teldrive/pkg/types"
 )
 
@@ -20,7 +19,7 @@ type Range struct {
 
 type Reader struct {
 	ctx         context.Context
-	file        *models.File
+	file        *FileRef
 	parts       []types.Part
 	ranges      []Range
 	pos         int
@@ -33,6 +32,12 @@ type Reader struct {
 	closeOnce   sync.Once
 	closeErr    error
 	botID       string
+}
+
+type FileRef struct {
+	ID        string
+	ChannelID int64
+	Encrypted bool
 }
 
 func calculatePartByteRanges(start, end, partSize int64) []Range {
@@ -55,7 +60,7 @@ func calculatePartByteRanges(start, end, partSize int64) []Range {
 func NewReader(ctx context.Context,
 	client *tg.Client,
 	cache cache.Cacher,
-	file *models.File,
+	file *FileRef,
 	parts []types.Part,
 	start,
 	end int64,
@@ -64,7 +69,7 @@ func NewReader(ctx context.Context,
 ) (io.ReadCloser, error) {
 
 	size := parts[0].Size
-	if *file.Encrypted {
+	if file.Encrypted {
 		size = parts[0].DecryptedSize
 	}
 	r := &Reader{
@@ -136,7 +141,7 @@ func (r *Reader) getPartReader() (io.ReadCloser, error) {
 	partId := r.parts[currentRange.PartNo].ID
 
 	chunkSrc := &chunkSource{
-		channelId:   *r.file.ChannelId,
+		channelId:   r.file.ChannelID,
 		partId:      partId,
 		client:      r.client,
 		concurrency: r.concurrency,
@@ -151,7 +156,7 @@ func (r *Reader) getPartReader() (io.ReadCloser, error) {
 
 	reader, err = newTGMultiReader(r.ctx, currentRange.Start, currentRange.End, r.config, chunkSrc)
 
-	if *r.file.Encrypted {
+	if r.file.Encrypted {
 		salt := r.parts[r.ranges[r.pos].PartNo].Salt
 		cipher, _ := crypt.NewCipher(r.config.Uploads.EncryptionKey, salt)
 		reader, err = cipher.DecryptDataSeek(r.ctx,

@@ -9,10 +9,10 @@ import (
 	"github.com/gotd/td/telegram"
 	"github.com/tgdrive/teldrive/internal/cache"
 	"github.com/tgdrive/teldrive/internal/config"
+	jetmodel "github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/model"
 	"github.com/tgdrive/teldrive/internal/logging"
-	"github.com/tgdrive/teldrive/pkg/models"
+	"github.com/tgdrive/teldrive/pkg/repositories"
 	"go.uber.org/zap"
-	"gorm.io/gorm"
 )
 
 type StreamClient struct {
@@ -25,16 +25,16 @@ type ClientPool struct {
 	mu      sync.Mutex
 	clients map[string]*StreamClient
 	locks   sync.Map // map[string]*sync.Mutex
-	db      *gorm.DB
+	repo    *repositories.Repositories
 	cache   cache.Cacher
 	cnf     *config.TGConfig
 	logger  *zap.Logger
 }
 
-func NewClientPool(db *gorm.DB, cache cache.Cacher, cnf *config.TGConfig) *ClientPool {
+func NewClientPool(repo *repositories.Repositories, cache cache.Cacher, cnf *config.TGConfig) *ClientPool {
 	return &ClientPool{
 		clients: make(map[string]*StreamClient),
-		db:      db,
+		repo:    repo,
 		cache:   cache,
 		cnf:     cnf,
 		logger:  logging.Component("TG"),
@@ -99,11 +99,16 @@ func (p *ClientPool) GetClient(ctx context.Context, userID int64, token string) 
 	clientCtx = logging.WithContext(clientCtx, p.logger)
 
 	if token == "" {
-		sess, err := cache.Fetch(ctx, p.cache, fmt.Sprintf("users:session:%d", userID), 0, func() (*models.Session, error) {
-			var s models.Session
-			if err := p.db.Where("user_id = ?", userID).First(&s).Error; err != nil {
+		sess, err := cache.Fetch(ctx, p.cache, fmt.Sprintf("users:session:%d", userID), 0, func() (*jetmodel.Sessions, error) {
+			var s jetmodel.Sessions
+			sessions, err := p.repo.Sessions.GetByUserID(ctx, userID)
+			if err != nil {
 				return nil, err
 			}
+			if len(sessions) == 0 {
+				return nil, fmt.Errorf("session not found")
+			}
+			s = sessions[0]
 			return &s, nil
 		})
 		if err != nil {
@@ -112,7 +117,7 @@ func (p *ClientPool) GetClient(ctx context.Context, userID int64, token string) 
 			return nil, err
 		}
 
-		client, err = AuthClient(clientCtx, p.cnf, sess.Session, NewMiddleware(p.cnf,
+		client, err = AuthClient(clientCtx, p.cnf, sess.TgSession, NewMiddleware(p.cnf,
 			WithFloodWait(),
 			WithRecovery(clientCtx),
 			WithRetry(5),
@@ -124,7 +129,7 @@ func (p *ClientPool) GetClient(ctx context.Context, userID int64, token string) 
 			return nil, err
 		}
 	} else {
-		client, err = BotClient(clientCtx, p.db, p.cache, p.cnf, token, NewMiddleware(p.cnf,
+		client, err = BotClient(clientCtx, p.repo.KV, p.cache, p.cnf, token, NewMiddleware(p.cnf,
 			WithFloodWait(),
 			WithRecovery(clientCtx),
 			WithRetry(5),

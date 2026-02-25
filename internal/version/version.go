@@ -11,7 +11,7 @@ var (
 	CommitSHA = "unknown"
 )
 
-func GetVersionInfo() *api.ApiVersion {
+func VersionInfo() *api.ApiVersion {
 	return &api.ApiVersion{
 		Version:   Version,
 		CommitSHA: CommitSHA,

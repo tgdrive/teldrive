@@ -49,15 +49,14 @@ type EventConfig struct {
 }
 
 type ServerCmdConfig struct {
-	Server   ServerConfig
-	Log      LoggingConfig
-	JWT      JWTConfig
-	DB       DBConfig
-	TG       TGConfig
-	CronJobs CronJobConfig
-	Cache    CacheConfig
-	Redis    RedisConfig
-	Events   EventConfig
+	Server ServerConfig
+	Log    LoggingConfig
+	JWT    JWTConfig
+	DB     DBConfig
+	TG     TGConfig
+	Cache  CacheConfig
+	Redis  RedisConfig
+	Events EventConfig
 }
 
 type CheckCmdConfig struct {
@@ -69,7 +68,7 @@ type CheckCmdConfig struct {
 	User         string        `default:"" description:"Telegram username to check (prompts if not specified)"`
 	Concurrent   int           `default:"4" description:"Number of concurrent channel processing"`
 	CleanUploads bool          `default:"false" description:"Clean incomplete uploads"`
-	CleanPending bool          `default:"false" description:"Clean files with pending_deletion status"`
+	CleanPending bool          `default:"false" description:"Clean files with purge_pending status"`
 }
 
 type ServerConfig struct {
@@ -147,14 +146,6 @@ type DBConfig struct {
 	Pool        DBPool
 }
 
-type CronJobConfig struct {
-	Enable               bool          `default:"true" description:"Enable scheduled background jobs"`
-	LockerInstance       string        `default:"cron-locker" description:"Distributed unique cron locker name"`
-	CleanFilesInterval   time.Duration `default:"1h" description:"Interval for cleaning expired files"`
-	CleanUploadsInterval time.Duration `default:"12h" description:"Interval for cleaning incomplete uploads"`
-	FolderSizeInterval   time.Duration `default:"2h" description:"Interval for updating folder sizes"`
-}
-
 type TGStream struct {
 	Concurrency  int           `default:"1" description:"Number of concurrent threads for concurrent reader"`
 	Buffers      int           `default:"8" description:"Number of stream buffers"`
@@ -177,7 +168,7 @@ type TGConfig struct {
 	ReconnectTimeout  time.Duration `default:"5m" description:"Client reconnection timeout"`
 	PoolSize          int           `default:"8" description:"Session pool size"`
 	EnableLogging     bool          `default:"false" description:"Enable Telegram client logging (deprecated: use logging.tg.enabled instead)"`
-	AppId             int           `default:"2496" description:"Telegram app ID"`
+	AppID             int           `default:"2496" description:"Telegram app ID"`
 	AppHash           string        `default:"8da85b0d5bfe62527e5b244c209159c3" description:"Telegram app hash"`
 	DeviceModel       string        `default:"Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/116.0" description:"Device model"`
 	SystemVersion     string        `default:"Win32" description:"System version"`

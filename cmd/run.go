@@ -14,10 +14,11 @@ import (
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/jackc/pgx/v5"
 	"github.com/redis/go-redis/v9"
+	"github.com/riverqueue/river"
 	"github.com/spf13/cobra"
 	"github.com/tgdrive/teldrive/internal/api"
-	"github.com/tgdrive/teldrive/internal/appcontext"
 	"github.com/tgdrive/teldrive/internal/auth"
 	"github.com/tgdrive/teldrive/internal/banner"
 	"github.com/tgdrive/teldrive/internal/cache"
@@ -27,15 +28,16 @@ import (
 	"github.com/tgdrive/teldrive/internal/events"
 	"github.com/tgdrive/teldrive/internal/logging"
 	"github.com/tgdrive/teldrive/internal/middleware"
+	"github.com/tgdrive/teldrive/internal/requestmeta"
 	"github.com/tgdrive/teldrive/internal/tgc"
 	"github.com/tgdrive/teldrive/internal/version"
 	"github.com/tgdrive/teldrive/ui"
 
-	"github.com/tgdrive/teldrive/pkg/cron"
+	"github.com/tgdrive/teldrive/pkg/queue"
+	"github.com/tgdrive/teldrive/pkg/repositories"
 	"github.com/tgdrive/teldrive/pkg/services"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"gorm.io/gorm"
 )
 
 func NewRun() *cobra.Command {
@@ -132,16 +134,17 @@ func runApplication(ctx context.Context, conf *config.ServerCmdConfig) {
 	}()
 
 	// Initialize database (blocking - server needs this)
-	db, err := database.NewDatabase(ctx, &conf.DB, &conf.Log.DB, lg)
+	pool, err := database.NewDatabase(ctx, &conf.DB, &conf.Log.DB, lg)
 	if err != nil {
 		lg.Error("failed to create database", zap.Error(err))
 		os.Exit(1)
 	}
 
-	if err := database.MigrateDB(db); err != nil {
+	if err := database.MigrateDB(pool); err != nil {
 		lg.Error("failed to migrate database", zap.Error(err))
 		os.Exit(1)
 	}
+	repos := repositories.NewRepositories(pool)
 
 	// Wait for cache to be ready before setting up server
 	select {
@@ -165,7 +168,7 @@ func runApplication(ctx context.Context, conf *config.ServerCmdConfig) {
 	var eventsReady = make(chan struct{})
 
 	go func() {
-		eventBroadcaster = events.NewBroadcaster(bgCtx, db, redisClient, conf.Events.PollInterval, broadcasterConfig, logging.Component("EVENT"))
+		eventBroadcaster = events.NewBroadcaster(bgCtx, repos.Events, redisClient, conf.Events.PollInterval, broadcasterConfig, logging.Component("EVENT"))
 		eventsOnce.Do(func() { close(eventsReady) })
 	}()
 
@@ -178,8 +181,12 @@ func runApplication(ctx context.Context, conf *config.ServerCmdConfig) {
 		os.Exit(1)
 	}
 
-	// Setup and start HTTP server immediately
-	srv := setupServer(conf, db, cacher, lg, botSelector, eventBroadcaster)
+	// Setup server and queue client
+	srv, riverClient := setupServer(conf, repos, cacher, lg, botSelector, eventBroadcaster)
+	if err := riverClient.Start(bgCtx); err != nil {
+		lg.Error("queue.start.failed", zap.Error(err))
+		os.Exit(1)
+	}
 
 	serverErrCh := make(chan error, 1)
 	go func() {
@@ -188,18 +195,6 @@ func runApplication(ctx context.Context, conf *config.ServerCmdConfig) {
 			serverErrCh <- err
 		}
 	}()
-
-	// Start cron jobs in background if enabled
-	if conf.CronJobs.Enable {
-		go func() {
-			if err := cron.StartCronJobs(bgCtx, db, conf); err != nil {
-				lg.Error("cron.init.failed", zap.Error(err))
-				initErrCh <- fmt.Errorf("cron scheduler failed: %w", err)
-				return
-			}
-			lg.Debug("cron.init.completed")
-		}()
-	}
 
 	// Main thread: wait for shutdown signal or fatal error
 	select {
@@ -232,27 +227,47 @@ func runApplication(ctx context.Context, conf *config.ServerCmdConfig) {
 		lg.Error("server.shutdown.failed", zap.Error(err))
 	}
 
+	if err := riverClient.Stop(shutdownCtx); err != nil {
+		lg.Error("queue.shutdown.failed", zap.Error(err))
+	}
+
 	// Close Redis client if it was created
 	if redisClient != nil {
 		redisClient.Close()
 	}
+	pool.Close()
 
 	lg.Info("server.stopped")
 }
 
-func setupServer(cfg *config.ServerCmdConfig, db *gorm.DB, cache cache.Cacher, lg *zap.Logger, botSelector tgc.BotSelector, eventBroadcaster events.EventBroadcaster) *http.Server {
+func setupServer(cfg *config.ServerCmdConfig, repos *repositories.Repositories, cache cache.Cacher, lg *zap.Logger, botSelector tgc.BotSelector, eventBroadcaster events.EventBroadcaster) (*http.Server, *river.Client[pgx.Tx]) {
+	channelManager := tgc.NewChannelManager(repos, cache, &cfg.TG)
+	telegramService := services.NewTelegramService(repos, cache, &cfg.TG, botSelector)
 
-	apiSrv := services.NewApiService(db, cfg, cache, botSelector, eventBroadcaster)
+	apiSrv := services.NewApiService(repos, channelManager, cfg, cache, telegramService, eventBroadcaster, nil)
+	riverClient, err := queue.NewClient(repos.Pool, services.NewJobExecutor(apiSrv))
+	if err != nil {
+		lg.Error("failed to create river client", zap.Error(err))
+		os.Exit(1)
+		return nil, nil
+	}
+	apiSrv.SetJobClient(riverClient)
+	apiSrv.SetPeriodicJobRegistry(riverClient.PeriodicJobs())
+	if err := apiSrv.RegisterPeriodicJobs(context.Background()); err != nil {
+		lg.Error("failed to register periodic jobs", zap.Error(err))
+		os.Exit(1)
+		return nil, nil
+	}
 
-	srv, err := api.NewServer(apiSrv, auth.NewSecurityHandler(db, cache, &cfg.JWT))
+	sec := auth.NewSecurityHandler(repos.Sessions, repos.APIKeys, cache, &cfg.JWT)
+	rawSrv := services.NewRawService(apiSrv)
+	srv, err := api.NewServer(apiSrv, rawSrv, sec)
 
 	if err != nil {
 		lg.Error("failed to create server", zap.Error(err))
 		os.Exit(1)
-		return nil // unreachable but required for compilation
+		return nil, nil // unreachable but required for compilation
 	}
-
-	extendedSrv := services.NewExtendedMiddleware(srv, services.NewExtendedService(apiSrv))
 
 	mux := chi.NewRouter()
 
@@ -271,8 +286,8 @@ func setupServer(cfg *config.ServerCmdConfig, db *gorm.DB, cache cache.Cacher, l
 		},
 		HTTPConfig: &cfg.Log.HTTP,
 	}))
-	mux.Use(appcontext.Middleware)
-	mux.Mount("/api/", http.StripPrefix("/api", extendedSrv))
+	mux.Use(requestmeta.Middleware)
+	mux.Mount("/api/", http.StripPrefix("/api", srv))
 	mux.Handle("/*", middleware.SPAHandler(ui.StaticFS))
 
 	return &http.Server{
@@ -282,5 +297,5 @@ func setupServer(cfg *config.ServerCmdConfig, db *gorm.DB, cache cache.Cacher, l
 		WriteTimeout:      cfg.Server.WriteTimeout,
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       60 * time.Second,
-	}
+	}, riverClient
 }

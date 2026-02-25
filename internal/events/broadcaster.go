@@ -7,21 +7,22 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/tgdrive/teldrive/internal/api"
+	"github.com/tgdrive/teldrive/pkg/dto"
+	"github.com/tgdrive/teldrive/pkg/repositories"
 	"go.uber.org/zap"
-	"gorm.io/datatypes"
-	"gorm.io/gorm"
-
-	"github.com/tgdrive/teldrive/pkg/models"
 )
 
-type EventType string
+type EventType = api.EventType
 
 const (
-	OpCreate EventType = "file_create"
-	OpUpdate EventType = "file_update"
-	OpDelete EventType = "file_delete"
-	OpMove   EventType = "file_move"
-	OpCopy   EventType = "file_copy"
+	OpCreate         EventType = api.EventTypeFilesCreated
+	OpUpdate         EventType = api.EventTypeFilesUpdated
+	OpDelete         EventType = api.EventTypeFilesDeleted
+	OpMove           EventType = api.EventTypeFilesMoved
+	OpCopy           EventType = api.EventTypeFilesCopied
+	OpUploadProgress EventType = api.EventTypeUploadsProgress
+	OpJobProgress    EventType = api.EventTypeJobsProgress
 )
 
 const (
@@ -37,10 +38,15 @@ const (
 
 // EventBroadcaster defines the interface for event broadcasting
 type EventBroadcaster interface {
-	Subscribe(userID int64) chan models.Event
-	Unsubscribe(userID int64, ch chan models.Event)
-	Record(eventType EventType, userID int64, source *models.Source)
+	Subscribe(userID int64, eventTypes []EventType) chan dto.Event
+	Unsubscribe(userID int64, ch chan dto.Event)
+	Record(eventType EventType, userID int64, source *dto.Source)
 	Shutdown()
+}
+
+type eventSubscriber struct {
+	ch      chan dto.Event
+	filters map[EventType]struct{}
 }
 
 // BroadcasterConfig holds configuration for event broadcasting
@@ -61,21 +67,21 @@ func DefaultBroadcasterConfig() BroadcasterConfig {
 
 // baseBroadcaster contains shared functionality
 type baseBroadcaster struct {
-	db           *gorm.DB
+	eventsRepo   repositories.EventRepository
 	logger       *zap.Logger
 	ctx          context.Context
 	cancel       context.CancelFunc
-	subscribers  map[int64][]chan models.Event
+	subscribers  map[int64][]eventSubscriber
 	subMu        sync.RWMutex
 	wg           sync.WaitGroup
-	dbWorkerCh   chan models.Event
+	dbWorkerCh   chan dto.Event
 	recentEvents map[string]time.Time // Event ID -> timestamp for deduplication
 	eventMu      sync.RWMutex
 	config       BroadcasterConfig
 }
 
 // newBaseBroadcaster creates a new base broadcaster with DB worker pool
-func newBaseBroadcaster(db *gorm.DB, logger *zap.Logger, ctx context.Context, cancel context.CancelFunc, config BroadcasterConfig) *baseBroadcaster {
+func newBaseBroadcaster(eventsRepo repositories.EventRepository, logger *zap.Logger, ctx context.Context, cancel context.CancelFunc, config BroadcasterConfig) *baseBroadcaster {
 	// Apply defaults if not set
 	if config.DBWorkers <= 0 {
 		config.DBWorkers = defaultDBWorkers
@@ -88,12 +94,12 @@ func newBaseBroadcaster(db *gorm.DB, logger *zap.Logger, ctx context.Context, ca
 	}
 
 	b := &baseBroadcaster{
-		db:           db,
+		eventsRepo:   eventsRepo,
 		logger:       logger,
 		ctx:          ctx,
 		cancel:       cancel,
-		subscribers:  make(map[int64][]chan models.Event),
-		dbWorkerCh:   make(chan models.Event, config.DBBufferSize),
+		subscribers:  make(map[int64][]eventSubscriber),
+		dbWorkerCh:   make(chan dto.Event, config.DBBufferSize),
 		recentEvents: make(map[string]time.Time),
 		config:       config,
 	}
@@ -115,7 +121,13 @@ func (b *baseBroadcaster) dbWorker() {
 		case <-b.ctx.Done():
 			return
 		case evt := <-b.dbWorkerCh:
-			if err := b.db.Create(&evt).Error; err != nil {
+			eventModel, err := eventToModel(evt)
+			if err != nil {
+				b.logger.Error("events.model_mapping_failed", zap.Error(err))
+				continue
+			}
+
+			if err := b.eventsRepo.Create(b.ctx, eventModel); err != nil {
 				b.logger.Error("events.db_save_failed",
 					zap.Error(err),
 					zap.String("id", evt.ID),
@@ -162,7 +174,7 @@ func (b *baseBroadcaster) cleanupOldEvents() {
 }
 
 // broadcast sends event to all local subscribers of a user
-func (b *baseBroadcaster) broadcast(evt models.Event) {
+func (b *baseBroadcaster) broadcast(evt dto.Event) {
 	b.subMu.RLock()
 	subs, ok := b.subscribers[evt.UserID]
 	b.subMu.RUnlock()
@@ -172,9 +184,16 @@ func (b *baseBroadcaster) broadcast(evt models.Event) {
 	}
 
 	sent := 0
-	for i, ch := range subs {
+	eventType := EventType(evt.Type)
+	for i, sub := range subs {
+		if len(sub.filters) > 0 {
+			if _, ok := sub.filters[eventType]; !ok {
+				continue
+			}
+		}
+
 		select {
-		case ch <- evt:
+		case sub.ch <- evt:
 			sent++
 		default:
 			b.logger.Debug("events.channel_full",
@@ -185,11 +204,15 @@ func (b *baseBroadcaster) broadcast(evt models.Event) {
 }
 
 // Subscribe creates a new subscription for a user
-func (b *baseBroadcaster) Subscribe(userID int64) chan models.Event {
-	ch := make(chan models.Event, 100)
+func (b *baseBroadcaster) Subscribe(userID int64, eventTypes []EventType) chan dto.Event {
+	ch := make(chan dto.Event, 100)
+	filters := make(map[EventType]struct{}, len(eventTypes))
+	for _, eventType := range eventTypes {
+		filters[eventType] = struct{}{}
+	}
 
 	b.subMu.Lock()
-	b.subscribers[userID] = append(b.subscribers[userID], ch)
+	b.subscribers[userID] = append(b.subscribers[userID], eventSubscriber{ch: ch, filters: filters})
 	b.subMu.Unlock()
 
 	b.logger.Debug("events.subscribed",
@@ -200,12 +223,12 @@ func (b *baseBroadcaster) Subscribe(userID int64) chan models.Event {
 }
 
 // Unsubscribe removes a subscription for a user with graceful drain
-func (b *baseBroadcaster) Unsubscribe(userID int64, ch chan models.Event) {
+func (b *baseBroadcaster) Unsubscribe(userID int64, ch chan dto.Event) {
 	b.subMu.Lock()
 
 	if subs, ok := b.subscribers[userID]; ok {
 		for i, sub := range subs {
-			if sub == ch {
+			if sub.ch == ch {
 				b.subscribers[userID] = append(subs[:i], subs[i+1:]...)
 				break
 			}
@@ -236,7 +259,7 @@ func (b *baseBroadcaster) Unsubscribe(userID int64, ch chan models.Event) {
 }
 
 // queueForDB queues event for DB write (non-blocking)
-func (b *baseBroadcaster) queueForDB(evt models.Event) bool {
+func (b *baseBroadcaster) queueForDB(evt dto.Event) bool {
 	select {
 	case b.dbWorkerCh <- evt:
 		return true
@@ -251,17 +274,17 @@ func (b *baseBroadcaster) queueForDB(evt models.Event) bool {
 }
 
 // createEvent creates a new event from parameters with generated ID
-func createEvent(eventType EventType, userID int64, source *models.Source) models.Event {
-	return models.Event{
+func createEvent(eventType EventType, userID int64, source *dto.Source) dto.Event {
+	return dto.Event{
 		ID:        uuid.New().String(),
 		Type:      string(eventType),
 		UserID:    userID,
-		Source:    datatypes.NewJSONType(source),
+		Source:    source,
 		CreatedAt: time.Now().UTC(),
 	}
 }
 
 // marshalEvent marshals event to JSON
-func marshalEvent(evt models.Event) ([]byte, error) {
+func marshalEvent(evt dto.Event) ([]byte, error) {
 	return json.Marshal(evt)
 }

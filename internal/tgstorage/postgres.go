@@ -8,22 +8,23 @@ import (
 	"github.com/gotd/contrib/auth/kv"
 	"github.com/gotd/td/session"
 	"github.com/tgdrive/teldrive/internal/cache"
-	"gorm.io/gorm"
+	jetmodel "github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/model"
+	"github.com/tgdrive/teldrive/pkg/repositories"
 )
 
 var _ Storage = (*PostgresStorage)(nil)
 
-// PostgresStorage implements session storage using PostgreSQL via GORM
+// PostgresStorage implements session storage using repository KV storage
 type PostgresStorage struct {
-	db    *gorm.DB
+	kv    repositories.KVRepository
 	cache cache.Cacher
 	key   string
 }
 
 // NewPostgresStorage creates a new PostgreSQL-backed session storage with caching
-func NewPostgresStorage(db *gorm.DB, cache cache.Cacher, key string) *PostgresStorage {
+func NewPostgresStorage(kvRepo repositories.KVRepository, cache cache.Cacher, key string) *PostgresStorage {
 	return &PostgresStorage{
-		db:    db,
+		kv:    kvRepo,
 		cache: cache,
 		key:   key,
 	}
@@ -34,42 +35,40 @@ func (s *PostgresStorage) LoadSession(ctx context.Context) ([]byte, error) {
 	// Use cache if available
 	if s.cache != nil {
 		return cache.Fetch(ctx, s.cache, cache.Key("session", s.key), 30*time.Minute, func() ([]byte, error) {
-			var entry KeyValue
-			if err := s.db.WithContext(ctx).First(&entry, "key = ?", s.key).Error; err != nil {
-				if errors.Is(err, gorm.ErrRecordNotFound) {
+			entry, err := s.kv.Get(ctx, s.key)
+			if err != nil {
+				if errors.Is(err, repositories.ErrNotFound) {
 					return nil, session.ErrNotFound
 				}
-				return nil, errors.Wrap(err, "query session")
+				return nil, errors.Wrap(err, "get session")
 			}
 			return entry.Value, nil
 		})
 	}
 
-	// Fallback to direct DB query
-	var entry KeyValue
-	if err := s.db.WithContext(ctx).First(&entry, "key = ?", s.key).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
+	entry, err := s.kv.Get(ctx, s.key)
+	if err != nil {
+		if errors.Is(err, repositories.ErrNotFound) {
 			return nil, session.ErrNotFound
 		}
-		return nil, errors.Wrap(err, "query session")
+		return nil, errors.Wrap(err, "get session")
 	}
+
 	return entry.Value, nil
 }
 
 // StoreSession saves session data to PostgreSQL
 func (s *PostgresStorage) StoreSession(ctx context.Context, data []byte) error {
-	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Exec(`
-			INSERT INTO teldrive.kv (key, value, created_at)
-			VALUES (?, ?, ?)
-			ON CONFLICT (key) DO UPDATE SET
-				value = EXCLUDED.value,
-				created_at = EXCLUDED.created_at
-		`, s.key, data, time.Now().UTC()).Error; err != nil {
-			return errors.Wrap(err, "upsert session")
-		}
-		return nil
-	})
+	item := &jetmodel.Kv{Key: s.key, Value: data, CreatedAt: time.Now().UTC()}
+	if err := s.kv.Set(ctx, item); err != nil {
+		return errors.Wrap(err, "upsert session")
+	}
+
+	if s.cache != nil {
+		s.cache.Delete(ctx, cache.Key("session", s.key))
+	}
+
+	return nil
 }
 
 // Type returns the storage type
@@ -88,9 +87,9 @@ type PostgresSession struct {
 }
 
 // NewPostgresSession creates a new PostgreSQL-backed session with optional caching
-func NewPostgresSession(db *gorm.DB, cache cache.Cacher, key string) *PostgresSession {
+func NewPostgresSession(kvRepo repositories.KVRepository, cache cache.Cacher, key string) *PostgresSession {
 	storage := &kvStorage{
-		db:    db,
+		kv:    kvRepo,
 		cache: cache,
 	}
 	return &PostgresSession{

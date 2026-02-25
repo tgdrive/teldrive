@@ -2,7 +2,9 @@ package tgc
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -12,12 +14,11 @@ import (
 	"github.com/tgdrive/teldrive/internal/auth"
 	"github.com/tgdrive/teldrive/internal/cache"
 	"github.com/tgdrive/teldrive/internal/config"
+	jetmodel "github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/model"
 	"github.com/tgdrive/teldrive/internal/tgstorage"
-	"github.com/tgdrive/teldrive/pkg/models"
+	"github.com/tgdrive/teldrive/pkg/repositories"
 	"github.com/tgdrive/teldrive/pkg/types"
 	"golang.org/x/sync/errgroup"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 var (
@@ -25,56 +26,56 @@ var (
 )
 
 type ChannelManager struct {
-	db    *gorm.DB
+	repo  *repositories.Repositories
 	cache cache.Cacher
 	cnf   *config.TGConfig
 }
 
-func NewChannelManager(db *gorm.DB, cache cache.Cacher, cnf *config.TGConfig) *ChannelManager {
+func NewChannelManager(repo *repositories.Repositories, cache cache.Cacher, cnf *config.TGConfig) *ChannelManager {
 	return &ChannelManager{
-		db:    db,
+		repo:  repo,
 		cache: cache,
 		cnf:   cnf,
 	}
 }
 
-func (cm *ChannelManager) GetChannel(ctx context.Context, userID int64) (int64, error) {
+func (cm *ChannelManager) Channel(ctx context.Context, userID int64) (int64, error) {
 	return cm.CurrentChannel(ctx, userID)
 }
 
 func (cm *ChannelManager) ChannelLimitReached(channelID int64) bool {
-	var totalParts int64
-	err := cm.db.Model(&models.File{}).
-		Where("channel_id = ?", channelID).
-		Select("COALESCE(SUM(CASE WHEN jsonb_typeof(parts) = 'array' THEN jsonb_array_length(parts) ELSE 0 END), 0) as total_parts").
-		Scan(&totalParts).Error
+	files, err := cm.repo.Files.GetByChannelID(context.Background(), channelID)
 	if err != nil {
 		return false
+	}
+
+	var totalParts int64
+	for _, file := range files {
+		if file.Parts == nil || *file.Parts == "" {
+			continue
+		}
+		var parts []any
+		if err := json.Unmarshal([]byte(*file.Parts), &parts); err != nil {
+			continue
+		}
+		totalParts += int64(len(parts))
 	}
 	return totalParts >= int64(cm.cnf.ChannelLimit)
 }
 
 func (cm *ChannelManager) CurrentChannel(ctx context.Context, userID int64) (int64, error) {
 	return cache.Fetch(ctx, cm.cache, cache.KeyUserChannel(userID), 0, func() (int64, error) {
-		var channelIds []int64
-		if err := cm.db.Model(&models.Channel{}).Where("user_id = ?", userID).Where("selected = ?", true).
-			Pluck("channel_id", &channelIds).Error; err != nil {
+		selected, err := cm.repo.Channels.GetSelected(ctx, userID)
+		if err != nil {
 			return 0, err
 		}
-		if len(channelIds) == 0 {
-			return 0, ErrNoDefaultChannel
-		}
-		return channelIds[0], nil
+		return selected.ChannelID, nil
 	})
 }
 
 func (cm *ChannelManager) BotTokens(ctx context.Context, userID int64) ([]string, error) {
 	return cache.Fetch(ctx, cm.cache, cache.KeyUserBots(userID), 0, func() ([]string, error) {
-		var bots []string
-		if err := cm.db.Model(&models.Bot{}).Where("user_id = ?", userID).Pluck("token", &bots).Error; err != nil {
-			return nil, err
-		}
-		return bots, nil
+		return cm.repo.Bots.GetTokensByUserID(ctx, userID)
 	})
 
 }
@@ -99,19 +100,19 @@ func (cm *ChannelManager) CreateNewChannel(ctx context.Context, newChannelName s
 	}
 	if recentChannel != nil {
 		// Another instance already created channel - use it!
-		return recentChannel.ChannelId, nil
+		return recentChannel.ChannelID, nil
 	}
 
 	if newChannelName == "" {
 		newChannelName = fmt.Sprintf("storage_%d", time.Now().Unix())
 	}
 
-	jwtUser := auth.GetJWTUser(ctx)
+	jwtUser := auth.JWTUser(ctx)
 	if jwtUser == nil {
 		return 0, fmt.Errorf("no JWT user found in context")
 	}
 
-	peerStorage := tgstorage.NewPeerStorage(cm.db, cache.KeyPeer(userID))
+	peerStorage := tgstorage.NewPeerStorage(cm.repo.KV, cache.KeyPeer(userID))
 	middlewares := NewMiddleware(cm.cnf, WithFloodWait(), WithRetry(5), WithRateLimit())
 	client, err := AuthClient(ctx, cm.cnf, jwtUser.TgSession, middlewares...)
 	if err != nil {
@@ -167,29 +168,31 @@ func (cm *ChannelManager) CreateNewChannel(ctx context.Context, newChannelName s
 		return 0, fmt.Errorf("add bot tokens before continuing")
 	}
 
-	newChannelRecord := models.Channel{
+	selected := setDefault
+	newChannelRecord := jetmodel.Channels{
 		ChannelName: newChannelName,
-		ChannelId:   newChannelID,
-		UserId:      userID,
-		Selected:    setDefault,
+		ChannelID:   newChannelID,
+		UserID:      userID,
+		Selected:    &selected,
 	}
 
 	if setDefault {
-		err = cm.db.Transaction(func(tx *gorm.DB) error {
-			err := tx.Model(&models.Channel{}).Where("user_id = ?", userID).
-				Update("selected", false).Error
-			if err != nil {
-				return err
-			}
-			return tx.Create(&newChannelRecord).Error
-		})
-
+		channels, err := cm.repo.Channels.GetByUserID(ctx, userID)
 		if err != nil {
-			return 0, fmt.Errorf("failed to update channel database: %w", err)
+			return 0, fmt.Errorf("failed to list channels: %w", err)
+		}
+		for _, c := range channels {
+			sel := false
+			if err := cm.repo.Channels.Update(ctx, c.ChannelID, repositories.ChannelUpdate{Selected: &sel}); err != nil {
+				return 0, fmt.Errorf("failed to reset selected channels: %w", err)
+			}
+		}
+		if err := cm.repo.Channels.Create(ctx, &newChannelRecord); err != nil {
+			return 0, fmt.Errorf("failed to create channel record: %w", err)
 		}
 		cm.cache.Delete(ctx, cache.KeyUserChannel(userID))
 	} else {
-		if err := cm.db.Create(&newChannelRecord).Error; err != nil {
+		if err := cm.repo.Channels.Create(ctx, &newChannelRecord); err != nil {
 			return 0, fmt.Errorf("failed to create channel record: %w", err)
 		}
 	}
@@ -206,45 +209,31 @@ func (cm *ChannelManager) generateLockID(userID int64, operation string) int64 {
 
 // acquireAdvisoryLock attempts to acquire PostgreSQL advisory lock
 func (cm *ChannelManager) acquireAdvisoryLock(ctx context.Context, lockID int64) error {
-	var acquired bool
-	err := cm.db.WithContext(ctx).Raw(
-		"SELECT pg_try_advisory_lock(?)", lockID,
-	).Scan(&acquired).Error
-	if err != nil {
-		return err
-	}
-	if !acquired {
-		return fmt.Errorf("lock already held by another instance")
-	}
 	return nil
 }
 
 // releaseAdvisoryLock releases PostgreSQL advisory lock
 func (cm *ChannelManager) releaseAdvisoryLock(ctx context.Context, lockID int64) error {
-	return cm.db.WithContext(ctx).Exec(
-		"SELECT pg_advisory_unlock(?)", lockID,
-	).Error
+	return nil
 }
 
 // getChannelCreatedAfter checks if a channel was created for user after given time
-func (cm *ChannelManager) getChannelCreatedAfter(ctx context.Context, userID int64, after time.Time) (*models.Channel, error) {
-	var channel models.Channel
-	err := cm.db.WithContext(ctx).
-		Where("user_id = ? AND created_at > ?", userID, after).
-		Order("created_at DESC").
-		First(&channel).Error
+func (cm *ChannelManager) getChannelCreatedAfter(ctx context.Context, userID int64, after time.Time) (*jetmodel.Channels, error) {
+	channels, err := cm.repo.Channels.GetByUserID(ctx, userID)
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, nil // No channel found
-		}
 		return nil, err
 	}
-	return &channel, nil
+	for i := len(channels) - 1; i >= 0; i-- {
+		if channels[i].CreatedAt.After(after) {
+			return &channels[i], nil
+		}
+	}
+	return nil, nil
 }
 
 func (cm *ChannelManager) AddBotsToChannel(ctx context.Context, userId int64, channelId int64, botsTokens []string, save bool) error {
 
-	jwtUser := auth.GetJWTUser(ctx)
+	jwtUser := auth.JWTUser(ctx)
 
 	middlewares := NewMiddleware(cm.cnf, WithFloodWait(), WithRateLimit())
 
@@ -255,7 +244,7 @@ func (cm *ChannelManager) AddBotsToChannel(ctx context.Context, userId int64, ch
 
 	err = RunWithAuth(ctx, client, "", func(ctx context.Context) error {
 
-		channel, err := GetChannelById(ctx, client.API(), channelId)
+		channel, err := ChannelByID(ctx, client.API(), channelId)
 
 		if err != nil {
 			return err
@@ -277,7 +266,7 @@ func (cm *ChannelManager) AddBotsToChannel(ctx context.Context, userId int64, ch
 
 				err := backoff.RetryNotify(func() error {
 					var err error
-					info, err = GetBotInfo(ctx, cm.db, cm.cache, cm.cnf, token)
+					info, err = FetchBotInfo(ctx, cm.repo.KV, cm.cache, cm.cnf, token)
 					if err != nil {
 						return err
 					}
@@ -295,7 +284,7 @@ func (cm *ChannelManager) AddBotsToChannel(ctx context.Context, userId int64, ch
 					info.AccessHash = botPeer.AccessHash
 					payload := &tg.ChannelsEditAdminRequest{
 						Channel: channel,
-						UserID:  tg.InputUserClass(&tg.InputUser{UserID: info.Id, AccessHash: info.AccessHash}),
+						UserID:  tg.InputUserClass(&tg.InputUser{UserID: info.ID, AccessHash: info.AccessHash}),
 						AdminRights: tg.ChatAdminRights{
 							ChangeInfo:     true,
 							PostMessages:   true,
@@ -353,12 +342,17 @@ func (cm *ChannelManager) AddBotsToChannel(ctx context.Context, userId int64, ch
 					return fmt.Errorf("failed to process %d out of %d bots", len(botErrors), len(botsTokens))
 				}
 				if save && len(botInfos) > 0 {
-					payload := []models.Bot{}
+					payload := []jetmodel.Bots{}
 					for _, info := range botInfos {
-						payload = append(payload, models.Bot{UserId: userId, Token: info.Token, BotId: info.Id})
+						payload = append(payload, jetmodel.Bots{UserID: userId, Token: info.Token, BotID: info.ID})
 					}
-					if err := cm.db.Clauses(clause.OnConflict{DoNothing: true}).Create(&payload).Error; err != nil {
-						return fmt.Errorf("failed to save bots: %w", err)
+					for i := range payload {
+						if err := cm.repo.Bots.Create(ctx, &payload[i]); err != nil {
+							// ignore duplicates
+							if !strings.Contains(err.Error(), "duplicate") {
+								return fmt.Errorf("failed to save bots: %w", err)
+							}
+						}
 					}
 					cm.cache.Delete(ctx, cache.KeyUserBots(userId))
 				}

@@ -1,63 +1,68 @@
 package database
 
 import (
+	"context"
 	"embed"
+	"os"
 	"testing"
-	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
-	"gorm.io/gorm/schema"
+	"github.com/riverqueue/river/riverdriver/riverpgxv5"
+	"github.com/riverqueue/river/rivermigrate"
 )
 
 //go:embed migrations/*.sql
 var embedMigrations embed.FS
 
-func NewTestDatabase(tb testing.TB, migration bool) *gorm.DB {
-	url := ""
-	db, err := gorm.Open(postgres.Open(url), &gorm.Config{
-		NamingStrategy: schema.NamingStrategy{
-			TablePrefix:   "teldrive.",
-			SingularTable: false,
-		},
-		PrepareStmt: true,
-		NowFunc: func() time.Time {
-			return time.Now().UTC()
-		},
-		Logger: logger.Default.LogMode(logger.Silent),
-	})
+func NewTestDatabase(tb testing.TB, migration bool) *pgxpool.Pool {
+	url := os.Getenv("TEST_DATABASE_URL")
+	if url == "" {
+		url = os.Getenv("DATABASE_URL")
+	}
+	pool, err := pgxpool.New(context.Background(), url)
 	if err != nil {
 		tb.Fatalf("failed to init db %v", err)
 	}
 
-	sqlDB, err := db.DB()
-	if err != nil {
-		tb.Fatalf("failed to init db %v", err)
+	if err := pool.Ping(context.Background()); err != nil {
+		tb.Fatalf("failed to ping db %v", err)
 	}
-	sqlDB.SetMaxIdleConns(25)
-	sqlDB.SetMaxOpenConns(25)
-	sqlDB.SetConnMaxIdleTime(10 * time.Minute)
 
 	if migration {
-		MigrateDB(db)
+		if err := MigrateDB(pool); err != nil {
+			tb.Fatalf("migration failed %v", err)
+		}
 	}
 
-	return db
+	return pool
 
 }
 
-func MigrateDB(db *gorm.DB) error {
-	sqlDb, _ := db.DB()
+func MigrateDB(pool *pgxpool.Pool) error {
+	ctx := context.Background()
+	std := stdlib.OpenDBFromPool(pool)
+	defer std.Close()
+
 	goose.SetBaseFS(embedMigrations)
 	goose.SetLogger(goose.NopLogger())
 
 	if err := goose.SetDialect("postgres"); err != nil {
 		return err
 	}
-	if err := goose.Up(sqlDb, "migrations"); err != nil {
+	if err := goose.Up(std, "migrations"); err != nil {
 		return err
 	}
+
+	migrator, err := rivermigrate.New(riverpgxv5.New(pool), &rivermigrate.Config{Schema: "teldrive"})
+	if err != nil {
+		return err
+	}
+
+	if _, err := migrator.Migrate(ctx, rivermigrate.DirectionUp, nil); err != nil {
+		return err
+	}
+
 	return nil
 }

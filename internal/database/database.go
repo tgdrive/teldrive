@@ -3,65 +3,51 @@ package database
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
-	extraClausePlugin "github.com/WinterYukky/gorm-extra-clause-plugin"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/tgdrive/teldrive/internal/config"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-	"gorm.io/gorm/schema"
 )
 
-func NewDatabase(ctx context.Context, cfg *config.DBConfig, logCfg *config.DBLoggingConfig, lg *zap.Logger) (*gorm.DB, error) {
-	level, err := zapcore.ParseLevel(logCfg.Level)
-	if err != nil {
-		level = zapcore.InfoLevel
-	}
-
-	var db *gorm.DB
+func NewDatabase(ctx context.Context, cfg *config.DBConfig, _ *config.DBLoggingConfig, lg *zap.Logger) (*pgxpool.Pool, error) {
+	var db *pgxpool.Pool
+	var err error
 	maxRetries := 5
 	retryDelay := 500 * time.Millisecond
 	connectTimeout := 10 * time.Second
-
-	// Add connect_timeout to DSN if not present
 	dsn := cfg.DataSource
-	if !strings.Contains(dsn, "connect_timeout") {
-		if strings.Contains(dsn, "?") {
-			dsn = dsn + fmt.Sprintf("&connect_timeout=%d", int(connectTimeout.Seconds()))
-		} else {
-			dsn = dsn + fmt.Sprintf("?connect_timeout=%d", int(connectTimeout.Seconds()))
-		}
-	}
 
 	for i := 0; i <= maxRetries; i++ {
-		// Create a timeout context for this attempt so it can be cancelled
 		attemptCtx, attemptCancel := context.WithTimeout(ctx, connectTimeout+5*time.Second)
 
-		// Run gorm.Open in a goroutine so we can cancel it via context
 		type result struct {
-			db  *gorm.DB
+			db  *pgxpool.Pool
 			err error
 		}
 		resultCh := make(chan result, 1)
 
 		go func() {
-			db, err := gorm.Open(postgres.New(postgres.Config{
-				DSN:                  dsn,
-				PreferSimpleProtocol: !cfg.PrepareStmt,
-			}), &gorm.Config{
-				Logger: NewLogger(lg, logCfg.SlowThreshold, logCfg.IgnoreRecordNotFound, level, logCfg),
-				NamingStrategy: schema.NamingStrategy{
-					TablePrefix:   "teldrive.",
-					SingularTable: false,
-				},
-				NowFunc: func() time.Time {
-					return time.Now().UTC()
-				},
-			})
-			resultCh <- result{db: db, err: err}
+			poolCfg, err := pgxpool.ParseConfig(dsn)
+			if err != nil {
+				resultCh <- result{db: nil, err: err}
+				return
+			}
+			poolCfg.ConnConfig.ConnectTimeout = connectTimeout
+			poolCfg.MaxConns = int32(cfg.Pool.MaxOpenConnections)
+			poolCfg.MinConns = int32(cfg.Pool.MaxIdleConnections)
+			poolCfg.MaxConnLifetime = cfg.Pool.MaxLifetime
+			pool, err := pgxpool.NewWithConfig(attemptCtx, poolCfg)
+			if err != nil {
+				resultCh <- result{db: nil, err: err}
+				return
+			}
+			if err := pool.Ping(attemptCtx); err != nil {
+				pool.Close()
+				resultCh <- result{db: nil, err: err}
+				return
+			}
+			resultCh <- result{db: pool, err: nil}
 		}()
 
 		// Wait for either the result or context cancellation
@@ -103,18 +89,6 @@ func NewDatabase(ctx context.Context, cfg *config.DBConfig, logCfg *config.DBLog
 				zap.Error(err))
 			return nil, fmt.Errorf("database connection failed after %d attempts: %w", maxRetries, err)
 		}
-	}
-
-	db.Use(extraClausePlugin.New())
-
-	if cfg.Pool.Enable {
-		rawDB, err := db.DB()
-		if err != nil {
-			return nil, err
-		}
-		rawDB.SetMaxOpenConns(cfg.Pool.MaxOpenConnections)
-		rawDB.SetMaxIdleConns(cfg.Pool.MaxIdleConnections)
-		rawDB.SetConnMaxLifetime(cfg.Pool.MaxLifetime)
 	}
 
 	return db, nil

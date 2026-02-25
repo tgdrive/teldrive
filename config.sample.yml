@@ -3,13 +3,6 @@ cache:
   redis-addr: ""
   redis-pass: ""
 
-cronjobs:
-  clean-files-interval: "1h"
-  clean-uploads-interval: "12h"
-  enable: true
-  folder-size-interval: "2h"
-  locker-instance: "cron-locker"
-
 db:
   data-source: ""
   log-level: "info"

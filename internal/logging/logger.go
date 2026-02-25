@@ -162,12 +162,6 @@ func Component(name string) *zap.Logger {
 
 // NewLogger creates a new logger with dual output (console + file)
 func NewLogger(cfg *Config) *zap.Logger {
-	// Use configured time format or default
-	timeFmt := cfg.TimeFormat
-	if timeFmt == "" {
-		timeFmt = "2006-01-02 15:04:05"
-	}
-
 	var cores []zapcore.Core
 
 	consoleCore := &prettyCore{

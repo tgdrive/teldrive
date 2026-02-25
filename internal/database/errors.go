@@ -4,7 +4,6 @@ import (
 	"errors"
 
 	"github.com/jackc/pgx/v5/pgconn"
-	"gorm.io/gorm"
 )
 
 var (
@@ -13,7 +12,7 @@ var (
 )
 
 func IsRecordNotFoundErr(err error) bool {
-	return err == gorm.ErrRecordNotFound || err == ErrNotFound
+	return err == ErrNotFound
 }
 
 func IsKeyConflictErr(err error) bool {
