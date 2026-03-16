@@ -10,6 +10,7 @@ import (
 	"github.com/riverqueue/river/rivertype"
 	"github.com/tgdrive/teldrive/internal/api"
 	"github.com/tgdrive/teldrive/internal/auth"
+	"github.com/tgdrive/teldrive/internal/utils"
 	"github.com/tgdrive/teldrive/pkg/queue"
 )
 
@@ -30,32 +31,12 @@ func (a genericJobArgs) Kind() string { return a.kind }
 func (a genericJobArgs) MarshalJSON() ([]byte, error) { return json.Marshal(a.payload) }
 
 func (a *apiService) JobsList(ctx context.Context, params api.JobsListParams) (*api.JobList, error) {
-	if a.jobs == nil {
-		return nil, &apiError{err: errors.New("jobs service is not configured"), code: 503}
-	}
-
 	userID := auth.User(ctx)
-	if userID == 0 {
-		return nil, &apiError{err: errors.New("unauthorized"), code: 401}
-	}
-
-	limit := 50
-	if params.Limit.IsSet() && params.Limit.Value > 0 {
-		limit = params.Limit.Value
-	}
-	if limit > 200 {
-		limit = 200
-	}
-	fetchLimit := limit * 3
-	if fetchLimit < 50 {
-		fetchLimit = 50
-	}
-	if fetchLimit > 200 {
-		fetchLimit = 200
-	}
-
+	limit := params.Limit.Or(50)
 	listParams := river.NewJobListParams().
-		First(fetchLimit).
+		First(limit).
+		Where("jsonb_path_query_first(args, @json_path) = @json_val",
+			river.NamedArgs{"json_path": "$.userId", "json_val": userID}).
 		OrderBy(river.JobListOrderByID, river.SortOrderDesc)
 
 	if params.State.IsSet() {
@@ -70,41 +51,15 @@ func (a *apiService) JobsList(ctx context.Context, params api.JobsListParams) (*
 		listParams = listParams.After(cursor)
 	}
 
-	items := make([]api.JobStatus, 0, limit)
-	var lastUserRow *rivertype.JobRow
-	for i := 0; i < 10; i++ {
-		res, err := a.jobs.JobList(ctx, listParams)
-		if err != nil {
-			return nil, &apiError{err: err}
-		}
-
-		for _, row := range res.Jobs {
-			if !jobOwnedByUser(row, userID) {
-				continue
-			}
-			items = append(items, *toJobStatus(row))
-			lastUserRow = row
-			if len(items) >= limit {
-				break
-			}
-		}
-
-		if len(items) >= limit || res.LastCursor == nil {
-			break
-		}
-
-		listParams = river.NewJobListParams().
-			First(fetchLimit).
-			OrderBy(river.JobListOrderByID, river.SortOrderDesc).
-			After(res.LastCursor)
-		if params.State.IsSet() {
-			listParams = listParams.States(toRiverJobState(params.State.Value))
-		}
+	res, err := a.jobs.JobList(ctx, listParams)
+	if err != nil {
+		return nil, &apiError{err: err}
 	}
 
+	items := utils.Map(res.Jobs, func(row *rivertype.JobRow) api.JobStatus { return *toJobStatus(row) })
 	meta := api.Meta{}
-	if len(items) == limit && lastUserRow != nil {
-		if cursor, err := river.JobListCursorFromJob(lastUserRow).MarshalText(); err == nil {
+	if len(items) == limit {
+		if cursor, err := river.JobListCursorFromJob(res.Jobs[len(res.Jobs)-1]).MarshalText(); err == nil {
 			meta.NextCursor = api.NewOptString(string(cursor))
 		}
 	}

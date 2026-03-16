@@ -14,9 +14,9 @@ func NewClient(pool *pgxpool.Pool, exec Executor) (*river.Client[pgx.Tx], error)
 	river.AddWorker(workers, &syncRunWorker{exec: exec})
 	river.AddWorker(workers, &syncTransferWorker{exec: exec})
 	river.AddWorker(workers, &syncFinalizeWorker{exec: exec})
-	river.AddWorker(workers, &cleanOldEventsUserWorker{exec: exec})
-	river.AddWorker(workers, &cleanStaleUploadsUserWorker{exec: exec})
-	river.AddWorker(workers, &cleanPendingFilesUserWorker{exec: exec})
+	river.AddWorker(workers, &cleanOldEventsWorker{exec: exec})
+	river.AddWorker(workers, &cleanStaleUploadsWorker{exec: exec})
+	river.AddWorker(workers, &cleanPendingFilesWorker{exec: exec})
 
 	return river.NewClient(riverpgxv5.New(pool), &river.Config{
 		Schema: "teldrive",
@@ -54,29 +54,29 @@ func (w *syncFinalizeWorker) Work(ctx context.Context, job *river.Job[SyncFinali
 	return w.exec.SyncFinalize(ctx, job.Args)
 }
 
-type cleanOldEventsUserWorker struct {
-	river.WorkerDefaults[CleanOldEventsUserArgs]
+type cleanOldEventsWorker struct {
+	river.WorkerDefaults[CleanOldEventsArgs]
 	exec Executor
 }
 
-func (w *cleanOldEventsUserWorker) Work(ctx context.Context, job *river.Job[CleanOldEventsUserArgs]) error {
+func (w *cleanOldEventsWorker) Work(ctx context.Context, job *river.Job[CleanOldEventsArgs]) error {
 	return w.exec.CleanOldEventsForUser(ctx, job.Args)
 }
 
-type cleanStaleUploadsUserWorker struct {
-	river.WorkerDefaults[CleanStaleUploadsUserArgs]
+type cleanStaleUploadsWorker struct {
+	river.WorkerDefaults[CleanStaleUploadsArgs]
 	exec Executor
 }
 
-func (w *cleanStaleUploadsUserWorker) Work(ctx context.Context, job *river.Job[CleanStaleUploadsUserArgs]) error {
+func (w *cleanStaleUploadsWorker) Work(ctx context.Context, job *river.Job[CleanStaleUploadsArgs]) error {
 	return w.exec.CleanStaleUploadsForUser(ctx, job.Args)
 }
 
-type cleanPendingFilesUserWorker struct {
-	river.WorkerDefaults[CleanPendingFilesUserArgs]
+type cleanPendingFilesWorker struct {
+	river.WorkerDefaults[CleanPendingFilesArgs]
 	exec Executor
 }
 
-func (w *cleanPendingFilesUserWorker) Work(ctx context.Context, job *river.Job[CleanPendingFilesUserArgs]) error {
+func (w *cleanPendingFilesWorker) Work(ctx context.Context, job *river.Job[CleanPendingFilesArgs]) error {
 	return w.exec.CleanPendingFilesForUser(ctx, job.Args.UserID)
 }

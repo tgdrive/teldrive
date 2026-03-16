@@ -693,12 +693,12 @@ func (a *apiService) runtimePeriodicInsert(row *periodicJobRow) (river.JobArgs, 
 		}, &river.InsertOpts{UniqueOpts: river.UniqueOpts{ByArgs: true}}, nil
 	case periodicJobKindCleanOldEvents:
 		oldEventsArgs := normalizeCleanOldEventsPeriodicArgs(row.Args)
-		return queue.CleanOldEventsUserArgs{UserID: row.UserID, Retention: oldEventsArgs.Retention}, &river.InsertOpts{UniqueOpts: river.UniqueOpts{ByArgs: true}}, nil
+		return queue.CleanOldEventsArgs{UserID: row.UserID, Retention: oldEventsArgs.Retention}, &river.InsertOpts{UniqueOpts: river.UniqueOpts{ByArgs: true}}, nil
 	case periodicJobKindCleanStaleUpload:
 		staleArgs := normalizeCleanStaleUploadsPeriodicArgs(row.Args)
-		return queue.CleanStaleUploadsUserArgs{UserID: row.UserID, Retention: staleArgs.Retention}, &river.InsertOpts{UniqueOpts: river.UniqueOpts{ByArgs: true}}, nil
+		return queue.CleanStaleUploadsArgs{UserID: row.UserID, Retention: staleArgs.Retention}, &river.InsertOpts{UniqueOpts: river.UniqueOpts{ByArgs: true}}, nil
 	case periodicJobKindCleanPendingFile:
-		return queue.CleanPendingFilesUserArgs{UserID: row.UserID}, &river.InsertOpts{UniqueOpts: river.UniqueOpts{ByArgs: true}}, nil
+		return queue.CleanPendingFilesArgs{UserID: row.UserID}, &river.InsertOpts{UniqueOpts: river.UniqueOpts{ByArgs: true}}, nil
 	default:
 		return nil, nil, &apiError{err: fmt.Errorf("unsupported periodic job kind: %s", row.Kind), code: 400}
 	}

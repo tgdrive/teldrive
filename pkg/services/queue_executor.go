@@ -272,7 +272,7 @@ func (e *jobExecutor) CleanOldEvents(ctx context.Context) error {
 	return err
 }
 
-func (e *jobExecutor) CleanOldEventsForUser(ctx context.Context, args queue.CleanOldEventsUserArgs) error {
+func (e *jobExecutor) CleanOldEventsForUser(ctx context.Context, args queue.CleanOldEventsArgs) error {
 	retention, err := parseRetentionDuration(args.Retention)
 	if err != nil {
 		return err
@@ -299,11 +299,7 @@ type staleUploadGroup struct {
 	userID  int64
 }
 
-func (e *jobExecutor) UserIDs(ctx context.Context) ([]int64, error) {
-	return allUserIDs(ctx, e.api)
-}
-
-func (e *jobExecutor) CleanStaleUploadsForUser(ctx context.Context, args queue.CleanStaleUploadsUserArgs) error {
+func (e *jobExecutor) CleanStaleUploadsForUser(ctx context.Context, args queue.CleanStaleUploadsArgs) error {
 	retention, err := parseRetentionDuration(args.Retention)
 	if err != nil {
 		return err
@@ -545,21 +541,6 @@ func latestSessionsByUsers(ctx context.Context, apiSvc *apiService, userIDs []in
 			continue
 		}
 		out[userID] = sessions[0].TgSession
-	}
-	return out, nil
-}
-
-func allUserIDs(ctx context.Context, apiSvc *apiService) ([]int64, error) {
-	stmt := table.Users.SELECT(table.Users.UserID).FROM(table.Users)
-	var rows []struct {
-		UserID int64
-	}
-	if err := pgxV5.Query(ctx, stmt, apiSvc.repo.Pool, &rows); err != nil {
-		return nil, err
-	}
-	out := make([]int64, 0, len(rows))
-	for _, row := range rows {
-		out = append(out, row.UserID)
 	}
 	return out, nil
 }

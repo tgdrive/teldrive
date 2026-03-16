@@ -21,32 +21,6 @@ type JobItem struct {
 	DestinationName string `json:"destinationName,omitempty"`
 }
 
-type FilesCopyJobArgs struct {
-	UserID              int64     `json:"userId" river:"unique"`
-	SessionID           string    `json:"sessionId" river:"unique"`
-	DestinationParentID string    `json:"destinationParentId"`
-	Items               []JobItem `json:"items"`
-}
-
-func (FilesCopyJobArgs) Kind() string { return JobKindFilesCopy }
-
-type FilesMoveJobArgs struct {
-	UserID              int64     `json:"userId" river:"unique"`
-	SessionID           string    `json:"sessionId" river:"unique"`
-	DestinationParentID string    `json:"destinationParentId"`
-	Items               []JobItem `json:"items"`
-}
-
-func (FilesMoveJobArgs) Kind() string { return JobKindFilesMove }
-
-type FilesDeleteJobArgs struct {
-	UserID    int64     `json:"userId" river:"unique"`
-	SessionID string    `json:"sessionId" river:"unique"`
-	Items     []JobItem `json:"items"`
-}
-
-func (FilesDeleteJobArgs) Kind() string { return JobKindFilesDelete }
-
 type FilesRestoreJobArgs struct {
 	UserID    int64     `json:"userId" river:"unique"`
 	SessionID string    `json:"sessionId" river:"unique"`
@@ -109,37 +83,25 @@ type SyncFinalizeJobArgs struct {
 
 func (SyncFinalizeJobArgs) Kind() string { return JobKindSyncFinalize }
 
-type CleanOldEventsArgs struct{}
+type CleanOldEventsArgs struct {
+	UserID    int64  `json:"userId" river:"unique"`
+	Retention string `json:"retention" river:"unique"`
+}
 
 func (CleanOldEventsArgs) Kind() string { return JobKindCleanOldEvents }
 
-type CleanOldEventsUserArgs struct {
+type CleanStaleUploadsArgs struct {
 	UserID    int64  `json:"userId" river:"unique"`
 	Retention string `json:"retention" river:"unique"`
 }
-
-func (CleanOldEventsUserArgs) Kind() string { return JobKindCleanOldEvents + ".user" }
-
-type CleanStaleUploadsArgs struct{}
 
 func (CleanStaleUploadsArgs) Kind() string { return JobKindCleanStaleUpload }
 
-type CleanStaleUploadsUserArgs struct {
-	UserID    int64  `json:"userId" river:"unique"`
-	Retention string `json:"retention" river:"unique"`
-}
-
-func (CleanStaleUploadsUserArgs) Kind() string { return JobKindCleanStaleUpload + ".user" }
-
-type CleanPendingFilesArgs struct{}
-
-func (CleanPendingFilesArgs) Kind() string { return JobKindCleanPendingFile }
-
-type CleanPendingFilesUserArgs struct {
+type CleanPendingFilesArgs struct {
 	UserID int64 `json:"userId" river:"unique"`
 }
 
-func (CleanPendingFilesUserArgs) Kind() string { return JobKindCleanPendingFile + ".user" }
+func (CleanPendingFilesArgs) Kind() string { return JobKindCleanPendingFile }
 
 type Executor interface {
 	Restore(ctx context.Context, userID int64, item JobItem) error
@@ -147,8 +109,7 @@ type Executor interface {
 	SyncTransfer(ctx context.Context, args SyncTransferJobArgs) error
 	SyncFinalize(ctx context.Context, args SyncFinalizeJobArgs) error
 
-	CleanOldEventsForUser(ctx context.Context, args CleanOldEventsUserArgs) error
-	UserIDs(ctx context.Context) ([]int64, error)
-	CleanStaleUploadsForUser(ctx context.Context, args CleanStaleUploadsUserArgs) error
+	CleanOldEventsForUser(ctx context.Context, args CleanOldEventsArgs) error
+	CleanStaleUploadsForUser(ctx context.Context, args CleanStaleUploadsArgs) error
 	CleanPendingFilesForUser(ctx context.Context, userID int64) error
 }
