@@ -66,7 +66,7 @@ func newClient(ctx context.Context, config *config.TGConfig, handler telegram.Up
 		Logger:         logger,
 	}
 	if config.Ntp {
-		c, err := clock.NewNTP()
+		c, err := clock.NewNTP(config.NtpServer)
 		if err != nil {
 			return nil, errors.Wrap(err, "create clock")
 		}
