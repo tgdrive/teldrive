@@ -47,7 +47,7 @@ tg:
   lang-code: "en"
   lang-pack: "webk"
   ntp: false
-  ntp-server: "pool.ntp.org"
+  ntp-server: ""
   pool-size: 8
   proxy: ""
   rate: 100
