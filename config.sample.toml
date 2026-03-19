@@ -48,6 +48,7 @@ enable-logging = false
 lang-code = 'en'
 lang-pack = 'webk'
 ntp = false
+ntp-server = ''
 pool-size = 8
 proxy = ''
 rate = 100

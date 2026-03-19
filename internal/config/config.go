@@ -173,6 +173,7 @@ type TGConfig struct {
 	RateBurst         int           `default:"5" description:"Maximum burst size for rate limiting"`
 	Rate              int           `default:"100" description:"Rate limit in requests per minute"`
 	Ntp               bool          `default:"false" description:"Use NTP for time synchronization"`
+	NtpServer         string        `default:"" description:"NTP server address"`
 	Proxy             string        `default:"" description:"HTTP/SOCKS5 proxy URL"`
 	ReconnectTimeout  time.Duration `default:"5m" description:"Client reconnection timeout"`
 	PoolSize          int           `default:"8" description:"Session pool size"`
