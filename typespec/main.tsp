@@ -673,7 +673,6 @@ model SyncOptions {
 
 model SyncArgs {
   source: string;
-  sourceDir?: string;
   destinationDir: string;
   headers?: Record<string>;
   proxy?: string;
@@ -683,7 +682,6 @@ model SyncArgs {
 
 model SyncArgsUpdate {
   source?: string;
-  sourceDir?: string;
   destinationDir?: string;
   headers?: Record<string>;
   proxy?: string;
@@ -791,6 +789,11 @@ interface PeriodicJobs {
     ...JobStatus;
     @statusCode _: 202;
   } | Error;
+
+  @route("/test-connection")
+  @post
+  @summary("Test sync source connection")
+  testConnection(@body body: SyncArgs): NoContentResponse | Error;
 }
 
 @doc("Bulk file delete request")
@@ -973,6 +976,11 @@ interface Jobs {
   @post
   @summary("Cancel a running or queued job")
   cancel(@path id: int64): NoContentResponse | Error;
+
+  @route("/{id}/delete")
+  @delete
+  @summary("Delete a completed, cancelled, or discarded job")
+  delete(@path id: int64): NoContentResponse | Error;
 }
 
 @doc("Query parameters for file upload")
@@ -1461,6 +1469,7 @@ model ApiVersion {
 
 @route("/version")
 @tag("Version")
+@useAuth(ApiAuth)
 interface Version {
   @route("")
   @get

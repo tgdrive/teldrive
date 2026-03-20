@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
 version: "3"
 
 vars:
@@ -48,8 +49,9 @@ tasks:
 
   gen:jet:
     desc: Regenerate Jet models from migrations
+    dir: internal/database
     cmds:
-      - ./scripts/generate-jet.sh
+      - go run jet/jet.go
 
   lint:
     desc: Run linters

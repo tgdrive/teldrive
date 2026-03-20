@@ -9,6 +9,8 @@ import (
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 )
 
+const QueueUploads = "uploads"
+
 func NewClient(pool *pgxpool.Pool, exec Executor) (*river.Client[pgx.Tx], error) {
 	workers := river.NewWorkers()
 	river.AddWorker(workers, &syncRunWorker{exec: exec})
@@ -22,6 +24,7 @@ func NewClient(pool *pgxpool.Pool, exec Executor) (*river.Client[pgx.Tx], error)
 		Schema: "teldrive",
 		Queues: map[string]river.QueueConfig{
 			river.QueueDefault: {MaxWorkers: 50},
+			QueueUploads:       {MaxWorkers: 4},
 		},
 		Workers: workers,
 	})

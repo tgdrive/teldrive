@@ -18,7 +18,6 @@ import (
 	jetmodel "github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/model"
 	"github.com/tgdrive/teldrive/pkg/queue"
 	"github.com/tgdrive/teldrive/pkg/remotes"
-	"github.com/tgdrive/teldrive/pkg/remotes/httpremote"
 	"github.com/tgdrive/teldrive/pkg/remotes/local"
 	"github.com/tgdrive/teldrive/pkg/remotes/rclone"
 	"github.com/tgdrive/teldrive/pkg/remotes/sftp"
@@ -138,7 +137,7 @@ func (e *jobExecutor) SyncRun(ctx context.Context, args queue.SyncRunJobArgs, jo
 				child.ModifiedAtUnix = src.modified.UTC().Unix()
 			}
 
-			opts := &river.InsertOpts{MaxAttempts: 1}
+			opts := &river.InsertOpts{MaxAttempts: 1, Queue: queue.QueueUploads}
 
 			taskName := fmt.Sprintf("transfer_%06d", queued+1)
 			workflow.Add(taskName, child, opts, nil)
@@ -447,11 +446,6 @@ func (e *jobExecutor) listSourceFiles(ctx context.Context, args queue.SyncRunJob
 	if err != nil {
 		return nil, err
 	}
-	effectiveSource := withSourceDir(args.Source, args.SourceDir)
-	fs, err = remoteFSForSource(effectiveSource)
-	if err != nil {
-		return nil, err
-	}
 	entries, err := fs.List(ctx, "", args.Headers, args.Proxy)
 	if err != nil {
 		return nil, err
@@ -461,7 +455,7 @@ func (e *jobExecutor) listSourceFiles(ctx context.Context, args queue.SyncRunJob
 	for _, entry := range entries {
 		out = append(out, sourceFile{
 			relPath:   entry.RelPath,
-			sourceURI: effectiveSource,
+			sourceURI: args.Source,
 			size:      entry.Size,
 			name:      entry.Name,
 			mimeType:  entry.MimeType,
@@ -479,30 +473,6 @@ func (e *jobExecutor) openSourceFile(ctx context.Context, args queue.SyncTransfe
 		return nil, 0, "", err
 	}
 	return fs.Open(ctx, args.SourcePath, args.Headers, args.Proxy, args.Size)
-}
-
-func withSourceDir(source, sourceDir string) string {
-	sourceDir = strings.TrimSpace(sourceDir)
-	if sourceDir == "" {
-		return source
-	}
-	u, err := url.Parse(source)
-	if err != nil {
-		return source
-	}
-	if strings.EqualFold(u.Scheme, "http") || strings.EqualFold(u.Scheme, "https") {
-		return source
-	}
-	base := strings.TrimSuffix(strings.TrimSpace(u.Path), "/")
-	appendPath := strings.TrimPrefix(strings.TrimSpace(sourceDir), "/")
-	if base == "" {
-		u.Path = "/" + appendPath
-	} else if appendPath == "" {
-		u.Path = base
-	} else {
-		u.Path = base + "/" + appendPath
-	}
-	return u.String()
 }
 
 func filterSourceEntries(entries []remotes.Entry, filters queue.SyncFilters) []remotes.Entry {
@@ -682,8 +652,6 @@ func remoteFSForSource(source string) (remotes.FS, error) {
 		return nil, err
 	}
 	switch strings.ToLower(u.Scheme) {
-	case "http", "https":
-		return httpremote.New(source)
 	case "local":
 		return local.New(source)
 	case "dav":

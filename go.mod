@@ -54,6 +54,11 @@ require (
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/jackc/chunkreader/v2 v2.0.1 // indirect
+	github.com/jackc/pgconn v1.14.3 // indirect
+	github.com/jackc/pgio v1.0.0 // indirect
+	github.com/jackc/pgproto3/v2 v2.3.3 // indirect
+	github.com/jackc/pgtype v1.14.4 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.10 // indirect
 	github.com/kr/fs v0.1.0 // indirect
@@ -89,7 +94,6 @@ require (
 	github.com/go-faster/errors v0.7.1
 	github.com/go-faster/jx v1.2.0
 	github.com/go-faster/xor v1.0.0 // indirect
-	github.com/gorilla/websocket v1.5.3
 	github.com/gotd/ige v0.2.2 // indirect
 	github.com/gotd/neo v0.1.5 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect

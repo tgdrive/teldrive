@@ -72,7 +72,6 @@ func TestPeriodicJobsRoutes_CRUD_EnableDisable_RunNow(t *testing.T) {
 		CronExpression: "*/5 * * * *",
 		Args: api.SyncArgs{
 			Source:         "local:///tmp/source",
-			SourceDir:      api.NewOptString("photos"),
 			DestinationDir: "/backup/photos",
 			Headers:        api.NewOptSyncArgsHeaders(api.SyncArgsHeaders{}),
 			Proxy:          api.NewOptString(""),

@@ -33,7 +33,6 @@ type SyncRunJobArgs struct {
 	UserID         int64             `json:"userId" river:"unique"`
 	RunID          string            `json:"runId,omitempty"`
 	Source         string            `json:"source"`
-	SourceDir      string            `json:"sourceDir,omitempty"`
 	DestinationDir string            `json:"destinationDir"`
 	Headers        map[string]string `json:"headers,omitempty"`
 	Proxy          string            `json:"proxy,omitempty"`

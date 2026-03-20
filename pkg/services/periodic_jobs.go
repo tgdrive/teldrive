@@ -224,6 +224,29 @@ func (a *apiService) PeriodicJobsRun(ctx context.Context, params api.PeriodicJob
 	return toJobStatus(job), nil
 }
 
+func (a *apiService) PeriodicJobsTestConnection(ctx context.Context, req *api.SyncArgs) error {
+	if err := validatePeriodicSyncArgs(*req); err != nil {
+		return &apiError{err: err, code: 400}
+	}
+	headers := map[string]string{}
+	if req.Headers.IsSet() {
+		headers = req.Headers.Value
+	}
+	proxy := ""
+	if req.Proxy.IsSet() {
+		proxy = strings.TrimSpace(req.Proxy.Value)
+	}
+	fs, err := remoteFSForSource(req.Source)
+	if err != nil {
+		return &apiError{err: err, code: 400}
+	}
+	_, err = fs.List(ctx, "", headers, proxy)
+	if err != nil {
+		return &apiError{err: err, code: 400}
+	}
+	return nil
+}
+
 func (a *apiService) setPeriodicJobEnabled(ctx context.Context, id string, enabled bool) error {
 	row, err := a.getPeriodicJobRow(ctx, id, auth.User(ctx))
 	if err != nil {
@@ -684,7 +707,6 @@ func (a *apiService) runtimePeriodicInsert(row *periodicJobRow) (river.JobArgs, 
 		return queue.SyncRunJobArgs{
 			UserID:         row.UserID,
 			Source:         args.Source,
-			SourceDir:      args.SourceDir.Or(""),
 			DestinationDir: args.DestinationDir,
 			Headers:        map[string]string(args.Headers.Or(map[string]string{})),
 			Proxy:          args.Proxy.Or(""),
@@ -708,10 +730,6 @@ func syncRunArgsFromAPI(v api.SyncArgs) repositories.SyncRunPeriodicArgs {
 	out := repositories.SyncRunPeriodicArgs{
 		Source:         v.Source,
 		DestinationDir: v.DestinationDir,
-	}
-	if v.SourceDir.IsSet() {
-		s := v.SourceDir.Value
-		out.SourceDir = &s
 	}
 	if v.Proxy.IsSet() {
 		p := v.Proxy.Value
@@ -757,9 +775,6 @@ func syncRunArgsFromAPI(v api.SyncArgs) repositories.SyncRunPeriodicArgs {
 
 func apiSyncArgsFromDomain(v repositories.SyncRunPeriodicArgs) api.SyncArgs {
 	out := api.SyncArgs{Source: v.Source, DestinationDir: v.DestinationDir}
-	if v.SourceDir != nil {
-		out.SourceDir = api.NewOptString(*v.SourceDir)
-	}
 	if v.Proxy != nil {
 		out.Proxy = api.NewOptString(*v.Proxy)
 	}

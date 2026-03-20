@@ -19,6 +19,7 @@ type jobClient interface {
 	JobList(ctx context.Context, params *river.JobListParams) (*river.JobListResult, error)
 	JobGet(ctx context.Context, id int64) (*rivertype.JobRow, error)
 	JobCancel(ctx context.Context, jobID int64) (*rivertype.JobRow, error)
+	JobDelete(ctx context.Context, id int64) (*rivertype.JobRow, error)
 }
 
 type genericJobArgs struct {
@@ -157,6 +158,33 @@ func (a *apiService) JobsCancel(ctx context.Context, params api.JobsCancelParams
 	}
 
 	if _, err := a.jobs.JobCancel(ctx, params.ID); err != nil {
+		if errors.Is(err, rivertype.ErrNotFound) {
+			return &apiError{err: errors.New("job not found"), code: 404}
+		}
+		return &apiError{err: err}
+	}
+
+	return nil
+}
+
+func (a *apiService) JobsDelete(ctx context.Context, params api.JobsDeleteParams) error {
+	if a.jobs == nil {
+		return &apiError{err: errors.New("jobs service is not configured"), code: 503}
+	}
+
+	row, err := a.jobs.JobGet(ctx, params.ID)
+	if err != nil {
+		if errors.Is(err, rivertype.ErrNotFound) {
+			return &apiError{err: errors.New("job not found"), code: 404}
+		}
+		return &apiError{err: err}
+	}
+
+	if !jobOwnedByUser(row, auth.User(ctx)) {
+		return &apiError{err: errors.New("job not found"), code: 404}
+	}
+
+	if _, err := a.jobs.JobDelete(ctx, params.ID); err != nil {
 		if errors.Is(err, rivertype.ErrNotFound) {
 			return &apiError{err: errors.New("job not found"), code: 404}
 		}

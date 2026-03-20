@@ -36,7 +36,10 @@ docker exec teldrive-test-postgres psql -U "${DB_USER}" -d postgres -tc "SELECT 
 
 go run github.com/pressly/goose/v3/cmd/goose@latest -dir "${ROOT_DIR}/internal/database/migrations" postgres "${DB_URL}" up
 
-go run github.com/go-jet/jet/v2/cmd/jet@latest \
-  -dsn="${DB_URL}" \
-  -schema=teldrive \
-  -path="${ROOT_DIR}/internal/database/jetgen"
+# go run github.com/go-jet/jet/v2/cmd/jet@latest \
+#   -dsn="${DB_URL}" \
+#   -schema=teldrive \
+#   -path="${ROOT_DIR}/internal/database/jetgen"
+#
+
+DB_URL=$DB_URL go run "${ROOT_DIR}/internal/database/jet/jet.go"

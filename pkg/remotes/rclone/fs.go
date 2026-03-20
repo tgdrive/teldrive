@@ -119,15 +119,12 @@ func (r *FS) Open(ctx context.Context, sourcePath string, _ map[string]string, _
 	if sourcePath == "" {
 		sourcePath = r.root
 	}
-	body, err := json.Marshal(map[string]any{"fs": r.remote + ":", "remote": sourcePath})
+	objectPath := r.relativeObjectPath(sourcePath)
+	serveURL := r.serveObjectURL(r.serveBaseRemote(), objectPath)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, serveURL, nil)
 	if err != nil {
 		return nil, 0, "", err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, r.endpoint("/operations/cat"), bytes.NewReader(body))
-	if err != nil {
-		return nil, 0, "", err
-	}
-	req.Header.Set("Content-Type", "application/json")
 	if r.rcURL.User != nil {
 		pw, _ := r.rcURL.User.Password()
 		req.SetBasicAuth(r.rcURL.User.Username(), pw)
@@ -138,8 +135,8 @@ func (r *FS) Open(ctx context.Context, sourcePath string, _ map[string]string, _
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		defer resp.Body.Close()
-		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return nil, 0, "", fmt.Errorf("rclone cat failed: %s", strings.TrimSpace(string(b)))
+		msg, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return nil, 0, "", fmt.Errorf("rclone serve get failed for %q: status=%d body=%s", serveURL, resp.StatusCode, strings.TrimSpace(string(msg)))
 	}
 	size := sizeHint
 	if size <= 0 {
@@ -183,6 +180,48 @@ func (r *FS) endpoint(p string) string {
 	base.Path = strings.TrimSuffix(base.Path, "/") + p
 	base.RawQuery = ""
 	return base.String()
+}
+
+func (r *FS) serveObjectURL(baseRemote, objectPath string) string {
+	baseRemote = strings.TrimSpace(baseRemote)
+	if !strings.Contains(baseRemote, ":") {
+		baseRemote += ":"
+	}
+	objectPath = strings.TrimPrefix(path.Clean("/"+strings.TrimSpace(objectPath)), "/")
+	base := *r.rcURL
+	if objectPath == "" {
+		base.Path = "/[" + baseRemote + "]"
+	} else {
+		base.Path = "/[" + baseRemote + "]/" + objectPath
+	}
+	base.RawQuery = ""
+	return base.String()
+}
+
+func (r *FS) serveBaseRemote() string {
+	if strings.TrimSpace(r.root) == "" {
+		return r.remote
+	}
+	return r.remote + ":" + r.root
+}
+
+func (r *FS) relativeObjectPath(sourcePath string) string {
+	clean := strings.TrimPrefix(path.Clean("/"+strings.TrimSpace(sourcePath)), "/")
+	root := strings.TrimPrefix(path.Clean("/"+strings.TrimSpace(r.root)), "/")
+	if root == "" {
+		return clean
+	}
+	for {
+		if clean == root {
+			return ""
+		}
+		prefix := root + "/"
+		if !strings.HasPrefix(clean, prefix) {
+			break
+		}
+		clean = strings.TrimPrefix(clean, prefix)
+	}
+	return clean
 }
 
 func pickHash(hashes map[string]string) string {

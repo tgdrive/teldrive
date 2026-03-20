@@ -202,7 +202,6 @@ type PeriodicJobArgs interface {
 
 type SyncRunPeriodicArgs struct {
 	Source         string            `json:"source"`
-	SourceDir      *string           `json:"sourceDir,omitempty"`
 	DestinationDir string            `json:"destinationDir"`
 	Headers        map[string]string `json:"headers,omitempty"`
 	Proxy          *string           `json:"proxy,omitempty"`

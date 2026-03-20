@@ -1237,6 +1237,33 @@ paths:
         - AccessTokenCookieAuth: []
         - XApiKeyHeaderAuth: []
         - SessionHashAuth: []
+  /jobs/{id}/delete:
+    delete:
+      operationId: Jobs_delete
+      summary: Delete a completed, cancelled, or discarded job
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '204':
+          description: There is no content to send for this request, but the headers may be useful.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Jobs
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
   /periodic-jobs:
     get:
       operationId: PeriodicJobs_list
@@ -1289,6 +1316,33 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/PeriodicJobCreate'
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+  /periodic-jobs/test-connection:
+    post:
+      operationId: PeriodicJobs_testConnection
+      summary: Test sync source connection
+      parameters: []
+      responses:
+        '204':
+          description: There is no content to send for this request, but the headers may be useful.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - PeriodicJobs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SyncArgs'
       security:
         - BearerAuth: []
         - AccessTokenCookieAuth: []
@@ -2220,6 +2274,11 @@ paths:
                 $ref: '#/components/schemas/Error'
       tags:
         - Version
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
 components:
   parameters:
     FileQuery.category:
@@ -3384,8 +3443,6 @@ components:
         - destinationDir
       properties:
         source:
-          type: string
-        sourceDir:
           type: string
         destinationDir:
           type: string
