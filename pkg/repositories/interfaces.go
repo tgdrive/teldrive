@@ -47,6 +47,19 @@ type UploadStat struct {
 	TotalUploaded int64
 }
 
+type StaleUpload struct {
+	PartID    int
+	ChannelID int64
+	UserID    *int64
+}
+
+type PendingFile struct {
+	ID        string
+	Parts     *string
+	ChannelID *int64
+	UserID    int64
+}
+
 type FileUpdate struct {
 	Name      *string
 	Type      *string
@@ -94,6 +107,8 @@ type FileRepository interface {
 	ResolvePathID(ctx context.Context, path string, userID int64) (*uuid.UUID, error)
 	List(ctx context.Context, params FileQueryParams) ([]model.Files, error)
 	GetFullPath(ctx context.Context, fileID uuid.UUID) (string, error)
+	ListPendingForPurge(ctx context.Context) ([]PendingFile, error)
+	DeletePendingForPurgeByUser(ctx context.Context, userID int64) error
 	CategoryStats(ctx context.Context, userID int64) ([]CategoryStats, error)
 	DeleteBulk(ctx context.Context, fileIDs []uuid.UUID, userID int64, targetStatus string) error
 	CreateDirectories(ctx context.Context, userID int64, path string) (*uuid.UUID, error)
@@ -124,6 +139,8 @@ type UploadRepository interface {
 	GetByUploadID(ctx context.Context, uploadID string) ([]model.Uploads, error)
 	GetByUploadIDAndRetention(ctx context.Context, uploadID string, retention time.Duration) ([]model.Uploads, error)
 	Delete(ctx context.Context, uploadID string) error
+	ListStale(ctx context.Context, before time.Time) ([]StaleUpload, error)
+	DeleteParts(ctx context.Context, channelID, userID int64, partIDs []int) error
 	DeleteOlderThan(ctx context.Context, before time.Time) (int64, error)
 	StatsByDays(ctx context.Context, userID int64, days int) ([]UploadStat, error)
 }
@@ -141,6 +158,7 @@ type ChannelRepository interface {
 
 // BotRepository defines operations for bot persistence
 type BotRepository interface {
+	CreateToken(ctx context.Context, userID int64, token string) error
 	Create(ctx context.Context, bot *model.Bots) error
 	GetByUserID(ctx context.Context, userID int64) ([]model.Bots, error)
 	GetTokensByUserID(ctx context.Context, userID int64) ([]string, error)

@@ -53,7 +53,7 @@ func (r *JetPeriodicJobRepository) Create(ctx context.Context, job *PeriodicJob)
 		postgres.TimestampzT(job.CreatedAt),
 		postgres.TimestampzT(job.UpdatedAt),
 	)
-	_, err = r.db.exec(ctx, stmt)
+	err = r.db.exec(ctx, stmt)
 	return err
 }
 
@@ -214,7 +214,7 @@ func (r *JetPeriodicJobRepository) Update(ctx context.Context, id uuid.UUID, use
 	).WHERE(
 		table.PeriodicJobs.ID.EQ(postgres.UUID(id)).AND(table.PeriodicJobs.UserID.EQ(postgres.Int64(userID))),
 	)
-	_, err = r.db.exec(ctx, stmt)
+	err = r.db.exec(ctx, stmt)
 	return err
 }
 
@@ -222,7 +222,7 @@ func (r *JetPeriodicJobRepository) Delete(ctx context.Context, id uuid.UUID, use
 	stmt := table.PeriodicJobs.DELETE().WHERE(
 		table.PeriodicJobs.ID.EQ(postgres.UUID(id)).AND(table.PeriodicJobs.UserID.EQ(postgres.Int64(userID))),
 	)
-	_, err := r.db.exec(ctx, stmt)
+	err := r.db.exec(ctx, stmt)
 	return err
 }
 
@@ -230,7 +230,7 @@ func (r *JetPeriodicJobRepository) SetEnabled(ctx context.Context, id uuid.UUID,
 	stmt := table.PeriodicJobs.UPDATE(table.PeriodicJobs.Enabled, table.PeriodicJobs.UpdatedAt).
 		MODEL(model.PeriodicJobs{Enabled: enabled, UpdatedAt: updatedAt}).
 		WHERE(table.PeriodicJobs.ID.EQ(postgres.UUID(id)).AND(table.PeriodicJobs.UserID.EQ(postgres.Int64(userID))))
-	_, err := r.db.exec(ctx, stmt)
+	err := r.db.exec(ctx, stmt)
 	return err
 }
 func scanPeriodicJob(row interface{ Scan(dest ...any) error }) (PeriodicJob, error) {

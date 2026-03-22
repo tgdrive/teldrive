@@ -1,5 +1,11 @@
 package types
 
+// DEPRECATED: This package is deprecated.
+//
+// Use github.com/tgdrive/teldrive/pkg/types for JSONB handling.
+//
+// This file exists for backward compatibility and will be removed
+// in a future version.
 import (
 	"database/sql/driver"
 	"encoding/json"

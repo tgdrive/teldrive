@@ -11,7 +11,6 @@ import (
 	"net/http"
 	"slices"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/go-faster/errors"
@@ -374,19 +373,4 @@ func clearRefreshCookie(ctx context.Context) {
 		SameSite: http.SameSiteLaxMode,
 		Secure:   requestmeta.IsSecure(ctx),
 	}).String())
-}
-
-func normalizeHostPort(host string) string {
-	h := strings.TrimSpace(strings.ToLower(host))
-	if h == "" {
-		return ""
-	}
-	parsedHost, parsedPort, err := net.SplitHostPort(h)
-	if err != nil {
-		return h
-	}
-	if parsedPort == "80" || parsedPort == "443" {
-		return parsedHost
-	}
-	return net.JoinHostPort(parsedHost, parsedPort)
 }

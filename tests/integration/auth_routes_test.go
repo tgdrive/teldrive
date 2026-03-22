@@ -1,7 +1,6 @@
 package integration_test
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"crypto/sha256"
@@ -11,7 +10,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -473,45 +471,6 @@ func storeMockSession(ctx context.Context, storage *session.StorageMemory) error
 		return err
 	}
 	return storage.StoreSession(ctx, b)
-}
-
-func readAttemptEvents(t *testing.T, s *suite, attemptID string, count int) []attemptEventPayload {
-	t.Helper()
-	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("%s/auth/attempts/%s/events", s.server.URL, attemptID), nil)
-	if err != nil {
-		t.Fatalf("new attempt events request: %v", err)
-	}
-	resp, err := s.httpCli.Do(req)
-	if err != nil {
-		t.Fatalf("attempt events request failed: %v", err)
-	}
-	defer resp.Body.Close()
-	reader := bufio.NewReader(resp.Body)
-	var events []attemptEventPayload
-	deadline := time.Now().Add(2 * time.Second)
-	for len(events) < count && time.Now().Before(deadline) {
-		line, err := reader.ReadString('\n')
-		if err != nil {
-			break
-		}
-		if !strings.HasPrefix(line, "data: ") {
-			continue
-		}
-		var event attemptEventPayload
-		if err := json.Unmarshal([]byte(strings.TrimSpace(strings.TrimPrefix(line, "data: "))), &event); err != nil {
-			t.Fatalf("unmarshal attempt event: %v", err)
-		}
-		events = append(events, event)
-	}
-	return events
-}
-
-type attemptEventPayload struct {
-	Type          string             `json:"type"`
-	Token         string             `json:"token,omitempty"`
-	PhoneCodeHash string             `json:"phoneCodeHash,omitempty"`
-	Session       *api.SessionCreate `json:"session,omitempty"`
-	Message       string             `json:"message,omitempty"`
 }
 
 func waitForAttemptState(ctx context.Context, client *api.Client, attemptID string, want api.AuthAttemptState) (*api.AuthAttempt, error) {

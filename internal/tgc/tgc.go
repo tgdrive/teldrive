@@ -2,6 +2,8 @@ package tgc
 
 import (
 	"context"
+	"encoding/hex"
+	"fmt"
 	"strings"
 	"time"
 
@@ -27,14 +29,9 @@ import (
 )
 
 func newClient(ctx context.Context, config *config.TGConfig, handler telegram.UpdateHandler, storage session.Storage, middlewares ...telegram.Middleware) (*telegram.Client, error) {
-
-	var dialer dcs.DialFunc = proxy.Direct.DialContext
-	if config.Proxy != "" {
-		d, err := utils.Proxy.GetDial(config.Proxy)
-		if err != nil {
-			return nil, errors.Wrap(err, "get dialer")
-		}
-		dialer = d.DialContext
+	resolver, err := resolverFromConfig(config)
+	if err != nil {
+		return nil, err
 	}
 
 	var logger *zap.Logger
@@ -43,9 +40,7 @@ func newClient(ctx context.Context, config *config.TGConfig, handler telegram.Up
 	}
 
 	opts := telegram.Options{
-		Resolver: dcs.Plain(dcs.PlainOptions{
-			Dial: dialer,
-		}),
+		Resolver: resolver,
 		ReconnectionBackoff: func() backoff.BackOff {
 			return newBackoff(config.ReconnectTimeout)
 		},
@@ -75,6 +70,51 @@ func newClient(ctx context.Context, config *config.TGConfig, handler telegram.Up
 	}
 
 	return telegram.NewClient(config.AppID, config.AppHash, opts), nil
+}
+
+func resolverFromConfig(config *config.TGConfig) (dcs.Resolver, error) {
+	if config == nil {
+		return nil, fmt.Errorf("telegram config is nil")
+	}
+
+	mtProxyAddr := strings.TrimSpace(config.MTProxy.Addr)
+	mtProxySecret := strings.TrimSpace(config.MTProxy.Secret)
+	hasMTProxy := mtProxyAddr != "" || mtProxySecret != ""
+
+	if hasMTProxy {
+		if strings.TrimSpace(config.Proxy) != "" {
+			return nil, fmt.Errorf("tg.proxy and tg.mtproxy cannot be used together")
+		}
+		if mtProxyAddr == "" {
+			return nil, fmt.Errorf("tg.mtproxy.addr is required when tg.mtproxy is configured")
+		}
+		if mtProxySecret == "" {
+			return nil, fmt.Errorf("tg.mtproxy.secret is required when tg.mtproxy is configured")
+		}
+
+		secret, err := hex.DecodeString(mtProxySecret)
+		if err != nil {
+			return nil, errors.Wrap(err, "decode tg.mtproxy.secret")
+		}
+
+		resolver, err := dcs.MTProxy(mtProxyAddr, secret, dcs.MTProxyOptions{})
+		if err != nil {
+			return nil, errors.Wrap(err, "create tg.mtproxy resolver")
+		}
+
+		return resolver, nil
+	}
+
+	var dialer dcs.DialFunc = proxy.Direct.DialContext
+	if config.Proxy != "" {
+		d, err := utils.Proxy.GetDial(config.Proxy)
+		if err != nil {
+			return nil, errors.Wrap(err, "get dialer")
+		}
+		dialer = d.DialContext
+	}
+
+	return dcs.Plain(dcs.PlainOptions{Dial: dialer}), nil
 }
 
 func NoAuthClient(ctx context.Context, config *config.TGConfig, handler telegram.UpdateHandler, storage session.Storage) (*telegram.Client, error) {

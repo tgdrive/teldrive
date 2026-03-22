@@ -3,22 +3,18 @@ package repositories
 import (
 	"context"
 	"errors"
-	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/go-jet/jet/v2/postgres"
 	"github.com/go-jet/jet/v2/qrm"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/model"
 	"github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/table"
+	"github.com/tgdrive/teldrive/pkg/repositories/filesquery"
 )
-
-const folderCategory = "folder"
 
 type JetFileRepository struct {
 	db jetDB
@@ -38,7 +34,7 @@ func (r *JetFileRepository) Create(ctx context.Context, file *model.Files) error
 	}
 
 	stmt := table.Files.INSERT(table.Files.AllColumns).MODEL(*file)
-	_, err := r.db.exec(ctx, stmt)
+	err := r.db.exec(ctx, stmt)
 
 	return err
 }
@@ -172,7 +168,7 @@ func (r *JetFileRepository) Update(ctx context.Context, id uuid.UUID, update Fil
 	stmt := table.Files.UPDATE().WHERE(table.Files.ID.EQ(postgres.UUID(id)))
 	stmt = stmt.SET(updates[0], assignmentArgs(updates[1:])...)
 
-	_, err := r.db.exec(ctx, stmt)
+	err := r.db.exec(ctx, stmt)
 
 	return err
 }
@@ -188,7 +184,7 @@ func (r *JetFileRepository) Delete(ctx context.Context, ids []uuid.UUID) error {
 	}
 
 	stmt := table.Files.DELETE().WHERE(table.Files.ID.IN(idExprs...))
-	_, err := r.db.exec(ctx, stmt)
+	err := r.db.exec(ctx, stmt)
 
 	return err
 }
@@ -208,7 +204,7 @@ func (r *JetFileRepository) MoveSingle(ctx context.Context, id uuid.UUID, userID
 			AND(table.Files.UserID.EQ(postgres.Int64(userID))),
 	)
 
-	_, err := r.db.exec(ctx, stmt)
+	err := r.db.exec(ctx, stmt)
 	return err
 }
 
@@ -230,7 +226,7 @@ func (r *JetFileRepository) MoveBulk(ctx context.Context, ids []uuid.UUID, userI
 				AND(table.Files.UserID.EQ(postgres.Int64(userID))),
 		)
 
-	_, err := r.db.exec(ctx, stmt)
+	err := r.db.exec(ctx, stmt)
 	return err
 }
 
@@ -268,6 +264,31 @@ func (r *JetFileRepository) GetFullPath(ctx context.Context, fileID uuid.UUID) (
 	}
 
 	return "/" + strings.Join(segments, "/"), nil
+}
+
+func (r *JetFileRepository) ListPendingForPurge(ctx context.Context) ([]PendingFile, error) {
+	stmt := table.Files.
+		SELECT(table.Files.ID, table.Files.Parts, table.Files.ChannelID, table.Files.UserID).
+		FROM(table.Files).
+		WHERE(table.Files.Type.EQ(postgres.String("file")).AND(table.Files.Status.EQ(postgres.String("purge_pending"))))
+
+	var out []PendingFile
+	if err := r.db.query(ctx, stmt, &out); err != nil {
+		if errors.Is(err, qrm.ErrNoRows) {
+			return []PendingFile{}, nil
+		}
+		return nil, err
+	}
+
+	return out, nil
+}
+
+func (r *JetFileRepository) DeletePendingForPurgeByUser(ctx context.Context, userID int64) error {
+	stmt := table.Files.DELETE().WHERE(
+		table.Files.UserID.EQ(postgres.Int64(userID)).AND(table.Files.Status.EQ(postgres.String("purge_pending"))),
+	)
+
+	return r.db.exec(ctx, stmt)
 }
 
 func (r *JetFileRepository) CategoryStats(ctx context.Context, userID int64) ([]CategoryStats, error) {
@@ -326,7 +347,7 @@ func (r *JetFileRepository) DeleteBulk(ctx context.Context, fileIDs []uuid.UUID,
 			WHERE(table.Files.ID.IN(subtree.SELECT(subtreeID.From(subtree)))),
 	)
 
-	_, err := r.db.exec(ctx, stmt)
+	err := r.db.exec(ctx, stmt)
 	return err
 }
 
@@ -377,25 +398,6 @@ func (r *JetFileRepository) CreateDirectories(ctx context.Context, userID int64,
 	return parentID, nil
 }
 
-func (r *JetFileRepository) Transaction(ctx context.Context, fn func(ctx context.Context, tx pgx.Tx, repo FileRepository) error) error {
-	if r.db.tx != nil {
-		return fmt.Errorf("nested transactions are not supported")
-	}
-
-	tx, err := r.db.pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx)
-
-	txRepo := &JetFileRepository{db: jetDB{pool: r.db.pool, tx: tx}}
-	if err := fn(ctx, tx, txRepo); err != nil {
-		return err
-	}
-
-	return tx.Commit(ctx)
-}
-
 func (r *JetFileRepository) ResolvePathID(ctx context.Context, path string, userID int64) (*uuid.UUID, error) {
 	if !strings.HasPrefix(path, "/root") {
 		path = "/root/" + strings.Trim(path, "/")
@@ -424,174 +426,18 @@ func (r *JetFileRepository) List(ctx context.Context, params FileQueryParams) ([
 		return nil, nil
 	}
 
-	limit := params.Limit
-	if limit <= 0 {
-		limit = 20
-	}
-
-	files := table.Files.AS("files")
-	orderDir := fileQueryOrder(params.Order)
-
-	conditions := []postgres.BoolExpression{files.UserID.EQ(postgres.Int64(params.UserID))}
-	if params.Status != "" {
-		conditions = append(conditions, files.Status.EQ(postgres.String(params.Status)))
-	}
-
 	operation := strings.ToLower(params.Operation)
-	var recursiveCTEs []postgres.CommonTableExpression
-
-	switch operation {
-	case "list":
-		if params.Path != "" && params.ParentID == "" {
-			id, err := r.ResolvePathID(ctx, params.Path, params.UserID)
-			if err != nil {
-				if errors.Is(err, ErrNotFound) {
-					return []model.Files{}, nil
-				}
-
-				return nil, err
-			}
-			conditions = append(conditions, files.ParentID.EQ(postgres.UUID(*id)))
-		}
-		if params.ParentID != "" {
-			parentID, err := uuid.Parse(params.ParentID)
-			if err != nil {
-				return nil, err
-			}
-			conditions = append(conditions, files.ParentID.EQ(postgres.UUID(parentID)))
-		}
-	case "find":
-		if params.DeepSearch && params.Query != "" && params.Path != "" {
-			pathID, err := r.ResolvePathID(ctx, params.Path, params.UserID)
-			if err != nil && !errors.Is(err, ErrNotFound) {
-				return nil, err
-			}
-
-			subdirs := postgres.CTE("subdirs", files.ID)
-			subdirsID := files.ID.From(subdirs)
-
-			anchor := postgres.SELECT(files.ID).FROM(files)
-			if pathID == nil {
-				anchor = anchor.WHERE(files.ParentID.IS_NULL())
-			} else {
-				anchor = anchor.WHERE(files.ID.EQ(postgres.UUID(*pathID)))
-			}
-
-			recursive := postgres.SELECT(files.ID).FROM(
-				files.INNER_JOIN(subdirs, files.ParentID.EQ(subdirsID)),
-			)
-
-			recursiveCTEs = append(recursiveCTEs, subdirs.AS(anchor.UNION_ALL(recursive)))
-			conditions = append(conditions, files.ID.IN(subdirs.SELECT(subdirsID)))
-		}
-
-		if params.UpdatedAt != "" {
-			dateFilters, err := parseDateFilters(params.UpdatedAt)
-			if err != nil {
-				return nil, err
-			}
-			for _, filter := range dateFilters {
-				switch filter.op {
-				case ">=":
-					conditions = append(conditions, files.UpdatedAt.GT_EQ(postgres.TimestampT(filter.value)))
-				case "<=":
-					conditions = append(conditions, files.UpdatedAt.LT_EQ(postgres.TimestampT(filter.value)))
-				case ">":
-					conditions = append(conditions, files.UpdatedAt.GT(postgres.TimestampT(filter.value)))
-				case "<":
-					conditions = append(conditions, files.UpdatedAt.LT(postgres.TimestampT(filter.value)))
-				default:
-					conditions = append(conditions, files.UpdatedAt.EQ(postgres.TimestampT(filter.value)))
-				}
-			}
-		}
-
-		if params.Query != "" {
-			switch strings.ToLower(params.SearchType) {
-			case "regex":
-				conditions = append(conditions, postgres.RawBool(
-					"files.name &~ #searchQuery",
-					postgres.RawArgs{"#searchQuery": params.Query},
-				))
-			default:
-				conditions = append(conditions, postgres.RawBool(
-					"teldrive.clean_name(files.name) &@~ teldrive.clean_name(#searchQuery)",
-					postgres.RawArgs{"#searchQuery": params.Query},
-				))
-			}
-		}
-
-		if len(params.Category) > 0 {
-			parts := make([]postgres.BoolExpression, 0, len(params.Category))
-			for _, category := range params.Category {
-				if category == folderCategory {
-					parts = append(parts, files.Type.EQ(postgres.String(category)))
-				} else {
-					parts = append(parts, files.Category.EQ(postgres.String(category)))
-				}
-			}
-			conditions = append(conditions, postgres.OR(parts...))
-		}
-
-		if params.Name != "" {
-			conditions = append(conditions, files.Name.EQ(postgres.String(params.Name)))
-		}
-
-		if params.ParentID != "" {
-			if params.ParentID == "nil" {
-				conditions = append(conditions, files.ParentID.IS_NULL())
-			} else {
-				parentID, err := uuid.Parse(params.ParentID)
-				if err != nil {
-					return nil, err
-				}
-				conditions = append(conditions, files.ParentID.EQ(postgres.UUID(parentID)))
-			}
-		}
-
-		if params.ParentID == "" && params.Path != "" && params.Query == "" {
-			id, err := r.ResolvePathID(ctx, params.Path, params.UserID)
-			if err != nil {
-				if errors.Is(err, ErrNotFound) {
-					return []model.Files{}, nil
-				}
-
-				return nil, err
-			}
-
-			conditions = append(conditions, files.ParentID.EQ(postgres.UUID(*id)))
-		}
-
-		if params.Type != "" {
-			conditions = append(conditions, files.Type.EQ(postgres.String(params.Type)))
-		}
-
-		if params.Shared {
-			conditions = append(conditions, files.ID.IN(
-				postgres.SELECT(table.FileShares.FileID).FROM(table.FileShares).WHERE(
-					table.FileShares.UserID.EQ(postgres.Int64(params.UserID)),
-				),
-			))
-		}
-	}
-
-	cursorCondition, err := buildFileCursorCondition(files, params.Sort, orderDir, params.Cursor)
+	query, err := r.buildFilesQuery(ctx, params, operation)
 	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return []model.Files{}, nil
+		}
 		return nil, err
 	}
-	if cursorCondition != nil {
-		conditions = append(conditions, cursorCondition)
-	}
 
-	whereExpr := postgres.AND(conditions...)
-
-	listStmt := files.SELECT(files.AllColumns.Except(files.Parts)).FROM(files).WHERE(whereExpr).LIMIT(int64(limit))
-
-	listStmt = applyFileSort(listStmt, files, params.Sort, orderDir)
-
-	var listQuery postgres.Statement = listStmt
-	if len(recursiveCTEs) > 0 {
-		listQuery = postgres.WITH_RECURSIVE(recursiveCTEs...)(listStmt)
+	listQuery, _, err := filesquery.NewBuilder().Build(query)
+	if err != nil {
+		return nil, err
 	}
 
 	var results []model.Files
@@ -606,167 +452,121 @@ func (r *JetFileRepository) List(ctx context.Context, params FileQueryParams) ([
 	return results, nil
 }
 
-type dateFilter struct {
-	op    string
-	value time.Time
-}
+func (r *JetFileRepository) buildFilesQuery(ctx context.Context, params FileQueryParams, operation string) (filesquery.Query, error) {
+	query := filesquery.Query{
+		UserID:     params.UserID,
+		Operation:  mapFileQueryOperation(operation),
+		Status:     params.Status,
+		Path:       params.Path,
+		Name:       params.Name,
+		Type:       params.Type,
+		Categories: params.Category,
+		Search: filesquery.SearchParams{
+			Query:      params.Query,
+			SearchType: mapFileQuerySearchType(params.SearchType),
+			DeepSearch: params.DeepSearch,
+		},
+		Shared: params.Shared,
+		Sort:   mapFileQuerySortField(params.Sort),
+		Order:  mapFileQuerySortOrder(params.Order),
+		Cursor: params.Cursor,
+		Limit:  params.Limit,
+	}
 
-func parseDateFilters(input string) ([]dateFilter, error) {
-	parts := strings.Split(input, ",")
-	filters := make([]dateFilter, 0, len(parts))
-
-	for _, part := range parts {
-		chunks := strings.Split(part, ":")
-		if len(chunks) != 2 {
-			continue
-		}
-
-		dateValue, err := time.Parse(time.DateOnly, chunks[1])
+	if params.UpdatedAt != "" {
+		dateFilters, err := filesquery.ParseDateFilters(params.UpdatedAt)
 		if err != nil {
-			return nil, err
+			return filesquery.Query{}, err
 		}
-
-		op := "="
-		switch chunks[0] {
-		case "gte":
-			op = ">="
-		case "lte":
-			op = "<="
-		case "eq":
-			op = "="
-		case "gt":
-			op = ">"
-		case "lt":
-			op = "<"
-		default:
-			continue
-		}
-
-		filters = append(filters, dateFilter{op: op, value: dateValue.UTC()})
+		query.UpdatedAt = dateFilters
 	}
 
-	return filters, nil
-}
-
-func fileQuerySortField(sort string) string {
-	switch strings.ToLower(sort) {
-	case "name":
-		return "files.name"
-	case "updatedat":
-		return "files.updated_at"
-	case "updated_at":
-		return "files.updated_at"
-	case "size":
-		return "files.size"
-	case "id":
-		return "files.id"
-	default:
-		return "files.updated_at"
-	}
-}
-
-func fileQueryOrder(order string) string {
-	if strings.EqualFold(order, "asc") {
-		return "ASC"
-	}
-
-	return "DESC"
-}
-
-func applyFileSort(
-	stmt postgres.SelectStatement,
-	files *table.FilesTable,
-	sort string,
-	orderDir string,
-) postgres.SelectStatement {
-	asc := orderDir == "ASC"
-
-	switch strings.ToLower(sort) {
-	case "name":
-		if asc {
-			return stmt.ORDER_BY(files.Name.ASC(), files.ID.ASC())
-		}
-		return stmt.ORDER_BY(files.Name.DESC(), files.ID.DESC())
-	case "size":
-		if asc {
-			return stmt.ORDER_BY(files.Size.ASC(), files.ID.ASC())
-		}
-		return stmt.ORDER_BY(files.Size.DESC(), files.ID.DESC())
-	case "id":
-		if asc {
-			return stmt.ORDER_BY(files.ID.ASC())
-		}
-		return stmt.ORDER_BY(files.ID.DESC())
-	default:
-		if asc {
-			return stmt.ORDER_BY(files.UpdatedAt.ASC(), files.ID.ASC())
-		}
-		return stmt.ORDER_BY(files.UpdatedAt.DESC(), files.ID.DESC())
-	}
-}
-
-func buildFileCursorCondition(
-	files *table.FilesTable,
-	sort string,
-	orderDir string,
-	cursor string,
-) (postgres.BoolExpression, error) {
-	if cursor == "" {
-		return nil, nil
-	}
-
-	splitAt := strings.LastIndex(cursor, ":")
-	if splitAt <= 0 || splitAt >= len(cursor)-1 {
-		return nil, nil
-	}
-
-	cursorValue := cursor[:splitAt]
-	cursorIDText := cursor[splitAt+1:]
-
-	cursorID, err := uuid.Parse(cursorIDText)
+	parentID, parentIsNil, err := r.resolveFilesQueryParentID(ctx, params, operation)
 	if err != nil {
-		return nil, nil
+		return filesquery.Query{}, err
+	}
+	query.ParentID = parentID
+	query.ParentIsNil = parentIsNil
+
+	return query, nil
+}
+
+func (r *JetFileRepository) resolveFilesQueryParentID(ctx context.Context, params FileQueryParams, operation string) (*uuid.UUID, bool, error) {
+	if params.ParentID != "" {
+		if operation == "find" && params.ParentID == "nil" {
+			return nil, true, nil
+		}
+
+		parentID, err := uuid.Parse(params.ParentID)
+		if err != nil {
+			return nil, false, err
+		}
+		return &parentID, false, nil
 	}
 
-	asc := orderDir == "ASC"
-	idExpr := postgres.UUID(cursorID)
+	switch operation {
+	case "list":
+		if params.Path == "" {
+			return nil, false, nil
+		}
+		id, err := r.ResolvePathID(ctx, params.Path, params.UserID)
+		if err != nil {
+			return nil, false, err
+		}
+		return id, false, nil
+	case "find":
+		if params.Path == "" {
+			return nil, false, nil
+		}
+		id, err := r.ResolvePathID(ctx, params.Path, params.UserID)
+		if err != nil {
+			if errors.Is(err, ErrNotFound) {
+				if params.Query == "" {
+					return nil, false, err
+				}
+				return nil, false, nil
+			}
+			return nil, false, err
+		}
+		return id, false, nil
+	default:
+		return nil, false, nil
+	}
+}
 
+func mapFileQueryOperation(operation string) filesquery.Operation {
+	if strings.EqualFold(operation, string(filesquery.OpList)) {
+		return filesquery.OpList
+	}
+	return filesquery.OpFind
+}
+
+func mapFileQuerySearchType(searchType string) filesquery.SearchType {
+	if strings.EqualFold(searchType, string(filesquery.SearchTypeRegex)) {
+		return filesquery.SearchTypeRegex
+	}
+	if strings.EqualFold(searchType, string(filesquery.SearchTypeText)) {
+		return filesquery.SearchTypeText
+	}
+	return filesquery.SearchTypeDefault
+}
+
+func mapFileQuerySortField(sort string) filesquery.SortField {
 	switch strings.ToLower(sort) {
 	case "name":
-		valueExpr := postgres.String(cursorValue)
-		if asc {
-			return files.Name.GT(valueExpr).OR(files.Name.EQ(valueExpr).AND(files.ID.GT(idExpr))), nil
-		}
-		return files.Name.LT(valueExpr).OR(files.Name.EQ(valueExpr).AND(files.ID.LT(idExpr))), nil
+		return filesquery.SortFieldName
 	case "size":
-		size, err := strconv.ParseInt(cursorValue, 10, 64)
-		if err != nil {
-			return nil, nil
-		}
-		valueExpr := postgres.Int64(size)
-		if asc {
-			return files.Size.GT(valueExpr).OR(files.Size.EQ(valueExpr).AND(files.ID.GT(idExpr))), nil
-		}
-		return files.Size.LT(valueExpr).OR(files.Size.EQ(valueExpr).AND(files.ID.LT(idExpr))), nil
+		return filesquery.SortFieldSize
 	case "id":
-		idValue, err := uuid.Parse(cursorValue)
-		if err != nil {
-			idValue = cursorID
-		}
-		valueExpr := postgres.UUID(idValue)
-		if asc {
-			return files.ID.GT(valueExpr), nil
-		}
-		return files.ID.LT(valueExpr), nil
+		return filesquery.SortFieldID
 	default:
-		updatedAt, err := time.Parse(time.RFC3339Nano, cursorValue)
-		if err != nil {
-			return nil, nil
-		}
-		valueExpr := postgres.TimestampT(updatedAt)
-		if asc {
-			return files.UpdatedAt.GT(valueExpr).OR(files.UpdatedAt.EQ(valueExpr).AND(files.ID.GT(idExpr))), nil
-		}
-		return files.UpdatedAt.LT(valueExpr).OR(files.UpdatedAt.EQ(valueExpr).AND(files.ID.LT(idExpr))), nil
+		return filesquery.SortFieldUpdatedAt
 	}
+}
+
+func mapFileQuerySortOrder(order string) filesquery.SortOrder {
+	if strings.EqualFold(order, string(filesquery.SortOrderAsc)) {
+		return filesquery.SortOrderAsc
+	}
+	return filesquery.SortOrderDesc
 }

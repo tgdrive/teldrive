@@ -34,7 +34,7 @@ func (r *JetSessionRepository) Create(ctx context.Context, session *model.Sessio
 	}
 
 	stmt := table.Sessions.INSERT(table.Sessions.AllColumns).MODEL(*session)
-	_, err := r.db.exec(ctx, stmt)
+	err := r.db.exec(ctx, stmt)
 
 	return err
 }
@@ -101,7 +101,7 @@ func (r *JetSessionRepository) UpdateRefreshTokenHash(ctx context.Context, id st
 	stmt := table.Sessions.UPDATE(table.Sessions.RefreshTokenHash, table.Sessions.UpdatedAt).
 		SET(postgres.String(refreshTokenHash), postgres.TimestampT(now)).
 		WHERE(table.Sessions.ID.EQ(postgres.UUID(idUUID)).AND(table.Sessions.RevokedAt.IS_NULL()))
-	_, err = r.db.exec(ctx, stmt)
+	err = r.db.exec(ctx, stmt)
 
 	return err
 }
@@ -115,7 +115,7 @@ func (r *JetSessionRepository) Revoke(ctx context.Context, id string) error {
 	stmt := table.Sessions.UPDATE(table.Sessions.RevokedAt, table.Sessions.UpdatedAt, table.Sessions.RefreshTokenHash).
 		SET(postgres.TimestampT(now), postgres.TimestampT(now), postgres.NULL).
 		WHERE(table.Sessions.ID.EQ(postgres.UUID(idUUID)).AND(table.Sessions.RevokedAt.IS_NULL()))
-	_, err = r.db.exec(ctx, stmt)
+	err = r.db.exec(ctx, stmt)
 
 	return err
 }
@@ -125,7 +125,7 @@ func (r *JetSessionRepository) DeleteByUserID(ctx context.Context, userID int64)
 	stmt := table.Sessions.UPDATE(table.Sessions.RevokedAt, table.Sessions.UpdatedAt, table.Sessions.RefreshTokenHash).
 		SET(postgres.TimestampT(now), postgres.TimestampT(now), postgres.NULL).
 		WHERE(table.Sessions.UserID.EQ(postgres.Int64(userID)).AND(table.Sessions.RevokedAt.IS_NULL()))
-	_, err := r.db.exec(ctx, stmt)
+	err := r.db.exec(ctx, stmt)
 
 	return err
 }

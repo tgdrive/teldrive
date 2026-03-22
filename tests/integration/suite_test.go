@@ -153,16 +153,6 @@ func (s *suite) resetDB() {
 	}
 }
 
-func (s *suite) authHeaderForUser(userID int64, tgSession string) string {
-	token := s.authTokenForUser(userID, tgSession)
-	return fmt.Sprintf("Bearer %s", token)
-}
-
-func (s *suite) authCookieForUser(userID int64, tgSession string) string {
-	token := s.authTokenForUser(userID, tgSession)
-	return fmt.Sprintf("access_token=%s", token)
-}
-
 func (s *suite) authTokenForUser(userID int64, tgSession string) string {
 	s.t.Helper()
 
@@ -215,11 +205,6 @@ func (s *suite) newClientWithToken(token string) *api.Client {
 
 	return client
 }
-
-func (s *suite) newAuthedClient(userID int64, tgSession string) *api.Client {
-	return s.newClientWithToken(s.authTokenForUser(userID, tgSession))
-}
-
 func deterministicSessionID(userID int64, tgSession string) string {
 	return uuid.NewSHA1(uuid.NameSpaceOID, []byte(fmt.Sprintf("%d:%s", userID, tgSession))).String()
 }

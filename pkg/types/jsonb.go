@@ -52,6 +52,10 @@ func (j *JSONB[T]) Scan(src any) error {
 }
 
 func (j JSONB[T]) ValueDB() (driver.Value, error) {
+	return j.Value()
+}
+
+func (j JSONB[T]) Value() (driver.Value, error) {
 	b, err := json.Marshal(j.Data)
 	if err != nil {
 		return nil, err
@@ -59,6 +63,10 @@ func (j JSONB[T]) ValueDB() (driver.Value, error) {
 	return string(b), nil
 }
 
-func (j JSONB[T]) Value() (driver.Value, error) {
-	return j.ValueDB()
+func (j JSONB[T]) MarshalJSON() ([]byte, error) {
+	return json.Marshal(j.Data)
+}
+
+func (j *JSONB[T]) UnmarshalJSON(data []byte) error {
+	return json.Unmarshal(data, &j.Data)
 }

@@ -28,7 +28,7 @@ func (r *JetUploadRepository) Create(ctx context.Context, upload *model.Uploads)
 	}
 
 	stmt := table.Uploads.INSERT(table.Uploads.AllColumns).MODEL(*upload)
-	_, err := r.db.exec(ctx, stmt)
+	err := r.db.exec(ctx, stmt)
 
 	return err
 }
@@ -69,19 +69,55 @@ func (r *JetUploadRepository) GetByUploadIDAndRetention(ctx context.Context, upl
 
 func (r *JetUploadRepository) Delete(ctx context.Context, uploadID string) error {
 	stmt := table.Uploads.DELETE().WHERE(table.Uploads.UploadID.EQ(postgres.String(uploadID)))
-	_, err := r.db.exec(ctx, stmt)
+	err := r.db.exec(ctx, stmt)
 
 	return err
 }
 
+func (r *JetUploadRepository) ListStale(ctx context.Context, before time.Time) ([]StaleUpload, error) {
+	stmt := table.Uploads.
+		SELECT(table.Uploads.PartID, table.Uploads.ChannelID, table.Uploads.UserID).
+		FROM(table.Uploads).
+		WHERE(table.Uploads.CreatedAt.LT(postgres.TimestampT(before)))
+
+	var out []StaleUpload
+	if err := r.db.query(ctx, stmt, &out); err != nil {
+		if errors.Is(err, qrm.ErrNoRows) {
+			return []StaleUpload{}, nil
+		}
+		return nil, err
+	}
+
+	return out, nil
+}
+
+func (r *JetUploadRepository) DeleteParts(ctx context.Context, channelID, userID int64, partIDs []int) error {
+	if len(partIDs) == 0 {
+		return nil
+	}
+
+	partExprs := make([]postgres.Expression, 0, len(partIDs))
+	for _, partID := range partIDs {
+		partExprs = append(partExprs, postgres.Int(int64(partID)))
+	}
+
+	stmt := table.Uploads.DELETE().WHERE(
+		table.Uploads.ChannelID.EQ(postgres.Int64(channelID)).
+			AND(table.Uploads.UserID.EQ(postgres.Int64(userID))).
+			AND(table.Uploads.PartID.IN(partExprs...)),
+	)
+
+	return r.db.exec(ctx, stmt)
+}
+
 func (r *JetUploadRepository) DeleteOlderThan(ctx context.Context, before time.Time) (int64, error) {
 	stmt := table.Uploads.DELETE().WHERE(table.Uploads.CreatedAt.LT(postgres.TimestampT(before)))
-	result, err := r.db.exec(ctx, stmt)
+	tag, err := r.db.execTag(ctx, stmt)
 	if err != nil {
 		return 0, err
 	}
 
-	return result.RowsAffected(), nil
+	return tag.RowsAffected(), nil
 }
 
 func (r *JetUploadRepository) DeleteByID(ctx context.Context, partID int32, channelID int64) error {
@@ -90,7 +126,7 @@ func (r *JetUploadRepository) DeleteByID(ctx context.Context, partID int32, chan
 			AND(table.Uploads.ChannelID.EQ(postgres.Int64(channelID))),
 	)
 
-	_, err := r.db.exec(ctx, stmt)
+	err := r.db.exec(ctx, stmt)
 
 	return err
 }

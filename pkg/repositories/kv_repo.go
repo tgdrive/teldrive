@@ -35,7 +35,7 @@ func (r *JetKVRepository) Set(ctx context.Context, item *model.Kv) error {
 			table.Kv.CreatedAt.SET(table.Kv.EXCLUDED.CreatedAt),
 		))
 
-	_, err := r.db.exec(ctx, stmt)
+	err := r.db.exec(ctx, stmt)
 
 	return err
 }
@@ -57,14 +57,14 @@ func (r *JetKVRepository) Get(ctx context.Context, key string) (*model.Kv, error
 
 func (r *JetKVRepository) Delete(ctx context.Context, key string) error {
 	stmt := table.Kv.DELETE().WHERE(table.Kv.Key.EQ(postgres.String(key)))
-	_, err := r.db.exec(ctx, stmt)
+	err := r.db.exec(ctx, stmt)
 
 	return err
 }
 
 func (r *JetKVRepository) DeletePrefix(ctx context.Context, prefix string) error {
 	stmt := table.Kv.DELETE().WHERE(table.Kv.Key.LIKE(postgres.String(prefix + "%")))
-	_, err := r.db.exec(ctx, stmt)
+	err := r.db.exec(ctx, stmt)
 
 	return err
 }

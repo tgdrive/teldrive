@@ -3,12 +3,10 @@ package repositories
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/go-jet/jet/v2/postgres"
 	"github.com/go-jet/jet/v2/qrm"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/model"
@@ -29,7 +27,7 @@ func (r *JetChannelRepository) Create(ctx context.Context, channel *model.Channe
 	}
 
 	stmt := table.Channels.INSERT(table.Channels.AllColumns).MODEL(*channel)
-	_, err := r.db.exec(ctx, stmt)
+	err := r.db.exec(ctx, stmt)
 
 	return err
 }
@@ -102,40 +100,21 @@ func (r *JetChannelRepository) Update(ctx context.Context, channelID int64, upda
 	stmt := table.Channels.UPDATE().WHERE(table.Channels.ChannelID.EQ(postgres.Int64(channelID)))
 	stmt = stmt.SET(updates[0], assignmentArgs(updates[1:])...)
 
-	_, err := r.db.exec(ctx, stmt)
+	err := r.db.exec(ctx, stmt)
 
 	return err
 }
 
 func (r *JetChannelRepository) Delete(ctx context.Context, channelID int64) error {
 	stmt := table.Channels.DELETE().WHERE(table.Channels.ChannelID.EQ(postgres.Int64(channelID)))
-	_, err := r.db.exec(ctx, stmt)
+	err := r.db.exec(ctx, stmt)
 
 	return err
 }
 
 func (r *JetChannelRepository) DeleteByUserID(ctx context.Context, userID int64) error {
 	stmt := table.Channels.DELETE().WHERE(table.Channels.UserID.EQ(postgres.Int64(userID)))
-	_, err := r.db.exec(ctx, stmt)
+	err := r.db.exec(ctx, stmt)
 
 	return err
-}
-
-func (r *JetChannelRepository) Transaction(ctx context.Context, fn func(ctx context.Context, tx pgx.Tx, repo ChannelRepository) error) error {
-	if r.db.tx != nil {
-		return fmt.Errorf("nested transactions are not supported")
-	}
-
-	tx, err := r.db.pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx)
-
-	txRepo := &JetChannelRepository{db: jetDB{pool: r.db.pool, tx: tx}}
-	if err := fn(ctx, tx, txRepo); err != nil {
-		return err
-	}
-
-	return tx.Commit(ctx)
 }

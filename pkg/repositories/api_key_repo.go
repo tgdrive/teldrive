@@ -35,7 +35,7 @@ func (r *JetAPIKeyRepository) Create(ctx context.Context, key *model.APIKeys) er
 	}
 
 	stmt := table.APIKeys.INSERT(table.APIKeys.AllColumns).MODEL(*key)
-	_, err := r.db.exec(ctx, stmt)
+	err := r.db.exec(ctx, stmt)
 
 	return err
 }
@@ -83,7 +83,7 @@ func (r *JetAPIKeyRepository) TouchLastUsed(ctx context.Context, id uuid.UUID, u
 		SET(postgres.TimestampT(usedAt), postgres.TimestampT(usedAt)).
 		WHERE(table.APIKeys.ID.EQ(postgres.UUID(id)))
 
-	_, err := r.db.exec(ctx, stmt)
+	err := r.db.exec(ctx, stmt)
 
 	return err
 }
@@ -103,11 +103,11 @@ func (r *JetAPIKeyRepository) Revoke(ctx context.Context, userID int64, id strin
 				AND(table.APIKeys.RevokedAt.IS_NULL()),
 		)
 
-	res, err := r.db.exec(ctx, stmt)
+	tag, err := r.db.execTag(ctx, stmt)
 	if err != nil {
 		return err
 	}
-	if res.RowsAffected() == 0 {
+	if tag.RowsAffected() == 0 {
 		return ErrNotFound
 	}
 

@@ -25,7 +25,7 @@ func (r *JetEventRepository) Create(ctx context.Context, event *model.Events) er
 	}
 
 	stmt := table.Events.INSERT(table.Events.AllColumns).MODEL(*event)
-	_, err := r.db.exec(ctx, stmt)
+	err := r.db.exec(ctx, stmt)
 
 	return err
 }
@@ -92,12 +92,12 @@ func (r *JetEventRepository) GetSince(ctx context.Context, since time.Time, limi
 func (r *JetEventRepository) DeleteOlderThan(ctx context.Context, before time.Time) (int64, error) {
 	stmt := table.Events.DELETE().WHERE(table.Events.CreatedAt.LT(postgres.TimestampT(before)))
 
-	result, err := r.db.exec(ctx, stmt)
+	tag, err := r.db.execTag(ctx, stmt)
 	if err != nil {
 		return 0, err
 	}
 
-	return result.RowsAffected(), nil
+	return tag.RowsAffected(), nil
 }
 
 func (r *JetEventRepository) DeleteOlderThanForUser(ctx context.Context, userID int64, before time.Time) (int64, error) {
@@ -106,10 +106,10 @@ func (r *JetEventRepository) DeleteOlderThanForUser(ctx context.Context, userID 
 			AND(table.Events.CreatedAt.LT(postgres.TimestampT(before))),
 	)
 
-	result, err := r.db.exec(ctx, stmt)
+	tag, err := r.db.execTag(ctx, stmt)
 	if err != nil {
 		return 0, err
 	}
 
-	return result.RowsAffected(), nil
+	return tag.RowsAffected(), nil
 }

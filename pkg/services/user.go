@@ -14,21 +14,19 @@ import (
 	"github.com/tgdrive/teldrive/internal/auth"
 	"github.com/tgdrive/teldrive/internal/cache"
 	jetmodel "github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/model"
+	"github.com/tgdrive/teldrive/internal/logging"
 	"github.com/tgdrive/teldrive/internal/tgstorage"
 	"github.com/tgdrive/teldrive/pkg/repositories"
+	"go.uber.org/zap"
 )
 
 func (a *apiService) UsersAddBots(ctx context.Context, req *api.AddBots) error {
 	userID := auth.User(ctx)
 
-	payload := []jetmodel.Bots{}
 	if len(req.Bots) > 0 {
 		for _, token := range req.Bots {
-			payload = append(payload, jetmodel.Bots{UserID: userID, Token: token})
-		}
-		for _, bot := range payload {
-			err := a.repo.Bots.Create(ctx, &bot)
-			if err != nil && !strings.Contains(err.Error(), "duplicate") {
+			err := a.repo.Bots.CreateToken(ctx, userID, token)
+			if err != nil && !errors.Is(err, repositories.ErrConflict) {
 				return err
 			}
 		}
@@ -42,7 +40,9 @@ func (a *apiService) UsersAddBots(ctx context.Context, req *api.AddBots) error {
 		}
 		if len(channels) > 0 {
 			for _, channel := range channels {
-				a.channelManager.AddBotsToChannel(ctx, userID, channel, req.Bots, false)
+				if err := a.channelManager.AddBotsToChannel(ctx, userID, channel, req.Bots, false); err != nil {
+					return err
+				}
 			}
 		}
 		a.cache.Delete(ctx, cache.KeyUserBots(userID))
@@ -112,7 +112,13 @@ func (a *apiService) UsersDeleteChannel(ctx context.Context, params api.UsersDel
 	if err := a.repo.Channels.Delete(ctx, channelId); err != nil {
 		return &apiError{err: err}
 	}
-	peerStorage.Delete(ctx, peerKey)
+	if err := peerStorage.Delete(ctx, peerKey); err != nil {
+		logging.FromContext(ctx).Warn("failed to delete peer storage entry",
+			zap.Int64("user_id", userId),
+			zap.Int64("channel_id", channelId),
+			zap.Error(err),
+		)
+	}
 	return nil
 }
 
@@ -315,10 +321,20 @@ func (a *apiService) UsersRemoveSession(ctx context.Context, params api.UsersRem
 	_ = a.cache.DeletePattern(ctx, cache.KeyAPIKeyAuthPattern())
 	client, err := a.telegram.AuthClient(ctx, session.TgSession, 5)
 	if err != nil {
+		logging.FromContext(ctx).Warn("session revoked but telegram client init failed",
+			zap.Int64("user_id", userId),
+			zap.String("session_id", session.ID.String()),
+			zap.Error(err),
+		)
 		return nil
 	}
 
 	if err := a.telegram.LogOut(ctx, client); err != nil {
+		logging.FromContext(ctx).Warn("session revoked but telegram logout failed",
+			zap.Int64("user_id", userId),
+			zap.String("session_id", session.ID.String()),
+			zap.Error(err),
+		)
 		return nil
 	}
 
@@ -354,7 +370,7 @@ func (a *apiService) UsersUpdateChannel(ctx context.Context, req *api.ChannelUpd
 	}
 
 	err := a.repo.WithTx(ctx, func(txCtx context.Context) error {
-		channel, err := a.repo.Channels.GetByChannelID(txCtx, channelID)
+		_, err := a.repo.Channels.GetByChannelID(txCtx, channelID)
 		if err != nil {
 			if errors.Is(err, repositories.ErrNotFound) {
 				name := req.ChannelName.Value
@@ -362,8 +378,7 @@ func (a *apiService) UsersUpdateChannel(ctx context.Context, req *api.ChannelUpd
 					name = strconv.FormatInt(channelID, 10)
 				}
 				selected := true
-				channel = &jetmodel.Channels{UserID: userId, ChannelID: channelID, ChannelName: name, Selected: &selected}
-				if err := a.repo.Channels.Create(txCtx, channel); err != nil {
+				if err := a.repo.Channels.Create(txCtx, &jetmodel.Channels{UserID: userId, ChannelID: channelID, ChannelName: name, Selected: &selected}); err != nil {
 					return errors.New("failed to update channel")
 				}
 			} else {

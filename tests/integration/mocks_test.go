@@ -331,3 +331,7 @@ func (n *noopJobClient) JobGet(context.Context, int64) (*rivertype.JobRow, error
 func (n *noopJobClient) JobCancel(context.Context, int64) (*rivertype.JobRow, error) {
 	return nil, rivertype.ErrNotFound
 }
+
+func (n *noopJobClient) JobDelete(context.Context, int64) (*rivertype.JobRow, error) {
+	return nil, rivertype.ErrNotFound
+}

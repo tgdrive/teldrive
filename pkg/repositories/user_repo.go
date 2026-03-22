@@ -36,12 +36,13 @@ func (r *JetUserRepository) Create(ctx context.Context, user *model.Users) error
 		ON_CONFLICT(table.Users.UserID).
 		DO_NOTHING()
 
-	_, err := r.db.exec(ctx, stmt)
+	err := r.db.exec(ctx, stmt)
 
 	return err
 }
 
 func (r *JetUserRepository) GetByID(ctx context.Context, userID int64) (*model.Users, error) {
+
 	stmt := table.Users.SELECT(table.Users.AllColumns).FROM(table.Users).WHERE(table.Users.UserID.EQ(postgres.Int64(userID)))
 
 	var out model.Users
@@ -74,7 +75,7 @@ func (r *JetUserRepository) Update(ctx context.Context, userID int64, update Use
 	stmt := table.Users.UPDATE().WHERE(table.Users.UserID.EQ(postgres.Int64(userID)))
 	stmt = stmt.SET(updates[0], assignmentArgs(updates[1:])...)
 
-	_, err := r.db.exec(ctx, stmt)
+	err := r.db.exec(ctx, stmt)
 
 	return err
 }

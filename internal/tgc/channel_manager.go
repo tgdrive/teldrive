@@ -3,8 +3,8 @@ package tgc
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -349,7 +349,7 @@ func (cm *ChannelManager) AddBotsToChannel(ctx context.Context, userId int64, ch
 					for i := range payload {
 						if err := cm.repo.Bots.Create(ctx, &payload[i]); err != nil {
 							// ignore duplicates
-							if !strings.Contains(err.Error(), "duplicate") {
+							if !errors.Is(err, repositories.ErrConflict) {
 								return fmt.Errorf("failed to save bots: %w", err)
 							}
 						}

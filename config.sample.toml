@@ -51,6 +51,10 @@ session-instance = 'teldrive'
 system-lang-code = 'en-US'
 system-version = 'Win32'
 
+[tg.mtproxy]
+addr = ''
+secret = ''
+
 [tg.session]
 # Session storage type: postgres, bolt, or memory
 type = 'postgres'

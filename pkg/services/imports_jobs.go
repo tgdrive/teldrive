@@ -16,6 +16,7 @@ import (
 	"github.com/riverqueue/river/rivertype"
 	"github.com/tgdrive/teldrive/internal/api"
 	jetmodel "github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/model"
+	"github.com/tgdrive/teldrive/internal/logging"
 	"github.com/tgdrive/teldrive/pkg/queue"
 	"github.com/tgdrive/teldrive/pkg/remotes"
 	"github.com/tgdrive/teldrive/pkg/remotes/local"
@@ -23,6 +24,7 @@ import (
 	"github.com/tgdrive/teldrive/pkg/remotes/sftp"
 	"github.com/tgdrive/teldrive/pkg/remotes/webdav"
 	"github.com/tgdrive/teldrive/pkg/repositories"
+	"go.uber.org/zap"
 )
 
 type sourceFile struct {
@@ -299,11 +301,11 @@ func (e *jobExecutor) SyncTransfer(ctx context.Context, args queue.SyncTransferJ
 		tgClient := uploadPool.Default(workingCtx)
 		partID, uploadedSize, err := e.api.telegram.UploadPart(workingCtx, tgClient, channelID, partName, partReader, chunkSize, e.api.cnf.TG.Uploads.Threads)
 		if err != nil {
-			_ = e.api.repo.Uploads.Delete(workingCtx, uploadID)
+			e.cleanupUpload(workingCtx, uploadID, "upload part failed")
 			return err
 		}
 		if uploadedSize != chunkSize {
-			_ = e.api.repo.Uploads.Delete(workingCtx, uploadID)
+			e.cleanupUpload(workingCtx, uploadID, "upload size mismatch")
 			return fmt.Errorf("uploaded size mismatch for %s", partName)
 		}
 
@@ -318,7 +320,7 @@ func (e *jobExecutor) SyncTransfer(ctx context.Context, args queue.SyncTransferJ
 			UserID:    &args.UserID,
 			CreatedAt: &now,
 		}); err != nil {
-			_ = e.api.repo.Uploads.Delete(workingCtx, uploadID)
+			e.cleanupUpload(workingCtx, uploadID, "persist upload part failed")
 			return err
 		}
 
@@ -346,7 +348,7 @@ func (e *jobExecutor) SyncTransfer(ctx context.Context, args queue.SyncTransferJ
 
 	created, err := e.api.FilesCreate(workingCtx, fileReq)
 	if err != nil {
-		_ = e.api.repo.Uploads.Delete(workingCtx, uploadID)
+		e.cleanupUpload(workingCtx, uploadID, "create file from upload failed")
 		return err
 	}
 
@@ -359,6 +361,16 @@ func (e *jobExecutor) SyncTransfer(ctx context.Context, args queue.SyncTransferJ
 			"source":   args.Source,
 		},
 	})
+}
+
+func (e *jobExecutor) cleanupUpload(ctx context.Context, uploadID string, reason string) {
+	if err := e.api.repo.Uploads.Delete(ctx, uploadID); err != nil {
+		logging.FromContext(ctx).Warn("failed to cleanup upload state",
+			zap.String("upload_id", uploadID),
+			zap.String("reason", reason),
+			zap.Error(err),
+		)
+	}
 }
 
 type syncTransferOutput struct {

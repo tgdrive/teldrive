@@ -32,7 +32,7 @@ func (r *JetShareRepository) Create(ctx context.Context, share *model.FileShares
 	}
 
 	stmt := table.FileShares.INSERT(table.FileShares.AllColumns).MODEL(*share)
-	_, err := r.db.exec(ctx, stmt)
+	err := r.db.exec(ctx, stmt)
 
 	return err
 }
@@ -82,21 +82,21 @@ func (r *JetShareRepository) Update(ctx context.Context, id uuid.UUID, update Sh
 	stmt := table.FileShares.UPDATE().WHERE(table.FileShares.ID.EQ(postgres.UUID(id)))
 	stmt = stmt.SET(updates[0], assignmentArgs(updates[1:])...)
 
-	_, err := r.db.exec(ctx, stmt)
+	err := r.db.exec(ctx, stmt)
 
 	return err
 }
 
 func (r *JetShareRepository) Delete(ctx context.Context, id uuid.UUID) error {
 	stmt := table.FileShares.DELETE().WHERE(table.FileShares.ID.EQ(postgres.UUID(id)))
-	_, err := r.db.exec(ctx, stmt)
+	err := r.db.exec(ctx, stmt)
 
 	return err
 }
 
 func (r *JetShareRepository) DeleteByFileID(ctx context.Context, fileID uuid.UUID) error {
 	stmt := table.FileShares.DELETE().WHERE(table.FileShares.FileID.EQ(postgres.UUID(fileID)))
-	_, err := r.db.exec(ctx, stmt)
+	err := r.db.exec(ctx, stmt)
 
 	return err
 }

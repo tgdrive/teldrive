@@ -4,26 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"mime"
-	"net/http"
-	"net/url"
-	"path"
-	"strconv"
 	"strings"
 	"time"
 
-	"github.com/go-jet/jet/v2/pgxV5"
-	"github.com/go-jet/jet/v2/postgres"
 	"github.com/riverqueue/river"
 	"github.com/tgdrive/teldrive/internal/api"
 	"github.com/tgdrive/teldrive/internal/auth"
 	"github.com/tgdrive/teldrive/internal/config"
-	"github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/table"
 	internalduration "github.com/tgdrive/teldrive/internal/duration"
 	"github.com/tgdrive/teldrive/internal/tgc"
-	"github.com/tgdrive/teldrive/internal/utils"
 	"github.com/tgdrive/teldrive/pkg/queue"
+	"github.com/tgdrive/teldrive/pkg/repositories"
 )
 
 type jobExecutor struct {
@@ -43,207 +34,15 @@ func (e *jobExecutor) Restore(ctx context.Context, userID int64, item queue.JobI
 	return e.api.FilesRestore(workingCtx, api.FilesRestoreParams{ID: item.ID})
 }
 
-type remoteFileMeta struct {
-	size     int64
-	name     string
-	mimeType string
-	modified time.Time
-}
-
-func probeRemoteFile(ctx context.Context, link string, headers map[string]string, proxyURL string) (*remoteFileMeta, error) {
-	client, err := remoteHTTPClient(proxyURL, 60*time.Second)
-	if err != nil {
-		return nil, err
-	}
-	meta := &remoteFileMeta{}
-
-	headReq, err := http.NewRequestWithContext(ctx, http.MethodHead, link, nil)
-	if err != nil {
-		return nil, err
-	}
-	for k, v := range headers {
-		headReq.Header.Set(k, v)
-	}
-	if resp, err := client.Do(headReq); err == nil {
-		_ = resp.Body.Close()
-		if resp.StatusCode >= 200 && resp.StatusCode < 400 {
-			meta.size = parseContentLength(resp.Header.Get("Content-Length"))
-			meta.mimeType = parseMimeType(resp.Header.Get("Content-Type"))
-			meta.name = parseFileNameFromHeadersOrURL(resp.Header.Get("Content-Disposition"), link)
-			meta.modified = parseHTTPTime(resp.Header.Get("Last-Modified"))
-		}
-	}
-
-	if meta.size > 0 {
-		return meta, nil
-	}
-
-	getReq, err := http.NewRequestWithContext(ctx, http.MethodGet, link, nil)
-	if err != nil {
-		return nil, err
-	}
-	for k, v := range headers {
-		getReq.Header.Set(k, v)
-	}
-	getReq.Header.Set("Range", "bytes=0-0")
-
-	resp, err := client.Do(getReq)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	_, _ = io.Copy(io.Discard, resp.Body)
-
-	if meta.mimeType == "" {
-		meta.mimeType = parseMimeType(resp.Header.Get("Content-Type"))
-	}
-	if meta.name == "" {
-		meta.name = parseFileNameFromHeadersOrURL(resp.Header.Get("Content-Disposition"), link)
-	}
-	if meta.modified.IsZero() {
-		meta.modified = parseHTTPTime(resp.Header.Get("Last-Modified"))
-	}
-	if meta.size == 0 {
-		meta.size = parseContentRangeTotal(resp.Header.Get("Content-Range"))
-	}
-
-	return meta, nil
-}
-
-func parseContentLength(v string) int64 {
-	n, _ := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
-	return n
-}
-
-func parseContentRangeTotal(v string) int64 {
-	idx := strings.LastIndex(v, "/")
-	if idx < 0 || idx+1 >= len(v) {
-		return 0
-	}
-	n, _ := strconv.ParseInt(strings.TrimSpace(v[idx+1:]), 10, 64)
-	return n
-}
-
-func parseMimeType(v string) string {
-	if v == "" {
-		return ""
-	}
-	parts := strings.Split(v, ";")
-	return strings.TrimSpace(parts[0])
-}
-
-func parseHTTPTime(v string) time.Time {
-	v = strings.TrimSpace(v)
-	if v == "" {
-		return time.Time{}
-	}
-	t, err := http.ParseTime(v)
-	if err != nil {
-		return time.Time{}
-	}
-	return t.UTC()
-}
-
-func parseFileNameFromHeadersOrURL(contentDisposition, rawURL string) string {
-	if _, params, err := mime.ParseMediaType(contentDisposition); err == nil {
-		if name := strings.TrimSpace(params["filename"]); name != "" {
-			return name
-		}
-	}
-	u, err := url.Parse(rawURL)
-	if err != nil {
-		return ""
-	}
-	base := path.Base(u.Path)
-	if base == "." || base == "/" {
-		return ""
-	}
-	return base
-}
-
 func (e *jobExecutor) resolveUploadChannel(ctx context.Context, userID int64) (int64, error) {
 	channelID, err := e.api.channelManager.CurrentChannel(ctx, userID)
-	if err == nil && !(e.api.cnf.TG.AutoChannelCreate && e.api.channelManager.ChannelLimitReached(channelID)) {
+	if err == nil && (!e.api.cnf.TG.AutoChannelCreate || !e.api.channelManager.ChannelLimitReached(channelID)) {
 		return channelID, nil
 	}
 	if err != nil && !e.api.telegram.IsNoDefaultChannelError(err) {
 		return 0, err
 	}
 	return e.api.channelManager.CreateNewChannel(ctx, "", userID, true)
-}
-
-func (e *jobExecutor) downloadAndUploadPart(
-	ctx context.Context,
-	uploadPool UploadPool,
-	channelID int64,
-	link string,
-	headers map[string]string,
-	proxyURL string,
-	partName string,
-	start int64,
-	end int64,
-	partSize int64,
-) (int, error) {
-	client, err := remoteHTTPClient(proxyURL, 0)
-	if err != nil {
-		return 0, err
-	}
-	var lastErr error
-
-	for attempt := 1; attempt <= 3; attempt++ {
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, link, nil)
-		if err != nil {
-			return 0, err
-		}
-		for k, v := range headers {
-			req.Header.Set(k, v)
-		}
-		req.Header.Set("Range", fmt.Sprintf("bytes=%d-%d", start, end))
-
-		resp, err := client.Do(req)
-		if err != nil {
-			lastErr = err
-			continue
-		}
-
-		if resp.StatusCode != http.StatusPartialContent && resp.StatusCode != http.StatusOK {
-			_ = resp.Body.Close()
-			lastErr = fmt.Errorf("unexpected status code %d", resp.StatusCode)
-			continue
-		}
-
-		tgClient := uploadPool.Default(ctx)
-		partID, uploadedSize, err := e.api.telegram.UploadPart(ctx, tgClient, channelID, partName, resp.Body, partSize, e.api.cnf.TG.Uploads.Threads)
-		_ = resp.Body.Close()
-		if err != nil {
-			lastErr = err
-			continue
-		}
-		if uploadedSize != partSize {
-			lastErr = fmt.Errorf("uploaded size mismatch for %s", partName)
-			continue
-		}
-
-		return partID, nil
-	}
-
-	if lastErr == nil {
-		lastErr = fmt.Errorf("failed to upload part")
-	}
-	return 0, lastErr
-}
-
-func remoteHTTPClient(proxyURL string, timeout time.Duration) (*http.Client, error) {
-	transport := http.DefaultTransport.(*http.Transport).Clone()
-	if proxyURL != "" {
-		dialer, err := utils.Proxy.GetDial(proxyURL)
-		if err != nil {
-			return nil, fmt.Errorf("invalid remote upload proxy: %w", err)
-		}
-		transport.DialContext = dialer.DialContext
-	}
-
-	return &http.Client{Timeout: timeout, Transport: transport}, nil
 }
 
 func writeJobProgress(ctx context.Context, done, total int, results []map[string]any) error {
@@ -282,12 +81,6 @@ func (e *jobExecutor) CleanOldEventsForUser(ctx context.Context, args queue.Clea
 	return err
 }
 
-type staleUploadRow struct {
-	PartID    int
-	ChannelID int64
-	UserID    *int64
-}
-
 type staleUploadGroupKey struct {
 	ChannelID int64
 	UserID    int64
@@ -305,7 +98,7 @@ func (e *jobExecutor) CleanStaleUploadsForUser(ctx context.Context, args queue.C
 		return err
 	}
 
-	rows, err := listStaleUploads(ctx, e.api, time.Now().UTC().Add(-retention))
+	rows, err := e.api.repo.Uploads.ListStale(ctx, time.Now().UTC().Add(-retention))
 	if err != nil {
 		return err
 	}
@@ -313,7 +106,7 @@ func (e *jobExecutor) CleanStaleUploadsForUser(ctx context.Context, args queue.C
 		return nil
 	}
 
-	filtered := make([]staleUploadRow, 0, len(rows))
+	filtered := make([]repositories.StaleUpload, 0, len(rows))
 	for _, row := range rows {
 		if row.UserID != nil && *row.UserID == args.UserID {
 			filtered = append(filtered, row)
@@ -333,7 +126,7 @@ func (e *jobExecutor) CleanStaleUploadsForUser(ctx context.Context, args queue.C
 		if err := deleteChannelMessages(ctx, &e.api.cnf.TG, key.Session, key.ChannelID, group.partIDs); err != nil {
 			return err
 		}
-		if err := deleteStaleUploads(ctx, e.api, key.ChannelID, group.userID, group.partIDs); err != nil {
+		if err := e.api.repo.Uploads.DeleteParts(ctx, key.ChannelID, group.userID, group.partIDs); err != nil {
 			return err
 		}
 	}
@@ -352,20 +145,7 @@ func parseRetentionDuration(raw string) (time.Duration, error) {
 	return retention, nil
 }
 
-func listStaleUploads(ctx context.Context, apiSvc *apiService, before time.Time) ([]staleUploadRow, error) {
-	stmt := table.Uploads.
-		SELECT(table.Uploads.PartID, table.Uploads.ChannelID, table.Uploads.UserID).
-		FROM(table.Uploads).
-		WHERE(table.Uploads.CreatedAt.LT(postgres.TimestampT(before)))
-
-	var out []staleUploadRow
-	if err := pgxV5.Query(ctx, stmt, apiSvc.repo.Pool, &out); err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func groupStaleUploads(rows []staleUploadRow, sessionByUser map[int64]string) map[staleUploadGroupKey]*staleUploadGroup {
+func groupStaleUploads(rows []repositories.StaleUpload, sessionByUser map[int64]string) map[staleUploadGroupKey]*staleUploadGroup {
 	groups := make(map[staleUploadGroupKey]*staleUploadGroup)
 	for _, row := range rows {
 		if row.UserID == nil {
@@ -386,27 +166,6 @@ func groupStaleUploads(rows []staleUploadRow, sessionByUser map[int64]string) ma
 	return groups
 }
 
-func deleteStaleUploads(ctx context.Context, apiSvc *apiService, channelID, userID int64, partIDs []int) error {
-	for _, partID := range partIDs {
-		stmt := table.Uploads.DELETE().WHERE(
-			table.Uploads.ChannelID.EQ(postgres.Int64(channelID)).
-				AND(table.Uploads.UserID.EQ(postgres.Int64(userID))).
-				AND(table.Uploads.PartID.EQ(postgres.Int(int64(partID)))),
-		)
-		if _, err := pgxV5.Exec(ctx, stmt, apiSvc.repo.Pool); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-type pendingFileRow struct {
-	ID        string
-	Parts     *string
-	ChannelID *int64
-	UserID    int64
-}
-
 type pendingFilePart struct {
 	ID int `json:"id"`
 }
@@ -423,7 +182,7 @@ type pendingFileGroup struct {
 }
 
 func (e *jobExecutor) CleanPendingFilesForUser(ctx context.Context, userID int64) error {
-	rows, err := listPendingFiles(ctx, e.api)
+	rows, err := e.api.repo.Files.ListPendingForPurge(ctx)
 	if err != nil {
 		return err
 	}
@@ -431,7 +190,7 @@ func (e *jobExecutor) CleanPendingFilesForUser(ctx context.Context, userID int64
 		return nil
 	}
 
-	filtered := make([]pendingFileRow, 0, len(rows))
+	filtered := make([]repositories.PendingFile, 0, len(rows))
 	for _, row := range rows {
 		if row.UserID == userID {
 			filtered = append(filtered, row)
@@ -452,27 +211,14 @@ func (e *jobExecutor) CleanPendingFilesForUser(ctx context.Context, userID int64
 			return err
 		}
 	}
-	if err := deletePendingFiles(ctx, e.api, userID); err != nil {
+	if err := e.api.repo.Files.DeletePendingForPurgeByUser(ctx, userID); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func listPendingFiles(ctx context.Context, apiSvc *apiService) ([]pendingFileRow, error) {
-	stmt := table.Files.
-		SELECT(table.Files.ID, table.Files.Parts, table.Files.ChannelID, table.Files.UserID).
-		FROM(table.Files).
-		WHERE(table.Files.Type.EQ(postgres.String("file")).AND(table.Files.Status.EQ(postgres.String("purge_pending"))))
-
-	var out []pendingFileRow
-	if err := pgxV5.Query(ctx, stmt, apiSvc.repo.Pool, &out); err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func groupPendingFiles(rows []pendingFileRow, sessionByUser map[int64]string) map[pendingFileGroupKey]*pendingFileGroup {
+func groupPendingFiles(rows []repositories.PendingFile, sessionByUser map[int64]string) map[pendingFileGroupKey]*pendingFileGroup {
 	groups := make(map[pendingFileGroupKey]*pendingFileGroup)
 	for _, row := range rows {
 		if row.ChannelID == nil {
@@ -501,14 +247,6 @@ func groupPendingFiles(rows []pendingFileRow, sessionByUser map[int64]string) ma
 		}
 	}
 	return groups
-}
-
-func deletePendingFiles(ctx context.Context, apiSvc *apiService, userID int64) error {
-	stmt := table.Files.DELETE().WHERE(
-		table.Files.UserID.EQ(postgres.Int64(userID)).AND(table.Files.Status.EQ(postgres.String("purge_pending"))),
-	)
-	_, err := pgxV5.Exec(ctx, stmt, apiSvc.repo.Pool)
-	return err
 }
 
 func (e *jobExecutor) workingContext(ctx context.Context, userID int64) (context.Context, error) {

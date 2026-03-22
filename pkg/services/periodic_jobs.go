@@ -183,7 +183,7 @@ func (a *apiService) PeriodicJobsUpdate(ctx context.Context, req *api.PeriodicJo
 	if err := a.syncPeriodicJobRegistry(row, periodicRegistryActionReplace); err != nil {
 		return nil, err
 	}
-	return a.PeriodicJobsGet(ctx, api.PeriodicJobsGetParams{ID: params.ID})
+	return a.PeriodicJobsGet(ctx, api.PeriodicJobsGetParams(params))
 }
 
 func (a *apiService) PeriodicJobsDelete(ctx context.Context, params api.PeriodicJobsDeleteParams) error {

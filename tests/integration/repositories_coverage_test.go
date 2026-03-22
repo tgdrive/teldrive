@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 	jetmodel "github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/model"
 	"github.com/tgdrive/teldrive/pkg/repositories"
 )
@@ -70,8 +69,8 @@ func TestRepositories_CoveragePaths(t *testing.T) {
 	if err := channelRepo.Update(ctx, 930001, repositories.ChannelUpdate{Selected: &selectedFalse, ChannelName: &channelName}); err != nil {
 		t.Fatalf("channel update: %v", err)
 	}
-	if err := channelRepo.Transaction(ctx, func(ctx context.Context, _ pgx.Tx, repo repositories.ChannelRepository) error {
-		return repo.Create(ctx, &jetmodel.Channels{UserID: uid, ChannelID: 930003, ChannelName: "c3"})
+	if err := s.repos.WithTx(ctx, func(txCtx context.Context) error {
+		return s.repos.Channels.Create(txCtx, &jetmodel.Channels{UserID: uid, ChannelID: 930003, ChannelName: "c3"})
 	}); err != nil {
 		t.Fatalf("channel tx: %v", err)
 	}
@@ -226,9 +225,9 @@ func TestRepositories_CoveragePaths(t *testing.T) {
 		t.Fatalf("expected child status trashed, got %+v", trashedChild.Status)
 	}
 
-	if err := fileRepo.Transaction(ctx, func(ctx context.Context, _ pgx.Tx, repo repositories.FileRepository) error {
+	if err := s.repos.WithTx(ctx, func(ctx context.Context) error {
 		fid := uuid.New()
-		return repo.Create(ctx, &jetmodel.Files{ID: fid, Name: "tx.txt", Type: "file", MimeType: "text/plain", UserID: uid, ParentID: rootID, Status: &active, Size: &sizeA, Category: &catDoc, Encrypted: false, CreatedAt: now, UpdatedAt: now})
+		return s.repos.Files.Create(ctx, &jetmodel.Files{ID: fid, Name: "tx.txt", Type: "file", MimeType: "text/plain", UserID: uid, ParentID: rootID, Status: &active, Size: &sizeA, Category: &catDoc, Encrypted: false, CreatedAt: now, UpdatedAt: now})
 	}); err != nil {
 		t.Fatalf("file tx: %v", err)
 	}

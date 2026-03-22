@@ -159,12 +159,19 @@ type TGUpload struct {
 	MaxRetries    int           `default:"10" description:"Maximum upload retry attempts"`
 	Retention     time.Duration `default:"7d" description:"Upload retention period"`
 }
+
+type TGMTProxy struct {
+	Addr   string `default:"" description:"MTProto proxy address in host:port format"`
+	Secret string `default:"" description:"MTProto proxy secret as hex string"`
+}
+
 type TGConfig struct {
 	RateLimit         bool          `default:"true" description:"Enable rate limiting for API calls"`
 	RateBurst         int           `default:"5" description:"Maximum burst size for rate limiting"`
 	Rate              int           `default:"100" description:"Rate limit in requests per minute"`
 	Ntp               bool          `default:"false" description:"Use NTP for time synchronization"`
 	Proxy             string        `default:"" description:"HTTP/SOCKS5 proxy URL"`
+	MTProxy           TGMTProxy     `koanf:"mtproxy"`
 	ReconnectTimeout  time.Duration `default:"5m" description:"Client reconnection timeout"`
 	PoolSize          int           `default:"8" description:"Session pool size"`
 	EnableLogging     bool          `default:"false" description:"Enable Telegram client logging (deprecated: use logging.tg.enabled instead)"`

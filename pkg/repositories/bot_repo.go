@@ -18,9 +18,13 @@ func NewJetBotRepository(pool *pgxpool.Pool) *JetBotRepository {
 	return &JetBotRepository{db: newJetDB(pool)}
 }
 
+func (r *JetBotRepository) CreateToken(ctx context.Context, userID int64, token string) error {
+	return r.Create(ctx, &model.Bots{UserID: userID, Token: token})
+}
+
 func (r *JetBotRepository) Create(ctx context.Context, bot *model.Bots) error {
 	stmt := table.Bots.INSERT(table.Bots.AllColumns).MODEL(*bot)
-	_, err := r.db.exec(ctx, stmt)
+	err := r.db.exec(ctx, stmt)
 
 	return err
 }
@@ -62,14 +66,14 @@ func (r *JetBotRepository) Delete(ctx context.Context, userID int64, token strin
 			AND(table.Bots.Token.EQ(postgres.String(token))),
 	)
 
-	_, err := r.db.exec(ctx, stmt)
+	err := r.db.exec(ctx, stmt)
 
 	return err
 }
 
 func (r *JetBotRepository) DeleteByUserID(ctx context.Context, userID int64) error {
 	stmt := table.Bots.DELETE().WHERE(table.Bots.UserID.EQ(postgres.Int64(userID)))
-	_, err := r.db.exec(ctx, stmt)
+	err := r.db.exec(ctx, stmt)
 
 	return err
 }
