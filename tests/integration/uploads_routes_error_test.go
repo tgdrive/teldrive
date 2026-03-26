@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/gotd/td/tg"
-	jetmodel "github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/model"
+	jetmodel "github.com/tgdrive/teldrive/internal/database/jet/gen/model"
 	"github.com/tgdrive/teldrive/pkg/services"
 )
 

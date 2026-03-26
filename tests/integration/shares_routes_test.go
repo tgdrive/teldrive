@@ -2,8 +2,11 @@ package integration_test
 
 import (
 	"context"
+	"net/http"
+	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/tgdrive/teldrive/internal/api"
 )
 
@@ -63,14 +66,14 @@ func TestSharesRoutes_Flow(t *testing.T) {
 		t.Fatalf("FilesListShares protected failed: %v", err)
 	}
 
-	protectedShareID := ""
+	var protectedShareID api.UUID
 	for _, sh := range shares2 {
 		if sh.Protected {
 			protectedShareID = sh.ID
 			break
 		}
 	}
-	if protectedShareID == "" {
+	if uuid.UUID(protectedShareID) == uuid.Nil {
 		t.Fatalf("expected protected share")
 	}
 
@@ -99,15 +102,32 @@ func TestSharesRoutes_Flow(t *testing.T) {
 func TestSharesRoutes_Validation(t *testing.T) {
 	s := newSuite(t)
 	ctx := context.Background()
-	public, _, _ := loginWithClient(t, s, 7205, "user7205")
+	_, _, _ = loginWithClient(t, s, 7205, "user7205")
 
-	_, err := public.SharesGetById(ctx, api.SharesGetByIdParams{ID: "bad-uuid"})
-	if statusCode(err) != 400 {
-		t.Fatalf("expected 400, got %d err=%v", statusCode(err), err)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.server.URL+"/shares/bad-uuid", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	resp, err := s.httpCli.Do(req)
+	if err != nil {
+		t.Fatalf("do request: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 400 {
+		t.Fatalf("expected 400, got %d", resp.StatusCode)
 	}
 
-	_, err = public.SharesUnlock(ctx, &api.ShareUnlock{Password: "x"}, api.SharesUnlockParams{ID: "bad-uuid"})
-	if statusCode(err) != 400 {
-		t.Fatalf("expected 400, got %d err=%v", statusCode(err), err)
+	req, err = http.NewRequestWithContext(ctx, http.MethodPost, s.server.URL+"/shares/bad-uuid/unlock", strings.NewReader(`{"password":"x"}`))
+	if err != nil {
+		t.Fatalf("new unlock request: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err = s.httpCli.Do(req)
+	if err != nil {
+		t.Fatalf("do unlock request: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 400 {
+		t.Fatalf("expected 400, got %d", resp.StatusCode)
 	}
 }

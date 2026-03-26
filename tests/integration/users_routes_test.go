@@ -5,9 +5,10 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/gotd/contrib/storage"
 	"github.com/tgdrive/teldrive/internal/api"
-	jetmodel "github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/model"
+	jetmodel "github.com/tgdrive/teldrive/internal/database/jet/gen/model"
 	"github.com/tgdrive/teldrive/pkg/services"
 )
 
@@ -134,7 +135,7 @@ func TestUsersRoutes_ValidationAndRollback(t *testing.T) {
 
 	t.Run("UsersRemoveSession foreign session => 404", func(t *testing.T) {
 		_, _, foreignHash := loginWithClient(t, s, 7003, "user7003")
-		err := client.UsersRemoveSession(ctx, api.UsersRemoveSessionParams{ID: foreignHash})
+		err := client.UsersRemoveSession(ctx, api.UsersRemoveSessionParams{ID: api.UUID(uuid.MustParse(foreignHash))})
 		if statusCode(err) != 404 {
 			t.Fatalf("expected 404, got %d err=%v", statusCode(err), err)
 		}
@@ -198,11 +199,11 @@ func TestUsersRoutes_TelegramFailureScenarios(t *testing.T) {
 		s.tgMock.logoutFn = func(context.Context, services.TelegramClient) error {
 			return errors.New("logout failed")
 		}
-		err := client.UsersRemoveSession(ctx, api.UsersRemoveSessionParams{ID: sessionHash})
+		err := client.UsersRemoveSession(ctx, api.UsersRemoveSessionParams{ID: api.UUID(uuid.MustParse(sessionHash))})
 		if statusCode(err) != 200 {
 			t.Fatalf("expected 200, got %d err=%v", statusCode(err), err)
 		}
-		if _, getErr := s.repos.Sessions.GetByID(ctx, sessionHash); getErr == nil {
+		if _, getErr := s.repos.Sessions.GetByID(ctx, uuid.MustParse(sessionHash)); getErr == nil {
 			t.Fatalf("expected session to be revoked despite telegram logout failure")
 		}
 		s.tgMock.logoutFn = nil

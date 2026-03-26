@@ -140,7 +140,7 @@ func runApplication(ctx context.Context, conf *config.ServerCmdConfig) {
 		os.Exit(1)
 	}
 
-	if err := database.MigrateDB(pool); err != nil {
+	if err := database.MigrateDB(pool, true); err != nil {
 		lg.Error("failed to migrate database", zap.Error(err))
 		os.Exit(1)
 	}

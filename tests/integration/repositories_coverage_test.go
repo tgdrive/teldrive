@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	jetmodel "github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/model"
+	jetmodel "github.com/tgdrive/teldrive/internal/database/jet/gen/model"
 	"github.com/tgdrive/teldrive/pkg/repositories"
 )
 
@@ -104,11 +104,11 @@ func TestRepositories_CoveragePaths(t *testing.T) {
 	if err := sessionRepo.Create(ctx, &jetmodel.Sessions{ID: sid2, UserID: uid, TgSession: "s2", CreatedAt: created, UpdatedAt: updated}); err != nil {
 		t.Fatalf("session create2: %v", err)
 	}
-	if _, err := sessionRepo.GetByID(ctx, sid1.String()); err != nil {
+	if _, err := sessionRepo.GetByID(ctx, sid1); err != nil {
 		t.Fatalf("session by hash: %v", err)
 	}
 	rh := "rh1"
-	if err := sessionRepo.UpdateRefreshTokenHash(ctx, sid1.String(), rh); err != nil {
+	if err := sessionRepo.UpdateRefreshTokenHash(ctx, sid1, rh); err != nil {
 		t.Fatalf("session update refresh hash: %v", err)
 	}
 	if _, err := sessionRepo.GetByRefreshTokenHash(ctx, rh); err != nil {
@@ -117,7 +117,7 @@ func TestRepositories_CoveragePaths(t *testing.T) {
 	if _, err := sessionRepo.GetByUserID(ctx, uid); err != nil {
 		t.Fatalf("sessions by user: %v", err)
 	}
-	if err := sessionRepo.Revoke(ctx, sid2.String()); err != nil {
+	if err := sessionRepo.Revoke(ctx, sid2); err != nil {
 		t.Fatalf("session revoke: %v", err)
 	}
 

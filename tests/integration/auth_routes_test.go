@@ -20,7 +20,7 @@ import (
 	"github.com/gotd/td/tg"
 	"github.com/tgdrive/teldrive/internal/api"
 	authpkg "github.com/tgdrive/teldrive/internal/auth"
-	jetmodel "github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/model"
+	jetmodel "github.com/tgdrive/teldrive/internal/database/jet/gen/model"
 	"github.com/tgdrive/teldrive/pkg/services"
 	"github.com/tgdrive/teldrive/pkg/types"
 )
@@ -107,7 +107,7 @@ func TestAuthRoutes_RefreshFlowCookieRotation(t *testing.T) {
 	if _, err := s.repos.Sessions.GetByRefreshTokenHash(ctx, refreshHash); err == nil {
 		t.Fatalf("old refresh token hash should be invalidated after refresh")
 	}
-	updatedSession, err := s.repos.Sessions.GetByID(ctx, sessionID)
+	updatedSession, err := s.repos.Sessions.GetByID(ctx, uuid.MustParse(sessionID))
 	if err != nil {
 		t.Fatalf("load session after refresh: %v", err)
 	}
@@ -261,7 +261,7 @@ func TestAuthRoutes_LogoutRevokesRefreshToken(t *testing.T) {
 		t.Fatalf("AuthLogout failed: %v", err)
 	}
 
-	if _, err := s.repos.Sessions.GetByID(ctx, sessionID); err == nil {
+	if _, err := s.repos.Sessions.GetByID(ctx, uuid.MustParse(sessionID)); err == nil {
 		t.Fatalf("expected session to be revoked")
 	}
 
@@ -327,7 +327,6 @@ func TestAuthRoutes_AttemptFlow_QRSuccess(t *testing.T) {
 		UserId:    sessionVal.UserId,
 		IsPremium: sessionVal.IsPremium,
 		SessionId: sessionVal.SessionId,
-		Hash:      sessionVal.Hash,
 		Expires:   sessionVal.Expires,
 		Session:   "1BvXNhK1zA5P-FAKE-SESSION-8801",
 	}
@@ -404,7 +403,6 @@ func TestAuthRoutes_AttemptFlow_PhonePasswordSuccess(t *testing.T) {
 		UserId:    sessionVal.UserId,
 		IsPremium: sessionVal.IsPremium,
 		SessionId: sessionVal.SessionId,
-		Hash:      sessionVal.Hash,
 		Expires:   sessionVal.Expires,
 		Session:   "1BvXNhK1zA5P-FAKE-SESSION-8802",
 	}
@@ -445,7 +443,7 @@ func mustToken(t *testing.T, s *suite, userID int64, sessionID string, ttl time.
 		Name:      "Test User",
 		UserName:  "test_user",
 		IsPremium: false,
-		SessionID: sessionID,
+		SessionID: uuid.MustParse(sessionID),
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   strconv.FormatInt(userID, 10),
 			IssuedAt:  jwt.NewNumericDate(now),

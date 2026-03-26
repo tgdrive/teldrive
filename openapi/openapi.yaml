@@ -573,7 +573,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/UUID'
       responses:
         '200':
           description: The request has succeeded.
@@ -602,7 +602,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/UUID'
       responses:
         '200':
           description: The request has succeeded.
@@ -637,7 +637,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/UUID'
       responses:
         '204':
           description: There is no content to send for this request, but the headers may be useful.
@@ -663,7 +663,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/UUID'
         - $ref: '#/components/parameters/FileQuery.name'
         - $ref: '#/components/parameters/FileQuery.query'
         - $ref: '#/components/parameters/FileQuery.searchType'
@@ -710,7 +710,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/UUID'
         - name: download
           in: query
           required: false
@@ -832,7 +832,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/UUID'
       responses:
         '200':
           description: File streaming response
@@ -938,7 +938,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/UUID'
       responses:
         '200':
           description: The request has succeeded.
@@ -974,7 +974,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/UUID'
       responses:
         '204':
           description: There is no content to send for this request, but the headers may be useful.
@@ -1000,7 +1000,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/UUID'
       responses:
         '200':
           description: The request has succeeded.
@@ -1031,7 +1031,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/UUID'
       responses:
         '201':
           description: The request has succeeded and a new resource has been created as a result.
@@ -1063,12 +1063,12 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/UUID'
         - name: shareId
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/UUID'
       responses:
         '204':
           description: There is no content to send for this request, but the headers may be useful.
@@ -1099,12 +1099,12 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/UUID'
         - name: shareId
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/UUID'
       responses:
         '204':
           description: There is no content to send for this request, but the headers may be useful.
@@ -1357,7 +1357,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/UUID'
       responses:
         '200':
           description: The request has succeeded.
@@ -1386,7 +1386,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/UUID'
       responses:
         '200':
           description: The request has succeeded.
@@ -1421,7 +1421,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/UUID'
       responses:
         '204':
           description: There is no content to send for this request, but the headers may be useful.
@@ -1447,7 +1447,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/UUID'
       responses:
         '204':
           description: There is no content to send for this request, but the headers may be useful.
@@ -1473,7 +1473,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/UUID'
       responses:
         '204':
           description: There is no content to send for this request, but the headers may be useful.
@@ -1499,7 +1499,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/UUID'
       responses:
         '202':
           description: The request has been accepted for processing, but processing has not yet completed.
@@ -1529,7 +1529,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/UUID'
       responses:
         '200':
           description: The request has succeeded.
@@ -1554,7 +1554,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/UUID'
         - name: share_token
           in: cookie
           required: false
@@ -1591,12 +1591,12 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/UUID'
         - name: fileId
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/UUID'
         - name: share_token
           in: cookie
           required: false
@@ -1715,7 +1715,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/UUID'
       responses:
         '204':
           description: 'There is no content to send for this request, but the headers may be useful. '
@@ -1942,7 +1942,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/UUID'
       responses:
         '204':
           description: There is no content to send for this request, but the headers may be useful.
@@ -2237,7 +2237,7 @@ paths:
           in: path
           required: true
           schema:
-            type: string
+            $ref: '#/components/schemas/UUID'
       responses:
         '204':
           description: There is no content to send for this request, but the headers may be useful.
@@ -2367,7 +2367,7 @@ components:
       required: false
       description: Parent folder ID
       schema:
-        type: string
+        $ref: '#/components/schemas/UUID'
       explode: false
     FileQuery.path:
       name: path
@@ -2790,7 +2790,8 @@ components:
         - source
       properties:
         id:
-          type: string
+          allOf:
+            - $ref: '#/components/schemas/UUID'
           description: Event ID
           example: 123e4567-e89b-12d3-a456-426614174000
         type:
@@ -2824,7 +2825,8 @@ components:
         - type
       properties:
         id:
-          type: string
+          allOf:
+            - $ref: '#/components/schemas/UUID'
           description: File ID
           example: 123e4567-e89b-12d3-a456-426614174000
           readOnly: true
@@ -2868,7 +2870,8 @@ components:
           description: File or Folder path
           example: /documents/2023/
         parentId:
-          type: string
+          allOf:
+            - $ref: '#/components/schemas/UUID'
           description: Parent folder ID
           example: 123e4567-e89b-12d3-a456-426614174000
         size:
@@ -2914,7 +2917,7 @@ components:
         ids:
           type: array
           items:
-            type: string
+            $ref: '#/components/schemas/UUID'
           description: List of file IDs
       description: Bulk file delete request
     FileList:
@@ -2944,7 +2947,7 @@ components:
         ids:
           type: array
           items:
-            type: string
+            $ref: '#/components/schemas/UUID'
           description: File IDs to move
         destinationParent:
           type: string
@@ -2960,7 +2963,8 @@ components:
         - protected
       properties:
         id:
-          type: string
+          allOf:
+            - $ref: '#/components/schemas/UUID'
           description: Share ID
           example: 123e4567-e89b-12d3-a456-426614174000
         protected:
@@ -3023,7 +3027,8 @@ components:
           description: File name
           example: document.pdf
         parentId:
-          type: string
+          allOf:
+            - $ref: '#/components/schemas/UUID'
           description: Parent folder ID
           example: 123e4567-e89b-12d3-a456-426614174000
         channelId:
@@ -3244,7 +3249,7 @@ components:
         - updatedAt
       properties:
         id:
-          type: string
+          $ref: '#/components/schemas/UUID'
         name:
           type: string
         kind:
@@ -3281,7 +3286,7 @@ components:
         - updatedAt
       properties:
         id:
-          type: string
+          $ref: '#/components/schemas/UUID'
         name:
           type: string
         kind:
@@ -3337,7 +3342,8 @@ components:
           description: Premium subscription status
           example: true
         sessionId:
-          type: string
+          allOf:
+            - $ref: '#/components/schemas/UUID'
           description: Session ID for verification and security
           example: 123e4567-e89b-12d3-a456-426614174000
         hash:
@@ -3378,7 +3384,8 @@ components:
           description: Premium subscription status
           example: true
         sessionId:
-          type: string
+          allOf:
+            - $ref: '#/components/schemas/UUID'
           description: Session ID for verification and security
           example: 123e4567-e89b-12d3-a456-426614174000
         hash:
@@ -3410,7 +3417,8 @@ components:
         - parentId
       properties:
         id:
-          type: string
+          allOf:
+            - $ref: '#/components/schemas/UUID'
           description: File ID
           example: 123e4567-e89b-12d3-a456-426614174000
         name:
@@ -3425,11 +3433,13 @@ components:
           description: File type
           example: file
         parentId:
-          type: string
+          allOf:
+            - $ref: '#/components/schemas/UUID'
           description: Parent ID
           example: 123e4567-e89b-12d3-a456-426614174000
         destParentId:
-          type: string
+          allOf:
+            - $ref: '#/components/schemas/UUID'
           description: Destination Parent ID
           example: 123e4567-e89b-12d3-a456-426614174000
         path:
@@ -3487,6 +3497,9 @@ components:
           type: integer
         sync:
           type: boolean
+    UUID:
+      type: string
+      format: uuid
     UploadPart:
       type: object
       required:
@@ -3544,7 +3557,8 @@ components:
         - createdAt
       properties:
         id:
-          type: string
+          allOf:
+            - $ref: '#/components/schemas/UUID'
           description: API key ID
           example: 123e4567-e89b-12d3-a456-426614174000
         name:
@@ -3587,7 +3601,8 @@ components:
         - key
       properties:
         id:
-          type: string
+          allOf:
+            - $ref: '#/components/schemas/UUID'
           description: API key ID
           example: 123e4567-e89b-12d3-a456-426614174000
         name:
@@ -3641,7 +3656,8 @@ components:
         - current
       properties:
         sessionId:
-          type: string
+          allOf:
+            - $ref: '#/components/schemas/UUID'
           description: Unique identifier for the session
         hash:
           type: string

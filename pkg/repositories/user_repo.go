@@ -9,8 +9,8 @@ import (
 	"github.com/go-jet/jet/v2/qrm"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/model"
-	"github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/table"
+	"github.com/tgdrive/teldrive/internal/database/jet/gen/model"
+	"github.com/tgdrive/teldrive/internal/database/jet/gen/table"
 )
 
 type JetUserRepository struct {

@@ -14,13 +14,14 @@ import (
 	"github.com/tgdrive/teldrive/internal/api"
 	"github.com/tgdrive/teldrive/internal/auth"
 	"github.com/tgdrive/teldrive/internal/cache"
-	jetmodel "github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/model"
+	jetmodel "github.com/tgdrive/teldrive/internal/database/jet/gen/model"
 	"github.com/tgdrive/teldrive/internal/events"
 	"github.com/tgdrive/teldrive/internal/http_range"
 	"github.com/tgdrive/teldrive/internal/logging"
 	"github.com/tgdrive/teldrive/internal/md5"
 	"github.com/tgdrive/teldrive/internal/reader"
 	"github.com/tgdrive/teldrive/pkg/mapper"
+	"github.com/tgdrive/teldrive/pkg/types"
 	"go.uber.org/zap"
 )
 
@@ -123,14 +124,11 @@ func (s *rawService) FilesStream(ctx context.Context, params api.FilesStreamPara
 	if v, ok := params.Download.Get(); ok && v == api.FilesStreamDownload1 {
 		download = true
 	}
-	return s.streamFile(ctx, w, params.ID, session, params.Range.Or(""), download)
+	return s.streamFile(ctx, w, uuid.UUID(params.ID), session, params.Range.Or(""), download)
 }
 
 func (s *rawService) SharesStream(ctx context.Context, params api.SharesStreamParams, w http.ResponseWriter) error {
-	if _, err := uuid.Parse(params.ID); err != nil {
-		return &apiError{err: err, code: http.StatusBadRequest}
-	}
-	share, err := s.api.validFileShare(ctx, params.ID, params.ShareToken.Or(""))
+	share, err := s.api.validFileShare(ctx, uuid.UUID(params.ID), params.ShareToken.Or(""))
 	if err != nil {
 		return err
 	}
@@ -139,17 +137,13 @@ func (s *rawService) SharesStream(ctx context.Context, params api.SharesStreamPa
 	if v, ok := params.Download.Get(); ok && v == api.SharesStreamDownload1 {
 		download = true
 	}
-	return s.streamFile(ctx, w, params.FileId, session, "", download)
+	return s.streamFile(ctx, w, uuid.UUID(params.FileId), session, "", download)
 }
 
-func (s *rawService) streamFile(ctx context.Context, w http.ResponseWriter, fileID string, session *jetmodel.Sessions, rawRange string, download bool) error {
-	logger := logging.Component("FILE").With(zap.String("file_id", fileID), zap.Int64("user_id", session.UserID))
+func (s *rawService) streamFile(ctx context.Context, w http.ResponseWriter, fileID uuid.UUID, session *jetmodel.Sessions, rawRange string, download bool) error {
+	logger := logging.Component("FILE").With(zap.String("file_id", fileID.String()), zap.Int64("user_id", session.UserID))
 	file, err := cache.Fetch(ctx, s.api.cache, cache.Key("files", fileID), 0, func() (*jetmodel.Files, error) {
-		id, err := uuid.Parse(fileID)
-		if err != nil {
-			return nil, err
-		}
-		return s.api.repo.Files.GetByID(ctx, id)
+		return s.api.repo.Files.GetByID(ctx, fileID)
 	})
 	if err != nil {
 		return &apiError{err: err, code: http.StatusBadRequest}
@@ -191,7 +185,7 @@ func (s *rawService) streamFile(ctx context.Context, w http.ResponseWriter, file
 	contentLength := end - start + 1
 	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("Content-Length", strconv.FormatInt(contentLength, 10))
-	w.Header().Set("ETag", fmt.Sprintf("\"%s\"", md5.FromString(fileID+strconv.FormatInt(*file.Size, 10))))
+	w.Header().Set("ETag", fmt.Sprintf("\"%s\"", md5.FromString(fileID.String()+strconv.FormatInt(*file.Size, 10))))
 	w.Header().Set("Last-Modified", file.UpdatedAt.UTC().Format(http.TimeFormat))
 	disposition := "inline"
 	if download {
@@ -241,7 +235,7 @@ func (s *rawService) streamFile(ctx context.Context, w http.ResponseWriter, file
 		if file.ChannelID == nil {
 			return fmt.Errorf("missing channel id")
 		}
-		parts, err := getParts(ctx, s.api.telegram, client, s.api.cache, file.ID.String(), *file.ChannelID, fileParts(file.Parts), file.Encrypted)
+		parts, err := s.fetchParts(ctx, client, file.ID.String(), *file.ChannelID, mapper.ToAPIParts(file.Parts), file.Encrypted)
 		if err != nil {
 			return err
 		}
@@ -260,4 +254,23 @@ func (s *rawService) streamFile(ctx context.Context, w http.ResponseWriter, file
 		return nil
 	}
 	return s.api.telegram.RunWithAuth(ctx, client, token, func(ctx context.Context) error { return handleStream() })
+}
+
+func (s *rawService) fetchParts(ctx context.Context, client TelegramClient, fileID string, channelID int64, fileParts []api.Part, encrypted bool) ([]types.Part, error) {
+	return cache.Fetch(ctx, s.api.cache, cache.KeyFileMessages(fileID), 60*time.Minute, func() ([]types.Part, error) {
+		parts, err := s.api.telegram.GetParts(ctx, client, channelID, fileParts, encrypted)
+		if err != nil {
+			return nil, err
+		}
+
+		if len(parts) != len(fileParts) {
+			logger := logging.Component("FILE")
+			logger.Error("parts.mismatch",
+				zap.String("file_id", fileID),
+				zap.Int("expected", len(fileParts)),
+				zap.Int("actual", len(parts)))
+			return nil, fmt.Errorf("file parts mismatch")
+		}
+		return parts, nil
+	})
 }

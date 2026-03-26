@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/riverqueue/river"
-	"github.com/tgdrive/teldrive/internal/api"
 	"github.com/tgdrive/teldrive/internal/auth"
 	"github.com/tgdrive/teldrive/internal/config"
 	internalduration "github.com/tgdrive/teldrive/internal/duration"
@@ -23,15 +22,6 @@ type jobExecutor struct {
 
 func NewJobExecutor(apiSvc *apiService) queue.Executor {
 	return &jobExecutor{api: apiSvc}
-}
-
-func (e *jobExecutor) Restore(ctx context.Context, userID int64, item queue.JobItem) error {
-	workingCtx, err := e.workingContext(ctx, userID)
-	if err != nil {
-		return err
-	}
-
-	return e.api.FilesRestore(workingCtx, api.FilesRestoreParams{ID: item.ID})
 }
 
 func (e *jobExecutor) resolveUploadChannel(ctx context.Context, userID int64) (int64, error) {

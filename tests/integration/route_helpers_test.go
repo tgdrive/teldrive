@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/tgdrive/teldrive/internal/api"
 	authpkg "github.com/tgdrive/teldrive/internal/auth"
 )
@@ -40,7 +41,7 @@ func loginWithClient(t *testing.T, s *suite, userID int64, username string) (*ap
 		t.Fatalf("decode token claims failed: %v", err)
 	}
 
-	return public, s.newClientWithToken(token), claims.SessionID
+	return public, s.newClientWithToken(token), uuid.UUID(claims.SessionID).String()
 }
 
 func loginAndGetToken(t *testing.T, s *suite, userID int64, username string) string {

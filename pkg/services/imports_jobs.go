@@ -15,7 +15,7 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
 	"github.com/tgdrive/teldrive/internal/api"
-	jetmodel "github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/model"
+	jetmodel "github.com/tgdrive/teldrive/internal/database/jet/gen/model"
 	"github.com/tgdrive/teldrive/internal/logging"
 	"github.com/tgdrive/teldrive/pkg/queue"
 	"github.com/tgdrive/teldrive/pkg/remotes"
@@ -93,7 +93,7 @@ func (e *jobExecutor) SyncRun(ctx context.Context, args queue.SyncRunJobArgs, jo
 				return err
 			}
 			for _, id := range ids {
-				if err := e.api.FilesDeleteById(workingCtx, api.FilesDeleteByIdParams{ID: id}); err != nil {
+				if err := e.api.FilesDeleteById(workingCtx, api.FilesDeleteByIdParams{ID: api.UUID(uuid.MustParse(id))}); err != nil {
 					return err
 				}
 				deleted++
@@ -636,7 +636,7 @@ func (e *jobExecutor) extraDestinationFileIDs(ctx context.Context, destinationRo
 				continue
 			}
 			if _, ok := sourceRel[rel]; !ok {
-				ids = append(ids, item.ID.Value)
+				ids = append(ids, uuid.UUID(item.ID.Value).String())
 			}
 		}
 		if !res.Meta.NextCursor.IsSet() || res.Meta.NextCursor.Value == "" {

@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/model"
+	"github.com/tgdrive/teldrive/internal/database/jet/gen/model"
 )
 
 func TestBuilder_Build_ListByParentID(t *testing.T) {
@@ -282,8 +282,11 @@ func TestBuilder_Build_InvalidCursor(t *testing.T) {
 			}
 
 			stmt, encoder, err := builder.Build(query)
-			if err != nil && tt.cursor != "" {
+			if err != nil && tt.cursor != "" && tt.name == "empty" {
 				t.Errorf("Build() unexpected error = %v", err)
+			}
+			if err == nil && tt.cursor != "" && tt.name != "empty" {
+				t.Error("Build() should return error for invalid cursor")
 			}
 
 			if tt.cursor != "" {

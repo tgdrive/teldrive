@@ -9,6 +9,7 @@ package model
 
 import (
 	"github.com/google/uuid"
+	"github.com/tgdrive/teldrive/internal/database/types"
 	"time"
 )
 
@@ -17,7 +18,7 @@ type PeriodicJobs struct {
 	UserID         int64
 	Name           string
 	Kind           string
-	Args           string
+	Args           *types.JSONB[any]
 	CronExpression string
 	Enabled        bool
 	System         bool

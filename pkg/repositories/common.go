@@ -29,20 +29,28 @@ func newJetDB(pool *pgxpool.Pool) jetDB {
 	return jetDB{ex: pool}
 }
 
+func (d jetDB) executor(ctx context.Context) dbExecutor {
+	if tx, ok := txFromContext(ctx); ok {
+		return tx
+	}
+
+	return d.ex
+}
+
 // query executes a Jet statement and scans results into dest.
 func (d jetDB) query(ctx context.Context, stmt postgres.Statement, dest any) error {
-	return pgxV5.Query(ctx, stmt, d.ex, dest)
+	return pgxV5.Query(ctx, stmt, d.executor(ctx), dest)
 }
 
 // exec executes a Jet statement.
 func (d jetDB) exec(ctx context.Context, stmt postgres.Statement) error {
-	_, err := pgxV5.Exec(ctx, stmt, d.ex)
+	_, err := pgxV5.Exec(ctx, stmt, d.executor(ctx))
 	return normalizeDBError(err)
 }
 
 // execTag executes a Jet statement and returns the command tag.
 func (d jetDB) execTag(ctx context.Context, stmt postgres.Statement) (pgconn.CommandTag, error) {
-	tag, err := pgxV5.Exec(ctx, stmt, d.ex)
+	tag, err := pgxV5.Exec(ctx, stmt, d.executor(ctx))
 	return tag, normalizeDBError(err)
 }
 

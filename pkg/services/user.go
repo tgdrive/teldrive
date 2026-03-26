@@ -10,10 +10,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/tgdrive/teldrive/internal/api"
 	"github.com/tgdrive/teldrive/internal/auth"
 	"github.com/tgdrive/teldrive/internal/cache"
-	jetmodel "github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/model"
+	jetmodel "github.com/tgdrive/teldrive/internal/database/jet/gen/model"
 	"github.com/tgdrive/teldrive/internal/logging"
 	"github.com/tgdrive/teldrive/internal/tgstorage"
 	"github.com/tgdrive/teldrive/pkg/repositories"
@@ -163,7 +164,7 @@ func (a *apiService) UsersListSessions(ctx context.Context) ([]api.UserSession, 
 
 		for _, session := range dbSessions {
 
-			s := api.UserSession{SessionId: session.ID.String(),
+			s := api.UserSession{SessionId: api.UUID(session.ID),
 				CreatedAt: session.CreatedAt.UTC(),
 				Current:   session.TgSession == userSession}
 
@@ -231,7 +232,7 @@ func (a *apiService) UsersListApiKeys(ctx context.Context) ([]api.UserApiKey, er
 	out := make([]api.UserApiKey, 0, len(keys))
 	for _, key := range keys {
 		item := api.UserApiKey{
-			ID:        key.ID.String(),
+			ID:        api.UUID(key.ID),
 			Name:      key.Name,
 			CreatedAt: key.CreatedAt.UTC(),
 		}
@@ -280,7 +281,7 @@ func (a *apiService) UsersCreateApiKey(ctx context.Context, req *api.UserApiKeyC
 	}
 
 	res := &api.UserApiKeyCreateResult{}
-	res.ID = row.ID.String()
+	res.ID = api.UUID(row.ID)
 	res.Name = row.Name
 	res.Key = keyValue
 	res.CreatedAt = row.CreatedAt.UTC()
@@ -293,7 +294,7 @@ func (a *apiService) UsersCreateApiKey(ctx context.Context, req *api.UserApiKeyC
 
 func (a *apiService) UsersRemoveApiKey(ctx context.Context, params api.UsersRemoveApiKeyParams) error {
 	userID := auth.User(ctx)
-	if err := a.repo.APIKeys.Revoke(ctx, userID, params.ID); err != nil {
+	if err := a.repo.APIKeys.Revoke(ctx, userID, uuid.UUID(params.ID)); err != nil {
 		if errors.Is(err, repositories.ErrNotFound) {
 			return &apiError{err: errors.New("api key not found"), code: 404}
 		}
@@ -307,14 +308,14 @@ func (a *apiService) UsersRemoveApiKey(ctx context.Context, params api.UsersRemo
 func (a *apiService) UsersRemoveSession(ctx context.Context, params api.UsersRemoveSessionParams) error {
 	userId := auth.User(ctx)
 
-	session, err := a.repo.Sessions.GetByID(ctx, params.ID)
+	session, err := a.repo.Sessions.GetByID(ctx, uuid.UUID(params.ID))
 	if err != nil {
 		return &apiError{err: err}
 	}
 	if session.UserID != userId {
 		return &apiError{err: errors.New("session not found"), code: 404}
 	}
-	if err := a.repo.Sessions.Revoke(ctx, session.ID.String()); err != nil {
+	if err := a.repo.Sessions.Revoke(ctx, session.ID); err != nil {
 		return &apiError{err: err}
 	}
 	a.cache.Delete(ctx, cache.KeySessionID(session.ID.String()), cache.KeyUserSessions(userId))

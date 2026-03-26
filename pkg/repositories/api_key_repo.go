@@ -10,8 +10,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/model"
-	"github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/table"
+	"github.com/tgdrive/teldrive/internal/database/jet/gen/model"
+	"github.com/tgdrive/teldrive/internal/database/jet/gen/table"
 )
 
 type JetAPIKeyRepository struct {
@@ -88,17 +88,13 @@ func (r *JetAPIKeyRepository) TouchLastUsed(ctx context.Context, id uuid.UUID, u
 	return err
 }
 
-func (r *JetAPIKeyRepository) Revoke(ctx context.Context, userID int64, id string) error {
-	idUUID, err := uuid.Parse(id)
-	if err != nil {
-		return ErrNotFound
-	}
+func (r *JetAPIKeyRepository) Revoke(ctx context.Context, userID int64, id uuid.UUID) error {
 	now := time.Now().UTC()
 
 	stmt := table.APIKeys.UPDATE(table.APIKeys.RevokedAt, table.APIKeys.UpdatedAt).
 		SET(postgres.TimestampT(now), postgres.TimestampT(now)).
 		WHERE(
-			table.APIKeys.ID.EQ(postgres.UUID(idUUID)).
+			table.APIKeys.ID.EQ(postgres.UUID(id)).
 				AND(table.APIKeys.UserID.EQ(postgres.Int64(userID))).
 				AND(table.APIKeys.RevokedAt.IS_NULL()),
 		)

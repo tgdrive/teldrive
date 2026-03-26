@@ -10,8 +10,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/model"
-	"github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/table"
+	"github.com/tgdrive/teldrive/internal/database/jet/gen/model"
+	"github.com/tgdrive/teldrive/internal/database/jet/gen/table"
 )
 
 type JetSessionRepository struct {
@@ -39,13 +39,9 @@ func (r *JetSessionRepository) Create(ctx context.Context, session *model.Sessio
 	return err
 }
 
-func (r *JetSessionRepository) GetByID(ctx context.Context, id string) (*model.Sessions, error) {
-	idUUID, err := uuid.Parse(id)
-	if err != nil {
-		return nil, ErrNotFound
-	}
+func (r *JetSessionRepository) GetByID(ctx context.Context, id uuid.UUID) (*model.Sessions, error) {
 	stmt := table.Sessions.SELECT(table.Sessions.AllColumns).FROM(table.Sessions).WHERE(
-		table.Sessions.ID.EQ(postgres.UUID(idUUID)).AND(table.Sessions.RevokedAt.IS_NULL()),
+		table.Sessions.ID.EQ(postgres.UUID(id)).AND(table.Sessions.RevokedAt.IS_NULL()),
 	)
 
 	var out model.Sessions
@@ -92,30 +88,22 @@ func (r *JetSessionRepository) GetByUserID(ctx context.Context, userID int64) ([
 	return out, nil
 }
 
-func (r *JetSessionRepository) UpdateRefreshTokenHash(ctx context.Context, id string, refreshTokenHash string) error {
-	idUUID, err := uuid.Parse(id)
-	if err != nil {
-		return ErrNotFound
-	}
+func (r *JetSessionRepository) UpdateRefreshTokenHash(ctx context.Context, id uuid.UUID, refreshTokenHash string) error {
 	now := time.Now().UTC()
 	stmt := table.Sessions.UPDATE(table.Sessions.RefreshTokenHash, table.Sessions.UpdatedAt).
 		SET(postgres.String(refreshTokenHash), postgres.TimestampT(now)).
-		WHERE(table.Sessions.ID.EQ(postgres.UUID(idUUID)).AND(table.Sessions.RevokedAt.IS_NULL()))
-	err = r.db.exec(ctx, stmt)
+		WHERE(table.Sessions.ID.EQ(postgres.UUID(id)).AND(table.Sessions.RevokedAt.IS_NULL()))
+	err := r.db.exec(ctx, stmt)
 
 	return err
 }
 
-func (r *JetSessionRepository) Revoke(ctx context.Context, id string) error {
-	idUUID, err := uuid.Parse(id)
-	if err != nil {
-		return ErrNotFound
-	}
+func (r *JetSessionRepository) Revoke(ctx context.Context, id uuid.UUID) error {
 	now := time.Now().UTC()
 	stmt := table.Sessions.UPDATE(table.Sessions.RevokedAt, table.Sessions.UpdatedAt, table.Sessions.RefreshTokenHash).
 		SET(postgres.TimestampT(now), postgres.TimestampT(now), postgres.NULL).
-		WHERE(table.Sessions.ID.EQ(postgres.UUID(idUUID)).AND(table.Sessions.RevokedAt.IS_NULL()))
-	err = r.db.exec(ctx, stmt)
+		WHERE(table.Sessions.ID.EQ(postgres.UUID(id)).AND(table.Sessions.RevokedAt.IS_NULL()))
+	err := r.db.exec(ctx, stmt)
 
 	return err
 }

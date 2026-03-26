@@ -9,6 +9,7 @@ package model
 
 import (
 	"github.com/google/uuid"
+	"github.com/tgdrive/teldrive/internal/database/types"
 	"time"
 )
 
@@ -20,7 +21,7 @@ type Files struct {
 	UserID    int64
 	Status    *string
 	ChannelID *int64
-	Parts     *string
+	Parts     *types.JSONB[types.Parts]
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	Encrypted bool

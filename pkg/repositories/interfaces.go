@@ -7,7 +7,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/model"
+	"github.com/tgdrive/teldrive/internal/database/jet/gen/model"
+	dbtypes "github.com/tgdrive/teldrive/internal/database/types"
 )
 
 var (
@@ -68,7 +69,7 @@ type FileUpdate struct {
 	Status    *string
 	ParentID  *uuid.UUID
 	ChannelID *int64
-	Parts     *string
+	Parts     *dbtypes.JSONB[dbtypes.Parts]
 	Encrypted *bool
 	Category  *string
 	Hash      *string
@@ -96,13 +97,17 @@ type UserUpdate struct {
 // FileRepository defines operations for file persistence
 type FileRepository interface {
 	Create(ctx context.Context, file *model.Files) error
+	UpsertActive(ctx context.Context, file *model.Files) error
 	GetByID(ctx context.Context, id uuid.UUID) (*model.Files, error)
 	GetByIDAndUser(ctx context.Context, id uuid.UUID, userID int64) (*model.Files, error)
 	GetByChannelID(ctx context.Context, channelID int64) ([]model.Files, error)
 	GetActiveByNameAndParent(ctx context.Context, userID int64, name string, parentID *uuid.UUID) (*model.Files, error)
 	Update(ctx context.Context, id uuid.UUID, update FileUpdate) error
+	UpdateReturning(ctx context.Context, id uuid.UUID, update FileUpdate) (*model.Files, error)
 	MoveSingle(ctx context.Context, id uuid.UUID, userID int64, parentID *uuid.UUID, name *string) error
+	MoveSingleReturning(ctx context.Context, id uuid.UUID, userID int64, parentID *uuid.UUID, name *string) (*model.Files, error)
 	MoveBulk(ctx context.Context, ids []uuid.UUID, userID int64, parentID *uuid.UUID) error
+	MoveBulkReturning(ctx context.Context, ids []uuid.UUID, userID int64, parentID *uuid.UUID) ([]model.Files, error)
 	Delete(ctx context.Context, ids []uuid.UUID) error
 	ResolvePathID(ctx context.Context, path string, userID int64) (*uuid.UUID, error)
 	List(ctx context.Context, params FileQueryParams) ([]model.Files, error)
@@ -111,17 +116,18 @@ type FileRepository interface {
 	DeletePendingForPurgeByUser(ctx context.Context, userID int64) error
 	CategoryStats(ctx context.Context, userID int64) ([]CategoryStats, error)
 	DeleteBulk(ctx context.Context, fileIDs []uuid.UUID, userID int64, targetStatus string) error
+	DeleteBulkReturning(ctx context.Context, fileIDs []uuid.UUID, userID int64, targetStatus string) ([]model.Files, error)
 	CreateDirectories(ctx context.Context, userID int64, path string) (*uuid.UUID, error)
 }
 
 // SessionRepository defines operations for session persistence
 type SessionRepository interface {
 	Create(ctx context.Context, session *model.Sessions) error
-	GetByID(ctx context.Context, id string) (*model.Sessions, error)
+	GetByID(ctx context.Context, id uuid.UUID) (*model.Sessions, error)
 	GetByRefreshTokenHash(ctx context.Context, refreshTokenHash string) (*model.Sessions, error)
 	GetByUserID(ctx context.Context, userID int64) ([]model.Sessions, error)
-	UpdateRefreshTokenHash(ctx context.Context, id string, refreshTokenHash string) error
-	Revoke(ctx context.Context, id string) error
+	UpdateRefreshTokenHash(ctx context.Context, id uuid.UUID, refreshTokenHash string) error
+	Revoke(ctx context.Context, id uuid.UUID) error
 }
 
 // APIKeyRepository defines operations for API key persistence
@@ -130,7 +136,7 @@ type APIKeyRepository interface {
 	ListByUserID(ctx context.Context, userID int64) ([]model.APIKeys, error)
 	GetActiveByTokenHash(ctx context.Context, tokenHash string, now time.Time) (*model.APIKeys, error)
 	TouchLastUsed(ctx context.Context, id uuid.UUID, usedAt time.Time) error
-	Revoke(ctx context.Context, userID int64, id string) error
+	Revoke(ctx context.Context, userID int64, id uuid.UUID) error
 }
 
 // UploadRepository defines operations for upload part persistence

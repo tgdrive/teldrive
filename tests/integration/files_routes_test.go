@@ -2,9 +2,11 @@ package integration_test
 
 import (
 	"context"
+	"net/http"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/tgdrive/teldrive/internal/api"
 )
 
@@ -17,7 +19,7 @@ func TestFilesRoutes_CRUDAndOperations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FilesCreate folder failed: %v", err)
 	}
-	if !created.ID.IsSet() || created.ID.Value == "" {
+	if !created.ID.IsSet() || uuid.UUID(created.ID.Value) == uuid.Nil {
 		t.Fatalf("created folder id is empty")
 	}
 
@@ -88,7 +90,7 @@ func TestFilesRoutes_CRUDAndOperations(t *testing.T) {
 		t.Fatalf("FilesCreate archive failed: %v", err)
 	}
 
-	updatedParent, err := client.FilesUpdate(ctx, &api.FileUpdate{ParentId: api.NewOptString(archive.ID.Value)}, api.FilesUpdateParams{ID: created.ID.Value})
+	updatedParent, err := client.FilesUpdate(ctx, &api.FileUpdate{ParentId: api.NewOptUUID(archive.ID.Value)}, api.FilesUpdateParams{ID: created.ID.Value})
 	if err != nil {
 		t.Fatalf("FilesUpdate parent failed: %v", err)
 	}
@@ -128,10 +130,10 @@ func TestFilesRoutes_CRUDAndOperations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FilesCreate purge file failed: %v", err)
 	}
-	if err := client.FilesDelete(ctx, &api.FileDelete{Ids: []string{purgeFile.ID.Value}}, api.FilesDeleteParams{}); err != nil {
+	if err := client.FilesDelete(ctx, &api.FileDelete{Ids: []api.UUID{purgeFile.ID.Value}}, api.FilesDeleteParams{}); err != nil {
 		t.Fatalf("FilesDelete trash failed: %v", err)
 	}
-	if err := client.FilesDelete(ctx, &api.FileDelete{Ids: []string{purgeFile.ID.Value}}, api.FilesDeleteParams{Force: api.NewOptBool(true)}); err != nil {
+	if err := client.FilesDelete(ctx, &api.FileDelete{Ids: []api.UUID{purgeFile.ID.Value}}, api.FilesDeleteParams{Force: api.NewOptBool(true)}); err != nil {
 		t.Fatalf("FilesDelete force failed: %v", err)
 	}
 
@@ -143,9 +145,17 @@ func TestFilesRoutes_Validation(t *testing.T) {
 	_, client, _ := loginWithClient(t, s, 7203, "user7203")
 
 	t.Run("FilesGetById invalid UUID => 400", func(t *testing.T) {
-		_, err := client.FilesGetById(ctx, api.FilesGetByIdParams{ID: "bad-uuid"})
-		if statusCode(err) != 400 {
-			t.Fatalf("expected 400, got %d err=%v", statusCode(err), err)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, s.server.URL+"/files/bad-uuid", nil)
+		if err != nil {
+			t.Fatalf("new request: %v", err)
+		}
+		resp, err := s.httpCli.Do(req)
+		if err != nil {
+			t.Fatalf("do request: %v", err)
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != 400 {
+			t.Fatalf("expected 400, got %d", resp.StatusCode)
 		}
 	})
 

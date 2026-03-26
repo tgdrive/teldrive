@@ -103,7 +103,6 @@ type CleanPendingFilesArgs struct {
 func (CleanPendingFilesArgs) Kind() string { return JobKindCleanPendingFile }
 
 type Executor interface {
-	Restore(ctx context.Context, userID int64, item JobItem) error
 	SyncRun(ctx context.Context, args SyncRunJobArgs, jobID int64) error
 	SyncTransfer(ctx context.Context, args SyncTransferJobArgs) error
 	SyncFinalize(ctx context.Context, args SyncFinalizeJobArgs) error

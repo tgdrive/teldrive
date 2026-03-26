@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -14,7 +13,8 @@ import (
 	"github.com/tgdrive/teldrive/internal/auth"
 	"github.com/tgdrive/teldrive/internal/cache"
 	"github.com/tgdrive/teldrive/internal/category"
-	jetmodel "github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/model"
+	jetmodel "github.com/tgdrive/teldrive/internal/database/jet/gen/model"
+	"github.com/tgdrive/teldrive/internal/database/types"
 	"github.com/tgdrive/teldrive/internal/events"
 	"github.com/tgdrive/teldrive/internal/hash"
 	"github.com/tgdrive/teldrive/internal/utils"
@@ -32,6 +32,22 @@ var (
 func isUUID(str string) bool {
 	_, err := uuid.Parse(str)
 	return err == nil
+}
+
+func uploadTreeHash(uploads []jetmodel.Uploads) *string {
+	var allBlockHashes []byte
+	for _, upload := range uploads {
+		if upload.BlockHashes != nil {
+			allBlockHashes = append(allBlockHashes, (*upload.BlockHashes)...)
+		}
+	}
+
+	if len(allBlockHashes) == 0 {
+		return nil
+	}
+
+	treeHash := hash.SumToHex(hash.ComputeTreeHash(allBlockHashes))
+	return &treeHash
 }
 
 func (a *apiService) FilesCategoryStats(ctx context.Context) ([]api.CategoryStats, error) {
@@ -54,12 +70,7 @@ func (a *apiService) FilesCopy(ctx context.Context, req *api.FileCopy, params ap
 		return nil, &apiError{err: err}
 	}
 
-	fileID, err := uuid.Parse(params.ID)
-	if err != nil {
-		return nil, &apiError{err: err, code: 400}
-	}
-
-	file, err := a.repo.Files.GetByIDAndUser(ctx, fileID, userId)
+	file, err := a.repo.Files.GetByIDAndUser(ctx, uuid.UUID(params.ID), userId)
 	if err != nil {
 		if errors.Is(err, repositories.ErrNotFound) {
 			return nil, &apiError{err: errors.New("file not found"), code: 404}
@@ -67,8 +78,11 @@ func (a *apiService) FilesCopy(ctx context.Context, req *api.FileCopy, params ap
 		return nil, &apiError{err: err}
 	}
 
-	sourceParts := fileParts(file.Parts)
-	newIds := []api.Part{}
+	var sourceParts, newIds []api.Part
+
+	for _, part := range file.Parts.Data {
+		sourceParts = append(sourceParts, api.Part{ID: part.ID, Salt: api.NewOptString(part.Salt)})
+	}
 
 	channelId, err := a.channelManager.CurrentChannel(ctx, userId)
 	if err != nil {
@@ -111,17 +125,16 @@ func (a *apiService) FilesCopy(ctx context.Context, req *api.FileCopy, params ap
 		return nil, &apiError{err: err, code: 400}
 	}
 
-	partsJSON, err := marshalParts(newIds)
-	if err != nil {
-		return nil, &apiError{err: err}
-	}
-
 	now := time.Now().UTC()
 	updatedAt := now
 	if req.UpdatedAt.IsSet() && !req.UpdatedAt.Value.IsZero() {
 		updatedAt = req.UpdatedAt.Value
 	}
 
+	var dbParts types.Parts
+	for _, part := range newIds {
+		dbParts = append(dbParts, types.Part{ID: part.ID, Salt: part.Salt.Value})
+	}
 	newFile := &jetmodel.Files{
 		ID:        uuid.New(),
 		Name:      req.NewName.Or(file.Name),
@@ -131,7 +144,7 @@ func (a *apiService) FilesCopy(ctx context.Context, req *api.FileCopy, params ap
 		UserID:    userId,
 		Status:    utils.Ptr("active"),
 		ChannelID: &channelId,
-		Parts:     partsJSON,
+		Parts:     utils.Ptr(types.NewJSONB(dbParts)),
 		Encrypted: file.Encrypted,
 		Category:  file.Category,
 		ParentID:  &parentUUID,
@@ -164,7 +177,7 @@ func (a *apiService) FilesCreate(ctx context.Context, fileIn *api.File) (*api.Fi
 		uploads   []jetmodel.Uploads
 	)
 
-	if fileIn.Path.Value == "" && fileIn.ParentId.Value == "" {
+	if fileIn.Path.Value == "" && !fileIn.ParentId.IsSet() {
 		return nil, &apiError{err: errors.New("parent id or path is required"), code: 409}
 	}
 
@@ -173,19 +186,16 @@ func (a *apiService) FilesCreate(ctx context.Context, fileIn *api.File) (*api.Fi
 
 	}
 
-	if path != "" && fileIn.ParentId.Value == "" {
+	if path != "" && !fileIn.ParentId.IsSet() {
 		resolvedID, err := a.repo.Files.ResolvePathID(ctx, path, userId)
 		if err != nil {
 			return nil, &apiError{err: err, code: 404}
 		}
 		parentID = resolvedID
 
-	} else if fileIn.ParentId.Value != "" {
-		parsedParentID, err := uuid.Parse(fileIn.ParentId.Value)
-		if err != nil {
-			return nil, &apiError{err: err, code: 400}
-		}
-		parentID = &parsedParentID
+	} else if fileIn.ParentId.IsSet() {
+		parentUUID := uuid.UUID(fileIn.ParentId.Value)
+		parentID = &parentUUID
 	}
 
 	fileDB := jetmodel.Files{ID: uuid.New(), UserID: userId, Encrypted: fileIn.Encrypted.Value}
@@ -210,26 +220,22 @@ func (a *apiService) FilesCreate(ctx context.Context, fileIn *api.File) (*api.Fi
 		fileDB.MimeType = fileIn.MimeType.Value
 		fileDB.Category = utils.Ptr(string(category.GetCategory(fileIn.Name)))
 
-		// Handle parts - either from direct input or fetch by uploadId
 		var parts []api.Part
 		if len(fileIn.Parts) > 0 {
 			parts = fileIn.Parts
 		} else if fileIn.UploadId.Value != "" {
 			uploadId = fileIn.UploadId.Value
-			uploadsFetched, err := a.repo.Uploads.GetByUploadID(ctx, uploadId)
+			fetchedUploads, err := a.repo.Uploads.GetByUploadID(ctx, uploadId)
 			if err != nil {
 				return nil, &apiError{err: err}
 			}
-			uploads = uploadsFetched
-
-			// Validate parts: sum of sizes must equal file size and no partId should be 0
+			uploads = fetchedUploads
 			for _, upload := range uploads {
 				if upload.PartID == 0 {
 					return nil, &apiError{err: errors.New("invalid part: part_id cannot be zero"), code: 400}
 				}
 			}
 
-			// Convert uploads to parts
 			for _, upload := range uploads {
 				parts = append(parts, api.Part{
 					ID: int(upload.PartID),
@@ -241,27 +247,12 @@ func (a *apiService) FilesCreate(ctx context.Context, fileIn *api.File) (*api.Fi
 		}
 
 		if len(parts) > 0 {
-			partsJSON, err := marshalParts(mapParts(parts))
-			if err != nil {
-				return nil, &apiError{err: err}
-			}
-			fileDB.Parts = partsJSON
+			fileDB.Parts = mapper.ToDBPartsJSONB(parts)
 		}
 
 		// Compute BLAKE3 tree hash from block hashes if uploadId is provided
 		if uploadId != "" && len(uploads) > 0 {
-			var allBlockHashes []byte
-			for _, upload := range uploads {
-				if upload.BlockHashes != nil {
-					allBlockHashes = append(allBlockHashes, (*upload.BlockHashes)...)
-				}
-			}
-
-			if len(allBlockHashes) > 0 {
-				treeHashBytes := hash.ComputeTreeHash(allBlockHashes)
-				treeHash := hash.SumToHex(treeHashBytes)
-				fileDB.Hash = &treeHash
-			}
+			fileDB.Hash = uploadTreeHash(uploads)
 		} else if fileIn.Size.Value == 0 {
 			// For zero-length files, compute hash of empty data
 			treeHashBytes := hash.ComputeTreeHash([]byte{})
@@ -281,37 +272,9 @@ func (a *apiService) FilesCreate(ctx context.Context, fileIn *api.File) (*api.Fi
 	}
 
 	if err := a.repo.WithTx(ctx, func(txCtx context.Context) error {
-		existing, err := a.repo.Files.GetActiveByNameAndParent(txCtx, userId, fileDB.Name, fileDB.ParentID)
-		if err == nil {
-			update := repositories.FileUpdate{
-				MimeType:  &fileDB.MimeType,
-				Category:  fileDB.Category,
-				Parts:     fileDB.Parts,
-				Size:      fileDB.Size,
-				Type:      &fileDB.Type,
-				Encrypted: &fileDB.Encrypted,
-				ChannelID: fileDB.ChannelID,
-				Status:    fileDB.Status,
-				Hash:      fileDB.Hash,
-				UpdatedAt: &fileDB.UpdatedAt,
-			}
-			if err := a.repo.Files.Update(txCtx, existing.ID, update); err != nil {
-				return err
-			}
-			refreshed, err := a.repo.Files.GetByID(txCtx, existing.ID)
-			if err != nil {
-				return err
-			}
-			fileDB = *refreshed
-		} else {
-			if !errors.Is(err, repositories.ErrNotFound) {
-				return err
-			}
-			if err := a.repo.Files.Create(txCtx, &fileDB); err != nil {
-				return err
-			}
+		if err := a.repo.Files.UpsertActive(txCtx, &fileDB); err != nil {
+			return err
 		}
-
 		if uploadId != "" {
 			if err := a.repo.Uploads.Delete(txCtx, uploadId); err != nil {
 				return err
@@ -339,10 +302,6 @@ func (a *apiService) FilesCreate(ctx context.Context, fileIn *api.File) (*api.Fi
 
 func (a *apiService) FilesCreateShare(ctx context.Context, req *api.FileShareCreate, params api.FilesCreateShareParams) error {
 	userId := auth.User(ctx)
-	fileID, err := uuid.Parse(params.ID)
-	if err != nil {
-		return &apiError{err: err, code: 400}
-	}
 
 	var fileShare jetmodel.FileShares
 
@@ -355,7 +314,7 @@ func (a *apiService) FilesCreateShare(ctx context.Context, req *api.FileShareCre
 	}
 
 	fileShare.ID = uuid.New()
-	fileShare.FileID = fileID
+	fileShare.FileID = uuid.UUID(params.ID)
 	if req.ExpiresAt.IsSet() {
 		fileShare.ExpiresAt = utils.Ptr(req.ExpiresAt.Value)
 	}
@@ -369,12 +328,10 @@ func (a *apiService) FilesCreateShare(ctx context.Context, req *api.FileShareCre
 }
 
 func (a *apiService) FilesDeleteById(ctx context.Context, params api.FilesDeleteByIdParams) error {
-	req := &api.FileDelete{Ids: []string{params.ID}}
+
 	userId := auth.User(ctx)
 
-	if len(req.Ids) == 0 {
-		return &apiError{err: errors.New("ids should not be empty"), code: 409}
-	}
+	req := &api.FileDelete{Ids: []api.UUID{params.ID}}
 
 	var fileDB struct {
 		ID       string
@@ -383,15 +340,16 @@ func (a *apiService) FilesDeleteById(ctx context.Context, params api.FilesDelete
 		ParentID *string
 	}
 
-	fileID, err := uuid.Parse(req.Ids[0])
-	if err != nil {
-		return &apiError{err: err, code: 400}
-	}
+	fileID := uuid.UUID(req.Ids[0])
 
-	firstFile, err := a.repo.Files.GetByID(ctx, fileID)
+	deleted, err := a.repo.Files.DeleteBulkReturning(ctx, []uuid.UUID{fileID}, userId, "trashed")
 	if err != nil {
 		return &apiError{err: err}
 	}
+	if len(deleted) == 0 {
+		return &apiError{err: repositories.ErrNotFound}
+	}
+	firstFile := deleted[0]
 	fileDB.ID = firstFile.ID.String()
 	fileDB.Type = firstFile.Type
 	fileDB.Name = firstFile.Name
@@ -400,22 +358,10 @@ func (a *apiService) FilesDeleteById(ctx context.Context, params api.FilesDelete
 		fileDB.ParentID = &pid
 	}
 
-	ids := make([]uuid.UUID, 0, len(req.Ids))
-	for _, id := range req.Ids {
-		parsedID, err := uuid.Parse(id)
-		if err != nil {
-			return &apiError{err: err, code: 400}
-		}
-		ids = append(ids, parsedID)
-	}
-
-	if err := a.repo.Files.DeleteBulk(ctx, ids, userId, "trashed"); err != nil {
-		return &apiError{err: err}
-	}
-
 	keys := []string{}
 	for _, id := range req.Ids {
-		keys = append(keys, cache.KeyFile(id), cache.KeyFileMessages(id))
+		idStr := uuid.UUID(id).String()
+		keys = append(keys, cache.KeyFile(idStr), cache.KeyFileMessages(idStr))
 	}
 	if len(keys) > 0 {
 		a.cache.Delete(ctx, keys...)
@@ -443,11 +389,7 @@ func (a *apiService) FilesDelete(ctx context.Context, req *api.FileDelete, param
 	}
 	ids := make([]uuid.UUID, 0, len(req.Ids))
 	for _, id := range req.Ids {
-		parsedID, err := uuid.Parse(id)
-		if err != nil {
-			return &apiError{err: err, code: 400}
-		}
-		ids = append(ids, parsedID)
+		ids = append(ids, uuid.UUID(id))
 	}
 
 	targetStatus := "trashed"
@@ -455,13 +397,15 @@ func (a *apiService) FilesDelete(ctx context.Context, req *api.FileDelete, param
 		targetStatus = "purge_pending"
 	}
 
-	if err := a.repo.Files.DeleteBulk(ctx, ids, userId, targetStatus); err != nil {
+	deleted, err := a.repo.Files.DeleteBulkReturning(ctx, ids, userId, targetStatus)
+	if err != nil {
 		return &apiError{err: err}
 	}
 
-	keys := make([]string, 0, len(req.Ids)*2)
-	for _, id := range req.Ids {
-		keys = append(keys, cache.KeyFile(id), cache.KeyFileMessages(id))
+	keys := make([]string, 0, len(deleted)*2)
+	for _, item := range deleted {
+		idStr := item.ID.String()
+		keys = append(keys, cache.KeyFile(idStr), cache.KeyFileMessages(idStr))
 	}
 	if len(keys) > 0 {
 		a.cache.Delete(ctx, keys...)
@@ -471,24 +415,14 @@ func (a *apiService) FilesDelete(ctx context.Context, req *api.FileDelete, param
 }
 
 func (a *apiService) FilesDeleteShare(ctx context.Context, params api.FilesDeleteShareParams) error {
-	shareID, err := uuid.Parse(params.ShareId)
-	if err != nil {
-		return &apiError{err: err, code: 400}
-	}
-
-	if err := a.repo.Shares.Delete(ctx, shareID); err != nil {
+	if err := a.repo.Shares.Delete(ctx, uuid.UUID(params.ShareId)); err != nil {
 		return &apiError{err: err}
 	}
-	a.cache.Delete(ctx, cache.KeyShare(params.ShareId))
+	a.cache.Delete(ctx, cache.KeyShare(uuid.UUID(params.ShareId).String()))
 	return nil
 }
 
 func (a *apiService) FilesEditShare(ctx context.Context, req *api.FileShareCreate, params api.FilesEditShareParams) error {
-	shareID, err := uuid.Parse(params.ShareId)
-	if err != nil {
-		return &apiError{err: err, code: 400}
-	}
-
 	update := repositories.ShareUpdate{}
 
 	if req.Password.Value != "" {
@@ -502,7 +436,7 @@ func (a *apiService) FilesEditShare(ctx context.Context, req *api.FileShareCreat
 		update.ExpiresAt = utils.Ptr(req.ExpiresAt.Value)
 	}
 
-	if err := a.repo.Shares.Update(ctx, shareID, update); err != nil {
+	if err := a.repo.Shares.Update(ctx, uuid.UUID(params.ID), update); err != nil {
 		return &apiError{err: err}
 	}
 
@@ -510,12 +444,8 @@ func (a *apiService) FilesEditShare(ctx context.Context, req *api.FileShareCreat
 }
 
 func (a *apiService) FilesGetById(ctx context.Context, params api.FilesGetByIdParams) (*api.File, error) {
-	fileID, err := uuid.Parse(params.ID)
-	if err != nil {
-		return nil, &apiError{err: err, code: 400}
-	}
 
-	file, err := a.repo.Files.GetByID(ctx, fileID)
+	file, err := a.repo.Files.GetByID(ctx, uuid.UUID(params.ID))
 	if err != nil {
 		if errors.Is(err, repositories.ErrNotFound) {
 			return nil, &apiError{err: errors.New("file not found"), code: 404}
@@ -523,7 +453,7 @@ func (a *apiService) FilesGetById(ctx context.Context, params api.FilesGetByIdPa
 		return nil, &apiError{err: err}
 	}
 
-	path, err := a.repo.Files.GetFullPath(ctx, fileID)
+	path, err := a.repo.Files.GetFullPath(ctx, uuid.UUID(params.ID))
 	if err != nil {
 		return nil, &apiError{err: err}
 	}
@@ -538,10 +468,15 @@ func (a *apiService) FilesList(ctx context.Context, params api.FilesListParams) 
 	userId := auth.User(ctx)
 
 	qParams := repositories.FileQueryParams{
-		UserID:     userId,
-		Operation:  string(params.Operation.Value),
-		Status:     string(params.Status.Value),
-		ParentID:   params.ParentId.Value,
+		UserID:    userId,
+		Operation: string(params.Operation.Value),
+		Status:    string(params.Status.Value),
+		ParentID: func() string {
+			if !params.ParentId.IsSet() {
+				return ""
+			}
+			return uuid.UUID(params.ParentId.Value).String()
+		}(),
 		Path:       params.Path.Value,
 		Name:       params.Name.Value,
 		Type:       string(params.Type.Value),
@@ -600,7 +535,7 @@ func (a *apiService) FilesChildren(ctx context.Context, params api.FilesChildren
 		Status:     params.Status,
 		DeepSearch: params.DeepSearch,
 		Shared:     params.Shared,
-		ParentId:   api.NewOptString(params.ID),
+		ParentId:   api.NewOptUUID(params.ID),
 		Category:   params.Category,
 		UpdatedAt:  params.UpdatedAt,
 		Sort:       params.Sort,
@@ -613,11 +548,7 @@ func (a *apiService) FilesChildren(ctx context.Context, params api.FilesChildren
 }
 
 func (a *apiService) FilesRestore(ctx context.Context, params api.FilesRestoreParams) error {
-	fileID, err := uuid.Parse(params.ID)
-	if err != nil {
-		return &apiError{err: err, code: 400}
-	}
-	file, err := a.repo.Files.GetByID(ctx, fileID)
+	file, err := a.repo.Files.GetByID(ctx, uuid.UUID(params.ID))
 	if err != nil {
 		return &apiError{err: err}
 	}
@@ -625,7 +556,7 @@ func (a *apiService) FilesRestore(ctx context.Context, params api.FilesRestorePa
 		return &apiError{err: errors.New("only trashed files can be restored"), code: 409}
 	}
 	status := "active"
-	if err := a.repo.Files.Update(ctx, fileID, repositories.FileUpdate{Status: &status}); err != nil {
+	if _, err := a.repo.Files.UpdateReturning(ctx, uuid.UUID(params.ID), repositories.FileUpdate{Status: &status}); err != nil {
 		return &apiError{err: err}
 	}
 
@@ -671,26 +602,20 @@ func (a *apiService) FilesMove(ctx context.Context, req *api.FileMove) error {
 		return nil
 	}
 
-	srcID, err := uuid.Parse(req.Ids[0])
-	if err != nil {
-		return &apiError{err: err, code: 400}
-	}
+	srcID := uuid.UUID(req.Ids[0])
 
 	ids := make([]uuid.UUID, 0, len(req.Ids))
 	for _, id := range req.Ids {
-		parsedID, err := uuid.Parse(id)
-		if err != nil {
-			return &apiError{err: err, code: 400}
-		}
-		ids = append(ids, parsedID)
+		ids = append(ids, uuid.UUID(id))
 	}
 
 	var srcFile *jetmodel.Files
-	err = a.repo.WithTx(ctx, func(txCtx context.Context) error {
-		srcFile, err = a.repo.Files.GetByIDAndUser(txCtx, srcID, userId)
+	err := a.repo.WithTx(ctx, func(txCtx context.Context) error {
+		fetched, err := a.repo.Files.GetByIDAndUser(txCtx, srcID, userId)
 		if err != nil {
 			return err
 		}
+		srcFile = fetched
 
 		if len(req.Ids) == 1 && req.DestinationName.Value != "" {
 			existing, err := a.repo.Files.GetActiveByNameAndParent(txCtx, userId, req.DestinationName.Value, destParentID)
@@ -700,14 +625,23 @@ func (a *apiService) FilesMove(ctx context.Context, req *api.FileMove) error {
 				}
 			}
 
-			if err := a.repo.Files.MoveSingle(txCtx, srcID, userId, destParentID, &req.DestinationName.Value); err != nil {
+			moved, err := a.repo.Files.MoveSingleReturning(txCtx, srcID, userId, destParentID, &req.DestinationName.Value)
+			if err != nil {
 				return err
 			}
+			srcFile = moved
 			return nil
 		}
 
-		if err := a.repo.Files.MoveBulk(txCtx, ids, userId, destParentID); err != nil {
+		moved, err := a.repo.Files.MoveBulkReturning(txCtx, ids, userId, destParentID)
+		if err != nil {
 			return err
+		}
+		for i := range moved {
+			if moved[i].ID == srcID {
+				srcFile = &moved[i]
+				break
+			}
 		}
 
 		return nil
@@ -739,10 +673,7 @@ func (a *apiService) FilesMove(ctx context.Context, req *api.FileMove) error {
 }
 
 func (a *apiService) FilesListShares(ctx context.Context, params api.FilesListSharesParams) ([]api.FileShare, error) {
-	fileID, err := uuid.Parse(params.ID)
-	if err != nil {
-		return nil, &apiError{err: err, code: 400}
-	}
+	fileID := uuid.UUID(params.ID)
 
 	result, err := a.repo.Shares.GetByFileID(ctx, fileID)
 	if err != nil {
@@ -751,7 +682,7 @@ func (a *apiService) FilesListShares(ctx context.Context, params api.FilesListSh
 
 	res := make([]api.FileShare, 0, len(result))
 	for _, item := range result {
-		share := api.FileShare{ID: item.ID.String()}
+		share := api.FileShare{ID: api.UUID(item.ID)}
 		if item.Password != nil {
 			share.Protected = true
 		}
@@ -796,10 +727,9 @@ func (a *apiService) FilesUpdate(ctx context.Context, req *api.FileUpdate, param
 		update.Name = &req.Name.Value
 	}
 
-	if req.ParentId.IsSet() && req.ParentId.Value != "" {
-		if parentUUID, err := uuid.Parse(req.ParentId.Value); err == nil {
-			update.ParentID = &parentUUID
-		}
+	if req.ParentId.IsSet() {
+		parentUUID := uuid.UUID(req.ParentId.Value)
+		update.ParentID = &parentUUID
 	}
 
 	if req.ChannelId.IsSet() && req.ChannelId.Value != 0 {
@@ -807,11 +737,7 @@ func (a *apiService) FilesUpdate(ctx context.Context, req *api.FileUpdate, param
 	}
 
 	if req.Size.IsSet() && req.Size.Value != 0 && len(req.Parts) > 0 {
-		partsJSON, err := marshalParts(mapParts(req.Parts))
-		if err != nil {
-			return nil, &apiError{err: err}
-		}
-		update.Parts = partsJSON
+		update.Parts = mapper.ToDBPartsJSONB(req.Parts)
 		update.Size = &req.Size.Value
 		isContentUpdate = true
 	}
@@ -835,28 +761,18 @@ func (a *apiService) FilesUpdate(ctx context.Context, req *api.FileUpdate, param
 		}
 	}
 	if uploadId != "" && len(uploads) > 0 {
-		var allBlockHashes []byte
-		for _, upload := range uploads {
-			if upload.BlockHashes != nil {
-				allBlockHashes = append(allBlockHashes, (*upload.BlockHashes)...)
-			}
-		}
-		if len(allBlockHashes) > 0 {
-			treeHashBytes := hash.ComputeTreeHash(allBlockHashes)
-			treeHash := hash.SumToHex(treeHashBytes)
-			update.Hash = &treeHash
-		}
+		update.Hash = uploadTreeHash(uploads)
 	}
 
-	fileUUID, err := uuid.Parse(params.ID)
-	if err != nil {
-		return nil, &apiError{err: err, code: 400}
-	}
+	fileUUID := uuid.UUID(params.ID)
 
+	var file *jetmodel.Files
 	if err := a.repo.WithTx(ctx, func(txCtx context.Context) error {
-		if err := a.repo.Files.Update(txCtx, fileUUID, update); err != nil {
+		updated, err := a.repo.Files.UpdateReturning(txCtx, fileUUID, update)
+		if err != nil {
 			return err
 		}
+		file = updated
 		if uploadId != "" {
 			if err := a.repo.Uploads.Delete(txCtx, uploadId); err != nil {
 				return err
@@ -868,15 +784,11 @@ func (a *apiService) FilesUpdate(ctx context.Context, req *api.FileUpdate, param
 		return nil, &apiError{err: err}
 	}
 
-	file, err := a.repo.Files.GetByID(ctx, fileUUID)
-	if err != nil {
-		return nil, &apiError{err: err}
-	}
-
-	keys := []string{cache.KeyFile(params.ID)}
+	fileIDStr := fileUUID.String()
+	keys := []string{cache.KeyFile(fileIDStr)}
 	if len(req.Parts) > 0 {
-		keys = append(keys, cache.KeyFileMessages(params.ID))
-		a.cache.DeletePattern(ctx, cache.KeyFileLocationPattern(params.ID))
+		keys = append(keys, cache.KeyFileMessages(fileIDStr))
+		a.cache.DeletePattern(ctx, cache.KeyFileLocationPattern(fileIDStr))
 	}
 	a.cache.Delete(ctx, keys...)
 
@@ -892,42 +804,4 @@ func (a *apiService) FilesUpdate(ctx context.Context, req *api.FileUpdate, param
 		ParentID: parentID,
 	})
 	return mapper.ToJetFileOut(*file), nil
-}
-
-func mapParts(_parts []api.Part) []api.Part {
-	return utils.Map(_parts, func(part api.Part) api.Part {
-		p := api.Part{ID: part.ID}
-		if part.Salt.Value != "" {
-			p.Salt = part.Salt
-		}
-		return p
-	})
-
-}
-
-func fileParts(rawParts *string) []api.Part {
-	if rawParts == nil || *rawParts == "" {
-		return nil
-	}
-
-	var parts []api.Part
-	if err := json.Unmarshal([]byte(*rawParts), &parts); err != nil {
-		return nil
-	}
-
-	return parts
-}
-
-func marshalParts(parts []api.Part) (*string, error) {
-	if len(parts) == 0 {
-		return nil, nil
-	}
-
-	b, err := json.Marshal(parts)
-	if err != nil {
-		return nil, err
-	}
-
-	s := string(b)
-	return &s, nil
 }

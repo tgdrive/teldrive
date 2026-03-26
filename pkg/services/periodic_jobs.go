@@ -112,11 +112,11 @@ func (a *apiService) PeriodicJobsCreate(ctx context.Context, req *api.PeriodicJo
 			return nil, err
 		}
 	}
-	return a.PeriodicJobsGet(ctx, api.PeriodicJobsGetParams{ID: id})
+	return a.PeriodicJobsGet(ctx, api.PeriodicJobsGetParams{ID: api.UUID(uuid.MustParse(id))})
 }
 
 func (a *apiService) PeriodicJobsGet(ctx context.Context, params api.PeriodicJobsGetParams) (*api.PeriodicJobDetail, error) {
-	row, err := a.getPeriodicJobRow(ctx, params.ID, auth.User(ctx))
+	row, err := a.getPeriodicJobRow(ctx, uuid.UUID(params.ID).String(), auth.User(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +128,7 @@ func (a *apiService) PeriodicJobsGet(ctx context.Context, params api.PeriodicJob
 }
 
 func (a *apiService) PeriodicJobsUpdate(ctx context.Context, req *api.PeriodicJobUpdate, params api.PeriodicJobsUpdateParams) (*api.PeriodicJobDetail, error) {
-	row, err := a.getPeriodicJobRow(ctx, params.ID, auth.User(ctx))
+	row, err := a.getPeriodicJobRow(ctx, uuid.UUID(params.ID).String(), auth.User(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +187,7 @@ func (a *apiService) PeriodicJobsUpdate(ctx context.Context, req *api.PeriodicJo
 }
 
 func (a *apiService) PeriodicJobsDelete(ctx context.Context, params api.PeriodicJobsDeleteParams) error {
-	row, err := a.getPeriodicJobRow(ctx, params.ID, auth.User(ctx))
+	row, err := a.getPeriodicJobRow(ctx, uuid.UUID(params.ID).String(), auth.User(ctx))
 	if err != nil {
 		return err
 	}
@@ -205,15 +205,15 @@ func (a *apiService) PeriodicJobsDelete(ctx context.Context, params api.Periodic
 }
 
 func (a *apiService) PeriodicJobsEnable(ctx context.Context, params api.PeriodicJobsEnableParams) error {
-	return a.setPeriodicJobEnabled(ctx, params.ID, true)
+	return a.setPeriodicJobEnabled(ctx, uuid.UUID(params.ID).String(), true)
 }
 
 func (a *apiService) PeriodicJobsDisable(ctx context.Context, params api.PeriodicJobsDisableParams) error {
-	return a.setPeriodicJobEnabled(ctx, params.ID, false)
+	return a.setPeriodicJobEnabled(ctx, uuid.UUID(params.ID).String(), false)
 }
 
 func (a *apiService) PeriodicJobsRun(ctx context.Context, params api.PeriodicJobsRunParams) (*api.JobStatus, error) {
-	row, err := a.getPeriodicJobRow(ctx, params.ID, auth.User(ctx))
+	row, err := a.getPeriodicJobRow(ctx, uuid.UUID(params.ID).String(), auth.User(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -553,7 +553,7 @@ func fromPeriodicJobModel(item repositories.PeriodicJob) *periodicJobRow {
 
 func toAPIPeriodicJobSummary(row *periodicJobRow) (*api.PeriodicJobSummary, error) {
 	out := &api.PeriodicJobSummary{
-		ID:             row.ID,
+		ID:             api.UUID(uuid.MustParse(row.ID)),
 		Name:           row.Name,
 		Kind:           api.PeriodicJobKind(row.Kind),
 		Enabled:        row.Enabled,
@@ -566,7 +566,7 @@ func toAPIPeriodicJobSummary(row *periodicJobRow) (*api.PeriodicJobSummary, erro
 
 func toAPIPeriodicJobDetail(row *periodicJobRow) (*api.PeriodicJobDetail, error) {
 	out := &api.PeriodicJobDetail{
-		ID:             row.ID,
+		ID:             api.UUID(uuid.MustParse(row.ID)),
 		Name:           row.Name,
 		Kind:           api.PeriodicJobKind(row.Kind),
 		Enabled:        row.Enabled,

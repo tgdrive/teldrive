@@ -12,7 +12,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/tgdrive/teldrive/internal/api"
 	authpkg "github.com/tgdrive/teldrive/internal/auth"
-	jetmodel "github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/model"
+	jetmodel "github.com/tgdrive/teldrive/internal/database/jet/gen/model"
+	dbtypes "github.com/tgdrive/teldrive/internal/database/types"
 	"github.com/tgdrive/teldrive/internal/tgc"
 	"github.com/tgdrive/teldrive/pkg/services"
 )
@@ -57,16 +58,16 @@ func TestCompatService_FileMethodsCoverage(t *testing.T) {
 		t.Fatalf("FilesMkdir failed: %v", err)
 	}
 
-	if _, err := svc.FilesStreamHead(ctx, api.FilesStreamHeadParams{ID: srcID.String()}); err != nil {
+	if _, err := svc.FilesStreamHead(ctx, api.FilesStreamHeadParams{ID: api.UUID(srcID)}); err != nil {
 		t.Fatalf("FilesStreamHead failed: %v", err)
 	}
 
-	if err := svc.FilesMove(ctx, &api.FileMove{Ids: []string{srcID.String()}, DestinationParent: "/extra/path", DestinationName: api.NewOptString("moved.txt")}); err != nil {
+	if err := svc.FilesMove(ctx, &api.FileMove{Ids: []api.UUID{api.UUID(srcID)}, DestinationParent: "/extra/path", DestinationName: api.NewOptString("moved.txt")}); err != nil {
 		t.Fatalf("FilesMove failed: %v", err)
 	}
 
 	copySrcID := uuid.New()
-	copyParts := `"abcd"`
+	copyParts := dbtypes.NewJSONB(dbtypes.Parts{{ID: 1}})
 	if err := s.repos.Files.Create(ctx, &jetmodel.Files{ID: copySrcID, Name: "copy-src.txt", Type: "file", MimeType: "text/plain", UserID: 7501, ParentID: root, Status: &status, Parts: &copyParts, Size: &size, Category: &cat, ChannelID: func() *int64 { v := int64(950001); return &v }(), UpdatedAt: time.Now().UTC(), CreatedAt: time.Now().UTC()}); err != nil {
 		t.Fatalf("seed copy src file: %v", err)
 	}
@@ -74,8 +75,10 @@ func TestCompatService_FileMethodsCoverage(t *testing.T) {
 	s.tgMock.copyFilePartsFn = func(_ context.Context, _ services.TelegramClient, _ int64, _ int64, _ []api.Part) ([]api.Part, error) {
 		return []api.Part{{ID: 1}}, nil
 	}
-	if _, err := svc.FilesCopy(ctx, &api.FileCopy{Destination: "/extra/path", NewName: api.NewOptString("copied.txt")}, api.FilesCopyParams{ID: copySrcID.String()}); err == nil {
-		t.Fatalf("expected FilesCopy failure for missing/invalid parts path")
+	if copied, err := svc.FilesCopy(ctx, &api.FileCopy{Destination: "/extra/path", NewName: api.NewOptString("copied.txt")}, api.FilesCopyParams{ID: api.UUID(copySrcID)}); err != nil {
+		t.Fatalf("FilesCopy failed: %v", err)
+	} else if copied.Name != "copied.txt" || len(copied.Parts) != 1 {
+		t.Fatalf("unexpected FilesCopy result: %+v", copied)
 	}
 }
 
@@ -120,7 +123,7 @@ func TestCompatService_StreamRoutesCoverage(t *testing.T) {
 		t.Fatalf("create file: %v", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/files/%s/content", s.server.URL, file.ID.Value), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/files/%s/content", s.server.URL, uuid.UUID(file.ID.Value).String()), nil)
 	if err != nil {
 		t.Fatalf("stream request: %v", err)
 	}
@@ -148,7 +151,7 @@ func TestCompatService_StreamRoutesCoverage(t *testing.T) {
 		t.Fatalf("expected events stream 401, got %d body=%s", unauthResp.StatusCode, string(body))
 	}
 
-	badShareReq, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/shares/%s/files/%s/content", s.server.URL, "bad", file.ID.Value), nil)
+	badShareReq, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("%s/shares/%s/files/%s/content", s.server.URL, "bad", uuid.UUID(file.ID.Value).String()), nil)
 	if err != nil {
 		t.Fatalf("bad share request: %v", err)
 	}

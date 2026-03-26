@@ -14,14 +14,6 @@ func NewJSONB[T any](value T) JSONB[T] {
 	return JSONB[T]{Data: value}
 }
 
-func ToRawJSONB[T any](value T) (JSONB[json.RawMessage], error) {
-	b, err := json.Marshal(value)
-	if err != nil {
-		return JSONB[json.RawMessage]{}, err
-	}
-	return JSONB[json.RawMessage]{Data: json.RawMessage(b)}, nil
-}
-
 func (j *JSONB[T]) Scan(src any) error {
 	if src == nil {
 		var zero T
@@ -49,10 +41,6 @@ func (j *JSONB[T]) Scan(src any) error {
 		return fmt.Errorf("jsonb scan: %w", err)
 	}
 	return nil
-}
-
-func (j JSONB[T]) ValueDB() (driver.Value, error) {
-	return j.Value()
 }
 
 func (j JSONB[T]) Value() (driver.Value, error) {

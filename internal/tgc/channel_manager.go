@@ -2,7 +2,6 @@ package tgc
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -14,7 +13,7 @@ import (
 	"github.com/tgdrive/teldrive/internal/auth"
 	"github.com/tgdrive/teldrive/internal/cache"
 	"github.com/tgdrive/teldrive/internal/config"
-	jetmodel "github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/model"
+	jetmodel "github.com/tgdrive/teldrive/internal/database/jet/gen/model"
 	"github.com/tgdrive/teldrive/internal/tgstorage"
 	"github.com/tgdrive/teldrive/pkg/repositories"
 	"github.com/tgdrive/teldrive/pkg/types"
@@ -51,14 +50,10 @@ func (cm *ChannelManager) ChannelLimitReached(channelID int64) bool {
 
 	var totalParts int64
 	for _, file := range files {
-		if file.Parts == nil || *file.Parts == "" {
+		if file.Parts == nil {
 			continue
 		}
-		var parts []any
-		if err := json.Unmarshal([]byte(*file.Parts), &parts); err != nil {
-			continue
-		}
-		totalParts += int64(len(parts))
+		totalParts += int64(len(file.Parts.Data))
 	}
 	return totalParts >= int64(cm.cnf.ChannelLimit)
 }

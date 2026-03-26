@@ -2,6 +2,7 @@ package types
 
 import (
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/gotd/td/session"
 )
 
@@ -14,11 +15,11 @@ type Part struct {
 
 type JWTClaims struct {
 	jwt.RegisteredClaims
-	Name      string `json:"name"`
-	UserName  string `json:"userName"`
-	IsPremium bool   `json:"isPremium"`
-	SessionID string `json:"sessionId"`
-	TgSession string `json:"tgSession,omitempty"`
+	Name      string    `json:"name"`
+	UserName  string    `json:"userName"`
+	IsPremium bool      `json:"isPremium"`
+	SessionID uuid.UUID `json:"sessionId"`
+	TgSession string    `json:"tgSession,omitempty"`
 }
 
 type SessionData struct {

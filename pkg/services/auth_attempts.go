@@ -169,7 +169,6 @@ func (a *authAttempt) publish(event authAttemptEvent) {
 				UserId:    event.Session.UserId,
 				IsPremium: event.Session.IsPremium,
 				SessionId: event.Session.SessionId,
-				Hash:      event.Session.Hash,
 				Expires:   event.Session.Expires,
 			}
 			a.session = &session

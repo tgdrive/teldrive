@@ -85,6 +85,12 @@ func TestUploadFlow_HashingAndFileHashGeneration(t *testing.T) {
 		t.Fatalf("FilesCreate from upload failed: %v", err)
 	}
 	if !created.Hash.IsSet() || created.Hash.Value == "" {
+		created, err = client.FilesGetById(ctx, api.FilesGetByIdParams{ID: created.ID.Value})
+		if err != nil {
+			t.Fatalf("FilesGetById after create failed: %v", err)
+		}
+	}
+	if !created.Hash.IsSet() || created.Hash.Value == "" {
 		t.Fatalf("expected file hash to be set")
 	}
 	if created.Hash.Value != expected {

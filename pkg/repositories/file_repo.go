@@ -11,8 +11,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/model"
-	"github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/table"
+	"github.com/tgdrive/teldrive/internal/database/jet/gen/model"
+	"github.com/tgdrive/teldrive/internal/database/jet/gen/table"
 	"github.com/tgdrive/teldrive/pkg/repositories/filesquery"
 )
 
@@ -37,6 +37,59 @@ func (r *JetFileRepository) Create(ctx context.Context, file *model.Files) error
 	err := r.db.exec(ctx, stmt)
 
 	return err
+}
+
+func (r *JetFileRepository) UpsertActive(ctx context.Context, file *model.Files) error {
+	now := time.Now().UTC()
+	if file.CreatedAt.IsZero() {
+		file.CreatedAt = now
+	}
+	if file.UpdatedAt.IsZero() {
+		file.UpdatedAt = now
+	}
+
+	stmt := table.Files.INSERT(table.Files.AllColumns).
+		VALUES(
+			file.Name,
+			file.Type,
+			file.MimeType,
+			file.Size,
+			file.UserID,
+			file.Status,
+			file.ChannelID,
+			file.Parts,
+			file.CreatedAt,
+			file.UpdatedAt,
+			file.Encrypted,
+			file.Category,
+			file.ID,
+			file.ParentID,
+			file.Hash,
+		).
+		ON_CONFLICT(
+			table.Files.Name,
+			table.Files.ParentID,
+			table.Files.UserID,
+			table.Files.Status,
+			table.Files.Type,
+		).DO_UPDATE(postgres.SET(
+		table.Files.MimeType.SET(table.Files.EXCLUDED.MimeType),
+		table.Files.Size.SET(table.Files.EXCLUDED.Size),
+		table.Files.ChannelID.SET(table.Files.EXCLUDED.ChannelID),
+		table.Files.Parts.SET(table.Files.EXCLUDED.Parts),
+		table.Files.UpdatedAt.SET(table.Files.EXCLUDED.UpdatedAt),
+		table.Files.Encrypted.SET(table.Files.EXCLUDED.Encrypted),
+		table.Files.Category.SET(table.Files.EXCLUDED.Category),
+		table.Files.Hash.SET(table.Files.EXCLUDED.Hash),
+	)).RETURNING(table.Files.ID)
+
+	query, args := stmt.Sql()
+	row := r.db.executor(ctx).QueryRow(ctx, query, args...)
+	if err := ScanRow(row, &file.ID); err != nil {
+		return normalizeDBError(err)
+	}
+
+	return nil
 }
 
 func fileReadProjections(files *table.FilesTable) []postgres.Projection {
@@ -123,6 +176,11 @@ func (r *JetFileRepository) GetActiveByNameAndParent(ctx context.Context, userID
 }
 
 func (r *JetFileRepository) Update(ctx context.Context, id uuid.UUID, update FileUpdate) error {
+	_, err := r.UpdateReturning(ctx, id, update)
+	return err
+}
+
+func (r *JetFileRepository) UpdateReturning(ctx context.Context, id uuid.UUID, update FileUpdate) (*model.Files, error) {
 	updates := make([]postgres.ColumnAssigment, 0, 12)
 
 	if update.Name != nil {
@@ -147,7 +205,7 @@ func (r *JetFileRepository) Update(ctx context.Context, id uuid.UUID, update Fil
 		updates = append(updates, table.Files.ChannelID.SET(postgres.Int64(*update.ChannelID)))
 	}
 	if update.Parts != nil {
-		updates = append(updates, table.Files.Parts.SET(postgres.StringExp(postgres.CAST(postgres.String(*update.Parts)).AS("jsonb"))))
+		updates = append(updates, table.Files.Parts.SET(postgres.StringExp(postgres.Raw("#parts", postgres.RawArgs{"#parts": update.Parts}))))
 	}
 	if update.Encrypted != nil {
 		updates = append(updates, table.Files.Encrypted.SET(postgres.Bool(*update.Encrypted)))
@@ -167,10 +225,18 @@ func (r *JetFileRepository) Update(ctx context.Context, id uuid.UUID, update Fil
 
 	stmt := table.Files.UPDATE().WHERE(table.Files.ID.EQ(postgres.UUID(id)))
 	stmt = stmt.SET(updates[0], assignmentArgs(updates[1:])...)
+	projections := fileReadProjections(table.Files)
+	stmt = stmt.RETURNING(projections...)
 
-	err := r.db.exec(ctx, stmt)
+	var out model.Files
+	if err := r.db.query(ctx, stmt, &out); err != nil {
+		if errors.Is(err, qrm.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
 
-	return err
+	return &out, nil
 }
 
 func (r *JetFileRepository) Delete(ctx context.Context, ids []uuid.UUID) error {
@@ -190,6 +256,11 @@ func (r *JetFileRepository) Delete(ctx context.Context, ids []uuid.UUID) error {
 }
 
 func (r *JetFileRepository) MoveSingle(ctx context.Context, id uuid.UUID, userID int64, parentID *uuid.UUID, name *string) error {
+	_, err := r.MoveSingleReturning(ctx, id, userID, parentID, name)
+	return err
+}
+
+func (r *JetFileRepository) MoveSingleReturning(ctx context.Context, id uuid.UUID, userID int64, parentID *uuid.UUID, name *string) (*model.Files, error) {
 	updateModel := model.Files{ParentID: parentID}
 	var stmt postgres.UpdateStatement
 	if name != nil {
@@ -203,14 +274,28 @@ func (r *JetFileRepository) MoveSingle(ctx context.Context, id uuid.UUID, userID
 		table.Files.ID.EQ(postgres.UUID(id)).
 			AND(table.Files.UserID.EQ(postgres.Int64(userID))),
 	)
+	projections := fileReadProjections(table.Files)
+	stmt = stmt.RETURNING(projections...)
 
-	err := r.db.exec(ctx, stmt)
-	return err
+	var out model.Files
+	if err := r.db.query(ctx, stmt, &out); err != nil {
+		if errors.Is(err, qrm.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	return &out, nil
 }
 
 func (r *JetFileRepository) MoveBulk(ctx context.Context, ids []uuid.UUID, userID int64, parentID *uuid.UUID) error {
+	_, err := r.MoveBulkReturning(ctx, ids, userID, parentID)
+	return err
+}
+
+func (r *JetFileRepository) MoveBulkReturning(ctx context.Context, ids []uuid.UUID, userID int64, parentID *uuid.UUID) ([]model.Files, error) {
 	if len(ids) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	idExprs := make([]postgres.Expression, 0, len(ids))
@@ -225,45 +310,81 @@ func (r *JetFileRepository) MoveBulk(ctx context.Context, ids []uuid.UUID, userI
 			table.Files.ID.IN(idExprs...).
 				AND(table.Files.UserID.EQ(postgres.Int64(userID))),
 		)
+	projections := fileReadProjections(table.Files)
+	stmt = stmt.RETURNING(projections...)
 
-	err := r.db.exec(ctx, stmt)
-	return err
+	var out []model.Files
+	if err := r.db.query(ctx, stmt, &out); err != nil {
+		if errors.Is(err, qrm.ErrNoRows) {
+			return []model.Files{}, nil
+		}
+		return nil, err
+	}
+
+	return out, nil
 }
 
 func (r *JetFileRepository) GetFullPath(ctx context.Context, fileID uuid.UUID) (string, error) {
-	segments := []string{}
-	currentID := fileID
+	ancestorsID := postgres.StringColumn("id")
+	ancestorsParentID := postgres.StringColumn("parent_id")
+	ancestorsName := postgres.StringColumn("name")
+	ancestorsDepth := postgres.IntegerColumn("depth")
+	ancestors := postgres.CTE("ancestors", ancestorsID, ancestorsParentID, ancestorsName, ancestorsDepth)
 
-	for depth := 0; depth < 512; depth++ {
-		item, err := r.GetByID(ctx, currentID)
-		if err != nil {
-			return "", err
-		}
+	anchor := postgres.SELECT(
+		table.Files.ID,
+		table.Files.ParentID,
+		table.Files.Name,
+		postgres.CAST(postgres.Int(0)).AS_INTEGER().AS("depth"),
+	).FROM(table.Files).WHERE(table.Files.ID.EQ(postgres.UUID(fileID)))
 
-		segments = append(segments, item.Name)
-		if item.ParentID == nil {
-			break
-		}
-		currentID = *item.ParentID
+	recursive := postgres.SELECT(
+		table.Files.ID,
+		table.Files.ParentID,
+		table.Files.Name,
+		postgres.CAST(ancestorsDepth.From(ancestors)).AS_INTEGER().ADD(postgres.Int(1)).AS("depth"),
+	).FROM(
+		table.Files.INNER_JOIN(ancestors, table.Files.ID.EQ(ancestorsParentID.From(ancestors))),
+	)
+
+	type pathSegment struct {
+		Name  string
+		Depth int64
 	}
 
+	stmt := postgres.WITH_RECURSIVE(
+		ancestors.AS(anchor.UNION_ALL(recursive)),
+	)(
+		postgres.SELECT(
+			ancestorsName.From(ancestors).AS("path_segment.name"),
+			ancestorsDepth.From(ancestors).AS("path_segment.depth"),
+		).FROM(ancestors).ORDER_BY(ancestorsDepth.From(ancestors).DESC()),
+	)
+
+	var segments []pathSegment
+	if err := r.db.query(ctx, stmt, &segments); err != nil {
+		if errors.Is(err, qrm.ErrNoRows) {
+			return "", ErrNotFound
+		}
+		return "", err
+	}
 	if len(segments) == 0 {
 		return "", ErrNotFound
 	}
 
-	for i, j := 0, len(segments)-1; i < j; i, j = i+1, j-1 {
-		segments[i], segments[j] = segments[j], segments[i]
+	parts := make([]string, 0, len(segments))
+	for _, segment := range segments {
+		if segment.Name == "root" {
+			continue
+		}
+		parts = append(parts, segment.Name)
 	}
 
-	if len(segments) > 0 && segments[0] == "root" {
-		segments = segments[1:]
-	}
-
-	if len(segments) == 0 {
+	if len(parts) == 0 {
 		return "/", nil
 	}
 
-	return "/" + strings.Join(segments, "/"), nil
+	return "/" + strings.Join(parts, "/"), nil
 }
 
 func (r *JetFileRepository) ListPendingForPurge(ctx context.Context) ([]PendingFile, error) {
@@ -311,8 +432,13 @@ func (r *JetFileRepository) CategoryStats(ctx context.Context, userID int64) ([]
 }
 
 func (r *JetFileRepository) DeleteBulk(ctx context.Context, fileIDs []uuid.UUID, userID int64, targetStatus string) error {
+	_, err := r.DeleteBulkReturning(ctx, fileIDs, userID, targetStatus)
+	return err
+}
+
+func (r *JetFileRepository) DeleteBulkReturning(ctx context.Context, fileIDs []uuid.UUID, userID int64, targetStatus string) ([]model.Files, error) {
 	if len(fileIDs) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	idExprs := make([]postgres.Expression, 0, len(fileIDs))
@@ -322,6 +448,7 @@ func (r *JetFileRepository) DeleteBulk(ctx context.Context, fileIDs []uuid.UUID,
 
 	subtreeID := postgres.StringColumn("id")
 	subtree := postgres.CTE("subtree", subtreeID)
+	projections := fileReadProjections(table.Files)
 
 	stmt := postgres.WITH_RECURSIVE(
 		subtree.AS(
@@ -344,11 +471,19 @@ func (r *JetFileRepository) DeleteBulk(ctx context.Context, fileIDs []uuid.UUID,
 				table.Files.Status.SET(postgres.String(targetStatus)),
 				table.Files.UpdatedAt.SET(postgres.TimestampT(time.Now().UTC())),
 			).
-			WHERE(table.Files.ID.IN(subtree.SELECT(subtreeID.From(subtree)))),
+			WHERE(table.Files.ID.IN(subtree.SELECT(subtreeID.From(subtree)))).
+			RETURNING(projections...),
 	)
 
-	err := r.db.exec(ctx, stmt)
-	return err
+	var out []model.Files
+	if err := r.db.query(ctx, stmt, &out); err != nil {
+		if errors.Is(err, qrm.ErrNoRows) {
+			return []model.Files{}, nil
+		}
+		return nil, err
+	}
+
+	return out, nil
 }
 
 func (r *JetFileRepository) CreateDirectories(ctx context.Context, userID int64, path string) (*uuid.UUID, error) {

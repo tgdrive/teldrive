@@ -1,22 +1,24 @@
 package mapper
 
 import (
+	"github.com/google/uuid"
 	"github.com/tgdrive/teldrive/internal/api"
-	jetmodel "github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/model"
+	jetmodel "github.com/tgdrive/teldrive/internal/database/jet/gen/model"
 	"github.com/tgdrive/teldrive/internal/utils"
 )
 
 func ToJetFileOut(file jetmodel.Files) *api.File {
 	res := &api.File{
-		ID:        api.NewOptString(file.ID.String()),
+		ID:        api.NewOptUUID(api.UUID(file.ID)),
 		Name:      file.Name,
 		Type:      api.FileType(file.Type),
+		Parts:     ToAPIParts(file.Parts),
 		MimeType:  api.NewOptString(file.MimeType),
 		UpdatedAt: api.NewOptDateTime(file.UpdatedAt),
 		Encrypted: api.NewOptBool(file.Encrypted),
 	}
 	if file.ParentID != nil {
-		res.ParentId = api.NewOptString(file.ParentID.String())
+		res.ParentId = api.NewOptUUID(api.UUID(*file.ParentID))
 	}
 	if file.Size != nil {
 		res.Size = api.NewOptInt64(*file.Size)
@@ -32,6 +34,24 @@ func ToJetFileOut(file jetmodel.Files) *api.File {
 	}
 
 	return res
+}
+
+func UUIDFromString(id string) api.UUID {
+	parsed, err := uuid.Parse(id)
+	if err != nil {
+		return api.UUID{}
+	}
+
+	return api.UUID(parsed)
+}
+
+func OptUUIDFromString(id string) api.OptUUID {
+	parsed, err := uuid.Parse(id)
+	if err != nil {
+		return api.OptUUID{}
+	}
+
+	return api.NewOptUUID(api.UUID(parsed))
 }
 
 func ToUploadOut(parts []jetmodel.Uploads) []api.UploadPart {

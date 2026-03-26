@@ -21,7 +21,7 @@ import (
 	"github.com/tgdrive/teldrive/internal/cache"
 	"github.com/tgdrive/teldrive/internal/config"
 	"github.com/tgdrive/teldrive/internal/database"
-	jetmodel "github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/model"
+	jetmodel "github.com/tgdrive/teldrive/internal/database/jet/gen/model"
 	"github.com/tgdrive/teldrive/internal/logging"
 	"github.com/tgdrive/teldrive/internal/requestmeta"
 	"github.com/tgdrive/teldrive/internal/tgc"
@@ -159,9 +159,10 @@ func (s *suite) authTokenForUser(userID int64, tgSession string) string {
 	s.ensureUserExists(userID)
 
 	sessionID := deterministicSessionID(userID, tgSession)
-	if _, err := s.repos.Sessions.GetByID(s.ctx, sessionID); err != nil {
+	sessionUUID := uuid.MustParse(sessionID)
+	if _, err := s.repos.Sessions.GetByID(s.ctx, sessionUUID); err != nil {
 		now := time.Now().UTC()
-		if err := s.repos.Sessions.Create(s.ctx, &jetmodel.Sessions{ID: uuid.MustParse(sessionID), UserID: userID, TgSession: tgSession, CreatedAt: now, UpdatedAt: now}); err != nil {
+		if err := s.repos.Sessions.Create(s.ctx, &jetmodel.Sessions{ID: sessionUUID, UserID: userID, TgSession: tgSession, CreatedAt: now, UpdatedAt: now}); err != nil {
 			s.t.Fatalf("create test session: %v", err)
 		}
 	}
@@ -171,7 +172,7 @@ func (s *suite) authTokenForUser(userID int64, tgSession string) string {
 		Name:      "Test User",
 		UserName:  "test_user",
 		IsPremium: false,
-		SessionID: sessionID,
+		SessionID: sessionUUID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   strconv.FormatInt(userID, 10),
 			IssuedAt:  jwt.NewNumericDate(now),

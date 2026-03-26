@@ -12,6 +12,9 @@ using TypeSpec.Http;
 @service(#{ title: "Teldrive" })
 namespace Teldrive;
 
+@format("uuid")
+scalar UUID extends string;
+
 model AccessTokenCookieAuth {
   type: AuthType.apiKey;
   in: ApiKeyLocation.cookie;
@@ -104,7 +107,7 @@ model Session {
 
   @doc("Session ID for verification and security")
   @example("123e4567-e89b-12d3-a456-426614174000")
-  sessionId: string;
+  sessionId: UUID;
 
   @doc("Compatibility alias for session ID")
   hash?: string;
@@ -321,7 +324,7 @@ model FileQuery {
   @query
   @doc("Parent folder ID")
   @example("123e4567-e89b-12d3-a456-426614174000")
-  parentId?: string;
+  parentId?: UUID;
 
   @query
   @doc("File category")
@@ -375,7 +378,7 @@ model File {
   @doc("File ID")
   @example("123e4567-e89b-12d3-a456-426614174000")
   @visibility(Lifecycle.Read)
-  id?: string;
+  id?: UUID;
 
   @doc("Upload session ID (for multi-part uploads)")
   @example("upload-abc-123")
@@ -411,7 +414,7 @@ model File {
 
   @doc("Parent folder ID")
   @example("123e4567-e89b-12d3-a456-426614174000")
-  parentId?: string;
+  parentId?: UUID;
 
   @doc("File size in bytes")
   @example(1048576)
@@ -450,7 +453,7 @@ model FileShareCreate {
 model FileShare {
   @doc("Share ID")
   @example("123e4567-e89b-12d3-a456-426614174000")
-  id: string;
+  id: UUID;
 
   @doc("Indicates if the shared file requires password protection")
   @example(true)
@@ -464,11 +467,11 @@ model FileShare {
 model FileShareDetail {
   @doc("Share ID")
   @example("123e4567-e89b-12d3-a456-426614174000")
-  id: string;
+  id: UUID;
 
   @doc("File ID")
   @example("123e4567-e89b-12d3-a456-426614174000")
-  fileId: string;
+  fileId: UUID;
 
   @doc("ID of the user who created the share")
   @example(123456789)
@@ -508,7 +511,7 @@ model FileUpdate {
 
   @doc("Parent folder ID")
   @example("123e4567-e89b-12d3-a456-426614174000")
-  parentId?: string;
+  parentId?: UUID;
 
   @doc("Channel ID")
   @example(123456)
@@ -707,7 +710,7 @@ model CleanStaleUploadsArgs {
 model CleanPendingFilesArgs {}
 
 model PeriodicJobSummary {
-  id: string;
+  id: UUID;
   name: string;
   kind: PeriodicJobKind;
   enabled: boolean;
@@ -717,7 +720,7 @@ model PeriodicJobSummary {
 }
 
 model PeriodicJobDetail {
-  id: string;
+  id: UUID;
   name: string;
   kind: PeriodicJobKind;
   enabled: boolean;
@@ -760,32 +763,32 @@ interface PeriodicJobs {
   @route("/{id}")
   @get
   @summary("Get periodic job")
-  get(@path id: string): PeriodicJobDetail | Error;
+  get(@path id: UUID): PeriodicJobDetail | Error;
 
   @route("/{id}")
   @patch(#{ implicitOptionality: true })
   @summary("Update periodic job")
-  update(@path id: string, @body body: PeriodicJobUpdate): PeriodicJobDetail | Error;
+  update(@path id: UUID, @body body: PeriodicJobUpdate): PeriodicJobDetail | Error;
 
   @route("/{id}")
   @delete
   @summary("Delete periodic job")
-  delete(@path id: string): NoContentResponse | Error;
+  delete(@path id: UUID): NoContentResponse | Error;
 
   @route("/{id}/enable")
   @post
   @summary("Enable periodic job")
-  enable(@path id: string): NoContentResponse | Error;
+  enable(@path id: UUID): NoContentResponse | Error;
 
   @route("/{id}/disable")
   @post
   @summary("Disable periodic job")
-  disable(@path id: string): NoContentResponse | Error;
+  disable(@path id: UUID): NoContentResponse | Error;
 
   @route("/{id}/run")
   @post
   @summary("Run periodic job now")
-  run(@path id: string): {
+  run(@path id: UUID): {
     ...JobStatus;
     @statusCode _: 202;
   } | Error;
@@ -799,13 +802,13 @@ interface PeriodicJobs {
 @doc("Bulk file delete request")
 model FileDelete {
   @doc("List of file IDs")
-  ids: string[];
+  ids: UUID[];
 }
 
 @doc("Bulk file move request")
 model FileMove {
   @doc("File IDs to move")
-  ids: string[];
+  ids: UUID[];
 
   @doc("Destination parent path or folder ID")
   destinationParent: string;
@@ -863,22 +866,22 @@ interface Files {
   @route("/{id}")
   @get
   @summary("Get file by ID")
-  getById(@path id: string): File | Error;
+  getById(@path id: UUID): File | Error;
 
   @route("/{id}")
   @patch(#{ implicitOptionality: true })
   @summary("Update file")
-  update(@path id: string, @body body: FileUpdate): File | Error;
+  update(@path id: UUID, @body body: FileUpdate): File | Error;
 
   @route("/{id}")
   @delete
   @summary("Soft delete file or folder")
-  deleteById(@path id: string): NoContentResponse | Error;
+  deleteById(@path id: UUID): NoContentResponse | Error;
 
   @route("/{id}/copy")
   @post
   @summary("Copy file")
-  copy(@path id: string, @body body: FileCopy): File | Error;
+  copy(@path id: UUID, @body body: FileCopy): File | Error;
 
   @route("/delete")
   @post
@@ -893,14 +896,14 @@ interface Files {
   @route("/{id}/shares")
   @get
   @summary("List shares by file ID")
-  listShares(@path id: string): FileShare[] | Error;
+  listShares(@path id: UUID): FileShare[] | Error;
 
   @route("/{id}/shares/{shareId}")
   @patch(#{ implicitOptionality: true })
   @summary("Update share")
   editShare(
-    @path id: string,
-    @path shareId: string,
+    @path id: UUID,
+    @path shareId: UUID,
     @bodyRoot body: FileShareCreate,
   ): NoContentResponse | Error;
 
@@ -908,7 +911,7 @@ interface Files {
   @post
   @summary("Create share for file")
   createShare(
-    @path id: string,
+    @path id: UUID,
     @body body: FileShareCreate,
   ): CreatedResponse | Error;
 
@@ -916,15 +919,15 @@ interface Files {
   @delete
   @summary("Delete share")
   deleteShare(
-    @path id: string,
-    @path shareId: string,
+    @path id: UUID,
+    @path shareId: UUID,
   ): NoContentResponse | Error;
 
   @route("/{id}/content")
   @get
   @summary("Stream or Download file")
   stream(
-    @path id: string,
+    @path id: UUID,
     @query download?: "0" | "1" = "0",
     @header("Range") range?: string,
   ): FileStream | Error;
@@ -932,17 +935,17 @@ interface Files {
   @route("/{id}/content")
   @head
   @summary("Get file content headers")
-  streamHead(@path id: string): FileStream | Error;
+  streamHead(@path id: UUID): FileStream | Error;
 
   @route("/{id}/children")
   @get
   @summary("List folder children")
-  children(@path id: string, ...FileQuery): FileList | Error;
+  children(@path id: UUID, ...FileQuery): FileList | Error;
 
   @route("/{id}/restore")
   @post
   @summary("Restore soft deleted file or folder")
-  restore(@path id: string): NoContentResponse | Error;
+  restore(@path id: UUID): NoContentResponse | Error;
 
   @route("/categories")
   @get
@@ -1093,7 +1096,7 @@ interface Uploads {
 })
 model UserSession {
   @doc("Unique identifier for the session")
-  sessionId: string;
+  sessionId: UUID;
 
   @doc("Compatibility alias for session ID")
   hash?: string;
@@ -1147,7 +1150,7 @@ model UserApiKeyCreate {
 model UserApiKey {
   @doc("API key ID")
   @example("123e4567-e89b-12d3-a456-426614174000")
-  id: string;
+  id: UUID;
 
   @doc("Display name for the API key")
   @example("CI deploy key")
@@ -1260,12 +1263,12 @@ interface Users {
   @route("/api-keys/{id}")
   @delete
   @summary("Revoke API key")
-  removeApiKey(@path id: string): NoContentResponse | Error;
+  removeApiKey(@path id: UUID): NoContentResponse | Error;
 
   @route("/sessions/{id}")
   @delete
   @summary("Remove user session")
-  removeSession(@path id: string): NoContentResponse | Error;
+  removeSession(@path id: UUID): NoContentResponse | Error;
 }
 
 model FileShareInfo {
@@ -1334,12 +1337,12 @@ interface Shares {
   @route("/{id}")
   @get
   @summary("Get share by ID")
-  getById(@path id: string): FileShareInfo | Error;
+  getById(@path id: UUID): FileShareInfo | Error;
 
   @route("/{id}/unlock")
   @post
   @summary("Unlock share")
-  unlock(@path id: string, @body body: ShareUnlock): {
+  unlock(@path id: UUID, @body body: ShareUnlock): {
     ...NoContentResponse;
     @header("Set-Cookie") setCookie: string;
   } | Error;
@@ -1347,14 +1350,14 @@ interface Shares {
   @route("/{id}/files")
   @get
   @summary("List files in share")
-  listFiles(@path id: string, @cookie(#{ name: "share_token" }) shareToken?: string, ...ShareQuery): FileList | Error;
+  listFiles(@path id: UUID, @cookie(#{ name: "share_token" }) shareToken?: string, ...ShareQuery): FileList | Error;
 
   @route("/{id}/files/{fileId}/content")
   @get
   @summary("Stream or Download shared file")
   stream(
-    @path id: string,
-    @path fileId: string,
+    @path id: UUID,
+    @path fileId: UUID,
     @cookie(#{ name: "share_token" }) shareToken?: string,
     @query download?: "0" | "1" = "0",
   ): FileStream | Error;
@@ -1363,7 +1366,7 @@ interface Shares {
 model Source {
   @doc("File ID")
   @example("123e4567-e89b-12d3-a456-426614174000")
-  id: string;
+  id: UUID;
 
   @doc("File name")
   @example("document.pdf")
@@ -1375,11 +1378,11 @@ model Source {
 
   @doc("Parent ID")
   @example("123e4567-e89b-12d3-a456-426614174000")
-  parentId: string;
+  parentId: UUID;
 
   @doc("Destination Parent ID")
   @example("123e4567-e89b-12d3-a456-426614174000")
-  destParentId?: string;
+  destParentId?: UUID;
 
   @doc("Full path of the file/folder (e.g., 'documents/projects/file.txt')")
   @example("documents/2023/report.pdf")
@@ -1401,7 +1404,7 @@ enum EventType {
 model Event {
   @doc("Event ID")
   @example("123e4567-e89b-12d3-a456-426614174000")
-  id: string;
+  id: UUID;
 
   @doc("Event type")
   type: EventType;

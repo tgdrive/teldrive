@@ -12,7 +12,7 @@ import (
 	"github.com/gotd/td/tg"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
-	jetmodel "github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/model"
+	jetmodel "github.com/tgdrive/teldrive/internal/database/jet/gen/model"
 	"github.com/tgdrive/teldrive/internal/tgc"
 	"github.com/tgdrive/teldrive/pkg/queue"
 	"github.com/tgdrive/teldrive/pkg/services"

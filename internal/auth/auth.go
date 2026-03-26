@@ -10,11 +10,12 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/ogen-go/ogen/ogenerrors"
 	"github.com/tgdrive/teldrive/internal/api"
 	"github.com/tgdrive/teldrive/internal/cache"
 	"github.com/tgdrive/teldrive/internal/config"
-	jetmodel "github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/model"
+	jetmodel "github.com/tgdrive/teldrive/internal/database/jet/gen/model"
 	"github.com/tgdrive/teldrive/pkg/repositories"
 	"github.com/tgdrive/teldrive/pkg/types"
 )
@@ -125,7 +126,7 @@ func VerifyUser(ctx context.Context, sessions repositories.SessionRepository, ca
 	return claims, nil
 }
 
-func SessionByID(ctx context.Context, sessions repositories.SessionRepository, cache cache.Cacher, id string) (*jetmodel.Sessions, error) {
+func SessionByID(ctx context.Context, sessions repositories.SessionRepository, cache cache.Cacher, id uuid.UUID) (*jetmodel.Sessions, error) {
 	var session jetmodel.Sessions
 	key := fmt.Sprintf("sessions:%s", id)
 
@@ -173,13 +174,13 @@ func (s *securityHandler) HandleSessionHashAuth(ctx context.Context, operationNa
 	if operationName != api.FilesStreamOperation {
 		return nil, &ogenerrors.SecurityError{Err: ErrAuthSessionInvalid}
 	}
-	session, err := SessionByID(ctx, s.sessions, s.cache, t.APIKey)
+	session, err := SessionByID(ctx, s.sessions, s.cache, uuid.MustParse(t.APIKey))
 	if err != nil {
 		return nil, &ogenerrors.SecurityError{Err: ErrAuthSessionInvalid}
 	}
 	claims := &types.JWTClaims{
 		RegisteredClaims: jwt.RegisteredClaims{Subject: strconv.FormatInt(session.UserID, 10)},
-		SessionID:        session.ID.String(),
+		SessionID:        session.ID,
 		TgSession:        session.TgSession,
 	}
 	ctx = context.WithValue(ctx, authKey, claims)
@@ -254,7 +255,7 @@ func (s *securityHandler) verifyAPIKey(ctx context.Context, token string) (*type
 
 	claims := &types.JWTClaims{
 		RegisteredClaims: jwt.RegisteredClaims{Subject: strconv.FormatInt(cached.UserID, 10)},
-		SessionID:        cached.SessionID,
+		SessionID:        uuid.MustParse(cached.SessionID),
 		TgSession:        cached.TgSession,
 	}
 

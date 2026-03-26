@@ -49,9 +49,8 @@ tasks:
 
   gen:jet:
     desc: Regenerate Jet models from migrations
-    dir: internal/database
     cmds:
-      - go run jet/jet.go
+      - go run ./scripts/generate_jet.go
 
   lint:
     desc: Run linters
@@ -87,6 +86,8 @@ tasks:
     vars:
       VERSION:
         sh: go run scripts/release.go --version current
+      OLD_COMMIT:
+        sh: git rev-list -n 1 {{.VERSION}} || true
     preconditions:
       - sh: test $(git rev-parse --abbrev-ref HEAD) = "main"
         msg: "You must be on the main branch to retag"
@@ -95,20 +96,16 @@ tasks:
     prompt: "This will recreate tag {{.VERSION}}. Are you sure?"
     cmds:
       - echo "Retagging {{.VERSION}}..."
-      - cmd: git rev-list -n 1 {{.VERSION}} || true
-        silent: true
-        vars:
-          OLD_COMMIT: out
       - git tag -d {{.VERSION}} || true
       - git push --delete origin {{.VERSION}} || true
-      - cmd: |
-          if [ ! -z "{{.OLD_COMMIT}}" ]; then
-            if ! git cherry-pick {{.OLD_COMMIT}}; then
-              git cherry-pick --abort
-              echo "Failed to cherry-pick version commit"
-              exit 1
-            fi
+      - |
+        if [ ! -z "{{.OLD_COMMIT}}" ]; then
+          if ! git cherry-pick {{.OLD_COMMIT}}; then
+            git cherry-pick --abort
+            echo "Failed to cherry-pick version commit"
+            exit 1
           fi
+        fi
       - git tag -a {{.VERSION}} -m "Release {{.VERSION}}"
       - git push origin {{.VERSION}}
       - git push origin main
@@ -132,8 +129,7 @@ tasks:
         msg: "You must have a clean working tree to release"
     prompt: "Are you sure you want to release version {{.VERSION}}?"
     cmds:
-      - cmd: echo "Releasing {{.VERSION}}"
-        silent: true
+      - echo "Releasing {{.VERSION}}"
       - "go run scripts/release.go {{.VERSION}}"
       - "git add --all"
       - 'git commit -m "Version {{.VERSION}}"'

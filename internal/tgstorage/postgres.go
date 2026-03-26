@@ -8,7 +8,7 @@ import (
 	"github.com/gotd/contrib/auth/kv"
 	"github.com/gotd/td/session"
 	"github.com/tgdrive/teldrive/internal/cache"
-	jetmodel "github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/model"
+	jetmodel "github.com/tgdrive/teldrive/internal/database/jet/gen/model"
 	"github.com/tgdrive/teldrive/pkg/repositories"
 )
 

@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/tgdrive/teldrive/internal/api"
-	jetmodel "github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/model"
+	jetmodel "github.com/tgdrive/teldrive/internal/database/jet/gen/model"
 	"github.com/tgdrive/teldrive/pkg/dto"
 )
 
@@ -28,15 +28,15 @@ func eventOut(id string, typ string, createdAt time.Time, src *dto.Source) api.E
 	}
 
 	return api.Event{
-		ID:        id,
+		ID:        UUIDFromString(id),
 		Type:      api.EventType(typ),
 		CreatedAt: createdAt,
 		Source: api.Source{
-			ID:           src.ID,
+			ID:           UUIDFromString(src.ID),
 			Type:         api.SourceType(src.Type),
 			Name:         src.Name,
-			ParentId:     src.ParentID,
-			DestParentId: api.NewOptString(src.DestParentID),
+			ParentId:     UUIDFromString(src.ParentID),
+			DestParentId: OptUUIDFromString(src.DestParentID),
 		},
 	}
 }

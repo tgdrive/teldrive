@@ -19,7 +19,7 @@ import (
 	"github.com/tgdrive/teldrive/internal/api"
 	"github.com/tgdrive/teldrive/internal/auth"
 	"github.com/tgdrive/teldrive/internal/cache"
-	jetmodel "github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/model"
+	jetmodel "github.com/tgdrive/teldrive/internal/database/jet/gen/model"
 	"github.com/tgdrive/teldrive/internal/requestmeta"
 	"github.com/tgdrive/teldrive/pkg/repositories"
 	"github.com/tgdrive/teldrive/pkg/types"
@@ -45,7 +45,7 @@ func (a *apiService) AuthLogin(ctx context.Context, session *api.SessionCreate) 
 			ExpiresAt: jwt.NewNumericDate(now.Add(a.cnf.JWT.SessionTime)),
 		}}
 
-	sessionID := uuid.NewString()
+	sessionID := uuid.New()
 	jwtClaims.SessionID = sessionID
 
 	jwtToken, err := auth.Encode(a.cnf.JWT.Secret, jwtClaims)
@@ -121,7 +121,7 @@ func (a *apiService) AuthLogin(ctx context.Context, session *api.SessionCreate) 
 
 		now := time.Now().UTC()
 		sessionRow := &jetmodel.Sessions{
-			ID:               uuid.MustParse(sessionID),
+			ID:               sessionID,
 			UserID:           session.UserId,
 			TgSession:        session.Session,
 			RefreshTokenHash: &refreshTokenHash,
@@ -173,7 +173,7 @@ func (a *apiService) AuthRefresh(ctx context.Context, params api.AuthRefreshPara
 		Name:      name,
 		UserName:  user.UserName,
 		IsPremium: user.IsPremium,
-		SessionID: sessionRow.ID.String(),
+		SessionID: sessionRow.ID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Subject:   strconv.FormatInt(user.UserID, 10),
 			IssuedAt:  jwt.NewNumericDate(now),
@@ -190,7 +190,7 @@ func (a *apiService) AuthRefresh(ctx context.Context, params api.AuthRefreshPara
 	if err != nil {
 		return nil, &apiError{err: err}
 	}
-	if err := a.repo.Sessions.UpdateRefreshTokenHash(ctx, sessionRow.ID.String(), hashToken(newRefreshToken)); err != nil {
+	if err := a.repo.Sessions.UpdateRefreshTokenHash(ctx, sessionRow.ID, hashToken(newRefreshToken)); err != nil {
 		return nil, &apiError{err: err}
 	}
 
@@ -208,7 +208,7 @@ func (a *apiService) AuthLogout(ctx context.Context) (*api.AuthLogoutNoContent, 
 	if err != nil {
 		return nil, &apiError{err: fmt.Errorf("invalid user subject: %w", err)}
 	}
-	a.cache.Delete(ctx, cache.KeySessionID(authUser.SessionID), cache.KeyUserSessions(userId))
+	a.cache.Delete(ctx, cache.KeySessionID(authUser.SessionID.String()), cache.KeyUserSessions(userId))
 	_ = a.cache.DeletePattern(ctx, cache.KeyAPIKeyAuthPattern())
 	clearRefreshCookie(ctx)
 	client, err := a.telegram.AuthClient(ctx, authUser.TgSession, 5)
@@ -253,11 +253,8 @@ func (a *apiService) AuthSession(ctx context.Context) (api.AuthSessionRes, error
 		UserName:  user.UserName,
 		IsPremium: user.IsPremium,
 		UserId:    userId,
-		SessionId: claims.SessionID,
+		SessionId: api.UUID(claims.SessionID),
 		Expires:   newExpires}
-	if claims.SessionID != "" {
-		session.SetHash(api.NewOptString(claims.SessionID))
-	}
 
 	response := &api.SessionHeaders{Response: session}
 	if auth.Source(ctx) == auth.AuthSourceAPIKey {

@@ -31,7 +31,7 @@ func NewTestDatabase(tb testing.TB, migration bool) *pgxpool.Pool {
 	}
 
 	if migration {
-		if err := MigrateDB(pool); err != nil {
+		if err := MigrateDB(pool, true); err != nil {
 			tb.Fatalf("migration failed %v", err)
 		}
 	}
@@ -39,8 +39,7 @@ func NewTestDatabase(tb testing.TB, migration bool) *pgxpool.Pool {
 	return pool
 
 }
-
-func MigrateDB(pool *pgxpool.Pool) error {
+func MigrateDB(pool *pgxpool.Pool, migrateRiver bool) error {
 	ctx := context.Background()
 	std := stdlib.OpenDBFromPool(pool)
 	defer std.Close()
@@ -55,13 +54,14 @@ func MigrateDB(pool *pgxpool.Pool) error {
 		return err
 	}
 
-	migrator, err := rivermigrate.New(riverpgxv5.New(pool), &rivermigrate.Config{Schema: "teldrive"})
-	if err != nil {
-		return err
-	}
-
-	if _, err := migrator.Migrate(ctx, rivermigrate.DirectionUp, nil); err != nil {
-		return err
+	if migrateRiver {
+		migrator, err := rivermigrate.New(riverpgxv5.New(pool), &rivermigrate.Config{Schema: "teldrive"})
+		if err != nil {
+			return err
+		}
+		if _, err := migrator.Migrate(ctx, rivermigrate.DirectionUp, nil); err != nil {
+			return err
+		}
 	}
 
 	return nil

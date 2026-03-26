@@ -12,7 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/tgdrive/teldrive/internal/api"
 	"github.com/tgdrive/teldrive/internal/cache"
-	jetmodel "github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/model"
+	jetmodel "github.com/tgdrive/teldrive/internal/database/jet/gen/model"
 	"github.com/tgdrive/teldrive/pkg/mapper"
 	"github.com/tgdrive/teldrive/pkg/repositories"
 	"golang.org/x/crypto/bcrypt"
@@ -45,11 +45,7 @@ type fileShare struct {
 	Path      string
 }
 
-func (a *apiService) shareGetById(ctx context.Context, id string) (*fileShare, error) {
-	shareID, err := uuid.Parse(id)
-	if err != nil {
-		return nil, &apiError{err: err, code: http.StatusBadRequest}
-	}
+func (a *apiService) shareGetById(ctx context.Context, shareID uuid.UUID) (*fileShare, error) {
 	share, err := a.repo.Shares.GetByID(ctx, shareID)
 	if err != nil {
 		return nil, &apiError{err: ErrShareNotFound, code: http.StatusNotFound}
@@ -79,7 +75,7 @@ func (a *apiService) shareGetById(ctx context.Context, id string) (*fileShare, e
 }
 
 func (a *apiService) SharesGetById(ctx context.Context, params api.SharesGetByIdParams) (*api.FileShareInfo, error) {
-	share, err := a.shareGetById(ctx, params.ID)
+	share, err := a.shareGetById(ctx, uuid.UUID(params.ID))
 
 	if err != nil {
 		return nil, err
@@ -139,11 +135,7 @@ func (a *apiService) validateShareToken(token, shareID string) error {
 }
 
 func (a *apiService) SharesUnlock(ctx context.Context, req *api.ShareUnlock, params api.SharesUnlockParams) (*api.SharesUnlockNoContent, error) {
-	shareID, err := uuid.Parse(params.ID)
-	if err != nil {
-		return nil, &apiError{err: err, code: http.StatusBadRequest}
-	}
-	share, err := a.repo.Shares.GetByID(ctx, shareID)
+	share, err := a.repo.Shares.GetByID(ctx, uuid.UUID(params.ID))
 	if err != nil {
 		return nil, &apiError{err: ErrShareNotFound, code: http.StatusNotFound}
 	}
@@ -165,7 +157,7 @@ func (a *apiService) SharesUnlock(ctx context.Context, req *api.ShareUnlock, par
 }
 
 func (a *apiService) SharesListFiles(ctx context.Context, params api.SharesListFilesParams) (*api.FileList, error) {
-	share, err := a.validFileShare(ctx, params.ID, params.ShareToken.Or(""))
+	share, err := a.validFileShare(ctx, uuid.UUID(params.ID), params.ShareToken.Or(""))
 	if err != nil {
 		return nil, err
 	}
@@ -227,9 +219,9 @@ func (a *apiService) SharesListFiles(ctx context.Context, params api.SharesListF
 	}
 
 }
-func (a *apiService) validFileShare(ctx context.Context, id string, shareToken string) (*fileShare, error) {
+func (a *apiService) validFileShare(ctx context.Context, id uuid.UUID, shareToken string) (*fileShare, error) {
 
-	share, err := cache.Fetch(ctx, a.cache, cache.KeyShare(id), 0, func() (*fileShare, error) {
+	share, err := cache.Fetch(ctx, a.cache, cache.KeyShare(id.String()), 0, func() (*fileShare, error) {
 		return a.shareGetById(ctx, id)
 	})
 

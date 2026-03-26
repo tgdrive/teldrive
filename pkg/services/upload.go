@@ -18,7 +18,7 @@ import (
 	"github.com/tgdrive/teldrive/internal/utils"
 	"go.uber.org/zap"
 
-	jetmodel "github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/model"
+	jetmodel "github.com/tgdrive/teldrive/internal/database/jet/gen/model"
 	"github.com/tgdrive/teldrive/pkg/mapper"
 	"github.com/tgdrive/teldrive/pkg/repositories"
 )

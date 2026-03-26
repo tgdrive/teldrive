@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/go-faster/jx"
+	"github.com/google/uuid"
 	"github.com/tgdrive/teldrive/internal/api"
 )
 
@@ -192,14 +193,14 @@ func TestPeriodicJobsRoutes_Validation(t *testing.T) {
 		if err != nil {
 			t.Fatalf("PeriodicJobsList failed: %v", err)
 		}
-		var maintenanceID string
+		var maintenanceID api.UUID
 		for _, item := range items {
 			if item.Kind != api.PeriodicJobKindSyncRun {
 				maintenanceID = item.ID
 				break
 			}
 		}
-		if maintenanceID == "" {
+		if uuid.UUID(maintenanceID) == uuid.Nil {
 			t.Fatalf("expected a maintenance job")
 		}
 		if err := client.PeriodicJobsDelete(ctx, api.PeriodicJobsDeleteParams{ID: maintenanceID}); statusCode(err) != 400 {
@@ -212,14 +213,14 @@ func TestPeriodicJobsRoutes_Validation(t *testing.T) {
 		if err != nil {
 			t.Fatalf("PeriodicJobsList failed: %v", err)
 		}
-		var staleUploadsID string
+		var staleUploadsID api.UUID
 		for _, item := range items {
 			if item.Kind == api.PeriodicJobKindCleanStaleUploads {
 				staleUploadsID = item.ID
 				break
 			}
 		}
-		if staleUploadsID == "" {
+		if uuid.UUID(staleUploadsID) == uuid.Nil {
 			t.Fatalf("expected clean.stale_uploads maintenance job")
 		}
 
@@ -251,14 +252,14 @@ func TestPeriodicJobsRoutes_Validation(t *testing.T) {
 		if err != nil {
 			t.Fatalf("PeriodicJobsList failed: %v", err)
 		}
-		var pendingFilesID string
+		var pendingFilesID api.UUID
 		for _, item := range items {
 			if item.Kind == api.PeriodicJobKindCleanPendingFiles {
 				pendingFilesID = item.ID
 				break
 			}
 		}
-		if pendingFilesID == "" {
+		if uuid.UUID(pendingFilesID) == uuid.Nil {
 			t.Fatalf("expected clean.pending_files maintenance job")
 		}
 
@@ -271,7 +272,7 @@ func TestPeriodicJobsRoutes_Validation(t *testing.T) {
 	})
 
 	t.Run("run unknown periodic job returns 404", func(t *testing.T) {
-		_, err := client.PeriodicJobsRun(ctx, api.PeriodicJobsRunParams{ID: "00000000-0000-0000-0000-000000000000"})
+		_, err := client.PeriodicJobsRun(ctx, api.PeriodicJobsRunParams{ID: api.UUID(uuid.MustParse("00000000-0000-0000-0000-000000000000"))})
 		if statusCode(err) != 404 {
 			t.Fatalf("expected 404, got %d err=%v", statusCode(err), err)
 		}

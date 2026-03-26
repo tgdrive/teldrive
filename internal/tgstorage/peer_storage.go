@@ -7,7 +7,7 @@ import (
 	"github.com/go-faster/errors"
 	"github.com/gotd/contrib/storage"
 	"github.com/tgdrive/teldrive/internal/cache"
-	"github.com/tgdrive/teldrive/internal/database/jetgen/teldrive_jet/teldrive/model"
+	"github.com/tgdrive/teldrive/internal/database/jet/gen/model"
 	"github.com/tgdrive/teldrive/pkg/repositories"
 )
 
