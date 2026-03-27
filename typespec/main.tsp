@@ -648,6 +648,33 @@ model JobListQuery {
   cursor?: string;
 }
 
+@doc("Job counts grouped by state")
+model JobStateCounts {
+  @doc("Total number of jobs")
+  all: int64;
+
+  @doc("Available jobs")
+  available: int64;
+
+  @doc("Running jobs")
+  running: int64;
+
+  @doc("Scheduled jobs")
+  scheduled: int64;
+
+  @doc("Retryable jobs")
+  retryable: int64;
+
+  @doc("Completed jobs")
+  completed: int64;
+
+  @doc("Cancelled jobs")
+  cancelled: int64;
+
+  @doc("Discarded jobs")
+  discarded: int64;
+}
+
 @doc("Paginated job listing response")
 model JobList {
   @doc("Array of jobs")
@@ -657,6 +684,9 @@ model JobList {
 
   @doc("Pagination metadata")
   meta: Meta;
+
+  @doc("Job counts grouped by state")
+  counts: JobStateCounts;
 }
 
 model SyncFilters {
@@ -669,7 +699,6 @@ model SyncFilters {
 
 model SyncOptions {
   partSize?: int64;
-  concurrency?: integer;
   sync?: boolean;
 }
 

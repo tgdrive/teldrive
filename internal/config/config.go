@@ -56,7 +56,13 @@ type ServerCmdConfig struct {
 	TG     TGConfig
 	Cache  CacheConfig
 	Redis  RedisConfig
+	Queue  QueueConfig
 	Events EventConfig
+}
+
+type QueueConfig struct {
+	DefaultWorkers int `default:"50" description:"Maximum number of workers for the default task queue"`
+	UploadWorkers  int `default:"4" description:"Maximum number of workers for the uploads task queue"`
 }
 
 type CheckCmdConfig struct {
@@ -216,6 +222,73 @@ func NewConfigLoader() *ConfigLoader {
 		flagMap: make(map[string]string),
 		envMap:  make(map[string]string),
 	}
+}
+
+func DefaultServerConfigMap() map[string]any {
+	return buildDefaultsMap(reflect.TypeFor[ServerCmdConfig]())
+}
+
+func buildDefaultsMap(t reflect.Type) map[string]any {
+	if t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+
+	out := make(map[string]any)
+	if t.Kind() != reflect.Struct {
+		return out
+	}
+
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		key := getKey(field)
+
+		if field.Type.Kind() == reflect.Struct && field.Type != reflect.TypeFor[time.Duration]() {
+			out[key] = buildDefaultsMap(field.Type)
+			continue
+		}
+
+		defaultValue, ok := field.Tag.Lookup("default")
+		if !ok {
+			continue
+		}
+
+		out[key] = parseDefaultValue(field.Type, defaultValue)
+	}
+
+	return out
+}
+
+func parseDefaultValue(t reflect.Type, defaultValue string) any {
+	if t == reflect.TypeFor[time.Duration]() {
+		return defaultValue
+	}
+
+	switch t.Kind() {
+	case reflect.Int:
+		val, err := strconv.Atoi(defaultValue)
+		if err == nil {
+			return val
+		}
+	case reflect.Int64:
+		val, err := strconv.ParseInt(defaultValue, 10, 64)
+		if err == nil {
+			return val
+		}
+	case reflect.Bool:
+		val, err := strconv.ParseBool(defaultValue)
+		if err == nil {
+			return val
+		}
+	case reflect.Slice:
+		if t.Elem().Kind() == reflect.String {
+			if defaultValue == "" {
+				return []string{}
+			}
+			return strings.Split(defaultValue, ",")
+		}
+	}
+
+	return defaultValue
 }
 
 // customFlagProvider loads flags from a pflag.FlagSet.
@@ -462,24 +535,9 @@ func (cl *ConfigLoader) registerDefaultsRecursive(t reflect.Type, prefix string)
 			continue
 		}
 
-		defaultValue := field.Tag.Get("default")
-		if defaultValue != "" {
-			var val any = defaultValue
-			switch field.Type.Kind() {
-			case reflect.Int:
-				val, _ = strconv.Atoi(defaultValue)
-			case reflect.Int64:
-				if field.Type != reflect.TypeFor[time.Duration]() {
-					val, _ = strconv.ParseInt(defaultValue, 10, 64)
-				}
-			case reflect.Bool:
-				val, _ = strconv.ParseBool(defaultValue)
-			case reflect.Slice:
-				if field.Type.Elem().Kind() == reflect.String {
-					val = strings.Split(defaultValue, ",")
-				}
-			}
-			cl.k.Set(key, val)
+		defaultValue, ok := field.Tag.Lookup("default")
+		if ok {
+			cl.k.Set(key, parseDefaultValue(field.Type, defaultValue))
 		}
 	}
 }

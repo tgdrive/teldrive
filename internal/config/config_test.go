@@ -77,6 +77,8 @@ func TestConfigLoader_LoadDefaults(t *testing.T) {
 	assert.Equal(t, 10, cfg.Redis.MaxIdleConns)
 	assert.Equal(t, 5*time.Minute, cfg.Redis.ConnMaxIdleTime)
 	assert.Equal(t, time.Hour, cfg.Redis.ConnMaxLifetime)
+	assert.Equal(t, 50, cfg.Queue.DefaultWorkers)
+	assert.Equal(t, 4, cfg.Queue.UploadWorkers)
 }
 
 func TestConfigLoader_LoadFromConfigFile(t *testing.T) {
@@ -484,4 +486,38 @@ func TestConfigLoader_CustomEnvMapping(t *testing.T) {
 			tt.check(t, &config)
 		})
 	}
+}
+
+func TestDefaultServerConfigMap(t *testing.T) {
+	defaults := DefaultServerConfigMap()
+
+	server, ok := defaults["server"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, 8080, server["port"])
+	assert.Equal(t, "10s", server["graceful-shutdown"])
+
+	jwt, ok := defaults["jwt"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "", jwt["secret"])
+	assert.Equal(t, []string{}, jwt["allowed-users"])
+
+	redis, ok := defaults["redis"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "", redis["addr"])
+	assert.Equal(t, "", redis["password"])
+
+	queue, ok := defaults["queue"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, 50, queue["default-workers"])
+	assert.Equal(t, 4, queue["upload-workers"])
+
+	tg, ok := defaults["tg"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "", tg["proxy"])
+
+	mtproxy, ok := tg["mtproxy"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "", mtproxy["addr"])
+	assert.Equal(t, "", mtproxy["secret"])
+	assert.Equal(t, false, tg["enable-logging"])
 }

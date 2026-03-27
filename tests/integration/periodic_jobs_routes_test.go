@@ -80,9 +80,8 @@ func TestPeriodicJobsRoutes_CRUD_EnableDisable_RunNow(t *testing.T) {
 				Include: []string{"**/*.jpg"},
 			}),
 			Options: api.NewOptSyncOptions(api.SyncOptions{
-				PartSize:    api.NewOptInt64(32 * 1024 * 1024),
-				Concurrency: api.NewOptInt(4),
-				Sync:        api.NewOptBool(true),
+				PartSize: api.NewOptInt64(32 * 1024 * 1024),
+				Sync:     api.NewOptBool(true),
 			}),
 		},
 	})

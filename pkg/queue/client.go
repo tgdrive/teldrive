@@ -7,11 +7,12 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
+	"github.com/tgdrive/teldrive/internal/config"
 )
 
 const QueueUploads = "uploads"
 
-func NewClient(pool *pgxpool.Pool, exec Executor) (*river.Client[pgx.Tx], error) {
+func NewClient(pool *pgxpool.Pool, exec Executor, cfg config.QueueConfig) (*river.Client[pgx.Tx], error) {
 	workers := river.NewWorkers()
 	river.AddWorker(workers, &syncRunWorker{exec: exec})
 	river.AddWorker(workers, &syncTransferWorker{exec: exec})
@@ -19,11 +20,18 @@ func NewClient(pool *pgxpool.Pool, exec Executor) (*river.Client[pgx.Tx], error)
 	river.AddWorker(workers, &cleanStaleUploadsWorker{exec: exec})
 	river.AddWorker(workers, &cleanPendingFilesWorker{exec: exec})
 
+	if cfg.DefaultWorkers <= 0 {
+		cfg.DefaultWorkers = 50
+	}
+	if cfg.UploadWorkers <= 0 {
+		cfg.UploadWorkers = 4
+	}
+
 	return river.NewClient(riverpgxv5.New(pool), &river.Config{
 		Schema: "teldrive",
 		Queues: map[string]river.QueueConfig{
-			river.QueueDefault: {MaxWorkers: 50},
-			QueueUploads:       {MaxWorkers: 4},
+			river.QueueDefault: {MaxWorkers: cfg.DefaultWorkers},
+			QueueUploads:       {MaxWorkers: cfg.UploadWorkers},
 		},
 		Workers: workers,
 	})

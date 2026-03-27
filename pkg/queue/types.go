@@ -40,9 +40,8 @@ type SyncFilters struct {
 }
 
 type SyncOptions struct {
-	PartSize    int64 `json:"partSize,omitempty"`
-	Concurrency int   `json:"concurrency,omitempty"`
-	Sync        bool  `json:"sync,omitempty"`
+	PartSize int64 `json:"partSize,omitempty"`
+	Sync     bool  `json:"sync,omitempty"`
 }
 
 func (SyncRunJobArgs) Kind() string { return JobKindSyncRun }

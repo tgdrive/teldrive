@@ -12,6 +12,7 @@ import (
 	"github.com/gotd/td/tg"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
+	"github.com/tgdrive/teldrive/internal/config"
 	jetmodel "github.com/tgdrive/teldrive/internal/database/jet/gen/model"
 	"github.com/tgdrive/teldrive/internal/tgc"
 	"github.com/tgdrive/teldrive/pkg/queue"
@@ -47,7 +48,7 @@ func TestSyncRunWorkflow_LocalSource_Completes(t *testing.T) {
 
 	channelManager := tgc.NewChannelManager(s.repos, s.cache, &s.cfg.TG)
 	apiSvc := services.NewApiService(s.repos, channelManager, s.cfg, s.cache, s.tgMock, s.events, nil)
-	riverClient, err := queue.NewClient(s.pool, services.NewJobExecutor(apiSvc))
+	riverClient, err := queue.NewClient(s.pool, services.NewJobExecutor(apiSvc), config.QueueConfig{})
 	if err != nil {
 		t.Fatalf("create river client: %v", err)
 	}
@@ -145,7 +146,7 @@ func TestSyncRunWorkflow_LocalSource_RetriesAndDiscardsOnFailure(t *testing.T) {
 
 	channelManager := tgc.NewChannelManager(s.repos, s.cache, &s.cfg.TG)
 	apiSvc := services.NewApiService(s.repos, channelManager, s.cfg, s.cache, s.tgMock, s.events, nil)
-	riverClient, err := queue.NewClient(s.pool, services.NewJobExecutor(apiSvc))
+	riverClient, err := queue.NewClient(s.pool, services.NewJobExecutor(apiSvc), config.QueueConfig{})
 	if err != nil {
 		t.Fatalf("create river client: %v", err)
 	}

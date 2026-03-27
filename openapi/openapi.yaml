@@ -3043,6 +3043,7 @@ components:
       required:
         - items
         - meta
+        - counts
       properties:
         items:
           type: array
@@ -3055,6 +3056,10 @@ components:
           allOf:
             - $ref: '#/components/schemas/Meta'
           description: Pagination metadata
+        counts:
+          allOf:
+            - $ref: '#/components/schemas/JobStateCounts'
+          description: Job counts grouped by state
       description: Paginated job listing response
     JobOutput:
       type: object
@@ -3090,6 +3095,51 @@ components:
         - cancelled
         - discarded
       description: River job state
+    JobStateCounts:
+      type: object
+      required:
+        - all
+        - available
+        - running
+        - scheduled
+        - retryable
+        - completed
+        - cancelled
+        - discarded
+      properties:
+        all:
+          type: integer
+          format: int64
+          description: Total number of jobs
+        available:
+          type: integer
+          format: int64
+          description: Available jobs
+        running:
+          type: integer
+          format: int64
+          description: Running jobs
+        scheduled:
+          type: integer
+          format: int64
+          description: Scheduled jobs
+        retryable:
+          type: integer
+          format: int64
+          description: Retryable jobs
+        completed:
+          type: integer
+          format: int64
+          description: Completed jobs
+        cancelled:
+          type: integer
+          format: int64
+          description: Cancelled jobs
+        discarded:
+          type: integer
+          format: int64
+          description: Discarded jobs
+      description: Job counts grouped by state
     JobStatus:
       type: object
       required:
@@ -3395,8 +3445,6 @@ components:
         partSize:
           type: integer
           format: int64
-        concurrency:
-          type: integer
         sync:
           type: boolean
     UUID:

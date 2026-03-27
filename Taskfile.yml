@@ -52,6 +52,11 @@ tasks:
     cmds:
       - go run ./scripts/generate_jet.go
 
+  gen:config:
+    desc: Regenerate sample config files
+    cmds:
+      - go run ./scripts/generate_config_sample
+
   lint:
     desc: Run linters
     cmds:

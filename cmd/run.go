@@ -245,7 +245,7 @@ func setupServer(cfg *config.ServerCmdConfig, repos *repositories.Repositories, 
 	telegramService := services.NewTelegramService(repos, cache, &cfg.TG, botSelector)
 
 	apiSrv := services.NewApiService(repos, channelManager, cfg, cache, telegramService, eventBroadcaster, nil)
-	riverClient, err := queue.NewClient(repos.Pool, services.NewJobExecutor(apiSrv))
+	riverClient, err := queue.NewClient(repos.Pool, services.NewJobExecutor(apiSrv), cfg.Queue)
 	if err != nil {
 		lg.Error("failed to create river client", zap.Error(err))
 		os.Exit(1)

@@ -70,15 +70,12 @@ func toQueueFilters(v api.OptSyncFilters) queue.SyncFilters {
 }
 
 func toQueueOptions(v api.OptSyncOptions) queue.SyncOptions {
-	out := queue.SyncOptions{Concurrency: 8, PartSize: 100 * 1024 * 1024, Sync: true}
+	out := queue.SyncOptions{PartSize: 100 * 1024 * 1024, Sync: true}
 	if !v.IsSet() {
 		return out
 	}
 	if v.Value.PartSize.IsSet() && v.Value.PartSize.Value > 0 {
 		out.PartSize = v.Value.PartSize.Value
-	}
-	if v.Value.Concurrency.IsSet() && v.Value.Concurrency.Value > 0 {
-		out.Concurrency = v.Value.Concurrency.Value
 	}
 	if v.Value.Sync.IsSet() {
 		out.Sync = v.Value.Sync.Value

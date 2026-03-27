@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strconv"
 
 	"github.com/go-faster/jx"
 	"github.com/riverqueue/river"
@@ -58,6 +59,10 @@ func (a *apiService) JobsList(ctx context.Context, params api.JobsListParams) (*
 	}
 
 	items := utils.Map(res.Jobs, func(row *rivertype.JobRow) api.JobStatus { return *toJobStatus(row) })
+	counts, err := a.jobCounts(ctx, userID)
+	if err != nil {
+		return nil, &apiError{err: err}
+	}
 	meta := api.Meta{}
 	if len(items) == limit {
 		if cursor, err := river.JobListCursorFromJob(res.Jobs[len(res.Jobs)-1]).MarshalText(); err == nil {
@@ -65,7 +70,57 @@ func (a *apiService) JobsList(ctx context.Context, params api.JobsListParams) (*
 		}
 	}
 
-	return &api.JobList{Items: items, Meta: meta}, nil
+	return &api.JobList{Items: items, Meta: meta, Counts: counts}, nil
+}
+
+func (a *apiService) jobCounts(ctx context.Context, userID int64) (api.JobStateCounts, error) {
+	counts := api.JobStateCounts{}
+	if userID == 0 || a.repo == nil || a.repo.Pool == nil {
+		return counts, nil
+	}
+
+	rows, err := a.repo.Pool.Query(ctx, `
+		SELECT state::text, COUNT(*)
+		FROM teldrive.river_job
+		WHERE args ->> 'userId' = $1
+		GROUP BY state
+	`, strconv.FormatInt(userID, 10))
+	if err != nil {
+		return counts, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var state string
+		var total int64
+		if err := rows.Scan(&state, &total); err != nil {
+			return counts, err
+		}
+
+		counts.All += total
+		switch rivertype.JobState(state) {
+		case rivertype.JobStateAvailable:
+			counts.Available = total
+		case rivertype.JobStateRunning:
+			counts.Running = total
+		case rivertype.JobStateScheduled:
+			counts.Scheduled = total
+		case rivertype.JobStateRetryable:
+			counts.Retryable = total
+		case rivertype.JobStateCompleted:
+			counts.Completed = total
+		case rivertype.JobStateCancelled:
+			counts.Cancelled = total
+		case rivertype.JobStateDiscarded:
+			counts.Discarded = total
+		}
+	}
+
+	if err := rows.Err(); err != nil {
+		return counts, err
+	}
+
+	return counts, nil
 }
 
 func (a *apiService) JobsInsert(ctx context.Context, req *api.JobInsertRequest) (*api.JobStatus, error) {
