@@ -112,8 +112,8 @@ type FileRepository interface {
 	ResolvePathID(ctx context.Context, path string, userID int64) (*uuid.UUID, error)
 	List(ctx context.Context, params FileQueryParams) ([]model.Files, error)
 	GetFullPath(ctx context.Context, fileID uuid.UUID) (string, error)
-	ListPendingForPurge(ctx context.Context) ([]PendingFile, error)
-	DeletePendingForPurgeByUser(ctx context.Context, userID int64) error
+	ListPendingForDeletion(ctx context.Context) ([]PendingFile, error)
+	DeletePendingForDeletionByUser(ctx context.Context, userID int64) error
 	CategoryStats(ctx context.Context, userID int64) ([]CategoryStats, error)
 	DeleteBulk(ctx context.Context, fileIDs []uuid.UUID, userID int64, targetStatus string) error
 	DeleteBulkReturning(ctx context.Context, fileIDs []uuid.UUID, userID int64, targetStatus string) ([]model.Files, error)

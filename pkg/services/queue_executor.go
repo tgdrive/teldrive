@@ -172,7 +172,7 @@ type pendingFileGroup struct {
 }
 
 func (e *jobExecutor) CleanPendingFilesForUser(ctx context.Context, userID int64) error {
-	rows, err := e.api.repo.Files.ListPendingForPurge(ctx)
+	rows, err := e.api.repo.Files.ListPendingForDeletion(ctx)
 	if err != nil {
 		return err
 	}
@@ -201,7 +201,7 @@ func (e *jobExecutor) CleanPendingFilesForUser(ctx context.Context, userID int64
 			return err
 		}
 	}
-	if err := e.api.repo.Files.DeletePendingForPurgeByUser(ctx, userID); err != nil {
+	if err := e.api.repo.Files.DeletePendingForDeletionByUser(ctx, userID); err != nil {
 		return err
 	}
 

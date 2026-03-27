@@ -286,6 +286,14 @@ func (a *apiService) FilesCreate(ctx context.Context, fileIn *api.File) (*api.Fi
 		return nil, &apiError{err: err}
 	}
 
+	fileIDStr := fileDB.ID.String()
+	keys := []string{cache.KeyFile(fileIDStr)}
+	if fileDB.Parts != nil {
+		keys = append(keys, cache.KeyFileMessages(fileIDStr))
+		a.cache.DeletePattern(ctx, cache.KeyFileLocationPattern(fileIDStr))
+	}
+	a.cache.Delete(ctx, keys...)
+
 	parentIDStr := ""
 	if fileDB.ParentID != nil {
 		parentIDStr = fileDB.ParentID.String()
@@ -342,7 +350,7 @@ func (a *apiService) FilesDeleteById(ctx context.Context, params api.FilesDelete
 
 	fileID := uuid.UUID(req.Ids[0])
 
-	deleted, err := a.repo.Files.DeleteBulkReturning(ctx, []uuid.UUID{fileID}, userId, "trashed")
+	deleted, err := a.repo.Files.DeleteBulkReturning(ctx, []uuid.UUID{fileID}, userId, "pending_deletion")
 	if err != nil {
 		return &apiError{err: err}
 	}
@@ -382,7 +390,7 @@ func (a *apiService) FilesDeleteById(ctx context.Context, params api.FilesDelete
 	return nil
 }
 
-func (a *apiService) FilesDelete(ctx context.Context, req *api.FileDelete, params api.FilesDeleteParams) error {
+func (a *apiService) FilesDelete(ctx context.Context, req *api.FileDelete) error {
 	userId := auth.User(ctx)
 	if len(req.Ids) == 0 {
 		return &apiError{err: errors.New("ids should not be empty"), code: 409}
@@ -392,12 +400,7 @@ func (a *apiService) FilesDelete(ctx context.Context, req *api.FileDelete, param
 		ids = append(ids, uuid.UUID(id))
 	}
 
-	targetStatus := "trashed"
-	if params.Force.Value {
-		targetStatus = "purge_pending"
-	}
-
-	deleted, err := a.repo.Files.DeleteBulkReturning(ctx, ids, userId, targetStatus)
+	deleted, err := a.repo.Files.DeleteBulkReturning(ctx, ids, userId, "pending_deletion")
 	if err != nil {
 		return &apiError{err: err}
 	}
@@ -545,22 +548,6 @@ func (a *apiService) FilesChildren(ctx context.Context, params api.FilesChildren
 	}
 
 	return a.FilesList(ctx, listParams)
-}
-
-func (a *apiService) FilesRestore(ctx context.Context, params api.FilesRestoreParams) error {
-	file, err := a.repo.Files.GetByID(ctx, uuid.UUID(params.ID))
-	if err != nil {
-		return &apiError{err: err}
-	}
-	if file.Status == nil || *file.Status != "trashed" {
-		return &apiError{err: errors.New("only trashed files can be restored"), code: 409}
-	}
-	status := "active"
-	if _, err := a.repo.Files.UpdateReturning(ctx, uuid.UUID(params.ID), repositories.FileUpdate{Status: &status}); err != nil {
-		return &apiError{err: err}
-	}
-
-	return nil
 }
 
 func (a *apiService) FilesStreamHead(ctx context.Context, params api.FilesStreamHeadParams) (api.FilesStreamHeadRes, error) {

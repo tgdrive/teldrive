@@ -126,8 +126,16 @@ model AuthAttempt {
   state: "created" | "qr_pending" | "code_sent" | "password_required" | "authenticated" | "failed" | "expired";
   token?: string;
   phoneCodeHash?: string;
-  session?: Session;
+  session?: AuthAttemptSession;
   message?: string;
+}
+
+model AuthAttemptSession {
+  name: string;
+  userName: string;
+  userId: int64;
+  isPremium: boolean;
+  session: string;
 }
 
 model AuthAttemptCreate {
@@ -153,7 +161,7 @@ model AuthAttemptEvent {
   type: "token" | "phone_code" | "password_required" | "success" | "error";
   token?: string;
   phoneCodeHash?: string;
-  session?: Session;
+  session?: AuthAttemptSession;
   message?: string;
 }
 
@@ -171,7 +179,7 @@ interface Auth {
   @route("/login")
   @summary("Login")
   @post
-  login(...Session): {
+  login(@body body: AuthAttemptSession): {
     ...NoContentResponse;
     @header("Set-Cookie") setCookie: string;
   } | Error;
@@ -210,17 +218,6 @@ interface Auth {
   @summary("Delete auth attempt")
   @delete
   deleteAttempt(@path id: string): NoContentResponse | Error;
-
-  @route("/attempts/{id}/events")
-  @summary("Stream auth attempt events")
-  @get
-  attemptEvents(@path id: string): {
-    @statusCode statusCode: 200;
-    @header("Content-Type") contentType: "text/event-stream";
-    @header("Cache-Control") cacheControl: "no-cache";
-    @header("Connection") connection: "keep-alive";
-    @body body: string;
-  } | Error;
 
   @route("/attempts/{id}/phone/send-code")
   @summary("Send phone login code")
@@ -309,7 +306,7 @@ model FileQuery {
   @query
   @doc("File Status")
   @example("active")
-  status?: "active" | "trashed" = "active";
+  status?: "active" = "active";
 
   @query
   @doc("Enable deep search")
@@ -431,6 +428,7 @@ model File {
   @doc("Last update time")
   @visibility(Lifecycle.Read)
   updatedAt?: utcDateTime;
+
 }
 
 @doc("Pagination metadata for cursor-based listing")
@@ -532,6 +530,7 @@ model FileUpdate {
 
   @doc("Last update time")
   updatedAt?: utcDateTime;
+
 }
 
 @doc("River job state")
@@ -875,7 +874,7 @@ interface Files {
 
   @route("/{id}")
   @delete
-  @summary("Soft delete file or folder")
+  @summary("Mark file or folder for deletion")
   deleteById(@path id: UUID): NoContentResponse | Error;
 
   @route("/{id}/copy")
@@ -885,8 +884,8 @@ interface Files {
 
   @route("/delete")
   @post
-  @summary("Bulk delete files or folders")
-  delete(@query force?: boolean = false, @body body: FileDelete): NoContentResponse | Error;
+  @summary("Mark files or folders for deletion")
+  delete(@body body: FileDelete): NoContentResponse | Error;
 
   @route("/move")
   @post
@@ -941,11 +940,6 @@ interface Files {
   @get
   @summary("List folder children")
   children(@path id: UUID, ...FileQuery): FileList | Error;
-
-  @route("/{id}/restore")
-  @post
-  @summary("Restore soft deleted file or folder")
-  restore(@path id: UUID): NoContentResponse | Error;
 
   @route("/categories")
   @get

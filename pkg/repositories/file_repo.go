@@ -9,6 +9,7 @@ import (
 	"github.com/go-jet/jet/v2/postgres"
 	"github.com/go-jet/jet/v2/qrm"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/tgdrive/teldrive/internal/database/jet/gen/model"
@@ -48,44 +49,59 @@ func (r *JetFileRepository) UpsertActive(ctx context.Context, file *model.Files)
 		file.UpdatedAt = now
 	}
 
-	stmt := table.Files.INSERT(table.Files.AllColumns).
-		VALUES(
-			file.Name,
-			file.Type,
-			file.MimeType,
-			file.Size,
-			file.UserID,
-			file.Status,
-			file.ChannelID,
-			file.Parts,
-			file.CreatedAt,
-			file.UpdatedAt,
-			file.Encrypted,
-			file.Category,
-			file.ID,
-			file.ParentID,
-			file.Hash,
-		).
-		ON_CONFLICT(
-			table.Files.Name,
-			table.Files.ParentID,
-			table.Files.UserID,
-			table.Files.Status,
-			table.Files.Type,
-		).DO_UPDATE(postgres.SET(
-		table.Files.MimeType.SET(table.Files.EXCLUDED.MimeType),
-		table.Files.Size.SET(table.Files.EXCLUDED.Size),
-		table.Files.ChannelID.SET(table.Files.EXCLUDED.ChannelID),
-		table.Files.Parts.SET(table.Files.EXCLUDED.Parts),
-		table.Files.UpdatedAt.SET(table.Files.EXCLUDED.UpdatedAt),
-		table.Files.Encrypted.SET(table.Files.EXCLUDED.Encrypted),
-		table.Files.Category.SET(table.Files.EXCLUDED.Category),
-		table.Files.Hash.SET(table.Files.EXCLUDED.Hash),
-	)).RETURNING(table.Files.ID)
+	if err := r.updateActiveByNaturalKey(ctx, file); err == nil {
+		return nil
+	} else if !errors.Is(err, ErrNotFound) {
+		return err
+	}
+
+	stmt := table.Files.INSERT(table.Files.AllColumns).MODEL(*file)
+	if err := r.db.exec(ctx, stmt); err != nil {
+		if errors.Is(err, ErrConflict) {
+			return r.updateActiveByNaturalKey(ctx, file)
+		}
+		return err
+	}
+
+	return nil
+}
+
+func (r *JetFileRepository) updateActiveByNaturalKey(ctx context.Context, file *model.Files) error {
+	whereExpr := table.Files.Name.EQ(postgres.String(file.Name)).
+		AND(table.Files.UserID.EQ(postgres.Int64(file.UserID))).
+		AND(table.Files.Status.EQ(postgres.String("active")))
+	if file.ParentID == nil {
+		whereExpr = whereExpr.AND(table.Files.ParentID.IS_NULL())
+	} else {
+		whereExpr = whereExpr.AND(table.Files.ParentID.IS_NOT_DISTINCT_FROM(postgres.UUID(*file.ParentID)))
+	}
+
+	stmt := table.Files.UPDATE(
+		table.Files.MimeType,
+		table.Files.Size,
+		table.Files.ChannelID,
+		table.Files.Parts,
+		table.Files.UpdatedAt,
+		table.Files.Encrypted,
+		table.Files.Category,
+		table.Files.Hash,
+	).SET(
+		file.MimeType,
+		file.Size,
+		file.ChannelID,
+		file.Parts,
+		file.UpdatedAt,
+		file.Encrypted,
+		file.Category,
+		file.Hash,
+	).WHERE(whereExpr).RETURNING(table.Files.ID)
 
 	query, args := stmt.Sql()
 	row := r.db.executor(ctx).QueryRow(ctx, query, args...)
 	if err := ScanRow(row, &file.ID); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		}
 		return normalizeDBError(err)
 	}
 
@@ -105,7 +121,9 @@ func selectFilesForRead(files *table.FilesTable) postgres.SelectStatement {
 }
 
 func (r *JetFileRepository) GetByID(ctx context.Context, id uuid.UUID) (*model.Files, error) {
-	stmt := selectFilesForRead(table.Files).FROM(table.Files).WHERE(table.Files.ID.EQ(postgres.UUID(id)))
+	stmt := selectFilesForRead(table.Files).FROM(table.Files).WHERE(
+		table.Files.ID.EQ(postgres.UUID(id)).AND(table.Files.Status.EQ(postgres.String("active"))),
+	)
 
 	var out model.Files
 	if err := r.db.query(ctx, stmt, &out); err != nil {
@@ -121,7 +139,9 @@ func (r *JetFileRepository) GetByID(ctx context.Context, id uuid.UUID) (*model.F
 
 func (r *JetFileRepository) GetByIDAndUser(ctx context.Context, id uuid.UUID, userID int64) (*model.Files, error) {
 	stmt := selectFilesForRead(table.Files).FROM(table.Files).WHERE(
-		table.Files.ID.EQ(postgres.UUID(id)).AND(table.Files.UserID.EQ(postgres.Int64(userID))),
+		table.Files.ID.EQ(postgres.UUID(id)).
+			AND(table.Files.UserID.EQ(postgres.Int64(userID))).
+			AND(table.Files.Status.EQ(postgres.String("active"))),
 	)
 
 	var out model.Files
@@ -387,11 +407,11 @@ func (r *JetFileRepository) GetFullPath(ctx context.Context, fileID uuid.UUID) (
 	return "/" + strings.Join(parts, "/"), nil
 }
 
-func (r *JetFileRepository) ListPendingForPurge(ctx context.Context) ([]PendingFile, error) {
+func (r *JetFileRepository) ListPendingForDeletion(ctx context.Context) ([]PendingFile, error) {
 	stmt := table.Files.
 		SELECT(table.Files.ID, table.Files.Parts, table.Files.ChannelID, table.Files.UserID).
 		FROM(table.Files).
-		WHERE(table.Files.Type.EQ(postgres.String("file")).AND(table.Files.Status.EQ(postgres.String("purge_pending"))))
+		WHERE(table.Files.Type.EQ(postgres.String("file")).AND(table.Files.Status.EQ(postgres.String("pending_deletion"))))
 
 	var out []PendingFile
 	if err := r.db.query(ctx, stmt, &out); err != nil {
@@ -404,9 +424,9 @@ func (r *JetFileRepository) ListPendingForPurge(ctx context.Context) ([]PendingF
 	return out, nil
 }
 
-func (r *JetFileRepository) DeletePendingForPurgeByUser(ctx context.Context, userID int64) error {
+func (r *JetFileRepository) DeletePendingForDeletionByUser(ctx context.Context, userID int64) error {
 	stmt := table.Files.DELETE().WHERE(
-		table.Files.UserID.EQ(postgres.Int64(userID)).AND(table.Files.Status.EQ(postgres.String("purge_pending"))),
+		table.Files.UserID.EQ(postgres.Int64(userID)).AND(table.Files.Status.EQ(postgres.String("pending_deletion"))),
 	)
 
 	return r.db.exec(ctx, stmt)

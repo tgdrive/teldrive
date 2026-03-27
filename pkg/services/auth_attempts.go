@@ -33,7 +33,7 @@ type authAttempt struct {
 	latest         []byte
 	token          string
 	phoneCodeHash  string
-	session        *api.Session
+	session        *api.AuthAttemptSession
 	message        string
 	mu             sync.RWMutex
 	cancel         context.CancelFunc
@@ -49,11 +49,11 @@ type authAttemptCommand struct {
 }
 
 type authAttemptEvent struct {
-	Type          string             `json:"type"`
-	Token         string             `json:"token,omitempty"`
-	PhoneCodeHash string             `json:"phoneCodeHash,omitempty"`
-	Session       *api.SessionCreate `json:"session,omitempty"`
-	Message       string             `json:"message,omitempty"`
+	Type          string                  `json:"type"`
+	Token         string                  `json:"token,omitempty"`
+	PhoneCodeHash string                  `json:"phoneCodeHash,omitempty"`
+	Session       *api.AuthAttemptSession `json:"session,omitempty"`
+	Message       string                  `json:"message,omitempty"`
 }
 
 func newAuthAttemptManager() *authAttemptManager {
@@ -163,13 +163,12 @@ func (a *authAttempt) publish(event authAttemptEvent) {
 	case "success":
 		a.state = api.AuthAttemptStateAuthenticated
 		if event.Session != nil {
-			session := api.Session{
+			session := api.AuthAttemptSession{
 				Name:      event.Session.Name,
 				UserName:  event.Session.UserName,
 				UserId:    event.Session.UserId,
 				IsPremium: event.Session.IsPremium,
-				SessionId: event.Session.SessionId,
-				Expires:   event.Session.Expires,
+				Session:   event.Session.Session,
 			}
 			a.session = &session
 		}

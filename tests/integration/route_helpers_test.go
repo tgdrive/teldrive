@@ -20,7 +20,7 @@ func loginWithClient(t *testing.T, s *suite, userID int64, username string) (*ap
 	ctx := context.Background()
 	session := "1BvXNhK1zA5P-FAKE-SESSION-" + strconv.FormatInt(userID, 10)
 
-	loginRes, err := public.AuthLogin(ctx, &api.SessionCreate{
+	loginRes, err := public.AuthLogin(ctx, &api.AuthAttemptSession{
 		Session:   session,
 		UserId:    userID,
 		UserName:  username,
@@ -51,7 +51,7 @@ func loginAndGetToken(t *testing.T, s *suite, userID int64, username string) str
 	ctx := context.Background()
 	session := "1BvXNhK1zA5P-FAKE-SESSION-" + strconv.FormatInt(userID, 10)
 
-	loginRes, err := public.AuthLogin(ctx, &api.SessionCreate{
+	loginRes, err := public.AuthLogin(ctx, &api.AuthAttemptSession{
 		Session:   session,
 		UserId:    userID,
 		UserName:  username,

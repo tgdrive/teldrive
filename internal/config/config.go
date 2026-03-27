@@ -68,7 +68,7 @@ type CheckCmdConfig struct {
 	User         string        `default:"" description:"Telegram username to check (prompts if not specified)"`
 	Concurrent   int           `default:"4" description:"Number of concurrent channel processing"`
 	CleanUploads bool          `default:"false" description:"Clean incomplete uploads"`
-	CleanPending bool          `default:"false" description:"Clean files with purge_pending status"`
+	CleanPending bool          `default:"false" description:"Clean files with pending_deletion status"`
 }
 
 type ServerConfig struct {

@@ -64,13 +64,6 @@ func run() error {
 			fieldValue: "true",
 		},
 		{
-			pathText:   "/auth/attempts/{id}/events:",
-			methodText: "get:",
-			mediaType:  "text/event-stream:",
-			fieldKey:   "x-ogen-raw-response",
-			fieldValue: "true",
-		},
-		{
 			pathText:   "/shares/{id}/files/{fileId}/content:",
 			methodText: "get:",
 			mediaType:  "application/octet-stream:",

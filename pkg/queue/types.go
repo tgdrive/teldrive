@@ -6,10 +6,8 @@ const (
 	JobKindFilesCopy    = "files.copy"
 	JobKindFilesMove    = "files.move"
 	JobKindFilesDelete  = "files.delete"
-	JobKindFilesRestore = "files.restore"
 	JobKindSyncRun      = "sync.run"
 	JobKindSyncTransfer = "sync.transfer"
-	JobKindSyncFinalize = "sync.finalize"
 
 	JobKindCleanOldEvents   = "clean.old_events"
 	JobKindCleanStaleUpload = "clean.stale_uploads"
@@ -20,14 +18,6 @@ type JobItem struct {
 	ID              string `json:"id"`
 	DestinationName string `json:"destinationName,omitempty"`
 }
-
-type FilesRestoreJobArgs struct {
-	UserID    int64     `json:"userId" river:"unique"`
-	SessionID string    `json:"sessionId" river:"unique"`
-	Items     []JobItem `json:"items"`
-}
-
-func (FilesRestoreJobArgs) Kind() string { return JobKindFilesRestore }
 
 type SyncRunJobArgs struct {
 	UserID         int64             `json:"userId" river:"unique"`
@@ -75,13 +65,6 @@ type SyncTransferJobArgs struct {
 
 func (SyncTransferJobArgs) Kind() string { return JobKindSyncTransfer }
 
-type SyncFinalizeJobArgs struct {
-	UserID int64  `json:"userId" river:"unique"`
-	RunID  string `json:"runId"`
-}
-
-func (SyncFinalizeJobArgs) Kind() string { return JobKindSyncFinalize }
-
 type CleanOldEventsArgs struct {
 	UserID    int64  `json:"userId" river:"unique"`
 	Retention string `json:"retention" river:"unique"`
@@ -105,8 +88,6 @@ func (CleanPendingFilesArgs) Kind() string { return JobKindCleanPendingFile }
 type Executor interface {
 	SyncRun(ctx context.Context, args SyncRunJobArgs, jobID int64) error
 	SyncTransfer(ctx context.Context, args SyncTransferJobArgs) error
-	SyncFinalize(ctx context.Context, args SyncFinalizeJobArgs) error
-
 	CleanOldEventsForUser(ctx context.Context, args CleanOldEventsArgs) error
 	CleanStaleUploadsForUser(ctx context.Context, args CleanStaleUploadsArgs) error
 	CleanPendingFilesForUser(ctx context.Context, userID int64) error

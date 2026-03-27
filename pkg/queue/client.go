@@ -15,7 +15,6 @@ func NewClient(pool *pgxpool.Pool, exec Executor) (*river.Client[pgx.Tx], error)
 	workers := river.NewWorkers()
 	river.AddWorker(workers, &syncRunWorker{exec: exec})
 	river.AddWorker(workers, &syncTransferWorker{exec: exec})
-	river.AddWorker(workers, &syncFinalizeWorker{exec: exec})
 	river.AddWorker(workers, &cleanOldEventsWorker{exec: exec})
 	river.AddWorker(workers, &cleanStaleUploadsWorker{exec: exec})
 	river.AddWorker(workers, &cleanPendingFilesWorker{exec: exec})
@@ -46,15 +45,6 @@ type syncTransferWorker struct {
 
 func (w *syncTransferWorker) Work(ctx context.Context, job *river.Job[SyncTransferJobArgs]) error {
 	return w.exec.SyncTransfer(ctx, job.Args)
-}
-
-type syncFinalizeWorker struct {
-	river.WorkerDefaults[SyncFinalizeJobArgs]
-	exec Executor
-}
-
-func (w *syncFinalizeWorker) Work(ctx context.Context, job *river.Job[SyncFinalizeJobArgs]) error {
-	return w.exec.SyncFinalize(ctx, job.Args)
 }
 
 type cleanOldEventsWorker struct {

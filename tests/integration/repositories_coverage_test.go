@@ -2,6 +2,7 @@ package integration_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -207,22 +208,14 @@ func TestRepositories_CoveragePaths(t *testing.T) {
 	if err := fileRepo.Create(ctx, &jetmodel.Files{ID: childID, Name: "child.txt", Type: "file", MimeType: "text/plain", UserID: uid, ParentID: &folderID, Status: &active, Size: &sizeA, Category: &catDoc, Encrypted: false, CreatedAt: now, UpdatedAt: now}); err != nil {
 		t.Fatalf("child file create: %v", err)
 	}
-	if err := fileRepo.DeleteBulk(ctx, []uuid.UUID{folderID}, uid, "trashed"); err != nil {
+	if err := fileRepo.DeleteBulk(ctx, []uuid.UUID{folderID}, uid, "pending_deletion"); err != nil {
 		t.Fatalf("delete bulk: %v", err)
 	}
-	trashedFolder, err := fileRepo.GetByID(ctx, folderID)
-	if err != nil {
-		t.Fatalf("get trashed folder: %v", err)
+	if _, err := fileRepo.GetByID(ctx, folderID); !errors.Is(err, repositories.ErrNotFound) {
+		t.Fatalf("expected folder to be hidden after pending deletion, got err=%v", err)
 	}
-	if trashedFolder.Status == nil || *trashedFolder.Status != "trashed" {
-		t.Fatalf("expected folder status trashed, got %+v", trashedFolder.Status)
-	}
-	trashedChild, err := fileRepo.GetByID(ctx, childID)
-	if err != nil {
-		t.Fatalf("get trashed child: %v", err)
-	}
-	if trashedChild.Status == nil || *trashedChild.Status != "trashed" {
-		t.Fatalf("expected child status trashed, got %+v", trashedChild.Status)
+	if _, err := fileRepo.GetByID(ctx, childID); !errors.Is(err, repositories.ErrNotFound) {
+		t.Fatalf("expected child to be hidden after pending deletion, got err=%v", err)
 	}
 
 	if err := s.repos.WithTx(ctx, func(ctx context.Context) error {

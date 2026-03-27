@@ -101,22 +101,9 @@ func TestFilesRoutes_CRUDAndOperations(t *testing.T) {
 	if err := client.FilesDeleteById(ctx, api.FilesDeleteByIdParams{ID: dataFile.ID.Value}); err != nil {
 		t.Fatalf("FilesDeleteById file failed: %v", err)
 	}
-	trashedList, err := client.FilesList(ctx, api.FilesListParams{Status: api.NewOptFileQueryStatus(api.FileQueryStatusTrashed), Limit: api.NewOptInt(50)})
-	if err != nil {
-		t.Fatalf("FilesList trashed failed: %v", err)
-	}
-	trashedFound := false
-	for _, item := range trashedList.Items {
-		if item.ID.IsSet() && item.ID.Value == dataFile.ID.Value {
-			trashedFound = true
-			break
-		}
-	}
-	if !trashedFound {
-		t.Fatalf("expected deleted file in trashed listing")
-	}
-	if err := client.FilesRestore(ctx, api.FilesRestoreParams{ID: dataFile.ID.Value}); err != nil {
-		t.Fatalf("FilesRestore file failed: %v", err)
+	_, err = client.FilesGetById(ctx, api.FilesGetByIdParams{ID: dataFile.ID.Value})
+	if statusCode(err) != 404 {
+		t.Fatalf("expected 404 for pending_deletion file, got %d err=%v", statusCode(err), err)
 	}
 
 	purgeFile, err := client.FilesCreate(ctx, &api.File{
@@ -130,11 +117,8 @@ func TestFilesRoutes_CRUDAndOperations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("FilesCreate purge file failed: %v", err)
 	}
-	if err := client.FilesDelete(ctx, &api.FileDelete{Ids: []api.UUID{purgeFile.ID.Value}}, api.FilesDeleteParams{}); err != nil {
-		t.Fatalf("FilesDelete trash failed: %v", err)
-	}
-	if err := client.FilesDelete(ctx, &api.FileDelete{Ids: []api.UUID{purgeFile.ID.Value}}, api.FilesDeleteParams{Force: api.NewOptBool(true)}); err != nil {
-		t.Fatalf("FilesDelete force failed: %v", err)
+	if err := client.FilesDelete(ctx, &api.FileDelete{Ids: []api.UUID{purgeFile.ID.Value}}); err != nil {
+		t.Fatalf("FilesDelete pending deletion failed: %v", err)
 	}
 
 }

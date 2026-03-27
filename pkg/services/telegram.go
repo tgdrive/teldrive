@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/gotd/contrib/storage"
 	"github.com/gotd/td/session"
@@ -44,8 +45,9 @@ type TelegramAuthorization struct {
 }
 
 const (
-	TelegramOpStream = "stream"
-	TelegramOpUpload = "upload"
+	TelegramOpStream    = "stream"
+	TelegramOpUpload    = "upload"
+	qrRenewBeforeExpiry = 10 * time.Second
 )
 
 type ChannelManager interface {
@@ -530,17 +532,54 @@ func (c *telegramClient) Self(ctx context.Context) (*TelegramUser, error) {
 }
 
 func (c *telegramClient) QRLogin(ctx context.Context, loggedIn qrlogin.LoggedIn, onToken func(ctx context.Context, tokenURL string) error) (*TelegramUser, error) {
-	authorization, err := c.client.QR().Auth(ctx, loggedIn, func(ctx context.Context, token qrlogin.Token) error {
-		return onToken(ctx, token.URL())
-	})
+	qr := c.client.QR()
+	token, err := qr.Export(ctx)
 	if err != nil {
 		return nil, err
 	}
-	user, ok := authorization.User.AsNotEmpty()
-	if !ok {
-		return nil, fmt.Errorf("auth failed")
+
+	nextRefresh := func(token qrlogin.Token) time.Duration {
+		until := time.Until(token.Expires().Add(-qrRenewBeforeExpiry)).Truncate(time.Second)
+		if until < time.Second {
+			return time.Second
+		}
+		return until
 	}
-	return toTelegramUser(user), nil
+
+	for {
+		if err := onToken(ctx, token.URL()); err != nil {
+			return nil, err
+		}
+
+		timer := time.NewTimer(nextRefresh(token))
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+			return nil, ctx.Err()
+		case <-timer.C:
+			token, err = qr.Export(ctx)
+			if err != nil {
+				return nil, err
+			}
+			continue
+		case <-loggedIn:
+			if !timer.Stop() {
+				<-timer.C
+			}
+		}
+
+		authorization, err := qr.Import(ctx)
+		if err != nil {
+			return nil, err
+		}
+		user, ok := authorization.User.AsNotEmpty()
+		if !ok {
+			return nil, fmt.Errorf("auth failed")
+		}
+		return toTelegramUser(user), nil
+	}
 }
 
 func (c *telegramClient) SendCode(ctx context.Context, phoneNo string) (string, error) {

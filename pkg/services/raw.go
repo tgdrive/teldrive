@@ -33,44 +33,6 @@ func NewRawService(api *apiService) *rawService {
 	return &rawService{api: api}
 }
 
-func (s *rawService) AuthAttemptEvents(ctx context.Context, params api.AuthAttemptEventsParams, w http.ResponseWriter) error {
-	attempt, ok := s.api.authAttempts.get(params.ID)
-	if !ok {
-		return &apiError{err: fmt.Errorf("auth attempt not found"), code: http.StatusNotFound}
-	}
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		return &apiError{err: fmt.Errorf("streaming not supported")}
-	}
-	ch, latest := attempt.subscribe()
-	defer attempt.unsubscribe(ch)
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	w.WriteHeader(http.StatusOK)
-	if len(latest) > 0 {
-		fmt.Fprintf(w, "data: %s\n\n", latest)
-		flusher.Flush()
-	}
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return nil
-		case payload, ok := <-ch:
-			if !ok {
-				return nil
-			}
-			fmt.Fprintf(w, "data: %s\n\n", payload)
-			flusher.Flush()
-		case <-ticker.C:
-			fmt.Fprintf(w, ": keepalive\n\n")
-			flusher.Flush()
-		}
-	}
-}
-
 func (s *rawService) EventsEventsStream(ctx context.Context, params api.EventsEventsStreamParams, w http.ResponseWriter) error {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -142,7 +104,7 @@ func (s *rawService) SharesStream(ctx context.Context, params api.SharesStreamPa
 
 func (s *rawService) streamFile(ctx context.Context, w http.ResponseWriter, fileID uuid.UUID, session *jetmodel.Sessions, rawRange string, download bool) error {
 	logger := logging.Component("FILE").With(zap.String("file_id", fileID.String()), zap.Int64("user_id", session.UserID))
-	file, err := cache.Fetch(ctx, s.api.cache, cache.Key("files", fileID), 0, func() (*jetmodel.Files, error) {
+	file, err := cache.Fetch(ctx, s.api.cache, cache.KeyFile(fileID.String()), 0, func() (*jetmodel.Files, error) {
 		return s.api.repo.Files.GetByID(ctx, fileID)
 	})
 	if err != nil {

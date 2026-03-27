@@ -61,9 +61,9 @@ func TestFolderSizeTriggers_FileLifecycle(t *testing.T) {
 	assertFolderSize(t, fileRepo, ctx, *aID, 25)
 	assertFolderSize(t, fileRepo, ctx, *rootID, 25)
 
-	pending := "purge_pending"
+	pending := "pending_deletion"
 	if err := fileRepo.Update(ctx, fileID, repositories.FileUpdate{Status: &pending}); err != nil {
-		t.Fatalf("update file status to purge_pending: %v", err)
+		t.Fatalf("update file status to pending_deletion: %v", err)
 	}
 	assertFolderSize(t, fileRepo, ctx, *bID, 0)
 	assertFolderSize(t, fileRepo, ctx, *aID, 0)

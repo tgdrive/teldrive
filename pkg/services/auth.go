@@ -27,7 +27,7 @@ import (
 
 var authCookieName = "access_token"
 
-func (a *apiService) AuthLogin(ctx context.Context, session *api.SessionCreate) (*api.AuthLoginNoContent, error) {
+func (a *apiService) AuthLogin(ctx context.Context, session *api.AuthAttemptSession) (*api.AuthLoginNoContent, error) {
 
 	if !checkUserIsAllowed(a.cnf.JWT.AllowedUsers, session.UserName) {
 		return nil, &apiError{code: http.StatusForbidden, err: errors.New("user not allowed")}
@@ -322,9 +322,9 @@ func checkUserIsAllowed(allowedUsers []string, userName string) bool {
 	return found
 }
 
-func prepareSession(user *TelegramUser, data *types.SessionData) *api.SessionCreate {
+func prepareSession(user *TelegramUser, data *types.SessionData) *api.AuthAttemptSession {
 	sessionString := generateTgSession(data.Data.DC, data.Data.AuthKey, 443)
-	session := &api.SessionCreate{
+	session := &api.AuthAttemptSession{
 		Session:   sessionString,
 		UserId:    user.ID,
 		UserName:  user.Username,

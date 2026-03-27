@@ -32,7 +32,7 @@ func TestAuthRoutes_LoginSessionLogout(t *testing.T) {
 	ctx := context.Background()
 
 	public := s.newClientWithToken("")
-	loginRes, err := public.AuthLogin(ctx, &api.SessionCreate{
+	loginRes, err := public.AuthLogin(ctx, &api.AuthAttemptSession{
 		Session:   "1BvXNhK1zA5P-FAKE-SESSION-7201",
 		UserId:    7201,
 		UserName:  "user7201",
@@ -135,7 +135,7 @@ func TestAuthRoutes_RefreshFlowCookieRotation(t *testing.T) {
 func TestAuthRoutes_LoginCookiesSecureWhenForwardedHTTPS(t *testing.T) {
 	s := newSuite(t)
 
-	body, err := json.Marshal(&api.SessionCreate{
+	body, err := json.Marshal(&api.AuthAttemptSession{
 		Session:   "1BvXNhK1zA5P-FAKE-SESSION-7401",
 		UserId:    7401,
 		UserName:  "user7401",
@@ -321,13 +321,11 @@ func TestAuthRoutes_AttemptFlow_QRSuccess(t *testing.T) {
 		t.Fatalf("expected authenticated snapshot session")
 	}
 
-	loginReq := &api.SessionCreate{
+	loginReq := &api.AuthAttemptSession{
 		Name:      sessionVal.Name,
 		UserName:  sessionVal.UserName,
 		UserId:    sessionVal.UserId,
 		IsPremium: sessionVal.IsPremium,
-		SessionId: sessionVal.SessionId,
-		Expires:   sessionVal.Expires,
 		Session:   "1BvXNhK1zA5P-FAKE-SESSION-8801",
 	}
 	loginRes, err := client.AuthLogin(ctx, loginReq)
@@ -397,13 +395,11 @@ func TestAuthRoutes_AttemptFlow_PhonePasswordSuccess(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected authenticated session in snapshot")
 	}
-	loginReq := &api.SessionCreate{
+	loginReq := &api.AuthAttemptSession{
 		Name:      sessionVal.Name,
 		UserName:  sessionVal.UserName,
 		UserId:    sessionVal.UserId,
 		IsPremium: sessionVal.IsPremium,
-		SessionId: sessionVal.SessionId,
-		Expires:   sessionVal.Expires,
 		Session:   "1BvXNhK1zA5P-FAKE-SESSION-8802",
 	}
 	if _, err := client.AuthLogin(ctx, loginReq); err != nil {

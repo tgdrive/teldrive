@@ -84,45 +84,6 @@ paths:
                 $ref: '#/components/schemas/Error'
       tags:
         - Auth
-  /auth/attempts/{id}/events:
-    get:
-      operationId: Auth_attemptEvents
-      summary: Stream auth attempt events
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-      responses:
-        '200':
-          description: The request has succeeded.
-          headers:
-            Cache-Control:
-              required: true
-              schema:
-                type: string
-                enum:
-                  - no-cache
-            Connection:
-              required: true
-              schema:
-                type: string
-                enum:
-                  - keep-alive
-          content:
-            text/event-stream:
-              x-ogen-raw-response: true
-              schema:
-                type: string
-        default:
-          description: An unexpected error response.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-      tags:
-        - Auth
   /auth/attempts/{id}/password:
     post:
       operationId: Auth_password
@@ -231,7 +192,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/SessionCreate'
+              $ref: '#/components/schemas/AuthAttemptSession'
   /auth/logout:
     post:
       x-ogen-raw-response: true
@@ -506,15 +467,8 @@ paths:
   /files/delete:
     post:
       operationId: Files_delete
-      summary: Bulk delete files or folders
-      parameters:
-        - name: force
-          in: query
-          required: false
-          schema:
-            type: boolean
-            default: false
-          explode: false
+      summary: Mark files or folders for deletion
+      parameters: []
       responses:
         '204':
           description: There is no content to send for this request, but the headers may be useful.
@@ -631,7 +585,7 @@ paths:
         - SessionHashAuth: []
     delete:
       operationId: Files_deleteById
-      summary: Soft delete file or folder
+      summary: Mark file or folder for deletion
       parameters:
         - name: id
           in: path
@@ -960,32 +914,6 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/FileCopy'
-      security:
-        - BearerAuth: []
-        - AccessTokenCookieAuth: []
-        - XApiKeyHeaderAuth: []
-        - SessionHashAuth: []
-  /files/{id}/restore:
-    post:
-      operationId: Files_restore
-      summary: Restore soft deleted file or folder
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            $ref: '#/components/schemas/UUID'
-      responses:
-        '204':
-          description: There is no content to send for this request, but the headers may be useful.
-        default:
-          description: An unexpected error response.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-      tags:
-        - Files
       security:
         - BearerAuth: []
         - AccessTokenCookieAuth: []
@@ -2428,7 +2356,6 @@ components:
         type: string
         enum:
           - active
-          - trashed
         default: active
       explode: false
     FileQuery.type:
@@ -2660,7 +2587,7 @@ components:
         phoneCodeHash:
           type: string
         session:
-          $ref: '#/components/schemas/Session'
+          $ref: '#/components/schemas/AuthAttemptSession'
         message:
           type: string
     AuthAttemptCreate:
@@ -2688,6 +2615,26 @@ components:
         - phoneNo
       properties:
         phoneNo:
+          type: string
+    AuthAttemptSession:
+      type: object
+      required:
+        - name
+        - userName
+        - userId
+        - isPremium
+        - session
+      properties:
+        name:
+          type: string
+        userName:
+          type: string
+        userId:
+          type: integer
+          format: int64
+        isPremium:
+          type: boolean
+        session:
           type: string
     AuthAttemptSignIn:
       type: object
@@ -3353,51 +3300,6 @@ components:
           type: string
           format: date-time
           description: Session expiration date
-      description: User session information containing authentication and profile details
-    SessionCreate:
-      type: object
-      required:
-        - name
-        - userName
-        - userId
-        - isPremium
-        - sessionId
-        - expires
-        - session
-      properties:
-        name:
-          type: string
-          description: User's display name or full name
-          example: John Doe
-        userName:
-          type: string
-          description: Telegram username without @ symbol
-          example: johndoe
-        userId:
-          type: integer
-          format: int64
-          minimum: 1
-          description: Telegram user ID (unique identifier)
-          example: 123456789
-        isPremium:
-          type: boolean
-          description: Premium subscription status
-          example: true
-        sessionId:
-          allOf:
-            - $ref: '#/components/schemas/UUID'
-          description: Session ID for verification and security
-          example: 123e4567-e89b-12d3-a456-426614174000
-        hash:
-          type: string
-          description: Compatibility alias for session ID
-        expires:
-          type: string
-          format: date-time
-          description: Session expiration date
-        session:
-          type: string
-          description: Optional session token for client identification
       description: User session information containing authentication and profile details
     ShareUnlock:
       type: object
