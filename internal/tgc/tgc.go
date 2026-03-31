@@ -39,8 +39,7 @@ func newClient(ctx context.Context, config *config.TGConfig, handler telegram.Up
 
 	var logger *zap.Logger
 	if config.EnableLogging {
-		logger = logging.FromContext(ctx).Named("td")
-
+		logger = logging.Component("TG")
 	}
 
 	opts := telegram.Options{
@@ -60,19 +59,24 @@ func newClient(ctx context.Context, config *config.TGConfig, handler telegram.Up
 		},
 		SessionStorage: storage,
 		RetryInterval:  2 * time.Second,
-		MaxRetries:     10,
-		DialTimeout:    10 * time.Second,
+		MaxRetries:     20,
+		DialTimeout:    config.DialTimeout,
 		Middlewares:    middlewares,
 		UpdateHandler:  handler,
 		Logger:         logger,
 	}
+
 	if config.Ntp {
-		c, err := clock.NewNTP()
+		var err error
+		if config.NtpServer != "" {
+			opts.Clock, err = clock.NewNTP(config.NtpServer)
+		} else {
+			opts.Clock, err = clock.NewNTP()
+		}
+
 		if err != nil {
 			return nil, errors.Wrap(err, "create clock")
 		}
-		opts.Clock = c
-
 	}
 
 	return telegram.NewClient(config.AppId, config.AppHash, opts), nil
@@ -98,18 +102,25 @@ func AuthClient(ctx context.Context, config *config.TGConfig, sessionStr string,
 		loader  = session.Loader{Storage: storage}
 	)
 
-	if err := loader.Save(context.TODO(), data); err != nil {
+	if err := loader.Save(ctx, data); err != nil {
 		return nil, err
 	}
 	return newClient(ctx, config, nil, storage, middlewares...)
 }
 
-func BotClient(ctx context.Context, db *gorm.DB, config *config.TGConfig, token string, middlewares ...telegram.Middleware) (*telegram.Client, error) {
-
-	storage := tgstorage.NewSessionStorage(db, cache.Key("sessions", strings.Split(token, ":")[0]))
-
+// BotClient creates a Telegram client for bot authentication.
+// Uses database-backed session storage for persistent bot sessions.
+// Note: storage remains open for client's lifetime - do not close it here
+func BotClient(ctx context.Context, db *gorm.DB, cache cache.Cacher, config *config.TGConfig, token string, middlewares ...telegram.Middleware) (*telegram.Client, error) {
+	// Use bot token ID (part before colon) as session key
+	botID := strings.Split(token, ":")[0]
+	storage, err := tgstorage.NewSessionStorage(config.Session, db, cache, botID)
+	if err != nil {
+		return nil, err
+	}
+	// Storage must remain open for the client's entire lifetime
+	// It will be garbage collected when the client is no longer referenced
 	return newClient(ctx, config, nil, storage, middlewares...)
-
 }
 
 type middlewareOption func(*middlewareConfig)
