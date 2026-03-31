@@ -5,280 +5,539 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/go-viper/mapstructure/v2"
+	"github.com/knadh/koanf/maps"
+	"github.com/knadh/koanf/parsers/toml"
+	"github.com/knadh/koanf/parsers/yaml"
+	"github.com/knadh/koanf/providers/env"
+	"github.com/knadh/koanf/providers/file"
+	"github.com/knadh/koanf/v2"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"github.com/spf13/viper"
 	"github.com/tgdrive/teldrive/internal/duration"
 )
 
+var (
+	matchFirstCap = regexp.MustCompile("(.)([A-Z][a-z]+)")
+	matchAllCap   = regexp.MustCompile("([a-z0-9])([A-Z])")
+)
+
+func toKebabCase(str string) string {
+	snake := matchFirstCap.ReplaceAllString(str, "${1}-${2}")
+	snake = matchAllCap.ReplaceAllString(snake, "${1}-${2}")
+	return strings.ToLower(snake)
+}
+
+func getKey(f reflect.StructField) string {
+	if t := f.Tag.Get("koanf"); t != "" {
+		return t
+	}
+	return toKebabCase(f.Name)
+}
+
+type EventConfig struct {
+	PollInterval     time.Duration `default:"10s" description:"Event polling interval for single-instance mode"`
+	DBWorkers        int           `default:"10" description:"Number of DB worker goroutines for event persistence"`
+	DBBufferSize     int           `default:"1000" description:"Size of DB worker queue buffer"`
+	DeduplicationTTL time.Duration `default:"5s" description:"Event deduplication time-to-live"`
+}
+
 type ServerCmdConfig struct {
-	Server   ServerConfig  `config:"server"`
-	Log      LoggingConfig `config:"log"`
-	JWT      JWTConfig     `config:"jwt"`
-	DB       DBConfig      `config:"db"`
-	TG       TGConfig      `config:"tg"`
-	CronJobs CronJobConfig `config:"cronjobs"`
-	Cache    CacheConfig   `config:"cache"`
+	Server   ServerConfig
+	Log      LoggingConfig
+	JWT      JWTConfig
+	DB       DBConfig
+	TG       TGConfig
+	CronJobs CronJobConfig
+	Cache    CacheConfig
+	Redis    RedisConfig
+	Events   EventConfig
+}
+
+type CheckCmdConfig struct {
+	Log          LoggingConfig `skipPflag:"true"`
+	DB           DBConfig      `skipPflag:"true"`
+	TG           TGConfig      `skipPflag:"true"`
+	ExportFile   string        `default:"results.json" description:"Path for exported JSON file"`
+	DryRun       bool          `default:"false" description:"Simulate check/clean process without making changes"`
+	User         string        `default:"" description:"Telegram username to check (prompts if not specified)"`
+	Concurrent   int           `default:"4" description:"Number of concurrent channel processing"`
+	CleanUploads bool          `default:"false" description:"Clean incomplete uploads"`
+	CleanPending bool          `default:"false" description:"Clean files with pending_deletion status"`
 }
 
 type ServerConfig struct {
-	Port             int           `config:"port" description:"HTTP port for the server to listen on" default:"8080"`
-	GracefulShutdown time.Duration `config:"graceful-shutdown" description:"Grace period for server shutdown" default:"10s"`
-	EnablePprof      bool          `config:"enable-pprof" description:"Enable pprof debugging endpoints"`
-	ReadTimeout      time.Duration `config:"read-timeout" description:"Maximum duration for reading entire request" default:"1h"`
-	WriteTimeout     time.Duration `config:"write-timeout" description:"Maximum duration for writing response" default:"1h"`
+	Port             int           `default:"8080" description:"HTTP port for the server to listen on"`
+	GracefulShutdown time.Duration `default:"10s" description:"Grace period for server shutdown"`
+	EnablePprof      bool          `default:"false" description:"Enable pprof debugging endpoints"`
+	ReadTimeout      time.Duration `default:"1h" description:"Maximum duration for reading entire request"`
+	WriteTimeout     time.Duration `default:"1h" description:"Maximum duration for writing response"`
 }
 
 type CacheConfig struct {
-	MaxSize   int    `config:"max-size" description:"Maximum cache size in bytes" default:"10485760"`
-	RedisAddr string `config:"redis-addr" description:"Redis server address"`
-	RedisPass string `config:"redis-pass" description:"Redis server password"`
+	MaxSize int `default:"10485760" description:"Maximum cache size in bytes (used for memory cache)"`
+}
+
+type RedisConfig struct {
+	Addr            string        `default:"" description:"Redis server address (empty to disable Redis)"`
+	Password        string        `default:"" description:"Redis server password"`
+	PoolSize        int           `default:"10" description:"Redis connection pool size"`
+	MinIdleConns    int           `default:"5" description:"Redis minimum idle connections"`
+	MaxIdleConns    int           `default:"10" description:"Redis maximum idle connections"`
+	ConnMaxIdleTime time.Duration `default:"5m" description:"Redis connection maximum idle time"`
+	ConnMaxLifetime time.Duration `default:"1h" description:"Redis connection maximum lifetime"`
+}
+
+// HTTPLoggingConfig holds HTTP request logging configuration
+type HTTPLoggingConfig struct {
+	Enabled            bool     `default:"true" description:"Enable HTTP request logging"`
+	LogQueries         bool     `default:"false" description:"Log full query strings (use with caution)"`
+	SanitizeQueries    bool     `default:"true" description:"Remove sensitive params from query preview"`
+	MaxQueryLength     int      `default:"100" description:"Maximum length of query preview"`
+	LogUserAgent       bool     `default:"true" description:"Log user agent (truncated)"`
+	LogRequestBodySize bool     `default:"true" description:"Log request Content-Length"`
+	LogResponseSize    bool     `default:"true" description:"Log response bytes written"`
+	SkipPaths          []string `default:"/health,/metrics" description:"Paths to skip from logging"`
+}
+
+// DBLoggingConfig holds database query logging configuration
+type DBLoggingConfig struct {
+	Level                string        `default:"error" description:"Database logging level (silent, error, warn, info, debug)"`
+	SlowThreshold        time.Duration `default:"1s" description:"Log queries slower than this threshold"`
+	IgnoreRecordNotFound bool          `default:"true" description:"Don't log 'record not found' errors"`
+	LogSQL               bool          `default:"true" description:"LogSQL"`
+}
+
+// TGLoggingConfig holds Telegram client logging configuration
+type TGLoggingConfig struct {
+	Enabled bool   `default:"false" description:"Enable Telegram client internal logging"`
+	Level   string `default:"warn" description:"Telegram client logging level (debug, info, warn, error)"`
 }
 
 type LoggingConfig struct {
-	Level string `config:"level" description:"Logging level (debug, info, warn, error)" default:"info"`
-	File  string `config:"file" description:"Log file path, if empty logs to stdout"`
+	Level      string `default:"info" description:"Global logging level (debug, info, warn, error)"`
+	TimeFormat string `default:"2006-01-02 15:04:05" description:"Log time format"`
+	File       string `default:"" description:"Log file path, if empty logs to stdout only"`
+	HTTP       HTTPLoggingConfig
+	DB         DBLoggingConfig
+	TG         TGLoggingConfig
 }
 
 type JWTConfig struct {
-	Secret       string        `config:"secret" description:"JWT signing secret key" required:"true"`
-	SessionTime  time.Duration `config:"session-time" description:"JWT token validity duration" default:"30d"`
-	AllowedUsers []string      `config:"allowed-users" description:"List of allowed usernames"`
+	Secret       string        `validate:"required" default:"" description:"JWT signing secret key"`
+	SessionTime  time.Duration `default:"30d" description:"JWT token validity duration"`
+	AllowedUsers []string      `default:"" description:"List of allowed usernames"`
 }
 
 type DBPool struct {
-	Enable             bool          `config:"enable" description:"Enable connection pooling" default:"true"`
-	MaxOpenConnections int           `config:"max-open-connections" description:"Maximum number of open connections" default:"25"`
-	MaxIdleConnections int           `config:"max-idle-connections" description:"Maximum number of idle connections" default:"25"`
-	MaxLifetime        time.Duration `config:"max-lifetime" description:"Maximum connection lifetime" default:"10m"`
+	Enable             bool          `default:"true" description:"Enable connection pooling"`
+	MaxOpenConnections int           `default:"25" description:"Maximum number of open connections"`
+	MaxIdleConnections int           `default:"25" description:"Maximum number of idle connections"`
+	MaxLifetime        time.Duration `default:"10m" description:"Maximum connection lifetime"`
 }
 type DBConfig struct {
-	DataSource  string `config:"data-source" description:"Database connection string" required:"true"`
-	PrepareStmt bool   `config:"prepare-stmt" description:"Use prepared statements" default:"true"`
-	LogLevel    string `config:"log-level" description:"Database logging level" default:"error"`
-	Pool        DBPool `config:"pool"`
+	DataSource  string `validate:"required" default:"" description:"Database connection string"`
+	PrepareStmt bool   `default:"true" description:"Use prepared statements"`
+	Pool        DBPool
 }
 
 type CronJobConfig struct {
-	Enable               bool          `config:"enable" description:"Enable scheduled background jobs" default:"true"`
-	CleanFilesInterval   time.Duration `config:"clean-files-interval" description:"Interval for cleaning expired files" default:"1h"`
-	CleanUploadsInterval time.Duration `config:"clean-uploads-interval" description:"Interval for cleaning incomplete uploads" default:"12h"`
-	FolderSizeInterval   time.Duration `config:"folder-size-interval" description:"Interval for updating folder sizes" default:"2h"`
+	Enable               bool          `default:"true" description:"Enable scheduled background jobs"`
+	LockerInstance       string        `default:"cron-locker" description:"Distributed unique cron locker name"`
+	CleanFilesInterval   time.Duration `default:"1h" description:"Interval for cleaning expired files"`
+	CleanUploadsInterval time.Duration `default:"12h" description:"Interval for cleaning incomplete uploads"`
+	FolderSizeInterval   time.Duration `default:"2h" description:"Interval for updating folder sizes"`
 }
 
 type TGStream struct {
-	MultiThreads int           `config:"multi-threads" description:"Number of download threads"`
-	Buffers      int           `config:"buffers" description:"Number of stream buffers" default:"8"`
-	ChunkTimeout time.Duration `config:"chunk-timeout" description:"Chunk download timeout" default:"20s"`
+	Concurrency  int           `default:"1" description:"Number of concurrent threads for concurrent reader"`
+	Buffers      int           `default:"8" description:"Number of stream buffers"`
+	ChunkTimeout time.Duration `default:"30s" description:"Chunk download timeout"`
+	BotsLimit    int           `default:"0" description:"Maximum number of bots for streaming (0 = use all bots)"`
 }
 
 type TGUpload struct {
-	EncryptionKey string        `config:"encryption-key" description:"Encryption key for uploads" required:"true"`
-	Threads       int           `config:"threads" description:"Number of upload threads" default:"8"`
-	MaxRetries    int           `config:"max-retries" description:"Maximum upload retry attempts" default:"10"`
-	Retention     time.Duration `config:"retention" description:"Upload retention period" default:"7d"`
+	EncryptionKey string        `default:"" description:"Encryption key for uploads"`
+	Threads       int           `default:"8" description:"Number of upload threads"`
+	MaxRetries    int           `default:"10" description:"Maximum upload retry attempts"`
+	Retention     time.Duration `default:"7d" description:"Upload retention period"`
 }
 type TGConfig struct {
-	RateLimit         bool          `config:"rate-limit" description:"Enable rate limiting for API calls" default:"true"`
-	RateBurst         int           `config:"rate-burst" description:"Maximum burst size for rate limiting" default:"5"`
-	Rate              int           `config:"rate" description:"Rate limit in requests per minute" default:"100"`
-	Ntp               bool          `config:"ntp" description:"Use NTP for time synchronization"`
-	StorageFile       string        `config:"storage-file" description:"Path to SQLite storage file"`
-	DisableStreamBots bool          `config:"disable-stream-bots" description:"Disable streaming bots"`
-	Proxy             string        `config:"proxy" description:"HTTP/SOCKS5 proxy URL"`
-	ReconnectTimeout  time.Duration `config:"reconnect-timeout" description:"Client reconnection timeout" default:"5m"`
-	PoolSize          int           `config:"pool-size" description:"Session pool size" default:"8"`
-	EnableLogging     bool          `config:"enable-logging" description:"Enable Telegram client logging"`
-	AppId             int           `config:"app-id" description:"Telegram app ID" default:"2496"`
-	AppHash           string        `config:"app-hash" description:"Telegram app hash" default:"8da85b0d5bfe62527e5b244c209159c3"`
-	DeviceModel       string        `config:"device-model" description:"Device model" default:"Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/116.0"`
-	SystemVersion     string        `config:"system-version" description:"System version" default:"Win32"`
-	AppVersion        string        `config:"app-version" description:"App version" default:"6.1.4 K"`
-	LangCode          string        `config:"lang-code" description:"Language code" default:"en"`
-	SystemLangCode    string        `config:"system-lang-code" description:"System language code" default:"en-US"`
-	LangPack          string        `config:"lang-pack" description:"Language pack" default:"webk"`
-	Uploads           TGUpload      `config:"uploads"`
-	Stream            TGStream      `config:"stream"`
+	RateLimit         bool          `default:"true" description:"Enable rate limiting for API calls"`
+	RateBurst         int           `default:"5" description:"Maximum burst size for rate limiting"`
+	Rate              int           `default:"100" description:"Rate limit in requests per minute"`
+	Ntp               bool          `default:"false" description:"Use NTP for time synchronization"`
+	NtpServer         string        `default:"" description:"NTP server address"`
+	Proxy             string        `default:"" description:"HTTP/SOCKS5 proxy URL"`
+	ReconnectTimeout  time.Duration `default:"5m" description:"Client reconnection timeout"`
+	DialTimeout       time.Duration `default:"60s" description:"Timeout for connecting to Telegram servers"`
+	PoolSize          int           `default:"8" description:"Session pool size"`
+	EnableLogging     bool          `default:"false" description:"Enable Telegram client logging (deprecated: use logging.tg.enabled instead)"`
+	AppId             int           `default:"2496" description:"Telegram app ID"`
+	AppHash           string        `default:"8da85b0d5bfe62527e5b244c209159c3" description:"Telegram app hash"`
+	DeviceModel       string        `default:"Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/116.0" description:"Device model"`
+	SystemVersion     string        `default:"Win32" description:"System version"`
+	AppVersion        string        `default:"6.1.4 K" description:"App version"`
+	LangCode          string        `default:"en" description:"Language code"`
+	SystemLangCode    string        `default:"en-US" description:"System language code"`
+	LangPack          string        `default:"webk" description:"Language pack"`
+	SessionInstance   string        `default:"teldrive" description:"Bot session instance name for multi-instance deployments"`
+	AutoChannelCreate bool          `default:"true" description:"Auto Create Channel"`
+	ChannelLimit      int64         `default:"500000" description:"Channel message limit before auto channel creation"`
+	Uploads           TGUpload
+	Stream            TGStream
+	// Session storage configuration for Telegram sessions
+	Session SessionStorageConfig
+}
+
+type BoltSessionConfig struct {
+	Path       string        `default:"" description:"Path to BoltDB session file (empty for auto-detect)"`
+	Timeout    time.Duration `default:"1s" description:"Timeout for opening BoltDB"`
+	NoGrowSync bool          `default:"false" description:"Disable grow sync for performance"`
+}
+
+type SessionStorageConfig struct {
+	Type string            `default:"postgres" description:"Session storage type: postgres, bolt, memory"`
+	Key  string            `default:"session" description:"Key prefix for session storage"`
+	Bolt BoltSessionConfig `koanf:"bolt"`
 }
 
 type ConfigLoader struct {
-	v              *viper.Viper
-	requiredFields []string
+	k       *koanf.Koanf
+	flagMap map[string]string
+	envMap  map[string]string
 }
 
 func NewConfigLoader() *ConfigLoader {
 	return &ConfigLoader{
-		v: viper.New(),
+		k:       koanf.New("."),
+		flagMap: make(map[string]string),
+		envMap:  make(map[string]string),
 	}
 }
 
-func StringToDurationHook() mapstructure.DecodeHookFunc {
-	return func(f reflect.Type, t reflect.Type, data any) (any, error) {
-		if f.Kind() != reflect.String {
-			return data, nil
+// customFlagProvider loads flags from a pflag.FlagSet.
+type customFlagProvider struct {
+	f           *pflag.FlagSet
+	flagMap     map[string]string
+	onlyChanged bool
+	defaults    bool
+}
+
+func (p *customFlagProvider) Read() (map[string]any, error) {
+	m := make(map[string]any)
+	p.f.VisitAll(func(f *pflag.Flag) {
+		if p.defaults && f.Changed {
+			return
+		}
+		if p.onlyChanged && !f.Changed {
+			return
 		}
 
-		if t != reflect.TypeOf(time.Duration(0)) {
-			return data, nil
+		var key string
+		if mapped, ok := p.flagMap[f.Name]; ok {
+			key = mapped
+		} else {
+			// Fallback: simple dash replacement if not mapped (should not happen if registered correctly)
+			key = strings.ReplaceAll(f.Name, "-", ".")
 		}
 
-		str, ok := data.(string)
-		if !ok {
-			return data, nil
+		// Handle slices
+		if sliceVal, ok := f.Value.(pflag.SliceValue); ok {
+			m[key] = sliceVal.GetSlice()
+		} else {
+			m[key] = f.Value.String()
 		}
-		return duration.ParseDuration(str)
+	})
+	return maps.Unflatten(m, "."), nil
+}
+
+func (p *customFlagProvider) ReadBytes() ([]byte, error) {
+	return nil, nil
+}
+
+type unflattenProvider struct {
+	p     koanf.Provider
+	delim string
+}
+
+func (p *unflattenProvider) Read() (map[string]any, error) {
+	m, err := p.p.Read()
+	if err != nil {
+		return nil, err
 	}
+	return maps.Unflatten(m, p.delim), nil
+}
+
+func (p *unflattenProvider) ReadBytes() ([]byte, error) {
+	return nil, nil
 }
 
 func (cl *ConfigLoader) Load(cmd *cobra.Command, cfg any) error {
 
-	cl.v.SetConfigType("toml")
-
 	cfgFile := cmd.Flags().Lookup("config").Value.String()
+	var parser koanf.Parser
+
 	if cfgFile != "" {
-		cl.v.SetConfigFile(cfgFile)
+		if strings.HasSuffix(cfgFile, ".yaml") || strings.HasSuffix(cfgFile, ".yml") {
+			parser = yaml.Parser()
+		} else {
+			parser = toml.Parser()
+		}
+	} else {
+		parser = toml.Parser()
+	}
+
+	// 1. Load defaults from flags
+	if err := cl.k.Load(&customFlagProvider{f: cmd.Flags(), flagMap: cl.flagMap, defaults: true}, nil); err != nil {
+		return err
+	}
+
+	// Load defaults for skipped flags
+	cl.loadSkippedDefaults(reflect.TypeOf(cfg), "")
+
+	// 2. Load config file
+	if cfgFile != "" {
+		if err := cl.k.Load(file.Provider(cfgFile), parser); err != nil {
+			return fmt.Errorf("error reading config file: %w", err)
+		}
 	} else {
 		home, err := os.UserHomeDir()
 		if err != nil {
-			return fmt.Errorf("error getting home directory: %v", err)
+			return fmt.Errorf("error getting home directory: %w", err)
 		}
-		cl.v.AddConfigPath(filepath.Join(home, ".teldrive"))
-		cl.v.AddConfigPath(".")
-		cl.v.SetConfigName("config")
-	}
-
-	if err := cl.v.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			return fmt.Errorf("error reading config file: %v", err)
+		paths := []string{
+			filepath.Join(home, ".teldrive", "config.toml"),
+			"config.toml",
 		}
-	}
-
-	return cl.load(cfg)
-}
-
-func (cl *ConfigLoader) Validate() error {
-	missingFields := []string{}
-	for _, key := range cl.requiredFields {
-		if !cl.v.IsSet(key) {
-			missingFields = append(missingFields, strings.ReplaceAll(key, ".", "-"))
+		for _, path := range paths {
+			if _, err := os.Stat(path); err == nil {
+				if err := cl.k.Load(file.Provider(path), toml.Parser()); err != nil {
+					return fmt.Errorf("error reading config file: %w", err)
+				}
+				break
+			}
 		}
 	}
-	if len(missingFields) > 0 {
-		return fmt.Errorf("required configuration values not set: %s", strings.Join(missingFields, ", "))
+
+	// 3. Load environment variables
+	cl.generateEnvMap(reflect.TypeOf(cfg), "", "")
+
+	if err := cl.k.Load(&unflattenProvider{
+		p: env.Provider("TELDRIVE_", ".", func(s string) string {
+			key := strings.TrimPrefix(s, "TELDRIVE_")
+			if val, ok := cl.envMap[key]; ok {
+				return val
+			}
+			return strings.ReplaceAll(strings.ToLower(key), "_", "-")
+		}),
+		delim: ".",
+	}, nil); err != nil {
+
+		return err
 	}
+
+	// 4. Load explicit flags
+	if err := cl.k.Load(&customFlagProvider{f: cmd.Flags(), flagMap: cl.flagMap, onlyChanged: true}, nil); err != nil {
+		return err
+	}
+
+	unmarshalCfg := koanf.UnmarshalConf{
+		Tag: "koanf",
+		DecoderConfig: &mapstructure.DecoderConfig{
+			MatchName: func(mapKey, fieldName string) bool {
+				return strings.EqualFold(strings.ReplaceAll(mapKey, "-", ""), strings.ReplaceAll(fieldName, "-", "")) ||
+					strings.EqualFold(strings.ReplaceAll(mapKey, "_", ""), strings.ReplaceAll(fieldName, "_", ""))
+			},
+			DecodeHook: mapstructure.ComposeDecodeHookFunc(
+				mapstructure.StringToSliceHookFunc(","),
+				func(f reflect.Type, t reflect.Type, data any) (any, error) {
+					if f.Kind() != reflect.String {
+						return data, nil
+					}
+					if t != reflect.TypeFor[time.Duration]() {
+						return data, nil
+					}
+					return duration.ParseDuration(data.(string))
+				},
+			),
+			Result:           cfg,
+			WeaklyTypedInput: true,
+		},
+	}
+
+	if err := cl.k.UnmarshalWithConf("", cfg, unmarshalCfg); err != nil {
+		return err
+	}
+
 	return nil
 }
 
-func (cl *ConfigLoader) RegisterPlags(flags *pflag.FlagSet, prefix string, v any, skipFlags bool) error {
+func (cl *ConfigLoader) Validate(cfg any) error {
+	validate := validator.New()
+	return validate.Struct(cfg)
+}
+
+func (cl *ConfigLoader) RegisterFlags(flags *pflag.FlagSet, t reflect.Type) {
 	flags.StringP("config", "c", "", "Config file path (default $HOME/.teldrive/config.toml)")
-	return cl.walkStruct(v, prefix, func(key string, field reflect.StructField, value reflect.Value) error {
-		return cl.setDefault(flags, key, field, skipFlags)
-	})
+	cl.registerStruct(flags, "", t)
 }
 
-func (cl *ConfigLoader) setDefault(flags *pflag.FlagSet, key string, field reflect.StructField, skipFlags bool) error {
-	description := field.Tag.Get("description")
-	defaultVal := field.Tag.Get("default")
-
-	if defaultVal != "" {
-		description += fmt.Sprintf(" (default %s)", defaultVal)
+func (cl *ConfigLoader) generateEnvMap(t reflect.Type, prefix string, envPrefix string) {
+	if t.Kind() == reflect.Pointer {
+		t = t.Elem()
 	}
-	if required := field.Tag.Get("required"); required == "true" {
-		cl.requiredFields = append(cl.requiredFields, key)
+	if t.Kind() != reflect.Struct {
+		return
 	}
 
-	flagKey := strings.ReplaceAll(key, ".", "-")
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		koanfTag := getKey(field)
 
-	if defaultVal != "" {
-		cl.v.SetDefault(key, defaultVal)
-	}
-
-	if skipFlags {
-		return nil
-	}
-
-	switch field.Type.Kind() {
-	case reflect.String:
-		flags.String(flagKey, "", description)
-	case reflect.Int:
-		flags.Int(flagKey, 0, description)
-	case reflect.Int64:
-		flags.Int64(flagKey, 0, description)
-	case reflect.Bool:
-		flags.Bool(flagKey, false, description)
-	case reflect.Slice:
-		switch field.Type.Elem().Kind() {
-		case reflect.String:
-			flags.StringSlice(flagKey, nil, description)
-		case reflect.Int:
-			flags.IntSlice(flagKey, nil, description)
-
-		}
-	default:
-		if field.Type == reflect.TypeOf(time.Duration(0)) {
-			flags.Duration(flagKey, time.Duration(0), description)
-
-		}
-	}
-	if err := cl.v.BindPFlag(key, flags.Lookup(flagKey)); err != nil {
-		return fmt.Errorf("error binding flag %s: %w", key, err)
-	}
-
-	return nil
-}
-
-func (cl *ConfigLoader) walkStruct(v any, prefix string, fn func(key string, field reflect.StructField, value reflect.Value) error) error {
-	val := reflect.ValueOf(v)
-	if val.Kind() == reflect.Ptr {
-		val = val.Elem()
-	}
-	typ := val.Type()
-
-	for i := 0; i < typ.NumField(); i++ {
-		field := typ.Field(i)
-		value := val.Field(i)
-		configTag := field.Tag.Get("config")
-		if configTag == "" {
-			continue
-		}
-		key := configTag
+		key := koanfTag
 		if prefix != "" {
-			key = prefix + "." + configTag
+			key = prefix + "." + koanfTag
 		}
-		if field.Type.Kind() == reflect.Struct {
-			var nestedValue any
-			if value.CanAddr() {
-				nestedValue = value.Addr().Interface()
-			} else {
-				nestedValue = value.Interface()
-			}
-			if err := cl.walkStruct(nestedValue, key, fn); err != nil {
-				return err
-			}
+
+		envKey := strings.ToUpper(strings.ReplaceAll(koanfTag, "-", "_"))
+		if envPrefix != "" {
+			envKey = envPrefix + "_" + envKey
+		}
+
+		if field.Type.Kind() == reflect.Struct && field.Type != reflect.TypeFor[time.Duration]() {
+			cl.generateEnvMap(field.Type, key, envKey)
+		} else {
+			cl.envMap[envKey] = key
+		}
+	}
+}
+
+func (cl *ConfigLoader) loadSkippedDefaults(t reflect.Type, prefix string) {
+	if t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	if t.Kind() != reflect.Struct {
+		return
+	}
+
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		koanfTag := getKey(field)
+
+		key := koanfTag
+		if prefix != "" {
+			key = prefix + "." + koanfTag
+		}
+
+		if field.Tag.Get("skipPflag") == "true" {
+			cl.registerDefaultsRecursive(field.Type, key)
 			continue
 		}
 
-		if err := fn(key, field, value); err != nil {
-			return err
+		if field.Type.Kind() == reflect.Struct && field.Type != reflect.TypeFor[time.Duration]() {
+			cl.loadSkippedDefaults(field.Type, key)
 		}
 	}
-
-	return nil
 }
 
-func decodeTag(tag string) viper.DecoderConfigOption {
-	return func(c *mapstructure.DecoderConfig) {
-		c.TagName = tag
+func (cl *ConfigLoader) registerDefaultsRecursive(t reflect.Type, prefix string) {
+	if t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	if t.Kind() != reflect.Struct {
+		return
+	}
+
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		koanfTag := getKey(field)
+
+		key := prefix + "." + koanfTag
+
+		if field.Type.Kind() == reflect.Struct && field.Type != reflect.TypeFor[time.Duration]() {
+			cl.registerDefaultsRecursive(field.Type, key)
+			continue
+		}
+
+		defaultValue := field.Tag.Get("default")
+		if defaultValue != "" {
+			var val any = defaultValue
+			switch field.Type.Kind() {
+			case reflect.Int:
+				val, _ = strconv.Atoi(defaultValue)
+			case reflect.Int64:
+				if field.Type != reflect.TypeFor[time.Duration]() {
+					val, _ = strconv.ParseInt(defaultValue, 10, 64)
+				}
+			case reflect.Bool:
+				val, _ = strconv.ParseBool(defaultValue)
+			case reflect.Slice:
+				if field.Type.Elem().Kind() == reflect.String {
+					val = strings.Split(defaultValue, ",")
+				}
+			}
+			cl.k.Set(key, val)
+		}
 	}
 }
 
-func (cl *ConfigLoader) load(cfg any) error {
-	return cl.v.Unmarshal(&cfg, viper.DecodeHook(mapstructure.ComposeDecodeHookFunc(
-		StringToDurationHook(),
-	)), decodeTag("config"))
+func (cl *ConfigLoader) registerStruct(flags *pflag.FlagSet, prefix string, t reflect.Type) {
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		koanfTag := getKey(field)
 
+		key := koanfTag
+		if prefix != "" {
+			key = prefix + "." + koanfTag
+		}
+
+		if field.Tag.Get("skipPflag") == "true" {
+			continue
+		}
+
+		if field.Type.Kind() == reflect.Struct && field.Type != reflect.TypeFor[time.Duration]() {
+			cl.registerStruct(flags, key, field.Type)
+			continue
+		}
+
+		defaultValue := field.Tag.Get("default")
+		description := field.Tag.Get("description")
+		name := strings.ReplaceAll(key, ".", "-")
+		cl.flagMap[name] = key
+
+		switch field.Type.Kind() {
+		case reflect.String:
+			flags.String(name, defaultValue, description)
+		case reflect.Int:
+			val, _ := strconv.Atoi(defaultValue)
+			flags.Int(name, val, description)
+		case reflect.Int64:
+			if field.Type == reflect.TypeFor[time.Duration]() {
+				val, _ := duration.ParseDuration(defaultValue)
+				d := duration.Duration(val)
+				flags.Var(&d, name, description)
+			} else {
+				val, _ := strconv.ParseInt(defaultValue, 10, 64)
+				flags.Int64(name, val, description)
+			}
+		case reflect.Bool:
+			val, _ := strconv.ParseBool(defaultValue)
+			flags.Bool(name, val, description)
+		case reflect.Slice:
+			if field.Type.Elem().Kind() == reflect.String {
+				var val []string
+				if defaultValue != "" {
+					val = strings.Split(defaultValue, ",")
+				}
+				flags.StringSlice(name, val, description)
+			}
+		}
+	}
 }
