@@ -60,7 +60,7 @@ func newClient(ctx context.Context, config *config.TGConfig, handler telegram.Up
 		SessionStorage: storage,
 		RetryInterval:  2 * time.Second,
 		MaxRetries:     20,
-		DialTimeout:    10 * time.Second,
+		DialTimeout:    config.DialTimeout,
 		Middlewares:    middlewares,
 		UpdateHandler:  handler,
 		Logger:         logger,
