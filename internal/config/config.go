@@ -176,6 +176,7 @@ type TGConfig struct {
 	NtpServer         string        `default:"" description:"NTP server address"`
 	Proxy             string        `default:"" description:"HTTP/SOCKS5 proxy URL"`
 	ReconnectTimeout  time.Duration `default:"5m" description:"Client reconnection timeout"`
+	DialTimeout       time.Duration `default:"10s" description:"Timeout for connecting to Telegram servers"`
 	PoolSize          int           `default:"8" description:"Session pool size"`
 	EnableLogging     bool          `default:"false" description:"Enable Telegram client logging (deprecated: use logging.tg.enabled instead)"`
 	AppId             int           `default:"2496" description:"Telegram app ID"`
