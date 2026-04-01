@@ -53,6 +53,7 @@ tg:
   rate: 100
   rate-burst: 5
   rate-limit: true
+  dial-timeout: "10s"
   reconnect-timeout: "5m"
   session-instance: "teldrive"
   system-lang-code: "en-US"
