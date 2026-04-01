@@ -166,8 +166,8 @@ func (p *ClientPool) GetClient(ctx context.Context, userID int64, token string) 
 			cancel()
 			return nil, err
 		}
-	case <-time.After(30 * time.Second):
-		p.logger.Error("client.auth_timeout", zap.String("key", key), zap.Duration("timeout", 30*time.Second))
+	case <-time.After(3 * p.cnf.DialTimeout):
+		p.logger.Error("client.auth_timeout", zap.String("key", key), zap.Duration("timeout", 3*p.cnf.DialTimeout))
 		cancel()
 		return nil, fmt.Errorf("timeout waiting for telegram auth")
 	}
