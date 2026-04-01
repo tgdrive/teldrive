@@ -40,26 +40,28 @@ type SyncFilters struct {
 }
 
 type SyncOptions struct {
-	PartSize int64 `json:"partSize,omitempty"`
-	Sync     bool  `json:"sync,omitempty"`
+	PartSize  int64 `json:"partSize,omitempty"`
+	Encrypted bool  `json:"encrypted,omitempty"`
+	Sync      bool  `json:"sync,omitempty"`
 }
 
 func (SyncRunJobArgs) Kind() string { return JobKindSyncRun }
 
 type SyncTransferJobArgs struct {
-	UserID          int64             `json:"userId" river:"unique"`
-	RunID           string            `json:"runId"`
-	Source          string            `json:"source"`
-	SourcePath      string            `json:"sourcePath,omitempty"`
-	DestinationPath string            `json:"destinationPath,omitempty"`
-	Name            string            `json:"name"`
-	Size            int64             `json:"size,omitempty"`
-	MimeType        string            `json:"mimeType,omitempty"`
-	Hash            string            `json:"hash,omitempty"`
-	ModifiedAtUnix  int64             `json:"modifiedAtUnix,omitempty"`
-	Headers         map[string]string `json:"headers,omitempty"`
-	Proxy           string            `json:"proxy,omitempty"`
-	PartSize        int64             `json:"partSize,omitempty"`
+	UserID             int64             `json:"userId" river:"unique"`
+	RunID              string            `json:"runId"`
+	Source             string            `json:"source"`
+	SourcePath         string            `json:"sourcePath,omitempty"`
+	DestinationPath    string            `json:"destinationPath,omitempty"`
+	Name               string            `json:"name"`
+	Size               int64             `json:"size,omitempty"`
+	MimeType           string            `json:"mimeType,omitempty"`
+	Hash               string            `json:"hash,omitempty"`
+	ModifiedAtUnixNano int64             `json:"modifiedAtUnixNano,omitempty"`
+	Headers            map[string]string `json:"headers,omitempty"`
+	Proxy              string            `json:"proxy,omitempty"`
+	PartSize           int64             `json:"partSize,omitempty"`
+	Encrypted          bool              `json:"encrypted,omitempty"`
 }
 
 func (SyncTransferJobArgs) Kind() string { return JobKindSyncTransfer }

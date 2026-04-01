@@ -93,6 +93,7 @@ tg:
     system-lang-code: en-US
     system-version: Win32
     uploads:
+        chunk-naming: random
         encryption-key: ""
         max-retries: 10
         retention: 7d

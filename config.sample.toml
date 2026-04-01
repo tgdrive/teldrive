@@ -108,6 +108,7 @@
     concurrency = 1
 
   [tg.uploads]
+    chunk-naming = "random"
     encryption-key = ""
     max-retries = 10
     retention = "7d"

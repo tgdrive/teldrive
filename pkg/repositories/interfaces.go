@@ -244,8 +244,9 @@ type SyncFiltersArgs struct {
 }
 
 type SyncOptionsArgs struct {
-	PartSize *int64 `json:"partSize,omitempty"`
-	Sync     *bool  `json:"sync,omitempty"`
+	PartSize  *int64 `json:"partSize,omitempty"`
+	Encrypted *bool  `json:"encrypted,omitempty"`
+	Sync      *bool  `json:"sync,omitempty"`
 }
 
 type CleanOldEventsPeriodicArgs struct {

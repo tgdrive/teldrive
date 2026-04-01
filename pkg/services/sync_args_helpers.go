@@ -77,6 +77,9 @@ func toQueueOptions(v api.OptSyncOptions) queue.SyncOptions {
 	if v.Value.PartSize.IsSet() && v.Value.PartSize.Value > 0 {
 		out.PartSize = v.Value.PartSize.Value
 	}
+	if v.Value.Encrypted.IsSet() {
+		out.Encrypted = v.Value.Encrypted.Value
+	}
 	if v.Value.Sync.IsSet() {
 		out.Sync = v.Value.Sync.Value
 	}

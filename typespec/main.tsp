@@ -699,6 +699,7 @@ model SyncFilters {
 
 model SyncOptions {
   partSize?: int64;
+  encrypted?: boolean;
   sync?: boolean;
 }
 
@@ -1011,17 +1012,12 @@ interface Jobs {
 
 @doc("Query parameters for file upload")
 @example(#{
-  partName: "part1",
   fileName: "document.pdf",
   partNo: 1,
   channelId: 123456789,
   encrypted: false,
 })
 model UploadQuery {
-  @doc("Name of the part being uploaded")
-  @query
-  partName: string;
-
   @doc("Original file name")
   @query
   fileName: string;

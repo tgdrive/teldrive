@@ -760,6 +760,10 @@ func syncRunArgsFromAPI(v api.SyncArgs) repositories.SyncRunPeriodicArgs {
 			partSize := v.Options.Value.PartSize.Value
 			o.PartSize = &partSize
 		}
+		if v.Options.Value.Encrypted.IsSet() {
+			encrypted := v.Options.Value.Encrypted.Value
+			o.Encrypted = &encrypted
+		}
 		if v.Options.Value.Sync.IsSet() {
 			sync := v.Options.Value.Sync.Value
 			o.Sync = &sync
@@ -791,6 +795,9 @@ func apiSyncArgsFromDomain(v repositories.SyncRunPeriodicArgs) api.SyncArgs {
 		o := api.SyncOptions{}
 		if v.Options.PartSize != nil {
 			o.PartSize = api.NewOptInt64(*v.Options.PartSize)
+		}
+		if v.Options.Encrypted != nil {
+			o.Encrypted = api.NewOptBool(*v.Options.Encrypted)
 		}
 		if v.Options.Sync != nil {
 			o.Sync = api.NewOptBool(*v.Options.Sync)

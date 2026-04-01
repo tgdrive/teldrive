@@ -1715,7 +1715,6 @@ paths:
           schema:
             type: integer
             format: int64
-        - $ref: '#/components/parameters/UploadQuery.partName'
         - $ref: '#/components/parameters/UploadQuery.fileName'
         - $ref: '#/components/parameters/UploadQuery.partNo'
         - $ref: '#/components/parameters/UploadQuery.channelId'
@@ -2501,14 +2500,6 @@ components:
       schema:
         type: boolean
         default: true
-      explode: false
-    UploadQuery.partName:
-      name: partName
-      in: query
-      required: true
-      description: Name of the part being uploaded
-      schema:
-        type: string
       explode: false
     UploadQuery.partNo:
       name: partNo
@@ -3445,6 +3436,8 @@ components:
         partSize:
           type: integer
           format: int64
+        encrypted:
+          type: boolean
         sync:
           type: boolean
     UUID:

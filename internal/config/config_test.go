@@ -65,6 +65,7 @@ func TestConfigLoader_LoadDefaults(t *testing.T) {
 	assert.Equal(t, 8, cfg.TG.Uploads.Threads)
 	assert.Equal(t, 10, cfg.TG.Uploads.MaxRetries)
 	assert.Equal(t, 7*24*time.Hour, cfg.TG.Uploads.Retention)
+	assert.Equal(t, "random", cfg.TG.Uploads.ChunkNaming)
 	assert.Equal(t, "", cfg.TG.MTProxy.Addr)
 	assert.Equal(t, "", cfg.TG.MTProxy.Secret)
 	assert.Equal(t, 30*24*time.Hour, cfg.JWT.SessionTime)

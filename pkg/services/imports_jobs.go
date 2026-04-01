@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+	"crypto/md5"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -15,7 +17,6 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
 	"github.com/tgdrive/teldrive/internal/api"
-	jetmodel "github.com/tgdrive/teldrive/internal/database/jet/gen/model"
 	"github.com/tgdrive/teldrive/internal/logging"
 	"github.com/tgdrive/teldrive/pkg/queue"
 	"github.com/tgdrive/teldrive/pkg/remotes"
@@ -147,25 +148,21 @@ func (e *jobExecutor) SyncTransfer(ctx context.Context, args queue.SyncTransferJ
 	if size <= 0 {
 		return fmt.Errorf("source size must be greater than zero")
 	}
+	if args.Encrypted && e.api.cnf.TG.Uploads.EncryptionKey == "" {
+		return fmt.Errorf("sync encryption is not enabled")
+	}
 
-	channelID, err := e.resolveUploadChannel(workingCtx, args.UserID)
+	stager, err := e.api.newUploadStager(workingCtx, args.UserID, 0)
 	if err != nil {
 		return err
 	}
+	defer stager.Close()
 
-	client, _, _, _, err := e.api.getUploadClient(workingCtx, args.UserID)
+	uploadID, err := e.syncUploadID(workingCtx, args)
 	if err != nil {
 		return err
 	}
-
-	uploadPool, err := e.api.telegram.NewUploadPool(workingCtx, client, int64(e.api.cnf.TG.PoolSize), e.api.cnf.TG.Uploads.MaxRetries)
-	if err != nil {
-		return err
-	}
-	defer uploadPool.Close()
-
-	uploadID := uuid.NewString()
-	if err := e.uploadSyncTransferParts(workingCtx, uploadPool, reader, args, uploadID, channelID, size); err != nil {
+	if err := e.uploadSyncTransferParts(workingCtx, stager, reader, args, uploadID, size); err != nil {
 		e.cleanupUpload(workingCtx, uploadID, "upload transfer failed")
 		return err
 	}
@@ -182,8 +179,11 @@ func (e *jobExecutor) SyncTransfer(ctx context.Context, args queue.SyncTransferJ
 	} else if mimeType != "" {
 		fileReq.MimeType = api.NewOptString(mimeType)
 	}
-	if args.ModifiedAtUnix > 0 {
-		fileReq.UpdatedAt = api.NewOptDateTime(time.Unix(args.ModifiedAtUnix, 0).UTC())
+	if args.ModifiedAtUnixNano > 0 {
+		fileReq.UpdatedAt = api.NewOptDateTime(time.Unix(0, args.ModifiedAtUnixNano).UTC())
+	}
+	if args.Encrypted {
+		fileReq.Encrypted = api.NewOptBool(true)
 	}
 
 	created, err := e.api.FilesCreate(workingCtx, fileReq)
@@ -517,34 +517,54 @@ func summarizeSyncWorkflow(tasks *river.WorkflowTasks) (*syncWorkflowStats, erro
 	return stats, nil
 }
 
-func (e *jobExecutor) uploadSyncTransferParts(ctx context.Context, uploadPool UploadPool, reader io.Reader, args queue.SyncTransferJobArgs, uploadID string, channelID, size int64) error {
+func (e *jobExecutor) uploadSyncTransferParts(ctx context.Context, stager *uploadStager, reader io.Reader, args queue.SyncTransferJobArgs, uploadID string, size int64) error {
 	partSize := args.PartSize
 	if partSize <= 0 {
 		partSize = 100 * 1024 * 1024
 	}
 	totalParts := int((size + partSize - 1) / partSize)
 	var uploaded int64
-	for i := 0; i < totalParts; i++ {
-		partNo := i + 1
-		chunkSize := minInt64(partSize, size-uploaded)
-		partName := fmt.Sprintf("%s.part%03d", args.Name, partNo)
-		partID, uploadedSize, err := e.api.telegram.UploadPart(ctx, uploadPool.Default(ctx), channelID, partName, io.LimitReader(reader, chunkSize), chunkSize, e.api.cnf.TG.Uploads.Threads)
-		if err != nil {
-			return err
+
+	return stager.Run(ctx, func(ctx context.Context) error {
+		for i := 0; i < totalParts; i++ {
+			partNo := i + 1
+			chunkSize := minInt64(partSize, size-uploaded)
+
+			if _, err := stager.StagePart(ctx, uploadStagePartRequest{
+				UploadID:  uploadID,
+				FileName:  args.Name,
+				PartNo:    partNo,
+				Reader:    io.LimitReader(reader, chunkSize),
+				Size:      chunkSize,
+				Encrypted: args.Encrypted,
+				Hashing:   true,
+				Threads:   e.api.cnf.TG.Uploads.Threads,
+			}, logging.FromContext(ctx)); err != nil {
+				return err
+			}
+
+			uploaded += chunkSize
+			if err := writeJobProgress(ctx, partNo, totalParts, []map[string]any{{"partNo": partNo, "success": true}}); err != nil {
+				return err
+			}
 		}
-		if uploadedSize != chunkSize {
-			return fmt.Errorf("uploaded size mismatch for %s", partName)
-		}
-		now := time.Now().UTC()
-		if err := e.api.repo.Uploads.Create(ctx, &jetmodel.Uploads{Name: partName, UploadID: uploadID, PartID: int32(partID), ChannelID: channelID, Size: chunkSize, PartNo: int32(partNo), UserID: &args.UserID, CreatedAt: &now}); err != nil {
-			return err
-		}
-		uploaded += chunkSize
-		if err := writeJobProgress(ctx, partNo, totalParts, []map[string]any{{"partNo": partNo, "success": true}}); err != nil {
-			return err
-		}
+
+		return nil
+	})
+}
+
+func (e *jobExecutor) syncUploadID(ctx context.Context, args queue.SyncTransferJobArgs) (string, error) {
+	modTimeUnixNano := int64(0)
+	if args.ModifiedAtUnixNano > 0 {
+		modTimeUnixNano = args.ModifiedAtUnixNano
 	}
-	return nil
+
+	return md5Hex(fmt.Sprintf("%s:%s:%d:%d:%d", cleanPath(args.DestinationPath), args.Name, args.Size, modTimeUnixNano, args.UserID)), nil
+}
+
+func md5Hex(text string) string {
+	hash := md5.Sum([]byte(text))
+	return hex.EncodeToString(hash[:])
 }
 
 func recordSyncRunPlanOutput(ctx context.Context, runID, source, destination string, plan *syncRunPlan) error {
@@ -579,9 +599,9 @@ func normalizeSourceDir(relPath string) string {
 }
 
 func newSyncTransferJobArgs(args queue.SyncRunJobArgs, runID string, src sourceFile, destinationPath string) queue.SyncTransferJobArgs {
-	child := queue.SyncTransferJobArgs{UserID: args.UserID, RunID: runID, Source: args.Source, SourcePath: src.fullPath, DestinationPath: destinationPath, Name: src.name, Size: src.size, MimeType: src.mimeType, Hash: src.hash, Headers: args.Headers, Proxy: args.Proxy, PartSize: args.Options.PartSize}
+	child := queue.SyncTransferJobArgs{UserID: args.UserID, RunID: runID, Source: args.Source, SourcePath: src.fullPath, DestinationPath: destinationPath, Name: src.name, Size: src.size, MimeType: src.mimeType, Hash: src.hash, Headers: args.Headers, Proxy: args.Proxy, PartSize: args.Options.PartSize, Encrypted: args.Options.Encrypted}
 	if !src.modified.IsZero() {
-		child.ModifiedAtUnix = src.modified.UTC().Unix()
+		child.ModifiedAtUnixNano = src.modified.UTC().UnixNano()
 	}
 	return child
 }

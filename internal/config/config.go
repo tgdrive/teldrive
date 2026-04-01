@@ -164,6 +164,7 @@ type TGUpload struct {
 	Threads       int           `default:"8" description:"Number of upload threads"`
 	MaxRetries    int           `default:"10" description:"Maximum upload retry attempts"`
 	Retention     time.Duration `default:"7d" description:"Upload retention period"`
+	ChunkNaming   string        `default:"random" description:"Upload chunk naming mode (random, deterministic)"`
 }
 
 type TGMTProxy struct {

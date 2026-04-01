@@ -24,17 +24,6 @@ func NewJobExecutor(apiSvc *apiService) queue.Executor {
 	return &jobExecutor{api: apiSvc}
 }
 
-func (e *jobExecutor) resolveUploadChannel(ctx context.Context, userID int64) (int64, error) {
-	channelID, err := e.api.channelManager.CurrentChannel(ctx, userID)
-	if err == nil && (!e.api.cnf.TG.AutoChannelCreate || !e.api.channelManager.ChannelLimitReached(channelID)) {
-		return channelID, nil
-	}
-	if err != nil && !e.api.telegram.IsNoDefaultChannelError(err) {
-		return 0, err
-	}
-	return e.api.channelManager.CreateNewChannel(ctx, "", userID, true)
-}
-
 func writeJobProgress(ctx context.Context, done, total int, results []map[string]any) error {
 	percent := 0
 	if total > 0 {
