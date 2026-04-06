@@ -322,8 +322,18 @@ func (cp *channelProcessor) loadFiles() ([]checkFile, error) {
 	if err != nil {
 		return nil, err
 	}
-	return utils.Map(files, func(f repositories.CheckFile) checkFile {
-		return checkFile{ID: f.ID, Name: f.Name, Size: f.Size, Encrypted: f.Encrypted, Status: f.Status, Parts: utils.Map(f.Parts, func(p dbtypes.Part) api.Part { return api.Part{ID: p.ID, Salt: api.NewOptString(p.Salt)} })}
+return utils.Map(files, func(f repositories.CheckFile) checkFile {
+		return checkFile{
+			ID:        f.ID,
+			Name:      f.Name,
+			Size:      f.Size,
+			Encrypted: f.Encrypted,
+			Status:    f.Status,
+			Parts: utils.Map(f.Parts, func(p dbtypes.Part) api.Part {
+				return api.Part{ID: p.ID, Salt: api.NewOptString(p.Salt)}
+			}),
+		}
+	}), nil
 	}), nil
 }
 
