@@ -823,3 +823,21 @@ func mapFileQuerySortOrder(order string) filesquery.SortOrder {
 	}
 	return filesquery.SortOrderDesc
 }
+
+func (r *JetFileRepository) CountPartsByChannel(ctx context.Context, channelID int64) (int64, error) {
+	query := `
+		SELECT COALESCE(SUM(
+			CASE WHEN jsonb_typeof(parts) = 'array' THEN jsonb_array_length(parts) ELSE 0 END
+		), 0)::bigint AS total_parts
+		FROM files
+		WHERE channel_id = $1 AND type = 'file'
+	`
+
+	var count int64
+	err := r.db.executor(ctx).QueryRow(ctx, query, channelID).Scan(&count)
+	if err != nil {
+		return 0, normalizeDBError(err)
+	}
+
+	return count, nil
+}

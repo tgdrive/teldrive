@@ -43,18 +43,11 @@ func (cm *ChannelManager) Channel(ctx context.Context, userID int64) (int64, err
 }
 
 func (cm *ChannelManager) ChannelLimitReached(channelID int64) bool {
-	files, err := cm.repo.Files.GetByChannelID(context.Background(), channelID)
+	totalParts, err := cm.repo.Files.CountPartsByChannel(context.Background(), channelID)
 	if err != nil {
 		return false
 	}
 
-	var totalParts int64
-	for _, file := range files {
-		if file.Parts == nil {
-			continue
-		}
-		totalParts += int64(len(file.Parts.Data))
-	}
 	return totalParts >= int64(cm.cnf.ChannelLimit)
 }
 
@@ -172,18 +165,24 @@ func (cm *ChannelManager) CreateNewChannel(ctx context.Context, newChannelName s
 	}
 
 	if setDefault {
-		channels, err := cm.repo.Channels.GetByUserID(ctx, userID)
-		if err != nil {
-			return 0, fmt.Errorf("failed to list channels: %w", err)
-		}
-		for _, c := range channels {
-			sel := false
-			if err := cm.repo.Channels.Update(ctx, c.ChannelID, repositories.ChannelUpdate{Selected: &sel}); err != nil {
-				return 0, fmt.Errorf("failed to reset selected channels: %w", err)
+		err := cm.repo.WithTx(ctx, func(txCtx context.Context) error {
+			channels, err := cm.repo.Channels.GetByUserID(txCtx, userID)
+			if err != nil {
+				return fmt.Errorf("failed to list channels: %w", err)
 			}
-		}
-		if err := cm.repo.Channels.Create(ctx, &newChannelRecord); err != nil {
-			return 0, fmt.Errorf("failed to create channel record: %w", err)
+			for _, c := range channels {
+				sel := false
+				if err := cm.repo.Channels.Update(txCtx, c.ChannelID, repositories.ChannelUpdate{Selected: &sel}); err != nil {
+					return fmt.Errorf("failed to reset selected channels: %w", err)
+				}
+			}
+			if err := cm.repo.Channels.Create(txCtx, &newChannelRecord); err != nil {
+				return fmt.Errorf("failed to create channel record: %w", err)
+			}
+			return nil
+		})
+		if err != nil {
+			return 0, err
 		}
 		cm.cache.Delete(ctx, cache.KeyUserChannel(userID))
 	} else {
@@ -214,16 +213,7 @@ func (cm *ChannelManager) releaseAdvisoryLock(ctx context.Context, lockID int64)
 
 // getChannelCreatedAfter checks if a channel was created for user after given time
 func (cm *ChannelManager) getChannelCreatedAfter(ctx context.Context, userID int64, after time.Time) (*jetmodel.Channels, error) {
-	channels, err := cm.repo.Channels.GetByUserID(ctx, userID)
-	if err != nil {
-		return nil, err
-	}
-	for i := len(channels) - 1; i >= 0; i-- {
-		if channels[i].CreatedAt.After(after) {
-			return &channels[i], nil
-		}
-	}
-	return nil, nil
+	return cm.repo.Channels.GetByUserIDCreatedAfter(ctx, userID, after)
 }
 
 func (cm *ChannelManager) AddBotsToChannel(ctx context.Context, userId int64, channelId int64, botsTokens []string, save bool) error {

@@ -71,21 +71,28 @@ func (r *JetKVRepository) DeletePrefix(ctx context.Context, prefix string) error
 
 func (r *JetKVRepository) Iterate(ctx context.Context, prefix string, fn func(key string, value []byte) error) error {
 	stmt := table.Kv.
-		SELECT(table.Kv.AllColumns).
+		SELECT(table.Kv.Key, table.Kv.Value).
 		FROM(table.Kv).
 		WHERE(table.Kv.Key.LIKE(postgres.String(prefix + "%"))).
 		ORDER_BY(table.Kv.Key.ASC())
 
-	var entries []model.Kv
-	if err := r.db.query(ctx, stmt, &entries); err != nil {
-		return err
+	query, args := stmt.Sql()
+	rows, err := r.db.raw().Query(ctx, query, args...)
+	if err != nil {
+		return normalizeDBError(err)
 	}
+	defer rows.Close()
 
-	for _, entry := range entries {
-		if err := fn(entry.Key, entry.Value); err != nil {
+	for rows.Next() {
+		var key string
+		var value []byte
+		if err := rows.Scan(&key, &value); err != nil {
+			return normalizeDBError(err)
+		}
+		if err := fn(key, value); err != nil {
 			return err
 		}
 	}
 
-	return nil
+	return rows.Err()
 }

@@ -129,6 +129,7 @@ type FileRepository interface {
 	DeleteBulkReturning(ctx context.Context, fileIDs []uuid.UUID, userID int64, targetStatus string) ([]model.Files, error)
 	CreateDirectories(ctx context.Context, userID int64, path string) (*uuid.UUID, error)
 	ListCheckFiles(ctx context.Context, userID, channelID int64, includePending bool) ([]CheckFile, error)
+	CountPartsByChannel(ctx context.Context, channelID int64) (int64, error)
 }
 
 // SessionRepository defines operations for session persistence
@@ -169,6 +170,7 @@ type ChannelRepository interface {
 	GetByUserID(ctx context.Context, userID int64) ([]model.Channels, error)
 	GetByChannelID(ctx context.Context, channelID int64) (*model.Channels, error)
 	GetSelected(ctx context.Context, userID int64) (*model.Channels, error)
+	GetByUserIDCreatedAfter(ctx context.Context, userID int64, after time.Time) (*model.Channels, error)
 	Update(ctx context.Context, channelID int64, update ChannelUpdate) error
 	Delete(ctx context.Context, channelID int64) error
 	DeleteByUserID(ctx context.Context, userID int64) error

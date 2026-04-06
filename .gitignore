@@ -38,5 +38,5 @@ docs/src/openapi/
 teldrive-ui.zip
 internal/api
 .opencode/plans
+.opencode/package-lock.json
 node_modules
-.sisyphus

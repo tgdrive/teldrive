@@ -118,3 +118,26 @@ func (r *JetChannelRepository) DeleteByUserID(ctx context.Context, userID int64)
 
 	return err
 }
+
+func (r *JetChannelRepository) GetByUserIDCreatedAfter(ctx context.Context, userID int64, after time.Time) (*model.Channels, error) {
+	stmt := table.Channels.
+		SELECT(table.Channels.AllColumns).
+		FROM(table.Channels).
+		WHERE(
+			table.Channels.UserID.EQ(postgres.Int64(userID)).
+				AND(table.Channels.CreatedAt.GT(postgres.TimestampzT(after))),
+		).
+		ORDER_BY(table.Channels.CreatedAt.DESC()).
+		LIMIT(1)
+
+	var out model.Channels
+	if err := r.db.query(ctx, stmt, &out); err != nil {
+		if errors.Is(err, qrm.ErrNoRows) {
+			return nil, nil
+		}
+
+		return nil, err
+	}
+
+	return &out, nil
+}
