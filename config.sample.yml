@@ -69,6 +69,7 @@ tg:
     auto-channel-create: true
     channel-limit: 500000
     device-model: Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/116.0
+    dial-timeout: 10s
     enable-logging: false
     lang-code: en
     lang-pack: webk
@@ -76,6 +77,7 @@ tg:
         addr: ""
         secret: ""
     ntp: false
+    ntp-server: pool.ntp.org
     pool-size: 8
     proxy: ""
     rate: 100

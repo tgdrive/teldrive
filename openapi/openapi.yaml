@@ -3649,7 +3649,7 @@ components:
     SessionHashAuth:
       type: apiKey
       in: query
-      name: shash
+      name: sid
 servers:
   - url: '{url}/api'
     description: Teldrive Server URL

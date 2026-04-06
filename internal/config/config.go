@@ -189,9 +189,11 @@ type TGConfig struct {
 	RateBurst         int           `default:"5" description:"Maximum burst size for rate limiting"`
 	Rate              int           `default:"100" description:"Rate limit in requests per minute"`
 	Ntp               bool          `default:"false" description:"Use NTP for time synchronization"`
+	NtpServer         string        `default:"pool.ntp.org" description:"NTP server address"`
 	Proxy             string        `default:"" description:"HTTP/SOCKS5 proxy URL"`
 	MTProxy           TGMTProxy     `koanf:"mtproxy"`
 	ReconnectTimeout  time.Duration `default:"5m" description:"Client reconnection timeout"`
+	DialTimeout       time.Duration `default:"10s" description:"Timeout for connecting to Telegram servers"`
 	PoolSize          int           `default:"8" description:"Session pool size"`
 	EnableLogging     bool          `default:"false" description:"Enable Telegram client logging (deprecated: use logging.tg.enabled instead)"`
 	AppID             int           `default:"2496" description:"Telegram app ID"`

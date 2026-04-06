@@ -55,13 +55,13 @@ func newClient(ctx context.Context, config *config.TGConfig, handler telegram.Up
 		SessionStorage: storage,
 		RetryInterval:  2 * time.Second,
 		MaxRetries:     20,
-		DialTimeout:    10 * time.Second,
+		DialTimeout:    config.DialTimeout,
 		Middlewares:    middlewares,
 		UpdateHandler:  handler,
 		Logger:         logger,
 	}
 	if config.Ntp {
-		c, err := clock.NewNTP()
+		c, err := clock.NewNTP(config.NtpServer)
 		if err != nil {
 			return nil, errors.Wrap(err, "create clock")
 		}

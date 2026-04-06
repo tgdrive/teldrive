@@ -30,7 +30,7 @@ model XApiKeyHeaderAuth {
 model SessionHashAuth {
   type: AuthType.apiKey;
   in: ApiKeyLocation.query;
-  name: "shash";
+  name: "sid";
 }
 
 alias ApiAuth = BearerAuth | AccessTokenCookieAuth | XApiKeyHeaderAuth | SessionHashAuth;
