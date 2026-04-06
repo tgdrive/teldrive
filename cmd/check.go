@@ -322,7 +322,7 @@ func (cp *channelProcessor) loadFiles() ([]checkFile, error) {
 	if err != nil {
 		return nil, err
 	}
-return utils.Map(files, func(f repositories.CheckFile) checkFile {
+	return utils.Map(files, func(f repositories.CheckFile) checkFile {
 		return checkFile{
 			ID:        f.ID,
 			Name:      f.Name,
@@ -333,7 +333,6 @@ return utils.Map(files, func(f repositories.CheckFile) checkFile {
 				return api.Part{ID: p.ID, Salt: api.NewOptString(p.Salt)}
 			}),
 		}
-	}), nil
 	}), nil
 }
 
