@@ -3262,6 +3262,7 @@ components:
         - clean.old_events
         - clean.stale_uploads
         - clean.pending_files
+        - refresh.folder_sizes
     PeriodicJobSummary:
       type: object
       required:

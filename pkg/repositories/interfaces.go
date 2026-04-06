@@ -61,6 +61,15 @@ type PendingFile struct {
 	UserID    int64
 }
 
+type CheckFile struct {
+	ID        uuid.UUID
+	Name      string
+	Size      int64
+	Encrypted bool
+	Status    string
+	Parts     dbtypes.Parts
+}
+
 type FileUpdate struct {
 	Name      *string
 	Type      *string
@@ -114,10 +123,12 @@ type FileRepository interface {
 	GetFullPath(ctx context.Context, fileID uuid.UUID) (string, error)
 	ListPendingForDeletion(ctx context.Context) ([]PendingFile, error)
 	DeletePendingForDeletionByUser(ctx context.Context, userID int64) error
+	RefreshFolderSizesByUser(ctx context.Context, userID int64) error
 	CategoryStats(ctx context.Context, userID int64) ([]CategoryStats, error)
 	DeleteBulk(ctx context.Context, fileIDs []uuid.UUID, userID int64, targetStatus string) error
 	DeleteBulkReturning(ctx context.Context, fileIDs []uuid.UUID, userID int64, targetStatus string) ([]model.Files, error)
 	CreateDirectories(ctx context.Context, userID int64, path string) (*uuid.UUID, error)
+	ListCheckFiles(ctx context.Context, userID, channelID int64, includePending bool) ([]CheckFile, error)
 }
 
 // SessionRepository defines operations for session persistence
@@ -149,6 +160,7 @@ type UploadRepository interface {
 	DeleteParts(ctx context.Context, channelID, userID int64, partIDs []int) error
 	DeleteOlderThan(ctx context.Context, before time.Time) (int64, error)
 	StatsByDays(ctx context.Context, userID int64, days int) ([]UploadStat, error)
+	ListPartIDsByChannel(ctx context.Context, userID, channelID int64) ([]int, error)
 }
 
 // ChannelRepository defines operations for channel persistence
@@ -264,6 +276,10 @@ func (CleanStaleUploadsPeriodicArgs) periodicJobArgs() {}
 type CleanPendingFilesPeriodicArgs struct{}
 
 func (CleanPendingFilesPeriodicArgs) periodicJobArgs() {}
+
+type RefreshFolderSizesPeriodicArgs struct{}
+
+func (RefreshFolderSizesPeriodicArgs) periodicJobArgs() {}
 
 // KVRepository defines operations for key-value storage
 type KVRepository interface {

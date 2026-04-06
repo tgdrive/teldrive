@@ -10,7 +10,7 @@ import (
 	"github.com/tgdrive/teldrive/pkg/repositories"
 )
 
-func TestFolderSizeTriggers_FileLifecycle(t *testing.T) {
+func TestFolderSizeRefresh_FileLifecycle(t *testing.T) {
 	s := newSuite(t)
 	ctx := context.Background()
 	uid := int64(7610)
@@ -49,39 +49,39 @@ func TestFolderSizeTriggers_FileLifecycle(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("create file: %v", err)
 	}
-	assertFolderSize(t, fileRepo, ctx, *bID, 10)
-	assertFolderSize(t, fileRepo, ctx, *aID, 10)
-	assertFolderSize(t, fileRepo, ctx, *rootID, 10)
+	assertFolderSize(t, fileRepo, ctx, uid, *bID, 10)
+	assertFolderSize(t, fileRepo, ctx, uid, *aID, 10)
+	assertFolderSize(t, fileRepo, ctx, uid, *rootID, 10)
 
 	newSize := int64(25)
 	if err := fileRepo.Update(ctx, fileID, repositories.FileUpdate{Size: &newSize}); err != nil {
 		t.Fatalf("update file size: %v", err)
 	}
-	assertFolderSize(t, fileRepo, ctx, *bID, 25)
-	assertFolderSize(t, fileRepo, ctx, *aID, 25)
-	assertFolderSize(t, fileRepo, ctx, *rootID, 25)
+	assertFolderSize(t, fileRepo, ctx, uid, *bID, 25)
+	assertFolderSize(t, fileRepo, ctx, uid, *aID, 25)
+	assertFolderSize(t, fileRepo, ctx, uid, *rootID, 25)
 
 	pending := "pending_deletion"
 	if err := fileRepo.Update(ctx, fileID, repositories.FileUpdate{Status: &pending}); err != nil {
 		t.Fatalf("update file status to pending_deletion: %v", err)
 	}
-	assertFolderSize(t, fileRepo, ctx, *bID, 0)
-	assertFolderSize(t, fileRepo, ctx, *aID, 0)
-	assertFolderSize(t, fileRepo, ctx, *rootID, 0)
+	assertFolderSize(t, fileRepo, ctx, uid, *bID, 0)
+	assertFolderSize(t, fileRepo, ctx, uid, *aID, 0)
+	assertFolderSize(t, fileRepo, ctx, uid, *rootID, 0)
 
 	if err := fileRepo.Update(ctx, fileID, repositories.FileUpdate{Status: &active}); err != nil {
 		t.Fatalf("update file status back to active: %v", err)
 	}
-	assertFolderSize(t, fileRepo, ctx, *bID, 25)
-	assertFolderSize(t, fileRepo, ctx, *aID, 25)
-	assertFolderSize(t, fileRepo, ctx, *rootID, 25)
+	assertFolderSize(t, fileRepo, ctx, uid, *bID, 25)
+	assertFolderSize(t, fileRepo, ctx, uid, *aID, 25)
+	assertFolderSize(t, fileRepo, ctx, uid, *rootID, 25)
 
 	if err := fileRepo.Delete(ctx, []uuid.UUID{fileID}); err != nil {
 		t.Fatalf("delete file: %v", err)
 	}
-	assertFolderSize(t, fileRepo, ctx, *bID, 0)
-	assertFolderSize(t, fileRepo, ctx, *aID, 0)
-	assertFolderSize(t, fileRepo, ctx, *rootID, 0)
+	assertFolderSize(t, fileRepo, ctx, uid, *bID, 0)
+	assertFolderSize(t, fileRepo, ctx, uid, *aID, 0)
+	assertFolderSize(t, fileRepo, ctx, uid, *rootID, 0)
 
 	folderID := uuid.New()
 	if err := fileRepo.Create(ctx, &jetmodel.Files{
@@ -98,12 +98,12 @@ func TestFolderSizeTriggers_FileLifecycle(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("create folder child: %v", err)
 	}
-	assertFolderSize(t, fileRepo, ctx, *bID, 0)
-	assertFolderSize(t, fileRepo, ctx, *aID, 0)
-	assertFolderSize(t, fileRepo, ctx, *rootID, 0)
+	assertFolderSize(t, fileRepo, ctx, uid, *bID, 0)
+	assertFolderSize(t, fileRepo, ctx, uid, *aID, 0)
+	assertFolderSize(t, fileRepo, ctx, uid, *rootID, 0)
 }
 
-func TestFolderSizeTriggers_MoveAndBulkCases(t *testing.T) {
+func TestFolderSizeRefresh_MoveAndBulkCases(t *testing.T) {
 	s := newSuite(t)
 	ctx := context.Background()
 	uid1 := int64(7611)
@@ -143,16 +143,16 @@ func TestFolderSizeTriggers_MoveAndBulkCases(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("create move file: %v", err)
 	}
-	assertFolderSize(t, fileRepo, ctx, *srcID, 40)
-	assertFolderSize(t, fileRepo, ctx, *dstID, 0)
-	assertFolderSize(t, fileRepo, ctx, *root1ID, 40)
+	assertFolderSize(t, fileRepo, ctx, uid1, *srcID, 40)
+	assertFolderSize(t, fileRepo, ctx, uid1, *dstID, 0)
+	assertFolderSize(t, fileRepo, ctx, uid1, *root1ID, 40)
 
 	if err := fileRepo.Update(ctx, fileID, repositories.FileUpdate{ParentID: dstID}); err != nil {
 		t.Fatalf("move file between parents: %v", err)
 	}
-	assertFolderSize(t, fileRepo, ctx, *srcID, 0)
-	assertFolderSize(t, fileRepo, ctx, *dstID, 40)
-	assertFolderSize(t, fileRepo, ctx, *root1ID, 40)
+	assertFolderSize(t, fileRepo, ctx, uid1, *srcID, 0)
+	assertFolderSize(t, fileRepo, ctx, uid1, *dstID, 40)
+	assertFolderSize(t, fileRepo, ctx, uid1, *root1ID, 40)
 
 	s.ensureUserExists(uid2)
 	u2dstID, err := fileRepo.CreateDirectories(ctx, uid2, "/u2dst")
@@ -167,10 +167,10 @@ func TestFolderSizeTriggers_MoveAndBulkCases(t *testing.T) {
 	if _, err := s.pool.Exec(ctx, "UPDATE teldrive.files SET user_id = $1, parent_id = $2 WHERE id = $3", uid2, *u2dstID, fileID); err != nil {
 		t.Fatalf("move file across users: %v", err)
 	}
-	assertFolderSize(t, fileRepo, ctx, *dstID, 0)
-	assertFolderSize(t, fileRepo, ctx, *root1ID, 0)
-	assertFolderSize(t, fileRepo, ctx, *u2dstID, 40)
-	assertFolderSize(t, fileRepo, ctx, *root2ID, 40)
+	assertFolderSize(t, fileRepo, ctx, uid1, *dstID, 0)
+	assertFolderSize(t, fileRepo, ctx, uid1, *root1ID, 0)
+	assertFolderSize(t, fileRepo, ctx, uid2, *u2dstID, 40)
+	assertFolderSize(t, fileRepo, ctx, uid2, *root2ID, 40)
 
 	p1ID, err := fileRepo.CreateDirectories(ctx, uid1, "/p1")
 	if err != nil {
@@ -222,36 +222,39 @@ func TestFolderSizeTriggers_MoveAndBulkCases(t *testing.T) {
 			t.Fatalf("create subtree file %s: %v", item.name, err)
 		}
 	}
-	assertFolderSize(t, fileRepo, ctx, subtreeID, 25)
-	assertFolderSize(t, fileRepo, ctx, *p1ID, 25)
-	assertFolderSize(t, fileRepo, ctx, *p2ID, 0)
-	assertFolderSize(t, fileRepo, ctx, *root1ID, 25)
+	assertFolderSize(t, fileRepo, ctx, uid1, subtreeID, 25)
+	assertFolderSize(t, fileRepo, ctx, uid1, *p1ID, 25)
+	assertFolderSize(t, fileRepo, ctx, uid1, *p2ID, 0)
+	assertFolderSize(t, fileRepo, ctx, uid1, *root1ID, 25)
 
 	if err := fileRepo.Update(ctx, subtreeID, repositories.FileUpdate{ParentID: p2ID}); err != nil {
 		t.Fatalf("move subtree folder: %v", err)
 	}
-	assertFolderSize(t, fileRepo, ctx, subtreeID, 25)
-	assertFolderSize(t, fileRepo, ctx, *p1ID, 0)
-	assertFolderSize(t, fileRepo, ctx, *p2ID, 25)
-	assertFolderSize(t, fileRepo, ctx, *root1ID, 25)
+	assertFolderSize(t, fileRepo, ctx, uid1, subtreeID, 25)
+	assertFolderSize(t, fileRepo, ctx, uid1, *p1ID, 0)
+	assertFolderSize(t, fileRepo, ctx, uid1, *p2ID, 25)
+	assertFolderSize(t, fileRepo, ctx, uid1, *root1ID, 25)
 
 	if _, err := s.pool.Exec(ctx, "UPDATE teldrive.files SET size = COALESCE(size, 0) + 5 WHERE parent_id = $1 AND type = 'file' AND status = 'active'", subtreeID); err != nil {
 		t.Fatalf("bulk update subtree files: %v", err)
 	}
-	assertFolderSize(t, fileRepo, ctx, subtreeID, 35)
-	assertFolderSize(t, fileRepo, ctx, *p2ID, 35)
-	assertFolderSize(t, fileRepo, ctx, *root1ID, 35)
+	assertFolderSize(t, fileRepo, ctx, uid1, subtreeID, 35)
+	assertFolderSize(t, fileRepo, ctx, uid1, *p2ID, 35)
+	assertFolderSize(t, fileRepo, ctx, uid1, *root1ID, 35)
 
 	if _, err := s.pool.Exec(ctx, "DELETE FROM teldrive.files WHERE parent_id = $1 AND type = 'file'", subtreeID); err != nil {
 		t.Fatalf("bulk delete subtree files: %v", err)
 	}
-	assertFolderSize(t, fileRepo, ctx, subtreeID, 0)
-	assertFolderSize(t, fileRepo, ctx, *p2ID, 0)
-	assertFolderSize(t, fileRepo, ctx, *root1ID, 0)
+	assertFolderSize(t, fileRepo, ctx, uid1, subtreeID, 0)
+	assertFolderSize(t, fileRepo, ctx, uid1, *p2ID, 0)
+	assertFolderSize(t, fileRepo, ctx, uid1, *root1ID, 0)
 }
 
-func assertFolderSize(t *testing.T, repo repositories.FileRepository, ctx context.Context, folderID uuid.UUID, expected int64) {
+func assertFolderSize(t *testing.T, repo repositories.FileRepository, ctx context.Context, userID int64, folderID uuid.UUID, expected int64) {
 	t.Helper()
+	if err := repo.RefreshFolderSizesByUser(ctx, userID); err != nil {
+		t.Fatalf("refresh folder sizes for user %d: %v", userID, err)
+	}
 	row, err := repo.GetByID(ctx, folderID)
 	if err != nil {
 		t.Fatalf("get folder %s: %v", folderID, err)

@@ -2,8 +2,11 @@ package webdav
 
 import (
 	"context"
+	"crypto/tls"
+	"fmt"
 	"io"
 	"mime"
+	"net/http"
 	"net/url"
 	"path"
 	"strings"
@@ -13,8 +16,10 @@ import (
 )
 
 type FS struct {
-	root   string
-	client *gowebdav.Client
+	root        string
+	server      string
+	insecureTLS bool
+	client      *gowebdav.Client
 }
 
 func New(source string) (*FS, error) {
@@ -22,10 +27,20 @@ func New(source string) (*FS, error) {
 	if err != nil {
 		return nil, err
 	}
-	server := "https://" + u.Host
-	if u.Query().Get("insecure") == "true" {
-		server = "http://" + u.Host
+
+	scheme := strings.ToLower(u.Scheme)
+	serverScheme := ""
+	switch scheme {
+	case "dav", "http":
+		serverScheme = "http"
+	case "davs", "https":
+		serverScheme = "https"
+	default:
+		return nil, fmt.Errorf("unsupported source scheme %q", u.Scheme)
 	}
+
+	server := serverScheme + "://" + u.Host
+	insecureTLS := u.Query().Get("insecure") == "true" && serverScheme == "https"
 	user := ""
 	pass := ""
 	if u.User != nil {
@@ -36,7 +51,17 @@ func New(source string) (*FS, error) {
 	if root == "" {
 		root = "/"
 	}
-	return &FS{root: root, client: gowebdav.NewClient(server, user, pass)}, nil
+	client := gowebdav.NewClient(server, user, pass)
+	if insecureTLS {
+		transport := http.DefaultTransport.(*http.Transport).Clone()
+		if transport.TLSClientConfig == nil {
+			transport.TLSClientConfig = &tls.Config{}
+		}
+		transport.TLSClientConfig.InsecureSkipVerify = true
+		client.SetTransport(transport)
+	}
+
+	return &FS{root: root, server: server, insecureTLS: insecureTLS, client: client}, nil
 }
 
 func (w *FS) List(_ context.Context, nameOverride string, _ map[string]string, _ string) ([]remotes.Entry, error) {

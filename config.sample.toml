@@ -17,6 +17,15 @@
   deduplication-ttl = "5s"
   poll-interval = "10s"
 
+[jobs]
+
+  [jobs.sync-run]
+    max-attempts = 8
+
+  [jobs.sync-transfer]
+    max-attempts = 2
+    timeout = "3h"
+
 [jwt]
   allowed-users = []
   secret = ""
@@ -28,9 +37,8 @@
   time-format = "2006-01-02 15:04:05"
 
   [log.db]
-    ignore-record-not-found = true
     level = "error"
-    log-sql = true
+    log-sql = false
     slow-threshold = "1s"
 
   [log.http]

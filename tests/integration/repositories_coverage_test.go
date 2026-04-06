@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -176,6 +177,16 @@ func TestRepositories_CoveragePaths(t *testing.T) {
 	if _, err := fileRepo.GetByIDAndUser(ctx, fileAID, uid); err != nil {
 		t.Fatalf("file by id user: %v", err)
 	}
+	if err := fileRepo.RefreshFolderSizesByUser(ctx, uid); err != nil {
+		t.Fatalf("refresh folder sizes: %v", err)
+	}
+	refreshedFolder, err := fileRepo.GetByID(ctx, *rootID)
+	if err != nil {
+		t.Fatalf("get refreshed folder: %v", err)
+	}
+	if refreshedFolder.Size == nil || *refreshedFolder.Size != sizeA+sizeB {
+		t.Fatalf("expected refreshed folder size %d, got %+v", sizeA+sizeB, refreshedFolder.Size)
+	}
 	if _, err := fileRepo.GetByChannelID(ctx, chID); err != nil {
 		t.Fatalf("files by channel: %v", err)
 	}
@@ -190,6 +201,59 @@ func TestRepositories_CoveragePaths(t *testing.T) {
 	}
 	if _, err := fileRepo.List(ctx, repositories.FileQueryParams{UserID: uid, Operation: "list", Status: "active", Path: "/docs/sub", Sort: "name", Order: "asc", Limit: 10}); err != nil {
 		t.Fatalf("list files list path: %v", err)
+	}
+
+	const workers = 8
+	ids := make(chan uuid.UUID, workers)
+	errCh := make(chan error, workers)
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			id, err := fileRepo.CreateDirectories(context.Background(), uid, "/docs/race/branch")
+			if err != nil {
+				errCh <- err
+				return
+			}
+			if id == nil {
+				errCh <- fmt.Errorf("nil id returned")
+				return
+			}
+			ids <- *id
+		}()
+	}
+	wg.Wait()
+	close(ids)
+	close(errCh)
+	for err := range errCh {
+		if err != nil {
+			t.Fatalf("concurrent create directories: %v", err)
+		}
+	}
+	var first *uuid.UUID
+	for id := range ids {
+		id := id
+		if first == nil {
+			first = &id
+			continue
+		}
+		if *first != id {
+			t.Fatalf("expected all concurrent directory creations to resolve same id, got %s and %s", first.String(), id.String())
+		}
+	}
+	var branchCount int
+	if err := s.pool.QueryRow(ctx, `
+		SELECT COUNT(1)
+		FROM teldrive.files f
+		JOIN teldrive.files parent ON parent.id = f.parent_id
+		WHERE f.user_id = $1 AND f.name = 'branch' AND f.type = 'folder' AND f.status = 'active'
+		  AND parent.name = 'race' AND parent.status = 'active'
+	`, uid).Scan(&branchCount); err != nil {
+		t.Fatalf("count branch directories: %v", err)
+	}
+	if branchCount != 1 {
+		t.Fatalf("expected exactly one active branch directory, got %d", branchCount)
 	}
 
 	nameMoved := "a-moved.txt"

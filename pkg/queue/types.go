@@ -9,9 +9,10 @@ const (
 	JobKindSyncRun      = "sync.run"
 	JobKindSyncTransfer = "sync.transfer"
 
-	JobKindCleanOldEvents   = "clean.old_events"
-	JobKindCleanStaleUpload = "clean.stale_uploads"
-	JobKindCleanPendingFile = "clean.pending_files"
+	JobKindCleanOldEvents    = "clean.old_events"
+	JobKindCleanStaleUpload  = "clean.stale_uploads"
+	JobKindCleanPendingFile  = "clean.pending_files"
+	JobKindRefreshFolderSize = "refresh.folder_sizes"
 )
 
 type JobItem struct {
@@ -67,29 +68,36 @@ type SyncTransferJobArgs struct {
 func (SyncTransferJobArgs) Kind() string { return JobKindSyncTransfer }
 
 type CleanOldEventsArgs struct {
-	UserID    int64  `json:"userId" river:"unique"`
-	Retention string `json:"retention" river:"unique"`
+	UserID    int64  `json:"userId"`
+	Retention string `json:"retention"`
 }
 
 func (CleanOldEventsArgs) Kind() string { return JobKindCleanOldEvents }
 
 type CleanStaleUploadsArgs struct {
-	UserID    int64  `json:"userId" river:"unique"`
-	Retention string `json:"retention" river:"unique"`
+	UserID    int64  `json:"userId"`
+	Retention string `json:"retention"`
 }
 
 func (CleanStaleUploadsArgs) Kind() string { return JobKindCleanStaleUpload }
 
 type CleanPendingFilesArgs struct {
-	UserID int64 `json:"userId" river:"unique"`
+	UserID int64 `json:"userId"`
 }
 
 func (CleanPendingFilesArgs) Kind() string { return JobKindCleanPendingFile }
 
+type RefreshFolderSizesArgs struct {
+	UserID int64 `json:"userId"`
+}
+
+func (RefreshFolderSizesArgs) Kind() string { return JobKindRefreshFolderSize }
+
 type Executor interface {
 	SyncRun(ctx context.Context, args SyncRunJobArgs, jobID int64) error
-	SyncTransfer(ctx context.Context, args SyncTransferJobArgs) error
+	SyncTransfer(ctx context.Context, args SyncTransferJobArgs, jobID int64) error
 	CleanOldEventsForUser(ctx context.Context, args CleanOldEventsArgs) error
 	CleanStaleUploadsForUser(ctx context.Context, args CleanStaleUploadsArgs) error
 	CleanPendingFilesForUser(ctx context.Context, userID int64) error
+	RefreshFolderSizesForUser(ctx context.Context, userID int64) error
 }

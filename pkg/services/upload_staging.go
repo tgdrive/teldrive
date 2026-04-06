@@ -90,7 +90,7 @@ func (s *uploadStager) Run(ctx context.Context, fn func(context.Context) error) 
 }
 
 func (s *uploadStager) StagePart(ctx context.Context, req uploadStagePartRequest, logger *zap.Logger) (*jetmodel.Uploads, error) {
-	reader := req.Reader
+	reader := newContextReader(ctx, req.Reader)
 	fileSize := req.Size
 	partName := s.generatePartName(req.FileName, req.PartNo)
 

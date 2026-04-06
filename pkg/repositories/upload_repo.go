@@ -120,6 +120,33 @@ func (r *JetUploadRepository) DeleteOlderThan(ctx context.Context, before time.T
 	return tag.RowsAffected(), nil
 }
 
+func (r *JetUploadRepository) ListPartIDsByChannel(ctx context.Context, userID, channelID int64) ([]int, error) {
+	stmt := table.Uploads.
+		SELECT(table.Uploads.PartID).
+		FROM(table.Uploads).
+		WHERE(table.Uploads.UserID.EQ(postgres.Int64(userID)).AND(table.Uploads.ChannelID.EQ(postgres.Int64(channelID))))
+
+	query, args := stmt.Sql()
+	rows, err := r.db.raw().Query(ctx, query, args...)
+	if err != nil {
+		return nil, normalizeDBError(err)
+	}
+	defer rows.Close()
+
+	out := []int{}
+	for rows.Next() {
+		var id int32
+		if err := rows.Scan(&id); err != nil {
+			return nil, normalizeDBError(err)
+		}
+		out = append(out, int(id))
+	}
+	if err := rows.Err(); err != nil {
+		return nil, normalizeDBError(err)
+	}
+	return out, nil
+}
+
 func (r *JetUploadRepository) DeleteByID(ctx context.Context, partID int32, channelID int64) error {
 	stmt := table.Uploads.DELETE().WHERE(
 		table.Uploads.PartID.EQ(postgres.Int32(partID)).

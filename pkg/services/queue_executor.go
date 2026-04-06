@@ -44,6 +44,31 @@ func writeJobProgress(ctx context.Context, done, total int, results []map[string
 	})
 }
 
+func writeJobByteProgress(ctx context.Context, done, total int64, results []map[string]any) error {
+	percent := 0
+	if total > 0 {
+		percent = int(float64(done) * 100.0 / float64(total))
+		if percent > 100 {
+			percent = 100
+		}
+	}
+
+	return river.RecordOutput(ctx, map[string]any{
+		"progress": map[string]any{
+			"total":   total,
+			"done":    done,
+			"percent": percent,
+		},
+		"data": map[string]any{
+			"results":     results,
+			"bytesDone":   done,
+			"bytesTotal":  total,
+			"updatedAt":   time.Now().UTC(),
+			"isCompleted": done >= total,
+		},
+	})
+}
+
 func (e *jobExecutor) CleanOldEvents(ctx context.Context) error {
 	before := time.Now().UTC().Add(-5 * 24 * time.Hour)
 	_, err := e.api.repo.Events.DeleteOlderThan(ctx, before)
@@ -195,6 +220,10 @@ func (e *jobExecutor) CleanPendingFilesForUser(ctx context.Context, userID int64
 	}
 
 	return nil
+}
+
+func (e *jobExecutor) RefreshFolderSizesForUser(ctx context.Context, userID int64) error {
+	return e.api.repo.Files.RefreshFolderSizesByUser(ctx, userID)
 }
 
 func groupPendingFiles(rows []repositories.PendingFile, sessionByUser map[int64]string) map[pendingFileGroupKey]*pendingFileGroup {

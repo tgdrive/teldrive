@@ -288,6 +288,12 @@ func encodePeriodicJobArgs(kind string, args PeriodicJobArgs) (string, error) {
 				return "", fmt.Errorf("invalid args type for kind %s", kind)
 			}
 		}
+	case "refresh.folder_sizes":
+		if _, ok := args.(RefreshFolderSizesPeriodicArgs); !ok {
+			if _, ok := args.(*RefreshFolderSizesPeriodicArgs); !ok {
+				return "", fmt.Errorf("invalid args type for kind %s", kind)
+			}
+		}
 	default:
 		return "", fmt.Errorf("unsupported periodic job kind: %s", kind)
 	}
@@ -325,6 +331,12 @@ func decodePeriodicJobArgs(kind string, raw json.RawMessage) (PeriodicJobArgs, e
 		return out, nil
 	case "clean.pending_files":
 		var out CleanPendingFilesPeriodicArgs
+		if err := json.Unmarshal(raw, &out); err != nil {
+			return nil, err
+		}
+		return out, nil
+	case "refresh.folder_sizes":
+		var out RefreshFolderSizesPeriodicArgs
 		if err := json.Unmarshal(raw, &out); err != nil {
 			return nil, err
 		}

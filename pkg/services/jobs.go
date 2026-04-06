@@ -19,6 +19,7 @@ type jobClient interface {
 	Insert(ctx context.Context, args river.JobArgs, opts *river.InsertOpts) (*rivertype.JobInsertResult, error)
 	JobList(ctx context.Context, params *river.JobListParams) (*river.JobListResult, error)
 	JobGet(ctx context.Context, id int64) (*rivertype.JobRow, error)
+	JobUpdate(ctx context.Context, id int64, params *river.JobUpdateParams) (*rivertype.JobRow, error)
 	JobCancel(ctx context.Context, jobID int64) (*rivertype.JobRow, error)
 	JobDelete(ctx context.Context, id int64) (*rivertype.JobRow, error)
 }
@@ -139,6 +140,9 @@ func (a *apiService) JobsInsert(ctx context.Context, req *api.JobInsertRequest) 
 
 	insertOpts := &river.InsertOpts{
 		UniqueOpts: river.UniqueOpts{ByArgs: true},
+	}
+	if req.Kind == queue.JobKindSyncRun {
+		insertOpts.MaxAttempts = a.syncRunMaxAttempts()
 	}
 	if req.Queue.IsSet() {
 		insertOpts.Queue = req.Queue.Value

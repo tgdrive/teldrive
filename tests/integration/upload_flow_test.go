@@ -33,8 +33,8 @@ func TestUploadFlow_HashingAndFileHashGeneration(t *testing.T) {
 		if channelID != 910050 {
 			return 0, 0, fmt.Errorf("unexpected channel id: %d", channelID)
 		}
-		if partName != "hash.part1" {
-			return 0, 0, fmt.Errorf("unexpected part name: %s", partName)
+		if partName == "" {
+			return 0, 0, fmt.Errorf("expected generated part name")
 		}
 		payload, err := io.ReadAll(fileStream)
 		if err != nil {
@@ -49,7 +49,7 @@ func TestUploadFlow_HashingAndFileHashGeneration(t *testing.T) {
 		return 12001, fileSize, nil
 	}
 
-	part, status, raw := uploadPartRaw(t, s, token, "up-hash-1", "hash.part1", "hash.txt", 1, 910050, false, true, plaintext)
+	part, status, raw := uploadPartRaw(t, s, token, "up-hash-1", "hash.txt", 1, 910050, false, true, plaintext)
 	if status != http.StatusOK {
 		t.Fatalf("expected 200, got %d body=%s", status, string(raw))
 	}
@@ -140,7 +140,7 @@ func TestUploadFlow_EncryptedUploadAndSalt(t *testing.T) {
 		return 13001, fileSize, nil
 	}
 
-	part, status, raw := uploadPartRaw(t, s, token, "up-enc-1", "enc.part1", "secret.txt", 1, 910060, true, false, plaintext)
+	part, status, raw := uploadPartRaw(t, s, token, "up-enc-1", "secret.txt", 1, 910060, true, false, plaintext)
 	if status != http.StatusOK {
 		t.Fatalf("expected 200, got %d body=%s", status, string(raw))
 	}
@@ -195,18 +195,17 @@ func TestUploadFlow_EncryptedWithoutKey(t *testing.T) {
 	s := newSuite(t)
 
 	token := loginAndGetToken(t, s, 7103, "user7103")
-	part, status, raw := uploadPartRaw(t, s, token, "up-enc-no-key", "p1", "f1.txt", 1, 910070, true, true, []byte("abc"))
+	part, status, raw := uploadPartRaw(t, s, token, "up-enc-no-key", "f1.txt", 1, 910070, true, true, []byte("abc"))
 	_ = part
 	if status != http.StatusBadRequest {
 		t.Fatalf("expected 400, got %d body=%s", status, string(raw))
 	}
 }
 
-func uploadPartRaw(t *testing.T, s *suite, token string, uploadID, partName, fileName string, partNo int, channelID int64, encrypted, hashing bool, body []byte) (api.UploadPart, int, []byte) {
+func uploadPartRaw(t *testing.T, s *suite, token string, uploadID, fileName string, partNo int, channelID int64, encrypted, hashing bool, body []byte) (api.UploadPart, int, []byte) {
 	t.Helper()
 
 	q := url.Values{}
-	q.Set("partName", partName)
 	q.Set("fileName", fileName)
 	q.Set("partNo", strconv.Itoa(partNo))
 	q.Set("channelId", strconv.FormatInt(channelID, 10))

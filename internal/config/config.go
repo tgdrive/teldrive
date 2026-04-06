@@ -57,6 +57,7 @@ type ServerCmdConfig struct {
 	Cache  CacheConfig
 	Redis  RedisConfig
 	Queue  QueueConfig
+	Jobs   JobsConfig
 	Events EventConfig
 }
 
@@ -65,16 +66,28 @@ type QueueConfig struct {
 	UploadWorkers  int `default:"4" description:"Maximum number of workers for the uploads task queue"`
 }
 
+type JobsConfig struct {
+	SyncRun      SyncRunJobConfig
+	SyncTransfer SyncTransferJobConfig
+}
+
+type SyncRunJobConfig struct {
+	MaxAttempts int `default:"8" description:"Maximum retry attempts for sync.run jobs"`
+}
+
+type SyncTransferJobConfig struct {
+	MaxAttempts int           `default:"2" description:"Maximum retry attempts for sync.transfer jobs"`
+	Timeout     time.Duration `default:"3h" description:"Maximum execution time for sync.transfer jobs"`
+}
+
 type CheckCmdConfig struct {
-	Log          LoggingConfig `skipPflag:"true"`
-	DB           DBConfig      `skipPflag:"true"`
-	TG           TGConfig      `skipPflag:"true"`
-	ExportFile   string        `default:"results.json" description:"Path for exported JSON file"`
-	DryRun       bool          `default:"false" description:"Simulate check/clean process without making changes"`
-	User         string        `default:"" description:"Telegram username to check (prompts if not specified)"`
-	Concurrent   int           `default:"4" description:"Number of concurrent channel processing"`
-	CleanUploads bool          `default:"false" description:"Clean incomplete uploads"`
-	CleanPending bool          `default:"false" description:"Clean files with pending_deletion status"`
+	Log        LoggingConfig `skipPflag:"true"`
+	DB         DBConfig      `skipPflag:"true"`
+	TG         TGConfig      `skipPflag:"true"`
+	ExportFile string        `default:"results.json" description:"Path for exported JSON file"`
+	DryRun     bool          `default:"false" description:"Simulate check/clean process without making changes"`
+	User       string        `default:"" description:"Telegram username to check (prompts if not specified)"`
+	Concurrent int           `default:"4" description:"Number of concurrent channel processing"`
 }
 
 type ServerConfig struct {
@@ -113,10 +126,9 @@ type HTTPLoggingConfig struct {
 
 // DBLoggingConfig holds database query logging configuration
 type DBLoggingConfig struct {
-	Level                string        `default:"error" description:"Database logging level (silent, error, warn, info, debug)"`
-	SlowThreshold        time.Duration `default:"1s" description:"Log queries slower than this threshold"`
-	IgnoreRecordNotFound bool          `default:"true" description:"Don't log 'record not found' errors"`
-	LogSQL               bool          `default:"true" description:"LogSQL"`
+	Level         string        `default:"error" description:"Database logging level (silent, error, warn, info, debug)"`
+	SlowThreshold time.Duration `default:"1s" description:"Log queries slower than this threshold"`
+	LogSQL        bool          `default:"false" description:"LogSQL"`
 }
 
 // TGLoggingConfig holds Telegram client logging configuration

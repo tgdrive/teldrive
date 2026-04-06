@@ -14,6 +14,7 @@ import (
 
 	"github.com/tgdrive/teldrive/internal/database/jet/gen/model"
 	"github.com/tgdrive/teldrive/internal/database/jet/gen/table"
+	dbtypes "github.com/tgdrive/teldrive/internal/database/types"
 	"github.com/tgdrive/teldrive/pkg/repositories/filesquery"
 )
 
@@ -432,6 +433,94 @@ func (r *JetFileRepository) DeletePendingForDeletionByUser(ctx context.Context, 
 	return r.db.exec(ctx, stmt)
 }
 
+func (r *JetFileRepository) RefreshFolderSizesByUser(ctx context.Context, userID int64) error {
+	query := `
+WITH RECURSIVE folder_hierarchy AS (
+	SELECT f.id, f.parent_id, ARRAY[f.id]::uuid[] AS path
+	FROM teldrive.files f
+	WHERE f.user_id = $1 AND f.type = 'folder' AND f.status = 'active' AND f.parent_id IS NULL
+
+	UNION ALL
+
+	SELECT f.id, f.parent_id, fh.path || f.id
+	FROM teldrive.files f
+	JOIN folder_hierarchy fh ON f.parent_id = fh.id
+	WHERE f.user_id = $1 AND f.type = 'folder' AND f.status = 'active'
+), folder_sizes AS (
+	SELECT fh.id,
+	       fh.path,
+	       COALESCE(SUM(CASE WHEN c.type <> 'folder' AND c.status = 'active' THEN COALESCE(c.size, 0) ELSE 0 END), 0) AS direct_size
+	FROM folder_hierarchy fh
+	LEFT JOIN teldrive.files c
+	  ON c.parent_id = fh.id AND c.user_id = $1
+	GROUP BY fh.id, fh.path
+), cumulative_sizes AS (
+	SELECT fs.id,
+	       COALESCE(SUM(fs2.direct_size), 0) AS total_size
+	FROM folder_sizes fs
+	JOIN folder_sizes fs2 ON fs2.path @> fs.path
+	GROUP BY fs.id
+)
+UPDATE teldrive.files f
+SET size = cs.total_size,
+	updated_at = NOW() AT TIME ZONE 'UTC'
+FROM cumulative_sizes cs
+WHERE f.id = cs.id AND f.user_id = $1 AND f.type = 'folder' AND f.status = 'active';`
+
+	_, err := r.db.executor(ctx).Exec(ctx, query, userID)
+	return normalizeDBError(err)
+}
+
+func (r *JetFileRepository) ListCheckFiles(ctx context.Context, userID, channelID int64, includePending bool) ([]CheckFile, error) {
+	statusExpr := table.Files.Status.EQ(postgres.String("active"))
+	if includePending {
+		statusExpr = table.Files.Status.IN(postgres.String("active"), postgres.String("pending_deletion"))
+	}
+
+	stmt := selectFilesForRead(table.Files).
+		FROM(table.Files).
+		WHERE(
+			table.Files.UserID.EQ(postgres.Int64(userID)).
+				AND(table.Files.ChannelID.EQ(postgres.Int64(channelID))).
+				AND(table.Files.Type.EQ(postgres.String("file"))).
+				AND(statusExpr),
+		).
+		ORDER_BY(table.Files.ID.ASC())
+
+	var rows []model.Files
+	if err := r.db.query(ctx, stmt, &rows); err != nil {
+		if errors.Is(err, qrm.ErrNoRows) {
+			return []CheckFile{}, nil
+		}
+		return nil, err
+	}
+
+	out := make([]CheckFile, 0, len(rows))
+	for _, row := range rows {
+		size := int64(0)
+		if row.Size != nil {
+			size = *row.Size
+		}
+		status := ""
+		if row.Status != nil {
+			status = *row.Status
+		}
+		parts := []dbtypes.Part{}
+		if row.Parts != nil {
+			parts = row.Parts.Data
+		}
+		out = append(out, CheckFile{
+			ID:        row.ID,
+			Name:      row.Name,
+			Size:      size,
+			Encrypted: row.Encrypted,
+			Status:    status,
+			Parts:     parts,
+		})
+	}
+	return out, nil
+}
+
 func (r *JetFileRepository) CategoryStats(ctx context.Context, userID int64) ([]CategoryStats, error) {
 	stmt := table.Files.SELECT(
 		table.Files.Category.AS("category_stats.category"),
@@ -545,6 +634,15 @@ func (r *JetFileRepository) CreateDirectories(ctx context.Context, userID int64,
 			UpdatedAt: now,
 		}
 		if err := r.Create(ctx, newFolder); err != nil {
+			if errors.Is(err, ErrConflict) {
+				item, readErr := r.GetActiveByNameAndParent(ctx, userID, name, parentID)
+				if readErr != nil {
+					return nil, readErr
+				}
+				current := item.ID
+				parentID = &current
+				continue
+			}
 			return nil, err
 		}
 		parentID = &newID

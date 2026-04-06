@@ -70,12 +70,12 @@ func toQueueFilters(v api.OptSyncFilters) queue.SyncFilters {
 }
 
 func toQueueOptions(v api.OptSyncOptions) queue.SyncOptions {
-	out := queue.SyncOptions{PartSize: 100 * 1024 * 1024, Sync: true}
+	out := queue.SyncOptions{PartSize: defaultSyncChunkSize, Sync: true}
 	if !v.IsSet() {
 		return out
 	}
 	if v.Value.PartSize.IsSet() && v.Value.PartSize.Value > 0 {
-		out.PartSize = v.Value.PartSize.Value
+		out.PartSize = normalizeSyncPartSize(v.Value.PartSize.Value)
 	}
 	if v.Value.Encrypted.IsSet() {
 		out.Encrypted = v.Value.Encrypted.Value

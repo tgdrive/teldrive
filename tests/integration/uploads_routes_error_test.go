@@ -97,7 +97,7 @@ func TestUploadsRoutes_TelegramErrorMatrix(t *testing.T) {
 			s.cfg.TG.Uploads.EncryptionKey = "integration-test-encryption-key"
 			tc.set()
 
-			_, status, raw := uploadPartRaw(t, s, token, "up-err-"+strconv.Itoa(i+1), "err.part", "err.txt", 1, 910090, false, true, []byte("hello"))
+			_, status, raw := uploadPartRaw(t, s, token, "up-err-"+strconv.Itoa(i+1), "err.txt", 1, 910090, false, true, []byte("hello"))
 			if status != http.StatusInternalServerError {
 				t.Fatalf("expected 500, got %d body=%s", status, string(raw))
 			}
@@ -114,7 +114,7 @@ func TestUploadsRoutes_HashingDisabledStoresNoBlockHashes(t *testing.T) {
 		return 14001, fileSize, nil
 	}
 
-	_, status, raw := uploadPartRaw(t, s, token, "up-nohash-1", "p1", "f1.txt", 1, 910091, false, false, []byte("nohash"))
+	_, status, raw := uploadPartRaw(t, s, token, "up-nohash-1", "f1.txt", 1, 910091, false, false, []byte("nohash"))
 	if status != http.StatusOK {
 		t.Fatalf("expected 200, got %d body=%s", status, string(raw))
 	}
@@ -136,7 +136,6 @@ func TestUploadsRoutes_InvalidContentType(t *testing.T) {
 	token := loginAndGetToken(t, s, 7303, "user7303")
 
 	q := url.Values{}
-	q.Set("partName", "p1")
 	q.Set("fileName", "f1.txt")
 	q.Set("partNo", "1")
 	q.Set("channelId", "910092")

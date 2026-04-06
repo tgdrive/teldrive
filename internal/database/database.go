@@ -10,7 +10,9 @@ import (
 	"go.uber.org/zap"
 )
 
-func NewDatabase(ctx context.Context, cfg *config.DBConfig, _ *config.DBLoggingConfig, lg *zap.Logger) (*pgxpool.Pool, error) {
+func NewDatabase(ctx context.Context, cfg *config.DBConfig, logCfg *config.DBLoggingConfig, lg *zap.Logger) (*pgxpool.Pool, error) {
+	configureJetLogger(logCfg, lg)
+
 	var db *pgxpool.Pool
 	var err error
 	maxRetries := 5

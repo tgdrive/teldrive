@@ -726,6 +726,7 @@ enum PeriodicJobKind {
   CleanOldEvents: "clean.old_events",
   CleanStaleUploads: "clean.stale_uploads",
   CleanPendingFiles: "clean.pending_files",
+  RefreshFolderSizes: "refresh.folder_sizes",
 }
 
 model CleanOldEventsArgs {

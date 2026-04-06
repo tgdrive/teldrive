@@ -17,6 +17,8 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
 	"github.com/tgdrive/teldrive/internal/api"
+	"github.com/tgdrive/teldrive/internal/crypt"
+	jetmodel "github.com/tgdrive/teldrive/internal/database/jet/gen/model"
 	"github.com/tgdrive/teldrive/internal/logging"
 	"github.com/tgdrive/teldrive/pkg/queue"
 	"github.com/tgdrive/teldrive/pkg/remotes"
@@ -25,7 +27,6 @@ import (
 	"github.com/tgdrive/teldrive/pkg/remotes/sftp"
 	"github.com/tgdrive/teldrive/pkg/remotes/webdav"
 	"github.com/tgdrive/teldrive/pkg/repositories"
-	"go.uber.org/zap"
 )
 
 type sourceFile struct {
@@ -48,6 +49,13 @@ type syncRunPlan struct {
 	deleted      int
 	bytesPlanned int64
 	depNames     []string
+}
+
+type syncDestinationEntry struct {
+	id    string
+	rel   string
+	type_ api.FileType
+	depth int
 }
 
 type syncWorkflowStats struct {
@@ -123,7 +131,7 @@ func (e *jobExecutor) SyncRun(ctx context.Context, args queue.SyncRunJobArgs, jo
 	return recordSyncRunSummaryOutput(workingCtx, runID, stats)
 }
 
-func (e *jobExecutor) SyncTransfer(ctx context.Context, args queue.SyncTransferJobArgs) error {
+func (e *jobExecutor) SyncTransfer(ctx context.Context, args queue.SyncTransferJobArgs, jobID int64) error {
 	if args.UserID == 0 {
 		return fmt.Errorf("missing user id")
 	}
@@ -152,24 +160,28 @@ func (e *jobExecutor) SyncTransfer(ctx context.Context, args queue.SyncTransferJ
 		return fmt.Errorf("sync encryption is not enabled")
 	}
 
+	parentID, err := e.resolveSyncDestinationParent(workingCtx, args.UserID, args.DestinationPath)
+	if err != nil {
+		return err
+	}
+
 	stager, err := e.api.newUploadStager(workingCtx, args.UserID, 0)
 	if err != nil {
 		return err
 	}
 	defer stager.Close()
 
-	uploadID, err := e.syncUploadID(workingCtx, args)
+	uploadID, err := e.syncUploadID(args, *parentID)
 	if err != nil {
 		return err
 	}
-	if err := e.uploadSyncTransferParts(workingCtx, stager, reader, args, uploadID, size); err != nil {
-		e.cleanupUpload(workingCtx, uploadID, "upload transfer failed")
+	if err := e.uploadSyncTransferParts(workingCtx, stager, reader, args, uploadID, size, jobID); err != nil {
 		return err
 	}
 
 	fileReq := &api.File{
 		UploadId: api.NewOptString(uploadID),
-		Path:     api.NewOptString(cleanPath(args.DestinationPath)),
+		ParentId: api.NewOptUUID(api.UUID(*parentID)),
 		Name:     args.Name,
 		Type:     api.FileTypeFile,
 		Size:     api.NewOptInt64(size),
@@ -188,21 +200,21 @@ func (e *jobExecutor) SyncTransfer(ctx context.Context, args queue.SyncTransferJ
 
 	created, err := e.api.FilesCreate(workingCtx, fileReq)
 	if err != nil {
-		e.cleanupUpload(workingCtx, uploadID, "create file from upload failed")
 		return err
 	}
 
 	return recordSyncTransferOutput(workingCtx, args.RunID, uploadID, created.ID.Value, created.Name, args.Source)
 }
 
-func (e *jobExecutor) cleanupUpload(ctx context.Context, uploadID string, reason string) {
-	if err := e.api.repo.Uploads.Delete(ctx, uploadID); err != nil {
-		logging.FromContext(ctx).Warn("failed to cleanup upload state",
-			zap.String("upload_id", uploadID),
-			zap.String("reason", reason),
-			zap.Error(err),
-		)
+func (e *jobExecutor) resolveSyncDestinationParent(ctx context.Context, userID int64, destinationPath string) (*uuid.UUID, error) {
+	parentID, err := e.api.repo.Files.CreateDirectories(ctx, userID, cleanPath(destinationPath))
+	if err != nil {
+		return nil, err
 	}
+	if parentID == nil {
+		return nil, fmt.Errorf("destination path could not be resolved")
+	}
+	return parentID, nil
 }
 
 type syncTransferOutput struct {
@@ -373,41 +385,74 @@ func (e *jobExecutor) compareDestinationFingerprint(ctx context.Context, userID 
 	return true, existing.UpdatedAt.UTC().Unix() == src.modified.UTC().Unix(), nil
 }
 
-func (e *jobExecutor) extraDestinationFileIDs(ctx context.Context, destinationRoot string, sourceRel map[string]struct{}) ([]string, error) {
-	cursor := ""
-	ids := make([]string, 0)
-	for {
-		params := api.FilesListParams{
-			Path:       api.NewOptString(destinationRoot),
-			Operation:  api.NewOptFileQueryOperation(api.FileQueryOperationFind),
-			DeepSearch: api.NewOptBool(true),
-			Limit:      api.NewOptInt(1000),
+func impliedSourceDirs(files []sourceFile) map[string]struct{} {
+	dirs := make(map[string]struct{})
+	for _, src := range files {
+		dir := normalizeSourceDir(src.relPath)
+		if dir == "." || dir == "/" || dir == "" {
+			continue
 		}
-		if cursor != "" {
-			params.Cursor = api.NewOptString(cursor)
-		}
-		res, err := e.api.FilesList(ctx, params)
-		if err != nil {
-			return nil, err
-		}
-		for _, item := range res.Items {
-			if item.Type != api.FileTypeFile || !item.Path.IsSet() || !item.ID.IsSet() {
-				continue
+		cleanDir := strings.Trim(strings.TrimPrefix(cleanPath(dir), "/"), "/")
+		for cleanDir != "" && cleanDir != "." {
+			dirs[cleanDir] = struct{}{}
+			next := path.Dir(cleanDir)
+			if next == "." || next == "/" || next == cleanDir {
+				break
 			}
-			rel := strings.TrimPrefix(item.Path.Value, strings.TrimSuffix(destinationRoot, "/")+"/")
-			if rel == item.Path.Value || rel == "" {
-				continue
-			}
-			if _, ok := sourceRel[rel]; !ok {
-				ids = append(ids, uuid.UUID(item.ID.Value).String())
-			}
+			cleanDir = next
 		}
-		if !res.Meta.NextCursor.IsSet() || res.Meta.NextCursor.Value == "" {
-			break
-		}
-		cursor = res.Meta.NextCursor.Value
 	}
-	return ids, nil
+	return dirs
+}
+
+func (e *jobExecutor) extraDestinationEntries(ctx context.Context, destinationRoot string, sourceFiles, sourceDirs map[string]struct{}) ([]syncDestinationEntry, error) {
+	entries := make([]syncDestinationEntry, 0)
+	queue := []string{cleanPath(destinationRoot)}
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
+		cursor := ""
+		for {
+			params := api.FilesListParams{
+				Path:      api.NewOptString(current),
+				Operation: api.NewOptFileQueryOperation(api.FileQueryOperationList),
+				Limit:     api.NewOptInt(1000),
+			}
+			if cursor != "" {
+				params.Cursor = api.NewOptString(cursor)
+			}
+			res, err := e.api.FilesList(ctx, params)
+			if err != nil {
+				return nil, err
+			}
+			for _, item := range res.Items {
+				if (item.Type != api.FileTypeFile && item.Type != api.FileTypeFolder) || !item.ID.IsSet() {
+					continue
+				}
+				fullPath := cleanPath(path.Join(current, item.Name))
+				rel := strings.TrimPrefix(fullPath, strings.TrimSuffix(cleanPath(destinationRoot), "/")+"/")
+				if rel == fullPath || rel == "" {
+					continue
+				}
+				rel = strings.Trim(rel, "/")
+				if item.Type == api.FileTypeFolder {
+					queue = append(queue, fullPath)
+					if _, ok := sourceDirs[rel]; !ok {
+						entries = append(entries, syncDestinationEntry{id: uuid.UUID(item.ID.Value).String(), rel: rel, type_: item.Type, depth: strings.Count(rel, "/")})
+					}
+					continue
+				}
+				if _, ok := sourceFiles[rel]; !ok {
+					entries = append(entries, syncDestinationEntry{id: uuid.UUID(item.ID.Value).String(), rel: rel, type_: item.Type, depth: strings.Count(rel, "/")})
+				}
+			}
+			if !res.Meta.NextCursor.IsSet() || res.Meta.NextCursor.Value == "" {
+				break
+			}
+			cursor = res.Meta.NextCursor.Value
+		}
+	}
+	return entries, nil
 }
 
 func cleanPath(p string) string {
@@ -429,7 +474,7 @@ func remoteFSForSource(source string) (remotes.FS, error) {
 	switch strings.ToLower(u.Scheme) {
 	case "local":
 		return local.New(source)
-	case "dav":
+	case "dav", "davs":
 		return webdav.New(source)
 	case "sftp":
 		return sftp.New(source)
@@ -446,12 +491,36 @@ func (e *jobExecutor) initializeSyncWorkflow(ctx context.Context, workflow *rive
 	for _, src := range files {
 		sourceSet[src.relPath] = struct{}{}
 	}
+	sourceDirs := impliedSourceDirs(files)
 	if args.Options.Sync {
-		ids, err := e.extraDestinationFileIDs(ctx, destinationRoot, sourceSet)
+		extra, err := e.extraDestinationEntries(ctx, destinationRoot, sourceSet, sourceDirs)
 		if err != nil {
 			return nil, err
 		}
-		for _, id := range ids {
+		filesToDelete := make([]syncDestinationEntry, 0)
+		dirsToDelete := make([]syncDestinationEntry, 0)
+		for _, entry := range extra {
+			if entry.type_ == api.FileTypeFolder {
+				dirsToDelete = append(dirsToDelete, entry)
+			} else {
+				filesToDelete = append(filesToDelete, entry)
+			}
+		}
+		for _, entry := range filesToDelete {
+			if err := e.api.FilesDeleteById(ctx, api.FilesDeleteByIdParams{ID: api.UUID(uuid.MustParse(entry.id))}); err != nil {
+				return nil, err
+			}
+			plan.deleted++
+		}
+		for i := range dirsToDelete {
+			for j := i + 1; j < len(dirsToDelete); j++ {
+				if dirsToDelete[j].depth > dirsToDelete[i].depth {
+					dirsToDelete[i], dirsToDelete[j] = dirsToDelete[j], dirsToDelete[i]
+				}
+			}
+		}
+		for _, entry := range dirsToDelete {
+			id := entry.id
 			if err := e.api.FilesDeleteById(ctx, api.FilesDeleteByIdParams{ID: api.UUID(uuid.MustParse(id))}); err != nil {
 				return nil, err
 			}
@@ -472,7 +541,7 @@ func (e *jobExecutor) initializeSyncWorkflow(ctx context.Context, workflow *rive
 		}
 
 		taskName := syncTransferTaskName(plan.queued + 1)
-		workflow.Add(taskName, newSyncTransferJobArgs(args, runID, src, destinationPath), &river.InsertOpts{MaxAttempts: 1, Queue: queue.QueueUploads}, nil)
+		workflow.Add(taskName, newSyncTransferJobArgs(args, runID, src, destinationPath), &river.InsertOpts{MaxAttempts: e.api.syncTransferMaxAttempts(), Queue: queue.QueueUploads}, nil)
 		plan.depNames = append(plan.depNames, taskName)
 		plan.queued++
 		plan.bytesPlanned += src.size
@@ -517,24 +586,39 @@ func summarizeSyncWorkflow(tasks *river.WorkflowTasks) (*syncWorkflowStats, erro
 	return stats, nil
 }
 
-func (e *jobExecutor) uploadSyncTransferParts(ctx context.Context, stager *uploadStager, reader io.Reader, args queue.SyncTransferJobArgs, uploadID string, size int64) error {
-	partSize := args.PartSize
-	if partSize <= 0 {
-		partSize = 100 * 1024 * 1024
-	}
+func (e *jobExecutor) uploadSyncTransferParts(ctx context.Context, stager *uploadStager, reader io.Reader, args queue.SyncTransferJobArgs, uploadID string, size int64, jobID int64) error {
+	reader = newContextReader(ctx, reader)
+
+	partSize := normalizeSyncPartSize(args.PartSize)
 	totalParts := int((size + partSize - 1) / partSize)
-	var uploaded int64
+	resume, err := e.syncTransferResumeState(ctx, uploadID, size, partSize, args.Encrypted)
+	if err != nil {
+		return err
+	}
+	uploaded := resume.doneBytes
+	progress := newSyncTransferProgress(ctx, e.api, jobID, size)
+	if uploaded > 0 {
+		if _, err := io.CopyN(io.Discard, reader, uploaded); err != nil {
+			return fmt.Errorf("skip already uploaded bytes: %w", err)
+		}
+		if err := progress.complete(uploaded, []map[string]any{{"resumedParts": resume.completedParts, "bytesDone": uploaded, "success": true}}); err != nil {
+			return err
+		}
+	}
 
 	return stager.Run(ctx, func(ctx context.Context) error {
-		for i := 0; i < totalParts; i++ {
+		for i := resume.completedParts; i < totalParts; i++ {
 			partNo := i + 1
 			chunkSize := minInt64(partSize, size-uploaded)
+			partResults := []map[string]any{{"partNo": partNo, "size": chunkSize, "success": true}}
+			partReader := io.LimitReader(reader, chunkSize)
+			trackedReader := newProgressReader(partReader, progress.track(uploaded, chunkSize, partResults))
 
 			if _, err := stager.StagePart(ctx, uploadStagePartRequest{
 				UploadID:  uploadID,
 				FileName:  args.Name,
 				PartNo:    partNo,
-				Reader:    io.LimitReader(reader, chunkSize),
+				Reader:    trackedReader,
 				Size:      chunkSize,
 				Encrypted: args.Encrypted,
 				Hashing:   true,
@@ -544,7 +628,7 @@ func (e *jobExecutor) uploadSyncTransferParts(ctx context.Context, stager *uploa
 			}
 
 			uploaded += chunkSize
-			if err := writeJobProgress(ctx, partNo, totalParts, []map[string]any{{"partNo": partNo, "success": true}}); err != nil {
+			if err := progress.complete(uploaded, partResults); err != nil {
 				return err
 			}
 		}
@@ -553,13 +637,188 @@ func (e *jobExecutor) uploadSyncTransferParts(ctx context.Context, stager *uploa
 	})
 }
 
-func (e *jobExecutor) syncUploadID(ctx context.Context, args queue.SyncTransferJobArgs) (string, error) {
+type syncTransferResume struct {
+	completedParts int
+	doneBytes      int64
+}
+
+func (e *jobExecutor) syncTransferResumeState(ctx context.Context, uploadID string, totalSize, partSize int64, encrypted bool) (*syncTransferResume, error) {
+	uploads, err := e.api.repo.Uploads.GetByUploadID(ctx, uploadID)
+	if err != nil {
+		return nil, err
+	}
+	if len(uploads) == 0 {
+		return &syncTransferResume{}, nil
+	}
+
+	byPart := make(map[int32]jetmodel.Uploads, len(uploads))
+	for _, upload := range uploads {
+		if existing, ok := byPart[upload.PartNo]; ok && existing.CreatedAt != nil && upload.CreatedAt != nil && existing.CreatedAt.After(*upload.CreatedAt) {
+			continue
+		}
+		byPart[upload.PartNo] = upload
+	}
+
+	resume := &syncTransferResume{}
+	for partNo := 1; ; partNo++ {
+		upload, ok := byPart[int32(partNo)]
+		if !ok {
+			break
+		}
+		expectedPlain := expectedSyncPartSize(totalSize, partSize, partNo)
+		if expectedPlain <= 0 {
+			break
+		}
+		if upload.Encrypted != encrypted {
+			break
+		}
+		expectedStored := expectedPlain
+		if encrypted {
+			expectedStored = crypt.EncryptedSize(expectedPlain)
+		}
+		if upload.Size != expectedStored {
+			break
+		}
+		resume.completedParts++
+		resume.doneBytes += expectedPlain
+	}
+
+	return resume, nil
+}
+
+func expectedSyncPartSize(totalSize, partSize int64, partNo int) int64 {
+	if partNo <= 0 {
+		return 0
+	}
+	start := int64(partNo-1) * partSize
+	if start >= totalSize {
+		return 0
+	}
+	return minInt64(partSize, totalSize-start)
+}
+
+type syncTransferProgress struct {
+	ctx          context.Context
+	api          *apiService
+	jobID        int64
+	total        int64
+	minStepBytes int64
+	minInterval  time.Duration
+	lastDone     int64
+	lastAt       time.Time
+}
+
+func newSyncTransferProgress(ctx context.Context, api *apiService, jobID, total int64) *syncTransferProgress {
+	return &syncTransferProgress{
+		ctx:          ctx,
+		api:          api,
+		jobID:        jobID,
+		total:        total,
+		minStepBytes: 8 * 1024 * 1024,
+		minInterval:  250 * time.Millisecond,
+	}
+}
+
+func (p *syncTransferProgress) track(baseDone, chunkSize int64, results []map[string]any) func(int64, bool) error {
+	return func(read int64, force bool) error {
+		done := baseDone + min(read, chunkSize)
+		return p.report(done, force, results)
+	}
+}
+
+func (p *syncTransferProgress) complete(done int64, results []map[string]any) error {
+	return p.report(done, true, results)
+}
+
+func (p *syncTransferProgress) report(done int64, force bool, results []map[string]any) error {
+	if done < 0 {
+		done = 0
+	}
+	if p.total > 0 && done > p.total {
+		done = p.total
+	}
+	if !force && done-p.lastDone < p.minStepBytes && !p.lastAt.IsZero() && time.Since(p.lastAt) < p.minInterval {
+		return nil
+	}
+	if err := writeJobByteProgress(p.ctx, done, p.total, results); err != nil {
+		return err
+	}
+	if p.api != nil && p.api.jobs != nil && p.jobID > 0 {
+		if _, err := p.api.jobs.JobUpdate(p.ctx, p.jobID, &river.JobUpdateParams{Output: map[string]any{
+			"progress": map[string]any{
+				"total":   p.total,
+				"done":    done,
+				"percent": percentInt(done, p.total),
+			},
+			"data": map[string]any{
+				"results":     results,
+				"bytesDone":   done,
+				"bytesTotal":  p.total,
+				"updatedAt":   time.Now().UTC(),
+				"isCompleted": done >= p.total,
+			},
+		}}); err != nil {
+			return err
+		}
+	}
+	p.lastDone = done
+	p.lastAt = time.Now()
+	return nil
+}
+
+func percentInt(done, total int64) int {
+	if total <= 0 {
+		return 0
+	}
+	percent := int(float64(done) * 100.0 / float64(total))
+	if percent < 0 {
+		return 0
+	}
+	if percent > 100 {
+		return 100
+	}
+	return percent
+}
+
+type progressReader struct {
+	reader   io.Reader
+	onRead   func(int64, bool) error
+	read     int64
+	finished bool
+}
+
+func newProgressReader(reader io.Reader, onRead func(int64, bool) error) *progressReader {
+	return &progressReader{reader: reader, onRead: onRead}
+}
+
+func (r *progressReader) Read(p []byte) (int, error) {
+	n, err := r.reader.Read(p)
+	if n > 0 {
+		r.read += int64(n)
+		if r.onRead != nil {
+			if progressErr := r.onRead(r.read, false); progressErr != nil {
+				return n, progressErr
+			}
+		}
+	}
+	if err == io.EOF && !r.finished {
+		r.finished = true
+		if r.onRead != nil {
+			if progressErr := r.onRead(r.read, true); progressErr != nil {
+				return n, progressErr
+			}
+		}
+	}
+	return n, err
+}
+
+func (e *jobExecutor) syncUploadID(args queue.SyncTransferJobArgs, parentID uuid.UUID) (string, error) {
 	modTimeUnixNano := int64(0)
 	if args.ModifiedAtUnixNano > 0 {
 		modTimeUnixNano = args.ModifiedAtUnixNano
 	}
 
-	return md5Hex(fmt.Sprintf("%s:%s:%d:%d:%d", cleanPath(args.DestinationPath), args.Name, args.Size, modTimeUnixNano, args.UserID)), nil
+	return md5Hex(fmt.Sprintf("%s:%s:%d:%d:%d", parentID.String(), args.Name, args.Size, modTimeUnixNano, args.UserID)), nil
 }
 
 func md5Hex(text string) string {

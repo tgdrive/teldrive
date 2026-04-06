@@ -13,15 +13,20 @@ events:
     db-workers: 10
     deduplication-ttl: 5s
     poll-interval: 10s
+jobs:
+    sync-run:
+        max-attempts: 8
+    sync-transfer:
+        max-attempts: 2
+        timeout: 3h
 jwt:
     allowed-users: []
     secret: ""
     session-time: 30d
 log:
     db:
-        ignore-record-not-found: true
         level: error
-        log-sql: true
+        log-sql: false
         slow-threshold: 1s
     file: ""
     http:

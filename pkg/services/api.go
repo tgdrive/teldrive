@@ -105,6 +105,20 @@ func (a *apiService) SetPeriodicJobRegistry(periodicJobs *river.PeriodicJobBundl
 	a.periodicJobs = periodicJobs
 }
 
+func (a *apiService) syncRunMaxAttempts() int {
+	if a == nil || a.cnf == nil || a.cnf.Jobs.SyncRun.MaxAttempts <= 0 {
+		return 8
+	}
+	return a.cnf.Jobs.SyncRun.MaxAttempts
+}
+
+func (a *apiService) syncTransferMaxAttempts() int {
+	if a == nil || a.cnf == nil || a.cnf.Jobs.SyncTransfer.MaxAttempts <= 0 {
+		return 2
+	}
+	return a.cnf.Jobs.SyncTransfer.MaxAttempts
+}
+
 type apiError struct {
 	err  error
 	code int

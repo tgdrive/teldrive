@@ -21,12 +21,13 @@ import (
 )
 
 const (
-	periodicJobKindSyncRun          = "sync.run"
-	periodicJobKindCleanOldEvents   = "clean.old_events"
-	periodicJobKindCleanStaleUpload = "clean.stale_uploads"
-	periodicJobKindCleanPendingFile = "clean.pending_files"
-	defaultOldEventsRetention       = "5d"
-	defaultStaleUploadRetention     = "1d"
+	periodicJobKindSyncRun           = "sync.run"
+	periodicJobKindCleanOldEvents    = "clean.old_events"
+	periodicJobKindCleanStaleUpload  = "clean.stale_uploads"
+	periodicJobKindCleanPendingFile  = "clean.pending_files"
+	periodicJobKindRefreshFolderSize = "refresh.folder_sizes"
+	defaultOldEventsRetention        = "5d"
+	defaultStaleUploadRetention      = "1d"
 )
 
 type periodicJobRow struct {
@@ -305,6 +306,7 @@ func defaultPeriodicJobPresets() []periodicJobPreset {
 		{Name: "Clean Old Events", Kind: periodicJobKindCleanOldEvents, CronExpression: "0 */12 * * *", Args: defaultCleanOldEventsPeriodicArgs(), System: true},
 		{Name: "Clean Stale Uploads", Kind: periodicJobKindCleanStaleUpload, CronExpression: "0 */12 * * *", Args: defaultCleanStaleUploadsPeriodicArgs(), System: true},
 		{Name: "Clean Pending Files", Kind: periodicJobKindCleanPendingFile, CronExpression: "0 * * * *", Args: repositories.CleanPendingFilesPeriodicArgs{}, System: true},
+		{Name: "Refresh Folder Sizes", Kind: periodicJobKindRefreshFolderSize, CronExpression: "0 * * * *", Args: repositories.RefreshFolderSizesPeriodicArgs{}, System: true},
 	}
 }
 
@@ -322,6 +324,8 @@ func normalizePeriodicJobArgs(kind string, args repositories.PeriodicJobArgs) re
 		return normalizeCleanOldEventsPeriodicArgs(args)
 	case periodicJobKindCleanStaleUpload:
 		return normalizeCleanStaleUploadsPeriodicArgs(args)
+	case periodicJobKindRefreshFolderSize:
+		return repositories.RefreshFolderSizesPeriodicArgs{}
 	default:
 		return args
 	}
@@ -428,6 +432,8 @@ func maintenanceArgsUpdateFromAPI(kind string, rawArgs api.PeriodicJobUpdateArgs
 		return repositories.CleanStaleUploadsPeriodicArgs{Retention: normalized}, nil
 	case periodicJobKindCleanPendingFile:
 		return nil, &apiError{err: errors.New("args cannot be updated for clean.pending_files jobs"), code: 400}
+	case periodicJobKindRefreshFolderSize:
+		return nil, &apiError{err: errors.New("args cannot be updated for refresh.folder_sizes jobs"), code: 400}
 	default:
 		return nil, &apiError{err: errors.New("args can only be updated for supported periodic jobs"), code: 400}
 	}
@@ -712,15 +718,17 @@ func (a *apiService) runtimePeriodicInsert(row *periodicJobRow) (river.JobArgs, 
 			Proxy:          args.Proxy.Or(""),
 			Filters:        toQueueFilters(args.Filters),
 			Options:        toQueueOptions(args.Options),
-		}, &river.InsertOpts{UniqueOpts: river.UniqueOpts{ByArgs: true}}, nil
+		}, &river.InsertOpts{UniqueOpts: river.UniqueOpts{ByArgs: true}, MaxAttempts: a.syncRunMaxAttempts()}, nil
 	case periodicJobKindCleanOldEvents:
 		oldEventsArgs := normalizeCleanOldEventsPeriodicArgs(row.Args)
-		return queue.CleanOldEventsArgs{UserID: row.UserID, Retention: oldEventsArgs.Retention}, &river.InsertOpts{UniqueOpts: river.UniqueOpts{ByArgs: true}}, nil
+		return queue.CleanOldEventsArgs{UserID: row.UserID, Retention: oldEventsArgs.Retention}, &river.InsertOpts{}, nil
 	case periodicJobKindCleanStaleUpload:
 		staleArgs := normalizeCleanStaleUploadsPeriodicArgs(row.Args)
-		return queue.CleanStaleUploadsArgs{UserID: row.UserID, Retention: staleArgs.Retention}, &river.InsertOpts{UniqueOpts: river.UniqueOpts{ByArgs: true}}, nil
+		return queue.CleanStaleUploadsArgs{UserID: row.UserID, Retention: staleArgs.Retention}, &river.InsertOpts{}, nil
 	case periodicJobKindCleanPendingFile:
-		return queue.CleanPendingFilesArgs{UserID: row.UserID}, &river.InsertOpts{UniqueOpts: river.UniqueOpts{ByArgs: true}}, nil
+		return queue.CleanPendingFilesArgs{UserID: row.UserID}, &river.InsertOpts{}, nil
+	case periodicJobKindRefreshFolderSize:
+		return queue.RefreshFolderSizesArgs{UserID: row.UserID}, &river.InsertOpts{}, nil
 	default:
 		return nil, nil, &apiError{err: fmt.Errorf("unsupported periodic job kind: %s", row.Kind), code: 400}
 	}

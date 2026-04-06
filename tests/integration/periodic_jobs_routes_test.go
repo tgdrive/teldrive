@@ -33,6 +33,9 @@ func TestPeriodicJobsRoutes_CRUD_EnableDisable_RunNow(t *testing.T) {
 	if !foundKinds["clean.stale_uploads"] {
 		t.Fatalf("expected clean.stale_uploads preset, got %+v", foundKinds)
 	}
+	if !foundKinds["refresh.folder_sizes"] {
+		t.Fatalf("expected refresh.folder_sizes preset, got %+v", foundKinds)
+	}
 
 	assertMaintenanceRetention := func(jobKind api.PeriodicJobKind, expected string) {
 		t.Helper()
@@ -265,6 +268,30 @@ func TestPeriodicJobsRoutes_Validation(t *testing.T) {
 		_, err = client.PeriodicJobsUpdate(ctx, &api.PeriodicJobUpdate{
 			Args: api.NewOptPeriodicJobUpdateArgs(api.PeriodicJobUpdateArgs{"retention": jx.Raw(`"1h"`)}),
 		}, api.PeriodicJobsUpdateParams{ID: pendingFilesID})
+		if statusCode(err) != 400 {
+			t.Fatalf("expected 400, got %d err=%v", statusCode(err), err)
+		}
+	})
+
+	t.Run("refresh folder sizes args cannot be updated", func(t *testing.T) {
+		items, err := client.PeriodicJobsList(ctx)
+		if err != nil {
+			t.Fatalf("PeriodicJobsList failed: %v", err)
+		}
+		var refreshID api.UUID
+		for _, item := range items {
+			if item.Kind == api.PeriodicJobKind("refresh.folder_sizes") {
+				refreshID = item.ID
+				break
+			}
+		}
+		if uuid.UUID(refreshID) == uuid.Nil {
+			t.Fatalf("expected refresh.folder_sizes maintenance job")
+		}
+
+		_, err = client.PeriodicJobsUpdate(ctx, &api.PeriodicJobUpdate{
+			Args: api.NewOptPeriodicJobUpdateArgs(api.PeriodicJobUpdateArgs{"retention": jx.Raw(`"1h"`)}),
+		}, api.PeriodicJobsUpdateParams{ID: refreshID})
 		if statusCode(err) != 400 {
 			t.Fatalf("expected 400, got %d err=%v", statusCode(err), err)
 		}
