@@ -1,22 +1,24 @@
 package mapper
 
 import (
+	"github.com/google/uuid"
 	"github.com/tgdrive/teldrive/internal/api"
+	jetmodel "github.com/tgdrive/teldrive/internal/database/jet/gen/model"
 	"github.com/tgdrive/teldrive/internal/utils"
-	"github.com/tgdrive/teldrive/pkg/models"
 )
 
-func ToFileOut(file models.File) *api.File {
+func ToJetFileOut(file jetmodel.Files) *api.File {
 	res := &api.File{
-		ID:        api.NewOptString(file.ID),
+		ID:        api.NewOptUUID(api.UUID(file.ID)),
 		Name:      file.Name,
 		Type:      api.FileType(file.Type),
+		Parts:     ToAPIParts(file.Parts),
 		MimeType:  api.NewOptString(file.MimeType),
-		Encrypted: api.NewOptBool(*file.Encrypted),
-		UpdatedAt: api.NewOptDateTime(*file.UpdatedAt),
+		UpdatedAt: api.NewOptDateTime(file.UpdatedAt),
+		Encrypted: api.NewOptBool(file.Encrypted),
 	}
-	if file.ParentId != nil {
-		res.ParentId = api.NewOptString(*file.ParentId)
+	if file.ParentID != nil {
+		res.ParentId = api.NewOptUUID(api.UUID(*file.ParentID))
 	}
 	if file.Size != nil {
 		res.Size = api.NewOptInt64(*file.Size)
@@ -27,19 +29,43 @@ func ToFileOut(file models.File) *api.File {
 	if file.Hash != nil && *file.Hash != "" {
 		res.Hash = api.NewOptString(*file.Hash)
 	}
+	if file.ChannelID != nil {
+		res.ChannelId = api.NewOptInt64(*file.ChannelID)
+	}
+
 	return res
 }
 
-func ToUploadOut(parts []models.Upload) []api.UploadPart {
-	return utils.Map(parts, func(part models.Upload) api.UploadPart {
+func UUIDFromString(id string) api.UUID {
+	parsed, err := uuid.Parse(id)
+	if err != nil {
+		return api.UUID{}
+	}
+
+	return api.UUID(parsed)
+}
+
+func OptUUIDFromString(id string) api.OptUUID {
+	parsed, err := uuid.Parse(id)
+	if err != nil {
+		return api.OptUUID{}
+	}
+
+	return api.NewOptUUID(api.UUID(parsed))
+}
+
+func ToUploadOut(parts []jetmodel.Uploads) []api.UploadPart {
+	return utils.Map(parts, func(part jetmodel.Uploads) api.UploadPart {
 		res := api.UploadPart{
 			Name:      part.Name,
-			PartId:    part.PartId,
-			ChannelId: part.ChannelId,
-			PartNo:    part.PartNo,
+			PartId:    int(part.PartID),
+			ChannelId: part.ChannelID,
+			PartNo:    int(part.PartNo),
 			Size:      part.Size,
 			Encrypted: part.Encrypted,
-			Salt:      api.NewOptString(part.Salt),
+		}
+		if part.Salt != nil {
+			res.Salt = api.NewOptString(*part.Salt)
 		}
 		// Note: BlockHashes are internal, not exposed in API response
 		return res

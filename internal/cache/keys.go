@@ -31,12 +31,17 @@ func KeyFileLocationPattern(fileID string) string {
 }
 
 // Session Keys
-func KeySessionHash(hash string) string {
-	return Key("sessions", hash)
+func KeySessionID(id string) string {
+	return Key("sessions", id)
 }
 
-func KeySessionToken(instance, token string) string {
-	return Key("sessions", instance, token)
+// API key auth cache keys
+func KeyAPIKeyAuth(tokenHash string) string {
+	return Key("auth", "api_keys", tokenHash)
+}
+
+func KeyAPIKeyAuthPattern() string {
+	return Key("auth", "api_keys", "*")
 }
 
 // Share Keys

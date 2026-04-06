@@ -2,8 +2,6 @@ generator:
   features:
     disable:
       - "ogen/otel"
-      - "paths/client"
-      - "client/request/validation"
       - "client/security/reentrant"
       - 'webhooks/server'
       - 'webhooks/client'

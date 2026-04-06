@@ -6,7 +6,8 @@ import (
 
 	"github.com/go-faster/errors"
 	"github.com/tgdrive/teldrive/internal/cache"
-	"gorm.io/gorm"
+	jetmodel "github.com/tgdrive/teldrive/internal/database/jet/gen/model"
+	"github.com/tgdrive/teldrive/pkg/repositories"
 
 	"github.com/gotd/contrib/auth/kv"
 )
@@ -22,31 +23,26 @@ func (KeyValue) TableName() string {
 }
 
 type kvStorage struct {
-	db    *gorm.DB
+	kv    repositories.KVRepository
 	cache cache.Cacher
 }
 
 func (s kvStorage) Set(ctx context.Context, k, v string) error {
-	return s.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Exec(`
-			INSERT INTO teldrive.kv (key, value, created_at)
-			VALUES (?, ?, ?)
-			ON CONFLICT (key) DO UPDATE SET
-				value = EXCLUDED.value,
-				created_at = EXCLUDED.created_at
-		`, k, []byte(v), time.Now().UTC()).Error; err != nil {
-			return errors.Wrap(err, "upsert value")
-		}
-		return nil
-	})
+	if err := s.kv.Set(ctx, &jetmodel.Kv{Key: k, Value: []byte(v), CreatedAt: time.Now().UTC()}); err != nil {
+		return errors.Wrap(err, "upsert value")
+	}
+	if s.cache != nil {
+		s.cache.Delete(ctx, cache.Key(k))
+	}
+	return nil
 }
 
 func (s kvStorage) Get(ctx context.Context, key string) (string, error) {
 	// Skip cache if not configured
 	if s.cache == nil {
-		var entry KeyValue
-		if err := s.db.First(&entry, "key = ?", key).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
+		entry, err := s.kv.Get(ctx, key)
+		if err != nil {
+			if errors.Is(err, repositories.ErrNotFound) {
 				return "", kv.ErrKeyNotFound
 			}
 			return "", errors.Wrap(err, "query")
@@ -55,9 +51,9 @@ func (s kvStorage) Get(ctx context.Context, key string) (string, error) {
 	}
 
 	return cache.Fetch(ctx, s.cache, cache.Key(key), 30*time.Minute, func() (string, error) {
-		var entry KeyValue
-		if err := s.db.First(&entry, "key = ?", key).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
+		entry, err := s.kv.Get(ctx, key)
+		if err != nil {
+			if errors.Is(err, repositories.ErrNotFound) {
 				return "", kv.ErrKeyNotFound
 			}
 			return "", errors.Wrap(err, "query")
@@ -67,9 +63,11 @@ func (s kvStorage) Get(ctx context.Context, key string) (string, error) {
 }
 
 func (s kvStorage) Delete(ctx context.Context, k string) error {
-	if err := s.db.Where("key = ?", k).Delete(&KeyValue{}).Error; err != nil {
+	if err := s.kv.Delete(ctx, k); err != nil {
 		return errors.Wrap(err, "delete key")
 	}
-	s.cache.Delete(ctx, k)
+	if s.cache != nil {
+		s.cache.Delete(ctx, k)
+	}
 	return nil
 }

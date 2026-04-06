@@ -1,0 +1,17 @@
+{
+    "include": [
+    "docs/**/*.ts",
+    "docs/**/*.vue",
+    "docs/**/*.md",
+    "scaler-ui/**/*.ts",
+    "scaler-ui/**/*.vue",
+  ],
+    "compilerOptions": {
+      "resolveJsonModule": true,
+      "esModuleInterop": true,
+      "types": ["@types/bun","vite/client"],
+    },
+    "vueCompilerOptions": {
+      "vitePressExtensions": [".md"],
+    },
+  }

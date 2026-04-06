@@ -14,18 +14,18 @@ import (
 	"github.com/tgdrive/teldrive/internal/cache"
 	"github.com/tgdrive/teldrive/internal/config"
 	"github.com/tgdrive/teldrive/internal/utils"
+	"github.com/tgdrive/teldrive/pkg/repositories"
 	"github.com/tgdrive/teldrive/pkg/types"
 	"golang.org/x/sync/errgroup"
-	"gorm.io/gorm"
 )
 
 var (
-	ErrInValidChannelId       = errors.New("invalid channel id")
+	ErrInvalidChannelID       = errors.New("invalid channel id")
 	ErrInvalidChannelMessages = errors.New("invalid channel messages")
 )
 
-func GetChannelById(ctx context.Context, client *tg.Client, channelId int64) (*tg.InputChannel, error) {
-	channel, err := GetChannelFull(ctx, client, channelId)
+func ChannelByID(ctx context.Context, client *tg.Client, channelID int64) (*tg.InputChannel, error) {
+	channel, err := GetChannelFull(ctx, client, channelID)
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +42,7 @@ func GetChannelFull(ctx context.Context, client *tg.Client, channelId int64) (*t
 	}
 
 	if len(channels.GetChats()) == 0 {
-		return nil, ErrInValidChannelId
+		return nil, ErrInvalidChannelID
 	}
 	return channels.GetChats()[0].(*tg.Channel), nil
 }
@@ -50,7 +50,7 @@ func GetChannelFull(ctx context.Context, client *tg.Client, channelId int64) (*t
 func DeleteMessages(ctx context.Context, client *telegram.Client, channelId int64, ids []int) error {
 
 	return RunWithAuth(ctx, client, "", func(ctx context.Context) error {
-		channel, err := GetChannelById(ctx, client.API(), channelId)
+		channel, err := ChannelByID(ctx, client.API(), channelId)
 
 		if err != nil {
 			return err
@@ -99,7 +99,7 @@ func getTGMessagesBatch(ctx context.Context, client *tg.Client, channel *tg.Inpu
 
 func GetMessages(ctx context.Context, client *tg.Client, ids []int, channelId int64) ([]tg.MessageClass, error) {
 
-	channel, err := GetChannelById(ctx, client, channelId)
+	channel, err := ChannelByID(ctx, client, channelId)
 
 	if err != nil {
 		return nil, err
@@ -189,10 +189,10 @@ func GetMediaContent(ctx context.Context, client *tg.Client, location tg.InputFi
 	return buff, nil
 }
 
-func GetBotInfo(ctx context.Context, db *gorm.DB, cache cache.Cacher, config *config.TGConfig, token string) (*types.BotInfo, error) {
+func FetchBotInfo(ctx context.Context, kvRepo repositories.KVRepository, cache cache.Cacher, config *config.TGConfig, token string) (*types.BotInfo, error) {
 	var user *tg.User
 	middlewares := NewMiddleware(config, WithFloodWait(), WithRateLimit())
-	client, err := BotClient(ctx, db, cache, config, token, middlewares...)
+	client, err := BotClient(ctx, kvRepo, cache, config, token, middlewares...)
 	if err != nil {
 		return nil, err
 	}
@@ -204,12 +204,12 @@ func GetBotInfo(ctx context.Context, db *gorm.DB, cache cache.Cacher, config *co
 	if err != nil {
 		return nil, err
 	}
-	return &types.BotInfo{Id: user.ID, UserName: user.Username, Token: token}, nil
+	return &types.BotInfo{ID: user.ID, UserName: user.Username, Token: token}, nil
 }
 
 func GetLocation(ctx context.Context, client *tg.Client, channelId int64, partId int64) (location *tg.InputDocumentFileLocation, err error) {
 
-	channel, err := GetChannelById(ctx, client, channelId)
+	channel, err := ChannelByID(ctx, client, channelId)
 
 	if err != nil {
 		return nil, err

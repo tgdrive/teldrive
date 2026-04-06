@@ -1,81 +1,107 @@
 cache:
-  max-size: 10485760
-  redis-addr: ""
-  redis-pass: ""
-
-cronjobs:
-  clean-files-interval: "1h"
-  clean-uploads-interval: "12h"
-  enable: true
-  folder-size-interval: "2h"
-  locker-instance: "cron-locker"
-
+    max-size: 10485760
 db:
-  data-source: ""
-  log-level: "info"
-  prepare-stmt: true
-  pool:
-    enable: true
-    max-idle-connections: 25
-    max-lifetime: "10m"
-    max-open-connections: 25
-
+    data-source: ""
+    pool:
+        enable: true
+        max-idle-connections: 25
+        max-lifetime: 10m
+        max-open-connections: 25
+    prepare-stmt: true
+events:
+    db-buffer-size: 1000
+    db-workers: 10
+    deduplication-ttl: 5s
+    poll-interval: 10s
+jobs:
+    sync-run:
+        max-attempts: 8
+    sync-transfer:
+        max-attempts: 2
+        timeout: 3h
 jwt:
-  session-time: "30d"
-  secret: ""
-  allowed-users: []
-
+    allowed-users: []
+    secret: ""
+    session-time: 30d
 log:
-  file: ""
-  level: "info"
-
+    db:
+        level: error
+        log-sql: false
+        slow-threshold: 1s
+    file: ""
+    http:
+        enabled: true
+        log-queries: false
+        log-request-body-size: true
+        log-response-size: true
+        log-user-agent: true
+        max-query-length: 100
+        sanitize-queries: true
+        skip-paths:
+            - /health
+            - /metrics
+    level: info
+    tg:
+        enabled: false
+        level: warn
+    time-format: "2006-01-02 15:04:05"
+queue:
+    default-workers: 50
+    upload-workers: 4
+redis:
+    addr: ""
+    conn-max-idle-time: 5m
+    conn-max-lifetime: 1h
+    max-idle-conns: 10
+    min-idle-conns: 5
+    password: ""
+    pool-size: 10
 server:
-  enable-pprof: false
-  graceful-shutdown: "10s"
-  port: 8080
-  read-timeout: "1h"
-  write-timeout: "1h"
-
+    enable-pprof: false
+    graceful-shutdown: 10s
+    port: 8080
+    read-timeout: 1h
+    write-timeout: 1h
 tg:
-  app-hash: "8da85b0d5bfe62527e5b244c209159c3"
-  app-id: 2496
-  app-version: "6.1.4 K"
-  auto-channel-create: true
-  channel-limit: 500000
-  device-model: "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/116.0"
-  enable-logging: false
-  lang-code: "en"
-  lang-pack: "webk"
-  ntp: false
-  pool-size: 8
-  proxy: ""
-  rate: 100
-  rate-burst: 5
-  rate-limit: true
-  reconnect-timeout: "5m"
-  session-instance: "teldrive"
-  system-lang-code: "en-US"
-  system-version: "Win32"
-  # Session storage configuration
-  session:
-    # Session storage type: postgres, bolt, or memory
-    type: "postgres"
-    # Key prefix for session storage
-    key: "session"
-    # BoltDB-specific settings (only used when type: bolt)
-    bolt:
-      # Path to BoltDB file (empty = auto-detect ~/.teldrive/session.db)
-      path: ""
-      # Timeout for opening BoltDB
-      timeout: "1s"
-      # Disable grow sync for performance
-      no-grow-sync: false
-  stream:
-    buffers: 8
-    chunk-timeout: "20s"
-    concurrency: 1
-  uploads:
-    encryption-key: ""
-    max-retries: 10
-    retention: "7d"
-    threads: 8
+    app-hash: 8da85b0d5bfe62527e5b244c209159c3
+    app-id: 2496
+    app-version: 6.1.4 K
+    auto-channel-create: true
+    channel-limit: 500000
+    device-model: Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/116.0
+    dial-timeout: 10s
+    enable-logging: false
+    lang-code: en
+    lang-pack: webk
+    mtproxy:
+        addr: ""
+        secret: ""
+    ntp: false
+    ntp-server: pool.ntp.org
+    pool-size: 8
+    proxy: ""
+    rate: 100
+    rate-burst: 5
+    rate-limit: true
+    reconnect-timeout: 5m
+    session:
+        bolt:
+            no-grow-sync: false
+            path: ""
+            timeout: 1s
+        key: session
+        type: postgres
+    session-instance: teldrive
+    stream:
+        bots-limit: 0
+        buffers: 8
+        chunk-timeout: 30s
+        concurrency: 1
+    system-lang-code: en-US
+    system-version: Win32
+    uploads:
+        chunk-naming: random
+        encryption-key: ""
+        max-retries: 10
+        retention: 7d
+        threads: 8

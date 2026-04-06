@@ -75,8 +75,8 @@ func (h *BlockHasher) Sum() []byte {
 	return result
 }
 
-// GetBlockCount returns the number of complete blocks processed
-func (h *BlockHasher) GetBlockCount() int {
+// BlockCount returns the number of complete blocks processed
+func (h *BlockHasher) BlockCount() int {
 	return len(h.blockHashes)
 }
 

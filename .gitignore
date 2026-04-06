@@ -32,6 +32,11 @@ logs
 bin
 ui/dist
 docs/dist
+docs/.vitepress/dist
+docs/.vitepress/cache
+docs/src/openapi/
 teldrive-ui.zip
 internal/api
 .opencode/plans
+.opencode/package-lock.json
+node_modules

@@ -1,0 +1,3658 @@
+openapi: 3.0.0
+info:
+  title: Teldrive
+  version: 0.0.0
+tags:
+  - name: Auth
+  - name: PeriodicJobs
+  - name: Files
+  - name: Jobs
+  - name: Uploads
+  - name: Users
+  - name: Shares
+  - name: Events
+  - name: Version
+paths:
+  /auth/attempts:
+    post:
+      operationId: Auth_createAttempt
+      summary: Create auth attempt
+      parameters: []
+      responses:
+        '201':
+          description: The request has succeeded and a new resource has been created as a result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthAttempt'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthAttemptCreate'
+  /auth/attempts/{id}:
+    get:
+      operationId: Auth_getAttempt
+      summary: Get auth attempt
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthAttempt'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Auth
+    delete:
+      operationId: Auth_deleteAttempt
+      summary: Delete auth attempt
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: There is no content to send for this request, but the headers may be useful.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Auth
+  /auth/attempts/{id}/password:
+    post:
+      operationId: Auth_password
+      summary: Complete password auth
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: There is no content to send for this request, but the headers may be useful.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthAttemptPassword'
+  /auth/attempts/{id}/phone/send-code:
+    post:
+      operationId: Auth_sendCode
+      summary: Send phone login code
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: There is no content to send for this request, but the headers may be useful.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthAttemptSendCode'
+  /auth/attempts/{id}/phone/sign-in:
+    post:
+      operationId: Auth_signIn
+      summary: Sign in with phone code
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: There is no content to send for this request, but the headers may be useful.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthAttemptSignIn'
+  /auth/login:
+    post:
+      x-ogen-raw-response: true
+      operationId: Auth_login
+      summary: Login
+      parameters: []
+      responses:
+        '204':
+          description: 'There is no content to send for this request, but the headers may be useful. '
+          headers:
+            Set-Cookie:
+              required: true
+              schema:
+                type: string
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthAttemptSession'
+  /auth/logout:
+    post:
+      x-ogen-raw-response: true
+      operationId: Auth_logout
+      summary: Logout
+      parameters: []
+      responses:
+        '204':
+          description: 'There is no content to send for this request, but the headers may be useful. '
+          headers:
+            Set-Cookie:
+              required: true
+              schema:
+                type: string
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Auth
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+  /auth/refresh:
+    post:
+      x-ogen-raw-response: true
+      operationId: Auth_refresh
+      summary: Refresh access token
+      parameters:
+        - name: refresh_token
+          in: cookie
+          required: true
+          schema:
+            type: string
+          explode: false
+      responses:
+        '204':
+          description: 'There is no content to send for this request, but the headers may be useful. '
+          headers:
+            Set-Cookie:
+              required: true
+              schema:
+                type: string
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Auth
+  /auth/session:
+    get:
+      operationId: Auth_session
+      summary: Get session information
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          headers:
+            Set-Cookie:
+              required: false
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '204':
+          description: There is no content to send for this request, but the headers may be useful.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Auth
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+  /events:
+    get:
+      operationId: Events_getEvents
+      summary: Get events
+      description: Get events (polling)
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Event'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Events
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+  /events/stream:
+    get:
+      operationId: Events_eventsStream
+      summary: Server-Sent Events stream
+      description: Real-time event stream using Server-Sent Events (SSE). Events are filtered by authenticated user. Optional interval parameter for heartbeat configuration.
+      parameters:
+        - name: types
+          in: query
+          required: false
+          description: 'Event types filter. Supports repeated query params and comma-separated values. Wildcards supported: files.*, uploads.*, jobs.*'
+          schema:
+            type: array
+            items:
+              type: string
+          explode: false
+        - name: interval
+          in: query
+          required: false
+          description: 'Heartbeat interval in milliseconds (default: 30000)'
+          schema:
+            type: integer
+            format: int64
+          explode: false
+      responses:
+        '200':
+          description: The request has succeeded.
+          headers:
+            Cache-Control:
+              required: true
+              schema:
+                type: string
+                enum:
+                  - no-cache
+            Connection:
+              required: true
+              schema:
+                type: string
+                enum:
+                  - keep-alive
+          content:
+            text/event-stream:
+              x-ogen-raw-response: true
+              schema:
+                type: string
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Events
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+  /files:
+    get:
+      operationId: Files_list
+      summary: List all files
+      parameters:
+        - $ref: '#/components/parameters/FileQuery.name'
+        - $ref: '#/components/parameters/FileQuery.query'
+        - $ref: '#/components/parameters/FileQuery.searchType'
+        - $ref: '#/components/parameters/FileQuery.type'
+        - $ref: '#/components/parameters/FileQuery.path'
+        - $ref: '#/components/parameters/FileQuery.operation'
+        - $ref: '#/components/parameters/FileQuery.status'
+        - $ref: '#/components/parameters/FileQuery.deepSearch'
+        - $ref: '#/components/parameters/FileQuery.shared'
+        - $ref: '#/components/parameters/FileQuery.parentId'
+        - $ref: '#/components/parameters/FileQuery.category'
+        - $ref: '#/components/parameters/FileQuery.updatedAt'
+        - $ref: '#/components/parameters/FileQuery.sort'
+        - $ref: '#/components/parameters/FileQuery.order'
+        - $ref: '#/components/parameters/FileQuery.limit'
+        - $ref: '#/components/parameters/FileQuery.cursor'
+        - $ref: '#/components/parameters/FileQuery.page'
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileList'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+    post:
+      operationId: Files_create
+      summary: Create a new file
+      parameters: []
+      responses:
+        '201':
+          description: The request has succeeded and a new resource has been created as a result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/File'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Files
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/File'
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+  /files/categories:
+    get:
+      operationId: Files_categoryStats
+      summary: Get category stats
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CategoryStats'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+  /files/delete:
+    post:
+      operationId: Files_delete
+      summary: Mark files or folders for deletion
+      parameters: []
+      responses:
+        '204':
+          description: There is no content to send for this request, but the headers may be useful.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Files
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FileDelete'
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+  /files/move:
+    post:
+      operationId: Files_move
+      summary: Bulk move files or folders
+      parameters: []
+      responses:
+        '204':
+          description: There is no content to send for this request, but the headers may be useful.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Files
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FileMove'
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+  /files/{id}:
+    get:
+      operationId: Files_getById
+      summary: Get file by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/File'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+    patch:
+      operationId: Files_update
+      summary: Update file
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/File'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Files
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FileUpdate'
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+    delete:
+      operationId: Files_deleteById
+      summary: Mark file or folder for deletion
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+      responses:
+        '204':
+          description: There is no content to send for this request, but the headers may be useful.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+  /files/{id}/children:
+    get:
+      operationId: Files_children
+      summary: List folder children
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+        - $ref: '#/components/parameters/FileQuery.name'
+        - $ref: '#/components/parameters/FileQuery.query'
+        - $ref: '#/components/parameters/FileQuery.searchType'
+        - $ref: '#/components/parameters/FileQuery.type'
+        - $ref: '#/components/parameters/FileQuery.path'
+        - $ref: '#/components/parameters/FileQuery.operation'
+        - $ref: '#/components/parameters/FileQuery.status'
+        - $ref: '#/components/parameters/FileQuery.deepSearch'
+        - $ref: '#/components/parameters/FileQuery.shared'
+        - $ref: '#/components/parameters/FileQuery.parentId'
+        - $ref: '#/components/parameters/FileQuery.category'
+        - $ref: '#/components/parameters/FileQuery.updatedAt'
+        - $ref: '#/components/parameters/FileQuery.sort'
+        - $ref: '#/components/parameters/FileQuery.order'
+        - $ref: '#/components/parameters/FileQuery.limit'
+        - $ref: '#/components/parameters/FileQuery.cursor'
+        - $ref: '#/components/parameters/FileQuery.page'
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileList'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+  /files/{id}/content:
+    get:
+      operationId: Files_stream
+      summary: Stream or Download file
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+        - name: download
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - '0'
+              - '1'
+            default: '0'
+          explode: false
+        - name: Range
+          in: header
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: File streaming response
+          headers:
+            Accept-Ranges:
+              required: true
+              description: Indicates server supports range requests
+              schema:
+                type: string
+                enum:
+                  - bytes
+            Content-Length:
+              required: true
+              description: Size of the response body in bytes
+              schema:
+                type: string
+            Content-Disposition:
+              required: true
+              description: File attachment information
+              schema:
+                type: string
+            Content-Range:
+              required: false
+              description: Range of bytes being sent
+              schema:
+                type: string
+            Etag:
+              required: true
+              description: Entity tag for cache validation
+              schema:
+                type: string
+            Last-Modified:
+              required: true
+              description: Last modification timestamp
+              schema:
+                type: string
+                format: http-date
+          content:
+            application/octet-stream:
+              x-ogen-raw-response: true
+              schema:
+                type: string
+                format: binary
+        '206':
+          description: File streaming response
+          headers:
+            Accept-Ranges:
+              required: true
+              description: Indicates server supports range requests
+              schema:
+                type: string
+                enum:
+                  - bytes
+            Content-Length:
+              required: true
+              description: Size of the response body in bytes
+              schema:
+                type: string
+            Content-Disposition:
+              required: true
+              description: File attachment information
+              schema:
+                type: string
+            Content-Range:
+              required: false
+              description: Range of bytes being sent
+              schema:
+                type: string
+            Etag:
+              required: true
+              description: Entity tag for cache validation
+              schema:
+                type: string
+            Last-Modified:
+              required: true
+              description: Last modification timestamp
+              schema:
+                type: string
+                format: http-date
+          content:
+            application/octet-stream:
+              x-ogen-raw-response: true
+              schema:
+                type: string
+                format: binary
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+    head:
+      operationId: Files_streamHead
+      summary: Get file content headers
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+      responses:
+        '200':
+          description: File streaming response
+          headers:
+            Accept-Ranges:
+              required: true
+              description: Indicates server supports range requests
+              schema:
+                type: string
+                enum:
+                  - bytes
+            Content-Length:
+              required: true
+              description: Size of the response body in bytes
+              schema:
+                type: string
+            Content-Disposition:
+              required: true
+              description: File attachment information
+              schema:
+                type: string
+            Content-Range:
+              required: false
+              description: Range of bytes being sent
+              schema:
+                type: string
+            Etag:
+              required: true
+              description: Entity tag for cache validation
+              schema:
+                type: string
+            Last-Modified:
+              required: true
+              description: Last modification timestamp
+              schema:
+                type: string
+                format: http-date
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '206':
+          description: File streaming response
+          headers:
+            Accept-Ranges:
+              required: true
+              description: Indicates server supports range requests
+              schema:
+                type: string
+                enum:
+                  - bytes
+            Content-Length:
+              required: true
+              description: Size of the response body in bytes
+              schema:
+                type: string
+            Content-Disposition:
+              required: true
+              description: File attachment information
+              schema:
+                type: string
+            Content-Range:
+              required: false
+              description: Range of bytes being sent
+              schema:
+                type: string
+            Etag:
+              required: true
+              description: Entity tag for cache validation
+              schema:
+                type: string
+            Last-Modified:
+              required: true
+              description: Last modification timestamp
+              schema:
+                type: string
+                format: http-date
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+  /files/{id}/copy:
+    post:
+      operationId: Files_copy
+      summary: Copy file
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/File'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Files
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FileCopy'
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+  /files/{id}/shares:
+    get:
+      operationId: Files_listShares
+      summary: List shares by file ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FileShare'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+    post:
+      operationId: Files_createShare
+      summary: Create share for file
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+      responses:
+        '201':
+          description: The request has succeeded and a new resource has been created as a result.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Files
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FileShareCreate'
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+  /files/{id}/shares/{shareId}:
+    patch:
+      operationId: Files_editShare
+      summary: Update share
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+        - name: shareId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+      responses:
+        '204':
+          description: There is no content to send for this request, but the headers may be useful.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Files
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FileShareCreate'
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+    delete:
+      operationId: Files_deleteShare
+      summary: Delete share
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+        - name: shareId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+      responses:
+        '204':
+          description: There is no content to send for this request, but the headers may be useful.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+  /jobs:
+    get:
+      operationId: Jobs_list
+      summary: List jobs
+      parameters:
+        - $ref: '#/components/parameters/JobListQuery.state'
+        - $ref: '#/components/parameters/JobListQuery.limit'
+        - $ref: '#/components/parameters/JobListQuery.cursor'
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobList'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Jobs
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+    post:
+      operationId: Jobs_insert
+      summary: Insert a new background job
+      parameters: []
+      responses:
+        '202':
+          description: The request has been accepted for processing, but processing has not yet completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobStatus'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Jobs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JobInsertRequest'
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+  /jobs/{id}:
+    get:
+      operationId: Jobs_get
+      summary: Get job status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobStatus'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Jobs
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+  /jobs/{id}/cancel:
+    post:
+      operationId: Jobs_cancel
+      summary: Cancel a running or queued job
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '204':
+          description: There is no content to send for this request, but the headers may be useful.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Jobs
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+  /jobs/{id}/delete:
+    delete:
+      operationId: Jobs_delete
+      summary: Delete a completed, cancelled, or discarded job
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '204':
+          description: There is no content to send for this request, but the headers may be useful.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Jobs
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+  /periodic-jobs:
+    get:
+      operationId: PeriodicJobs_list
+      summary: List periodic jobs
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PeriodicJobSummary'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - PeriodicJobs
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+    post:
+      operationId: PeriodicJobs_create
+      summary: Create periodic sync job
+      parameters: []
+      responses:
+        '201':
+          description: The request has succeeded and a new resource has been created as a result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PeriodicJobDetail'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - PeriodicJobs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PeriodicJobCreate'
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+  /periodic-jobs/test-connection:
+    post:
+      operationId: PeriodicJobs_testConnection
+      summary: Test sync source connection
+      parameters: []
+      responses:
+        '204':
+          description: There is no content to send for this request, but the headers may be useful.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - PeriodicJobs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SyncArgs'
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+  /periodic-jobs/{id}:
+    get:
+      operationId: PeriodicJobs_get
+      summary: Get periodic job
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PeriodicJobDetail'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - PeriodicJobs
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+    patch:
+      operationId: PeriodicJobs_update
+      summary: Update periodic job
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PeriodicJobDetail'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - PeriodicJobs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PeriodicJobUpdate'
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+    delete:
+      operationId: PeriodicJobs_delete
+      summary: Delete periodic job
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+      responses:
+        '204':
+          description: There is no content to send for this request, but the headers may be useful.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - PeriodicJobs
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+  /periodic-jobs/{id}/disable:
+    post:
+      operationId: PeriodicJobs_disable
+      summary: Disable periodic job
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+      responses:
+        '204':
+          description: There is no content to send for this request, but the headers may be useful.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - PeriodicJobs
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+  /periodic-jobs/{id}/enable:
+    post:
+      operationId: PeriodicJobs_enable
+      summary: Enable periodic job
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+      responses:
+        '204':
+          description: There is no content to send for this request, but the headers may be useful.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - PeriodicJobs
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+  /periodic-jobs/{id}/run:
+    post:
+      operationId: PeriodicJobs_run
+      summary: Run periodic job now
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+      responses:
+        '202':
+          description: The request has been accepted for processing, but processing has not yet completed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobStatus'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - PeriodicJobs
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+  /shares/{id}:
+    get:
+      operationId: Shares_getById
+      summary: Get share by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileShareInfo'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Shares
+  /shares/{id}/files:
+    get:
+      operationId: Shares_listFiles
+      summary: List files in share
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+        - name: share_token
+          in: cookie
+          required: false
+          schema:
+            type: string
+          explode: false
+        - $ref: '#/components/parameters/ShareQuery.path'
+        - $ref: '#/components/parameters/ShareQuery.sort'
+        - $ref: '#/components/parameters/ShareQuery.order'
+        - $ref: '#/components/parameters/ShareQuery.limit'
+        - $ref: '#/components/parameters/ShareQuery.cursor'
+        - $ref: '#/components/parameters/ShareQuery.page'
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FileList'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Shares
+  /shares/{id}/files/{fileId}/content:
+    get:
+      operationId: Shares_stream
+      summary: Stream or Download shared file
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+        - name: share_token
+          in: cookie
+          required: false
+          schema:
+            type: string
+          explode: false
+        - name: download
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - '0'
+              - '1'
+            default: '0'
+          explode: false
+      responses:
+        '200':
+          description: File streaming response
+          headers:
+            Accept-Ranges:
+              required: true
+              description: Indicates server supports range requests
+              schema:
+                type: string
+                enum:
+                  - bytes
+            Content-Length:
+              required: true
+              description: Size of the response body in bytes
+              schema:
+                type: string
+            Content-Disposition:
+              required: true
+              description: File attachment information
+              schema:
+                type: string
+            Content-Range:
+              required: false
+              description: Range of bytes being sent
+              schema:
+                type: string
+            Etag:
+              required: true
+              description: Entity tag for cache validation
+              schema:
+                type: string
+            Last-Modified:
+              required: true
+              description: Last modification timestamp
+              schema:
+                type: string
+                format: http-date
+          content:
+            application/octet-stream:
+              x-ogen-raw-response: true
+              schema:
+                type: string
+                format: binary
+        '206':
+          description: File streaming response
+          headers:
+            Accept-Ranges:
+              required: true
+              description: Indicates server supports range requests
+              schema:
+                type: string
+                enum:
+                  - bytes
+            Content-Length:
+              required: true
+              description: Size of the response body in bytes
+              schema:
+                type: string
+            Content-Disposition:
+              required: true
+              description: File attachment information
+              schema:
+                type: string
+            Content-Range:
+              required: false
+              description: Range of bytes being sent
+              schema:
+                type: string
+            Etag:
+              required: true
+              description: Entity tag for cache validation
+              schema:
+                type: string
+            Last-Modified:
+              required: true
+              description: Last modification timestamp
+              schema:
+                type: string
+                format: http-date
+          content:
+            application/octet-stream:
+              x-ogen-raw-response: true
+              schema:
+                type: string
+                format: binary
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Shares
+  /shares/{id}/unlock:
+    post:
+      operationId: Shares_unlock
+      summary: Unlock share
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+      responses:
+        '204':
+          description: 'There is no content to send for this request, but the headers may be useful. '
+          headers:
+            Set-Cookie:
+              required: true
+              schema:
+                type: string
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Shares
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShareUnlock'
+  /uploads/stats:
+    get:
+      operationId: Uploads_stats
+      summary: Get upload stats
+      parameters:
+        - name: days
+          in: query
+          required: true
+          schema:
+            type: integer
+          explode: false
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UploadStats'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Uploads
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+  /uploads/{id}:
+    post:
+      operationId: Uploads_upload
+      summary: Upload file
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: Content-Length
+          in: header
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - $ref: '#/components/parameters/UploadQuery.fileName'
+        - $ref: '#/components/parameters/UploadQuery.partNo'
+        - $ref: '#/components/parameters/UploadQuery.channelId'
+        - $ref: '#/components/parameters/UploadQuery.encrypted'
+        - $ref: '#/components/parameters/UploadQuery.hashing'
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadPart'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Uploads
+      requestBody:
+        required: true
+        content:
+          '*/*':
+            schema:
+              type: string
+              format: binary
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+    get:
+      operationId: Uploads_partsById
+      summary: Get uploaded parts by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UploadPart'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Uploads
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+    delete:
+      operationId: Uploads_delete
+      summary: Delete uploaded file
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: There is no content to send for this request, but the headers may be useful.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Uploads
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+  /users/api-keys:
+    get:
+      operationId: Users_listApiKeys
+      summary: List API keys
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserApiKey'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+    post:
+      operationId: Users_createApiKey
+      summary: Create API key
+      parameters: []
+      responses:
+        '201':
+          description: The request has succeeded and a new resource has been created as a result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserApiKeyCreateResult'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserApiKeyCreate'
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+  /users/api-keys/{id}:
+    delete:
+      operationId: Users_removeApiKey
+      summary: Revoke API key
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+      responses:
+        '204':
+          description: There is no content to send for this request, but the headers may be useful.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+  /users/bots:
+    post:
+      operationId: Users_addBots
+      summary: Add bots to user account
+      parameters: []
+      responses:
+        '204':
+          description: There is no content to send for this request, but the headers may be useful.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddBots'
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+    delete:
+      operationId: Users_removeBots
+      summary: Remove bots from user account
+      parameters: []
+      responses:
+        '204':
+          description: There is no content to send for this request, but the headers may be useful.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+  /users/channels:
+    get:
+      operationId: Users_listChannels
+      summary: List user channels
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Channel'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+    post:
+      operationId: Users_createChannel
+      summary: Create user channel
+      parameters: []
+      responses:
+        '201':
+          description: The request has succeeded and a new resource has been created as a result.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Channel'
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+    patch:
+      operationId: Users_updateChannel
+      summary: Update user channel
+      parameters: []
+      responses:
+        '204':
+          description: There is no content to send for this request, but the headers may be useful.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Users
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChannelUpdate'
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+  /users/channels/sync:
+    patch:
+      operationId: Users_syncChannels
+      summary: Sync user channels
+      parameters: []
+      responses:
+        '204':
+          description: There is no content to send for this request, but the headers may be useful.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+  /users/channels/{id}:
+    delete:
+      operationId: Users_deleteChannel
+      summary: Delete user channel
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: There is no content to send for this request, but the headers may be useful.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+  /users/config:
+    get:
+      operationId: Users_stats
+      summary: Get user config
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserConfig'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+  /users/profile:
+    get:
+      operationId: Users_profileImage
+      summary: Get user profile photo
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          headers:
+            Etag:
+              required: true
+              schema:
+                type: string
+            Cache-Control:
+              required: true
+              schema:
+                type: string
+            Content-Length:
+              required: true
+              schema:
+                type: integer
+                format: int64
+            Content-Disposition:
+              required: true
+              schema:
+                type: string
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+  /users/sessions:
+    get:
+      operationId: Users_listSessions
+      summary: List user sessions
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserSession'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+  /users/sessions/{id}:
+    delete:
+      operationId: Users_removeSession
+      summary: Remove user session
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/UUID'
+      responses:
+        '204':
+          description: There is no content to send for this request, but the headers may be useful.
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+  /version:
+    get:
+      operationId: Version_version
+      summary: Get API version
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiVersion'
+        default:
+          description: An unexpected error response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+      tags:
+        - Version
+      security:
+        - BearerAuth: []
+        - AccessTokenCookieAuth: []
+        - XApiKeyHeaderAuth: []
+        - SessionHashAuth: []
+components:
+  parameters:
+    FileQuery.category:
+      name: category
+      in: query
+      required: false
+      description: File category
+      schema:
+        type: array
+        items:
+          $ref: '#/components/schemas/Category'
+      explode: false
+    FileQuery.cursor:
+      name: cursor
+      in: query
+      required: false
+      description: Pagination cursor
+      schema:
+        type: string
+      explode: false
+    FileQuery.deepSearch:
+      name: deepSearch
+      in: query
+      required: false
+      description: Enable deep search
+      schema:
+        type: boolean
+        default: false
+      explode: false
+    FileQuery.limit:
+      name: limit
+      in: query
+      required: false
+      description: Items per page
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 1000
+        default: 500
+      explode: false
+    FileQuery.name:
+      name: name
+      in: query
+      required: false
+      description: File name filter
+      schema:
+        type: string
+      explode: false
+    FileQuery.operation:
+      name: operation
+      in: query
+      required: false
+      description: Operation
+      schema:
+        type: string
+        enum:
+          - list
+          - find
+        default: list
+      explode: false
+    FileQuery.order:
+      name: order
+      in: query
+      required: false
+      description: Sort order
+      schema:
+        type: string
+        enum:
+          - asc
+          - desc
+        default: asc
+      explode: false
+    FileQuery.page:
+      name: page
+      in: query
+      required: false
+      description: Page number
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      explode: false
+    FileQuery.parentId:
+      name: parentId
+      in: query
+      required: false
+      description: Parent folder ID
+      schema:
+        $ref: '#/components/schemas/UUID'
+      explode: false
+    FileQuery.path:
+      name: path
+      in: query
+      required: false
+      description: File path
+      schema:
+        type: string
+      explode: false
+    FileQuery.query:
+      name: query
+      in: query
+      required: false
+      description: Search query
+      schema:
+        type: string
+      explode: false
+    FileQuery.searchType:
+      name: searchType
+      in: query
+      required: false
+      description: Search type
+      schema:
+        type: string
+        enum:
+          - text
+          - regex
+        default: text
+      explode: false
+    FileQuery.shared:
+      name: shared
+      in: query
+      required: false
+      description: Show shared files
+      schema:
+        type: boolean
+      explode: false
+    FileQuery.sort:
+      name: sort
+      in: query
+      required: false
+      description: Sort field
+      schema:
+        type: string
+        enum:
+          - name
+          - updatedAt
+          - size
+          - id
+        default: name
+      explode: false
+    FileQuery.status:
+      name: status
+      in: query
+      required: false
+      description: File Status
+      schema:
+        type: string
+        enum:
+          - active
+        default: active
+      explode: false
+    FileQuery.type:
+      name: type
+      in: query
+      required: false
+      description: File type
+      schema:
+        type: string
+        enum:
+          - folder
+          - file
+      explode: false
+    FileQuery.updatedAt:
+      name: updatedAt
+      in: query
+      required: false
+      description: UpdatedAt Filter supports operator eq, gt, lt, gte, lte
+      schema:
+        type: string
+      explode: false
+    JobListQuery.cursor:
+      name: cursor
+      in: query
+      required: false
+      description: Pagination cursor
+      schema:
+        type: string
+      explode: false
+    JobListQuery.limit:
+      name: limit
+      in: query
+      required: false
+      description: Maximum number of jobs to return
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 50
+      explode: false
+    JobListQuery.state:
+      name: state
+      in: query
+      required: false
+      description: Filter by job state
+      schema:
+        $ref: '#/components/schemas/JobState'
+      explode: false
+    ShareQuery.cursor:
+      name: cursor
+      in: query
+      required: false
+      description: Pagination cursor
+      schema:
+        type: string
+      explode: false
+    ShareQuery.limit:
+      name: limit
+      in: query
+      required: false
+      description: Items per page
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 1000
+        default: 500
+      explode: false
+    ShareQuery.order:
+      name: order
+      in: query
+      required: false
+      description: Sort order
+      schema:
+        type: string
+        enum:
+          - asc
+          - desc
+        default: asc
+      explode: false
+    ShareQuery.page:
+      name: page
+      in: query
+      required: false
+      description: Page number
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      explode: false
+    ShareQuery.path:
+      name: path
+      in: query
+      required: false
+      description: Folder path
+      schema:
+        type: string
+      explode: false
+    ShareQuery.sort:
+      name: sort
+      in: query
+      required: false
+      description: Sort field
+      schema:
+        type: string
+        enum:
+          - name
+          - updatedAt
+          - size
+          - id
+        default: name
+      explode: false
+    UploadQuery.channelId:
+      name: channelId
+      in: query
+      required: false
+      description: Optional channel identifier for upload
+      schema:
+        type: integer
+        format: int64
+      explode: false
+    UploadQuery.encrypted:
+      name: encrypted
+      in: query
+      required: false
+      description: Whether the upload content is encrypted
+      schema:
+        type: boolean
+        default: false
+      explode: false
+    UploadQuery.fileName:
+      name: fileName
+      in: query
+      required: true
+      description: Original file name
+      schema:
+        type: string
+      explode: false
+    UploadQuery.hashing:
+      name: hashing
+      in: query
+      required: false
+      description: Enable BLAKE3 hashing for integrity checking
+      schema:
+        type: boolean
+        default: true
+      explode: false
+    UploadQuery.partNo:
+      name: partNo
+      in: query
+      required: true
+      description: Part number in sequence
+      schema:
+        type: integer
+      explode: false
+  schemas:
+    AddBots:
+      type: object
+      required:
+        - bots
+      properties:
+        bots:
+          type: array
+          items:
+            type: string
+          description: List of bot tokens
+    ApiVersion:
+      type: object
+      required:
+        - version
+        - commitSHA
+        - goVersion
+        - os
+        - arch
+      properties:
+        version:
+          type: string
+          description: API version
+          example: 1.0.0
+        commitSHA:
+          type: string
+          description: Git commit SHA
+          example: a1b2c3d4e5f6g7h8i9j0
+        goVersion:
+          type: string
+          description: Go version
+          example: go1.17.1
+        os:
+          type: string
+          description: Operating system
+          example: linux
+        arch:
+          type: string
+          description: Architecture
+          example: amd64
+    AuthAttempt:
+      type: object
+      required:
+        - id
+        - authType
+        - state
+      properties:
+        id:
+          type: string
+        authType:
+          type: string
+          enum:
+            - qr
+            - phone
+        state:
+          type: string
+          enum:
+            - created
+            - qr_pending
+            - code_sent
+            - password_required
+            - authenticated
+            - failed
+            - expired
+        token:
+          type: string
+        phoneCodeHash:
+          type: string
+        session:
+          $ref: '#/components/schemas/AuthAttemptSession'
+        message:
+          type: string
+    AuthAttemptCreate:
+      type: object
+      required:
+        - authType
+      properties:
+        authType:
+          type: string
+          enum:
+            - qr
+            - phone
+        phoneNo:
+          type: string
+    AuthAttemptPassword:
+      type: object
+      required:
+        - password
+      properties:
+        password:
+          type: string
+    AuthAttemptSendCode:
+      type: object
+      required:
+        - phoneNo
+      properties:
+        phoneNo:
+          type: string
+    AuthAttemptSession:
+      type: object
+      required:
+        - name
+        - userName
+        - userId
+        - isPremium
+        - session
+      properties:
+        name:
+          type: string
+        userName:
+          type: string
+        userId:
+          type: integer
+          format: int64
+        isPremium:
+          type: boolean
+        session:
+          type: string
+    AuthAttemptSignIn:
+      type: object
+      required:
+        - phoneNo
+        - phoneCode
+        - phoneCodeHash
+      properties:
+        phoneNo:
+          type: string
+        phoneCode:
+          type: string
+        phoneCodeHash:
+          type: string
+    Category:
+      type: string
+      enum:
+        - archive
+        - audio
+        - document
+        - image
+        - other
+        - video
+      description: Supported file categories
+    CategoryStats:
+      type: object
+      required:
+        - totalFiles
+        - totalSize
+        - category
+      properties:
+        totalFiles:
+          type: integer
+          format: int64
+          description: Total number of files
+        totalSize:
+          type: integer
+          format: int64
+          description: Total size of files in bytes
+        category:
+          allOf:
+            - $ref: '#/components/schemas/Category'
+          description: Category name
+      description: Statistics for files by category
+      example:
+        totalFiles: 1250
+        totalSize: 104857600
+        category: document
+    Channel:
+      type: object
+      required:
+        - channelName
+      properties:
+        channelName:
+          type: string
+          description: Name of the Telegram channel
+        channelId:
+          type: integer
+          format: int64
+          description: Unique numeric identifier of the channel
+      description: Telegram channel information
+      example:
+        channelName: Channel Name
+        channelId: 123456789
+    ChannelUpdate:
+      type: object
+      properties:
+        channelName:
+          type: string
+          description: Name of the Telegram channel
+        channelId:
+          type: integer
+          format: int64
+          description: Unique numeric identifier of the channel
+      description: Telegram channel information
+      example:
+        channelName: Channel Name
+        channelId: 123456789
+    Error:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: integer
+          description: Error code
+          example: 500
+        message:
+          type: string
+          description: Error message
+          example: Internal server error occurred
+      description: Standard error response
+    Event:
+      type: object
+      required:
+        - id
+        - type
+        - createdAt
+        - source
+      properties:
+        id:
+          allOf:
+            - $ref: '#/components/schemas/UUID'
+          description: Event ID
+          example: 123e4567-e89b-12d3-a456-426614174000
+        type:
+          allOf:
+            - $ref: '#/components/schemas/EventType'
+          description: Event type
+        createdAt:
+          type: string
+          format: date-time
+          description: Event timestamp
+        source:
+          allOf:
+            - $ref: '#/components/schemas/Source'
+          description: Event Source
+      description: Event information
+    EventType:
+      type: string
+      enum:
+        - files.created
+        - files.updated
+        - files.deleted
+        - files.moved
+        - files.copied
+        - uploads.progress
+        - jobs.progress
+      description: Event information
+    File:
+      type: object
+      required:
+        - name
+        - type
+      properties:
+        id:
+          allOf:
+            - $ref: '#/components/schemas/UUID'
+          description: File ID
+          example: 123e4567-e89b-12d3-a456-426614174000
+          readOnly: true
+        uploadId:
+          type: string
+          description: Upload session ID (for multi-part uploads)
+          example: upload-abc-123
+        name:
+          type: string
+          description: File name
+          example: document.pdf
+        type:
+          type: string
+          enum:
+            - folder
+            - file
+          description: File type
+          example: file
+        parts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Part'
+          description: File parts
+        mimeType:
+          type: string
+          description: MIME type
+          example: application/pdf
+        category:
+          allOf:
+            - $ref: '#/components/schemas/Category'
+          description: File category
+          example: document
+          readOnly: true
+        channelId:
+          type: integer
+          format: int64
+          description: Channel ID
+          example: 123456789
+        path:
+          type: string
+          description: File or Folder path
+          example: /documents/2023/
+        parentId:
+          allOf:
+            - $ref: '#/components/schemas/UUID'
+          description: Parent folder ID
+          example: 123e4567-e89b-12d3-a456-426614174000
+        size:
+          type: integer
+          format: int64
+          description: File size in bytes
+          example: 1048576
+        encrypted:
+          type: boolean
+          description: Encryption status
+          example: false
+        hash:
+          type: string
+          description: BLAKE3 tree hash for integrity checking
+          example: d41d8cd98f00b204e9800998ecf8427e
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update time
+          readOnly: true
+      description: File metadata
+    FileCopy:
+      type: object
+      required:
+        - destination
+      properties:
+        destination:
+          type: string
+          description: Destination parent path or folder ID
+        newName:
+          type: string
+          description: Optional new file name
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update time
+      description: Copy file request
+    FileDelete:
+      type: object
+      required:
+        - ids
+      properties:
+        ids:
+          type: array
+          items:
+            $ref: '#/components/schemas/UUID'
+          description: List of file IDs
+      description: Bulk file delete request
+    FileList:
+      type: object
+      required:
+        - items
+        - meta
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/File'
+          minItems: 0
+          maxItems: 1000
+          description: Array of file entries in the current page
+        meta:
+          allOf:
+            - $ref: '#/components/schemas/Meta'
+          description: Pagination metadata
+      description: Paginated file listing response with metadata
+    FileMove:
+      type: object
+      required:
+        - ids
+        - destinationParent
+      properties:
+        ids:
+          type: array
+          items:
+            $ref: '#/components/schemas/UUID'
+          description: File IDs to move
+        destinationParent:
+          type: string
+          description: Destination parent path or folder ID
+        destinationName:
+          type: string
+          description: Optional destination name for single-file move
+      description: Bulk file move request
+    FileShare:
+      type: object
+      required:
+        - id
+        - protected
+      properties:
+        id:
+          allOf:
+            - $ref: '#/components/schemas/UUID'
+          description: Share ID
+          example: 123e4567-e89b-12d3-a456-426614174000
+        protected:
+          type: boolean
+          description: Indicates if the shared file requires password protection
+          example: true
+        expiresAt:
+          type: string
+          format: date-time
+          description: Expiration date and time of the share link
+      description: Lightweight file sharing information
+    FileShareCreate:
+      type: object
+      properties:
+        password:
+          type: string
+          description: Share password
+          example: securepass123
+        expiresAt:
+          type: string
+          format: date-time
+          description: Share expiration date
+      description: File share creation request
+    FileShareInfo:
+      type: object
+      required:
+        - name
+        - type
+        - userId
+        - protected
+      properties:
+        name:
+          type: string
+          description: File name
+          example: document.pdf
+        type:
+          type: string
+          enum:
+            - folder
+            - file
+          description: File type
+          example: file
+        expiresAt:
+          type: string
+          format: date-time
+          description: Share expiration date
+        userId:
+          type: integer
+          format: int64
+          description: Share User ID
+        protected:
+          type: boolean
+          description: Share Protection Status
+          example: false
+    FileUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          description: File name
+          example: document.pdf
+        parentId:
+          allOf:
+            - $ref: '#/components/schemas/UUID'
+          description: Parent folder ID
+          example: 123e4567-e89b-12d3-a456-426614174000
+        channelId:
+          type: integer
+          format: int64
+          description: Channel ID
+          example: 123456
+        uploadId:
+          type: string
+          description: Upload ID for hash calculation
+        parts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Part'
+          description: File parts
+        encrypted:
+          type: boolean
+          description: Indicates if the file is encrypted
+        size:
+          type: integer
+          format: int64
+          description: File size in bytes
+          example: 1048576
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last update time
+      description: File update request
+    JobError:
+      type: object
+      required:
+        - message
+      properties:
+        message:
+          type: string
+          description: Error message
+        detail:
+          type: string
+          description: Error context or stack trace
+      description: Job error details
+    JobInsertRequest:
+      type: object
+      required:
+        - kind
+        - args
+      properties:
+        kind:
+          type: string
+          description: Job kind
+        args:
+          description: Job arguments
+        queue:
+          type: string
+          description: Queue name
+        scheduledAt:
+          type: string
+          format: date-time
+          description: Schedule time for delayed execution
+        maxAttempts:
+          type: integer
+          description: Maximum attempts before discard
+      description: Job insertion request
+    JobList:
+      type: object
+      required:
+        - items
+        - meta
+        - counts
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobStatus'
+          minItems: 0
+          maxItems: 200
+          description: Array of jobs
+        meta:
+          allOf:
+            - $ref: '#/components/schemas/Meta'
+          description: Pagination metadata
+        counts:
+          allOf:
+            - $ref: '#/components/schemas/JobStateCounts'
+          description: Job counts grouped by state
+      description: Paginated job listing response
+    JobOutput:
+      type: object
+      properties:
+        progress:
+          allOf:
+            - $ref: '#/components/schemas/JobProgress'
+          description: Progress details
+        data:
+          description: Additional output payload
+      description: Job output payload
+    JobProgress:
+      type: object
+      properties:
+        total:
+          type: integer
+          description: Total work items
+        done:
+          type: integer
+          description: Completed work items
+        percent:
+          type: integer
+          description: Progress percentage
+      description: Job progress summary
+    JobState:
+      type: string
+      enum:
+        - available
+        - running
+        - scheduled
+        - retryable
+        - completed
+        - cancelled
+        - discarded
+      description: River job state
+    JobStateCounts:
+      type: object
+      required:
+        - all
+        - available
+        - running
+        - scheduled
+        - retryable
+        - completed
+        - cancelled
+        - discarded
+      properties:
+        all:
+          type: integer
+          format: int64
+          description: Total number of jobs
+        available:
+          type: integer
+          format: int64
+          description: Available jobs
+        running:
+          type: integer
+          format: int64
+          description: Running jobs
+        scheduled:
+          type: integer
+          format: int64
+          description: Scheduled jobs
+        retryable:
+          type: integer
+          format: int64
+          description: Retryable jobs
+        completed:
+          type: integer
+          format: int64
+          description: Completed jobs
+        cancelled:
+          type: integer
+          format: int64
+          description: Cancelled jobs
+        discarded:
+          type: integer
+          format: int64
+          description: Discarded jobs
+      description: Job counts grouped by state
+    JobStatus:
+      type: object
+      required:
+        - id
+        - kind
+        - queue
+        - state
+        - attempt
+        - maxAttempts
+        - createdAt
+      properties:
+        id:
+          type: integer
+          format: int64
+          description: Job ID
+        kind:
+          type: string
+          description: Job kind
+        queue:
+          type: string
+          description: Queue name
+        state:
+          allOf:
+            - $ref: '#/components/schemas/JobState'
+          description: Current job state
+        attempt:
+          type: integer
+          description: Number of attempts so far
+        maxAttempts:
+          type: integer
+          description: Maximum allowed attempts
+        createdAt:
+          type: string
+          format: date-time
+          description: Job creation time
+        scheduledAt:
+          type: string
+          format: date-time
+          description: Scheduled execution time
+        startedAt:
+          type: string
+          format: date-time
+          description: Start time of the current attempt
+        finalizedAt:
+          type: string
+          format: date-time
+          description: Completion time
+        output:
+          allOf:
+            - $ref: '#/components/schemas/JobOutput'
+          description: Job output payload
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobError'
+          description: Error history
+      description: Job status response
+    Meta:
+      type: object
+      properties:
+        nextCursor:
+          type: string
+          description: Next cursor for pagination
+      description: Pagination metadata for cursor-based listing
+    Part:
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          type: integer
+          description: Part ID
+          example: 1
+        salt:
+          type: string
+          description: Encryption salt
+          example: abc123
+      description: File part information
+    PeriodicJobCreate:
+      type: object
+      required:
+        - name
+        - cronExpression
+        - args
+      properties:
+        name:
+          type: string
+        enabled:
+          type: boolean
+          default: true
+        cronExpression:
+          type: string
+        args:
+          $ref: '#/components/schemas/SyncArgs'
+    PeriodicJobDetail:
+      type: object
+      required:
+        - id
+        - name
+        - kind
+        - enabled
+        - cronExpression
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        name:
+          type: string
+        kind:
+          $ref: '#/components/schemas/PeriodicJobKind'
+        enabled:
+          type: boolean
+        cronExpression:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        args:
+          type: object
+          additionalProperties: {}
+    PeriodicJobKind:
+      type: string
+      enum:
+        - sync.run
+        - clean.old_events
+        - clean.stale_uploads
+        - clean.pending_files
+        - refresh.folder_sizes
+    PeriodicJobSummary:
+      type: object
+      required:
+        - id
+        - name
+        - kind
+        - enabled
+        - cronExpression
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          $ref: '#/components/schemas/UUID'
+        name:
+          type: string
+        kind:
+          $ref: '#/components/schemas/PeriodicJobKind'
+        enabled:
+          type: boolean
+        cronExpression:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    PeriodicJobUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        enabled:
+          type: boolean
+        cronExpression:
+          type: string
+        args:
+          type: object
+          additionalProperties: {}
+    Session:
+      type: object
+      required:
+        - name
+        - userName
+        - userId
+        - isPremium
+        - sessionId
+        - expires
+      properties:
+        name:
+          type: string
+          description: User's display name or full name
+          example: John Doe
+        userName:
+          type: string
+          description: Telegram username without @ symbol
+          example: johndoe
+        userId:
+          type: integer
+          format: int64
+          minimum: 1
+          description: Telegram user ID (unique identifier)
+          example: 123456789
+        isPremium:
+          type: boolean
+          description: Premium subscription status
+          example: true
+        sessionId:
+          allOf:
+            - $ref: '#/components/schemas/UUID'
+          description: Session ID for verification and security
+          example: 123e4567-e89b-12d3-a456-426614174000
+        hash:
+          type: string
+          description: Compatibility alias for session ID
+        expires:
+          type: string
+          format: date-time
+          description: Session expiration date
+      description: User session information containing authentication and profile details
+    ShareUnlock:
+      type: object
+      required:
+        - password
+      properties:
+        password:
+          type: string
+          description: Share password
+          example: securepass123
+    Source:
+      type: object
+      required:
+        - id
+        - name
+        - type
+        - parentId
+      properties:
+        id:
+          allOf:
+            - $ref: '#/components/schemas/UUID'
+          description: File ID
+          example: 123e4567-e89b-12d3-a456-426614174000
+        name:
+          type: string
+          description: File name
+          example: document.pdf
+        type:
+          type: string
+          enum:
+            - folder
+            - file
+          description: File type
+          example: file
+        parentId:
+          allOf:
+            - $ref: '#/components/schemas/UUID'
+          description: Parent ID
+          example: 123e4567-e89b-12d3-a456-426614174000
+        destParentId:
+          allOf:
+            - $ref: '#/components/schemas/UUID'
+          description: Destination Parent ID
+          example: 123e4567-e89b-12d3-a456-426614174000
+        path:
+          type: string
+          description: Full path of the file/folder (e.g., 'documents/projects/file.txt')
+          example: documents/2023/report.pdf
+    SyncArgs:
+      type: object
+      required:
+        - source
+        - destinationDir
+      properties:
+        source:
+          type: string
+        destinationDir:
+          type: string
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+        proxy:
+          type: string
+        filters:
+          $ref: '#/components/schemas/SyncFilters'
+        options:
+          $ref: '#/components/schemas/SyncOptions'
+    SyncFilters:
+      type: object
+      properties:
+        include:
+          type: array
+          items:
+            type: string
+        exclude:
+          type: array
+          items:
+            type: string
+        minSize:
+          type: integer
+          format: int64
+        maxSize:
+          type: integer
+          format: int64
+        excludeIfPresent:
+          type: array
+          items:
+            type: string
+    SyncOptions:
+      type: object
+      properties:
+        partSize:
+          type: integer
+          format: int64
+        encrypted:
+          type: boolean
+        sync:
+          type: boolean
+    UUID:
+      type: string
+      format: uuid
+    UploadPart:
+      type: object
+      required:
+        - name
+        - partId
+        - partNo
+        - channelId
+        - size
+        - encrypted
+      properties:
+        name:
+          type: string
+          description: Name identifier of the part
+        partId:
+          type: integer
+          description: Telegram Message ID
+        partNo:
+          type: integer
+          description: Sequential number of the part
+        channelId:
+          type: integer
+          format: int64
+          description: Channel identifier associated with the upload
+        size:
+          type: integer
+          format: int64
+          description: Size of the part in bytes
+        encrypted:
+          type: boolean
+          description: Indicates if the part is encrypted
+        salt:
+          type: string
+          description: Salt value used for encryption, required if encrypted is true
+      description: Details of an uploaded part
+    UploadStats:
+      type: object
+      required:
+        - uploadDate
+        - totalUploaded
+      properties:
+        uploadDate:
+          type: string
+          format: date-time
+          description: Date and time when the upload occurred
+        totalUploaded:
+          type: integer
+          format: int64
+          description: Total number of bytes uploaded
+      description: Statistics about the upload
+    UserApiKey:
+      type: object
+      required:
+        - id
+        - name
+        - createdAt
+      properties:
+        id:
+          allOf:
+            - $ref: '#/components/schemas/UUID'
+          description: API key ID
+          example: 123e4567-e89b-12d3-a456-426614174000
+        name:
+          type: string
+          description: Display name for the API key
+          example: CI deploy key
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation date and time
+        expiresAt:
+          type: string
+          format: date-time
+          description: Optional expiration date and time
+        lastUsedAt:
+          type: string
+          format: date-time
+          description: Last used date and time
+      description: API key metadata
+    UserApiKeyCreate:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          description: Display name for the API key
+          example: CI deploy key
+        expiresAt:
+          type: string
+          format: date-time
+          description: Optional expiration date. Omit for no expiry
+      description: Create API key request
+    UserApiKeyCreateResult:
+      type: object
+      required:
+        - id
+        - name
+        - createdAt
+        - key
+      properties:
+        id:
+          allOf:
+            - $ref: '#/components/schemas/UUID'
+          description: API key ID
+          example: 123e4567-e89b-12d3-a456-426614174000
+        name:
+          type: string
+          description: Display name for the API key
+          example: CI deploy key
+        createdAt:
+          type: string
+          format: date-time
+          description: Creation date and time
+        expiresAt:
+          type: string
+          format: date-time
+          description: Optional expiration date and time
+        lastUsedAt:
+          type: string
+          format: date-time
+          description: Last used date and time
+        key:
+          type: string
+          description: Plain API key value (returned only once)
+          example: tdk_abc123
+      description: API key creation response
+    UserConfig:
+      type: object
+      required:
+        - channelId
+        - bots
+      properties:
+        channelId:
+          type: integer
+          format: int64
+          description: Channel identifier associated with the user
+        bots:
+          type: array
+          items:
+            type: string
+          description: List of bot tokens
+      description: User configuration for channel and bot settings
+      example:
+        channelId: 123456789
+        bots:
+          - bot1
+          - bot2
+    UserSession:
+      type: object
+      required:
+        - sessionId
+        - createdAt
+        - valid
+        - current
+      properties:
+        sessionId:
+          allOf:
+            - $ref: '#/components/schemas/UUID'
+          description: Unique identifier for the session
+        hash:
+          type: string
+          description: Compatibility alias for session ID
+        createdAt:
+          type: string
+          format: date-time
+          description: Session creation timestamp
+        location:
+          type: string
+          description: Geographic location where session was created
+        officialApp:
+          type: boolean
+          description: Indicates if session is from an official Telegram app
+        appName:
+          type: string
+          description: Name of the application used for session
+        valid:
+          type: boolean
+          description: Indicates if the session is still valid
+        current:
+          type: boolean
+          description: Indicates if this is the currently active session
+      description: User session information
+      example:
+        sessionId: 123e4567-e89b-12d3-a456-426614174000
+        createdAt: '2023-10-21T07:28:00Z'
+        location: New York, USA
+        officialApp: true
+        appName: Telegram
+        valid: true
+        current: true
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: Bearer
+    AccessTokenCookieAuth:
+      type: apiKey
+      in: cookie
+      name: access_token
+    XApiKeyHeaderAuth:
+      type: apiKey
+      in: header
+      name: X-Api-Key
+    SessionHashAuth:
+      type: apiKey
+      in: query
+      name: sid
+servers:
+  - url: '{url}/api'
+    description: Teldrive Server URL
+    variables:
+      url:
+        default: ''

@@ -52,11 +52,6 @@ func TestConfigLoader_LoadDefaults(t *testing.T) {
 	assert.Equal(t, 10*time.Minute, cfg.DB.Pool.MaxLifetime)
 	assert.Equal(t, true, cfg.DB.PrepareStmt)
 	assert.Equal(t, "error", cfg.Log.DB.Level)
-	assert.Equal(t, true, cfg.CronJobs.Enable)
-	assert.Equal(t, "cron-locker", cfg.CronJobs.LockerInstance)
-	assert.Equal(t, time.Hour, cfg.CronJobs.CleanFilesInterval)
-	assert.Equal(t, 12*time.Hour, cfg.CronJobs.CleanUploadsInterval)
-	assert.Equal(t, 2*time.Hour, cfg.CronJobs.FolderSizeInterval)
 	assert.Equal(t, true, cfg.TG.RateLimit)
 	assert.Equal(t, 5, cfg.TG.RateBurst)
 	assert.Equal(t, 100, cfg.TG.Rate)
@@ -70,6 +65,9 @@ func TestConfigLoader_LoadDefaults(t *testing.T) {
 	assert.Equal(t, 8, cfg.TG.Uploads.Threads)
 	assert.Equal(t, 10, cfg.TG.Uploads.MaxRetries)
 	assert.Equal(t, 7*24*time.Hour, cfg.TG.Uploads.Retention)
+	assert.Equal(t, "random", cfg.TG.Uploads.ChunkNaming)
+	assert.Equal(t, "", cfg.TG.MTProxy.Addr)
+	assert.Equal(t, "", cfg.TG.MTProxy.Secret)
 	assert.Equal(t, 30*24*time.Hour, cfg.JWT.SessionTime)
 
 	// Redis config defaults
@@ -80,6 +78,11 @@ func TestConfigLoader_LoadDefaults(t *testing.T) {
 	assert.Equal(t, 10, cfg.Redis.MaxIdleConns)
 	assert.Equal(t, 5*time.Minute, cfg.Redis.ConnMaxIdleTime)
 	assert.Equal(t, time.Hour, cfg.Redis.ConnMaxLifetime)
+	assert.Equal(t, 50, cfg.Queue.DefaultWorkers)
+	assert.Equal(t, 4, cfg.Queue.UploadWorkers)
+	assert.Equal(t, 8, cfg.Jobs.SyncRun.MaxAttempts)
+	assert.Equal(t, 2, cfg.Jobs.SyncTransfer.MaxAttempts)
+	assert.Equal(t, 3*time.Hour, cfg.Jobs.SyncTransfer.Timeout)
 }
 
 func TestConfigLoader_LoadFromConfigFile(t *testing.T) {
@@ -232,6 +235,9 @@ cache:
 tg:
   rate: 200
   rate-limit: false
+  mtproxy:
+    addr: "127.0.0.1:443"
+    secret: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"
 `
 	err := os.WriteFile(configPath, []byte(configContent), 0644)
 	require.NoError(t, err)
@@ -258,6 +264,8 @@ tg:
 	assert.Equal(t, 20971520, cfg.Cache.MaxSize)
 	assert.Equal(t, 200, cfg.TG.Rate)
 	assert.Equal(t, false, cfg.TG.RateLimit)
+	assert.Equal(t, "127.0.0.1:443", cfg.TG.MTProxy.Addr)
+	assert.Equal(t, "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", cfg.TG.MTProxy.Secret)
 
 	// Test that other values still use defaults
 	assert.Equal(t, time.Hour, cfg.Server.ReadTimeout)
@@ -297,6 +305,14 @@ func TestConfigLoader_FlagDefaults(t *testing.T) {
 	rateFlag := cmd.Flags().Lookup("tg-rate")
 	require.NotNil(t, rateFlag)
 	assert.Equal(t, "100", rateFlag.DefValue)
+
+	mtProxyAddrFlag := cmd.Flags().Lookup("tg-mtproxy-addr")
+	require.NotNil(t, mtProxyAddrFlag)
+	assert.Equal(t, "", mtProxyAddrFlag.DefValue)
+
+	mtProxySecretFlag := cmd.Flags().Lookup("tg-mtproxy-secret")
+	require.NotNil(t, mtProxySecretFlag)
+	assert.Equal(t, "", mtProxySecretFlag.DefValue)
 }
 
 func TestConfigLoader_LoadFromEnv(t *testing.T) {
@@ -310,10 +326,14 @@ func TestConfigLoader_LoadFromEnv(t *testing.T) {
 	require.NoError(t, os.Setenv("TELDRIVE_LOG_LEVEL", "debug"))
 	// Nested key
 	require.NoError(t, os.Setenv("TELDRIVE_TG_UPLOADS_THREADS", "16"))
+	require.NoError(t, os.Setenv("TELDRIVE_TG_MTPROXY_ADDR", "127.0.0.1:443"))
+	require.NoError(t, os.Setenv("TELDRIVE_TG_MTPROXY_SECRET", "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"))
 
 	defer func() { os.Unsetenv("TELDRIVE_SERVER_PORT") }()
 	defer func() { os.Unsetenv("TELDRIVE_LOG_LEVEL") }()
 	defer func() { os.Unsetenv("TELDRIVE_TG_UPLOADS_THREADS") }()
+	defer func() { os.Unsetenv("TELDRIVE_TG_MTPROXY_ADDR") }()
+	defer func() { os.Unsetenv("TELDRIVE_TG_MTPROXY_SECRET") }()
 
 	err := loader.Load(cmd, &cfg)
 	require.NoError(t, err)
@@ -321,6 +341,8 @@ func TestConfigLoader_LoadFromEnv(t *testing.T) {
 	assert.Equal(t, 7070, cfg.Server.Port)
 	assert.Equal(t, "debug", cfg.Log.Level)
 	assert.Equal(t, 16, cfg.TG.Uploads.Threads)
+	assert.Equal(t, "127.0.0.1:443", cfg.TG.MTProxy.Addr)
+	assert.Equal(t, "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", cfg.TG.MTProxy.Secret)
 }
 
 func TestConfigLoader_Priority(t *testing.T) {
@@ -406,6 +428,22 @@ func TestConfigLoader_CustomEnvMapping(t *testing.T) {
 			},
 		},
 		{
+			// Deep nesting: tg.mtproxy.addr
+			envKey: "TELDRIVE_TG_MTPROXY_ADDR",
+			envVal: "10.0.0.1:443",
+			check: func(t *testing.T, c *ServerCmdConfig) {
+				assert.Equal(t, "10.0.0.1:443", c.TG.MTProxy.Addr)
+			},
+		},
+		{
+			// Deep nesting: tg.mtproxy.secret
+			envKey: "TELDRIVE_TG_MTPROXY_SECRET",
+			envVal: "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+			check: func(t *testing.T, c *ServerCmdConfig) {
+				assert.Equal(t, "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", c.TG.MTProxy.Secret)
+			},
+		},
+		{
 			// Deep nesting + Dashed key: tg.uploads.encryption-key
 			envKey: "TELDRIVE_TG_UPLOADS_ENCRYPTION_KEY",
 			envVal: "supersecret",
@@ -452,4 +490,48 @@ func TestConfigLoader_CustomEnvMapping(t *testing.T) {
 			tt.check(t, &config)
 		})
 	}
+}
+
+func TestDefaultServerConfigMap(t *testing.T) {
+	defaults := DefaultServerConfigMap()
+
+	server, ok := defaults["server"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, 8080, server["port"])
+	assert.Equal(t, "10s", server["graceful-shutdown"])
+
+	jwt, ok := defaults["jwt"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "", jwt["secret"])
+	assert.Equal(t, []string{}, jwt["allowed-users"])
+
+	redis, ok := defaults["redis"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "", redis["addr"])
+	assert.Equal(t, "", redis["password"])
+
+	queue, ok := defaults["queue"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, 50, queue["default-workers"])
+	assert.Equal(t, 4, queue["upload-workers"])
+
+	jobs, ok := defaults["jobs"].(map[string]any)
+	require.True(t, ok)
+	syncRun, ok := jobs["sync-run"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, 8, syncRun["max-attempts"])
+	syncTransfer, ok := jobs["sync-transfer"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, 2, syncTransfer["max-attempts"])
+	assert.Equal(t, "3h", syncTransfer["timeout"])
+
+	tg, ok := defaults["tg"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "", tg["proxy"])
+
+	mtproxy, ok := tg["mtproxy"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "", mtproxy["addr"])
+	assert.Equal(t, "", mtproxy["secret"])
+	assert.Equal(t, false, tg["enable-logging"])
 }

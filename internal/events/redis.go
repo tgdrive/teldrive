@@ -6,10 +6,9 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"github.com/tgdrive/teldrive/pkg/dto"
+	"github.com/tgdrive/teldrive/pkg/repositories"
 	"go.uber.org/zap"
-	"gorm.io/gorm"
-
-	"github.com/tgdrive/teldrive/pkg/models"
 )
 
 // RedisBroadcaster implements EventBroadcaster using Redis Pub/Sub for distributed setups
@@ -19,10 +18,10 @@ type RedisBroadcaster struct {
 }
 
 // NewRedisBroadcaster creates a new Redis-based event broadcaster
-func NewRedisBroadcaster(ctx context.Context, db *gorm.DB, redisClient *redis.Client, config BroadcasterConfig, logger *zap.Logger) *RedisBroadcaster {
+func NewRedisBroadcaster(ctx context.Context, eventsRepo repositories.EventRepository, redisClient *redis.Client, config BroadcasterConfig, logger *zap.Logger) *RedisBroadcaster {
 	ctx, cancel := context.WithCancel(ctx)
 	b := &RedisBroadcaster{
-		baseBroadcaster: newBaseBroadcaster(db, logger, ctx, cancel, config),
+		baseBroadcaster: newBaseBroadcaster(eventsRepo, logger, ctx, cancel, config),
 		redisClient:     redisClient,
 	}
 
@@ -85,7 +84,7 @@ func (b *RedisBroadcaster) subscribe() {
 					}
 				}
 
-				var evt models.Event
+				var evt dto.Event
 				if err := json.Unmarshal([]byte(msg.Payload), &evt); err != nil {
 					b.logger.Error("events.failed_to_unmarshal",
 						zap.Error(err),
@@ -114,7 +113,7 @@ func (b *RedisBroadcaster) subscribe() {
 // Record saves an event to the database and publishes it to Redis
 // Does NOT broadcast locally - the subscribe() loop will handle broadcasting
 // when the message comes back from Redis (ensuring single broadcast)
-func (b *RedisBroadcaster) Record(eventType EventType, userID int64, source *models.Source) {
+func (b *RedisBroadcaster) Record(eventType EventType, userID int64, source *dto.Source) {
 	evt := createEvent(eventType, userID, source)
 
 	// Queue for DB write (non-blocking)

@@ -1,0 +1,200 @@
+:root {
+  /* Brand colors */
+  --vp-c-brand: #3390ff;
+  --vp-c-brand-light: #4da0ff;
+  --vp-c-brand-lighter: #66b0ff;
+  --vp-c-brand-dark: #1a7cff;
+  --vp-c-brand-darker: #0066ff;
+  
+  /* Hero section */
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: linear-gradient(120deg, #0066ff 20%, #00b3ff 60%, #00dfff 100%);
+  --vp-home-hero-image-background-image: linear-gradient(135deg, #0066ff 0%, #00b3ff 50%, #00dfff 100%);
+  --vp-home-hero-image-filter: blur(28px);
+  
+  /* Custom container colors */
+  --vp-custom-block-tip-border: var(--vp-c-brand);
+  --vp-custom-block-tip-text: var(--vp-c-brand-darker);
+  --vp-custom-block-tip-bg: rgba(51, 144, 255, 0.1);
+  
+  /* Heading anchors */
+  --vp-c-text-code: #476582;
+  
+  /* Code blocks */
+  --vp-code-block-bg: rgba(125, 125, 125, 0.035);
+  --vp-code-tab-divider: rgba(125, 125, 125, 0.1);
+  --vp-code-copy-code-bg: rgba(125, 125, 125, 0.1);
+  --vp-code-copy-code-hover-bg: rgba(125, 125, 125, 0.2);
+  
+  /* Typography */
+  --vp-font-family-base: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+    Roboto, Oxygen, Ubuntu, Cantarell, 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  --vp-font-family-mono: 'JetBrains Mono', SFMono-Regular, Menlo, Monaco, Consolas,
+    'Liberation Mono', 'Courier New', monospace;
+}
+
+/* Dark mode adjustments */
+.dark {
+  --vp-c-bg: #1a1a1a;
+  --vp-c-bg-alt: #161616;
+  --vp-c-bg-soft: #222222;
+  --vp-code-block-bg: rgba(0, 0, 0, 0.16);
+  --vp-c-text-code: #c0c7db;
+}
+
+/* Typography */
+:root {
+  --vp-c-text-1: #213547;
+  --vp-c-text-2: #3b4b5c;
+  --vp-c-text-3: #5d6b7a;
+}
+
+.dark {
+  --vp-c-text-1: rgba(255, 255, 255, 0.92);
+  --vp-c-text-2: rgba(255, 255, 255, 0.8);
+  --vp-c-text-3: rgba(255, 255, 255, 0.65);
+}
+
+/* Button styles */
+:root {
+  --vp-button-brand-border: var(--vp-c-brand-light);
+  --vp-button-brand-text: #fff;
+  --vp-button-brand-bg: var(--vp-c-brand);
+  --vp-button-brand-hover-border: var(--vp-c-brand-light);
+  --vp-button-brand-hover-text: #fff;
+  --vp-button-brand-hover-bg: var(--vp-c-brand-light);
+  --vp-button-brand-active-border: var(--vp-c-brand-light);
+  --vp-button-brand-active-text: #fff;
+  --vp-button-brand-active-bg: var(--vp-c-brand-dark);
+}
+
+/* Link styles */
+:root {
+  --vp-c-brand-1: var(--vp-c-brand);
+  --vp-c-brand-2: var(--vp-c-brand-light);
+  --vp-c-brand-3: var(--vp-c-brand-lighter);
+}
+
+/* Code blocks */
+div[class*='language-'] {
+  border-radius: 10px;
+  border: 1px solid rgba(125, 125, 125, 0.12);
+}
+
+
+.VPNavBar.has-sidebar .curtain {
+  background-color: rgba(125, 125, 125, 0.1);
+  backdrop-filter: blur(6px);
+}
+
+/* Link hover animation */
+.VPLink:hover {
+  transition: color 0.15s ease;
+}
+
+/* Sidebar refinements */
+.VPSidebarItem.is-active > .item > .VPLink {
+  background-color: rgba(51, 144, 255, 0.1);
+  border-radius: 8px;
+  padding: 6px 12px;
+  margin-left: -12px;
+  margin-right: -12px;
+}
+
+.VPSidebar .link {
+  padding: 5px 0;
+}
+
+.VPSidebarItem .item {
+  padding: 2px 0;
+}
+
+.VPSidebarItem .VPLink {
+  padding: 4px 0;
+}
+
+/* Table styling */
+table {
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid rgba(125, 125, 125, 0.12);
+  box-shadow: none;
+}
+
+table th {
+  background-color: rgba(51, 144, 255, 0.05);
+  font-weight: 600;
+}
+
+html.dark table th {
+  background-color: rgba(51, 144, 255, 0.1);
+}
+
+/* Card-like blocks */
+.vp-doc div[class*='language-'],
+.vp-doc .custom-block {
+  box-shadow: none;
+  border: 1px solid rgba(125, 125, 125, 0.1);
+}
+
+/* Image drop shadow */
+.vp-doc img {
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+/* Details/summary refinements */
+.vp-doc details {
+  border: 1px solid rgba(125, 125, 125, 0.1);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+  box-shadow: none;
+}
+
+.vp-doc summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+
+/* Add bottom margin to home features */
+.VPFeatures {
+  margin-bottom: 3rem;
+}
+
+@media (max-width: 640px) {
+  .vp-doc table {
+    display: block;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+}
+
+.api-reference-page .VPDoc {
+  padding: 0;
+}
+
+.api-reference-page .container,
+.api-reference-page .content,
+.api-reference-page .content-container {
+  max-width: 100% !important;
+}
+
+.api-reference-page .content-container {
+  padding: 0 !important;
+}
+
+.api-reference-page .main {
+  padding: 0 !important;
+}
+
+.api-reference-page .vp-doc {
+  padding: 0;
+}
+
+.api-reference-page .td-api-page {
+  min-height: calc(100vh - var(--vp-nav-height));
+}

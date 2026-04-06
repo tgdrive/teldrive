@@ -2,18 +2,19 @@ package services
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/tgdrive/teldrive/internal/api"
-	"github.com/tgdrive/teldrive/internal/appcontext"
 	"github.com/tgdrive/teldrive/internal/cache"
-	"github.com/tgdrive/teldrive/internal/database"
+	jetmodel "github.com/tgdrive/teldrive/internal/database/jet/gen/model"
 	"github.com/tgdrive/teldrive/pkg/mapper"
-	"github.com/tgdrive/teldrive/pkg/models"
+	"github.com/tgdrive/teldrive/pkg/repositories"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -22,59 +23,66 @@ var (
 	ErrInvalidPassword = errors.New("invalid password")
 	ErrEmptyAuth       = errors.New("empty auth")
 	ErrShareExpired    = errors.New("share expired")
+	ErrInvalidShareTok = errors.New("invalid share token")
 )
 
-type fileShare struct {
-	models.FileShare
-	Type api.FileShareInfoType
-	Name string
-	Path string
+const shareCookieName = "share_token"
+
+type shareTokenClaims struct {
+	ShareID string `json:"shareId"`
+	UserID  int64  `json:"userId"`
+	jwt.RegisteredClaims
 }
 
-func (a *apiService) shareGetById(id string) (*fileShare, error) {
-	var result []struct {
-		models.FileShare
-		Type api.FileShareInfoType `gorm:"column:type"`
-		Name string                `gorm:"column:name"`
-	}
+type fileShare struct {
+	ID        string
+	FileID    string
+	Password  *string
+	ExpiresAt *time.Time
+	UserID    int64
+	Type      api.FileShareInfoType
+	Name      string
+	Path      string
+}
 
-	if err := a.db.Model(&models.FileShare{}).Where("file_shares.id = ?", id).
-		Select("file_shares.*", "f.type", "f.name").
-		Joins("left join teldrive.files as f on f.id = file_shares.file_id").
-		Scan(&result).Error; err != nil {
-		return nil, &apiError{err: err}
-	}
-
-	if len(result) == 0 {
+func (a *apiService) shareGetById(ctx context.Context, shareID uuid.UUID) (*fileShare, error) {
+	share, err := a.repo.Shares.GetByID(ctx, shareID)
+	if err != nil {
 		return nil, &apiError{err: ErrShareNotFound, code: http.StatusNotFound}
 	}
-
-	if result[0].ExpiresAt != nil && result[0].ExpiresAt.Before(time.Now().UTC()) {
+	if share.ExpiresAt != nil && share.ExpiresAt.Before(time.Now().UTC()) {
 		return nil, &apiError{err: ErrShareExpired, code: http.StatusNotFound}
 	}
-
-	path, err := a.getFullPath(a.db, result[0].FileId)
+	file, err := a.repo.Files.GetByID(ctx, share.FileID)
+	if err != nil {
+		return nil, &apiError{err: err}
+	}
+	path, err := a.repo.Files.GetFullPath(ctx, share.FileID)
 	if err != nil {
 		return nil, &apiError{err: err}
 	}
 
 	return &fileShare{
-		FileShare: result[0].FileShare,
-		Type:      result[0].Type,
-		Name:      result[0].Name,
+		ID:        share.ID.String(),
+		FileID:    share.FileID.String(),
+		Password:  share.Password,
+		ExpiresAt: share.ExpiresAt,
+		UserID:    share.UserID,
+		Type:      api.FileShareInfoType(file.Type),
+		Name:      file.Name,
 		Path:      path,
 	}, nil
 }
 
 func (a *apiService) SharesGetById(ctx context.Context, params api.SharesGetByIdParams) (*api.FileShareInfo, error) {
-	share, err := a.shareGetById(params.ID)
+	share, err := a.shareGetById(ctx, uuid.UUID(params.ID))
 
 	if err != nil {
 		return nil, err
 	}
 	res := &api.FileShareInfo{
 		Protected: share.Password != nil,
-		UserId:    share.UserId,
+		UserId:    share.UserID,
 		Type:      share.Type,
 		Name:      share.Name,
 	}
@@ -84,77 +92,153 @@ func (a *apiService) SharesGetById(ctx context.Context, params api.SharesGetById
 	return res, nil
 }
 
-func (a *apiService) SharesUnlock(ctx context.Context, req *api.ShareUnlock, params api.SharesUnlockParams) error {
-	var result []models.FileShare
-
-	if err := a.db.Model(&models.FileShare{}).Where("id = ?", params.ID).Find(&result).Error; err != nil {
-		return &apiError{err: err}
+func (a *apiService) issueShareToken(share *jetmodel.FileShares) (string, time.Time, error) {
+	expiresAt := time.Now().UTC().Add(24 * time.Hour)
+	if share.ExpiresAt != nil && share.ExpiresAt.Before(expiresAt) {
+		expiresAt = *share.ExpiresAt
 	}
-
-	if len(result) == 0 {
-		return &apiError{err: ErrShareNotFound, code: http.StatusNotFound}
+	claims := &shareTokenClaims{
+		ShareID: share.ID.String(),
+		UserID:  share.UserID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   share.ID.String(),
+			ExpiresAt: jwt.NewNumericDate(expiresAt),
+			IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
+		},
 	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	signed, err := token.SignedString([]byte(a.cnf.JWT.Secret))
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	return signed, expiresAt, nil
+}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(*result[0].Password), []byte(req.Password)); err != nil {
-		return &apiError{err: ErrInvalidPassword, code: http.StatusForbidden}
+func (a *apiService) validateShareToken(token, shareID string) error {
+	if token == "" {
+		return ErrEmptyAuth
+	}
+	parsed, err := jwt.ParseWithClaims(token, &shareTokenClaims{}, func(token *jwt.Token) (interface{}, error) {
+		return []byte(a.cnf.JWT.Secret), nil
+	})
+	if err != nil {
+		return ErrInvalidShareTok
+	}
+	claims, ok := parsed.Claims.(*shareTokenClaims)
+	if !ok || !parsed.Valid {
+		return ErrInvalidShareTok
+	}
+	if claims.ShareID != shareID {
+		return ErrInvalidShareTok
 	}
 	return nil
 }
 
+func (a *apiService) SharesUnlock(ctx context.Context, req *api.ShareUnlock, params api.SharesUnlockParams) (*api.SharesUnlockNoContent, error) {
+	share, err := a.repo.Shares.GetByID(ctx, uuid.UUID(params.ID))
+	if err != nil {
+		return nil, &apiError{err: ErrShareNotFound, code: http.StatusNotFound}
+	}
+	if share.Password == nil {
+		return &api.SharesUnlockNoContent{SetCookie: setCookie(ctx, shareCookieName, "", -1)}, nil
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(*share.Password), []byte(req.Password)); err != nil {
+		return nil, &apiError{err: ErrInvalidPassword, code: http.StatusForbidden}
+	}
+	token, expiresAt, err := a.issueShareToken(share)
+	if err != nil {
+		return nil, &apiError{err: err}
+	}
+	maxAge := int(time.Until(expiresAt).Seconds())
+	if maxAge < 0 {
+		maxAge = 0
+	}
+	return &api.SharesUnlockNoContent{SetCookie: setCookie(ctx, shareCookieName, token, maxAge)}, nil
+}
+
 func (a *apiService) SharesListFiles(ctx context.Context, params api.SharesListFilesParams) (*api.FileList, error) {
-	c := ctx.(*appcontext.Context)
-	share, err := a.validFileShare(c.Request, params.ID)
+	share, err := a.validFileShare(ctx, uuid.UUID(params.ID), params.ShareToken.Or(""))
 	if err != nil {
 		return nil, err
 	}
 	fileType := share.Type
 
 	if fileType == api.FileShareInfoTypeFolder {
-		queryBuilder := &fileQueryBuilder{db: a.db}
-		return queryBuilder.execute(&api.FilesListParams{
-			Path:      api.NewOptString(share.Path + params.Path.Or("")),
-			Limit:     params.Limit,
-			Page:      params.Page,
-			Status:    api.NewOptFileQueryStatus(api.FileQueryStatusActive),
-			Order:     api.NewOptFileQueryOrder(api.FileQueryOrder(string(params.Order.Value))),
-			Sort:      api.NewOptFileQuerySort(api.FileQuerySort(string(params.Sort.Value))),
-			Operation: api.NewOptFileQueryOperation(api.FileQueryOperationList)}, share.UserId)
+		qParams := repositories.FileQueryParams{
+			UserID:    share.UserID,
+			Operation: "list",
+			Status:    "active",
+			Path:      share.Path + params.Path.Or(""),
+			Sort:      string(params.Sort.Value),
+			Order:     string(params.Order.Value),
+			Limit:     params.Limit.Value,
+			Cursor:    params.Cursor.Value,
+		}
+
+		res, err := a.repo.Files.List(ctx, qParams)
+		if err != nil {
+			return nil, &apiError{err: err}
+		}
+
+		items := make([]api.File, 0, len(res))
+		for _, item := range res {
+			items = append(items, *mapper.ToJetFileOut(item))
+		}
+
+		var nextCursor api.OptString
+		if len(res) > 0 && len(res) == qParams.Limit {
+			last := res[len(res)-1]
+			cursorVal := last.UpdatedAt.Format(time.RFC3339Nano)
+			switch strings.ToLower(qParams.Sort) {
+			case "name":
+				cursorVal = last.Name
+			case "size":
+				if last.Size != nil {
+					cursorVal = strconv.FormatInt(*last.Size, 10)
+				}
+			case "id":
+				cursorVal = last.ID.String()
+			}
+			nextCursor.SetTo(cursorVal + ":" + last.ID.String())
+		}
+
+		return &api.FileList{Items: items, Meta: api.Meta{NextCursor: nextCursor}}, nil
 	} else {
-		var file models.File
-		if err := a.db.Where("id = ?", share.FileId).First(&file).Error; err != nil {
-			if database.IsRecordNotFoundErr(err) {
-				return nil, &apiError{err: database.ErrNotFound, code: http.StatusNotFound}
+		fileID, err := uuid.Parse(share.FileID)
+		if err != nil {
+			return nil, &apiError{err: err, code: http.StatusBadRequest}
+		}
+		file, err := a.repo.Files.GetByID(ctx, fileID)
+		if err != nil {
+			if errors.Is(err, repositories.ErrNotFound) {
+				return nil, &apiError{err: ErrShareNotFound, code: http.StatusNotFound}
 			}
 			return nil, &apiError{err: err}
 		}
-		return &api.FileList{Items: []api.File{*mapper.ToFileOut(file)},
-			Meta: api.Meta{Count: 1, TotalPages: 1, CurrentPage: 1}}, nil
+		return &api.FileList{Items: []api.File{*mapper.ToJetFileOut(*file)}, Meta: api.Meta{}}, nil
 	}
 
 }
-func (a *apiService) validFileShare(r *http.Request, id string) (*fileShare, error) {
+func (a *apiService) validFileShare(ctx context.Context, id uuid.UUID, shareToken string) (*fileShare, error) {
 
-	share, err := cache.FetchArg(r.Context(), a.cache, cache.KeyShare(id), 0, a.shareGetById, id)
+	share, err := cache.Fetch(ctx, a.cache, cache.KeyShare(id.String()), 0, func() (*fileShare, error) {
+		return a.shareGetById(ctx, id)
+	})
 
 	if err != nil {
 		return nil, &apiError{err: err}
 	}
 
 	if share.Password != nil {
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
+		if shareToken == "" {
 			return nil, &apiError{err: ErrEmptyAuth, code: http.StatusUnauthorized}
 		}
-		bytes, err := base64.StdEncoding.DecodeString(strings.TrimPrefix(authHeader, "Basic "))
-		if err != nil {
-			return nil, &apiError{err: err}
-		}
-		password := strings.Split(string(bytes), ":")[1]
-
-		if err := bcrypt.CompareHashAndPassword([]byte(*share.Password), []byte(password)); err != nil {
+		if err := a.validateShareToken(shareToken, share.ID); err != nil {
+			if errors.Is(err, ErrEmptyAuth) {
+				return nil, &apiError{err: err, code: http.StatusUnauthorized}
+			}
 			return nil, &apiError{err: ErrInvalidPassword, code: http.StatusUnauthorized}
 		}
-
 	}
 	return share, nil
 }

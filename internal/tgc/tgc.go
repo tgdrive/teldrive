@@ -2,6 +2,8 @@ package tgc
 
 import (
 	"context"
+	"encoding/hex"
+	"fmt"
 	"strings"
 	"time"
 
@@ -20,21 +22,16 @@ import (
 	"github.com/tgdrive/teldrive/internal/retry"
 	"github.com/tgdrive/teldrive/internal/tgstorage"
 	"github.com/tgdrive/teldrive/internal/utils"
+	"github.com/tgdrive/teldrive/pkg/repositories"
 	"go.uber.org/zap"
 	"golang.org/x/net/proxy"
 	"golang.org/x/time/rate"
-	"gorm.io/gorm"
 )
 
 func newClient(ctx context.Context, config *config.TGConfig, handler telegram.UpdateHandler, storage session.Storage, middlewares ...telegram.Middleware) (*telegram.Client, error) {
-
-	var dialer dcs.DialFunc = proxy.Direct.DialContext
-	if config.Proxy != "" {
-		d, err := utils.Proxy.GetDial(config.Proxy)
-		if err != nil {
-			return nil, errors.Wrap(err, "get dialer")
-		}
-		dialer = d.DialContext
+	resolver, err := resolverFromConfig(config)
+	if err != nil {
+		return nil, err
 	}
 
 	var logger *zap.Logger
@@ -43,9 +40,7 @@ func newClient(ctx context.Context, config *config.TGConfig, handler telegram.Up
 	}
 
 	opts := telegram.Options{
-		Resolver: dcs.Plain(dcs.PlainOptions{
-			Dial: dialer,
-		}),
+		Resolver: resolver,
 		ReconnectionBackoff: func() backoff.BackOff {
 			return newBackoff(config.ReconnectTimeout)
 		},
@@ -60,13 +55,13 @@ func newClient(ctx context.Context, config *config.TGConfig, handler telegram.Up
 		SessionStorage: storage,
 		RetryInterval:  2 * time.Second,
 		MaxRetries:     20,
-		DialTimeout:    10 * time.Second,
+		DialTimeout:    config.DialTimeout,
 		Middlewares:    middlewares,
 		UpdateHandler:  handler,
 		Logger:         logger,
 	}
 	if config.Ntp {
-		c, err := clock.NewNTP()
+		c, err := clock.NewNTP(config.NtpServer)
 		if err != nil {
 			return nil, errors.Wrap(err, "create clock")
 		}
@@ -74,7 +69,52 @@ func newClient(ctx context.Context, config *config.TGConfig, handler telegram.Up
 
 	}
 
-	return telegram.NewClient(config.AppId, config.AppHash, opts), nil
+	return telegram.NewClient(config.AppID, config.AppHash, opts), nil
+}
+
+func resolverFromConfig(config *config.TGConfig) (dcs.Resolver, error) {
+	if config == nil {
+		return nil, fmt.Errorf("telegram config is nil")
+	}
+
+	mtProxyAddr := strings.TrimSpace(config.MTProxy.Addr)
+	mtProxySecret := strings.TrimSpace(config.MTProxy.Secret)
+	hasMTProxy := mtProxyAddr != "" || mtProxySecret != ""
+
+	if hasMTProxy {
+		if strings.TrimSpace(config.Proxy) != "" {
+			return nil, fmt.Errorf("tg.proxy and tg.mtproxy cannot be used together")
+		}
+		if mtProxyAddr == "" {
+			return nil, fmt.Errorf("tg.mtproxy.addr is required when tg.mtproxy is configured")
+		}
+		if mtProxySecret == "" {
+			return nil, fmt.Errorf("tg.mtproxy.secret is required when tg.mtproxy is configured")
+		}
+
+		secret, err := hex.DecodeString(mtProxySecret)
+		if err != nil {
+			return nil, errors.Wrap(err, "decode tg.mtproxy.secret")
+		}
+
+		resolver, err := dcs.MTProxy(mtProxyAddr, secret, dcs.MTProxyOptions{})
+		if err != nil {
+			return nil, errors.Wrap(err, "create tg.mtproxy resolver")
+		}
+
+		return resolver, nil
+	}
+
+	var dialer dcs.DialFunc = proxy.Direct.DialContext
+	if config.Proxy != "" {
+		d, err := utils.Proxy.GetDial(config.Proxy)
+		if err != nil {
+			return nil, errors.Wrap(err, "get dialer")
+		}
+		dialer = d.DialContext
+	}
+
+	return dcs.Plain(dcs.PlainOptions{Dial: dialer}), nil
 }
 
 func NoAuthClient(ctx context.Context, config *config.TGConfig, handler telegram.UpdateHandler, storage session.Storage) (*telegram.Client, error) {
@@ -106,10 +146,10 @@ func AuthClient(ctx context.Context, config *config.TGConfig, sessionStr string,
 // BotClient creates a Telegram client for bot authentication.
 // Uses database-backed session storage for persistent bot sessions.
 // Note: storage remains open for client's lifetime - do not close it here
-func BotClient(ctx context.Context, db *gorm.DB, cache cache.Cacher, config *config.TGConfig, token string, middlewares ...telegram.Middleware) (*telegram.Client, error) {
+func BotClient(ctx context.Context, kvRepo repositories.KVRepository, cache cache.Cacher, config *config.TGConfig, token string, middlewares ...telegram.Middleware) (*telegram.Client, error) {
 	// Use bot token ID (part before colon) as session key
 	botID := strings.Split(token, ":")[0]
-	storage, err := tgstorage.NewSessionStorage(config.Session, db, cache, botID)
+	storage, err := tgstorage.NewSessionStorage(config.Session, kvRepo, cache, botID)
 	if err != nil {
 		return nil, err
 	}

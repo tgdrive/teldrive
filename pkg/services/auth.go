@@ -3,11 +3,8 @@ package services
 import (
 	"bytes"
 	"context"
-	"crypto/md5"
 	"encoding/base64"
 	"encoding/binary"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"math/big"
 	"net"
@@ -18,29 +15,19 @@ import (
 
 	"github.com/go-faster/errors"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/gorilla/websocket"
-	"github.com/gotd/td/session"
-	"github.com/gotd/td/telegram"
-	tgauth "github.com/gotd/td/telegram/auth"
-	"github.com/gotd/td/telegram/auth/qrlogin"
-	"github.com/gotd/td/tg"
-	"github.com/gotd/td/tgerr"
+	"github.com/google/uuid"
 	"github.com/tgdrive/teldrive/internal/api"
 	"github.com/tgdrive/teldrive/internal/auth"
 	"github.com/tgdrive/teldrive/internal/cache"
-	"github.com/tgdrive/teldrive/internal/logging"
-	"github.com/tgdrive/teldrive/internal/tgc"
-	"github.com/tgdrive/teldrive/internal/utils"
-	"github.com/tgdrive/teldrive/pkg/models"
+	jetmodel "github.com/tgdrive/teldrive/internal/database/jet/gen/model"
+	"github.com/tgdrive/teldrive/internal/requestmeta"
+	"github.com/tgdrive/teldrive/pkg/repositories"
 	"github.com/tgdrive/teldrive/pkg/types"
-	"go.uber.org/zap"
-	"gorm.io/gorm"
-	"gorm.io/gorm/clause"
 )
 
 var authCookieName = "access_token"
 
-func (a *apiService) AuthLogin(ctx context.Context, session *api.SessionCreate) (*api.AuthLoginNoContent, error) {
+func (a *apiService) AuthLogin(ctx context.Context, session *api.AuthAttemptSession) (*api.AuthLoginNoContent, error) {
 
 	if !checkUserIsAllowed(a.cnf.JWT.AllowedUsers, session.UserName) {
 		return nil, &apiError{code: http.StatusForbidden, err: errors.New("user not allowed")}
@@ -58,9 +45,8 @@ func (a *apiService) AuthLogin(ctx context.Context, session *api.SessionCreate) 
 			ExpiresAt: jwt.NewNumericDate(now.Add(a.cnf.JWT.SessionTime)),
 		}}
 
-	tokenhash := md5.Sum([]byte(session.Session))
-	hexToken := hex.EncodeToString(tokenhash[:])
-	jwtClaims.Hash = hexToken
+	sessionID := uuid.New()
+	jwtClaims.SessionID = sessionID
 
 	jwtToken, err := auth.Encode(a.cnf.JWT.Secret, jwtClaims)
 
@@ -68,86 +54,177 @@ func (a *apiService) AuthLogin(ctx context.Context, session *api.SessionCreate) 
 		return nil, &apiError{err: err}
 	}
 
-	user := models.User{
-		UserId:    session.UserId,
-		Name:      session.Name,
-		UserName:  session.UserName,
-		IsPremium: session.IsPremium,
-	}
-
-	err = a.db.Transaction(func(tx *gorm.DB) error {
-
-		if err := a.db.Clauses(clause.OnConflict{DoNothing: true}).Create(&user).Error; err != nil {
-			return err
-		}
-		file := &models.File{
-			Name:      "root",
-			Type:      "folder",
-			MimeType:  "drive/folder",
-			UserId:    session.UserId,
-			Status:    "active",
-			UpdatedAt: utils.Ptr(time.Now().UTC()),
-		}
-		if err := a.db.Clauses(clause.OnConflict{DoNothing: true}).Create(file).Error; err != nil {
-			return err
-		}
-		return nil
-	})
+	client, err := a.telegram.AuthClient(ctx, session.Session, 5)
 	if err != nil {
 		return nil, &apiError{err: err}
 	}
-	client, err := tgc.AuthClient(ctx, &a.cnf.TG, session.Session, a.newMiddlewares(ctx, 5)...)
+	authorizations, err := a.telegram.ListAuthorizations(ctx, client)
 	if err != nil {
 		return nil, &apiError{err: err}
 	}
 
-	var auth *tg.Authorization
-
-	err = client.Run(ctx, func(ctx context.Context) error {
-		auths, err := client.API().AccountGetAuthorizations(ctx)
-		if err != nil {
-			return err
+	var dateCreated int32
+	for _, authorization := range authorizations {
+		if authorization.Current {
+			dateCreated = authorization.DateCreated
+			break
 		}
-		for _, a := range auths.Authorizations {
-			if a.Current {
-				auth = &a
-				break
+	}
+
+	refreshToken, err := generateToken(32)
+	if err != nil {
+		return nil, &apiError{err: err}
+	}
+	refreshTokenHash := hashToken(refreshToken)
+
+	if err := a.repo.WithTx(ctx, func(txCtx context.Context) error {
+		if _, err := a.repo.Users.GetByID(txCtx, session.UserId); err != nil {
+			if !errors.Is(err, repositories.ErrNotFound) {
+				return err
+			}
+			name := session.Name
+			now := time.Now().UTC()
+			user := &jetmodel.Users{
+				UserID:    session.UserId,
+				Name:      &name,
+				UserName:  session.UserName,
+				IsPremium: session.IsPremium,
+				CreatedAt: now,
+				UpdatedAt: now,
+			}
+			if err := a.repo.Users.Create(txCtx, user); err != nil {
+				return err
 			}
 		}
-		return nil
-	})
 
+		if _, err := a.repo.Files.GetActiveByNameAndParent(txCtx, session.UserId, "root", nil); err != nil {
+			if !errors.Is(err, repositories.ErrNotFound) {
+				return err
+			}
+			now := time.Now().UTC()
+			status := "active"
+			root := &jetmodel.Files{
+				ID:        uuid.New(),
+				Name:      "root",
+				Type:      "folder",
+				MimeType:  "drive/folder",
+				UserID:    session.UserId,
+				Status:    &status,
+				Encrypted: false,
+				CreatedAt: now,
+				UpdatedAt: now,
+			}
+			if err := a.repo.Files.Create(txCtx, root); err != nil {
+				return err
+			}
+		}
+
+		now := time.Now().UTC()
+		sessionRow := &jetmodel.Sessions{
+			ID:               sessionID,
+			UserID:           session.UserId,
+			TgSession:        session.Session,
+			RefreshTokenHash: &refreshTokenHash,
+			SessionDate:      &dateCreated,
+			CreatedAt:        now,
+			UpdatedAt:        now,
+		}
+		if err := a.repo.Sessions.Create(txCtx, sessionRow); err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
+		return nil, &apiError{err: err}
+	}
+
+	if err := a.ensureDefaultPeriodicJobs(ctx, session.UserId); err != nil {
+		return nil, err
+	}
+
+	setRefreshCookie(ctx, refreshToken)
+	return &api.AuthLoginNoContent{
+		SetCookie: setCookie(ctx, authCookieName, jwtToken, int(a.cnf.JWT.SessionTime.Seconds())),
+	}, nil
+}
+
+func (a *apiService) AuthRefresh(ctx context.Context, params api.AuthRefreshParams) (*api.AuthRefreshNoContent, error) {
+	refreshToken := params.RefreshToken
+	if refreshToken == "" {
+		return nil, &apiError{code: http.StatusUnauthorized, err: errors.New("missing refresh token")}
+	}
+
+	sessionRow, err := a.repo.Sessions.GetByRefreshTokenHash(ctx, hashToken(refreshToken))
+	if err != nil {
+		return nil, &apiError{code: http.StatusUnauthorized, err: errors.New("invalid refresh token")}
+	}
+
+	user, err := a.repo.Users.GetByID(ctx, sessionRow.UserID)
+	if err != nil {
+		return nil, &apiError{err: err}
+	}
+	name := user.UserName
+	if user.Name != nil && *user.Name != "" {
+		name = *user.Name
+	}
+
+	now := time.Now().UTC()
+	jwtClaims := &types.JWTClaims{
+		Name:      name,
+		UserName:  user.UserName,
+		IsPremium: user.IsPremium,
+		SessionID: sessionRow.ID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			Subject:   strconv.FormatInt(user.UserID, 10),
+			IssuedAt:  jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(now.Add(a.cnf.JWT.SessionTime)),
+		},
+	}
+
+	jwtToken, err := auth.Encode(a.cnf.JWT.Secret, jwtClaims)
 	if err != nil {
 		return nil, &apiError{err: err}
 	}
 
-	if err := a.db.Create(&models.Session{UserId: session.UserId, Hash: hexToken,
-		Session: session.Session, SessionDate: auth.DateCreated}).Error; err != nil {
+	newRefreshToken, err := generateToken(32)
+	if err != nil {
 		return nil, &apiError{err: err}
 	}
-	return &api.AuthLoginNoContent{SetCookie: setCookie(authCookieName, jwtToken, int(a.cnf.JWT.SessionTime.Seconds()))}, nil
+	if err := a.repo.Sessions.UpdateRefreshTokenHash(ctx, sessionRow.ID, hashToken(newRefreshToken)); err != nil {
+		return nil, &apiError{err: err}
+	}
+
+	setRefreshCookie(ctx, newRefreshToken)
+
+	return &api.AuthRefreshNoContent{SetCookie: setCookie(ctx, authCookieName, jwtToken, int(a.cnf.JWT.SessionTime.Seconds()))}, nil
 }
 
 func (a *apiService) AuthLogout(ctx context.Context) (*api.AuthLogoutNoContent, error) {
-	authUser := auth.GetJWTUser(ctx)
-	client, _ := tgc.AuthClient(ctx, &a.cnf.TG, authUser.TgSession, a.newMiddlewares(ctx, 5)...)
-	tgc.RunWithAuth(ctx, client, "", func(ctx context.Context) error {
-		_, err := client.API().AuthLogOut(ctx)
-		return err
-	})
-	a.db.Where("hash = ?", authUser.Hash).Delete(&models.Session{})
-	userId, _ := strconv.ParseInt(authUser.Subject, 10, 64)
-	a.cache.Delete(ctx, cache.KeySessionHash(authUser.Hash), cache.KeyUserSessions(userId))
-	return &api.AuthLogoutNoContent{SetCookie: setCookie(authCookieName, "", -1)}, nil
+	authUser := auth.JWTUser(ctx)
+	if err := a.repo.Sessions.Revoke(ctx, authUser.SessionID); err != nil {
+		return nil, &apiError{err: err}
+	}
+	userId, err := strconv.ParseInt(authUser.Subject, 10, 64)
+	if err != nil {
+		return nil, &apiError{err: fmt.Errorf("invalid user subject: %w", err)}
+	}
+	a.cache.Delete(ctx, cache.KeySessionID(authUser.SessionID.String()), cache.KeyUserSessions(userId))
+	_ = a.cache.DeletePattern(ctx, cache.KeyAPIKeyAuthPattern())
+	clearRefreshCookie(ctx)
+	client, err := a.telegram.AuthClient(ctx, authUser.TgSession, 5)
+	if err != nil {
+		return &api.AuthLogoutNoContent{SetCookie: setCookie(ctx, authCookieName, "", -1)}, nil
+	}
+	if err := a.telegram.LogOut(ctx, client); err != nil {
+		return &api.AuthLogoutNoContent{SetCookie: setCookie(ctx, authCookieName, "", -1)}, nil
+	}
+
+	return &api.AuthLogoutNoContent{SetCookie: setCookie(ctx, authCookieName, "", -1)}, nil
 }
 
-func (a *apiService) AuthSession(ctx context.Context, params api.AuthSessionParams) (api.AuthSessionRes, error) {
-	if params.AccessToken.Value == "" {
-		return &api.AuthSessionNoContent{}, nil
-	}
-	claims, err := auth.VerifyUser(ctx, a.db, a.cache, a.cnf.JWT.Secret, params.AccessToken.Value)
-
-	if err != nil {
+func (a *apiService) AuthSession(ctx context.Context) (api.AuthSessionRes, error) {
+	claims := auth.JWTUser(ctx)
+	if claims == nil {
 		return &api.AuthSessionNoContent{}, nil
 	}
 
@@ -155,212 +232,43 @@ func (a *apiService) AuthSession(ctx context.Context, params api.AuthSessionPara
 
 	now := time.Now().UTC()
 
-	newExpires := now.Add(a.cnf.JWT.SessionTime)
-
-	userId, _ := strconv.ParseInt(claims.Subject, 10, 64)
-
-	session := api.Session{
-		Name:     claims.Name,
-		UserName: claims.UserName,
-		UserId:   userId,
-		Hash:     claims.Hash,
-		Expires:  newExpires}
-
-	claims.IssuedAt = jwt.NewNumericDate(now)
-
-	claims.ExpiresAt = jwt.NewNumericDate(newExpires)
-
-	jweToken, err := auth.Encode(a.cnf.JWT.Secret, claims)
-
+	userId, err := strconv.ParseInt(claims.Subject, 10, 64)
 	if err != nil {
 		return &api.AuthSessionNoContent{}, nil
 	}
-	return &api.SessionHeaders{SetCookie: setCookie(authCookieName, jweToken, int(a.cnf.JWT.SessionTime.Seconds())),
-		Response: session}, nil
-}
-
-func (a *apiService) AuthWs(ctx context.Context) error {
-	return nil
-}
-
-func (e *extendedService) AuthWs(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	upgrader := websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool {
-			return true
-		},
-	}
-
-	logger := logging.Component("AUTH").With(
-		zap.String("remote_addr", r.RemoteAddr),
-		zap.String("auth_method", "qr"),
-	)
-	conn, err := upgrader.Upgrade(w, r, nil)
+	user, err := a.repo.Users.GetByID(ctx, userId)
 	if err != nil {
-		logger.Error("websocket.upgrade_failed", zap.Error(err))
-		http.Error(w, "could not upgrade connection", http.StatusBadRequest)
-		return
+		return nil, &apiError{err: err}
 	}
 
-	defer func() {
-		if err := conn.Close(); err != nil {
-			logger.Error("websocket.close_failed", zap.Error(err))
-		}
-	}()
+	name := user.UserName
+	if user.Name != nil && *user.Name != "" {
+		name = *user.Name
+	}
 
-	dispatcher := tg.NewUpdateDispatcher()
-	loggedIn := qrlogin.OnLoginToken(dispatcher)
-	sessionStorage := &session.StorageMemory{}
-	tgClient, err := tgc.NoAuthClient(ctx, &e.api.cnf.TG, dispatcher, sessionStorage)
+	newExpires := now.Add(a.cnf.JWT.SessionTime)
+
+	session := api.Session{
+		Name:      name,
+		UserName:  user.UserName,
+		IsPremium: user.IsPremium,
+		UserId:    userId,
+		SessionId: api.UUID(claims.SessionID),
+		Expires:   newExpires}
+
+	response := &api.SessionHeaders{Response: session}
+	if auth.Source(ctx) == auth.AuthSourceAPIKey {
+		return response, nil
+	}
+
+	claims.IssuedAt = jwt.NewNumericDate(now)
+	claims.ExpiresAt = jwt.NewNumericDate(newExpires)
+	jweToken, err := auth.Encode(a.cnf.JWT.Secret, claims)
 	if err != nil {
-		logger.Error("telegram.client_create_failed", zap.Error(err))
-		return
+		return &api.AuthSessionNoContent{}, nil
 	}
-
-	err = tgClient.Run(ctx, func(ctx context.Context) error {
-		for {
-			message := &types.SocketMessage{}
-			err := conn.ReadJSON(message)
-			if err != nil {
-				if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
-					logger.Debug("websocket connection closed normally by client")
-					return nil
-				}
-				return err
-			}
-			switch message.AuthType {
-			case "qr":
-				go e.handleQRAuth(ctx, conn, tgClient, loggedIn, sessionStorage, logger)
-			case "phone":
-				go e.handlePhoneAuth(ctx, conn, tgClient, message, sessionStorage, logger)
-			case "2fa":
-				if message.Password != "" {
-					go e.handle2FAAuth(ctx, conn, tgClient, message.Password, sessionStorage, logger)
-				}
-			}
-		}
-	})
-
-	if err != nil {
-		logger.Error("telegram.client_run_failed", zap.Error(err))
-		return
-	}
-}
-
-func (e *extendedService) handleQRAuth(ctx context.Context, conn *websocket.Conn, tgClient *telegram.Client, loggedIn qrlogin.LoggedIn, sessionStorage session.Storage, logger *zap.Logger) {
-	authorization, err := tgClient.QR().Auth(ctx, loggedIn, func(ctx context.Context, token qrlogin.Token) error {
-		conn.WriteJSON(map[string]any{"type": "auth", "payload": map[string]string{"token": token.URL()}})
-		return nil
-	})
-
-	if errors.Is(err, context.Canceled) {
-		return
-	}
-	if tgerr.Is(err, "SESSION_PASSWORD_NEEDED") {
-		conn.WriteJSON(map[string]any{"type": "auth", "message": "2FA required"})
-		return
-	}
-
-	if err != nil {
-		logger.Error("auth.qr_login_failed", zap.Error(err))
-		conn.WriteJSON(map[string]any{"type": "error", "message": err.Error()})
-		return
-	}
-	user, ok := authorization.User.AsNotEmpty()
-	if !ok {
-		conn.WriteJSON(map[string]any{"type": "error", "message": "auth failed"})
-		return
-	}
-	if !checkUserIsAllowed(e.api.cnf.JWT.AllowedUsers, user.Username) {
-		conn.WriteJSON(map[string]any{"type": "error", "message": "user not allowed"})
-		_, _ = tgClient.API().AuthLogOut(ctx)
-		return
-	}
-	res, _ := sessionStorage.LoadSession(ctx)
-	sessionData := &types.SessionData{}
-	json.Unmarshal(res, sessionData)
-	session := prepareSession(user, &sessionData.Data)
-	conn.WriteJSON(map[string]any{"type": "auth", "payload": session, "message": "success"})
-}
-
-func (e *extendedService) handlePhoneAuth(ctx context.Context, conn *websocket.Conn, tgClient *telegram.Client, message *types.SocketMessage, sessionStorage session.Storage, logger *zap.Logger) {
-	switch message.Message {
-	case "sendcode":
-		res, err := tgClient.Auth().SendCode(ctx, message.PhoneNo, tgauth.SendCodeOptions{})
-		if errors.Is(err, context.Canceled) {
-			return
-		}
-
-		if err != nil {
-			logger.Error("auth.phone_code_failed", zap.Error(err), zap.String("phone", message.PhoneNo))
-			conn.WriteJSON(map[string]any{"type": "error", "message": err.Error()})
-			return
-		}
-		code := res.(*tg.AuthSentCode)
-		conn.WriteJSON(map[string]any{"type": "auth", "payload": map[string]string{"phoneCodeHash": code.PhoneCodeHash}})
-	case "signin":
-		auth, err := tgClient.Auth().SignIn(ctx, message.PhoneNo, message.PhoneCode, message.PhoneCodeHash)
-		if errors.Is(err, context.Canceled) {
-			return
-		}
-		if errors.Is(err, tgauth.ErrPasswordAuthNeeded) {
-			conn.WriteJSON(map[string]any{"type": "auth",
-				"message": tgauth.ErrPasswordAuthNeeded.Error()})
-			return
-		}
-		if tgerr.Is(err, "PHONE_CODE_INVALID") {
-			conn.WriteJSON(map[string]any{"type": "auth", "message": "PHONE_CODE_INVALID"})
-			return
-		}
-		if err != nil {
-			logger.Error("auth.phone_signin_failed", zap.Error(err), zap.String("phone", message.PhoneNo))
-			conn.WriteJSON(map[string]any{"type": "error", "message": err.Error()})
-			return
-		}
-		user, ok := auth.User.AsNotEmpty()
-		if !ok {
-			conn.WriteJSON(map[string]any{"type": "error", "message": "auth failed"})
-			return
-		}
-		if !checkUserIsAllowed(e.api.cnf.JWT.AllowedUsers, user.Username) {
-			conn.WriteJSON(map[string]any{"type": "error", "message": "user not allowed"})
-			_, _ = tgClient.API().AuthLogOut(ctx)
-			return
-		}
-		res, _ := sessionStorage.LoadSession(ctx)
-		sessionData := &types.SessionData{}
-		json.Unmarshal(res, sessionData)
-		session := prepareSession(user, &sessionData.Data)
-		conn.WriteJSON(map[string]any{"type": "auth", "payload": session, "message": "success"})
-	}
-}
-
-func (e *extendedService) handle2FAAuth(ctx context.Context, conn *websocket.Conn, tgClient *telegram.Client, password string, sessionStorage session.Storage, logger *zap.Logger) {
-	auth, err := tgClient.Auth().Password(ctx, password)
-	if errors.Is(err, context.Canceled) {
-		return
-	}
-	if err != nil {
-		logger.Error("auth.2fa_failed", zap.Error(err))
-		conn.WriteJSON(map[string]any{"type": "error", "message": err.Error()})
-		return
-	}
-	user, ok := auth.User.AsNotEmpty()
-	if !ok {
-		conn.WriteJSON(map[string]any{"type": "error", "message": "auth failed"})
-		return
-	}
-	if !checkUserIsAllowed(e.api.cnf.JWT.AllowedUsers, user.Username) {
-		conn.WriteJSON(map[string]any{"type": "error", "message": "user not allowed"})
-		_, _ = tgClient.API().AuthLogOut(ctx)
-		return
-	}
-	res, _ := sessionStorage.LoadSession(ctx)
-	sessionData := &types.SessionData{}
-	json.Unmarshal(res, sessionData)
-	session := prepareSession(user, &sessionData.Data)
-	conn.WriteJSON(map[string]any{"type": "auth", "payload": session, "message": "success"})
+	response.SetCookie = api.NewOptString(setCookie(ctx, authCookieName, jweToken, int(a.cnf.JWT.SessionTime.Seconds())))
+	return response, nil
 }
 
 func ip4toInt(ipv4Address net.IP) int64 {
@@ -414,9 +322,9 @@ func checkUserIsAllowed(allowedUsers []string, userName string) bool {
 	return found
 }
 
-func prepareSession(user *tg.User, data *session.Data) *api.SessionCreate {
-	sessionString := generateTgSession(data.DC, data.AuthKey, 443)
-	session := &api.SessionCreate{
+func prepareSession(user *TelegramUser, data *types.SessionData) *api.AuthAttemptSession {
+	sessionString := generateTgSession(data.Data.DC, data.Data.AuthKey, 443)
+	session := &api.AuthAttemptSession{
 		Session:   sessionString,
 		UserId:    user.ID,
 		UserName:  user.Username,
@@ -426,7 +334,7 @@ func prepareSession(user *tg.User, data *session.Data) *api.SessionCreate {
 	return session
 }
 
-func setCookie(name, value string, maxAge int) string {
+func setCookie(ctx context.Context, name, value string, maxAge int) string {
 	cookie := http.Cookie{
 		Name:     name,
 		Value:    value,
@@ -434,6 +342,32 @@ func setCookie(name, value string, maxAge int) string {
 		HttpOnly: true,
 		Path:     "/",
 		SameSite: http.SameSiteLaxMode,
+		Secure:   requestmeta.IsSecure(ctx),
 	}
 	return cookie.String()
+}
+
+func setRefreshCookie(ctx context.Context, token string) {
+	requestmeta.AddSetCookie(ctx, (&http.Cookie{
+		Name:     refreshCookieName,
+		Value:    token,
+		MaxAge:   315360000,
+		Expires:  time.Now().Add(10 * 365 * 24 * time.Hour),
+		HttpOnly: true,
+		Path:     "/",
+		SameSite: http.SameSiteLaxMode,
+		Secure:   requestmeta.IsSecure(ctx),
+	}).String())
+}
+
+func clearRefreshCookie(ctx context.Context) {
+	requestmeta.AddSetCookie(ctx, (&http.Cookie{
+		Name:     refreshCookieName,
+		Value:    "",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Path:     "/",
+		SameSite: http.SameSiteLaxMode,
+		Secure:   requestmeta.IsSecure(ctx),
+	}).String())
 }
