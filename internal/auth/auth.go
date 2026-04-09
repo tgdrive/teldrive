@@ -171,7 +171,7 @@ func (s *securityHandler) HandleBearerAuth(ctx context.Context, operationName ap
 }
 
 func (s *securityHandler) HandleSessionHashAuth(ctx context.Context, operationName api.OperationName, t api.SessionHashAuth) (context.Context, error) {
-	if operationName != api.FilesStreamOperation {
+	if operationName != api.FilesStreamOperation || operationName != api.FilesStreamHeadOperation {
 		return nil, &ogenerrors.SecurityError{Err: ErrAuthSessionInvalid}
 	}
 	session, err := SessionByID(ctx, s.sessions, s.cache, uuid.MustParse(t.APIKey))

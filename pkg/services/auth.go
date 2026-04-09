@@ -20,12 +20,21 @@ import (
 	"github.com/tgdrive/teldrive/internal/auth"
 	"github.com/tgdrive/teldrive/internal/cache"
 	jetmodel "github.com/tgdrive/teldrive/internal/database/jet/gen/model"
+	"github.com/tgdrive/teldrive/internal/logging"
 	"github.com/tgdrive/teldrive/internal/requestmeta"
+	"github.com/tgdrive/teldrive/internal/utils"
+	"github.com/tgdrive/teldrive/pkg/constants"
 	"github.com/tgdrive/teldrive/pkg/repositories"
 	"github.com/tgdrive/teldrive/pkg/types"
+	"go.uber.org/zap"
 )
 
-var authCookieName = "access_token"
+// Auth-related constants
+const (
+	authCookieName       = "access_token"
+	refreshTokenMaxAge   = 315360000                 // 10 years in seconds
+	refreshTokenDuration = 10 * 365 * 24 * time.Hour // 10 years
+)
 
 func (a *apiService) AuthLogin(ctx context.Context, session *api.AuthAttemptSession) (*api.AuthLoginNoContent, error) {
 
@@ -101,15 +110,15 @@ func (a *apiService) AuthLogin(ctx context.Context, session *api.AuthAttemptSess
 			if !errors.Is(err, repositories.ErrNotFound) {
 				return err
 			}
+
 			now := time.Now().UTC()
-			status := "active"
 			root := &jetmodel.Files{
 				ID:        uuid.New(),
 				Name:      "root",
 				Type:      "folder",
 				MimeType:  "drive/folder",
 				UserID:    session.UserId,
-				Status:    &status,
+				Status:    utils.Ptr(constants.FileStatusActive.String()),
 				Encrypted: false,
 				CreatedAt: now,
 				UpdatedAt: now,
@@ -213,9 +222,11 @@ func (a *apiService) AuthLogout(ctx context.Context) (*api.AuthLogoutNoContent, 
 	clearRefreshCookie(ctx)
 	client, err := a.telegram.AuthClient(ctx, authUser.TgSession, 5)
 	if err != nil {
+		logging.FromContext(ctx).Warn("failed to initialize telegram client for logout", zap.Error(err))
 		return &api.AuthLogoutNoContent{SetCookie: setCookie(ctx, authCookieName, "", -1)}, nil
 	}
 	if err := a.telegram.LogOut(ctx, client); err != nil {
+		logging.FromContext(ctx).Warn("telegram logout failed", zap.Error(err))
 		return &api.AuthLogoutNoContent{SetCookie: setCookie(ctx, authCookieName, "", -1)}, nil
 	}
 
@@ -351,8 +362,8 @@ func setRefreshCookie(ctx context.Context, token string) {
 	requestmeta.AddSetCookie(ctx, (&http.Cookie{
 		Name:     refreshCookieName,
 		Value:    token,
-		MaxAge:   315360000,
-		Expires:  time.Now().Add(10 * 365 * 24 * time.Hour),
+		MaxAge:   refreshTokenMaxAge,
+		Expires:  time.Now().Add(refreshTokenDuration),
 		HttpOnly: true,
 		Path:     "/",
 		SameSite: http.SameSiteLaxMode,

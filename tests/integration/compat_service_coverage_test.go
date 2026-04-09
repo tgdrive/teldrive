@@ -61,6 +61,13 @@ func TestCompatService_FileMethodsCoverage(t *testing.T) {
 	if _, err := svc.FilesStreamHead(ctx, api.FilesStreamHeadParams{ID: api.UUID(srcID)}); err != nil {
 		t.Fatalf("FilesStreamHead failed: %v", err)
 	}
+	if res, err := svc.FilesStreamHead(ctx, api.FilesStreamHeadParams{ID: api.UUID(srcID), Range: api.NewOptString("bytes=1-3")}); err != nil {
+		t.Fatalf("FilesStreamHead ranged failed: %v", err)
+	} else if partial, ok := res.(*api.FilesStreamHeadPartialContent); !ok {
+		t.Fatalf("expected partial head response, got %T", res)
+	} else if got, ok := partial.ContentRange.Get(); !ok || got != "bytes 1-3/5" {
+		t.Fatalf("unexpected content-range: %q", got)
+	}
 
 	if err := svc.FilesMove(ctx, &api.FileMove{Ids: []api.UUID{api.UUID(srcID)}, DestinationParent: "/extra/path", DestinationName: api.NewOptString("moved.txt")}); err != nil {
 		t.Fatalf("FilesMove failed: %v", err)

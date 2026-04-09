@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"mime"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
@@ -17,7 +19,10 @@ import (
 	"github.com/tgdrive/teldrive/internal/database/types"
 	"github.com/tgdrive/teldrive/internal/events"
 	"github.com/tgdrive/teldrive/internal/hash"
+	"github.com/tgdrive/teldrive/internal/http_range"
+	"github.com/tgdrive/teldrive/internal/md5"
 	"github.com/tgdrive/teldrive/internal/utils"
+	"github.com/tgdrive/teldrive/pkg/constants"
 	"github.com/tgdrive/teldrive/pkg/dto"
 	"github.com/tgdrive/teldrive/pkg/mapper"
 	"github.com/tgdrive/teldrive/pkg/repositories"
@@ -169,99 +174,27 @@ func (a *apiService) FilesCopy(ctx context.Context, req *api.FileCopy, params ap
 func (a *apiService) FilesCreate(ctx context.Context, fileIn *api.File) (*api.File, error) {
 	userId := auth.User(ctx)
 
-	var (
-		parentID  *uuid.UUID
-		path      string
-		channelId int64
-		uploadId  string
-		uploads   []jetmodel.Uploads
-	)
-
-	if fileIn.Path.Value == "" && !fileIn.ParentId.IsSet() {
-		return nil, &apiError{err: errors.New("parent id or path is required"), code: 409}
-	}
-
-	if fileIn.Path.Value != "" {
-		path = strings.ReplaceAll(fileIn.Path.Value, "//", "/")
-
-	}
-
-	if path != "" && !fileIn.ParentId.IsSet() {
-		resolvedID, err := a.repo.Files.ResolvePathID(ctx, path, userId)
-		if err != nil {
-			return nil, &apiError{err: err, code: 404}
-		}
-		parentID = resolvedID
-
-	} else if fileIn.ParentId.IsSet() {
-		parentUUID := uuid.UUID(fileIn.ParentId.Value)
-		parentID = &parentUUID
+	parentID, err := a.resolveParentID(ctx, fileIn, userId)
+	if err != nil {
+		return nil, err
 	}
 
 	fileDB := jetmodel.Files{ID: uuid.New(), UserID: userId, Encrypted: fileIn.Encrypted.Value}
-	status := "active"
-	fileDB.Status = &status
+	fileDB.Status = utils.Ptr(constants.FileStatusActive.String())
 	fileDB.ParentID = parentID
 
+	var uploadId string
 	switch fileIn.Type {
 	case api.FileTypeFolder:
 		fileDB.MimeType = "drive/folder"
 	case api.FileTypeFile:
-		if fileIn.ChannelId.Value == 0 {
-			resolvedChannelID, err := a.channelManager.CurrentChannel(ctx, userId)
-			if err != nil {
-				return nil, &apiError{err: err}
-			}
-			channelId = resolvedChannelID
-		} else {
-			channelId = fileIn.ChannelId.Value
+		var err error
+		uploadId, _, err = a.prepareFileData(ctx, fileIn, &fileDB, userId)
+		if err != nil {
+			return nil, &apiError{err: err}
 		}
-		fileDB.ChannelID = &channelId
-		fileDB.MimeType = fileIn.MimeType.Value
-		fileDB.Category = utils.Ptr(string(category.GetCategory(fileIn.Name)))
-
-		var parts []api.Part
-		if len(fileIn.Parts) > 0 {
-			parts = fileIn.Parts
-		} else if fileIn.UploadId.Value != "" {
-			uploadId = fileIn.UploadId.Value
-			fetchedUploads, err := a.repo.Uploads.GetByUploadID(ctx, uploadId)
-			if err != nil {
-				return nil, &apiError{err: err}
-			}
-			uploads = fetchedUploads
-			for _, upload := range uploads {
-				if upload.PartID == 0 {
-					return nil, &apiError{err: errors.New("invalid part: part_id cannot be zero"), code: 400}
-				}
-			}
-
-			for _, upload := range uploads {
-				parts = append(parts, api.Part{
-					ID: int(upload.PartID),
-				})
-				if upload.Salt != nil {
-					parts[len(parts)-1].Salt = api.NewOptString(*upload.Salt)
-				}
-			}
-		}
-
-		if len(parts) > 0 {
-			fileDB.Parts = mapper.ToDBPartsJSONB(parts)
-		}
-
-		// Compute BLAKE3 tree hash from block hashes if uploadId is provided
-		if uploadId != "" && len(uploads) > 0 {
-			fileDB.Hash = uploadTreeHash(uploads)
-		} else if fileIn.Size.Value == 0 {
-			// For zero-length files, compute hash of empty data
-			treeHashBytes := hash.ComputeTreeHash([]byte{})
-			treeHash := hash.SumToHex(treeHashBytes)
-			fileDB.Hash = &treeHash
-		}
-
-		fileDB.Size = utils.Ptr(fileIn.Size.Value)
 	}
+
 	fileDB.Name = fileIn.Name
 	fileDB.Type = string(fileIn.Type)
 	fileDB.CreatedAt = time.Now().UTC()
@@ -271,6 +204,97 @@ func (a *apiService) FilesCreate(ctx context.Context, fileIn *api.File) (*api.Fi
 		fileDB.UpdatedAt = time.Now().UTC()
 	}
 
+	if err := a.persistAndCleanup(ctx, fileDB, uploadId, userId); err != nil {
+		return nil, &apiError{err: err}
+	}
+
+	return mapper.ToJetFileOut(fileDB), nil
+}
+
+// resolveParentID resolves the parent ID from either a path or direct input.
+func (a *apiService) resolveParentID(ctx context.Context, fileIn *api.File, userId int64) (*uuid.UUID, error) {
+	if fileIn.Path.Value == "" && !fileIn.ParentId.IsSet() {
+		return nil, &apiError{err: errors.New("parent id or path is required"), code: 409}
+	}
+
+	if fileIn.Path.Value != "" {
+		path := strings.ReplaceAll(fileIn.Path.Value, "//", "/")
+		resolvedID, err := a.repo.Files.ResolvePathID(ctx, path, userId)
+		if err != nil {
+			return nil, &apiError{err: err, code: 404}
+		}
+		return resolvedID, nil
+	}
+
+	if fileIn.ParentId.IsSet() {
+		parentUUID := uuid.UUID(fileIn.ParentId.Value)
+		return &parentUUID, nil
+	}
+
+	return nil, nil
+}
+
+// prepareFileData prepares file-specific data (FileTypeFile only) including
+// channel resolution, parts handling, uploads, and hash computation.
+func (a *apiService) prepareFileData(ctx context.Context, fileIn *api.File, fileDB *jetmodel.Files, userId int64) (uploadId string, uploads []jetmodel.Uploads, err error) {
+	if fileIn.ChannelId.Value == 0 {
+		resolvedChannelID, err := a.channelManager.CurrentChannel(ctx, userId)
+		if err != nil {
+			return "", nil, err
+		}
+		fileDB.ChannelID = &resolvedChannelID
+	} else {
+		fileDB.ChannelID = &fileIn.ChannelId.Value
+	}
+	fileDB.MimeType = fileIn.MimeType.Value
+	fileDB.Category = utils.Ptr(string(category.GetCategory(fileIn.Name)))
+
+	var parts []api.Part
+	if len(fileIn.Parts) > 0 {
+		parts = fileIn.Parts
+	} else if fileIn.UploadId.Value != "" {
+		uploadId = fileIn.UploadId.Value
+		fetchedUploads, err := a.repo.Uploads.GetByUploadID(ctx, uploadId)
+		if err != nil {
+			return "", nil, err
+		}
+		uploads = fetchedUploads
+		for _, upload := range uploads {
+			if upload.PartID == 0 {
+				return "", nil, errors.New("invalid part: part_id cannot be zero")
+			}
+		}
+
+		for _, upload := range uploads {
+			parts = append(parts, api.Part{
+				ID: int(upload.PartID),
+			})
+			if upload.Salt != nil {
+				parts[len(parts)-1].Salt = api.NewOptString(*upload.Salt)
+			}
+		}
+	}
+
+	if len(parts) > 0 {
+		fileDB.Parts = mapper.ToDBPartsJSONB(parts)
+	}
+
+	// Compute BLAKE3 tree hash from block hashes if uploadId is provided
+	if uploadId != "" && len(uploads) > 0 {
+		fileDB.Hash = uploadTreeHash(uploads)
+	} else if fileIn.Size.Value == 0 {
+		// For zero-length files, compute hash of empty data
+		treeHashBytes := hash.ComputeTreeHash([]byte{})
+		treeHash := hash.SumToHex(treeHashBytes)
+		fileDB.Hash = &treeHash
+	}
+
+	fileDB.Size = utils.Ptr(fileIn.Size.Value)
+	return uploadId, uploads, nil
+}
+
+// persistAndCleanup handles transaction persistence, cache invalidation, and event recording.
+func (a *apiService) persistAndCleanup(ctx context.Context, fileDB jetmodel.Files, uploadId string, userId int64) error {
 	if err := a.repo.WithTx(ctx, func(txCtx context.Context) error {
 		if err := a.repo.Files.UpsertActive(txCtx, &fileDB); err != nil {
 			return err
@@ -280,10 +304,9 @@ func (a *apiService) FilesCreate(ctx context.Context, fileIn *api.File) (*api.Fi
 				return err
 			}
 		}
-
 		return nil
 	}); err != nil {
-		return nil, &apiError{err: err}
+		return err
 	}
 
 	fileIDStr := fileDB.ID.String()
@@ -305,7 +328,7 @@ func (a *apiService) FilesCreate(ctx context.Context, fileIn *api.File) (*api.Fi
 		Name:     fileDB.Name,
 		ParentID: parentIDStr,
 	})
-	return mapper.ToJetFileOut(fileDB), nil
+	return nil
 }
 
 func (a *apiService) FilesCreateShare(ctx context.Context, req *api.FileShareCreate, params api.FilesCreateShareParams) error {
@@ -527,33 +550,64 @@ func (a *apiService) FilesList(ctx context.Context, params api.FilesListParams) 
 	}, nil
 }
 
-func (a *apiService) FilesChildren(ctx context.Context, params api.FilesChildrenParams) (*api.FileList, error) {
-	listParams := api.FilesListParams{
-		Name:       params.Name,
-		Query:      params.Query,
-		SearchType: params.SearchType,
-		Type:       params.Type,
-		Path:       params.Path,
-		Operation:  params.Operation,
-		Status:     params.Status,
-		DeepSearch: params.DeepSearch,
-		Shared:     params.Shared,
-		ParentId:   api.NewOptUUID(params.ID),
-		Category:   params.Category,
-		UpdatedAt:  params.UpdatedAt,
-		Sort:       params.Sort,
-		Order:      params.Order,
-		Limit:      params.Limit,
-		Cursor:     params.Cursor,
+func (a *apiService) FilesStreamHead(ctx context.Context, params api.FilesStreamHeadParams) (api.FilesStreamHeadRes, error) {
+	userID := auth.User(ctx)
+	fileID := uuid.UUID(params.ID)
+
+	file, err := cache.Fetch(ctx, a.cache, cache.KeyFile(fileID.String()), 0, func() (*jetmodel.Files, error) {
+		return a.repo.Files.GetByIDAndUser(ctx, fileID, userID)
+	})
+	if err != nil {
+		if errors.Is(err, repositories.ErrNotFound) {
+			return nil, &apiError{err: errors.New("file not found"), code: 404}
+		}
+		return nil, &apiError{err: err}
 	}
 
-	return a.FilesList(ctx, listParams)
-}
+	contentLength := int64(0)
+	if file.Size != nil {
+		contentLength = *file.Size
+	}
+	etag := fmt.Sprintf("\"%s\"", md5.FromString(fileID.String()+strconv.FormatInt(contentLength, 10)))
 
-func (a *apiService) FilesStreamHead(ctx context.Context, params api.FilesStreamHeadParams) (api.FilesStreamHeadRes, error) {
-	_ = ctx
-	_ = params
-	return &api.FilesStreamHeadOKHeaders{}, nil
+	disposition := "inline"
+	if v, ok := params.Download.Get(); ok && v == api.FilesStreamHeadDownload1 {
+		disposition = "attachment"
+	}
+	contentDisposition := mime.FormatMediaType(disposition, map[string]string{"filename": file.Name})
+	lastModified := file.UpdatedAt.UTC()
+
+	if rawRange, ok := params.Range.Get(); ok && rawRange != "" && contentLength > 0 {
+		ranges, err := http_range.Parse(rawRange, contentLength)
+		if err == http_range.ErrNoOverlap {
+			return nil, &apiError{err: err, code: http.StatusRequestedRangeNotSatisfiable}
+		}
+		if err != nil {
+			return nil, &apiError{err: err, code: http.StatusBadRequest}
+		}
+		if len(ranges) > 1 {
+			return nil, &apiError{err: fmt.Errorf("multiple ranges are not supported"), code: http.StatusRequestedRangeNotSatisfiable}
+		}
+
+		start := ranges[0].Start
+		end := ranges[0].End
+		return &api.FilesStreamHeadPartialContent{
+			AcceptRanges:       api.FilesStreamHeadPartialContentAcceptRangesBytes,
+			ContentDisposition: contentDisposition,
+			ContentLength:      strconv.FormatInt(end-start+1, 10),
+			ContentRange:       api.NewOptString(fmt.Sprintf("bytes %d-%d/%d", start, end, contentLength)),
+			Etag:               etag,
+			LastModified:       lastModified,
+		}, nil
+	}
+
+	return &api.FilesStreamHeadOK{
+		AcceptRanges:       api.FilesStreamHeadOKAcceptRangesBytes,
+		ContentDisposition: contentDisposition,
+		ContentLength:      strconv.FormatInt(contentLength, 10),
+		Etag:               etag,
+		LastModified:       lastModified,
+	}, nil
 }
 
 func (a *apiService) FilesMkdir(ctx context.Context, path string) error {
@@ -683,28 +737,61 @@ func (a *apiService) FilesListShares(ctx context.Context, params api.FilesListSh
 }
 
 func (a *apiService) FilesUpdate(ctx context.Context, req *api.FileUpdate, params api.FilesUpdateParams) (*api.File, error) {
-
 	userId := auth.User(ctx)
-	var err error
 
+	update, uploadId, err := a.buildFileUpdate(ctx, req)
+	if err != nil {
+		return nil, &apiError{err: err}
+	}
+
+	fileUUID := uuid.UUID(params.ID)
+
+	var file *jetmodel.Files
+	if err := a.repo.WithTx(ctx, func(txCtx context.Context) error {
+		updated, err := a.repo.Files.UpdateReturning(txCtx, fileUUID, update)
+		if err != nil {
+			return err
+		}
+		file = updated
+		if uploadId != "" {
+			if err := a.repo.Uploads.Delete(txCtx, uploadId); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		return nil, &apiError{err: err}
+	}
+
+	a.invalidateFileCache(ctx, fileUUID.String(), len(req.Parts) > 0)
+
+	var parentID string
+	if file.ParentID != nil {
+		parentID = file.ParentID.String()
+	}
+
+	a.events.Record(events.OpUpdate, userId, &dto.Source{
+		ID:       file.ID.String(),
+		Type:     file.Type,
+		Name:     file.Name,
+		ParentID: parentID,
+	})
+	return mapper.ToJetFileOut(*file), nil
+}
+
+func (a *apiService) buildFileUpdate(ctx context.Context, req *api.FileUpdate) (repositories.FileUpdate, string, error) {
 	update := repositories.FileUpdate{}
-	isContentUpdate := false
 	uploadId := ""
 	var uploads []jetmodel.Uploads
+	var err error
 
 	if req.UploadId.IsSet() && req.UploadId.Value != "" {
 		uploadId = req.UploadId.Value
 		if uploads, err = a.repo.Uploads.GetByUploadID(ctx, uploadId); err != nil {
-			return nil, &apiError{err: err}
+			return repositories.FileUpdate{}, "", err
 		}
-		var totalSize int64
-		for _, u := range uploads {
-			req.Parts = append(req.Parts, api.Part{ID: int(u.PartID)})
-			if u.Salt != nil {
-				req.Parts[len(req.Parts)-1].Salt = api.NewOptString(*u.Salt)
-			}
-			totalSize += u.Size
-		}
+		totalSize, parts := a.buildPartsFromUploads(uploads)
+		req.Parts = parts
 		if req.Size.Value == 0 {
 			req.Size.SetTo(totalSize)
 		}
@@ -723,12 +810,37 @@ func (a *apiService) FilesUpdate(ctx context.Context, req *api.FileUpdate, param
 		update.ChannelID = &req.ChannelId.Value
 	}
 
-	if req.Size.IsSet() && req.Size.Value != 0 && len(req.Parts) > 0 {
-		update.Parts = mapper.ToDBPartsJSONB(req.Parts)
+	update = a.applyContentUpdate(req, update, uploads)
+
+	return update, uploadId, nil
+}
+
+func (a *apiService) buildPartsFromUploads(uploads []jetmodel.Uploads) (int64, []api.Part) {
+	var totalSize int64
+	var parts []api.Part
+	for _, u := range uploads {
+		part := api.Part{ID: int(u.PartID)}
+		if u.Salt != nil {
+			part.Salt = api.NewOptString(*u.Salt)
+		}
+		parts = append(parts, part)
+		totalSize += u.Size
+	}
+	return totalSize, parts
+}
+
+func (a *apiService) applyContentUpdate(req *api.FileUpdate, update repositories.FileUpdate, uploads []jetmodel.Uploads) repositories.FileUpdate {
+	isContentUpdate := false
+	uploadId := ""
+	if req.UploadId.IsSet() {
+		uploadId = req.UploadId.Value
+	}
+
+	if req.Size.IsSet() && req.Size.Value == 0 {
 		update.Size = &req.Size.Value
 		isContentUpdate = true
-	}
-	if req.Size.IsSet() && req.Size.Value == 0 {
+	} else if req.Size.IsSet() && req.Size.Value != 0 && len(req.Parts) > 0 {
+		update.Parts = mapper.ToDBPartsJSONB(req.Parts)
 		update.Size = &req.Size.Value
 		isContentUpdate = true
 	}
@@ -738,7 +850,6 @@ func (a *apiService) FilesUpdate(ctx context.Context, req *api.FileUpdate, param
 		isContentUpdate = true
 	}
 
-	// Update UpdatedAt if content changed OR if explicitly set (e.g., SetModTime)
 	if isContentUpdate || req.UpdatedAt.IsSet() {
 		if req.UpdatedAt.IsSet() && !req.UpdatedAt.Value.IsZero() {
 			update.UpdatedAt = &req.UpdatedAt.Value
@@ -747,48 +858,19 @@ func (a *apiService) FilesUpdate(ctx context.Context, req *api.FileUpdate, param
 			update.UpdatedAt = &now
 		}
 	}
+
 	if uploadId != "" && len(uploads) > 0 {
 		update.Hash = uploadTreeHash(uploads)
 	}
 
-	fileUUID := uuid.UUID(params.ID)
+	return update
+}
 
-	var file *jetmodel.Files
-	if err := a.repo.WithTx(ctx, func(txCtx context.Context) error {
-		updated, err := a.repo.Files.UpdateReturning(txCtx, fileUUID, update)
-		if err != nil {
-			return err
-		}
-		file = updated
-		if uploadId != "" {
-			if err := a.repo.Uploads.Delete(txCtx, uploadId); err != nil {
-				return err
-			}
-		}
-
-		return nil
-	}); err != nil {
-		return nil, &apiError{err: err}
-	}
-
-	fileIDStr := fileUUID.String()
-	keys := []string{cache.KeyFile(fileIDStr)}
-	if len(req.Parts) > 0 {
-		keys = append(keys, cache.KeyFileMessages(fileIDStr))
-		a.cache.DeletePattern(ctx, cache.KeyFileLocationPattern(fileIDStr))
+func (a *apiService) invalidateFileCache(ctx context.Context, fileID string, hasParts bool) {
+	keys := []string{cache.KeyFile(fileID)}
+	if hasParts {
+		keys = append(keys, cache.KeyFileMessages(fileID))
+		a.cache.DeletePattern(ctx, cache.KeyFileLocationPattern(fileID))
 	}
 	a.cache.Delete(ctx, keys...)
-
-	var parentID string
-	if file.ParentID != nil {
-		parentID = file.ParentID.String()
-	}
-
-	a.events.Record(events.OpUpdate, userId, &dto.Source{
-		ID:       file.ID.String(),
-		Type:     file.Type,
-		Name:     file.Name,
-		ParentID: parentID,
-	})
-	return mapper.ToJetFileOut(*file), nil
 }

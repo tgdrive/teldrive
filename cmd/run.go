@@ -240,6 +240,11 @@ func runApplication(ctx context.Context, conf *config.ServerCmdConfig) {
 	lg.Info("server.stopped")
 }
 
+const (
+	defaultReadHeaderTimeout = 10 * time.Second
+	defaultIdleTimeout       = 60 * time.Second
+)
+
 func setupServer(cfg *config.ServerCmdConfig, repos *repositories.Repositories, cache cache.Cacher, lg *zap.Logger, botSelector tgc.BotSelector, eventBroadcaster events.EventBroadcaster) (*http.Server, *river.Client[pgx.Tx]) {
 	channelManager := tgc.NewChannelManager(repos, cache, &cfg.TG)
 	telegramService := services.NewTelegramService(repos, cache, &cfg.TG, botSelector)
@@ -249,14 +254,12 @@ func setupServer(cfg *config.ServerCmdConfig, repos *repositories.Repositories, 
 	if err != nil {
 		lg.Error("failed to create river client", zap.Error(err))
 		os.Exit(1)
-		return nil, nil
 	}
 	apiSrv.SetJobClient(riverClient)
 	apiSrv.SetPeriodicJobRegistry(riverClient.PeriodicJobs())
 	if err := apiSrv.RegisterPeriodicJobs(context.Background()); err != nil {
 		lg.Error("failed to register periodic jobs", zap.Error(err))
 		os.Exit(1)
-		return nil, nil
 	}
 
 	sec := auth.NewSecurityHandler(repos.Sessions, repos.APIKeys, cache, &cfg.JWT)
@@ -266,7 +269,6 @@ func setupServer(cfg *config.ServerCmdConfig, repos *repositories.Repositories, 
 	if err != nil {
 		lg.Error("failed to create server", zap.Error(err))
 		os.Exit(1)
-		return nil, nil // unreachable but required for compilation
 	}
 
 	mux := chi.NewRouter()
@@ -295,7 +297,7 @@ func setupServer(cfg *config.ServerCmdConfig, repos *repositories.Repositories, 
 		Handler:           mux,
 		ReadTimeout:       cfg.Server.ReadTimeout,
 		WriteTimeout:      cfg.Server.WriteTimeout,
-		ReadHeaderTimeout: 10 * time.Second,
-		IdleTimeout:       60 * time.Second,
+		ReadHeaderTimeout: defaultReadHeaderTimeout,
+		IdleTimeout:       defaultIdleTimeout,
 	}, riverClient
 }

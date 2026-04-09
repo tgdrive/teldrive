@@ -74,6 +74,41 @@ model FileStream {
   lastModified: utcDateTime;
 }
 
+@doc("File streaming headers response")
+model FileStreamHead {
+  @statusCode
+  statusCode: 200 | 206;
+
+  @header("Accept-Ranges")
+  @doc("Indicates server supports range requests")
+  @example("bytes")
+  acceptRanges: "bytes";
+
+  @header("Content-Length")
+  @doc("Size of the response body in bytes")
+  @example("1048576")
+  contentLength: string;
+
+  @header("Content-Disposition")
+  @doc("File attachment information")
+  @example("attachment; filename=\"example.pdf\"")
+  contentDisposition: string;
+
+  @header("Content-Range")
+  @doc("Range of bytes being sent")
+  @example("bytes 0-1048575/2097152")
+  contentRange?: string;
+
+  @header("Etag")
+  @doc("Entity tag for cache validation")
+  @example("5e8d1a2b-3c4d-5e6f-7a8b-9c0d1e2f3a4b")
+  eTag: string;
+
+  @header("Last-Modified")
+  @doc("Last modification timestamp")
+  lastModified: utcDateTime;
+}
+
 @error
 @doc("Standard error response")
 model Error {
@@ -965,12 +1000,11 @@ interface Files {
   @route("/{id}/content")
   @head
   @summary("Get file content headers")
-  streamHead(@path id: UUID): FileStream | Error;
-
-  @route("/{id}/children")
-  @get
-  @summary("List folder children")
-  children(@path id: UUID, ...FileQuery): FileList | Error;
+  streamHead(
+    @path id: UUID,
+    @query download?: "0" | "1" = "0",
+    @header("Range") range?: string,
+  ): FileStreamHead | Error;
 
   @route("/categories")
   @get

@@ -608,53 +608,6 @@ paths:
         - AccessTokenCookieAuth: []
         - XApiKeyHeaderAuth: []
         - SessionHashAuth: []
-  /files/{id}/children:
-    get:
-      operationId: Files_children
-      summary: List folder children
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            $ref: '#/components/schemas/UUID'
-        - $ref: '#/components/parameters/FileQuery.name'
-        - $ref: '#/components/parameters/FileQuery.query'
-        - $ref: '#/components/parameters/FileQuery.searchType'
-        - $ref: '#/components/parameters/FileQuery.type'
-        - $ref: '#/components/parameters/FileQuery.path'
-        - $ref: '#/components/parameters/FileQuery.operation'
-        - $ref: '#/components/parameters/FileQuery.status'
-        - $ref: '#/components/parameters/FileQuery.deepSearch'
-        - $ref: '#/components/parameters/FileQuery.shared'
-        - $ref: '#/components/parameters/FileQuery.parentId'
-        - $ref: '#/components/parameters/FileQuery.category'
-        - $ref: '#/components/parameters/FileQuery.updatedAt'
-        - $ref: '#/components/parameters/FileQuery.sort'
-        - $ref: '#/components/parameters/FileQuery.order'
-        - $ref: '#/components/parameters/FileQuery.limit'
-        - $ref: '#/components/parameters/FileQuery.cursor'
-        - $ref: '#/components/parameters/FileQuery.page'
-      responses:
-        '200':
-          description: The request has succeeded.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/FileList'
-        default:
-          description: An unexpected error response.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-      tags:
-        - Files
-      security:
-        - BearerAuth: []
-        - AccessTokenCookieAuth: []
-        - XApiKeyHeaderAuth: []
-        - SessionHashAuth: []
   /files/{id}/content:
     get:
       operationId: Files_stream
@@ -787,9 +740,24 @@ paths:
           required: true
           schema:
             $ref: '#/components/schemas/UUID'
+        - name: download
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - '0'
+              - '1'
+            default: '0'
+          explode: false
+        - name: Range
+          in: header
+          required: false
+          schema:
+            type: string
       responses:
         '200':
-          description: File streaming response
+          description: File streaming headers response
           headers:
             Accept-Ranges:
               required: true
@@ -824,13 +792,8 @@ paths:
               schema:
                 type: string
                 format: http-date
-          content:
-            application/octet-stream:
-              schema:
-                type: string
-                format: binary
         '206':
-          description: File streaming response
+          description: File streaming headers response
           headers:
             Accept-Ranges:
               required: true
@@ -865,11 +828,6 @@ paths:
               schema:
                 type: string
                 format: http-date
-          content:
-            application/octet-stream:
-              schema:
-                type: string
-                format: binary
         default:
           description: An unexpected error response.
           content:

@@ -39,14 +39,6 @@ func TestFilesRoutes_CRUDAndOperations(t *testing.T) {
 		t.Fatalf("expected file list items >= 1, got %d", len(listAll.Items))
 	}
 
-	children, err := client.FilesChildren(ctx, api.FilesChildrenParams{ID: created.ID.Value, Limit: api.NewOptInt(50)})
-	if err != nil {
-		t.Fatalf("FilesChildren failed: %v", err)
-	}
-	if len(children.Items) != 0 {
-		t.Fatalf("expected empty children for new folder, got %d", len(children.Items))
-	}
-
 	dataFile, err := client.FilesCreate(ctx, &api.File{
 		Name:      "report.txt",
 		Type:      api.FileTypeFile,
