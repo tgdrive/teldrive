@@ -8,6 +8,7 @@ import (
 	"github.com/go-faster/errors"
 	"github.com/ogen-go/ogen/ogenerrors"
 	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/rivertype"
 	"go.uber.org/zap"
 
 	ht "github.com/ogen-go/ogen/http"
@@ -32,7 +33,13 @@ type apiService struct {
 	telegram       TelegramService
 	repo           *repositories.Repositories
 	jobs           jobClient
-	periodicJobs   *river.PeriodicJobBundle
+	periodicJobs   periodicJobRegistry
+}
+
+type periodicJobRegistry interface {
+	AddMany(periodicJobs []*river.PeriodicJob) []rivertype.PeriodicJobHandle
+	AddSafely(periodicJob *river.PeriodicJob) (rivertype.PeriodicJobHandle, error)
+	RemoveByID(id string) bool
 }
 
 func (a *apiService) VersionVersion(ctx context.Context) (*api.ApiVersion, error) {
@@ -83,7 +90,8 @@ func NewApiService(repo *repositories.Repositories,
 	cache cache.Cacher,
 	telegram TelegramService,
 	events events.EventBroadcaster,
-	jobs jobClient) *apiService {
+	jobs jobClient,
+	periodicJobs periodicJobRegistry) *apiService {
 
 	return &apiService{
 		repo:           repo,
@@ -94,15 +102,8 @@ func NewApiService(repo *repositories.Repositories,
 		channelManager: channelManager,
 		telegram:       telegram,
 		jobs:           jobs,
+		periodicJobs:   periodicJobs,
 	}
-}
-
-func (a *apiService) SetJobClient(jobs jobClient) {
-	a.jobs = jobs
-}
-
-func (a *apiService) SetPeriodicJobRegistry(periodicJobs *river.PeriodicJobBundle) {
-	a.periodicJobs = periodicJobs
 }
 
 func (a *apiService) syncRunMaxAttempts() int {

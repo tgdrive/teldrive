@@ -29,7 +29,7 @@ func TestCompatService_FileMethodsCoverage(t *testing.T) {
 	}
 
 	cm := tgc.NewChannelManager(s.repos, s.cache, &s.cfg.TG)
-	svc := services.NewApiService(s.repos, cm, s.cfg, s.cache, s.tgMock, s.events, nil)
+	svc := services.NewApiService(s.repos, cm, s.cfg, s.cache, s.tgMock, s.events, nil, nil)
 
 	selected := true
 	if err := s.repos.Channels.Create(ctx, &jetmodel.Channels{UserID: 7501, ChannelID: 950001, ChannelName: "selected", Selected: &selected}); err != nil {

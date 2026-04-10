@@ -111,7 +111,7 @@ func newSuite(t *testing.T) *suite {
 	c := cache.NewMemoryCache(10 * 1024 * 1024)
 	channelManager := tgc.NewChannelManager(repos, c, &cfg.TG)
 
-	h := services.NewApiService(repos, channelManager, cfg, c, tgMock, evt, newNoopJobClient())
+	h := services.NewApiService(repos, channelManager, cfg, c, tgMock, evt, newNoopJobClient(), nil)
 	sec := authpkg.NewSecurityHandler(repos.Sessions, repos.APIKeys, c, &cfg.JWT)
 	rawSrv := services.NewRawService(h)
 	srv, err := api.NewServer(h, rawSrv, sec)

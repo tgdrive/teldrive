@@ -54,12 +54,15 @@ func TestSyncRunWorkflow_LocalSource_Completes(t *testing.T) {
 	}
 
 	channelManager := tgc.NewChannelManager(s.repos, s.cache, &s.cfg.TG)
-	apiSvc := services.NewApiService(s.repos, channelManager, s.cfg, s.cache, s.tgMock, s.events, nil)
+	jobClientRef := services.NewJobClientRef()
+	periodicRegistryRef := services.NewPeriodicJobRegistryRef()
+	apiSvc := services.NewApiService(s.repos, channelManager, s.cfg, s.cache, s.tgMock, s.events, jobClientRef, periodicRegistryRef)
 	riverClient, err := queue.NewClient(s.pool, services.NewJobExecutor(apiSvc), config.QueueConfig{}, config.JobsConfig{})
 	if err != nil {
 		t.Fatalf("create river client: %v", err)
 	}
-	apiSvc.SetJobClient(riverClient)
+	jobClientRef.Set(riverClient)
+	periodicRegistryRef.Set(riverClient.PeriodicJobs())
 
 	if err := riverClient.Start(s.ctx); err != nil {
 		t.Fatalf("start river client: %v", err)
@@ -152,12 +155,15 @@ func TestSyncRunWorkflow_LocalSource_PrunesExtraDestinationFolders(t *testing.T)
 	}
 
 	channelManager := tgc.NewChannelManager(s.repos, s.cache, &s.cfg.TG)
-	apiSvc := services.NewApiService(s.repos, channelManager, s.cfg, s.cache, s.tgMock, s.events, nil)
+	jobClientRef := services.NewJobClientRef()
+	periodicRegistryRef := services.NewPeriodicJobRegistryRef()
+	apiSvc := services.NewApiService(s.repos, channelManager, s.cfg, s.cache, s.tgMock, s.events, jobClientRef, periodicRegistryRef)
 	riverClient, err := queue.NewClient(s.pool, services.NewJobExecutor(apiSvc), config.QueueConfig{}, config.JobsConfig{})
 	if err != nil {
 		t.Fatalf("create river client: %v", err)
 	}
-	apiSvc.SetJobClient(riverClient)
+	jobClientRef.Set(riverClient)
+	periodicRegistryRef.Set(riverClient.PeriodicJobs())
 
 	if err := riverClient.Start(s.ctx); err != nil {
 		t.Fatalf("start river client: %v", err)
@@ -243,12 +249,15 @@ func TestSyncRunWorkflow_LocalSource_RetriesAndDiscardsOnFailure(t *testing.T) {
 	}
 
 	channelManager := tgc.NewChannelManager(s.repos, s.cache, &s.cfg.TG)
-	apiSvc := services.NewApiService(s.repos, channelManager, s.cfg, s.cache, s.tgMock, s.events, nil)
+	jobClientRef := services.NewJobClientRef()
+	periodicRegistryRef := services.NewPeriodicJobRegistryRef()
+	apiSvc := services.NewApiService(s.repos, channelManager, s.cfg, s.cache, s.tgMock, s.events, jobClientRef, periodicRegistryRef)
 	riverClient, err := queue.NewClient(s.pool, services.NewJobExecutor(apiSvc), config.QueueConfig{}, config.JobsConfig{})
 	if err != nil {
 		t.Fatalf("create river client: %v", err)
 	}
-	apiSvc.SetJobClient(riverClient)
+	jobClientRef.Set(riverClient)
+	periodicRegistryRef.Set(riverClient.PeriodicJobs())
 
 	if err := riverClient.Start(s.ctx); err != nil {
 		t.Fatalf("start river client: %v", err)
@@ -342,12 +351,15 @@ func TestSyncRunWorkflow_LocalSource_ResumesUploadedPartsOnRetry(t *testing.T) {
 	}
 
 	channelManager := tgc.NewChannelManager(s.repos, s.cache, &s.cfg.TG)
-	apiSvc := services.NewApiService(s.repos, channelManager, s.cfg, s.cache, s.tgMock, s.events, nil)
+	jobClientRef := services.NewJobClientRef()
+	periodicRegistryRef := services.NewPeriodicJobRegistryRef()
+	apiSvc := services.NewApiService(s.repos, channelManager, s.cfg, s.cache, s.tgMock, s.events, jobClientRef, periodicRegistryRef)
 	riverClient, err := queue.NewClient(s.pool, services.NewJobExecutor(apiSvc), config.QueueConfig{}, config.JobsConfig{})
 	if err != nil {
 		t.Fatalf("create river client: %v", err)
 	}
-	apiSvc.SetJobClient(riverClient)
+	jobClientRef.Set(riverClient)
+	periodicRegistryRef.Set(riverClient.PeriodicJobs())
 
 	if err := riverClient.Start(s.ctx); err != nil {
 		t.Fatalf("start river client: %v", err)
@@ -453,12 +465,15 @@ func TestSyncTransfer_LiveProgressVisibleOnRunningJob(t *testing.T) {
 	}
 
 	channelManager := tgc.NewChannelManager(s.repos, s.cache, &s.cfg.TG)
-	apiSvc := services.NewApiService(s.repos, channelManager, s.cfg, s.cache, s.tgMock, s.events, nil)
+	jobClientRef := services.NewJobClientRef()
+	periodicRegistryRef := services.NewPeriodicJobRegistryRef()
+	apiSvc := services.NewApiService(s.repos, channelManager, s.cfg, s.cache, s.tgMock, s.events, jobClientRef, periodicRegistryRef)
 	riverClient, err := queue.NewClient(s.pool, services.NewJobExecutor(apiSvc), config.QueueConfig{}, config.JobsConfig{})
 	if err != nil {
 		t.Fatalf("create river client: %v", err)
 	}
-	apiSvc.SetJobClient(riverClient)
+	jobClientRef.Set(riverClient)
+	periodicRegistryRef.Set(riverClient.PeriodicJobs())
 
 	if err := riverClient.Start(s.ctx); err != nil {
 		t.Fatalf("start river client: %v", err)
@@ -586,12 +601,15 @@ func TestSyncRunWorkflow_CancelRunningSyncTransfer(t *testing.T) {
 	}
 
 	channelManager := tgc.NewChannelManager(s.repos, s.cache, &s.cfg.TG)
-	apiSvc := services.NewApiService(s.repos, channelManager, s.cfg, s.cache, s.tgMock, s.events, nil)
+	jobClientRef := services.NewJobClientRef()
+	periodicRegistryRef := services.NewPeriodicJobRegistryRef()
+	apiSvc := services.NewApiService(s.repos, channelManager, s.cfg, s.cache, s.tgMock, s.events, jobClientRef, periodicRegistryRef)
 	riverClient, err := queue.NewClient(s.pool, services.NewJobExecutor(apiSvc), config.QueueConfig{}, config.JobsConfig{})
 	if err != nil {
 		t.Fatalf("create river client: %v", err)
 	}
-	apiSvc.SetJobClient(riverClient)
+	jobClientRef.Set(riverClient)
+	periodicRegistryRef.Set(riverClient.PeriodicJobs())
 
 	if err := riverClient.Start(s.ctx); err != nil {
 		t.Fatalf("start river client: %v", err)
