@@ -150,7 +150,7 @@ func (r *Reader) getPartReader() (io.ReadCloser, error) {
 	// index-out-of-range mid-download (#553). Surface a normal error
 	// instead so the HTTP handler returns 500 rather than killing the
 	// server.
-	if currentRange.PartNo < 0 || int(currentRange.PartNo) >= len(r.parts) {
+	if currentRange.PartNo < 0 || currentRange.PartNo >= int64(len(r.parts)) {
 		return nil, fmt.Errorf("part number %d out of range for file with %d parts", currentRange.PartNo, len(r.parts))
 	}
 	partId := r.parts[currentRange.PartNo].ID
