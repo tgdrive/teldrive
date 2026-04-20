@@ -204,6 +204,15 @@ func FetchBotInfo(ctx context.Context, kvRepo repositories.KVRepository, cache c
 	if err != nil {
 		return nil, err
 	}
+	// Guard against the rare path where RunWithAuth returns nil but the
+	// inner client.Self call never actually populated `user` (for example
+	// when the connection is torn down mid-flight and the gotd middleware
+	// swallows the cancel as a no-op). Dereferencing user.ID / user.Username
+	// below was crashing the whole process because AddBotsToChannel runs
+	// the bot probe inside an errgroup that does not recover panics.
+	if user == nil {
+		return nil, fmt.Errorf("bot self lookup returned no user info")
+	}
 	return &types.BotInfo{ID: user.ID, UserName: user.Username, Token: token}, nil
 }
 
