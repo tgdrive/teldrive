@@ -1,0 +1,5 @@
+FROM alpine:latest
+RUN apk add --no-cache ca-certificates tzdata
+COPY bin/teldrive /teldrive
+EXPOSE 8080
+ENTRYPOINT ["/teldrive","run"]

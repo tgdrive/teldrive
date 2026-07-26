@@ -178,12 +178,24 @@ func (r *tgMultiReader) fillBatch() error {
 				return err
 			}
 
+			// Telegram puede devolver menos bytes de los pedidos, o
+			// ninguno, si el offset cae mas alla de los datos reales de
+			// la parte (metadatos con un tamano mayor que el contenido).
+			// Trocear sin mirar la longitud real hace panic:
+			//   slice bounds out of range [:987] with capacity 0
+			n := int64(len(chunk))
+			lo := min(r.leftCut, n)
+			hi := min(r.rightCut, n)
+			if lo > hi {
+				lo = hi
+			}
+
 			if r.totalParts == 1 {
-				chunk = chunk[r.leftCut:r.rightCut]
+				chunk = chunk[lo:hi]
 			} else if r.currentPart+i == 0 {
-				chunk = chunk[r.leftCut:]
+				chunk = chunk[lo:]
 			} else if r.currentPart+i+1 == r.totalParts {
-				chunk = chunk[:r.rightCut]
+				chunk = chunk[:hi]
 			}
 
 			buffers[i] = &buffer{buf: chunk}

@@ -2,6 +2,7 @@ package reader
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"sync"
 
@@ -35,10 +36,27 @@ type Reader struct {
 	botID       string
 }
 
-func calculatePartByteRanges(start, end, partSize int64) []Range {
+func calculatePartByteRanges(start, end, partSize int64, numParts int) []Range {
 	ranges := make([]Range, 0)
+
+	if partSize <= 0 || numParts <= 0 {
+		return ranges
+	}
+
 	startPart := start / partSize
 	endPart := end / partSize
+
+	// El indice de parte se deduce dividiendo el offset entre el tamano
+	// de la primera parte. Si el tamano declarado del fichero es mayor
+	// que la suma real de sus partes, endPart llega a valer numParts y
+	// getPartReader indexa fuera del slice (panic). Acotarlo aqui evita
+	// tumbar el proceso por unos metadatos inconsistentes.
+	if maxPart := int64(numParts - 1); endPart > maxPart {
+		endPart = maxPart
+	}
+	if startPart > endPart {
+		return ranges
+	}
 
 	for part := startPart; part <= endPart; part++ {
 		partStart := max(start-part*partSize, 0)
@@ -63,16 +81,33 @@ func NewReader(ctx context.Context,
 	botID string,
 ) (io.ReadCloser, error) {
 
+	if len(parts) == 0 {
+		return nil, fmt.Errorf("reader: el fichero %s no tiene partes", file.ID)
+	}
+
 	size := parts[0].Size
 	if *file.Encrypted {
 		size = parts[0].DecryptedSize
 	}
+	ranges := calculatePartByteRanges(start, end, size, len(parts))
+
+	// Sin rangos = el offset pedido cae mas alla de los datos que
+	// realmente existen. Pasa cuando el tamano declarado del fichero es
+	// mayor que la suma de sus partes. Mejor decirlo aqui que dejar
+	// que getPartReader falle luego con un mensaje opaco.
+	if len(ranges) == 0 {
+		return nil, fmt.Errorf(
+			"reader: el rango [%d-%d] del fichero %s queda fuera de los datos reales "+
+				"(%d partes de ~%d bytes = ~%d bytes, pero declara %d)",
+			start, end, file.ID, len(parts), size, int64(len(parts))*size, file.Size)
+	}
+
 	r := &Reader{
 		ctx:       ctx,
 		parts:     parts,
 		file:      file,
 		remaining: end - start + 1,
-		ranges:    calculatePartByteRanges(start, end, size),
+		ranges:    ranges,
 		config:    config,
 		client:    client,
 		cache:     cache,
@@ -132,7 +167,16 @@ func (r *Reader) moveToNextPart() error {
 }
 
 func (r *Reader) getPartReader() (io.ReadCloser, error) {
+	if r.pos < 0 || r.pos >= len(r.ranges) {
+		return nil, fmt.Errorf("reader: posicion %d fuera de los %d rangos calculados",
+			r.pos, len(r.ranges))
+	}
 	currentRange := r.ranges[r.pos]
+	if currentRange.PartNo < 0 || currentRange.PartNo >= int64(len(r.parts)) {
+		return nil, fmt.Errorf(
+			"reader: parte %d fuera de rango en el fichero %s (%d bytes declarados, %d partes)",
+			currentRange.PartNo, r.file.ID, r.file.Size, len(r.parts))
+	}
 	partId := r.parts[currentRange.PartNo].ID
 
 	chunkSrc := &chunkSource{
