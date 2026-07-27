@@ -12,7 +12,7 @@ Teldrive is a powerful utility that enables you to organise your telegram files 
 > [!IMPORTANT]
 > Teldrive functions as a wrapper over your Telegram account, simplifying file access. However, users must adhere to the limitations imposed by the Telegram API. Teldrive is not responsible for any consequences arising from non-compliance with these API limits.You will be banned instantly if you misuse telegram API.
 
-Visit https://teldrive-docs.pages.dev for setting up teldrive.
+Visit <a href="https://teldrive-docs.pages.dev" target="_blank">https://teldrive-docs.pages.dev</a> for setting up teldrive.
 
 # Recognitions
 
