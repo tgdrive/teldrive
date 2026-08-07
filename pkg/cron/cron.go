@@ -59,6 +59,13 @@ func (c *CronService) recoverJob(job string) func() {
 
 func StartCronJobs(ctx context.Context, db *gorm.DB, cnf *config.ServerCmdConfig) error {
 
+	logging.Component("CRON").Debug("cron.config",
+		zap.String("locker_instance", cnf.CronJobs.LockerInstance),
+		zap.Duration("clean_files_interval", cnf.CronJobs.CleanFilesInterval),
+		zap.Duration("clean_uploads_interval", cnf.CronJobs.CleanUploadsInterval),
+		zap.Duration("folder_size_interval", cnf.CronJobs.FolderSizeInterval),
+	)
+
 	err := db.AutoMigrate(&gormlock.CronJobLock{})
 	if err != nil {
 		return err
@@ -70,6 +77,7 @@ func StartCronJobs(ctx context.Context, db *gorm.DB, cnf *config.ServerCmdConfig
 	if err != nil {
 		return err
 	}
+	logging.Component("CRON").Debug("cron.locker_created")
 
 	scheduler, err := gocron.NewScheduler(gocron.WithLocation(time.UTC),
 		gocron.WithDistributedLocker(locker))
@@ -101,6 +109,7 @@ func StartCronJobs(ctx context.Context, db *gorm.DB, cnf *config.ServerCmdConfig
 	}
 
 	scheduler.Start()
+	logging.Component("CRON").Debug("cron.scheduler_started", zap.Int("job_count", len(scheduler.Jobs())))
 	return nil
 }
 
