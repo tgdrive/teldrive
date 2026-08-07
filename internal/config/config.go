@@ -54,7 +54,7 @@ type ServerCmdConfig struct {
 	JWT      JWTConfig
 	DB       DBConfig
 	TG       TGConfig
-	CronJobs CronJobConfig
+	CronJobs CronJobConfig `koanf:"cronjobs"`
 	Cache    CacheConfig
 	Redis    RedisConfig
 	Events   EventConfig
