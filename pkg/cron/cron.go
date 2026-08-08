@@ -42,7 +42,29 @@ type CronService struct {
 	logger *zap.Logger
 }
 
+// recoverJob is a defense-in-depth guard for cron job bodies: any unforeseen
+// panic (nil pointer dereference, index out of range, etc.) is logged and
+// swallowed instead of propagating and crashing the whole server process.
+// Usage: defer c.recoverJob("job_name")()
+func (c *CronService) recoverJob(job string) func() {
+	return func() {
+		if r := recover(); r != nil {
+			c.logger.Error("cron.job_panic_recovered",
+				zap.String("job", job),
+				zap.Any("panic", r),
+				zap.Stack("stack"))
+		}
+	}
+}
+
 func StartCronJobs(ctx context.Context, db *gorm.DB, cnf *config.ServerCmdConfig) error {
+
+	logging.Component("CRON").Debug("cron.config",
+		zap.String("locker_instance", cnf.CronJobs.LockerInstance),
+		zap.Duration("clean_files_interval", cnf.CronJobs.CleanFilesInterval),
+		zap.Duration("clean_uploads_interval", cnf.CronJobs.CleanUploadsInterval),
+		zap.Duration("folder_size_interval", cnf.CronJobs.FolderSizeInterval),
+	)
 
 	err := db.AutoMigrate(&gormlock.CronJobLock{})
 	if err != nil {
@@ -55,6 +77,7 @@ func StartCronJobs(ctx context.Context, db *gorm.DB, cnf *config.ServerCmdConfig
 	if err != nil {
 		return err
 	}
+	logging.Component("CRON").Debug("cron.locker_created")
 
 	scheduler, err := gocron.NewScheduler(gocron.WithLocation(time.UTC),
 		gocron.WithDistributedLocker(locker))
@@ -86,10 +109,12 @@ func StartCronJobs(ctx context.Context, db *gorm.DB, cnf *config.ServerCmdConfig
 	}
 
 	scheduler.Start()
+	logging.Component("CRON").Debug("cron.scheduler_started", zap.Int("job_count", len(scheduler.Jobs())))
 	return nil
 }
 
 func (c *CronService) cleanFiles(ctx context.Context) {
+	defer c.recoverJob("clean_files")()
 	c.logger.Info("cron.clean_files.started")
 	var results []result
 	if err := c.db.Table("teldrive.files as f").
@@ -132,8 +157,13 @@ func (c *CronService) cleanFiles(ctx context.Context) {
 
 		}
 
-		client, _ := tgc.AuthClient(ctx, &c.cnf.TG, row.Session, middlewares...)
-		err := tgc.DeleteMessages(ctx, client, row.ChannelId, ids)
+		client, err := tgc.AuthClient(ctx, &c.cnf.TG, row.Session, middlewares...)
+		if err != nil {
+			c.logger.Error("cron.file_delete_auth_failed", zap.Error(err), zap.Int64("channel_id", row.ChannelId), zap.Int64("user_id", row.UserId))
+			continue
+		}
+
+		err = tgc.DeleteMessages(ctx, client, row.ChannelId, ids)
 
 		if err != nil {
 			c.logger.Error("cron.file_delete_failed", zap.Error(err), zap.Int64("channel_id", row.ChannelId))
@@ -153,6 +183,7 @@ func (c *CronService) cleanFiles(ctx context.Context) {
 }
 
 func (c *CronService) cleanUploads(ctx context.Context) {
+	defer c.recoverJob("clean_uploads")()
 	c.logger.Info("cron.clean_uploads.started")
 	var results []uploadResult
 	if err := c.db.Table("teldrive.uploads as up").
@@ -179,9 +210,13 @@ func (c *CronService) cleanUploads(ctx context.Context) {
 	for _, result := range results {
 
 		if result.Session != "" && len(result.Parts) > 0 {
-			client, _ := tgc.AuthClient(ctx, &c.cnf.TG, result.Session, middlewares...)
+			client, err := tgc.AuthClient(ctx, &c.cnf.TG, result.Session, middlewares...)
+			if err != nil {
+				c.logger.Error("cron.upload_delete_auth_failed", zap.Error(err), zap.Int64("channel_id", result.ChannelId), zap.Int64("user_id", result.UserId))
+				continue
+			}
 
-			err := tgc.DeleteMessages(ctx, client, result.ChannelId, result.Parts)
+			err = tgc.DeleteMessages(ctx, client, result.ChannelId, result.Parts)
 			if err != nil {
 				c.logger.Error("failed to delete messages", zap.Error(err))
 				return
@@ -199,6 +234,7 @@ func (c *CronService) cleanUploads(ctx context.Context) {
 }
 
 func (c *CronService) updateFolderSize() {
+	defer c.recoverJob("update_folder_size")()
 	c.logger.Info("cron.folder_size.started")
 	query := `
 	WITH RECURSIVE folder_hierarchy AS (
@@ -226,5 +262,6 @@ func (c *CronService) updateFolderSize() {
 }
 
 func (c *CronService) cleanOldEvents() {
+	defer c.recoverJob("clean_old_events")()
 	c.db.Exec("DELETE FROM teldrive.events WHERE created_at < NOW() - INTERVAL '5 days';")
 }

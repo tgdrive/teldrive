@@ -189,15 +189,32 @@ func runApplication(ctx context.Context, conf *config.ServerCmdConfig) {
 		}
 	}()
 
-	// Start cron jobs in background if enabled
+	// Start cron jobs in background if enabled.
+	//
+	// StartCronJobs can fail transiently on cold start (observed: gocron-gorm-lock's
+	// "worker is required" firing intermittently despite CronJobs.LockerInstance being
+	// a non-empty default) — retry a few times with backoff before giving up. Cron is
+	// a background maintenance subsystem (pending-file cleanup, upload GC, folder size
+	// stats); it must never be allowed to take the whole file server down via
+	// initErrCh/os.Exit if it can't start. If all retries fail, log and keep serving
+	// files without cron rather than crashing.
 	if conf.CronJobs.Enable {
 		go func() {
-			if err := cron.StartCronJobs(bgCtx, db, conf); err != nil {
-				lg.Error("cron.init.failed", zap.Error(err))
-				initErrCh <- fmt.Errorf("cron scheduler failed: %w", err)
-				return
+			const maxAttempts = 5
+			backoff := time.Second
+			var err error
+			for attempt := 1; attempt <= maxAttempts; attempt++ {
+				if err = cron.StartCronJobs(bgCtx, db, conf); err == nil {
+					lg.Debug("cron.init.completed")
+					return
+				}
+				lg.Error("cron.init.failed", zap.Error(err), zap.Int("attempt", attempt), zap.Int("max_attempts", maxAttempts))
+				if attempt < maxAttempts {
+					time.Sleep(backoff)
+					backoff *= 2
+				}
 			}
-			lg.Debug("cron.init.completed")
+			lg.Error("cron.init.giving_up", zap.Error(err), zap.String("impact", "background maintenance jobs disabled; file serving continues normally"))
 		}()
 	}
 
