@@ -135,6 +135,62 @@ rate = 200
 	assert.Equal(t, time.Hour, cfg.Server.WriteTimeout)
 }
 
+// TestConfigLoader_PartialCronJobsSection is a regression test for #580.
+//
+// ServerCmdConfig.CronJobs previously had no explicit koanf tag, so its key
+// was derived via toKebabCase("CronJobs") = "cron-jobs" (with a hyphen).
+// Every real config.toml in the wild uses the documented section name
+// [cronjobs] (no hyphen), matching CronJobConfig's own field names (e.g.
+// "clean-files-interval"). This created two separate branches in the koanf
+// tree -- defaults registered under cron-jobs.*, file values loaded under
+// cronjobs.* -- and mapstructure's hyphen-insensitive MatchName made both
+// branches match the CronJobs destination field. Which one "won" depended
+// on Go's randomized map iteration order, so any CronJobs field NOT
+// explicitly set in the file (LockerInstance, CleanUploadsInterval,
+// FolderSizeInterval here) would non-deterministically end up as its zero
+// value -- in production this produced an empty LockerInstance, which made
+// gormlock.NewGormLocker return ErrWorkerIsRequired and, because that error
+// was fed into a fatal init path, crashed the whole server (see #580).
+//
+// This test only sets [cronjobs] enable/clean-files-interval, leaving the
+// rest to defaults, exactly like the reporter's config -- so it fails
+// without the koanf:"cronjobs" tag and passes with it.
+func TestConfigLoader_PartialCronJobsSection(t *testing.T) {
+	loader := NewConfigLoader()
+	var cfg ServerCmdConfig
+
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "config.toml")
+
+	configContent := `
+[cronjobs]
+enable = true
+clean-files-interval = "1m"
+`
+	err := os.WriteFile(configPath, []byte(configContent), 0644)
+	require.NoError(t, err)
+
+	cmd := &cobra.Command{
+		Use: "test",
+	}
+
+	loader.RegisterFlags(cmd.Flags(), reflect.TypeFor[ServerCmdConfig]())
+	require.NoError(t, cmd.Flags().Set("config", configPath))
+
+	err = loader.Load(cmd, &cfg)
+	require.NoError(t, err)
+
+	// Explicitly set in the file.
+	assert.Equal(t, true, cfg.CronJobs.Enable)
+	assert.Equal(t, time.Minute, cfg.CronJobs.CleanFilesInterval)
+
+	// Not set in the file -- must still fall back to their struct-tag
+	// defaults, not the Go zero value.
+	assert.Equal(t, "cron-locker", cfg.CronJobs.LockerInstance)
+	assert.Equal(t, 12*time.Hour, cfg.CronJobs.CleanUploadsInterval)
+	assert.Equal(t, 2*time.Hour, cfg.CronJobs.FolderSizeInterval)
+}
+
 func TestConfigLoader_CommandLineFlags(t *testing.T) {
 	loader := NewConfigLoader()
 	var cfg ServerCmdConfig
