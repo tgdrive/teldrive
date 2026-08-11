@@ -15,6 +15,9 @@ func TestDefaultIncludesLegacyPublicTelegramClientIdentity(t *testing.T) {
 	t.Parallel()
 
 	cfg := Default()
+	if !cfg.Database.AutoMigrateLegacy {
+		t.Fatal("Database AutoMigrateLegacy = false, want true")
+	}
 	if cfg.Telegram.AppID != 2496 {
 		t.Fatalf("Telegram AppID = %d, want 2496", cfg.Telegram.AppID)
 	}
@@ -68,6 +71,7 @@ func TestLoadFromAppliesEnvironment(t *testing.T) {
 		"TELDRIVE_HTTP_ADDRESS":                  "0.0.0.0:9090",
 		"TELDRIVE_DATABASE_MAX_CONNECTIONS":      "12",
 		"TELDRIVE_DATABASE_MIN_CONNECTIONS":      "3",
+		"TELDRIVE_DATABASE_AUTO_MIGRATE_LEGACY":  "false",
 		"TELDRIVE_TELEGRAM_UPLOAD_THREADS":       "6",
 		"TELDRIVE_TELEGRAM_DOWNLOAD_BOTS":        "3",
 		"TELDRIVE_TELEGRAM_RANDOMIZE_PART_NAMES": "false",
@@ -92,7 +96,7 @@ func TestLoadFromAppliesEnvironment(t *testing.T) {
 	if cfg.HTTP.Address != "0.0.0.0:9090" || cfg.Database.URL != values["TELDRIVE_DATABASE_URL"] {
 		t.Fatalf("loaded addresses = %#v", cfg)
 	}
-	if cfg.Database.MaxConnections != 12 || cfg.Database.MinConnections != 3 {
+	if cfg.Database.MaxConnections != 12 || cfg.Database.MinConnections != 3 || cfg.Database.AutoMigrateLegacy {
 		t.Fatalf("database pool = %#v", cfg.Database)
 	}
 	if cfg.Telegram.UploadThreads != 6 || cfg.Telegram.DownloadBots != 3 || cfg.Telegram.RandomizePartNames || cfg.Telegram.AutoChannelCreate || cfg.Telegram.ChannelPartLimit != 12345 {

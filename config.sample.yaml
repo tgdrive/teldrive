@@ -18,6 +18,7 @@ database:
   max-connection-life: 30m
   health-check-interval: 30s
   connect-timeout: 10s
+  auto-migrate-legacy: true
 
 telegram:
   # Use filesystem for local/offline testing. Remote mode requires app-id/app-hash.

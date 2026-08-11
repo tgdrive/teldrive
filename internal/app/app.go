@@ -70,24 +70,26 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
-	report, migrated, err := legacymigrate.MigrateIfNeeded(ctx, cfg.Database, cfg.Security.DataKey)
-	if err != nil {
-		return nil, fmt.Errorf("migrate legacy database: %w", err)
-	}
-	if migrated {
-		logger := dependencies.Logger
-		if logger == nil {
-			logger = slog.Default()
+	if cfg.Database.AutoMigrateLegacy {
+		report, migrated, err := legacymigrate.MigrateIfNeeded(ctx, cfg.Database, cfg.Security.DataKey)
+		if err != nil {
+			return nil, fmt.Errorf("migrate legacy database: %w", err)
 		}
-		logger.Info("database.legacy_migration.completed",
-			"users", report.Users,
-			"channels", report.Channels,
-			"bots", report.Bots,
-			"folders", report.Folders,
-			"files", report.Files,
-			"file_parts", report.FileParts,
-			"backup_schema", report.BackupSchema,
-		)
+		if migrated {
+			logger := dependencies.Logger
+			if logger == nil {
+				logger = slog.Default()
+			}
+			logger.Info("database.legacy_migration.completed",
+				"users", report.Users,
+				"channels", report.Channels,
+				"bots", report.Bots,
+				"folders", report.Folders,
+				"files", report.Files,
+				"file_parts", report.FileParts,
+				"backup_schema", report.BackupSchema,
+			)
+		}
 	}
 	if err := sqlcgen.ConfigureSchema(cfg.Database.Schema); err != nil {
 		return nil, fmt.Errorf("configure database schema: %w", err)

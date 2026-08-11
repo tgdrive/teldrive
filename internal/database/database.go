@@ -38,6 +38,7 @@ type Config struct {
 	MaxConnectionLife   time.Duration `koanf:"max-connection-life" default:"30m" validate:"gte=0" description:"Maximum lifetime for a PostgreSQL connection"`
 	HealthCheckInterval time.Duration `koanf:"health-check-interval" default:"30s" validate:"gt=0" description:"PostgreSQL pool health-check interval"`
 	ConnectTimeout      time.Duration `koanf:"connect-timeout" default:"10s" validate:"gt=0" description:"PostgreSQL connection timeout"`
+	AutoMigrateLegacy   bool          `koanf:"auto-migrate-legacy" default:"true" description:"Automatically migrate a detected TelDrive v1 database during startup"`
 	AllowLegacySchema   bool          `koanf:"-"`
 }
 
@@ -142,6 +143,9 @@ func Migrate(ctx context.Context, cfg Config) error {
 		return fmt.Errorf("inspect database schema: %w", err)
 	}
 	if legacy && !cfg.AllowLegacySchema {
+		if !cfg.AutoMigrateLegacy {
+			return fmt.Errorf("%w: database.auto-migrate-legacy is disabled; set it to true to migrate during startup", ErrLegacySchema)
+		}
 		return fmt.Errorf("%w: automatic legacy migration did not complete", ErrLegacySchema)
 	}
 	if _, err := db.ExecContext(ctx, "CREATE SCHEMA IF NOT EXISTS "+pgx.Identifier{cfg.Schema}.Sanitize()); err != nil {
