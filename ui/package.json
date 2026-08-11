@@ -36,6 +36,10 @@
     "zod": "4.4.3",
     "zustand": "5.0.14"
   },
+  "overrides": {
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  },
   "devDependencies": {
     "@biomejs/biome": "2.5.4",
     "@iconify-json/gravity-ui": "^1.2.13",
