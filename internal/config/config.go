@@ -23,7 +23,7 @@ type HTTP struct {
 	ReadTimeout       time.Duration `koanf:"read-timeout" default:"30s" validate:"gte=0" description:"Maximum time to read an entire request"`
 	WriteTimeout      time.Duration `koanf:"write-timeout" default:"0s" validate:"gte=0" description:"Maximum response write duration; zero disables it for streaming"`
 	IdleTimeout       time.Duration `koanf:"idle-timeout" default:"2m" validate:"gte=0" description:"HTTP keep-alive idle timeout"`
-	ShutdownTimeout   time.Duration `koanf:"shutdown-timeout" default:"30s" validate:"gte=0" description:"Graceful shutdown timeout"`
+	ShutdownTimeout   time.Duration `koanf:"shutdown-timeout" default:"10s" validate:"gte=0" description:"Graceful shutdown timeout"`
 	TrustedProxies    []string      `koanf:"trusted-proxies" default:"" description:"Proxy IP addresses or CIDRs trusted to set forwarding headers"`
 }
 

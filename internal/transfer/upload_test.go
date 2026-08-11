@@ -6,12 +6,16 @@ import (
 	"errors"
 	"io"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/tgdrive/teldrive/v2/internal/db/sqlcgen"
 	"github.com/tgdrive/teldrive/v2/internal/telegramstore"
 	"github.com/tgdrive/teldrive/v2/internal/treehash"
+	"github.com/tgdrive/teldrive/v2/internal/uploads"
 )
 
 func TestExactReader(t *testing.T) {
@@ -138,6 +142,171 @@ func TestDeleteUploadedCompensation(t *testing.T) {
 	if err := pipeline.deleteUploaded(context.Background(), 1, part); err == nil {
 		t.Fatal("expected compensation error")
 	}
+}
+
+func TestFailPartDetachesCleanupFromCanceledRequest(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	catalog := &cleanupCatalog{}
+	pipeline := &Pipeline{catalog: catalog}
+	cause := context.Canceled
+
+	err := pipeline.failPart(ctx, UploadPartRequest{UploadID: uuid.New(), PartNo: 1}, uuid.New(), "request_canceled", cause)
+
+	if !errors.Is(err, cause) {
+		t.Fatalf("failPart() error = %v, want %v", err, cause)
+	}
+	if catalog.cleanupErr != nil {
+		t.Fatalf("FailPart() context error = %v", catalog.cleanupErr)
+	}
+	if !catalog.hadDeadline {
+		t.Fatal("FailPart() cleanup context has no deadline")
+	}
+}
+
+func TestUploadPartRenewsLeaseDuringTransfer(t *testing.T) {
+	t.Parallel()
+	catalog := newLeaseCatalog()
+	storage := &leaseStorage{waitForRenewal: catalog.renewed}
+	pipeline := NewPipeline(catalog, fixedChannelResolver(9), storage, nil, Config{LeaseRenewInterval: time.Millisecond})
+
+	result, err := pipeline.UploadPart(context.Background(), UploadPartRequest{
+		UserID: 1, UploadID: catalog.uploadID, PartNo: 1, PlainSize: 4, Body: bytes.NewBufferString("data"),
+	})
+	if err != nil {
+		t.Fatalf("UploadPart() error = %v", err)
+	}
+	if result.Part.State != sqlcgen.UploadPartStateStored || catalog.renewCount() == 0 {
+		t.Fatalf("result = %#v, renewals = %d", result, catalog.renewCount())
+	}
+}
+
+func TestUploadPartFinalizesPublishedMessageAfterRequestCancellation(t *testing.T) {
+	t.Parallel()
+	catalog := newLeaseCatalog()
+	ctx, cancel := context.WithCancel(context.Background())
+	storage := &leaseStorage{cancelAfterUpload: cancel}
+	pipeline := NewPipeline(catalog, fixedChannelResolver(9), storage, nil, Config{})
+
+	result, err := pipeline.UploadPart(ctx, UploadPartRequest{
+		UserID: 1, UploadID: catalog.uploadID, PartNo: 1, PlainSize: 4, Body: bytes.NewBufferString("data"),
+	})
+	if err != nil {
+		t.Fatalf("UploadPart() error = %v", err)
+	}
+	if result.Part.State != sqlcgen.UploadPartStateStored || catalog.storeContextErr != nil {
+		t.Fatalf("result = %#v, store context error = %v", result, catalog.storeContextErr)
+	}
+}
+
+type fixedChannelResolver int64
+
+func (r fixedChannelResolver) Resolve(context.Context, int64, int64) (int64, error) {
+	return int64(r), nil
+}
+
+type leaseCatalog struct {
+	mu              sync.Mutex
+	uploadID        uuid.UUID
+	leaseToken      uuid.UUID
+	renewed         chan struct{}
+	renewOnce       sync.Once
+	renewals        int
+	storeContextErr error
+}
+
+func newLeaseCatalog() *leaseCatalog {
+	return &leaseCatalog{uploadID: uuid.New(), leaseToken: uuid.New(), renewed: make(chan struct{})}
+}
+
+func (c *leaseCatalog) Get(context.Context, int64, uuid.UUID) (*sqlcgen.UploadSession, error) {
+	return &sqlcgen.UploadSession{}, nil
+}
+func (c *leaseCatalog) GetPart(context.Context, int64, uuid.UUID, int32) (*sqlcgen.UploadPart, error) {
+	return nil, uploads.ErrNotFound
+}
+func (c *leaseCatalog) ClaimPart(context.Context, uploads.ClaimPartInput) (*uploads.ClaimPartResult, error) {
+	return &uploads.ClaimPartResult{Part: &sqlcgen.UploadPart{}, LeaseToken: c.leaseToken}, nil
+}
+func (c *leaseCatalog) RenewPart(context.Context, uploads.RenewPartInput) error {
+	c.mu.Lock()
+	c.renewals++
+	c.mu.Unlock()
+	c.renewOnce.Do(func() { close(c.renewed) })
+	return nil
+}
+func (c *leaseCatalog) StorePart(ctx context.Context, _ uploads.StorePartInput) (*sqlcgen.UploadPart, error) {
+	c.storeContextErr = ctx.Err()
+	return &sqlcgen.UploadPart{State: sqlcgen.UploadPartStateStored}, nil
+}
+func (*leaseCatalog) FailPart(context.Context, uploads.FailPartInput) (*sqlcgen.UploadPart, error) {
+	return &sqlcgen.UploadPart{}, nil
+}
+func (c *leaseCatalog) renewCount() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.renewals
+}
+
+type leaseStorage struct {
+	waitForRenewal    <-chan struct{}
+	cancelAfterUpload context.CancelFunc
+}
+
+func (s *leaseStorage) Upload(ctx context.Context, request telegramstore.UploadRequest) (telegramstore.StoredPart, error) {
+	if s.waitForRenewal != nil {
+		select {
+		case <-s.waitForRenewal:
+		case <-ctx.Done():
+			return telegramstore.StoredPart{}, context.Cause(ctx)
+		}
+	}
+	data, err := io.ReadAll(request.Reader)
+	if err != nil {
+		return telegramstore.StoredPart{}, err
+	}
+	if s.cancelAfterUpload != nil {
+		s.cancelAfterUpload()
+	}
+	return telegramstore.StoredPart{ChannelID: request.ChannelID, MessageID: 7, Size: int64(len(data))}, nil
+}
+func (*leaseStorage) OpenRange(context.Context, telegramstore.RangeRequest) (io.ReadCloser, error) {
+	return nil, errors.New("not used")
+}
+func (*leaseStorage) DeleteMessages(context.Context, int64, int64, []int64) error { return nil }
+func (*leaseStorage) CopyPart(context.Context, int64, int64, int64, int64) (telegramstore.StoredPart, error) {
+	return telegramstore.StoredPart{}, errors.New("not used")
+}
+func (*leaseStorage) CreateChannel(context.Context, int64, string) (telegramstore.Channel, error) {
+	return telegramstore.Channel{}, errors.New("not used")
+}
+func (*leaseStorage) DeleteChannel(context.Context, int64, int64) error { return nil }
+
+type cleanupCatalog struct {
+	cleanupErr  error
+	hadDeadline bool
+}
+
+func (*cleanupCatalog) Get(context.Context, int64, uuid.UUID) (*sqlcgen.UploadSession, error) {
+	return nil, errors.New("not used")
+}
+func (*cleanupCatalog) GetPart(context.Context, int64, uuid.UUID, int32) (*sqlcgen.UploadPart, error) {
+	return nil, errors.New("not used")
+}
+func (*cleanupCatalog) ClaimPart(context.Context, uploads.ClaimPartInput) (*uploads.ClaimPartResult, error) {
+	return nil, errors.New("not used")
+}
+func (*cleanupCatalog) RenewPart(context.Context, uploads.RenewPartInput) error {
+	return errors.New("not used")
+}
+func (*cleanupCatalog) StorePart(context.Context, uploads.StorePartInput) (*sqlcgen.UploadPart, error) {
+	return nil, errors.New("not used")
+}
+func (c *cleanupCatalog) FailPart(ctx context.Context, _ uploads.FailPartInput) (*sqlcgen.UploadPart, error) {
+	c.cleanupErr = ctx.Err()
+	_, c.hadDeadline = ctx.Deadline()
+	return &sqlcgen.UploadPart{}, nil
 }
 
 type deleteStorage struct {

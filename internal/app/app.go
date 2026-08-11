@@ -426,7 +426,7 @@ func (a *App) Close() error {
 	}
 	timeout := a.config.HTTP.ShutdownTimeout
 	if timeout <= 0 {
-		timeout = 30 * time.Second
+		timeout = 10 * time.Second
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()

@@ -47,6 +47,16 @@ func TestUploadLifecycleAgainstRealPostgres(t *testing.T) {
 	if first.Existing || first.LeaseToken == uuid.Nil {
 		t.Fatalf("first claim = %#v", first)
 	}
+	if err := svc.RenewPart(ctx, uploads.RenewPartInput{
+		UploadID: uploadID, PartNo: 1, LeaseToken: uuid.New(),
+	}); !errors.Is(err, uploads.ErrLeaseLost) {
+		t.Fatalf("wrong lease renewal error = %v, want ErrLeaseLost", err)
+	}
+	if err := svc.RenewPart(ctx, uploads.RenewPartInput{
+		UploadID: uploadID, PartNo: 1, LeaseToken: first.LeaseToken,
+	}); err != nil {
+		t.Fatalf("renew first part: %v", err)
+	}
 	if _, err := svc.ClaimPart(ctx, uploads.ClaimPartInput{
 		UserID: 1001, UploadID: uploadID, PartNo: 1, ChannelID: 9001, PlainSize: 4, Checksum: &hash,
 	}); !errors.Is(err, uploads.ErrPartBusy) {

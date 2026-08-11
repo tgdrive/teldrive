@@ -117,6 +117,15 @@ WHERE upload_id = sqlc.arg(upload_id)
   AND lease_token = sqlc.arg(lease_token)
 RETURNING *;
 
+-- name: RenewUploadPartLease :execrows
+UPDATE /* TEMPLATE: schema */upload_parts
+SET lease_expires_at = sqlc.arg(lease_expires_at),
+    updated_at = now()
+WHERE upload_id = sqlc.arg(upload_id)
+  AND part_no = sqlc.arg(part_no)
+  AND state = 'uploading'
+  AND lease_token = sqlc.arg(lease_token);
+
 -- name: MarkUploadPartFailed :one
 UPDATE /* TEMPLATE: schema */upload_parts
 SET state = 'failed',

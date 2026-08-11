@@ -25,7 +25,7 @@ import (
 const (
 	defaultPartSize   int64 = 512 * 1024 * 1024
 	defaultSessionTTL       = 7 * 24 * time.Hour
-	defaultLeaseTTL         = 15 * time.Minute
+	defaultLeaseTTL         = time.Minute
 )
 
 var (
@@ -283,6 +283,31 @@ type StorePartInput struct {
 	Checksum    string
 	Salt        *string
 	BlockHashes []byte
+}
+
+type RenewPartInput struct {
+	UploadID   uuid.UUID
+	PartNo     int32
+	LeaseToken uuid.UUID
+}
+
+func (s *Service) RenewPart(ctx context.Context, in RenewPartInput) error {
+	if in.UploadID == uuid.Nil || in.PartNo <= 0 || in.LeaseToken == uuid.Nil {
+		return ErrInvalidInput
+	}
+	updated, err := s.queries.RenewUploadPartLease(ctx, sqlcgen.RenewUploadPartLeaseParams{
+		LeaseExpiresAt: dbtypes.Time(s.now().UTC().Add(s.leaseTTL)),
+		UploadID:       dbtypes.UUID(in.UploadID),
+		PartNo:         in.PartNo,
+		LeaseToken:     dbtypes.UUID(in.LeaseToken),
+	})
+	if err != nil {
+		return fmt.Errorf("renew upload part lease: %w", err)
+	}
+	if updated == 0 {
+		return ErrLeaseLost
+	}
+	return nil
 }
 
 func (s *Service) StorePart(ctx context.Context, in StorePartInput) (*sqlcgen.UploadPart, error) {

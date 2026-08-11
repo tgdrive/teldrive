@@ -1214,6 +1214,36 @@ func (q *Queries) RenameUploadSession(ctx context.Context, arg RenameUploadSessi
 	return result.RowsAffected(), nil
 }
 
+const renewUploadPartLease = `-- name: RenewUploadPartLease :execrows
+UPDATE /* TEMPLATE: schema */upload_parts
+SET lease_expires_at = $1,
+    updated_at = now()
+WHERE upload_id = $2
+  AND part_no = $3
+  AND state = 'uploading'
+  AND lease_token = $4
+`
+
+type RenewUploadPartLeaseParams struct {
+	LeaseExpiresAt pgtype.Timestamptz `json:"lease_expires_at"`
+	UploadID       pgtype.UUID        `json:"upload_id"`
+	PartNo         int32              `json:"part_no"`
+	LeaseToken     pgtype.UUID        `json:"lease_token"`
+}
+
+func (q *Queries) RenewUploadPartLease(ctx context.Context, arg RenewUploadPartLeaseParams) (int64, error) {
+	result, err := q.db.Exec(ctx, renewUploadPartLease,
+		arg.LeaseExpiresAt,
+		arg.UploadID,
+		arg.PartNo,
+		arg.LeaseToken,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const revokeActiveSharesForFile = `-- name: RevokeActiveSharesForFile :exec
 UPDATE /* TEMPLATE: schema */file_shares
 SET revoked_at = COALESCE(revoked_at, now())

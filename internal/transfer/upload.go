@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -30,11 +31,15 @@ var (
 	ErrUploadNotConfigured = errors.New("upload pipeline is not configured")
 )
 
+const partCleanupTimeout = 5 * time.Second
+const defaultLeaseRenewInterval = 20 * time.Second
+
 // UploadCatalog is the durable upload-session boundary required by Pipeline.
 type UploadCatalog interface {
 	Get(context.Context, int64, uuid.UUID) (*sqlcgen.UploadSession, error)
 	GetPart(context.Context, int64, uuid.UUID, int32) (*sqlcgen.UploadPart, error)
 	ClaimPart(context.Context, uploads.ClaimPartInput) (*uploads.ClaimPartResult, error)
+	RenewPart(context.Context, uploads.RenewPartInput) error
 	StorePart(context.Context, uploads.StorePartInput) (*sqlcgen.UploadPart, error)
 	FailPart(context.Context, uploads.FailPartInput) (*sqlcgen.UploadPart, error)
 }
@@ -53,6 +58,7 @@ type Config struct {
 	UploadThreads      int
 	RandomizePartNames bool
 	Random             io.Reader
+	LeaseRenewInterval time.Duration
 }
 
 type Pipeline struct {
@@ -66,6 +72,9 @@ type Pipeline struct {
 func NewPipeline(catalog UploadCatalog, channels ChannelResolver, storage telegramstore.Storage, keys KeyProvider, cfg Config) *Pipeline {
 	if cfg.Random == nil {
 		cfg.Random = rand.Reader
+	}
+	if cfg.LeaseRenewInterval <= 0 {
+		cfg.LeaseRenewInterval = defaultLeaseRenewInterval
 	}
 	return &Pipeline{catalog: catalog, channels: channels, storage: storage, keys: keys, config: cfg}
 }
@@ -131,8 +140,11 @@ func (p *Pipeline) UploadPart(ctx context.Context, request UploadPartRequest) (*
 	if claim.Existing {
 		return &UploadPartResult{Part: claim.Part, Existing: true}, nil
 	}
+	uploadCtx, cancelUpload := context.WithCancelCause(ctx)
+	defer cancelUpload(nil)
+	renewErrors := p.renewPartLease(uploadCtx, cancelUpload, request, claim.LeaseToken)
 
-	exact := newExactReader(ctx, request.Body, request.PlainSize)
+	exact := newExactReader(uploadCtx, request.Body, request.PlainSize)
 	hasher := treehash.NewBlockHasher()
 	plainReader := io.TeeReader(exact, hasher)
 	storedReader := io.Reader(plainReader)
@@ -164,7 +176,7 @@ func (p *Pipeline) UploadPart(ctx context.Context, request UploadPartRequest) (*
 		salt = &generatedSalt
 	}
 
-	stored, err := p.storage.Upload(ctx, telegramstore.UploadRequest{
+	stored, err := p.storage.Upload(uploadCtx, telegramstore.UploadRequest{
 		UserID:    request.UserID,
 		ChannelID: channelID,
 		Name:      p.partName(request.UploadID, request.PartNo),
@@ -173,7 +185,14 @@ func (p *Pipeline) UploadPart(ctx context.Context, request UploadPartRequest) (*
 		Threads:   p.config.UploadThreads,
 	})
 	if err != nil {
+		if renewErr := pendingRenewError(renewErrors); renewErr != nil {
+			err = errors.Join(err, renewErr)
+		}
 		return nil, p.failPart(ctx, request, claim.LeaseToken, "telegram_upload_failed", err)
+	}
+	if renewErr := pendingRenewError(renewErrors); renewErr != nil {
+		cleanupErr := p.deleteUploaded(ctx, request.UserID, stored)
+		return nil, errors.Join(renewErr, cleanupErr)
 	}
 	if stored.ChannelID != channelID || stored.MessageID <= 0 || stored.Size != storedSize {
 		cleanupErr := p.deleteUploaded(ctx, request.UserID, stored)
@@ -195,7 +214,9 @@ func (p *Pipeline) UploadPart(ctx context.Context, request UploadPartRequest) (*
 		return nil, p.failPart(ctx, request, claim.LeaseToken, "checksum_mismatch", errors.Join(ErrChecksumMismatch, cleanupErr))
 	}
 
-	part, err := p.catalog.StorePart(ctx, uploads.StorePartInput{
+	storeCtx, cancelStore := partCleanupContext(ctx)
+	defer cancelStore()
+	part, err := p.catalog.StorePart(storeCtx, uploads.StorePartInput{
 		UploadID:    request.UploadID,
 		PartNo:      request.PartNo,
 		LeaseToken:  claim.LeaseToken,
@@ -213,7 +234,9 @@ func (p *Pipeline) UploadPart(ctx context.Context, request UploadPartRequest) (*
 }
 
 func (p *Pipeline) failPart(ctx context.Context, request UploadPartRequest, leaseToken uuid.UUID, code string, cause error) error {
-	_, failErr := p.catalog.FailPart(ctx, uploads.FailPartInput{
+	cleanupCtx, cancel := partCleanupContext(ctx)
+	defer cancel()
+	_, failErr := p.catalog.FailPart(cleanupCtx, uploads.FailPartInput{
 		UploadID:   request.UploadID,
 		PartNo:     request.PartNo,
 		LeaseToken: leaseToken,
@@ -223,6 +246,45 @@ func (p *Pipeline) failPart(ctx context.Context, request UploadPartRequest, leas
 		return errors.Join(cause, failErr)
 	}
 	return cause
+}
+
+func (p *Pipeline) renewPartLease(ctx context.Context, cancel context.CancelCauseFunc, request UploadPartRequest, leaseToken uuid.UUID) <-chan error {
+	errorsCh := make(chan error, 1)
+	go func() {
+		ticker := time.NewTicker(p.config.LeaseRenewInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				renewCtx, stop := partCleanupContext(ctx)
+				err := p.catalog.RenewPart(renewCtx, uploads.RenewPartInput{
+					UploadID: request.UploadID, PartNo: request.PartNo, LeaseToken: leaseToken,
+				})
+				stop()
+				if err != nil {
+					errorsCh <- err
+					cancel(err)
+					return
+				}
+			}
+		}
+	}()
+	return errorsCh
+}
+
+func pendingRenewError(errorsCh <-chan error) error {
+	select {
+	case err := <-errorsCh:
+		return err
+	default:
+		return nil
+	}
+}
+
+func partCleanupContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.WithoutCancel(ctx), partCleanupTimeout)
 }
 
 func (p *Pipeline) deleteUploaded(ctx context.Context, userID int64, part telegramstore.StoredPart) error {

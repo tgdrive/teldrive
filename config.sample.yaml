@@ -4,7 +4,7 @@ http:
   read-timeout: 30s
   write-timeout: 0s
   idle-timeout: 2m
-  shutdown-timeout: 30s
+  shutdown-timeout: 10s
   # Trust forwarding headers only from these proxy IP addresses or CIDRs.
   trusted-proxies: []
 

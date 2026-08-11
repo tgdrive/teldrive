@@ -125,6 +125,7 @@ type Querier interface {
 	NextBotSelectionValue(ctx context.Context, arg NextBotSelectionValueParams) (int64, error)
 	ReleaseAdvisoryLock(ctx context.Context, lockID int64) (bool, error)
 	RenameUploadSession(ctx context.Context, arg RenameUploadSessionParams) (int64, error)
+	RenewUploadPartLease(ctx context.Context, arg RenewUploadPartLeaseParams) (int64, error)
 	ReserveIdempotencyKey(ctx context.Context, arg ReserveIdempotencyKeyParams) (*IdempotencyKey, error)
 	ResolveActiveChild(ctx context.Context, arg ResolveActiveChildParams) (*File, error)
 	ResolveActiveChildFolder(ctx context.Context, arg ResolveActiveChildFolderParams) (pgtype.UUID, error)
