@@ -142,6 +142,9 @@ func Default() Config {
 }
 
 func (c Config) Validate() error {
+	if strings.TrimSpace(c.Security.DataKey) == "" {
+		return fmt.Errorf("%w: security.data-key is required; set security.data-key or TELDRIVE_SECURITY_DATA_KEY before starting Teldrive", ErrInvalid)
+	}
 	problems := validateTaggedFields(c)
 
 	if c.Database.MinConnections > c.Database.MaxConnections {

@@ -142,7 +142,7 @@ func Migrate(ctx context.Context, cfg Config) error {
 		return fmt.Errorf("inspect database schema: %w", err)
 	}
 	if legacy && !cfg.AllowLegacySchema {
-		return fmt.Errorf("%w: create a verified database backup, then run `teldrive migrate legacy-preflight` before using this version", ErrLegacySchema)
+		return fmt.Errorf("%w: automatic legacy migration did not complete", ErrLegacySchema)
 	}
 	if _, err := db.ExecContext(ctx, "CREATE SCHEMA IF NOT EXISTS "+pgx.Identifier{cfg.Schema}.Sanitize()); err != nil {
 		return fmt.Errorf("create database schema: %w", err)

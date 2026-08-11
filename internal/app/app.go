@@ -30,6 +30,7 @@ import (
 	"github.com/tgdrive/teldrive/v2/internal/fileops"
 	"github.com/tgdrive/teldrive/v2/internal/health"
 	"github.com/tgdrive/teldrive/v2/internal/jobs"
+	"github.com/tgdrive/teldrive/v2/internal/legacymigrate"
 	"github.com/tgdrive/teldrive/v2/internal/secureblob"
 	"github.com/tgdrive/teldrive/v2/internal/shares"
 	"github.com/tgdrive/teldrive/v2/internal/telegramstore"
@@ -63,12 +64,30 @@ type App struct {
 	closed  bool
 }
 
-// New builds the complete v2 backend. It runs all TelDrive, River, and RiverPro
-// migrations before opening the long-lived connection pool, so the HTTP server
-// can never become ready against a partially migrated database.
+// New builds the complete v2 backend. It upgrades legacy databases and runs all
+// TelDrive, River, and RiverPro migrations before opening the long-lived pool.
 func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*App, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
+	}
+	report, migrated, err := legacymigrate.MigrateIfNeeded(ctx, cfg.Database, cfg.Security.DataKey)
+	if err != nil {
+		return nil, fmt.Errorf("migrate legacy database: %w", err)
+	}
+	if migrated {
+		logger := dependencies.Logger
+		if logger == nil {
+			logger = slog.Default()
+		}
+		logger.Info("database.legacy_migration.completed",
+			"users", report.Users,
+			"channels", report.Channels,
+			"bots", report.Bots,
+			"folders", report.Folders,
+			"files", report.Files,
+			"file_parts", report.FileParts,
+			"backup_schema", report.BackupSchema,
+		)
 	}
 	if err := sqlcgen.ConfigureSchema(cfg.Database.Schema); err != nil {
 		return nil, fmt.Errorf("configure database schema: %w", err)

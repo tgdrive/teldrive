@@ -4,16 +4,18 @@ package legacymigrate_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"github.com/tgdrive/teldrive/v2/internal/database"
 	"github.com/tgdrive/teldrive/v2/internal/legacymigrate"
 	testpostgres "github.com/tgdrive/teldrive/v2/internal/testutil/postgres"
 )
 
-func TestRunCopiesLegacyDatabase(t *testing.T) {
+func TestMigrateIfNeededCopiesLegacyDatabase(t *testing.T) {
 	ctx := context.Background()
 	source := testpostgres.New(t)
 
@@ -55,18 +57,19 @@ VALUES
 		t.Fatalf("seed legacy files: %v", err)
 	}
 
-	report, err := legacymigrate.Run(ctx, legacymigrate.Config{
-		SourceURL:            source.URL,
-		Target:               database.Config{URL: source.URL, Schema: "teldrive_v2_staging_test"},
-		LegacySchema:         "teldrive",
-		FinalSchema:          "teldrive",
-		BackupSchema:         "teldrive_legacy_backup_test",
-		DataKey:              "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-		EncryptionKeyVersion: 1,
-		Apply:                true,
-	})
+	if _, _, err := legacymigrate.MigrateIfNeeded(ctx, database.Config{URL: source.URL}, ""); err == nil || !strings.Contains(err.Error(), "security.data-key") {
+		t.Fatalf("empty data-key error = %v", err)
+	}
+	report, migrated, err := legacymigrate.MigrateIfNeeded(
+		ctx,
+		database.Config{URL: source.URL},
+		"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+	)
 	if err != nil {
-		t.Fatalf("Run() error = %v", err)
+		t.Fatalf("MigrateIfNeeded() error = %v", err)
+	}
+	if !migrated {
+		t.Fatal("legacy database was not migrated")
 	}
 	if report.Users != 1 || report.Channels != 1 || report.Bots != 1 || report.Folders != 1 || report.Files != 1 || report.FileParts != 1 {
 		t.Fatalf("unexpected report: %+v", report)
@@ -92,17 +95,20 @@ VALUES
 		t.Fatal("legacy part sizes were unexpectedly populated")
 	}
 	var backupUserCount int
-	if err := source.Pool.QueryRow(ctx, `SELECT count(*) FROM teldrive_legacy_backup_test.users`).Scan(&backupUserCount); err != nil {
+	if err := source.Pool.QueryRow(ctx, `SELECT count(*) FROM `+pgx.Identifier{report.BackupSchema}.Sanitize()+`.users`).Scan(&backupUserCount); err != nil {
 		t.Fatalf("inspect backup schema: %v", err)
 	}
 	if backupUserCount != 1 {
 		t.Fatalf("backup user count = %d, want 1", backupUserCount)
 	}
 	var gooseMoved bool
-	if err := source.Pool.QueryRow(ctx, `SELECT to_regclass('teldrive_legacy_backup_test.goose_db_version') IS NOT NULL AND to_regclass('public.goose_db_version') IS NULL`).Scan(&gooseMoved); err != nil {
+	if err := source.Pool.QueryRow(ctx, `SELECT to_regclass($1) IS NOT NULL AND to_regclass('public.goose_db_version') IS NULL`, report.BackupSchema+".goose_db_version").Scan(&gooseMoved); err != nil {
 		t.Fatalf("inspect moved goose table: %v", err)
 	}
 	if !gooseMoved {
 		t.Fatal("legacy goose table was not moved into the backup schema")
+	}
+	if _, migrated, err := legacymigrate.MigrateIfNeeded(ctx, database.Config{URL: source.URL}, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"); err != nil || migrated {
+		t.Fatalf("second migration = migrated %v, error %v", migrated, err)
 	}
 }

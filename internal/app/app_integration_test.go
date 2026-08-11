@@ -129,6 +129,7 @@ func TestApplicationInitializesFilesystemTelegramBackendWithoutCredentials(t *te
 func TestNewRejectsInvalidConfiguration(t *testing.T) {
 	t.Parallel()
 	cfg := config.Default()
+	cfg.Security.DataKey = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
 	if _, err := app.New(context.Background(), cfg, app.Dependencies{}); !errors.Is(err, config.ErrInvalid) {
 		t.Fatalf("New() error = %v", err)
 	}
