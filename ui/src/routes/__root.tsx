@@ -1,4 +1,9 @@
-import { Button, RouterProvider as AriaRouterProvider, Separator } from "@heroui/react";
+import {
+  Button,
+  RouterProvider as AriaRouterProvider,
+  Separator,
+  cn,
+} from "@heroui/react";
 import { buttonVariants } from "@heroui/styles";
 import type { QueryClient } from "@tanstack/react-query";
 import {
@@ -9,7 +14,6 @@ import {
   useLocation,
   useNavigate,
 } from "@tanstack/react-router";
-import { clsx } from "clsx";
 import { useTheme } from "next-themes";
 import { useEffect, useState } from "react";
 import MenuIcon from "~icons/gravity-ui/bars";
@@ -37,7 +41,9 @@ const mainNav = [
   { label: "Trash", icon: GridIcon, path: "/trash" },
 ] as const;
 
-const bottomNav = [{ label: "Settings", icon: SettingsIcon, path: "/settings" }] as const;
+const bottomNav = [
+  { label: "Settings", icon: SettingsIcon, path: "/settings" },
+] as const;
 const DESKTOP_BREAKPOINT = 1024;
 
 function getPageTitle(pathname: string) {
@@ -56,7 +62,9 @@ function Sidebar({
   mobile?: boolean;
   onNavigate?: () => void;
 }) {
-  const renderItem = (item: (typeof mainNav)[number] | (typeof bottomNav)[number]) => {
+  const renderItem = (
+    item: (typeof mainNav)[number] | (typeof bottomNav)[number],
+  ) => {
     const link = (
       <Link
         key={item.label}
@@ -65,10 +73,13 @@ function Sidebar({
         activeOptions={{ exact: false }}
         className="h-10 w-full justify-start rounded-full px-3 text-sm font-medium"
         activeProps={{
-          className: clsx(buttonVariants({ variant: "secondary" }), "bg-accent/10 text-accent"),
+          className: cn(
+            buttonVariants({ variant: "secondary" }),
+            "bg-accent/10 text-accent",
+          ),
         }}
         inactiveProps={{
-          className: clsx(
+          className: cn(
             buttonVariants({ variant: "ghost" }),
             "text-muted hover:bg-default/30 hover:text-foreground",
           ),
@@ -77,9 +88,11 @@ function Sidebar({
       >
         <item.icon className="size-4 shrink-0" />
         <span
-          className={clsx(
+          className={cn(
             "overflow-hidden whitespace-nowrap transition-[width,opacity,margin] duration-200",
-            collapsed && !mobile ? "ml-0 max-w-0 opacity-0" : "ml-3 max-w-52 opacity-100",
+            collapsed && !mobile
+              ? "ml-0 max-w-0 opacity-0"
+              : "ml-3 max-w-52 opacity-100",
           )}
         >
           {item.label}
@@ -92,7 +105,7 @@ function Sidebar({
 
   return (
     <aside
-      className={clsx(
+      className={cn(
         "flex h-full flex-col overflow-hidden border-r border-border bg-sidebar/95 backdrop-blur-xl",
         !mobile && "transition-[width] duration-200",
         mobile ? "w-[min(19rem,86vw)] shadow-2xl" : collapsed ? "w-16" : "w-60",
@@ -103,19 +116,25 @@ function Sidebar({
           <LogoIcon className="size-4" />
         </div>
         <div
-          className={clsx(
+          className={cn(
             "min-w-0 overflow-hidden whitespace-nowrap transition-[width,opacity] duration-200",
             collapsed && !mobile ? "max-w-0 opacity-0" : "max-w-40 opacity-100",
           )}
         >
           <p className="text-base font-semibold tracking-tight">Teldrive</p>
-          <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Cloud drive</p>
+          <p className="text-[10px] uppercase tracking-[0.16em] text-muted">
+            Cloud drive
+          </p>
         </div>
       </div>
 
       <Separator className="mx-3 w-auto" />
-      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">{mainNav.map(renderItem)}</nav>
-      <div className="space-y-1 border-t border-border px-3 py-3">{bottomNav.map(renderItem)}</div>
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+        {mainNav.map(renderItem)}
+      </nav>
+      <div className="space-y-1 border-t border-border px-3 py-3">
+        {bottomNav.map(renderItem)}
+      </div>
     </aside>
   );
 }
@@ -145,7 +164,11 @@ function TopBar({
         className="size-9 rounded-xl"
         onPress={desktop ? onToggleSidebar : onOpenMobile}
         aria-label={
-          desktop ? (collapsed ? "Expand sidebar" : "Collapse sidebar") : "Open navigation"
+          desktop
+            ? collapsed
+              ? "Expand sidebar"
+              : "Collapse sidebar"
+            : "Open navigation"
         }
       >
         {desktop ? (
@@ -207,7 +230,9 @@ function Layout() {
   const pathname = useLocation({ select: (location) => location.pathname });
   const [collapsed, setCollapsed] = useState(false);
   const [desktop, setDesktop] = useState(() =>
-    typeof window === "undefined" ? true : window.innerWidth >= DESKTOP_BREAKPOINT,
+    typeof window === "undefined"
+      ? true
+      : window.innerWidth >= DESKTOP_BREAKPOINT,
   );
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -253,7 +278,11 @@ function Layout() {
               onPress={() => setMobileOpen(false)}
             />
             <div className="relative z-10 h-full animate-in slide-in-from-left duration-200">
-              <Sidebar collapsed={false} mobile onNavigate={() => setMobileOpen(false)} />
+              <Sidebar
+                collapsed={false}
+                mobile
+                onNavigate={() => setMobileOpen(false)}
+              />
               <Button
                 isIconOnly
                 variant="ghost"

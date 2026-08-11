@@ -1,6 +1,5 @@
-import { Button, Modal, Spinner } from "@heroui/react";
+import { Button, cn, Modal, Spinner } from "@heroui/react";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import clsx from "clsx";
 import type { FileEntry } from "@/api/types";
 import { previewMedia, supportsCodePreview } from "@/features/files/preview-support";
 import { readerKind } from "@/features/files/reader-support";
@@ -181,7 +180,7 @@ export function FilePreviewDialog({
         <Modal.Dialog className="flex h-dvh max-h-dvh w-screen max-w-none flex-col overflow-hidden rounded-none bg-background text-foreground">
           <Modal.Header
             data-reader-header={isReader || undefined}
-            className={clsx(
+            className={cn(
               "relative z-30 flex h-16 shrink-0 flex-row items-center gap-3 border-x-0 border-t-0 px-3 py-0 sm:px-5",
               isReader ? "border-b border-border bg-surface/90 backdrop-blur-xl" : "glass-panel",
             )}
@@ -214,7 +213,7 @@ export function FilePreviewDialog({
             </Button>
           </Modal.Header>
           <Modal.Body
-            className={clsx(
+            className={cn(
               "relative min-h-0 flex-1 overflow-hidden p-0",
               isReader
                 ? "bg-background"

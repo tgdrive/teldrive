@@ -17,8 +17,7 @@ import {
 } from "pdfjs-dist/web/pdf_viewer.mjs";
 import "pdfjs-dist/web/pdf_viewer.css";
 
-import { Button, Drawer, InputGroup, Popover, Spinner, Tabs, useOverlayState } from "@heroui/react";
-import clsx from "clsx";
+import { Button, cn, Drawer, InputGroup, Popover, Spinner, Tabs, useOverlayState } from "@heroui/react";
 import {
   type KeyboardEvent as ReactKeyboardEvent,
   useCallback,
@@ -1217,7 +1216,7 @@ function PdfThumbnail({
     <div ref={hostRef} className="flex justify-center py-1">
       <Button
         variant={current ? "secondary" : "ghost"}
-        className={clsx(
+        className={cn(
           "h-auto w-full flex-col gap-2 rounded-xl px-2 py-2",
           current && "ring-1 ring-accent/40",
         )}
@@ -1225,10 +1224,10 @@ function PdfThumbnail({
         onPress={onPress}
       >
         <div
-          className="relative w-[142px] max-w-full overflow-hidden rounded-sm border border-border bg-white shadow-sm"
+          className="relative w-35.5 max-w-full overflow-hidden rounded-sm border border-border bg-white shadow-sm"
           style={{ aspectRatio: `1 / ${ratio}` }}
         >
-          <canvas ref={canvasRef} className={clsx("block max-w-full", !loaded && "opacity-0")} />
+          <canvas ref={canvasRef} className={cn("block max-w-full", !loaded && "opacity-0")} />
           {!loaded ? <div className="absolute inset-0 animate-pulse bg-default/20" /> : null}
         </div>
         <span className="text-[10px] font-medium tabular-nums text-muted">{pageNumber}</span>

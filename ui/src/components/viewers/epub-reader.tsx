@@ -1,5 +1,6 @@
 import {
   Button,
+  cn,
   Drawer,
   ListBox,
   Popover,
@@ -8,7 +9,6 @@ import {
   Tabs,
   useOverlayState,
 } from "@heroui/react";
-import clsx from "clsx";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { FileEntry } from "@/api/types";
@@ -320,12 +320,12 @@ export function EpubReader({ file, url, state, onPosition, onClose }: EpubReader
 
         <div className="min-w-0 flex-1 px-1 sm:px-2">
           <p className="truncate text-sm font-semibold tracking-[-0.01em]">{title}</p>
-          <p className="truncate text-[11px] text-[var(--reader-muted)]">
+          <p className="truncate text-[11px] text-(--reader-muted)">
             {chapter || "EPUB reader"}
           </p>
         </div>
 
-        <div className="hidden min-w-28 text-center text-[11px] text-[var(--reader-muted)] md:block">
+        <div className="hidden min-w-28 text-center text-[11px] text-(--reader-muted) md:block">
           {locationLabel(location, progress)}
         </div>
 
@@ -396,13 +396,13 @@ export function EpubReader({ file, url, state, onPosition, onClose }: EpubReader
 
         <main
           data-epub-canvas
-          className="relative min-w-0 flex-1 overflow-hidden bg-[var(--reader-canvas)]"
+          className="relative min-w-0 flex-1 overflow-hidden bg-(--reader-canvas)"
         >
           {!ready && !error && !closing ? (
-            <div className="absolute inset-0 z-10 grid place-items-center bg-[var(--reader-canvas)]/90">
+            <div className="absolute inset-0 z-10 grid place-items-center bg-(--reader-canvas)/90">
               <div className="text-center">
                 <Spinner size="lg" aria-label="Loading ebook" />
-                <p className="mt-3 text-xs text-[var(--reader-muted)]">Opening book</p>
+                <p className="mt-3 text-xs text-(--reader-muted)">Opening book</p>
               </div>
             </div>
           ) : null}
@@ -410,7 +410,7 @@ export function EpubReader({ file, url, state, onPosition, onClose }: EpubReader
             <div className="absolute inset-0 z-10 grid place-items-center p-6 text-center">
               <div className="max-w-lg">
                 <p className="font-semibold">Unable to open this ebook</p>
-                <p className="mt-2 text-sm text-[var(--reader-muted)]">{error}</p>
+                <p className="mt-2 text-sm text-(--reader-muted)">{error}</p>
               </div>
             </div>
           ) : null}
@@ -435,7 +435,7 @@ export function EpubReader({ file, url, state, onPosition, onClose }: EpubReader
           <LeftIcon className="size-4" />
           <span className="hidden sm:inline">Previous</span>
         </Button>
-        <div className="max-w-[52vw] text-center text-[10px] tabular-nums text-[var(--reader-muted)] sm:text-[11px]">
+        <div className="max-w-[52vw] text-center text-[10px] tabular-nums text-(--reader-muted) sm:text-[11px]">
           <p className="truncate">
             {chapter ? `${chapter} · ` : ""}
             {locationLabel(location, progress)}
@@ -459,7 +459,7 @@ export function EpubReader({ file, url, state, onPosition, onClose }: EpubReader
           <Drawer.Backdrop variant="blur">
             <Drawer.Content placement="left" className="w-[min(88vw,22rem)]">
               <Drawer.Dialog data-reader-theme={theme} className="reader-chrome">
-                <Drawer.Header className="border-b border-[var(--reader-border)]">
+                <Drawer.Header className="border-b border-(--reader-border)">
                   <Drawer.Heading>Book navigation</Drawer.Heading>
                   <Drawer.CloseTrigger />
                 </Drawer.Header>
@@ -486,8 +486,8 @@ function EpubNavigation({
 }) {
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="border-b border-[var(--reader-border)] px-5 py-4">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--reader-muted)]">
+      <div className="border-b border-(--reader-border) px-5 py-4">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-(--reader-muted)">
           Library
         </p>
         <p className="mt-1 truncate text-sm font-semibold">{file.name}</p>
@@ -519,7 +519,7 @@ function EpubNavigation({
                   key={item.id}
                   id={item.id}
                   textValue={item.label}
-                  className={clsx(
+                  className={cn(
                     "text-sm",
                     activeChapter === item.label && "bg-default/60 font-medium",
                   )}
@@ -530,7 +530,7 @@ function EpubNavigation({
               ))}
             </ListBox>
           ) : (
-            <p className="px-2 py-4 text-xs text-[var(--reader-muted)]">
+            <p className="px-2 py-4 text-xs text-(--reader-muted)">
               This book has no table of contents.
             </p>
           )}
@@ -548,8 +548,8 @@ function EpubNavigation({
 function Detail({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <p className="text-[10px] uppercase tracking-wider text-[var(--reader-muted)]">{label}</p>
-      <p className="mt-1 break-words font-medium">{value}</p>
+      <p className="text-[10px] uppercase tracking-wider text-(--reader-muted)">{label}</p>
+      <p className="mt-1 wrap-break-word font-medium">{value}</p>
     </div>
   );
 }
