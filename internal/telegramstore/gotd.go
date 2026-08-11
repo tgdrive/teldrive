@@ -811,7 +811,7 @@ func documentLocation(ctx context.Context, api *tg.Client, channelID, messageID 
 	if !ok {
 		return nil, 0, ErrDocumentNotFound
 	}
-	return document.AsInputDocumentFileLocation(), document.Size, nil
+	return document.AsInputDocumentFileLocation(""), document.Size, nil
 }
 
 func messageDocument(msg *tg.Message) (*tg.Document, bool) {

@@ -49,7 +49,7 @@ func (a *GotdAccount) DiscoverChannels(ctx context.Context, userID int64) ([]Dis
 		iterator := query.GetDialogs(api).BatchSize(100).Iter()
 		for iterator.Next(runCtx) {
 			element := iterator.Value()
-			peer, ok := element.Dialog.GetPeer().(*tg.PeerChannel)
+			peer, ok := element.Peer.(*tg.InputPeerChannel)
 			if !ok {
 				continue
 			}

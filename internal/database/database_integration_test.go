@@ -61,8 +61,8 @@ WHERE table_schema = 'public'
 	if err := db.Pool.QueryRow(ctx, "SELECT max(version_id) FROM teldrive.migrations WHERE is_applied").Scan(&migrationVersion); err != nil {
 		t.Fatalf("read migration version: %v", err)
 	}
-	if migrationVersion != 3 {
-		t.Fatalf("migration version = %d, want 3", migrationVersion)
+	if migrationVersion != 4 {
+		t.Fatalf("migration version = %d, want 4", migrationVersion)
 	}
 }
 

@@ -2,7 +2,6 @@ set dotenv-load := true
 
 openapi_spec := "openapi/teldrive.openapi.yaml"
 ui_dir := "ui"
-ogen_version := "v1.22.0"
 binary := "bin/teldrive"
 version := env_var_or_default("VERSION", "dev")
 default_commit := `git rev-parse --short HEAD 2>/dev/null || echo unknown`
@@ -34,7 +33,7 @@ generate-openapi:
 
 # Generate the complete Go server/client contract.
 generate-api: generate-openapi
-    go run github.com/ogen-go/ogen/cmd/ogen@{{ogen_version}} \
+    go run github.com/ogen-go/ogen/cmd/ogen@latest \
         --config ogen.yml \
         --target internal/api/gen \
         --package gen \
