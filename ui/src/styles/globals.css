@@ -1,0 +1,323 @@
+@import "tailwindcss";
+@import "@heroui/styles";
+
+/* ─── Font ─── */
+@font-face {
+  font-family: "Geist";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("/fonts/geist.woff2") format("woff2");
+}
+
+/* ─── Theme tokens ─── */
+@theme inline {
+  --font-sans:
+    "Geist", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
+    "Segoe UI Symbol", "Noto Color Emoji";
+
+  /* Extended shadows */
+  --shadow-glow: 0 0 20px color-mix(in srgb, var(--accent) 25%, transparent);
+  --shadow-glow-lg: 0 0 40px color-mix(in srgb, var(--accent) 35%, transparent);
+
+  /* Custom easing */
+  --ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-out-fluid: cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* ─── Base layer: theme variable overrides ─── */
+@layer base {
+  body {
+    height: 100%;
+    overflow: hidden;
+  }
+
+  /* ─── Scrollbar ─── */
+  ::-webkit-scrollbar-button {
+    @apply hidden;
+  }
+  ::-webkit-scrollbar {
+    @apply size-1.5;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-accent/40 rounded-full hover:bg-accent/60 transition-colors;
+  }
+
+  /* ─── Light theme ─── */
+  :root {
+    color-scheme: light;
+
+    --spacing: 0.25rem;
+    --border-width: 0px;
+    --field-border-width: 1px;
+    --disabled-opacity: 0.5;
+    --ring-offset-width: 2px;
+    --cursor-interactive: pointer;
+    --cursor-disabled: not-allowed;
+
+    --background: oklch(0.982 0 0);
+    --foreground: oklch(0.145 0 0);
+
+    --surface: oklch(1 0 0);
+    --surface-foreground: oklch(0.145 0 0);
+
+    --overlay: oklch(1 0 0);
+    --overlay-foreground: oklch(0.145 0 0);
+
+    --muted-background: oklch(0.952 0 0);
+    --muted: oklch(0.556 0 0);
+
+    --field-background: oklch(0.965 0 0);
+    --field-foreground: var(--foreground);
+    --field-placeholder: var(--muted);
+
+    --default: oklch(0.922 0 0);
+    --default-foreground: oklch(0.145 0 0);
+
+    --accent: oklch(0.45 0.12 40);
+    --accent-foreground: oklch(0.99 0 0);
+
+    --danger: oklch(0.637 0.208 25);
+    --danger-foreground: oklch(0.99 0 0);
+    --success: oklch(0.723 0.219 149);
+    --warning: oklch(0.782 0.163 72);
+
+    --separator: oklch(0.871 0 0);
+    --field-border: oklch(0.871 0 0);
+    --focus: var(--accent);
+
+    --border: oklch(0.871 0 0);
+    --sidebar: oklch(0.988 0 0);
+    --sidebar-foreground: oklch(0.145 0 0);
+    --sidebar-border: oklch(0.929 0 0);
+  }
+
+  /* ─── Dark theme (warm cinema) ─── */
+  .dark,
+  [data-theme="dark"] {
+    color-scheme: dark;
+
+    --background: oklch(0.13 0.005 70);
+    --foreground: oklch(0.955 0 0);
+
+    --surface: oklch(0.17 0.006 70);
+    --surface-foreground: oklch(0.955 0 0);
+
+    --overlay: oklch(0.21 0.008 70);
+    --overlay-foreground: oklch(0.955 0 0);
+
+    --muted-background: oklch(0.22 0.008 70);
+    --muted: oklch(0.72 0.008 70);
+
+    --default: oklch(0.28 0.01 65);
+    --default-foreground: oklch(0.92 0.04 65);
+
+    --field-background: oklch(0.235 0.008 70);
+    --field-foreground: var(--foreground);
+    --field-placeholder: var(--muted);
+
+    --accent: oklch(0.86 0.09 70);
+    --accent-foreground: oklch(0.15 0.02 200);
+
+    --danger: oklch(0.637 0.208 25);
+    --danger-foreground: oklch(0.99 0 0);
+
+    --separator: oklch(0.26 0.008 70);
+    --field-border: oklch(0.32 0.008 70);
+    --focus: var(--accent);
+
+    --border: oklch(0.24 0.008 70);
+    --sidebar: oklch(0.16 0.005 70);
+    --sidebar-foreground: oklch(0.89 0 0);
+    --sidebar-border: oklch(0.24 0.006 70);
+  }
+}
+
+/* ─── Component layer ─── */
+@layer components {
+  .glass-panel {
+    background-color: oklch(0.21 0.008 70 / 0.6);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid oklch(0.95 0.02 70 / 0.08);
+    box-shadow:
+      0 4px 24px oklch(0 0 0 / 0.3),
+      inset 0 1px 0 oklch(1 1 0 / 0.04);
+  }
+
+  .glass-panel-lg {
+    background-color: oklch(0.23 0.01 70 / 0.7);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid oklch(0.95 0.02 70 / 0.1);
+    box-shadow:
+      0 8px 32px oklch(0 0 0 / 0.35),
+      inset 0 1px 0 oklch(1 1 0 / 0.05);
+  }
+
+  .warm-gradient {
+    background: linear-gradient(
+      180deg,
+      transparent 0%,
+      oklch(0.12 0.01 70 / 0.4) 40%,
+      oklch(0.13 0.005 70) 100%
+    );
+  }
+}
+
+[data-reader-theme="white"] {
+  --reader-canvas: oklch(0.94 0.005 75);
+  --reader-page: oklch(1 0 0);
+  --reader-foreground: oklch(0.24 0.01 70);
+  --reader-muted: oklch(0.5 0.015 70);
+  --reader-border: oklch(0.84 0.015 75);
+  --reader-link: oklch(0.43 0.1 65);
+  --reader-chrome: oklch(0.98 0.008 75 / 0.94);
+}
+
+[data-reader-theme="paper"] {
+  --reader-canvas: oklch(0.91 0.025 78);
+  --reader-page: oklch(0.97 0.025 82);
+  --reader-foreground: oklch(0.27 0.018 72);
+  --reader-muted: oklch(0.5 0.02 72);
+  --reader-border: oklch(0.82 0.03 78);
+  --reader-link: oklch(0.46 0.09 68);
+  --reader-chrome: oklch(0.96 0.025 80 / 0.94);
+}
+
+[data-reader-theme="gray"] {
+  --reader-canvas: oklch(0.82 0.005 75);
+  --reader-page: oklch(0.88 0.004 75);
+  --reader-foreground: oklch(0.25 0.005 75);
+  --reader-muted: oklch(0.46 0.006 75);
+  --reader-border: oklch(0.73 0.006 75);
+  --reader-link: oklch(0.39 0.055 70);
+  --reader-chrome: oklch(0.86 0.006 75 / 0.94);
+}
+
+[data-reader-theme="night"] {
+  --reader-canvas: oklch(0.12 0.008 70);
+  --reader-page: oklch(0.16 0.008 70);
+  --reader-foreground: oklch(0.91 0.02 78);
+  --reader-muted: oklch(0.7 0.015 75);
+  --reader-border: oklch(0.28 0.01 70);
+  --reader-link: oklch(0.78 0.07 75);
+  --reader-chrome: oklch(0.16 0.008 70 / 0.94);
+}
+
+.reader-shell {
+  color: var(--reader-foreground);
+  background: var(--reader-canvas);
+}
+
+.reader-page {
+  background: var(--reader-page);
+}
+
+.reader-chrome {
+  color: var(--reader-foreground);
+  background: var(--reader-chrome);
+  border-color: var(--reader-border);
+}
+
+foliate-view {
+  display: block;
+  width: 100%;
+  height: 100%;
+  color: var(--reader-foreground);
+}
+
+foliate-view::part(head),
+foliate-view::part(foot) {
+  color: color-mix(in srgb, currentColor 55%, transparent);
+  font:
+    500 11px / 1 "Geist",
+    sans-serif;
+}
+
+/* ─── PDF workspace ─── */
+[data-pdf-reader] [data-pdf-viewer-container] {
+  scrollbar-gutter: stable;
+  overscroll-behavior: contain;
+}
+
+[data-pdf-reader] .teldrive-pdf-viewer {
+  --page-border: 0;
+  --page-margin: 0 auto 24px;
+  padding: 24px 18px 64px;
+  user-select: text;
+}
+
+[data-pdf-reader] .teldrive-pdf-viewer .page {
+  overflow: hidden;
+  border: 1px solid color-mix(in oklch, var(--border) 82%, transparent);
+  border-radius: 3px;
+  background: white;
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.08),
+    0 12px 32px rgb(0 0 0 / 0.12);
+}
+
+[data-pdf-reader] .teldrive-pdf-viewer :is(.textLayer, .annotationLayer, .annotationEditorLayer) {
+  user-select: text;
+}
+
+[data-pdf-reader] .teldrive-pdf-viewer .textLayer ::selection {
+  background: color-mix(in oklch, var(--accent) 30%, transparent);
+}
+
+[data-pdf-reader] .teldrive-pdf-viewer .highlight {
+  border-radius: 2px;
+}
+
+@media (max-width: 640px) {
+  [data-pdf-reader] .teldrive-pdf-viewer {
+    --page-margin: 0 auto 14px;
+    padding: 14px 8px 48px;
+  }
+}
+
+/* ─── Utilities ─── */
+@utility scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@utility text-label {
+  @apply font-semibold uppercase text-[10px] tracking-[0.12em];
+}
+
+@utility hover-lift {
+  @apply transition-all duration-300 ease-expo;
+  @media (hover: hover) {
+    &:hover {
+      @apply -translate-y-0.5 shadow-lg;
+    }
+  }
+}
+
+@utility ring-accent-glow {
+  @apply ring-1 ring-accent/20 shadow-glow transition-all duration-500 ease-expo;
+  @media (hover: hover) {
+    &:hover {
+      @apply ring-accent/40 shadow-glow-lg;
+    }
+  }
+}
+
+@layer components {
+  .menu-item {
+    @media (hover: hover) {
+      &:hover,
+      &[data-hovered="true"] {
+        @apply bg-default-hover/50;
+      }
+    }
+  }
+}

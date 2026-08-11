@@ -1,23 +1,25 @@
 version: 2
 project_name: teldrive
-env:
-  - GO111MODULE=on
 
 before:
   hooks:
-    - task ui
-    - task gen
+    - bun ci --cwd ui
+    - bun run --cwd ui build
 
 builds:
-  - env:
+  - id: teldrive
+    main: ./cmd/teldrive
+    binary: teldrive
+    env:
       - CGO_ENABLED=0
-    main: main.go
-    flags: -trimpath
+    flags:
+      - -trimpath
     ldflags:
       - -extldflags=-static
       - -s -w
-      - -X {{ .ModulePath }}/internal/version.Version={{ .Version }}
-      - -X {{ .ModulePath }}/internal/version.CommitSHA={{ .ShortCommit }}
+      - -X main.version={{ .Version }}
+      - -X main.commit={{ .FullCommit }}
+      - -X main.date={{ .Date }}
     mod_timestamp: "{{ .CommitTimestamp }}"
     goos:
       - linux
@@ -41,16 +43,17 @@ archives:
         formats: [zip]
     files:
       - README*.md
-      - LICENSE
 
 dockers_v2:
-  - images:
+  - id: teldrive
+    ids:
+      - teldrive
+    images:
       - "ghcr.io/tgdrive/{{ .ProjectName }}"
-      - "docker.io/{{ .ProjectName }}/{{ .ProjectName }}"
     tags:
       - "{{ .Tag }}"
       - "latest"
-    dockerfile: goreleaser.dockerfile
+    dockerfile: .goreleaser.Dockerfile
     platforms:
       - linux/amd64
       - linux/arm64
@@ -58,6 +61,7 @@ dockers_v2:
       "org.opencontainers.image.created": "{{.Date}}"
       "org.opencontainers.image.title": "{{.ProjectName}}"
       "org.opencontainers.image.revision": "{{.FullCommit}}"
+      "org.opencontainers.image.source": "{{.GitURL}}"
       "org.opencontainers.image.version": "{{.Version}}"
 
 changelog:

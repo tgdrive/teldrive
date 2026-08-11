@@ -1,0 +1,5627 @@
+openapi: 3.0.0
+info:
+  title: TelDrive API
+  version: 1.0.0
+  summary: Telegram-backed cloud drive API
+  description: >-
+    Backend-first API for rclone and other TelDrive clients. Upload sessions are
+
+    durable, API instances are stateless, and completed files are immediately
+    readable.
+tags:
+  - name: System
+  - name: Authentication
+  - name: Account
+  - name: API keys
+  - name: Sessions
+  - name: Channels
+  - name: Bots
+  - name: Events
+  - name: Files
+  - name: Folders
+  - name: Uploads
+  - name: Shares
+  - name: Public shares
+  - name: Jobs
+  - name: Periodic Jobs
+  - name: Storage
+paths:
+  /health/live:
+    get:
+      operationId: healthLive
+      description: Process liveness check.
+      parameters: []
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+      tags:
+        - System
+      security:
+        - {}
+  /health/ready:
+    get:
+      operationId: healthReady
+      description: Readiness check for PostgreSQL, migrations, and required runtime state.
+      parameters: []
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+        "503":
+          description: Service unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - System
+      security:
+        - {}
+  /v1/auth/telegram/start:
+    post:
+      operationId: telegramLoginStart
+      description: Begin Telegram authentication and send a login code.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyHeader"
+      responses:
+        "201":
+          description: The request has succeeded and a new resource has been created as a
+            result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramLoginStartResponse"
+        "400":
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TelegramLoginStartRequest"
+      security:
+        - {}
+  /v1/auth/telegram/qr/start:
+    post:
+      operationId: telegramQRLoginStart
+      description: Begin a resumable Telegram QR login flow.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyHeader"
+      responses:
+        "201":
+          description: The request has succeeded and a new resource has been created as a
+            result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramQRLoginResponse"
+        "400":
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Authentication
+      security:
+        - {}
+  /v1/auth/telegram/qr/poll:
+    post:
+      operationId: telegramQRLoginPoll
+      description: Poll a Telegram QR login flow. Any API replica can resume the
+        encrypted flow state.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyHeader"
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenPair"
+        "202":
+          description: The request has been accepted for processing, but processing has
+            not yet completed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramQRLoginResponse"
+        "400":
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "410":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TelegramQRLoginPollRequest"
+      security:
+        - {}
+  /v1/auth/telegram/verify-code:
+    post:
+      operationId: telegramLoginVerifyCode
+      description: Verify the Telegram login code.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyHeader"
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenPair"
+        "202":
+          description: The request has been accepted for processing, but processing has
+            not yet completed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramLoginStartResponse"
+        "400":
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "410":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TelegramCodeVerifyRequest"
+      security:
+        - {}
+  /v1/auth/telegram/verify-password:
+    post:
+      operationId: telegramLoginVerifyPassword
+      description: Complete Telegram two-step verification.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyHeader"
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenPair"
+        "400":
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "410":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TelegramPasswordVerifyRequest"
+      security:
+        - {}
+  /v1/auth/refresh:
+    post:
+      operationId: refreshSession
+      description: Rotate an access/refresh token pair.
+      parameters: []
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenPair"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshTokenRequest"
+      security:
+        - {}
+  /v1/auth/browser/telegram/verify-code:
+    post:
+      operationId: browserTelegramLoginVerifyCode
+      description: Complete Telegram code verification for the browser UI and
+        establish an HttpOnly cookie session.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyHeader"
+      responses:
+        "200":
+          description: The request has succeeded.
+          headers:
+            Set-Cookie:
+              required: true
+              schema:
+                type: array
+                items:
+                  type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSession"
+        "202":
+          description: The request has been accepted for processing, but processing has
+            not yet completed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramLoginStartResponse"
+        "400":
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "410":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TelegramCodeVerifyRequest"
+      security:
+        - {}
+  /v1/auth/browser/telegram/verify-password:
+    post:
+      operationId: browserTelegramLoginVerifyPassword
+      description: Complete Telegram password verification for the browser UI and
+        establish an HttpOnly cookie session.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyHeader"
+      responses:
+        "200":
+          description: The request has succeeded.
+          headers:
+            Set-Cookie:
+              required: true
+              schema:
+                type: array
+                items:
+                  type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSession"
+        "400":
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "410":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TelegramPasswordVerifyRequest"
+      security:
+        - {}
+  /v1/auth/browser/telegram/qr/poll:
+    post:
+      operationId: browserTelegramQRLoginPoll
+      description: Poll Telegram QR login for the browser UI and establish an HttpOnly
+        cookie session when authorized.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyHeader"
+      responses:
+        "200":
+          description: The request has succeeded.
+          headers:
+            Set-Cookie:
+              required: true
+              schema:
+                type: array
+                items:
+                  type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSession"
+        "202":
+          description: The request has been accepted for processing, but processing has
+            not yet completed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TelegramQRLoginResponse"
+        "400":
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "410":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TelegramQRLoginPollRequest"
+      security:
+        - {}
+  /v1/auth/browser/refresh:
+    post:
+      operationId: refreshBrowserSession
+      description: Rotate browser session cookies using the HttpOnly refresh cookie.
+      parameters:
+        - $ref: "#/components/parameters/BrowserRefreshCookie"
+      responses:
+        "200":
+          description: The request has succeeded.
+          headers:
+            Set-Cookie:
+              required: true
+              schema:
+                type: array
+                items:
+                  type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowserSession"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Authentication
+      security:
+        - {}
+  /v1/auth/browser/logout:
+    post:
+      operationId: logoutBrowserSession
+      description: Revoke the browser session and clear its HttpOnly cookies.
+      parameters: []
+      responses:
+        "204":
+          description: "There is no content to send for this request, but the headers may
+            be useful. "
+          headers:
+            Set-Cookie:
+              required: true
+              schema:
+                type: array
+                items:
+                  type: string
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Authentication
+      security:
+        - BrowserCookieAuth: []
+  /v1/me:
+    get:
+      operationId: getCurrentUser
+      description: Return the authenticated user profile.
+      parameters: []
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserProfile"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Account
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/me/photo:
+    get:
+      operationId: getProfilePhoto
+      description: Return the authenticated Telegram user's small profile photo.
+      parameters: []
+      responses:
+        "200":
+          description: The request has succeeded.
+          headers:
+            Content-Length:
+              required: true
+              schema:
+                type: integer
+                format: int64
+            Cache-Control:
+              required: true
+              schema:
+                type: string
+            Etag:
+              required: true
+              schema:
+                $ref: "#/components/schemas/ETag"
+            Content-Disposition:
+              required: true
+              schema:
+                type: string
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "204":
+          description: "There is no content to send for this request, but the headers may
+            be useful. "
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Account
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/auth/logout:
+    post:
+      operationId: logoutSession
+      description: Revoke the current session.
+      parameters: []
+      responses:
+        "204":
+          description: "There is no content to send for this request, but the headers may
+            be useful. "
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Account
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/api-keys:
+    get:
+      operationId: listApiKeys
+      parameters:
+        - $ref: "#/components/parameters/CursorQuery.cursor"
+        - $ref: "#/components/parameters/CursorQuery.limit"
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ApiKeySummary"
+                  nextCursor:
+                    $ref: "#/components/schemas/Cursor"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - API keys
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+    post:
+      operationId: createApiKey
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyHeader"
+      responses:
+        "201":
+          description: The request has succeeded and a new resource has been created as a
+            result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiKeyCreated"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - API keys
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApiKeyCreateRequest"
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+  /v1/api-keys/{apiKeyId}:
+    delete:
+      operationId: revokeApiKey
+      parameters:
+        - name: apiKeyId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "204":
+          description: "There is no content to send for this request, but the headers may
+            be useful. "
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - API keys
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+  /v1/sessions:
+    get:
+      operationId: listSessions
+      description: List all TelDrive sessions for the authenticated Telegram account.
+      parameters:
+        - $ref: "#/components/parameters/CursorQuery.cursor"
+        - $ref: "#/components/parameters/CursorQuery.limit"
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SessionSummary"
+                  nextCursor:
+                    $ref: "#/components/schemas/Cursor"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Sessions
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+  /v1/sessions/{sessionId}:
+    delete:
+      operationId: revokeSession
+      description: Revoke one TelDrive session. Revoking the current session
+        invalidates its bearer token immediately.
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "204":
+          description: "There is no content to send for this request, but the headers may
+            be useful. "
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Sessions
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+  /v1/channels:
+    get:
+      operationId: listChannels
+      parameters:
+        - $ref: "#/components/parameters/CursorQuery.cursor"
+        - $ref: "#/components/parameters/CursorQuery.limit"
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ChannelSummary"
+                  nextCursor:
+                    $ref: "#/components/schemas/Cursor"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Channels
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+    post:
+      operationId: createChannel
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyHeader"
+      responses:
+        "201":
+          description: The request has succeeded and a new resource has been created as a
+            result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChannelSummary"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Channels
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChannelCreateRequest"
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/channels/discover:
+    get:
+      operationId: discoverChannels
+      description: List Telegram channels where the authenticated user can add
+        administrators.
+      parameters: []
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DiscoveredChannel"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Channels
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/channels/sync:
+    post:
+      operationId: syncChannels
+      description: Discover and upsert manageable Telegram channels without deleting
+        missing rows.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyHeader"
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ChannelSummary"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Channels
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/channels/{channelId}/select:
+    post:
+      operationId: selectChannel
+      parameters:
+        - name: channelId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChannelSummary"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Channels
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/channels/{channelId}:
+    delete:
+      operationId: deleteChannel
+      parameters:
+        - name: channelId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "204":
+          description: "There is no content to send for this request, but the headers may
+            be useful. "
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Channels
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/bots:
+    get:
+      operationId: listBots
+      parameters:
+        - $ref: "#/components/parameters/CursorQuery.cursor"
+        - $ref: "#/components/parameters/CursorQuery.limit"
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/BotSummary"
+                  nextCursor:
+                    $ref: "#/components/schemas/Cursor"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Bots
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+    post:
+      operationId: createBots
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyHeader"
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BotCreateResponse"
+        "400":
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Bots
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BotCreateRequest"
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+  /v1/bots/{botId}:
+    delete:
+      operationId: deleteBot
+      parameters:
+        - name: botId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "204":
+          description: "There is no content to send for this request, but the headers may
+            be useful. "
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Bots
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+  /v1/events/ticket:
+    post:
+      operationId: createEventStreamTicket
+      description: Create a short-lived browser-compatible event stream credential.
+      parameters: []
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventStreamTicket"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "503":
+          description: Service unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Events
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/events:
+    get:
+      operationId: streamEvents
+      description: Subscribe to ordered, replayable events for the authenticated user.
+      parameters:
+        - name: Last-Event-Id
+          in: header
+          required: false
+          description: Resume after the last successfully processed event.
+          schema:
+            type: string
+        - name: after
+          in: query
+          required: false
+          description: Header-equivalent cursor for clients that cannot set Last-Event-ID.
+          schema:
+            type: integer
+            format: int64
+          explode: false
+        - name: types
+          in: query
+          required: false
+          description: Optional comma-separated event types to include.
+          schema:
+            type: array
+            items:
+              type: string
+          explode: false
+      responses:
+        "200":
+          description: The request has succeeded.
+          headers:
+            Cache-Control:
+              required: true
+              schema:
+                type: string
+                enum:
+                  - no-cache, no-transform
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                format: binary
+              x-ogen-raw-response: true
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "503":
+          description: Service unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Events
+      security:
+        - BearerAuth: []
+        - ExternalApiKeyAuth: []
+        - EventTicketAuth: []
+  /v1/files:
+    get:
+      operationId: listFiles
+      description: List one folder or search within the authenticated user's drive.
+      parameters:
+        - $ref: "#/components/parameters/CursorQuery.cursor"
+        - $ref: "#/components/parameters/CursorQuery.limit"
+        - $ref: "#/components/parameters/FileListQuery.parentId"
+        - $ref: "#/components/parameters/FileListQuery.path"
+        - $ref: "#/components/parameters/FileListQuery.kind"
+        - $ref: "#/components/parameters/FileListQuery.status"
+        - $ref: "#/components/parameters/FileListQuery.search"
+        - $ref: "#/components/parameters/FileListQuery.searchType"
+        - $ref: "#/components/parameters/FileListQuery.category"
+        - $ref: "#/components/parameters/FileListQuery.updatedAfter"
+        - $ref: "#/components/parameters/FileListQuery.updatedBefore"
+        - $ref: "#/components/parameters/FileListQuery.sort"
+        - $ref: "#/components/parameters/FileListQuery.order"
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/FileEntry"
+                  nextCursor:
+                    $ref: "#/components/schemas/Cursor"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/files/{fileId}:
+    get:
+      operationId: getFile
+      description: Return file or folder metadata.
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "200":
+          description: The request has succeeded.
+          headers:
+            Etag:
+              required: true
+              schema:
+                $ref: "#/components/schemas/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileEntry"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+    patch:
+      operationId: updateFile
+      description: Rename a file/folder or update its modification time.
+      parameters:
+        - $ref: "#/components/parameters/OptionalIfMatchHeader"
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "200":
+          description: The request has succeeded.
+          headers:
+            Etag:
+              required: true
+              schema:
+                $ref: "#/components/schemas/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileEntry"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "412":
+          description: Precondition failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Files
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FileUpdateRequest"
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+    delete:
+      operationId: trashFile
+      description: Move a file or folder to trash.
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "204":
+          description: "There is no content to send for this request, but the headers may
+            be useful. "
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/files/{fileId}/move:
+    post:
+      operationId: moveFile
+      description: Move a file or folder using metadata only.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyHeader"
+        - $ref: "#/components/parameters/OptionalIfMatchHeader"
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "200":
+          description: The request has succeeded.
+          headers:
+            Etag:
+              required: true
+              schema:
+                $ref: "#/components/schemas/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileEntry"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "412":
+          description: Precondition failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Files
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FileMoveRequest"
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/files/{fileId}/copy:
+    post:
+      operationId: copyFile
+      description: Copy a file or folder to another destination.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyHeader"
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "201":
+          description: The request has succeeded and a new resource has been created as a
+            result.
+          headers:
+            Etag:
+              required: true
+              schema:
+                $ref: "#/components/schemas/ETag"
+            Location:
+              required: true
+              schema:
+                $ref: "#/components/schemas/Uri"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileEntry"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Files
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FileCopyRequest"
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/files/{fileId}/restore:
+    post:
+      operationId: restoreFile
+      description: Restore a trashed file or folder.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyHeader"
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "200":
+          description: The request has succeeded.
+          headers:
+            Etag:
+              required: true
+              schema:
+                $ref: "#/components/schemas/ETag"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileEntry"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/files/{fileId}/purge:
+    delete:
+      operationId: purgeFile
+      description: Permanently delete a trashed file or folder from the catalog.
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "204":
+          description: "There is no content to send for this request, but the headers may
+            be useful. "
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/files/{fileId}/content:
+    get:
+      operationId: downloadFile
+      description: Stream complete or partial file content.
+      parameters:
+        - $ref: "#/components/parameters/FileContentRequestHeaders.range"
+        - $ref: "#/components/parameters/FileContentRequestHeaders.ifNoneMatch"
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "200":
+          description: The request has succeeded.
+          headers:
+            Content-Length:
+              required: true
+              schema:
+                type: integer
+                format: int64
+            Accept-Ranges:
+              required: true
+              schema:
+                type: string
+                enum:
+                  - bytes
+            Etag:
+              required: true
+              schema:
+                $ref: "#/components/schemas/ETag"
+            Last-Modified:
+              required: true
+              schema:
+                type: string
+                format: http-date
+            Content-Disposition:
+              required: true
+              schema:
+                type: string
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+              x-ogen-raw-response: true
+        "206":
+          description: Successful
+          headers:
+            Content-Length:
+              required: true
+              schema:
+                type: integer
+                format: int64
+            Content-Range:
+              required: true
+              schema:
+                type: string
+            Accept-Ranges:
+              required: true
+              schema:
+                type: string
+                enum:
+                  - bytes
+            Etag:
+              required: true
+              schema:
+                $ref: "#/components/schemas/ETag"
+            Last-Modified:
+              required: true
+              schema:
+                type: string
+                format: http-date
+            Content-Disposition:
+              required: true
+              schema:
+                type: string
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+              x-ogen-raw-response: true
+        "304":
+          description: The client has made a conditional request and the resource has not
+            been modified.
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "416":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "503":
+          description: Service unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+    head:
+      operationId: headFile
+      description: Return content metadata without streaming the file.
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "200":
+          description: The request has succeeded.
+          headers:
+            Content-Length:
+              required: true
+              schema:
+                type: integer
+                format: int64
+            Accept-Ranges:
+              required: true
+              schema:
+                type: string
+                enum:
+                  - bytes
+            Etag:
+              required: true
+              schema:
+                $ref: "#/components/schemas/ETag"
+            Last-Modified:
+              required: true
+              schema:
+                type: string
+                format: http-date
+            Content-Disposition:
+              required: true
+              schema:
+                type: string
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "503":
+          description: Service unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/files/{fileId}/view-state:
+    get:
+      operationId: getFileViewState
+      description: Return the authenticated user's synchronized viewer state for a file.
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileViewState"
+        "204":
+          description: "There is no content to send for this request, but the headers may
+            be useful. "
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+    put:
+      operationId: putFileViewState
+      description: Create or replace the authenticated user's synchronized viewer state.
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileViewState"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Files
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FileViewStateUpdate"
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+    delete:
+      operationId: deleteFileViewState
+      description: Clear the authenticated user's synchronized viewer state.
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "204":
+          description: "There is no content to send for this request, but the headers may
+            be useful. "
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/files/bulk/move:
+    post:
+      operationId: bulkMoveFiles
+      description: Transactionally move multiple files or folders.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyHeader"
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileBulkResult"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Files
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FileBulkMoveRequest"
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/files/bulk/trash:
+    post:
+      operationId: bulkTrashFiles
+      description: Transactionally move multiple files or folders to trash.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyHeader"
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileBulkResult"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Files
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FileBulkTrashRequest"
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/files/statistics/categories:
+    get:
+      operationId: getFileCategoryStatistics
+      description: Aggregate active file counts and bytes by category.
+      parameters: []
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FileCategoryStatistics"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/files/statistics/drive:
+    get:
+      operationId: getDriveStatistics
+      description: Aggregate drive-level counters for the authenticated user.
+      parameters: []
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DriveStatistics"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/folders:
+    post:
+      operationId: createFolder
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyHeader"
+      responses:
+        "201":
+          description: The request has succeeded and a new resource has been created as a
+            result.
+          headers:
+            Etag:
+              required: true
+              schema:
+                $ref: "#/components/schemas/ETag"
+            Location:
+              required: true
+              schema:
+                $ref: "#/components/schemas/Uri"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileEntry"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Folders
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FolderCreateRequest"
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/uploads:
+    get:
+      operationId: listUploads
+      description: List resumable upload sessions owned by the authenticated user.
+      parameters:
+        - $ref: "#/components/parameters/CursorQuery.cursor"
+        - $ref: "#/components/parameters/CursorQuery.limit"
+        - name: state
+          in: query
+          required: false
+          schema:
+            $ref: "#/components/schemas/UploadState"
+          explode: false
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/UploadSession"
+                  nextCursor:
+                    $ref: "#/components/schemas/Cursor"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Uploads
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+    post:
+      operationId: createUpload
+      description: Create a durable upload session.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyHeader"
+      responses:
+        "201":
+          description: The request has succeeded and a new resource has been created as a
+            result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadSession"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "413":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Uploads
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadCreateRequest"
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/uploads/statistics:
+    get:
+      operationId: getUploadStatistics
+      description: Return completed upload volume grouped by UTC day.
+      parameters:
+        - name: days
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+            maximum: 366
+            default: 30
+          explode: false
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UploadDailyStatistics"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Uploads
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/uploads/imports:
+    post:
+      operationId: createUploadImport
+      description: Queue local paths, recursive folders, and HTTP URLs for server-side
+        upload.
+      parameters: []
+      responses:
+        "202":
+          description: The request has been accepted for processing, but processing has
+            not yet completed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "400":
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "503":
+          description: Service unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Uploads
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadImportRequest"
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/uploads/{uploadId}:
+    get:
+      operationId: getUpload
+      description: Inspect an upload for resume and conflict handling.
+      parameters:
+        - name: uploadId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadSession"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "410":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Uploads
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+    delete:
+      operationId: abortUpload
+      description: Abort an upload and schedule physical Telegram cleanup.
+      parameters:
+        - name: uploadId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "204":
+          description: "There is no content to send for this request, but the headers may
+            be useful. "
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Uploads
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/uploads/{uploadId}/parts:
+    get:
+      operationId: listUploadParts
+      description: List parts already known to the upload session.
+      parameters:
+        - $ref: "#/components/parameters/CursorQuery.cursor"
+        - $ref: "#/components/parameters/CursorQuery.limit"
+        - name: uploadId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/UploadPart"
+                  nextCursor:
+                    $ref: "#/components/schemas/Cursor"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "410":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Uploads
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/uploads/{uploadId}/parts/{partNo}:
+    put:
+      operationId: putUploadPart
+      description: >-
+        Upload one part. The `(uploadId, partNo)` pair is the idempotency key.
+
+        An exact retry returns the existing stored part; conflicting
+        size/checksum returns 409.
+      parameters:
+        - $ref: "#/components/parameters/UploadPartHeaders.contentLength"
+        - $ref: "#/components/parameters/UploadPartHeaders.checksum"
+        - name: uploadId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+        - name: partNo
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadPart"
+        "201":
+          description: The request has succeeded and a new resource has been created as a
+            result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadPart"
+        "400":
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "410":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "413":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "503":
+          description: Service unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Uploads
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/uploads/{uploadId}/complete:
+    post:
+      operationId: completeUpload
+      description: >-
+        Validate all parts and transactionally publish the file. A successful
+        response
+
+        guarantees immediate read-after-write visibility.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyHeader"
+        - name: uploadId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "200":
+          description: The request has succeeded.
+          headers:
+            Etag:
+              required: true
+              schema:
+                $ref: "#/components/schemas/ETag"
+            Location:
+              required: true
+              schema:
+                $ref: "#/components/schemas/Uri"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileEntry"
+        "201":
+          description: The request has succeeded and a new resource has been created as a
+            result.
+          headers:
+            Etag:
+              required: true
+              schema:
+                $ref: "#/components/schemas/ETag"
+            Location:
+              required: true
+              schema:
+                $ref: "#/components/schemas/Uri"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileEntry"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "410":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Uploads
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/files/{fileId}/shares:
+    post:
+      operationId: createShare
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyHeader"
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "201":
+          description: The request has succeeded and a new resource has been created as a
+            result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShareCreated"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Shares
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShareCreateRequest"
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+    get:
+      operationId: listFileShares
+      parameters:
+        - $ref: "#/components/parameters/CursorQuery.cursor"
+        - $ref: "#/components/parameters/CursorQuery.limit"
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ShareSummary"
+                  nextCursor:
+                    $ref: "#/components/schemas/Cursor"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Shares
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/shares/{shareId}:
+    patch:
+      operationId: updateShare
+      parameters:
+        - name: shareId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShareSummary"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Shares
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ShareUpdateRequest"
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+    delete:
+      operationId: revokeShare
+      parameters:
+        - name: shareId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "204":
+          description: "There is no content to send for this request, but the headers may
+            be useful. "
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Shares
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/public/shares/{token}:
+    get:
+      operationId: getPublicShare
+      parameters:
+        - $ref: "#/components/parameters/SharePasswordHeader"
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicShare"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "410":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Public shares
+      security:
+        - {}
+  /v1/public/shares/{token}/files:
+    get:
+      operationId: listPublicShareFiles
+      description: List children within a publicly shared folder.
+      parameters:
+        - $ref: "#/components/parameters/SharePasswordHeader"
+        - $ref: "#/components/parameters/CursorQuery.cursor"
+        - $ref: "#/components/parameters/CursorQuery.limit"
+        - $ref: "#/components/parameters/PublicShareListQuery.path"
+        - $ref: "#/components/parameters/PublicShareListQuery.search"
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - items
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/FileEntry"
+                  nextCursor:
+                    $ref: "#/components/schemas/Cursor"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "410":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Public shares
+      security:
+        - {}
+  /v1/public/shares/{token}/content:
+    get:
+      operationId: downloadPublicShare
+      parameters:
+        - $ref: "#/components/parameters/SharePasswordHeader"
+        - $ref: "#/components/parameters/FileContentRequestHeaders.range"
+        - $ref: "#/components/parameters/FileContentRequestHeaders.ifNoneMatch"
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The request has succeeded.
+          headers:
+            Content-Length:
+              required: true
+              schema:
+                type: integer
+                format: int64
+            Accept-Ranges:
+              required: true
+              schema:
+                type: string
+                enum:
+                  - bytes
+            Etag:
+              required: true
+              schema:
+                $ref: "#/components/schemas/ETag"
+            Last-Modified:
+              required: true
+              schema:
+                type: string
+                format: http-date
+            Content-Disposition:
+              required: true
+              schema:
+                type: string
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+              x-ogen-raw-response: true
+        "206":
+          description: Successful
+          headers:
+            Content-Length:
+              required: true
+              schema:
+                type: integer
+                format: int64
+            Content-Range:
+              required: true
+              schema:
+                type: string
+            Accept-Ranges:
+              required: true
+              schema:
+                type: string
+                enum:
+                  - bytes
+            Etag:
+              required: true
+              schema:
+                $ref: "#/components/schemas/ETag"
+            Last-Modified:
+              required: true
+              schema:
+                type: string
+                format: http-date
+            Content-Disposition:
+              required: true
+              schema:
+                type: string
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+              x-ogen-raw-response: true
+        "304":
+          description: The client has made a conditional request and the resource has not
+            been modified.
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "410":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "416":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "503":
+          description: Service unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Public shares
+      security:
+        - {}
+    head:
+      operationId: headPublicShare
+      parameters:
+        - $ref: "#/components/parameters/SharePasswordHeader"
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The request has succeeded.
+          headers:
+            Content-Length:
+              required: true
+              schema:
+                type: integer
+                format: int64
+            Accept-Ranges:
+              required: true
+              schema:
+                type: string
+                enum:
+                  - bytes
+            Etag:
+              required: true
+              schema:
+                $ref: "#/components/schemas/ETag"
+            Last-Modified:
+              required: true
+              schema:
+                type: string
+                format: http-date
+            Content-Disposition:
+              required: true
+              schema:
+                type: string
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "410":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "503":
+          description: Service unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Public shares
+      security:
+        - {}
+  /v1/jobs:
+    get:
+      operationId: listJobs
+      parameters:
+        - $ref: "#/components/parameters/CursorQuery.cursor"
+        - $ref: "#/components/parameters/CursorQuery.limit"
+        - $ref: "#/components/parameters/JobListQuery.status"
+        - $ref: "#/components/parameters/JobListQuery.type"
+        - $ref: "#/components/parameters/JobListQuery.queue"
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobPage"
+        "400":
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Jobs
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+    post:
+      operationId: createJob
+      parameters: []
+      responses:
+        "201":
+          description: The request has succeeded and a new resource has been created as a
+            result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "400":
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Jobs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JobCreate"
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/jobs/statistics:
+    get:
+      operationId: getJobStatistics
+      parameters: []
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobStatistics"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Jobs
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/jobs/queues:
+    get:
+      operationId: listJobQueues
+      parameters: []
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobQueueList"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Jobs
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/jobs/queues/{queue}/pause:
+    post:
+      operationId: pauseJobQueue
+      parameters:
+        - name: queue
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: "There is no content to send for this request, but the headers may
+            be useful. "
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Jobs
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/jobs/queues/{queue}/resume:
+    post:
+      operationId: resumeJobQueue
+      parameters:
+        - name: queue
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: "There is no content to send for this request, but the headers may
+            be useful. "
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Jobs
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/jobs/purge:
+    delete:
+      operationId: purgeJobs
+      parameters:
+        - $ref: "#/components/parameters/JobPurgeQuery"
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobPurgeResult"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Jobs
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/jobs/{jobId}:
+    get:
+      operationId: getJob
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Jobs
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+    delete:
+      operationId: deleteJob
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: "There is no content to send for this request, but the headers may
+            be useful. "
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Jobs
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/jobs/{jobId}/cancel:
+    post:
+      operationId: cancelJob
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Jobs
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/jobs/{jobId}/retry:
+    post:
+      operationId: retryJob
+      parameters:
+        - name: jobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Jobs
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/periodic-jobs:
+    get:
+      operationId: listPeriodicJobs
+      parameters: []
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PeriodicJobList"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Periodic Jobs
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+    post:
+      operationId: createPeriodicJob
+      parameters: []
+      responses:
+        "201":
+          description: The request has succeeded and a new resource has been created as a
+            result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PeriodicJob"
+        "400":
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Periodic Jobs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PeriodicJobCreate"
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/periodic-jobs/catalog:
+    get:
+      operationId: getPeriodicJobCatalog
+      parameters: []
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PeriodicJobCatalog"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Periodic Jobs
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/periodic-jobs/{periodicJobId}:
+    put:
+      operationId: updatePeriodicJob
+      parameters:
+        - name: periodicJobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PeriodicJob"
+        "400":
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Periodic Jobs
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PeriodicJobUpdate"
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+    delete:
+      operationId: deletePeriodicJob
+      parameters:
+        - name: periodicJobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: "There is no content to send for this request, but the headers may
+            be useful. "
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Periodic Jobs
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/periodic-jobs/{periodicJobId}/pause:
+    post:
+      operationId: pausePeriodicJob
+      parameters:
+        - name: periodicJobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PeriodicJob"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Periodic Jobs
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/periodic-jobs/{periodicJobId}/resume:
+    post:
+      operationId: resumePeriodicJob
+      parameters:
+        - name: periodicJobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PeriodicJob"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Periodic Jobs
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/storage/stats:
+    get:
+      operationId: getStorageStats
+      description: Return the authenticated user's storage statistics.
+      parameters: []
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StorageDashboard"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Storage
+      security:
+        - BearerAuth: []
+        - BrowserCookieAuth: []
+        - ExternalApiKeyAuth: []
+components:
+  parameters:
+    IdempotencyHeader:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Stable UUID generated by the caller for safe request retries.
+      schema:
+        $ref: "#/components/schemas/Uuid"
+    BrowserRefreshCookie:
+      name: teldrive_refresh
+      in: cookie
+      required: true
+      schema:
+        type: string
+      explode: false
+    CursorQuery.cursor:
+      name: cursor
+      in: query
+      required: false
+      schema:
+        $ref: "#/components/schemas/Cursor"
+      explode: false
+    CursorQuery.limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+        maximum: 200
+        default: 100
+      explode: false
+    FileListQuery.parentId:
+      name: parentId
+      in: query
+      required: false
+      schema:
+        $ref: "#/components/schemas/Uuid"
+      explode: false
+    FileListQuery.path:
+      name: path
+      in: query
+      required: false
+      description: Resolve the listing root relative to the user's drive root.
+      schema:
+        type: string
+        maxLength: 4096
+      explode: false
+    FileListQuery.kind:
+      name: kind
+      in: query
+      required: false
+      schema:
+        $ref: "#/components/schemas/FileKind"
+      explode: false
+    FileListQuery.status:
+      name: status
+      in: query
+      required: false
+      schema:
+        allOf:
+          - $ref: "#/components/schemas/FileStatus"
+        default: active
+      explode: false
+    FileListQuery.search:
+      name: search
+      in: query
+      required: false
+      description: File-name search. Text search is case-insensitive; regex uses
+        PostgreSQL-compatible regular expressions.
+      schema:
+        type: string
+        maxLength: 512
+      explode: false
+    FileListQuery.searchType:
+      name: searchType
+      in: query
+      required: false
+      schema:
+        allOf:
+          - $ref: "#/components/schemas/FileSearchType"
+        default: text
+      explode: false
+    FileListQuery.category:
+      name: category
+      in: query
+      required: false
+      schema:
+        type: array
+        items:
+          $ref: "#/components/schemas/FileCategory"
+      explode: false
+    FileListQuery.updatedAfter:
+      name: updatedAfter
+      in: query
+      required: false
+      schema:
+        type: string
+        format: date-time
+      explode: false
+    FileListQuery.updatedBefore:
+      name: updatedBefore
+      in: query
+      required: false
+      schema:
+        type: string
+        format: date-time
+      explode: false
+    FileListQuery.sort:
+      name: sort
+      in: query
+      required: false
+      schema:
+        allOf:
+          - $ref: "#/components/schemas/FileSort"
+        default: name
+      explode: false
+    FileListQuery.order:
+      name: order
+      in: query
+      required: false
+      schema:
+        allOf:
+          - $ref: "#/components/schemas/SortOrder"
+        default: asc
+      explode: false
+    OptionalIfMatchHeader:
+      name: If-Match
+      in: header
+      required: false
+      schema:
+        $ref: "#/components/schemas/ETag"
+    FileContentRequestHeaders.range:
+      name: Range
+      in: header
+      required: false
+      schema:
+        type: string
+    FileContentRequestHeaders.ifNoneMatch:
+      name: If-None-Match
+      in: header
+      required: false
+      schema:
+        $ref: "#/components/schemas/ETag"
+    UploadPartHeaders.contentLength:
+      name: Content-Length
+      in: header
+      required: true
+      schema:
+        type: integer
+        format: int64
+        minimum: 0
+    UploadPartHeaders.checksum:
+      name: X-Part-Checksum
+      in: header
+      required: false
+      description: BLAKE3 checksum of the plaintext part.
+      schema:
+        $ref: "#/components/schemas/Checksum"
+    SharePasswordHeader:
+      name: X-Share-Password
+      in: header
+      required: false
+      schema:
+        type: string
+    PublicShareListQuery.path:
+      name: path
+      in: query
+      required: false
+      description: Folder path relative to the shared folder root.
+      schema:
+        type: string
+        maxLength: 4096
+      explode: false
+    PublicShareListQuery.search:
+      name: search
+      in: query
+      required: false
+      schema:
+        type: string
+        maxLength: 512
+      explode: false
+    JobListQuery.status:
+      name: status
+      in: query
+      required: false
+      schema:
+        $ref: "#/components/schemas/JobState"
+      explode: false
+    JobListQuery.type:
+      name: type
+      in: query
+      required: false
+      schema:
+        type: string
+      explode: false
+    JobListQuery.queue:
+      name: queue
+      in: query
+      required: false
+      schema:
+        type: string
+      explode: false
+    JobPurgeQuery:
+      name: status
+      in: query
+      required: true
+      schema:
+        $ref: "#/components/schemas/JobState"
+      explode: false
+  schemas:
+    HealthStatus:
+      type: object
+      required:
+        - status
+        - version
+      properties:
+        status:
+          type: string
+          enum:
+            - ok
+            - degraded
+        version:
+          type: string
+    ErrorDetail:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: Stable machine-readable error code.
+        message:
+          type: string
+          description: Human-readable error message.
+        details:
+          type: object
+          additionalProperties: {}
+          description: Optional structured context for the caller.
+    ErrorEnvelope:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          $ref: "#/components/schemas/ErrorDetail"
+    Uuid:
+      type: string
+      format: uuid
+    TelegramLoginStartResponse:
+      type: object
+      required:
+        - flowId
+        - expiresAt
+        - passwordRequired
+      properties:
+        flowId:
+          $ref: "#/components/schemas/Uuid"
+        expiresAt:
+          type: string
+          format: date-time
+        passwordRequired:
+          type: boolean
+    TelegramLoginStartRequest:
+      type: object
+      required:
+        - phoneNumber
+      properties:
+        phoneNumber:
+          type: string
+          pattern: ^\+[1-9][0-9]{7,14}$
+          description: Phone number in E.164 format.
+    TelegramQRLoginState:
+      type: string
+      enum:
+        - pending
+        - password_required
+    TelegramQRLoginResponse:
+      type: object
+      required:
+        - flowId
+        - expiresAt
+        - state
+      properties:
+        flowId:
+          $ref: "#/components/schemas/Uuid"
+        expiresAt:
+          type: string
+          format: date-time
+        state:
+          $ref: "#/components/schemas/TelegramQRLoginState"
+        qrUrl:
+          type: string
+        qrExpiresAt:
+          type: string
+          format: date-time
+    TokenPair:
+      type: object
+      required:
+        - accessToken
+        - refreshToken
+        - tokenType
+        - expiresIn
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        tokenType:
+          type: string
+          enum:
+            - Bearer
+        expiresIn:
+          type: integer
+          format: int32
+    TelegramQRLoginPollRequest:
+      type: object
+      required:
+        - flowId
+      properties:
+        flowId:
+          $ref: "#/components/schemas/Uuid"
+    TelegramCodeVerifyRequest:
+      type: object
+      required:
+        - flowId
+        - code
+      properties:
+        flowId:
+          $ref: "#/components/schemas/Uuid"
+        code:
+          type: string
+          minLength: 1
+          maxLength: 16
+    TelegramPasswordVerifyRequest:
+      type: object
+      required:
+        - flowId
+        - password
+      properties:
+        flowId:
+          $ref: "#/components/schemas/Uuid"
+        password:
+          type: string
+          minLength: 1
+    RefreshTokenRequest:
+      type: object
+      required:
+        - refreshToken
+      properties:
+        refreshToken:
+          type: string
+    BrowserSession:
+      type: object
+      required:
+        - authenticated
+        - expiresAt
+      properties:
+        authenticated:
+          type: boolean
+          enum:
+            - true
+        expiresAt:
+          type: string
+          format: date-time
+    UserProfile:
+      type: object
+      required:
+        - userId
+        - premium
+        - createdAt
+      properties:
+        userId:
+          type: integer
+          format: int64
+        displayName:
+          type: string
+        username:
+          type: string
+        premium:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+    ETag:
+      type: string
+    Cursor:
+      type: string
+    ApiKeySummary:
+      type: object
+      required:
+        - id
+        - name
+        - createdAt
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        name:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        lastUsedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        revokedAt:
+          type: string
+          format: date-time
+    ApiKeyCreated:
+      type: object
+      required:
+        - id
+        - name
+        - secret
+        - createdAt
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        name:
+          type: string
+        secret:
+          type: string
+          description: Returned once. The server stores only a hash.
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+    ApiKeyCreateRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
+        expiresAt:
+          type: string
+          format: date-time
+    SessionSummary:
+      type: object
+      required:
+        - id
+        - current
+        - createdAt
+        - expiresAt
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        current:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        lastUsedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        revokedAt:
+          type: string
+          format: date-time
+    ChannelHealth:
+      type: string
+      enum:
+        - unknown
+        - healthy
+        - degraded
+        - unavailable
+    ChannelSummary:
+      type: object
+      required:
+        - id
+        - name
+        - selected
+        - health
+        - createdAt
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        selected:
+          type: boolean
+        health:
+          $ref: "#/components/schemas/ChannelHealth"
+        createdAt:
+          type: string
+          format: date-time
+    DiscoveredChannel:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+    ChannelCreateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 120
+          description: Optional display name. Telegram may choose the final title.
+        selected:
+          type: boolean
+          default: true
+    BotSummary:
+      type: object
+      required:
+        - id
+        - enabled
+        - createdAt
+      properties:
+        id:
+          type: integer
+          format: int64
+        username:
+          type: string
+        enabled:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+    BotCreateResponse:
+      type: object
+      required:
+        - bots
+        - failedIndexes
+      properties:
+        bots:
+          type: array
+          items:
+            $ref: "#/components/schemas/BotSummary"
+        failedIndexes:
+          type: array
+          items:
+            type: integer
+            format: int32
+        jobId:
+          type: string
+          description: Present only when existing channels need background bot provisioning.
+    BotCreateRequest:
+      type: object
+      required:
+        - tokens
+      properties:
+        tokens:
+          type: array
+          items:
+            type: string
+          minItems: 1
+          maxItems: 200
+          description: Telegram bot tokens. Tokens are never returned by the API.
+    EventStreamTicket:
+      type: object
+      required:
+        - ticket
+        - expiresAt
+      properties:
+        ticket:
+          type: string
+          description: Short-lived credential suitable for a browser EventSource URL.
+        expiresAt:
+          type: string
+          format: date-time
+    FileKind:
+      type: string
+      enum:
+        - file
+        - folder
+    FileStatus:
+      type: string
+      enum:
+        - active
+        - trashed
+        - deletion_pending
+    FileSearchType:
+      type: string
+      enum:
+        - text
+        - regex
+    FileCategory:
+      type: string
+      enum:
+        - archive
+        - audio
+        - document
+        - image
+        - video
+        - other
+    FileSort:
+      type: string
+      enum:
+        - name
+        - updatedAt
+        - size
+        - id
+    SortOrder:
+      type: string
+      enum:
+        - asc
+        - desc
+    HashAlgorithm:
+      type: string
+      enum:
+        - blake3
+    Checksum:
+      type: string
+    FileHash:
+      type: object
+      required:
+        - algorithm
+        - value
+      properties:
+        algorithm:
+          $ref: "#/components/schemas/HashAlgorithm"
+        value:
+          $ref: "#/components/schemas/Checksum"
+    FileEntry:
+      type: object
+      required:
+        - id
+        - name
+        - kind
+        - encryption
+        - status
+        - modTime
+        - generation
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        parentId:
+          $ref: "#/components/schemas/Uuid"
+        name:
+          type: string
+        kind:
+          $ref: "#/components/schemas/FileKind"
+        mimeType:
+          type: string
+        size:
+          type: integer
+          format: int64
+        hash:
+          $ref: "#/components/schemas/FileHash"
+        encryption:
+          type: boolean
+        status:
+          $ref: "#/components/schemas/FileStatus"
+        modTime:
+          type: string
+          format: date-time
+        generation:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    FileUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        modTime:
+          type: string
+          format: date-time
+    NameConflictPolicy:
+      type: string
+      enum:
+        - fail
+        - replace
+        - rename
+    FileMoveRequest:
+      type: object
+      properties:
+        parentId:
+          $ref: "#/components/schemas/Uuid"
+        conflictPolicy:
+          allOf:
+            - $ref: "#/components/schemas/NameConflictPolicy"
+          default: fail
+    Uri:
+      type: string
+      format: uri
+    FileCopyRequest:
+      type: object
+      properties:
+        parentId:
+          $ref: "#/components/schemas/Uuid"
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        conflictPolicy:
+          allOf:
+            - $ref: "#/components/schemas/NameConflictPolicy"
+          default: fail
+    ViewerKind:
+      type: string
+      enum:
+        - image
+        - video
+        - audio
+        - pdf
+        - ebook
+        - text
+    FileViewState:
+      type: object
+      required:
+        - fileId
+        - kind
+        - position
+        - preferences
+        - bookmarks
+        - updatedAt
+      properties:
+        fileId:
+          $ref: "#/components/schemas/Uuid"
+        kind:
+          $ref: "#/components/schemas/ViewerKind"
+        position:
+          type: object
+          additionalProperties: {}
+        preferences:
+          type: object
+          additionalProperties: {}
+        bookmarks:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+        updatedAt:
+          type: string
+          format: date-time
+    FileViewStateUpdate:
+      type: object
+      required:
+        - kind
+      properties:
+        kind:
+          $ref: "#/components/schemas/ViewerKind"
+        position:
+          type: object
+          additionalProperties: {}
+        preferences:
+          type: object
+          additionalProperties: {}
+        bookmarks:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+          maxItems: 500
+    FileBulkResult:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/FileEntry"
+    FileBulkMoveRequest:
+      type: object
+      required:
+        - fileIds
+      properties:
+        fileIds:
+          type: array
+          items:
+            $ref: "#/components/schemas/Uuid"
+          minItems: 1
+          maxItems: 500
+        parentId:
+          $ref: "#/components/schemas/Uuid"
+        conflictPolicy:
+          allOf:
+            - $ref: "#/components/schemas/NameConflictPolicy"
+          default: fail
+    FileBulkTrashRequest:
+      type: object
+      required:
+        - fileIds
+      properties:
+        fileIds:
+          type: array
+          items:
+            $ref: "#/components/schemas/Uuid"
+          minItems: 1
+          maxItems: 500
+    FileCategoryStatistics:
+      type: object
+      required:
+        - category
+        - totalFiles
+        - totalSize
+      properties:
+        category:
+          $ref: "#/components/schemas/FileCategory"
+        totalFiles:
+          type: integer
+          format: int64
+        totalSize:
+          type: integer
+          format: int64
+    DriveStatistics:
+      type: object
+      required:
+        - totalFiles
+        - totalFolders
+        - totalBytes
+        - trashedFiles
+        - activeShares
+        - openUploads
+      properties:
+        totalFiles:
+          type: integer
+          format: int64
+        totalFolders:
+          type: integer
+          format: int64
+        totalBytes:
+          type: integer
+          format: int64
+        trashedFiles:
+          type: integer
+          format: int64
+        activeShares:
+          type: integer
+          format: int64
+        openUploads:
+          type: integer
+          format: int64
+    FolderCreateRequest:
+      type: object
+      required:
+        - name
+      properties:
+        parentId:
+          $ref: "#/components/schemas/Uuid"
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        conflictPolicy:
+          allOf:
+            - $ref: "#/components/schemas/NameConflictPolicy"
+          default: fail
+        modTime:
+          type: string
+          format: date-time
+    UploadState:
+      type: string
+      enum:
+        - open
+        - completing
+        - completed
+        - aborted
+        - expired
+    UploadSession:
+      type: object
+      required:
+        - id
+        - name
+        - expectedSize
+        - modTime
+        - encryption
+        - conflictPolicy
+        - partSize
+        - state
+        - expiresAt
+        - createdAt
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        parentId:
+          $ref: "#/components/schemas/Uuid"
+        name:
+          type: string
+        expectedSize:
+          type: integer
+          format: int64
+        expectedHash:
+          $ref: "#/components/schemas/FileHash"
+        mimeType:
+          type: string
+        modTime:
+          type: string
+          format: date-time
+        encryption:
+          type: boolean
+        conflictPolicy:
+          $ref: "#/components/schemas/NameConflictPolicy"
+        partSize:
+          type: integer
+          format: int64
+        state:
+          $ref: "#/components/schemas/UploadState"
+        expiresAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        fileId:
+          $ref: "#/components/schemas/Uuid"
+    UploadDailyStatistics:
+      type: object
+      required:
+        - date
+        - uploadedBytes
+        - completedFiles
+      properties:
+        date:
+          type: string
+          format: date
+        uploadedBytes:
+          type: integer
+          format: int64
+        completedFiles:
+          type: integer
+          format: int64
+    JobState:
+      type: string
+      enum:
+        - available
+        - cancelled
+        - completed
+        - discarded
+        - pending
+        - retryable
+        - running
+        - scheduled
+    JobAttemptError:
+      type: object
+      required:
+        - attempt
+        - at
+        - error
+      properties:
+        attempt:
+          type: integer
+          format: int32
+        at:
+          type: string
+          format: date-time
+        error:
+          type: string
+        trace:
+          type: string
+    Job:
+      type: object
+      required:
+        - id
+        - status
+        - type
+        - queue
+        - attempt
+        - maxAttempts
+        - priority
+        - tags
+        - args
+        - errors
+        - attemptedBy
+        - createdAt
+        - scheduledAt
+      properties:
+        id:
+          type: string
+        status:
+          $ref: "#/components/schemas/JobState"
+        type:
+          type: string
+        parentId:
+          type: string
+        queue:
+          type: string
+        description:
+          type: string
+        message:
+          type: string
+        attempt:
+          type: integer
+          format: int32
+        maxAttempts:
+          type: integer
+          format: int32
+        priority:
+          type: integer
+          format: int32
+        tags:
+          type: array
+          items:
+            type: string
+        args:
+          type: object
+          additionalProperties: {}
+        output:
+          type: object
+          additionalProperties: {}
+        errors:
+          type: array
+          items:
+            $ref: "#/components/schemas/JobAttemptError"
+        attemptedBy:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        scheduledAt:
+          type: string
+          format: date-time
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+    UploadImportSourceType:
+      type: string
+      enum:
+        - local
+        - http
+    UploadImportSource:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          $ref: "#/components/schemas/UploadImportSourceType"
+        path:
+          type: string
+        url:
+          type: string
+          format: uri
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+        destinationPath:
+          type: string
+        exclude:
+          type: array
+          items:
+            type: string
+    UploadImportRequest:
+      type: object
+      required:
+        - destination
+        - sources
+      properties:
+        destination:
+          type: string
+          description: Destination folder UUID or absolute drive path from root.
+        sources:
+          type: array
+          items:
+            $ref: "#/components/schemas/UploadImportSource"
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+        exclude:
+          type: array
+          items:
+            type: string
+        minSize:
+          type: string
+        maxSize:
+          type: string
+        partConcurrency:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 16
+          default: 4
+        chunkSize:
+          type: integer
+          format: int64
+          minimum: 67108864
+          maximum: 2097152000
+          description: Preferred upload part size. Values are aligned to the nearest 16 MiB.
+          default: 536870912
+        encryption:
+          type: boolean
+          default: false
+    UploadCreateRequest:
+      type: object
+      required:
+        - name
+        - size
+        - modTime
+      properties:
+        parentId:
+          $ref: "#/components/schemas/Uuid"
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        size:
+          type: integer
+          format: int64
+          minimum: 0
+        mimeType:
+          type: string
+        modTime:
+          type: string
+          format: date-time
+        hash:
+          $ref: "#/components/schemas/FileHash"
+        encryption:
+          type: boolean
+          default: false
+        conflictPolicy:
+          allOf:
+            - $ref: "#/components/schemas/NameConflictPolicy"
+          default: fail
+        preferredPartSize:
+          type: integer
+          format: int64
+          minimum: 1048576
+          description: Optional preferred part size. The server may choose a different
+            value.
+    UploadPartState:
+      type: string
+      enum:
+        - reserved
+        - uploading
+        - stored
+        - failed
+    UploadPart:
+      type: object
+      required:
+        - uploadId
+        - partNo
+        - state
+        - plainSize
+        - createdAt
+        - updatedAt
+      properties:
+        uploadId:
+          $ref: "#/components/schemas/Uuid"
+        partNo:
+          type: integer
+          format: int32
+        state:
+          $ref: "#/components/schemas/UploadPartState"
+        plainSize:
+          type: integer
+          format: int64
+        storedSize:
+          type: integer
+          format: int64
+        checksum:
+          $ref: "#/components/schemas/Checksum"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    ShareCreated:
+      type: object
+      required:
+        - id
+        - fileId
+        - token
+        - publicUrl
+        - passwordProtected
+        - createdAt
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        fileId:
+          $ref: "#/components/schemas/Uuid"
+        token:
+          type: string
+          description: Opaque public token returned only when the share is created.
+        publicUrl:
+          $ref: "#/components/schemas/Uri"
+        passwordProtected:
+          type: boolean
+        expiresAt:
+          type: string
+          format: date-time
+        maxDownloads:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+    ShareCreateRequest:
+      type: object
+      properties:
+        password:
+          type: string
+          minLength: 1
+          description: Optional password. The server stores only a password hash.
+        expiresAt:
+          type: string
+          format: date-time
+        maxDownloads:
+          type: integer
+          format: int64
+          minimum: 1
+    ShareSummary:
+      type: object
+      required:
+        - id
+        - fileId
+        - passwordProtected
+        - downloadCount
+        - createdAt
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        fileId:
+          $ref: "#/components/schemas/Uuid"
+        passwordProtected:
+          type: boolean
+        expiresAt:
+          type: string
+          format: date-time
+        maxDownloads:
+          type: integer
+          format: int64
+        downloadCount:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+        revokedAt:
+          type: string
+          format: date-time
+    ShareUpdateRequest:
+      type: object
+      properties:
+        password:
+          type: string
+          minLength: 1
+        clearPassword:
+          type: boolean
+          default: false
+        expiresAt:
+          type: string
+          format: date-time
+        clearExpiresAt:
+          type: boolean
+          default: false
+        maxDownloads:
+          type: integer
+          format: int64
+          minimum: 1
+        clearMaxDownloads:
+          type: boolean
+          default: false
+    PublicShare:
+      type: object
+      required:
+        - id
+        - file
+        - passwordProtected
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        file:
+          $ref: "#/components/schemas/FileEntry"
+        passwordProtected:
+          type: boolean
+        expiresAt:
+          type: string
+          format: date-time
+    JobPageMeta:
+      type: object
+      properties:
+        nextCursor:
+          $ref: "#/components/schemas/Cursor"
+    JobPage:
+      type: object
+      required:
+        - tasks
+        - meta
+      properties:
+        tasks:
+          type: array
+          items:
+            $ref: "#/components/schemas/Job"
+        meta:
+          $ref: "#/components/schemas/JobPageMeta"
+    JobCreate:
+      type: object
+      required:
+        - type
+        - args
+      properties:
+        type:
+          type: string
+        args:
+          type: object
+          additionalProperties: {}
+        queue:
+          type: string
+        priority:
+          type: integer
+          format: int32
+        maxAttempts:
+          type: integer
+          format: int32
+        tags:
+          type: array
+          items:
+            type: string
+    JobStatistics:
+      type: object
+      required:
+        - available
+        - cancelled
+        - completed
+        - discarded
+        - pending
+        - retryable
+        - running
+        - scheduled
+      properties:
+        available:
+          type: integer
+          format: int64
+        cancelled:
+          type: integer
+          format: int64
+        completed:
+          type: integer
+          format: int64
+        discarded:
+          type: integer
+          format: int64
+        pending:
+          type: integer
+          format: int64
+        retryable:
+          type: integer
+          format: int64
+        running:
+          type: integer
+          format: int64
+        scheduled:
+          type: integer
+          format: int64
+    JobQueue:
+      type: object
+      required:
+        - name
+        - paused
+        - available
+        - running
+        - retryable
+        - scheduled
+      properties:
+        name:
+          type: string
+        paused:
+          type: boolean
+        available:
+          type: integer
+          format: int64
+        running:
+          type: integer
+          format: int64
+        retryable:
+          type: integer
+          format: int64
+        scheduled:
+          type: integer
+          format: int64
+    JobQueueList:
+      type: object
+      required:
+        - queues
+      properties:
+        queues:
+          type: array
+          items:
+            $ref: "#/components/schemas/JobQueue"
+    JobPurgeResult:
+      type: object
+      required:
+        - count
+      properties:
+        count:
+          type: integer
+          format: int64
+    PeriodicJob:
+      type: object
+      required:
+        - id
+        - kind
+        - args
+        - queue
+        - priority
+        - maxAttempts
+        - tags
+        - cronExpression
+        - cronTimezone
+        - nextRunAt
+        - paused
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+        args:
+          type: object
+          additionalProperties: {}
+        queue:
+          type: string
+        priority:
+          type: integer
+          format: int32
+        maxAttempts:
+          type: integer
+          format: int32
+        tags:
+          type: array
+          items:
+            type: string
+        cronExpression:
+          type: string
+        cronTimezone:
+          type: string
+        nextRunAt:
+          type: string
+          format: date-time
+        paused:
+          type: boolean
+        pausedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    PeriodicJobList:
+      type: object
+      required:
+        - jobs
+      properties:
+        jobs:
+          type: array
+          items:
+            $ref: "#/components/schemas/PeriodicJob"
+    PeriodicJobCreate:
+      type: object
+      required:
+        - id
+        - kind
+        - args
+        - queue
+        - priority
+        - maxAttempts
+        - tags
+        - cronExpression
+        - cronTimezone
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+        args:
+          type: object
+          additionalProperties: {}
+        queue:
+          type: string
+        priority:
+          type: integer
+          format: int32
+        maxAttempts:
+          type: integer
+          format: int32
+        tags:
+          type: array
+          items:
+            type: string
+        cronExpression:
+          type: string
+        cronTimezone:
+          type: string
+        paused:
+          type: boolean
+    PeriodicJobTemplate:
+      type: object
+      required:
+        - kind
+        - label
+        - description
+        - defaultId
+        - defaultArgs
+        - defaultQueue
+        - recommendedCron
+      properties:
+        kind:
+          type: string
+        label:
+          type: string
+        description:
+          type: string
+        defaultId:
+          type: string
+        defaultArgs:
+          type: object
+          additionalProperties: {}
+        defaultQueue:
+          type: string
+        recommendedCron:
+          type: string
+    PeriodicJobCatalog:
+      type: object
+      required:
+        - templates
+      properties:
+        templates:
+          type: array
+          items:
+            $ref: "#/components/schemas/PeriodicJobTemplate"
+    PeriodicJobUpdate:
+      type: object
+      required:
+        - kind
+        - args
+        - queue
+        - priority
+        - maxAttempts
+        - tags
+        - cronExpression
+        - cronTimezone
+      properties:
+        kind:
+          type: string
+        args:
+          type: object
+          additionalProperties: {}
+        queue:
+          type: string
+        priority:
+          type: integer
+          format: int32
+        maxAttempts:
+          type: integer
+          format: int32
+        tags:
+          type: array
+          items:
+            type: string
+        cronExpression:
+          type: string
+        cronTimezone:
+          type: string
+        paused:
+          type: boolean
+    StorageSummary:
+      type: object
+      required:
+        - logicalBytes
+        - activeFiles
+        - activeFolders
+        - trashedFiles
+        - trashBytes
+      properties:
+        logicalBytes:
+          type: integer
+          format: int64
+        activeFiles:
+          type: integer
+          format: int64
+        activeFolders:
+          type: integer
+          format: int64
+        trashedFiles:
+          type: integer
+          format: int64
+        trashBytes:
+          type: integer
+          format: int64
+    StorageGrowthPoint:
+      type: object
+      required:
+        - day
+        - addedBytes
+        - logicalBytes
+      properties:
+        day:
+          type: string
+          format: date
+        addedBytes:
+          type: integer
+          format: int64
+        logicalBytes:
+          type: integer
+          format: int64
+    StorageChannelStatistic:
+      type: object
+      required:
+        - channelId
+        - name
+        - selected
+        - health
+        - partCount
+        - storedBytes
+      properties:
+        channelId:
+          type: integer
+          format: int64
+        name:
+          type: string
+        selected:
+          type: boolean
+        health:
+          type: string
+        lastCheckedAt:
+          type: string
+          format: date-time
+        partCount:
+          type: integer
+          format: int64
+        storedBytes:
+          type: integer
+          format: int64
+    StorageCleanupStatistics:
+      type: object
+      required:
+        - trashBytes
+        - staleUploadBytes
+        - staleUploads
+        - totalReclaimableBytes
+      properties:
+        trashBytes:
+          type: integer
+          format: int64
+        staleUploadBytes:
+          type: integer
+          format: int64
+        staleUploads:
+          type: integer
+          format: int64
+        totalReclaimableBytes:
+          type: integer
+          format: int64
+    StorageActivity:
+      type: object
+      required:
+        - id
+        - type
+        - resourceType
+        - label
+        - occurredAt
+      properties:
+        id:
+          type: integer
+          format: int64
+        type:
+          type: string
+        resourceType:
+          type: string
+        resourceId:
+          type: string
+        label:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+    StorageDashboard:
+      type: object
+      required:
+        - summary
+        - growth
+        - categories
+        - channels
+        - cleanup
+        - activity
+      properties:
+        summary:
+          $ref: "#/components/schemas/StorageSummary"
+        growth:
+          type: array
+          items:
+            $ref: "#/components/schemas/StorageGrowthPoint"
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/FileCategoryStatistics"
+        channels:
+          type: array
+          items:
+            $ref: "#/components/schemas/StorageChannelStatistic"
+        cleanup:
+          $ref: "#/components/schemas/StorageCleanupStatistics"
+        activity:
+          type: array
+          items:
+            $ref: "#/components/schemas/StorageActivity"
+  securitySchemes:
+    BrowserCookieAuth:
+      type: apiKey
+      in: cookie
+      name: teldrive_access
+    BearerAuth:
+      type: http
+      scheme: Bearer
+    ExternalApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-Api-Key
+    EventTicketAuth:
+      type: apiKey
+      in: query
+      name: ticket
+servers:
+  - url: /api
+    description: Current TelDrive server
+    variables: {}

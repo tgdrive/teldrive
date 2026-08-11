@@ -1,0 +1,18 @@
+{
+  "name": "teldrive-backend-contract",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "format": "tsp format \"*.tsp\"",
+    "lint": "tsp compile . --warn-as-error --no-emit",
+    "generate:openapi": "tsp compile ."
+  },
+  "devDependencies": {
+    "@typespec/compiler": "1.13.0",
+    "@typespec/http": "1.13.0",
+    "@typespec/openapi": "1.13.0",
+    "@typespec/openapi3": "1.13.0",
+    "teldrive-ogen-openapi3": "file:./ogen-openapi3",
+    "yaml": "2.9.0"
+  }
+}

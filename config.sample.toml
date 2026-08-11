@@ -1,84 +1,106 @@
-[cache]
-max-size = 10485760
-redis-addr = ''
-redis-pass = ''
+[http]
+address = "127.0.0.1:8080"
+read-header-timeout = "10s"
+read-timeout = "30s"
+write-timeout = "0s"
+idle-timeout = "2m"
+shutdown-timeout = "30s"
+# Trust forwarding headers only from these proxy IP addresses or CIDRs.
+trusted-proxies = []
 
-[cronjobs]
-clean-files-interval = '1h'
-clean-uploads-interval = '12h'
-enable = true
-folder-size-interval = '2h'
-locker-instance = 'cron-locker'
+[database]
+schema = "teldrive"
+url = "postgres://postgres:postgres@127.0.0.1:5432/teldrive?sslmode=disable"
+application-name = "teldrive-v2"
+max-connections = 25
+min-connections = 2
+max-connection-idle = "5m"
+max-connection-life = "30m"
+health-check-interval = "30s"
+connect-timeout = "10s"
 
-[db]
-data-source = ''
-log-level = 'info'
-prepare-stmt = true
-
-[db.pool]
-enable = true
-max-idle-connections = 25
-max-lifetime = '10m'
-max-open-connections = 25
-
-[jwt]
-session-time = '30d'
-secret = ''
-allowed-users = []
-
-[log]
-file = ''
-level = 'info'
-
-[server]
-enable-pprof = false
-graceful-shutdown = '10s'
-port = 8080
-read-timeout = '1h'
-write-timeout = '1h'
-
-[tg]
-app-hash = '8da85b0d5bfe62527e5b244c209159c3'
+[telegram]
+# Use "filesystem" for local/offline testing. Remote mode requires app-id/app-hash.
+backend = "remote"
+local-root = "./var/local-telegram"
 app-id = 2496
-app-version = '6.1.4 K'
-auto-channel-create = true
-channel-limit = 500000
-device-model = 'Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/116.0'
-enable-logging = false
-lang-code = 'en'
-lang-pack = 'webk'
-ntp = false
-pool-size = 8
-proxy = ''
-rate = 100
-rate-burst = 5
-rate-limit = true
-reconnect-timeout = '5m'
-session-instance = 'teldrive'
-system-lang-code = 'en-US'
-system-version = 'Win32'
-
-[tg.session]
-# Session storage type: postgres, bolt, or memory
-type = 'postgres'
-# Key prefix for session storage
-key = 'session'
-
-[tg.session.bolt]
-# Path to BoltDB file (empty = auto-detect ~/.teldrive/session.db)
-path = ''
-# Timeout for opening BoltDB
-timeout = '1s'
-# Disable grow sync for performance
-no-grow-sync = false
-
-[tg.stream]
-buffers = 8
-chunk-timeout = '20s'
-concurrency = 1
-
-[tg.uploads]
-encryption-key = ''
+app-hash = "8da85b0d5bfe62527e5b244c209159c3"
+device-model = "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/116.0"
+system-version = "Win32"
+app-version = "6.1.4 K"
+language-code = "en"
+system-language-code = "en-US"
+language-pack = "webk"
+dial-timeout = "10s"
+reconnect-timeout = "5m"
 max-retries = 10
-retention = '7d'
-threads = 8
+rate-limit = true
+rate-interval = "100ms"
+rate-burst = 5
+proxy = ""
+allow-cdn = false
+upload-threads = 8
+download-bots = 0
+# Keep this disabled to preserve request-scoped Telegram clients.
+download-client-pool = false
+download-client-pool-size = 4
+download-client-pool-max = 32
+download-client-max-sessions = 4
+download-client-idle-timeout = "5m"
+download-client-acquire-timeout = "10s"
+randomize-part-names = true
+auto-channel-create = true
+bot-rotation-backend = "memory"
+channel-part-limit = 500000
+channel-name-prefix = "teldrive"
+
+[telegram.mtproxy]
+address = ""
+secret = ""
+
+[encryption]
+default-version = 0
+# keys may also be a TOML table, for example: keys = { 1 = "base64-key" }
+keys = ""
+
+[security]
+signing-key = ""
+data-key = ""
+issuer = "teldrive-v2"
+# Empty permits every Telegram username. Usernames are case-insensitive and may include @.
+allowed-users = []
+access-token-ttl = "15m"
+refresh-token-ttl = "720h"
+login-flow-ttl = "10m"
+
+[uploads]
+session-ttl = "168h"
+
+# Stream caching is opt-in. Leave dir empty to avoid disk use.
+[cache.stream]
+dir = ""
+max-age = "168h"
+max-size = "50GB"
+chunk-size = "32MB"
+chunk-streams = 4
+read-ahead = "4MB"
+min-free-space = "10GB"
+poll-interval = "5m"
+shard-depth = 1
+
+[events]
+batch-size = 100
+max-connections-per-user = 5
+heartbeat = "20s"
+write-timeout = "10s"
+ticket-ttl = "2m"
+retention = "168h"
+cleanup-interval = "1h"
+connect-timeout = "10s"
+ping-interval = "5s"
+reconnect-min = "100ms"
+reconnect-max = "30s"
+
+[logging]
+log-level = "info"
+log-format = "json"
