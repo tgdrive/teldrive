@@ -111,12 +111,16 @@ func (h *RawHandler) streamFile(ctx context.Context, w http.ResponseWriter, user
 	w.Header().Set("Last-Modified", file.ModTime.Time.UTC().Format(http.TimeFormat))
 	w.WriteHeader(status)
 	_, err = io.CopyN(w, download.Reader, rangeSpec.Length)
-	if err != nil && !isClientDisconnect(err) {
+	if err != nil && !isExpectedStreamEnd(ctx, err) {
 		// Headers are already committed, so a JSON error response cannot replace
 		// this stream. The Content-Length mismatch tells the client it was truncated.
 		slog.ErrorContext(ctx, "api.stream_failed", "file_id", fileID, "offset", rangeSpec.Offset, "length", rangeSpec.Length, "error", err)
 	}
 	return nil
+}
+
+func isExpectedStreamEnd(ctx context.Context, err error) bool {
+	return ctx.Err() != nil || isClientDisconnect(err)
 }
 
 func isClientDisconnect(err error) bool {

@@ -156,8 +156,8 @@ github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UV
 github.com/stretchr/testify v1.7.0/go.mod h1:6Fq8oRcR53rry900zMqJjRRixrwX3KX962/h/Wwjteg=
 github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu7U=
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
-github.com/tgdrive/varc v0.0.0-20260811163723-b21ff910fb6a h1:Tk9uuYWts9LIcrPjXv96ChZbvNmK+LKQdaSTfqocXLU=
-github.com/tgdrive/varc v0.0.0-20260811163723-b21ff910fb6a/go.mod h1:anyG6fwdBXZkBXxuJ7lzGOvsnKWPX5x4PYowC/KngIg=
+github.com/tgdrive/varc v0.0.0-20260812045828-d0198bd602a0 h1:xem41My7yZuz4UFLaNrDfOUE61E9meUxX39kb7CuUV0=
+github.com/tgdrive/varc v0.0.0-20260812045828-d0198bd602a0/go.mod h1:anyG6fwdBXZkBXxuJ7lzGOvsnKWPX5x4PYowC/KngIg=
 github.com/tidwall/gjson v1.14.2/go.mod h1:/wbyibRr2FHMks5tjHJ5F8dMZh3AcwJEMf5vlfC0lxk=
 github.com/tidwall/gjson v1.19.0 h1:xwxm7n691Uf3u5OFjzngavjGTh55KX5q/9w9xHW88JU=
 github.com/tidwall/gjson v1.19.0/go.mod h1:V37/opeE/JbLUOfH0QTXiNez2l0RUjYUhpT4szFQAfc=

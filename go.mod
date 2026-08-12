@@ -28,7 +28,7 @@ require (
 	github.com/riverqueue/river/rivertype v0.43.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
-	github.com/tgdrive/varc v0.0.0-20260811163723-b21ff910fb6a
+	github.com/tgdrive/varc v0.0.0-20260812045828-d0198bd602a0
 	github.com/zeebo/blake3 v0.2.4
 	go.opentelemetry.io/otel v1.45.0
 	go.opentelemetry.io/otel/metric v1.45.0

@@ -357,6 +357,7 @@ func (a *App) Serve(ctx context.Context, listener net.Listener) error {
 		defer cancel()
 		return errors.Join(err, a.events.Close(closeCtx))
 	}
+	a.http.BaseContext = func(net.Listener) context.Context { return ctx }
 	serveErrors := make(chan error, 1)
 	go func() {
 		err := a.http.Serve(listener)
@@ -380,7 +381,7 @@ func (a *App) Serve(ctx context.Context, listener net.Listener) error {
 	}
 }
 
-// Shutdown stops long-lived SSE handlers and HTTP, closes the stream cache and warm Telegram download clients,
+// Shutdown stops long-lived SSE handlers and stream cache reads, closes HTTP and warm Telegram download clients,
 // drains RiverPro workers, and finally closes PostgreSQL. It is safe to call repeatedly.
 func (a *App) Shutdown(ctx context.Context) error {
 	if a == nil {
@@ -398,11 +399,11 @@ func (a *App) Shutdown(ctx context.Context) error {
 	if a.events != nil {
 		result = errors.Join(result, a.events.Close(ctx))
 	}
-	if a.http != nil {
-		result = errors.Join(result, a.http.Shutdown(ctx))
-	}
 	if a.streamCache != nil {
 		result = errors.Join(result, a.streamCache.Close())
+	}
+	if a.http != nil {
+		result = errors.Join(result, a.http.Shutdown(ctx))
 	}
 	if a.telegramDownloads != nil {
 		result = errors.Join(result, a.telegramDownloads.Close(ctx))
