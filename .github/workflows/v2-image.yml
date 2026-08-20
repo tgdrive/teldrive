@@ -42,16 +42,16 @@ jobs:
           version: "~> v2"
           install-only: true
 
-      - name: Build Linux binaries with GoReleaser
-        run: |
-          GOOS=linux GOARCH=amd64 goreleaser build --snapshot --clean --single-target --id teldrive
-          GOOS=linux GOARCH=arm64 goreleaser build --snapshot --single-target --id teldrive --skip=before
-
-      - name: Prepare image context
+      - name: Build Linux image context with GoReleaser
         run: |
           mkdir -p image-context/linux/amd64 image-context/linux/arm64
+
+          GOOS=linux GOARCH=amd64 goreleaser build --snapshot --clean --single-target --id teldrive
           cp dist/teldrive_linux_amd64_v1/teldrive image-context/linux/amd64/teldrive
+
+          GOOS=linux GOARCH=arm64 goreleaser build --snapshot --clean --single-target --id teldrive --skip=before
           cp dist/teldrive_linux_arm64_v8.0/teldrive image-context/linux/arm64/teldrive
+
           cp .goreleaser.Dockerfile image-context/Dockerfile
 
       - name: Set up Docker Buildx
