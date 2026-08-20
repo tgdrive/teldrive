@@ -35,12 +35,17 @@ jobs:
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
 
-      - name: Build with GoReleaser
+      - name: Install GoReleaser
         uses: goreleaser/goreleaser-action@v7
         with:
           distribution: goreleaser
           version: "~> v2"
-          args: build --snapshot --clean --id teldrive
+          install-only: true
+
+      - name: Build Linux binaries with GoReleaser
+        run: |
+          GOOS=linux GOARCH=amd64 goreleaser build --snapshot --clean --single-target --id teldrive
+          GOOS=linux GOARCH=arm64 goreleaser build --snapshot --single-target --id teldrive --skip=before
 
       - name: Prepare image context
         run: |
