@@ -165,6 +165,16 @@ WHERE id = sqlc.arg(upload_id)
   AND state = 'open'
 RETURNING *;
 
+-- name: FinalizeUploadExpectedSize :one
+UPDATE /* TEMPLATE: schema */upload_sessions
+SET expected_size = sqlc.arg(expected_size),
+    updated_at = now()
+WHERE id = sqlc.arg(upload_id)
+  AND user_id = sqlc.arg(user_id)
+  AND expected_size = -1
+  AND state = 'open'
+RETURNING *;
+
 -- name: GetStoredUploadPartSummary :one
 SELECT
     count(*)::integer AS part_count,
@@ -353,6 +363,21 @@ SELECT
     COALESCE(max(part_no) FILTER (WHERE state = 'stored'), 0)::integer AS max_part_no
 FROM /* TEMPLATE: schema */upload_parts
 WHERE upload_id = sqlc.arg(upload_id);
+
+-- name: CountInvalidOpenEndedUploadParts :one
+WITH final_part AS (
+    SELECT COALESCE(max(part_no), 0)::integer AS part_no
+    FROM /* TEMPLATE: schema */upload_parts
+    WHERE upload_id = sqlc.arg(upload_id)
+      AND state = 'stored'
+)
+SELECT count(*)::bigint
+FROM /* TEMPLATE: schema */upload_parts parts
+CROSS JOIN final_part
+WHERE parts.upload_id = sqlc.arg(upload_id)
+  AND parts.state = 'stored'
+  AND parts.part_no < final_part.part_no
+  AND parts.plain_size <> sqlc.arg(part_size);
 
 -- name: ListUploadDailyStatistics :many
 WITH days AS (

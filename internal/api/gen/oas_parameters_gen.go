@@ -3862,6 +3862,7 @@ func decodeListFilesParams(args [0]string, argsEscaped bool, r *http.Request) (p
 
 		if err := q.HasParam(cfg); err == nil {
 			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				params.Category = nil
 				return d.DecodeArray(func(d uri.Decoder) error {
 					var paramsDotCategoryVal FileCategory
 					if err := func() error {
@@ -7005,6 +7006,7 @@ func decodeStreamEventsParams(args [0]string, argsEscaped bool, r *http.Request)
 
 		if err := q.HasParam(cfg); err == nil {
 			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				params.Types = nil
 				return d.DecodeArray(func(d uri.Decoder) error {
 					var paramsDotTypesVal string
 					if err := func() error {

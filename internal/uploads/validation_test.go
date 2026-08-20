@@ -27,7 +27,7 @@ func TestServiceRejectsInvalidInputsBeforeDatabaseAccess(t *testing.T) {
 	}{
 		{name: "create owner", call: func() error { _, err := svc.Create(ctx, CreateInput{Name: "x"}); return err }, want: ErrInvalidInput},
 		{name: "create size", call: func() error {
-			_, err := svc.Create(ctx, CreateInput{UserID: 1, Name: "x", ExpectedSize: -1})
+			_, err := svc.Create(ctx, CreateInput{UserID: 1, Name: "x", ExpectedSize: -2})
 			return err
 		}, want: ErrInvalidInput},
 		{name: "create hash pair", call: func() error {

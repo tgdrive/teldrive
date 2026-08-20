@@ -137,6 +137,51 @@ func TestUploadLifecycleAgainstRealPostgres(t *testing.T) {
 	}
 }
 
+func TestUnknownSizeUploadDerivesSizeOnCompletion(t *testing.T) {
+	db := testpostgres.New(t)
+	ctx := context.Background()
+	seedUploadOwner(t, db.Pool, 1001, 9001)
+	svc := uploads.NewService(db.Pool)
+
+	session, err := svc.Create(ctx, uploads.CreateInput{
+		UserID: 1001, Name: "stream.bin", ExpectedSize: -1, PartSize: 4,
+	})
+	if err != nil {
+		t.Fatalf("create unknown-size upload: %v", err)
+	}
+	uploadID := mustUploadUUID(t, session.ID)
+	claimAndStore(t, ctx, svc, uploadID, 1, []byte("abcd"), 201)
+	claimAndStore(t, ctx, svc, uploadID, 2, []byte("ef"), 202)
+
+	file, err := svc.Complete(ctx, 1001, uploadID)
+	if err != nil {
+		t.Fatalf("complete unknown-size upload: %v", err)
+	}
+	if !file.Size.Valid || file.Size.Int64 != 6 {
+		t.Fatalf("completed file size = %#v, want 6", file.Size)
+	}
+	completed, err := svc.Get(ctx, 1001, uploadID)
+	if err != nil {
+		t.Fatalf("get completed upload: %v", err)
+	}
+	if completed.ExpectedSize != 6 {
+		t.Fatalf("completed upload expected size = %d, want 6", completed.ExpectedSize)
+	}
+
+	invalid, err := svc.Create(ctx, uploads.CreateInput{
+		UserID: 1001, Name: "invalid-stream.bin", ExpectedSize: -1, PartSize: 4,
+	})
+	if err != nil {
+		t.Fatalf("create invalid unknown-size upload: %v", err)
+	}
+	invalidID := mustUploadUUID(t, invalid.ID)
+	claimAndStore(t, ctx, svc, invalidID, 1, []byte("ab"), 203)
+	claimAndStore(t, ctx, svc, invalidID, 2, []byte("cdef"), 204)
+	if _, err := svc.Complete(ctx, 1001, invalidID); !errors.Is(err, uploads.ErrIncomplete) {
+		t.Fatalf("non-final short part error = %v, want ErrIncomplete", err)
+	}
+}
+
 func TestUploadAbortZeroByteAndNameConflict(t *testing.T) {
 	db := testpostgres.New(t)
 	ctx := context.Background()

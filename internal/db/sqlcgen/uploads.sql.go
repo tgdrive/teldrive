@@ -178,6 +178,34 @@ func (q *Queries) CompleteUploadSession(ctx context.Context, arg CompleteUploadS
 	return &i, err
 }
 
+const countInvalidOpenEndedUploadParts = `-- name: CountInvalidOpenEndedUploadParts :one
+WITH final_part AS (
+    SELECT COALESCE(max(part_no), 0)::integer AS part_no
+    FROM /* TEMPLATE: schema */upload_parts
+    WHERE upload_id = $1
+      AND state = 'stored'
+)
+SELECT count(*)::bigint
+FROM /* TEMPLATE: schema */upload_parts parts
+CROSS JOIN final_part
+WHERE parts.upload_id = $1
+  AND parts.state = 'stored'
+  AND parts.part_no < final_part.part_no
+  AND parts.plain_size <> $2
+`
+
+type CountInvalidOpenEndedUploadPartsParams struct {
+	UploadID pgtype.UUID `json:"upload_id"`
+	PartSize int64       `json:"part_size"`
+}
+
+func (q *Queries) CountInvalidOpenEndedUploadParts(ctx context.Context, arg CountInvalidOpenEndedUploadPartsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countInvalidOpenEndedUploadParts, arg.UploadID, arg.PartSize)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createUploadSession = `-- name: CreateUploadSession :one
 INSERT INTO /* TEMPLATE: schema */upload_sessions (
     id,
@@ -358,6 +386,51 @@ func (q *Queries) ExpireUploadSessions(ctx context.Context, batchSize int32) ([]
 		return nil, err
 	}
 	return items, nil
+}
+
+const finalizeUploadExpectedSize = `-- name: FinalizeUploadExpectedSize :one
+UPDATE /* TEMPLATE: schema */upload_sessions
+SET expected_size = $1,
+    updated_at = now()
+WHERE id = $2
+  AND user_id = $3
+  AND expected_size = -1
+  AND state = 'open'
+RETURNING id, user_id, parent_id, name, normalized_name, expected_size, expected_hash_algorithm, expected_hash_value, mime_type, mod_time, encryption, encryption_key_version, conflict_policy, part_size, state, file_id, expires_at, created_at, updated_at, completed_at
+`
+
+type FinalizeUploadExpectedSizeParams struct {
+	ExpectedSize int64       `json:"expected_size"`
+	UploadID     pgtype.UUID `json:"upload_id"`
+	UserID       int64       `json:"user_id"`
+}
+
+func (q *Queries) FinalizeUploadExpectedSize(ctx context.Context, arg FinalizeUploadExpectedSizeParams) (*UploadSession, error) {
+	row := q.db.QueryRow(ctx, finalizeUploadExpectedSize, arg.ExpectedSize, arg.UploadID, arg.UserID)
+	var i UploadSession
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.ParentID,
+		&i.Name,
+		&i.NormalizedName,
+		&i.ExpectedSize,
+		&i.ExpectedHashAlgorithm,
+		&i.ExpectedHashValue,
+		&i.MimeType,
+		&i.ModTime,
+		&i.Encryption,
+		&i.EncryptionKeyVersion,
+		&i.ConflictPolicy,
+		&i.PartSize,
+		&i.State,
+		&i.FileID,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CompletedAt,
+	)
+	return &i, err
 }
 
 const getAllUploadPartSummary = `-- name: GetAllUploadPartSummary :one

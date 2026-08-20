@@ -25,7 +25,8 @@ model UploadCreateRequest {
   @maxLength(255)
   name: string;
 
-  @minValue(0)
+  /** Expected size in bytes, or -1 when the size is unknown until completion. */
+  @minValue(-1)
   size: int64;
 
   mimeType?: string;
@@ -91,6 +92,7 @@ model UploadImportSource {
 model UploadImportRequest {
   /** Destination folder UUID or absolute drive path from root. */
   destination: string;
+
   sources: UploadImportSource[];
   headers?: Record<string>;
   exclude?: string[];

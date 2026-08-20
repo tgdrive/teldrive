@@ -23,6 +23,7 @@ type Querier interface {
 	CompleteUploadSession(ctx context.Context, arg CompleteUploadSessionParams) (*UploadSession, error)
 	CountChannelReferences(ctx context.Context, targetChannelID int64) (int64, error)
 	CountChannelStoredMessages(ctx context.Context, targetChannelID int64) (int64, error)
+	CountInvalidOpenEndedUploadParts(ctx context.Context, arg CountInvalidOpenEndedUploadPartsParams) (int64, error)
 	CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (*ApiKey, error)
 	CreateChannel(ctx context.Context, arg CreateChannelParams) (*Channel, error)
 	CreateEventStreamTicket(ctx context.Context, arg CreateEventStreamTicketParams) error
@@ -42,6 +43,7 @@ type Querier interface {
 	DeleteUploadPartForCleanup(ctx context.Context, arg DeleteUploadPartForCleanupParams) (int64, error)
 	DeleteUserEventsBefore(ctx context.Context, cutoff pgtype.Timestamptz) (int64, error)
 	ExpireUploadSessions(ctx context.Context, batchSize int32) ([]*UploadSession, error)
+	FinalizeUploadExpectedSize(ctx context.Context, arg FinalizeUploadExpectedSizeParams) (*UploadSession, error)
 	GetActiveAPIKeyByHash(ctx context.Context, secretHash []byte) (*ApiKey, error)
 	GetActiveFolderForUser(ctx context.Context, arg GetActiveFolderForUserParams) (*File, error)
 	GetActiveSession(ctx context.Context, arg GetActiveSessionParams) (*Session, error)

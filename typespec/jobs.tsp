@@ -171,11 +171,18 @@ model PeriodicJobUpdate {
 namespace Jobs {
   @get
   @operationId("listJobs")
-  op list(...JobListQuery): JsonResponse<200, JobPage> | ErrorResponse<400> | ErrorResponse<401>;
+  op list(...JobListQuery):
+    | JsonResponse<200, JobPage>
+    | ErrorResponse<400>
+    | ErrorResponse<401>;
 
   @post
   @operationId("createJob")
-  op create(@body body: JobCreate): JsonResponse<201, Job> | ErrorResponse<400> | ErrorResponse<401> | ErrorResponse<409>;
+  op create(@body body: JobCreate):
+    | JsonResponse<201, Job>
+    | ErrorResponse<400>
+    | ErrorResponse<401>
+    | ErrorResponse<409>;
 
   @get
   @route("/statistics")
@@ -190,37 +197,61 @@ namespace Jobs {
   @post
   @route("/queues/{queue}/pause")
   @operationId("pauseJobQueue")
-  op pauseQueue(@path queue: string): EmptyResponse<204> | ErrorResponse<401> | ErrorResponse<404>;
+  op pauseQueue(@path queue: string):
+    | EmptyResponse<204>
+    | ErrorResponse<401>
+    | ErrorResponse<404>;
 
   @post
   @route("/queues/{queue}/resume")
   @operationId("resumeJobQueue")
-  op resumeQueue(@path queue: string): EmptyResponse<204> | ErrorResponse<401> | ErrorResponse<404>;
+  op resumeQueue(@path queue: string):
+    | EmptyResponse<204>
+    | ErrorResponse<401>
+    | ErrorResponse<404>;
 
   @delete
   @route("/purge")
   @operationId("purgeJobs")
-  op purge(...JobPurgeQuery): JsonResponse<200, JobPurgeResult> | ErrorResponse<401> | ErrorResponse<409>;
+  op purge(...JobPurgeQuery):
+    | JsonResponse<200, JobPurgeResult>
+    | ErrorResponse<401>
+    | ErrorResponse<409>;
 
   @get
   @route("/{jobId}")
   @operationId("getJob")
-  op get(@path jobId: string): JsonResponse<200, Job> | ErrorResponse<401> | ErrorResponse<404>;
+  op get(@path jobId: string):
+    | JsonResponse<200, Job>
+    | ErrorResponse<401>
+    | ErrorResponse<404>;
 
   @post
   @route("/{jobId}/cancel")
   @operationId("cancelJob")
-  op cancel(@path jobId: string): JsonResponse<200, Job> | ErrorResponse<401> | ErrorResponse<404> | ErrorResponse<409>;
+  op cancel(@path jobId: string):
+    | JsonResponse<200, Job>
+    | ErrorResponse<401>
+    | ErrorResponse<404>
+    | ErrorResponse<409>;
 
   @post
   @route("/{jobId}/retry")
   @operationId("retryJob")
-  op retry(@path jobId: string): JsonResponse<200, Job> | ErrorResponse<401> | ErrorResponse<404> | ErrorResponse<409>;
+  op retry(@path jobId: string):
+    | JsonResponse<200, Job>
+    | ErrorResponse<401>
+    | ErrorResponse<404>
+    | ErrorResponse<409>;
 
   @delete
   @route("/{jobId}")
   @operationId("deleteJob")
-  op delete(@path jobId: string): EmptyResponse<204> | ErrorResponse<401> | ErrorResponse<404> | ErrorResponse<409>;
+  op delete(@path jobId: string):
+    | EmptyResponse<204>
+    | ErrorResponse<401>
+    | ErrorResponse<404>
+    | ErrorResponse<409>;
 }
 
 @tag("Periodic Jobs")
@@ -233,7 +264,11 @@ namespace PeriodicJobs {
 
   @post
   @operationId("createPeriodicJob")
-  op create(@body body: PeriodicJobCreate): JsonResponse<201, PeriodicJob> | ErrorResponse<400> | ErrorResponse<401> | ErrorResponse<409>;
+  op create(@body body: PeriodicJobCreate):
+    | JsonResponse<201, PeriodicJob>
+    | ErrorResponse<400>
+    | ErrorResponse<401>
+    | ErrorResponse<409>;
 
   @get
   @route("/catalog")
@@ -243,20 +278,33 @@ namespace PeriodicJobs {
   @put
   @route("/{periodicJobId}")
   @operationId("updatePeriodicJob")
-  op update(@path periodicJobId: string, @body body: PeriodicJobUpdate): JsonResponse<200, PeriodicJob> | ErrorResponse<400> | ErrorResponse<401> | ErrorResponse<404>;
+  op update(@path periodicJobId: string, @body body: PeriodicJobUpdate):
+    | JsonResponse<200, PeriodicJob>
+    | ErrorResponse<400>
+    | ErrorResponse<401>
+    | ErrorResponse<404>;
 
   @delete
   @route("/{periodicJobId}")
   @operationId("deletePeriodicJob")
-  op delete(@path periodicJobId: string): EmptyResponse<204> | ErrorResponse<401> | ErrorResponse<404>;
+  op delete(@path periodicJobId: string):
+    | EmptyResponse<204>
+    | ErrorResponse<401>
+    | ErrorResponse<404>;
 
   @post
   @route("/{periodicJobId}/pause")
   @operationId("pausePeriodicJob")
-  op pause(@path periodicJobId: string): JsonResponse<200, PeriodicJob> | ErrorResponse<401> | ErrorResponse<404>;
+  op pause(@path periodicJobId: string):
+    | JsonResponse<200, PeriodicJob>
+    | ErrorResponse<401>
+    | ErrorResponse<404>;
 
   @post
   @route("/{periodicJobId}/resume")
   @operationId("resumePeriodicJob")
-  op resume(@path periodicJobId: string): JsonResponse<200, PeriodicJob> | ErrorResponse<401> | ErrorResponse<404>;
+  op resume(@path periodicJobId: string):
+    | JsonResponse<200, PeriodicJob>
+    | ErrorResponse<401>
+    | ErrorResponse<404>;
 }

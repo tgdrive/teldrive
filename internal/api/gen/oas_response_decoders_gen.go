@@ -185,6 +185,7 @@ func decodeBrowserTelegramLoginVerifyCodeResponse(resp *http.Response) (res Brow
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
+							wrapper.SetCookie = nil
 							return d.DecodeArray(func(d uri.Decoder) error {
 								var wrapperDotSetCookieVal string
 								if err := func() error {
@@ -497,6 +498,7 @@ func decodeBrowserTelegramLoginVerifyPasswordResponse(resp *http.Response) (res 
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
+							wrapper.SetCookie = nil
 							return d.DecodeArray(func(d uri.Decoder) error {
 								var wrapperDotSetCookieVal string
 								if err := func() error {
@@ -774,6 +776,7 @@ func decodeBrowserTelegramQRLoginPollResponse(resp *http.Response) (res BrowserT
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
+							wrapper.SetCookie = nil
 							return d.DecodeArray(func(d uri.Decoder) error {
 								var wrapperDotSetCookieVal string
 								if err := func() error {
@@ -9006,6 +9009,7 @@ func decodeLogoutBrowserSessionResponse(resp *http.Response) (res LogoutBrowserS
 			if err := func() error {
 				if err := h.HasParam(cfg); err == nil {
 					if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
+						wrapper.SetCookie = nil
 						return d.DecodeArray(func(d uri.Decoder) error {
 							var wrapperDotSetCookieVal string
 							if err := func() error {
@@ -10439,6 +10443,7 @@ func decodeRefreshBrowserSessionResponse(resp *http.Response) (res RefreshBrowse
 				if err := func() error {
 					if err := h.HasParam(cfg); err == nil {
 						if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
+							wrapper.SetCookie = nil
 							return d.DecodeArray(func(d uri.Decoder) error {
 								var wrapperDotSetCookieVal string
 								if err := func() error {

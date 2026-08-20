@@ -47,6 +47,7 @@ model BotSummary {
 model BotCreateResponse {
   bots: BotSummary[];
   failedIndexes: int32[];
+
   /** Present only when existing channels need background bot provisioning. */
   jobId?: string;
 }

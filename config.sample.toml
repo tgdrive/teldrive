@@ -1,7 +1,7 @@
 [http]
 address = "127.0.0.1:8080"
 read-header-timeout = "10s"
-read-timeout = "30s"
+read-timeout = "0s"
 write-timeout = "0s"
 idle-timeout = "2m"
 shutdown-timeout = "10s"

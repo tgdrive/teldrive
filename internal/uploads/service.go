@@ -83,7 +83,7 @@ type CreateInput struct {
 }
 
 func (s *Service) Create(ctx context.Context, in CreateInput) (*sqlcgen.UploadSession, error) {
-	if in.UserID <= 0 || in.ExpectedSize < 0 {
+	if in.UserID <= 0 || in.ExpectedSize < -1 {
 		return nil, ErrInvalidInput
 	}
 	name, normalized, err := catalog.NormalizeName(in.Name)
@@ -404,8 +404,19 @@ func (s *Service) Complete(ctx context.Context, userID int64, uploadID uuid.UUID
 		return nil, ErrExpired
 	}
 
-	if err := validateStoredParts(ctx, tx, session); err != nil {
+	completedSize, err := validateStoredParts(ctx, tx, session)
+	if err != nil {
 		return nil, err
+	}
+	if session.ExpectedSize < 0 {
+		session, err = q.FinalizeUploadExpectedSize(ctx, sqlcgen.FinalizeUploadExpectedSizeParams{
+			ExpectedSize: completedSize,
+			UploadID:     dbtypes.UUID(uploadID),
+			UserID:       userID,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("finalize upload size: %w", err)
+		}
 	}
 	blockHashSets, err := q.ListStoredUploadPartHashes(ctx, dbtypes.UUID(uploadID))
 	if err != nil {
@@ -642,7 +653,16 @@ func (s *Service) Abort(ctx context.Context, userID int64, uploadID uuid.UUID) (
 }
 
 func validatePartShape(session *sqlcgen.UploadSession, partNo int32, plainSize int64) error {
-	if session.ExpectedSize == 0 || session.PartSize <= 0 {
+	if session.PartSize <= 0 {
+		return ErrInvalidInput
+	}
+	if session.ExpectedSize < 0 {
+		if plainSize <= 0 || plainSize > session.PartSize {
+			return ErrInvalidInput
+		}
+		return nil
+	}
+	if session.ExpectedSize == 0 {
 		return ErrInvalidInput
 	}
 	offset := int64(partNo-1) * session.PartSize
@@ -659,19 +679,39 @@ func validatePartShape(session *sqlcgen.UploadSession, partNo int32, plainSize i
 	return nil
 }
 
-func validateStoredParts(ctx context.Context, tx pgx.Tx, session *sqlcgen.UploadSession) error {
-	summary, err := sqlcgen.New(tx).GetAllUploadPartSummary(ctx, session.ID)
+func validateStoredParts(ctx context.Context, tx pgx.Tx, session *sqlcgen.UploadSession) (int64, error) {
+	queries := sqlcgen.New(tx)
+	summary, err := queries.GetAllUploadPartSummary(ctx, session.ID)
 	if err != nil {
-		return fmt.Errorf("summarize upload parts: %w", err)
+		return 0, fmt.Errorf("summarize upload parts: %w", err)
 	}
-	expected := expectedPartCount(session.ExpectedSize, session.PartSize)
-	if summary.TotalParts != expected || summary.StoredParts != expected || summary.StoredPlainSize != session.ExpectedSize {
-		return ErrIncomplete
+	if session.ExpectedSize >= 0 {
+		expected := expectedPartCount(session.ExpectedSize, session.PartSize)
+		if summary.TotalParts != expected || summary.StoredParts != expected || summary.StoredPlainSize != session.ExpectedSize {
+			return 0, ErrIncomplete
+		}
+		if expected > 0 && (summary.MinPartNo != 1 || int64(summary.MaxPartNo) != expected) {
+			return 0, ErrIncomplete
+		}
+		return session.ExpectedSize, nil
 	}
-	if expected > 0 && (summary.MinPartNo != 1 || int64(summary.MaxPartNo) != expected) {
-		return ErrIncomplete
+	if summary.TotalParts != summary.StoredParts {
+		return 0, ErrIncomplete
 	}
-	return nil
+	if summary.StoredParts > 0 && (summary.MinPartNo != 1 || int64(summary.MaxPartNo) != summary.StoredParts) {
+		return 0, ErrIncomplete
+	}
+	invalidParts, err := queries.CountInvalidOpenEndedUploadParts(ctx, sqlcgen.CountInvalidOpenEndedUploadPartsParams{
+		UploadID: session.ID,
+		PartSize: session.PartSize,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("validate open-ended upload parts: %w", err)
+	}
+	if invalidParts != 0 {
+		return 0, ErrIncomplete
+	}
+	return summary.StoredPlainSize, nil
 }
 
 func expectedPartCount(size, partSize int64) int64 {

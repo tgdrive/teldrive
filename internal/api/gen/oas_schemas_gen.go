@@ -8125,8 +8125,9 @@ func (*UpdateShareUnprocessableEntity) updateShareRes() {}
 
 // Ref: #/components/schemas/UploadCreateRequest
 type UploadCreateRequest struct {
-	ParentId       OptUUID                              `json:"parentId"`
-	Name           string                               `json:"name"`
+	ParentId OptUUID `json:"parentId"`
+	Name     string  `json:"name"`
+	// Expected size in bytes, or -1 when the size is unknown until completion.
 	Size           int64                                `json:"size"`
 	MimeType       OptString                            `json:"mimeType"`
 	ModTime        time.Time                            `json:"modTime"`

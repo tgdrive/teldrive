@@ -5003,7 +5003,9 @@ components:
         size:
           type: integer
           format: int64
-          minimum: 0
+          minimum: -1
+          description: Expected size in bytes, or -1 when the size is unknown until
+            completion.
         mimeType:
           type: string
         modTime:
