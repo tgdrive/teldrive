@@ -15,7 +15,6 @@ import (
 	"github.com/gotd/td/telegram/message"
 	"github.com/gotd/td/telegram/uploader"
 	"github.com/gotd/td/tg"
-	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -210,8 +209,7 @@ type gotdDownloadSession struct {
 	downloadReadBuffers  int
 	downloadReadParallel int
 
-	locationMu sync.Mutex
-	locations  map[documentLocationKey]cachedDocumentLocation
+	locationCache *documentLocationCache
 }
 
 type documentLocationKey struct {
@@ -224,6 +222,37 @@ type cachedDocumentLocation struct {
 	size     int64
 }
 
+type documentLocationCache struct {
+	mu        sync.Mutex
+	locations map[documentLocationKey]cachedDocumentLocation
+}
+
+func newDocumentLocationCache() *documentLocationCache {
+	return &documentLocationCache{locations: make(map[documentLocationKey]cachedDocumentLocation)}
+}
+
+func (c *documentLocationCache) get(ctx context.Context, api *tg.Client, channelID, messageID int64) (*tg.InputDocumentFileLocation, int64, error) {
+	key := documentLocationKey{channelID: channelID, messageID: messageID}
+	c.mu.Lock()
+	cached, ok := c.locations[key]
+	c.mu.Unlock()
+	if ok {
+		return cached.location, cached.size, nil
+	}
+
+	location, size, err := documentLocation(ctx, api, channelID, messageID)
+	if err != nil {
+		return nil, 0, err
+	}
+	c.mu.Lock()
+	if cached, ok := c.locations[key]; ok {
+		c.mu.Unlock()
+		return cached.location, cached.size, nil
+	}
+	c.locations[key] = cachedDocumentLocation{location: location, size: size}
+	c.mu.Unlock()
+	return location, size, nil
+}
 func (s *GotdStorage) OpenDownloadSession(ctx context.Context, userID int64) (DownloadSession, error) {
 	if s == nil || s.runner == nil || userID <= 0 {
 		return nil, ErrInvalidRequest
@@ -236,6 +265,7 @@ func (s *GotdStorage) OpenDownloadSession(ctx context.Context, userID int64) (Do
 		ctx: sessionCtx, cancel: cancel, ready: make(chan struct{}), done: make(chan struct{}),
 		downloadReadBuffers:  s.downloadReadBuffers,
 		downloadReadParallel: s.downloadReadParallel,
+		locationCache:        newDocumentLocationCache(),
 	}
 	go func() {
 		err := runWithConnections(sessionCtx, s.runner, userID, OperationDownload, s.downloadReadParallel, func(runCtx context.Context, api *tg.Client) error {
@@ -300,21 +330,10 @@ func (s *gotdDownloadSession) OpenRange(ctx context.Context, request RangeReques
 }
 
 func (s *gotdDownloadSession) documentLocation(ctx context.Context, api *tg.Client, channelID, messageID int64) (*tg.InputDocumentFileLocation, int64, error) {
-	key := documentLocationKey{channelID: channelID, messageID: messageID}
-	s.locationMu.Lock()
-	defer s.locationMu.Unlock()
-	if cached, ok := s.locations[key]; ok {
-		return cached.location, cached.size, nil
+	if s.locationCache == nil {
+		s.locationCache = newDocumentLocationCache()
 	}
-	location, size, err := documentLocation(ctx, api, channelID, messageID)
-	if err != nil {
-		return nil, 0, err
-	}
-	if s.locations == nil {
-		s.locations = make(map[documentLocationKey]cachedDocumentLocation)
-	}
-	s.locations[key] = cachedDocumentLocation{location: location, size: size}
-	return location, size, nil
+	return s.locationCache.get(ctx, api, channelID, messageID)
 }
 
 func (s *gotdDownloadSession) client() (*tg.Client, error) {
@@ -429,49 +448,89 @@ func (r *telegramRangeReader) finish(err error) {
 }
 
 func (r *telegramRangeReader) fill(ctx context.Context, api *tg.Client, location *tg.InputDocumentFileLocation, offset, remaining int64) error {
-	for remaining > 0 {
-		plans := planTelegramReads(offset, remaining, r.parallel)
-		buffers := make([][]byte, len(plans))
-		g, groupCtx := errgroup.WithContext(ctx)
-		g.SetLimit(r.parallel)
-		for i, plan := range plans {
-			i := i
-			plan := plan
-			g.Go(func() error {
-				response, err := api.UploadGetFile(groupCtx, &tg.UploadGetFileRequest{
-					Location: location,
-					Offset:   plan.offset,
-					Limit:    plan.limit,
-					Precise:  true,
-				})
-				if err != nil {
-					return fmt.Errorf("download Telegram document chunk at %d: %w", plan.offset, err)
-				}
-				file, ok := response.(*tg.UploadFile)
-				if !ok {
-					return fmt.Errorf("unexpected Telegram download response %T", response)
-				}
-				end := plan.skip + plan.length
-				if len(file.Bytes) < end {
-					return io.ErrUnexpectedEOF
-				}
-				buffers[i] = file.Bytes[plan.skip:end]
-				return nil
+	type readResult struct {
+		seq     int64
+		payload []byte
+		err     error
+	}
+
+	fetchCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	completed := make(chan readResult, r.parallel)
+
+	nextOffset, nextRemaining := offset, remaining
+	var nextSeq int64
+	active := 0
+	launchNext := func() bool {
+		if nextRemaining <= 0 {
+			return false
+		}
+		plan := planTelegramReads(nextOffset, nextRemaining, 1)[0]
+		seq := nextSeq
+		nextSeq++
+		nextOffset += int64(plan.length)
+		nextRemaining -= int64(plan.length)
+		active++
+		go func() {
+			result := readResult{seq: seq}
+			response, err := api.UploadGetFile(fetchCtx, &tg.UploadGetFileRequest{
+				Location: location,
+				Offset:   plan.offset,
+				Limit:    plan.limit,
+				Precise:  true,
 			})
+			if err != nil {
+				result.err = fmt.Errorf("download Telegram document chunk at %d: %w", plan.offset, err)
+			} else if file, ok := response.(*tg.UploadFile); !ok {
+				result.err = fmt.Errorf("unexpected Telegram download response %T", response)
+			} else if end := plan.skip + plan.length; len(file.Bytes) < end {
+				result.err = io.ErrUnexpectedEOF
+			} else {
+				result.payload = file.Bytes[plan.skip:end]
+			}
+			select {
+			case completed <- result:
+			case <-fetchCtx.Done():
+			}
+		}()
+		return true
+	}
+
+	for active < r.parallel && launchNext() {
+	}
+
+	ready := make(map[int64][]byte, r.parallel)
+	var emitSeq int64
+	for active > 0 {
+		var result readResult
+		select {
+		case result = <-completed:
+			active--
+		case <-ctx.Done():
+			return ctx.Err()
 		}
-		if err := g.Wait(); err != nil {
-			return err
+		if result.err != nil {
+			return result.err
 		}
-		for _, payload := range buffers {
+		ready[result.seq] = result.payload
+
+		// Refill immediately when any request completes so a slow earlier chunk
+		// does not leave otherwise-idle pooled Telegram connections.
+		for active < r.parallel && launchNext() {
+		}
+
+		for {
+			payload, ok := ready[emitSeq]
+			if !ok {
+				break
+			}
 			select {
 			case r.buffers <- &telegramRangeBuffer{buf: payload}:
+				delete(ready, emitSeq)
+				emitSeq++
 			case <-ctx.Done():
 				return ctx.Err()
 			}
-		}
-		for _, plan := range plans {
-			offset += int64(plan.length)
-			remaining -= int64(plan.length)
 		}
 	}
 	return nil

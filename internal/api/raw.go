@@ -109,6 +109,7 @@ func (h *RawHandler) streamFile(ctx context.Context, w http.ResponseWriter, user
 	w.Header().Set("Content-Type", download.ContentType)
 	w.Header().Set("ETag", string(etag))
 	w.Header().Set("Last-Modified", file.ModTime.Time.UTC().Format(http.TimeFormat))
+	w.Header().Set("X-Accel-Buffering", "no")
 	w.WriteHeader(status)
 	_, err = io.CopyN(w, download.Reader, rangeSpec.Length)
 	if err != nil && !isExpectedStreamEnd(ctx, err) {

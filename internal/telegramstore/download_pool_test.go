@@ -60,6 +60,30 @@ func TestDownloadClientPoolReusesClientAfterRequestCancellation(t *testing.T) {
 	}
 }
 
+func TestDownloadClientPoolSharesLocationCacheAcrossSessions(t *testing.T) {
+	runner := &backgroundRunnerStub{}
+	pool := newTestDownloadClientPool(t, runner, DownloadClientPoolConfig{
+		ClientsPerUser: 1, MaxClients: 1, MaxSessions: 2,
+		IdleTimeout: time.Minute, AcquireTimeout: time.Second,
+	})
+	first, err := pool.OpenDownloadSession(context.Background(), 42)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := pool.OpenDownloadSession(context.Background(), 42)
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstGotd := first.(*gotdDownloadSession)
+	secondGotd := second.(*gotdDownloadSession)
+	if firstGotd.locationCache == nil || firstGotd.locationCache != secondGotd.locationCache {
+		t.Fatal("sessions sharing a warm Telegram client do not share document location cache")
+	}
+	_ = first.Close()
+	_ = second.Close()
+	closeDownloadClientPool(t, pool)
+}
+
 func TestDownloadClientPoolAppliesSessionBackpressure(t *testing.T) {
 	runner := &backgroundRunnerStub{}
 	pool := newTestDownloadClientPool(t, runner, DownloadClientPoolConfig{

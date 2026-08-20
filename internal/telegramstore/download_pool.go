@@ -40,15 +40,16 @@ type DownloadClientPool struct {
 }
 
 type downloadClientEntry struct {
-	userID   int64
-	ctx      context.Context
-	cancel   context.CancelFunc
-	ready    chan struct{}
-	done     chan struct{}
-	api      *tg.Client
-	err      error
-	refs     int
-	lastUsed time.Time
+	userID        int64
+	ctx           context.Context
+	cancel        context.CancelFunc
+	ready         chan struct{}
+	done          chan struct{}
+	api           *tg.Client
+	locationCache *documentLocationCache
+	err           error
+	refs          int
+	lastUsed      time.Time
 }
 
 func NewDownloadClientPool(runner Runner, config DownloadClientPoolConfig) (*DownloadClientPool, error) {
@@ -104,6 +105,7 @@ func (p *DownloadClientPool) OpenDownloadSession(ctx context.Context, userID int
 					closeFn:              func() error { p.release(entry); return nil },
 					downloadReadBuffers:  p.config.ReadBuffers,
 					downloadReadParallel: p.config.ReadParallel,
+					locationCache:        entry.locationCache,
 				}, nil
 			case <-acquireCtx.Done():
 				p.release(entry)
@@ -156,7 +158,7 @@ func (p *DownloadClientPool) reserve(userID int64) (*downloadClientEntry, bool, 
 	entryCtx, cancel := context.WithCancel(p.ctx)
 	entry := &downloadClientEntry{
 		userID: userID, ctx: entryCtx, cancel: cancel, ready: make(chan struct{}), done: make(chan struct{}),
-		refs: 1, lastUsed: time.Now(),
+		refs: 1, lastUsed: time.Now(), locationCache: newDocumentLocationCache(),
 	}
 	p.entries[userID] = append(p.entries[userID], entry)
 	p.total++

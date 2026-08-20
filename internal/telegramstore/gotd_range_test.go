@@ -4,7 +4,9 @@ import (
 	"context"
 	"sync/atomic"
 	"testing"
+	"time"
 
+	"github.com/gotd/td/bin"
 	"github.com/gotd/td/tg"
 )
 
@@ -100,4 +102,74 @@ func TestPlanTelegramReadsStaysWithinTelegramBoundaries(t *testing.T) {
 			t.Fatalf("plan crosses 1 MiB boundary: %+v", plan)
 		}
 	}
+}
+func TestTelegramRangeReaderPipelinesPastCompletedChunk(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	releaseFirst := make(chan struct{})
+	invoker := &pipelinedDownloadInvoker{
+		started: make(chan int64, 3),
+		releases: map[int64]<-chan struct{}{
+			0: releaseFirst,
+		},
+	}
+	api := tg.NewClient(invoker)
+	reader := newTelegramRangeReader(ctx, cancel, 4, 2)
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- reader.fill(ctx, api, &tg.InputDocumentFileLocation{}, 0, 3*telegramReadChunk)
+	}()
+
+	started := map[int64]bool{}
+	for len(started) < 2 {
+		select {
+		case offset := <-invoker.started:
+			started[offset] = true
+		case <-time.After(time.Second):
+			t.Fatal("initial Telegram reads did not start")
+		}
+	}
+	if !started[0] || !started[telegramReadChunk] {
+		t.Fatalf("initial offsets = %#v", started)
+	}
+
+	select {
+	case offset := <-invoker.started:
+		if offset != 2*telegramReadChunk {
+			t.Fatalf("next offset = %d, want %d", offset, 2*telegramReadChunk)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("third Telegram read waited for the slow first chunk")
+	}
+
+	close(releaseFirst)
+	select {
+	case err := <-errCh:
+		if err != nil {
+			t.Fatalf("fill() error = %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("fill() did not complete")
+	}
+}
+
+type pipelinedDownloadInvoker struct {
+	started  chan int64
+	releases map[int64]<-chan struct{}
+}
+
+func (i *pipelinedDownloadInvoker) Invoke(ctx context.Context, input bin.Encoder, output bin.Decoder) error {
+	request := input.(*tg.UploadGetFileRequest)
+	i.started <- request.Offset
+	if release := i.releases[request.Offset]; release != nil {
+		select {
+		case <-release:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	box := output.(*tg.UploadFileBox)
+	box.File = &tg.UploadFile{Bytes: make([]byte, request.Limit)}
+	return nil
 }

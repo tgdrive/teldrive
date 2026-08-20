@@ -185,6 +185,9 @@ func TestDownloaderReusesCachedStreamRanges(t *testing.T) {
 	if firstCalls == 0 {
 		t.Fatal("first cached read did not fetch the origin")
 	}
+	if opens, closes := storage.sessionOpens.Load(), storage.sessionCloses.Load(); opens != 1 || closes != 1 {
+		t.Fatalf("cached origin sessions = opens:%d closes:%d, want one shared session", opens, closes)
+	}
 	if got := read(); got != "cdefgh" {
 		t.Fatalf("second cached read = %q", got)
 	}
