@@ -47,11 +47,11 @@ type Telegram struct {
 	ReconnectTimeout             time.Duration   `koanf:"reconnect-timeout" default:"5m" validate:"gt=0" description:"Maximum Telegram reconnect backoff duration"`
 	MaxRetries                   int             `koanf:"max-retries" default:"10" validate:"gte=0" description:"Maximum Telegram transport retry attempts"`
 	RateLimit                    bool            `koanf:"rate-limit" default:"true" description:"Enable Telegram API request rate limiting"`
-	RateInterval                 time.Duration   `koanf:"rate-interval" default:"100ms" validate:"gt=0" description:"Minimum interval between Telegram API requests"`
-	RateBurst                    int             `koanf:"rate-burst" default:"5" validate:"gt=0" description:"Telegram API request burst allowance"`
+	RateInterval                 time.Duration   `koanf:"rate-interval" default:"50ms" validate:"gt=0" description:"Minimum interval between Telegram API requests"`
+	RateBurst                    int             `koanf:"rate-burst" default:"10" validate:"gt=0" description:"Telegram API request burst allowance"`
 	Proxy                        string          `koanf:"proxy" default:"" description:"HTTP, HTTPS, or SOCKS5 proxy URL"`
 	MTProxy                      TelegramMTProxy `koanf:"mtproxy"`
-	AllowCDN                     bool            `koanf:"allow-cdn" default:"false" description:"Allow Telegram CDN redirects"`
+	ClientLogging                bool            `koanf:"client-logging" default:"false" description:"Enable verbose gotd Telegram client logs through the application logger"`
 	UploadThreads                int             `koanf:"upload-threads" default:"8" validate:"min=1,max=32" description:"Concurrent Telegram upload workers"`
 	DownloadBots                 int             `koanf:"download-bots" default:"0" validate:"min=0,max=32" description:"Maximum enabled bots used for download rotation; zero uses the authenticated user"`
 	DownloadClientPool           bool            `koanf:"download-client-pool" default:"false" description:"Keep authenticated Telegram download clients warm between HTTP requests"`

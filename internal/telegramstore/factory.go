@@ -7,17 +7,16 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
 	"github.com/gotd/contrib/middleware/floodwait"
 	"github.com/gotd/contrib/middleware/ratelimit"
+	"github.com/gotd/log"
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/telegram/dcs"
 	"github.com/gotd/td/tg"
-	"github.com/iyear/connectproxy"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/net/proxy"
@@ -32,8 +31,6 @@ import (
 
 var ErrTelegramConfiguration = errors.New("Telegram client factory is not configured")
 
-var registerConnectProxy sync.Once
-
 type FactoryConfig struct {
 	AppID            int
 	AppHash          string
@@ -47,7 +44,7 @@ type FactoryConfig struct {
 	Proxy            string
 	MTProxyAddress   string
 	MTProxySecret    string
-	AllowCDN         bool
+	Logger           log.Logger
 }
 
 // Factory creates unstarted gotd clients. Each caller must execute the client
@@ -122,22 +119,26 @@ func resolverFromConfig(config FactoryConfig) (dcs.Resolver, error) {
 
 	var dialer proxy.ContextDialer = proxy.Direct
 	if proxyURL != "" {
-		registerConnectProxy.Do(func() {
-			connectproxy.Register(&connectproxy.Config{DialTimeout: config.DialTimeout})
-		})
 		parsed, err := url.Parse(proxyURL)
 		if err != nil {
 			return nil, fmt.Errorf("%w: parse proxy URL: %v", ErrTelegramConfiguration, err)
 		}
-		created, err := proxy.FromURL(parsed, proxy.Direct)
-		if err != nil {
-			return nil, fmt.Errorf("%w: create proxy dialer: %v", ErrTelegramConfiguration, err)
+		if parsed.Scheme == "http" || parsed.Scheme == "https" {
+			dialer, err = newHTTPConnectDialer(parsed, config.DialTimeout)
+			if err != nil {
+				return nil, fmt.Errorf("%w: create HTTP proxy dialer: %v", ErrTelegramConfiguration, err)
+			}
+		} else {
+			created, err := proxy.FromURL(parsed, proxy.Direct)
+			if err != nil {
+				return nil, fmt.Errorf("%w: create proxy dialer: %v", ErrTelegramConfiguration, err)
+			}
+			contextDialer, ok := created.(proxy.ContextDialer)
+			if !ok {
+				return nil, fmt.Errorf("%w: proxy dialer does not support context cancellation", ErrTelegramConfiguration)
+			}
+			dialer = contextDialer
 		}
-		contextDialer, ok := created.(proxy.ContextDialer)
-		if !ok {
-			return nil, fmt.Errorf("%w: proxy dialer does not support context cancellation", ErrTelegramConfiguration)
-		}
-		dialer = contextDialer
 	}
 	return dcs.Plain(dcs.PlainOptions{Dial: dialer.DialContext}), nil
 }
@@ -182,12 +183,12 @@ func (f *Factory) newClient(storage telegram.SessionStorage, handler telegram.Up
 		SessionStorage: storage,
 		UpdateHandler:  handler,
 		NoUpdates:      handler == nil,
-		AllowCDN:       f.config.AllowCDN,
 		DialTimeout:    f.config.DialTimeout,
 		MaxRetries:     f.config.MaxRetries,
 		Device:         f.config.Device,
 		Resolver:       f.resolver,
 		Middlewares:    append([]telegram.Middleware(nil), f.middleware...),
+		Logger:         f.config.Logger,
 		RetryInterval:  2 * time.Second,
 		ReconnectionBackoff: func() backoff.BackOff {
 			value := backoff.NewExponentialBackOff()

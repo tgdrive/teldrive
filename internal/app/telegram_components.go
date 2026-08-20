@@ -2,8 +2,10 @@ package app
 
 import (
 	"fmt"
+	"log/slog"
 	"strings"
 
+	"github.com/gotd/log/logslog"
 	"github.com/gotd/td/telegram"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -25,7 +27,7 @@ type telegramComponents struct {
 	downloadClients *telegramstore.DownloadClientPool
 }
 
-func buildTelegramComponents(cfg config.Config, pool *pgxpool.Pool, cipher *secureblob.Cipher, injected telegramstore.Storage) (telegramComponents, error) {
+func buildTelegramComponents(cfg config.Config, pool *pgxpool.Pool, cipher *secureblob.Cipher, logger *slog.Logger, injected telegramstore.Storage) (telegramComponents, error) {
 	switch strings.ToLower(strings.TrimSpace(cfg.Telegram.Backend)) {
 	case "filesystem":
 		root, err := expandHomePath(cfg.Telegram.LocalRoot)
@@ -53,6 +55,10 @@ func buildTelegramComponents(cfg config.Config, pool *pgxpool.Pool, cipher *secu
 		}, nil
 
 	case "remote":
+		gotdLogger := logslog.New(logger)
+		if !cfg.Telegram.ClientLogging {
+			gotdLogger = nil
+		}
 		factory, err := telegramstore.NewFactory(telegramstore.FactoryConfig{
 			AppID: cfg.Telegram.AppID, AppHash: cfg.Telegram.AppHash,
 			Device: telegram.DeviceConfig{
@@ -64,7 +70,8 @@ func buildTelegramComponents(cfg config.Config, pool *pgxpool.Pool, cipher *secu
 			MaxRetries: cfg.Telegram.MaxRetries, RateLimit: cfg.Telegram.RateLimit,
 			RateInterval: cfg.Telegram.RateInterval, RateBurst: cfg.Telegram.RateBurst,
 			Proxy: cfg.Telegram.Proxy, MTProxyAddress: cfg.Telegram.MTProxy.Address,
-			MTProxySecret: cfg.Telegram.MTProxy.Secret, AllowCDN: cfg.Telegram.AllowCDN,
+			MTProxySecret: cfg.Telegram.MTProxy.Secret,
+			Logger:        gotdLogger,
 		})
 		if err != nil {
 			return telegramComponents{}, fmt.Errorf("create Telegram client factory: %w", err)

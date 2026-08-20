@@ -33,6 +33,12 @@ func TestDefaultIncludesLegacyPublicTelegramClientIdentity(t *testing.T) {
 	if cfg.Telegram.DownloadClientPool || cfg.Telegram.DownloadClientPoolSize != 4 || cfg.Telegram.DownloadClientMaxSessions != 4 {
 		t.Fatalf("Telegram download client pool defaults = %#v", cfg.Telegram)
 	}
+	if cfg.Telegram.ClientLogging {
+		t.Fatal("Telegram ClientLogging = true, want false")
+	}
+	if cfg.Telegram.RateInterval != 50*time.Millisecond || cfg.Telegram.RateBurst != 10 {
+		t.Fatalf("Telegram rate defaults = interval %s, burst %d", cfg.Telegram.RateInterval, cfg.Telegram.RateBurst)
+	}
 	if cfg.Uploads.SessionTTL != 7*24*time.Hour {
 		t.Fatalf("Uploads SessionTTL = %s, want 168h", cfg.Uploads.SessionTTL)
 	}
@@ -77,6 +83,7 @@ func TestLoadFromAppliesEnvironment(t *testing.T) {
 		"TELDRIVE_TELEGRAM_RANDOMIZE_PART_NAMES": "false",
 		"TELDRIVE_TELEGRAM_AUTO_CHANNEL_CREATE":  "false",
 		"TELDRIVE_TELEGRAM_CHANNEL_PART_LIMIT":   "12345",
+		"TELDRIVE_TELEGRAM_CLIENT_LOGGING":       "true",
 		"TELDRIVE_ENCRYPTION_ACTIVE_KEY_VERSION": "2",
 		"TELDRIVE_ENCRYPTION_KEYS":               "1:first-secret,2:second-secret",
 		"TELDRIVE_UPLOADS_SESSION_TTL":           "72h",
@@ -99,7 +106,7 @@ func TestLoadFromAppliesEnvironment(t *testing.T) {
 	if cfg.Database.MaxConnections != 12 || cfg.Database.MinConnections != 3 || cfg.Database.AutoMigrateLegacy {
 		t.Fatalf("database pool = %#v", cfg.Database)
 	}
-	if cfg.Telegram.UploadThreads != 6 || cfg.Telegram.DownloadBots != 3 || cfg.Telegram.RandomizePartNames || cfg.Telegram.AutoChannelCreate || cfg.Telegram.ChannelPartLimit != 12345 {
+	if cfg.Telegram.UploadThreads != 6 || cfg.Telegram.DownloadBots != 3 || !cfg.Telegram.ClientLogging || cfg.Telegram.RandomizePartNames || cfg.Telegram.AutoChannelCreate || cfg.Telegram.ChannelPartLimit != 12345 {
 		t.Fatalf("Telegram config = %#v", cfg.Telegram)
 	}
 	if cfg.Encryption.ActiveKeyVersion != 2 || cfg.Encryption.Keys[2] != "second-secret" {

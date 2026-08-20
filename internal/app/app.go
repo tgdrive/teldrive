@@ -112,7 +112,7 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 	if err != nil {
 		return nil, fmt.Errorf("create secure data cipher: %w", err)
 	}
-	telegram, err := buildTelegramComponents(cfg, pool, secureCipher, dependencies.Storage)
+	telegram, err := buildTelegramComponents(cfg, pool, secureCipher, dependencies.Logger, dependencies.Storage)
 	if err != nil {
 		return nil, err
 	}

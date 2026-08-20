@@ -1577,7 +1577,10 @@ export interface components {
         UploadCreateRequest: {
             parentId?: components["schemas"]["Uuid"];
             name: string;
-            /** Format: int64 */
+            /**
+             * Format: int64
+             * @description Expected size in bytes, or -1 when the size is unknown until completion.
+             */
             size: number;
             mimeType?: string;
             /** Format: date-time */

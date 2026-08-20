@@ -36,13 +36,12 @@ telegram:
   reconnect-timeout: 5m
   max-retries: 10
   rate-limit: true
-  rate-interval: 100ms
-  rate-burst: 5
+  rate-interval: 50ms
+  rate-burst: 10
   proxy: ""
   mtproxy:
     address: ""
     secret: ""
-  allow-cdn: false
   upload-threads: 8
   download-bots: 0
   # Keep this disabled to preserve request-scoped Telegram clients.

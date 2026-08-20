@@ -13,8 +13,8 @@ require (
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/google/uuid v1.6.0
 	github.com/gotd/contrib v0.25.0
+	github.com/gotd/log v0.1.0
 	github.com/gotd/td v0.161.0
-	github.com/iyear/connectproxy v0.1.1
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/knadh/koanf/maps v0.1.3
 	github.com/knadh/koanf/parsers/toml v0.1.0
@@ -56,7 +56,6 @@ require (
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/gotd/ige v0.3.0 // indirect
-	github.com/gotd/log v0.1.0 // indirect
 	github.com/gotd/neo v0.1.5 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
