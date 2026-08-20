@@ -94,5 +94,12 @@ func (r ClientRunner) run(ctx context.Context, userID int64, operation Operation
 	return nil
 }
 
+func runWithConnections(ctx context.Context, runner Runner, userID int64, operation Operation, connections int, fn func(context.Context, *tg.Client) error) error {
+	if pooled, ok := runner.(PooledRunner); ok && connections > 1 {
+		return pooled.RunPooled(ctx, userID, operation, connections, fn)
+	}
+	return runner.Run(ctx, userID, operation, fn)
+}
+
 var _ Runner = ClientRunner{}
 var _ PooledRunner = ClientRunner{}

@@ -135,6 +135,25 @@ func TestDownloadClientPoolEvictsIdleClientAtGlobalCapacity(t *testing.T) {
 	closeDownloadClientPool(t, pool)
 }
 
+func TestDownloadClientPoolUsesConfiguredConnections(t *testing.T) {
+	runner := &recordingPooledRunner{}
+	pool := newTestDownloadClientPool(t, runner, DownloadClientPoolConfig{
+		ClientsPerUser: 1, MaxClients: 1, MaxSessions: 1, ReadParallel: 8,
+		IdleTimeout: time.Minute, AcquireTimeout: time.Second,
+	})
+	session, err := pool.OpenDownloadSession(context.Background(), 42)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runner.pooledCalls != 1 || runner.regularCalls != 0 || runner.connections != 8 {
+		t.Fatalf("runner calls = pooled:%d regular:%d connections:%d", runner.pooledCalls, runner.regularCalls, runner.connections)
+	}
+	if err := session.Close(); err != nil {
+		t.Fatal(err)
+	}
+	closeDownloadClientPool(t, pool)
+}
+
 func newTestDownloadClientPool(t *testing.T, runner Runner, config DownloadClientPoolConfig) *DownloadClientPool {
 	t.Helper()
 	pool, err := NewDownloadClientPool(runner, config)

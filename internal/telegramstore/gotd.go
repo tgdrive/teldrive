@@ -19,13 +19,13 @@ import (
 )
 
 const (
-	defaultUploadThreads = 4
-	telegramUploadPart   = 512 * 1024
-	telegramReadChunk    = 1024 * 1024
-	telegramReadAlign    = 4 * 1024
-	telegramReadBuffers  = 8
-	telegramReadParallel = 4
-	deleteBatchSize      = 100
+	defaultUploadThreads        = 4
+	telegramUploadPart          = 512 * 1024
+	telegramReadChunk           = 1024 * 1024
+	telegramReadAlign           = 4 * 1024
+	defaultTelegramReadBuffers  = 32
+	defaultTelegramReadParallel = 4
+	deleteBatchSize             = 100
 )
 
 // Runner owns Telegram authentication, client lifetime, bot selection, retry,
@@ -42,9 +42,11 @@ type BotProvider interface {
 }
 
 type GotdStorage struct {
-	runner       Runner
-	botProvider  BotProvider
-	downloadPool *DownloadClientPool
+	runner               Runner
+	botProvider          BotProvider
+	downloadPool         *DownloadClientPool
+	downloadReadBuffers  int
+	downloadReadParallel int
 }
 
 type GotdStorageOption func(*GotdStorage)
@@ -57,8 +59,24 @@ func WithDownloadClientPool(pool *DownloadClientPool) GotdStorageOption {
 	return func(storage *GotdStorage) { storage.downloadPool = pool }
 }
 
+func WithDownloadReadBuffers(buffers int) GotdStorageOption {
+	return func(storage *GotdStorage) {
+		if buffers > 0 {
+			storage.downloadReadBuffers = buffers
+		}
+	}
+}
+
+func WithDownloadReadParallel(parallel int) GotdStorageOption {
+	return func(storage *GotdStorage) {
+		if parallel > 0 {
+			storage.downloadReadParallel = parallel
+		}
+	}
+}
+
 func NewGotdStorage(runner Runner, options ...GotdStorageOption) *GotdStorage {
-	storage := &GotdStorage{runner: runner}
+	storage := &GotdStorage{runner: runner, downloadReadBuffers: defaultTelegramReadBuffers, downloadReadParallel: defaultTelegramReadParallel}
 	for _, option := range options {
 		if option != nil {
 			option(storage)
@@ -117,10 +135,7 @@ func (s *GotdStorage) Upload(ctx context.Context, request UploadRequest) (Stored
 }
 
 func (s *GotdStorage) runUpload(ctx context.Context, userID int64, threads int, fn func(context.Context, *tg.Client) error) error {
-	if pooled, ok := s.runner.(PooledRunner); ok && threads > 1 {
-		return pooled.RunPooled(ctx, userID, OperationUpload, threads, fn)
-	}
-	return s.runner.Run(ctx, userID, OperationUpload, fn)
+	return runWithConnections(ctx, s.runner, userID, OperationUpload, threads, fn)
 }
 
 func (s *GotdStorage) Metadata(ctx context.Context, request MetadataRequest) (StoredPart, error) {
@@ -152,9 +167,9 @@ func (s *GotdStorage) OpenRange(ctx context.Context, request RangeRequest) (io.R
 		return nil, ErrInvalidRequest
 	}
 	streamCtx, cancel := context.WithCancel(ctx)
-	reader := newTelegramRangeReader(streamCtx, cancel)
+	reader := newTelegramRangeReader(streamCtx, cancel, s.downloadReadBuffers, s.downloadReadParallel)
 	go func() {
-		err := s.runner.Run(streamCtx, request.UserID, OperationDownload, func(runCtx context.Context, api *tg.Client) error {
+		err := runWithConnections(streamCtx, s.runner, request.UserID, OperationDownload, s.downloadReadParallel, func(runCtx context.Context, api *tg.Client) error {
 			return fillRangeWithAPI(runCtx, api, request, reader)
 		})
 		reader.finish(err)
@@ -182,16 +197,18 @@ func fillRangeWithLocation(ctx context.Context, api *tg.Client, request RangeReq
 }
 
 type gotdDownloadSession struct {
-	ctx      context.Context
-	cancel   context.CancelFunc
-	ready    chan struct{}
-	done     chan struct{}
-	api      *tg.Client
-	err      error
-	clientFn func() (*tg.Client, error)
-	closeFn  func() error
-	close    sync.Once
-	mu       sync.Mutex
+	ctx                  context.Context
+	cancel               context.CancelFunc
+	ready                chan struct{}
+	done                 chan struct{}
+	api                  *tg.Client
+	err                  error
+	clientFn             func() (*tg.Client, error)
+	closeFn              func() error
+	close                sync.Once
+	mu                   sync.Mutex
+	downloadReadBuffers  int
+	downloadReadParallel int
 
 	locationMu sync.Mutex
 	locations  map[documentLocationKey]cachedDocumentLocation
@@ -217,9 +234,11 @@ func (s *GotdStorage) OpenDownloadSession(ctx context.Context, userID int64) (Do
 	sessionCtx, cancel := context.WithCancel(ctx)
 	session := &gotdDownloadSession{
 		ctx: sessionCtx, cancel: cancel, ready: make(chan struct{}), done: make(chan struct{}),
+		downloadReadBuffers:  s.downloadReadBuffers,
+		downloadReadParallel: s.downloadReadParallel,
 	}
 	go func() {
-		err := s.runner.Run(sessionCtx, userID, OperationDownload, func(runCtx context.Context, api *tg.Client) error {
+		err := runWithConnections(sessionCtx, s.runner, userID, OperationDownload, s.downloadReadParallel, func(runCtx context.Context, api *tg.Client) error {
 			session.mu.Lock()
 			session.api = api
 			session.mu.Unlock()
@@ -268,7 +287,7 @@ func (s *gotdDownloadSession) OpenRange(ctx context.Context, request RangeReques
 		return nil, err
 	}
 	streamCtx, cancel := context.WithCancel(ctx)
-	reader := newTelegramRangeReader(streamCtx, cancel)
+	reader := newTelegramRangeReader(streamCtx, cancel, s.downloadReadBuffers, s.downloadReadParallel)
 	go func() {
 		location, size, locationErr := s.documentLocation(streamCtx, api, request.ChannelID, request.MessageID)
 		if locationErr != nil {
@@ -336,6 +355,7 @@ type telegramRangeReader struct {
 	finishOnce sync.Once
 	closeOnce  sync.Once
 	mu         sync.Mutex
+	parallel   int
 }
 
 type telegramRangeBuffer struct {
@@ -350,12 +370,16 @@ type telegramReadPlan struct {
 	length int
 }
 
-func newTelegramRangeReader(ctx context.Context, cancel context.CancelFunc) *telegramRangeReader {
+func newTelegramRangeReader(ctx context.Context, cancel context.CancelFunc, buffers, parallel int) *telegramRangeReader {
+	if buffers <= 0 {
+		buffers = defaultTelegramReadBuffers
+	}
+	if parallel <= 0 {
+		parallel = defaultTelegramReadParallel
+	}
 	return &telegramRangeReader{
-		ctx:     ctx,
-		cancel:  cancel,
-		buffers: make(chan *telegramRangeBuffer, telegramReadBuffers),
-		done:    make(chan struct{}),
+		ctx: ctx, cancel: cancel, parallel: parallel,
+		buffers: make(chan *telegramRangeBuffer, buffers), done: make(chan struct{}),
 	}
 }
 
@@ -406,10 +430,10 @@ func (r *telegramRangeReader) finish(err error) {
 
 func (r *telegramRangeReader) fill(ctx context.Context, api *tg.Client, location *tg.InputDocumentFileLocation, offset, remaining int64) error {
 	for remaining > 0 {
-		plans := planTelegramReads(offset, remaining, telegramReadParallel)
+		plans := planTelegramReads(offset, remaining, r.parallel)
 		buffers := make([][]byte, len(plans))
 		g, groupCtx := errgroup.WithContext(ctx)
-		g.SetLimit(telegramReadParallel)
+		g.SetLimit(r.parallel)
 		for i, plan := range plans {
 			i := i
 			plan := plan
@@ -454,7 +478,7 @@ func (r *telegramRangeReader) fill(ctx context.Context, api *tg.Client, location
 }
 
 func planTelegramReads(offset, remaining int64, count int) []telegramReadPlan {
-	plans := make([]telegramReadPlan, 0, min(count, telegramReadParallel))
+	plans := make([]telegramReadPlan, 0, count)
 	for remaining > 0 && len(plans) < count {
 		requestOffset := offset / telegramReadAlign * telegramReadAlign
 		skip := int(offset - requestOffset)

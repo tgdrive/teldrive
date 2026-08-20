@@ -19,6 +19,8 @@ type DownloadClientPoolConfig struct {
 	ClientsPerUser int
 	MaxClients     int
 	MaxSessions    int
+	ReadBuffers    int
+	ReadParallel   int
 	IdleTimeout    time.Duration
 	AcquireTimeout time.Duration
 }
@@ -50,6 +52,12 @@ type downloadClientEntry struct {
 }
 
 func NewDownloadClientPool(runner Runner, config DownloadClientPoolConfig) (*DownloadClientPool, error) {
+	if config.ReadBuffers <= 0 {
+		config.ReadBuffers = defaultTelegramReadBuffers
+	}
+	if config.ReadParallel <= 0 {
+		config.ReadParallel = defaultTelegramReadParallel
+	}
 	if runner == nil || config.ClientsPerUser < 1 || config.MaxClients < 1 || config.MaxSessions < 1 ||
 		config.ClientsPerUser > config.MaxClients || config.IdleTimeout <= 0 || config.AcquireTimeout <= 0 {
 		return nil, ErrInvalidRequest
@@ -92,8 +100,10 @@ func (p *DownloadClientPool) OpenDownloadSession(ctx context.Context, userID int
 					return nil, runErr
 				}
 				return &gotdDownloadSession{
-					clientFn: func() (*tg.Client, error) { return p.client(entry, api) },
-					closeFn:  func() error { p.release(entry); return nil },
+					clientFn:             func() (*tg.Client, error) { return p.client(entry, api) },
+					closeFn:              func() error { p.release(entry); return nil },
+					downloadReadBuffers:  p.config.ReadBuffers,
+					downloadReadParallel: p.config.ReadParallel,
 				}, nil
 			case <-acquireCtx.Done():
 				p.release(entry)
@@ -156,7 +166,7 @@ func (p *DownloadClientPool) reserve(userID int64) (*downloadClientEntry, bool, 
 func (p *DownloadClientPool) start(entry *downloadClientEntry) {
 	go func() {
 		ready := sync.Once{}
-		err := p.runner.Run(entry.ctx, entry.userID, OperationDownload, func(runCtx context.Context, api *tg.Client) error {
+		err := runWithConnections(entry.ctx, p.runner, entry.userID, OperationDownload, p.config.ReadParallel, func(runCtx context.Context, api *tg.Client) error {
 			p.mu.Lock()
 			entry.api = api
 			p.mu.Unlock()

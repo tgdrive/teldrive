@@ -58,6 +58,8 @@ type Telegram struct {
 	DownloadClientPoolSize       int             `koanf:"download-client-pool-size" default:"4" validate:"min=1,max=32" description:"Maximum warm Telegram download clients per user"`
 	DownloadClientPoolMax        int             `koanf:"download-client-pool-max" default:"32" validate:"min=1,max=256" description:"Maximum warm Telegram download clients on this instance"`
 	DownloadClientMaxSessions    int             `koanf:"download-client-max-sessions" default:"4" validate:"min=1,max=64" description:"Maximum concurrent download sessions sharing one Telegram client"`
+	DownloadReadBuffers          int             `koanf:"download-read-buffers" default:"32" validate:"min=1,max=256" description:"Number of prefetched Telegram download chunks buffered in memory per stream"`
+	DownloadReadParallel         int             `koanf:"download-read-parallel" default:"4" validate:"min=1,max=32" description:"Concurrent Telegram chunk fetches per download stream"`
 	DownloadClientIdleTimeout    time.Duration   `koanf:"download-client-idle-timeout" default:"5m" validate:"gt=0" description:"Idle time before a warm Telegram download client is closed"`
 	DownloadClientAcquireTimeout time.Duration   `koanf:"download-client-acquire-timeout" default:"10s" validate:"gt=0" description:"Maximum wait for a Telegram download client lease"`
 	RandomizePartNames           bool            `koanf:"randomize-part-names" default:"true" description:"Randomize Telegram document names"`

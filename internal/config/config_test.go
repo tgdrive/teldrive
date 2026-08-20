@@ -30,8 +30,8 @@ func TestDefaultIncludesLegacyPublicTelegramClientIdentity(t *testing.T) {
 	if cfg.Telegram.DownloadBots != 0 {
 		t.Fatalf("Telegram DownloadBots = %d, want authenticated-user fallback", cfg.Telegram.DownloadBots)
 	}
-	if cfg.Telegram.DownloadClientPool || cfg.Telegram.DownloadClientPoolSize != 4 || cfg.Telegram.DownloadClientMaxSessions != 4 {
-		t.Fatalf("Telegram download client pool defaults = %#v", cfg.Telegram)
+	if cfg.Telegram.DownloadClientPool || cfg.Telegram.DownloadClientPoolSize != 4 || cfg.Telegram.DownloadClientMaxSessions != 4 || cfg.Telegram.DownloadReadBuffers != 32 || cfg.Telegram.DownloadReadParallel != 4 {
+		t.Fatalf("Telegram download defaults = %#v", cfg.Telegram)
 	}
 	if cfg.Telegram.ClientLogging {
 		t.Fatal("Telegram ClientLogging = true, want false")
@@ -69,29 +69,31 @@ func TestValidateRejectsDownloadPoolSizeAboveGlobalMaximum(t *testing.T) {
 func TestLoadFromAppliesEnvironment(t *testing.T) {
 	t.Parallel()
 	values := map[string]string{
-		"TELDRIVE_DATABASE_URL":                  "postgres://example/teldrive",
-		"TELDRIVE_TELEGRAM_APP_ID":               "12345",
-		"TELDRIVE_TELEGRAM_APP_HASH":             "telegram-app-hash",
-		"TELDRIVE_SECURITY_SIGNING_KEY":          "0123456789abcdef0123456789abcdef",
-		"TELDRIVE_SECURITY_DATA_KEY":             "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
-		"TELDRIVE_HTTP_ADDRESS":                  "0.0.0.0:9090",
-		"TELDRIVE_DATABASE_MAX_CONNECTIONS":      "12",
-		"TELDRIVE_DATABASE_MIN_CONNECTIONS":      "3",
-		"TELDRIVE_DATABASE_AUTO_MIGRATE_LEGACY":  "false",
-		"TELDRIVE_TELEGRAM_UPLOAD_THREADS":       "6",
-		"TELDRIVE_TELEGRAM_DOWNLOAD_BOTS":        "3",
-		"TELDRIVE_TELEGRAM_RANDOMIZE_PART_NAMES": "false",
-		"TELDRIVE_TELEGRAM_AUTO_CHANNEL_CREATE":  "false",
-		"TELDRIVE_TELEGRAM_CHANNEL_PART_LIMIT":   "12345",
-		"TELDRIVE_TELEGRAM_CLIENT_LOGGING":       "true",
-		"TELDRIVE_ENCRYPTION_ACTIVE_KEY_VERSION": "2",
-		"TELDRIVE_ENCRYPTION_KEYS":               "1:first-secret,2:second-secret",
-		"TELDRIVE_UPLOADS_SESSION_TTL":           "72h",
-		"TELDRIVE_CACHE_STREAM_DIR":              "/tmp/teldrive-stream-cache",
-		"TELDRIVE_CACHE_STREAM_MAX_SIZE":         "12GB",
-		"TELDRIVE_CACHE_STREAM_SHARD_DEPTH":      "2",
-		"TELDRIVE_LOGGING_LOG_LEVEL":             "debug",
-		"TELDRIVE_LOGGING_LOG_FORMAT":            "text",
+		"TELDRIVE_DATABASE_URL":                    "postgres://example/teldrive",
+		"TELDRIVE_TELEGRAM_APP_ID":                 "12345",
+		"TELDRIVE_TELEGRAM_APP_HASH":               "telegram-app-hash",
+		"TELDRIVE_SECURITY_SIGNING_KEY":            "0123456789abcdef0123456789abcdef",
+		"TELDRIVE_SECURITY_DATA_KEY":               "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+		"TELDRIVE_HTTP_ADDRESS":                    "0.0.0.0:9090",
+		"TELDRIVE_DATABASE_MAX_CONNECTIONS":        "12",
+		"TELDRIVE_DATABASE_MIN_CONNECTIONS":        "3",
+		"TELDRIVE_DATABASE_AUTO_MIGRATE_LEGACY":    "false",
+		"TELDRIVE_TELEGRAM_UPLOAD_THREADS":         "6",
+		"TELDRIVE_TELEGRAM_DOWNLOAD_BOTS":          "3",
+		"TELDRIVE_TELEGRAM_DOWNLOAD_READ_BUFFERS":  "24",
+		"TELDRIVE_TELEGRAM_DOWNLOAD_READ_PARALLEL": "8",
+		"TELDRIVE_TELEGRAM_RANDOMIZE_PART_NAMES":   "false",
+		"TELDRIVE_TELEGRAM_AUTO_CHANNEL_CREATE":    "false",
+		"TELDRIVE_TELEGRAM_CHANNEL_PART_LIMIT":     "12345",
+		"TELDRIVE_TELEGRAM_CLIENT_LOGGING":         "true",
+		"TELDRIVE_ENCRYPTION_ACTIVE_KEY_VERSION":   "2",
+		"TELDRIVE_ENCRYPTION_KEYS":                 "1:first-secret,2:second-secret",
+		"TELDRIVE_UPLOADS_SESSION_TTL":             "72h",
+		"TELDRIVE_CACHE_STREAM_DIR":                "/tmp/teldrive-stream-cache",
+		"TELDRIVE_CACHE_STREAM_MAX_SIZE":           "12GB",
+		"TELDRIVE_CACHE_STREAM_SHARD_DEPTH":        "2",
+		"TELDRIVE_LOGGING_LOG_LEVEL":               "debug",
+		"TELDRIVE_LOGGING_LOG_FORMAT":              "text",
 	}
 	cfg, err := LoadFrom(func(key string) (string, bool) {
 		value, ok := values[key]
@@ -106,7 +108,7 @@ func TestLoadFromAppliesEnvironment(t *testing.T) {
 	if cfg.Database.MaxConnections != 12 || cfg.Database.MinConnections != 3 || cfg.Database.AutoMigrateLegacy {
 		t.Fatalf("database pool = %#v", cfg.Database)
 	}
-	if cfg.Telegram.UploadThreads != 6 || cfg.Telegram.DownloadBots != 3 || !cfg.Telegram.ClientLogging || cfg.Telegram.RandomizePartNames || cfg.Telegram.AutoChannelCreate || cfg.Telegram.ChannelPartLimit != 12345 {
+	if cfg.Telegram.UploadThreads != 6 || cfg.Telegram.DownloadBots != 3 || cfg.Telegram.DownloadReadBuffers != 24 || cfg.Telegram.DownloadReadParallel != 8 || !cfg.Telegram.ClientLogging || cfg.Telegram.RandomizePartNames || cfg.Telegram.AutoChannelCreate || cfg.Telegram.ChannelPartLimit != 12345 {
 		t.Fatalf("Telegram config = %#v", cfg.Telegram)
 	}
 	if cfg.Encryption.ActiveKeyVersion != 2 || cfg.Encryption.Keys[2] != "second-secret" {

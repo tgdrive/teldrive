@@ -104,12 +104,18 @@ func buildTelegramComponents(cfg config.Config, pool *pgxpool.Pool, cipher *secu
 			if err != nil {
 				return telegramComponents{}, fmt.Errorf("create upload-aware Telegram runner: %w", err)
 			}
-			options := []telegramstore.GotdStorageOption{telegramstore.WithBotProvider(channelBotProvider)}
+			options := []telegramstore.GotdStorageOption{
+				telegramstore.WithBotProvider(channelBotProvider),
+				telegramstore.WithDownloadReadBuffers(cfg.Telegram.DownloadReadBuffers),
+				telegramstore.WithDownloadReadParallel(cfg.Telegram.DownloadReadParallel),
+			}
 			if cfg.Telegram.DownloadClientPool {
 				downloadClients, err = telegramstore.NewDownloadClientPool(uploadRunner, telegramstore.DownloadClientPoolConfig{
 					ClientsPerUser: cfg.Telegram.DownloadClientPoolSize,
 					MaxClients:     cfg.Telegram.DownloadClientPoolMax,
 					MaxSessions:    cfg.Telegram.DownloadClientMaxSessions,
+					ReadBuffers:    cfg.Telegram.DownloadReadBuffers,
+					ReadParallel:   cfg.Telegram.DownloadReadParallel,
 					IdleTimeout:    cfg.Telegram.DownloadClientIdleTimeout,
 					AcquireTimeout: cfg.Telegram.DownloadClientAcquireTimeout,
 				})

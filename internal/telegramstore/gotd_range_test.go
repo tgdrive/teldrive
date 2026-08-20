@@ -9,7 +9,7 @@ import (
 )
 
 func TestPlanTelegramReadsAlignsShortTail(t *testing.T) {
-	plans := planTelegramReads(557056, 1234, telegramReadParallel)
+	plans := planTelegramReads(557056, 1234, defaultTelegramReadParallel)
 	if len(plans) != 1 {
 		t.Fatalf("plans = %d, want 1", len(plans))
 	}
@@ -64,7 +64,7 @@ func (r *sessionCountingRunner) Run(ctx context.Context, _ int64, operation Oper
 }
 
 func TestPlanTelegramReadsAlignsArbitraryRange(t *testing.T) {
-	plans := planTelegramReads(101, telegramReadChunk+5000, telegramReadParallel)
+	plans := planTelegramReads(101, telegramReadChunk+5000, defaultTelegramReadParallel)
 	if len(plans) != 2 {
 		t.Fatalf("plans = %d, want 2", len(plans))
 	}
@@ -84,9 +84,9 @@ func TestPlanTelegramReadsAlignsArbitraryRange(t *testing.T) {
 }
 
 func TestPlanTelegramReadsStaysWithinTelegramBoundaries(t *testing.T) {
-	plans := planTelegramReads(1474560, 13926400, telegramReadParallel)
-	if len(plans) != telegramReadParallel {
-		t.Fatalf("plans = %d, want %d", len(plans), telegramReadParallel)
+	plans := planTelegramReads(1474560, 13926400, defaultTelegramReadParallel)
+	if len(plans) != defaultTelegramReadParallel {
+		t.Fatalf("plans = %d, want %d", len(plans), defaultTelegramReadParallel)
 	}
 	for _, plan := range plans {
 		if plan.offset%telegramReadAlign != 0 {
