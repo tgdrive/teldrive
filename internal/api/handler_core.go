@@ -278,10 +278,10 @@ func (h *Handler) CreateUpload(ctx context.Context, req *gen.UploadCreateRequest
 		input.Encryption = value
 	}
 	if input.Encryption {
-		if h.DefaultEncryptionKeyVersion <= 0 {
+		if h.ActiveEncryptionKeyVersion <= 0 {
 			return nil, mapServiceError(transfer.ErrEncryptionKey)
 		}
-		version := h.DefaultEncryptionKeyVersion
+		version := h.ActiveEncryptionKeyVersion
 		input.EncryptionKeyVersion = &version
 	}
 	if value, ok := req.ConflictPolicy.Get(); ok {

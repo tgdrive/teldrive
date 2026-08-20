@@ -59,7 +59,7 @@ telegram:
   channel-name-prefix: teldrive
 
 encryption:
-  default-version: 0
+  active-key-version: 0
   keys: ""
 
 security:

@@ -60,11 +60,11 @@ func NewRuntimeWithSchemaAndBotProvision(pool *pgxpool.Pool, storage telegramsto
 }
 
 type UploaderServices struct {
-	Catalog           *catalog.Service
-	Uploads           *uploads.Service
-	Pipeline          *transfer.Pipeline
-	HTTPClient        *http.Client
-	DefaultKeyVersion int32
+	Catalog          *catalog.Service
+	Uploads          *uploads.Service
+	Pipeline         *transfer.Pipeline
+	HTTPClient       *http.Client
+	ActiveKeyVersion int32
 }
 
 func NewRuntimeWithServices(pool *pgxpool.Pool, storage telegramstore.Storage, schema string, botService *bots.Service, encryptor riverencrypt.Encryptor, uploadSessionTTL time.Duration, uploader UploaderServices, purgeServices ...PurgeService) (*Runtime, error) {
@@ -113,7 +113,7 @@ func newRuntimeWithSchema(pool *pgxpool.Pool, storage telegramstore.Storage, sch
 		if err := river.AddWorkerSafely(workers, NewUploadBatchWorker(uploader.HTTPClient, uploader.Catalog)); err != nil {
 			return nil, fmt.Errorf("register upload batch worker: %w", err)
 		}
-		if err := river.AddWorkerSafely(workers, NewUploadSourceWorker(pool, uploader.Catalog, uploader.Uploads, uploader.Pipeline, uploader.HTTPClient, uploader.DefaultKeyVersion)); err != nil {
+		if err := river.AddWorkerSafely(workers, NewUploadSourceWorker(pool, uploader.Catalog, uploader.Uploads, uploader.Pipeline, uploader.HTTPClient, uploader.ActiveKeyVersion)); err != nil {
 			return nil, fmt.Errorf("register upload source worker: %w", err)
 		}
 	}

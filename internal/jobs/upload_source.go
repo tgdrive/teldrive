@@ -230,20 +230,20 @@ func (w *UploadBatchWorker) expand(ctx context.Context, source UploadSource, def
 
 type UploadSourceWorker struct {
 	river.WorkerDefaults[UploadSourceArgs]
-	pool              *pgxpool.Pool
-	queries           *sqlcgen.Queries
-	catalog           *catalog.Service
-	uploads           *uploads.Service
-	pipeline          *transfer.Pipeline
-	httpClient        *http.Client
-	defaultKeyVersion int32
+	pool             *pgxpool.Pool
+	queries          *sqlcgen.Queries
+	catalog          *catalog.Service
+	uploads          *uploads.Service
+	pipeline         *transfer.Pipeline
+	httpClient       *http.Client
+	activeKeyVersion int32
 }
 
-func NewUploadSourceWorker(pool *pgxpool.Pool, catalogService *catalog.Service, uploadService *uploads.Service, pipeline *transfer.Pipeline, httpClient *http.Client, defaultKeyVersion int32) *UploadSourceWorker {
+func NewUploadSourceWorker(pool *pgxpool.Pool, catalogService *catalog.Service, uploadService *uploads.Service, pipeline *transfer.Pipeline, httpClient *http.Client, activeKeyVersion int32) *UploadSourceWorker {
 	if httpClient == nil {
 		httpClient = NewUploadHTTPClient()
 	}
-	return &UploadSourceWorker{pool: pool, queries: sqlcgen.New(pool), catalog: catalogService, uploads: uploadService, pipeline: pipeline, httpClient: httpClient, defaultKeyVersion: defaultKeyVersion}
+	return &UploadSourceWorker{pool: pool, queries: sqlcgen.New(pool), catalog: catalogService, uploads: uploadService, pipeline: pipeline, httpClient: httpClient, activeKeyVersion: activeKeyVersion}
 }
 
 func (w *UploadSourceWorker) Timeout(*river.Job[UploadSourceArgs]) time.Duration {
@@ -308,10 +308,10 @@ func (w *UploadSourceWorker) Work(ctx context.Context, job *river.Job[UploadSour
 	if session == nil {
 		input := uploads.CreateInput{UserID: job.Args.UserID, ParentID: parentID, Name: name, ExpectedSize: job.Args.Source.Size, MIMEType: optionalString(job.Args.Source.MIMEType), ModTime: job.Args.Source.ModTime, ConflictPolicy: sqlcgen.NameConflictPolicyReplace, Encryption: job.Args.Encryption, PartSize: chunkSize}
 		if input.Encryption {
-			if w.defaultKeyVersion <= 0 {
+			if w.activeKeyVersion <= 0 {
 				return transfer.ErrEncryptionKey
 			}
-			input.EncryptionKeyVersion = &w.defaultKeyVersion
+			input.EncryptionKeyVersion = &w.activeKeyVersion
 		}
 		session, err = w.uploads.Create(ctx, input)
 	}

@@ -60,7 +60,7 @@ address = ""
 secret = ""
 
 [encryption]
-default-version = 0
+active-key-version = 0
 # keys may also be a TOML table, for example: keys = { 1 = "base64-key" }
 keys = ""
 

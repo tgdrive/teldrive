@@ -212,7 +212,7 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 	healthService := health.NewService(dependencies.Version, pool)
 	jobRuntime, err := jobs.NewRuntimeWithServices(
 		pool, storage, cfg.Database.Schema, botService, secureCipher, cfg.Uploads.SessionTTL,
-		jobs.UploaderServices{Catalog: catalogService, Uploads: uploadService, Pipeline: uploadPipeline, DefaultKeyVersion: cfg.Encryption.DefaultVersion},
+		jobs.UploaderServices{Catalog: catalogService, Uploads: uploadService, Pipeline: uploadPipeline, ActiveKeyVersion: cfg.Encryption.ActiveKeyVersion},
 		fileService,
 	)
 	if err != nil {
@@ -220,7 +220,7 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 	}
 	handler := api.NewHandler(
 		catalogService, uploadService, uploadPipeline, downloader, healthService,
-		cfg.Encryption.DefaultVersion, eventService,
+		cfg.Encryption.ActiveKeyVersion, eventService,
 	).ConfigureDomains(authService, botService, channelService, fileService, shareService, telegramAccount).
 		ConfigureJobs(jobRuntime)
 	httpServer, err := api.NewServer(handler, api.NewSecurity(authenticator, eventService))

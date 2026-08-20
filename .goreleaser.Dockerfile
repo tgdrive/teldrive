@@ -1,7 +1,6 @@
-FROM scratch
+FROM gcr.io/distroless/static-debian12:nonroot
 ARG TARGETPLATFORM
-COPY $TARGETPLATFORM/teldrive /teldrive
+COPY $TARGETPLATFORM/teldrive /usr/bin/teldrive
 EXPOSE 8080
-USER 65532:65532
-ENTRYPOINT ["/teldrive"]
+ENTRYPOINT ["/usr/bin/teldrive"]
 CMD ["serve"]

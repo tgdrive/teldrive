@@ -68,8 +68,8 @@ type Telegram struct {
 }
 
 type Encryption struct {
-	DefaultVersion int32            `koanf:"default-version" default:"0" validate:"gte=0" description:"Default server-managed encryption key version"`
-	Keys           map[int32]string `koanf:"keys" default:"" description:"Encryption keys as comma-separated version:key entries"`
+	ActiveKeyVersion int32            `koanf:"active-key-version" default:"0" validate:"gte=0" description:"Active server-managed encryption key version for new uploads"`
+	Keys             map[int32]string `koanf:"keys" default:"" description:"Encryption keys as comma-separated version:key entries"`
 }
 
 type Security struct {
@@ -171,10 +171,13 @@ func (c Config) Validate() error {
 		problems = append(problems, "Telegram download client pool size cannot exceed the global maximum")
 	}
 
-	if c.Encryption.DefaultVersion > 0 {
-		key, ok := c.Encryption.Keys[c.Encryption.DefaultVersion]
+	if len(c.Encryption.Keys) > 0 && c.Encryption.ActiveKeyVersion == 0 {
+		problems = append(problems, "active encryption key version is required when encryption keys are configured")
+	}
+	if c.Encryption.ActiveKeyVersion > 0 {
+		key, ok := c.Encryption.Keys[c.Encryption.ActiveKeyVersion]
 		if !ok || strings.TrimSpace(key) == "" {
-			problems = append(problems, "encryption default version has no configured key")
+			problems = append(problems, "active encryption key version has no configured key")
 		}
 	}
 	for version, key := range c.Encryption.Keys {

@@ -15,7 +15,6 @@ builds:
     flags:
       - -trimpath
     ldflags:
-      - -extldflags=-static
       - -s -w
       - -X main.version={{ .Version }}
       - -X main.commit={{ .FullCommit }}

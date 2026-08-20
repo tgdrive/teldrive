@@ -21,27 +21,27 @@ import (
 var ErrOperationUnavailable = errors.New("operation is not implemented")
 
 type Handler struct {
-	Catalog                     *catalog.Service
-	Uploads                     *uploads.Service
-	UploadPipeline              *transfer.Pipeline
-	Downloader                  *transfer.Downloader
-	Events                      *events.Service
-	Health                      *health.Service
-	Jobs                        *jobs.Runtime
-	Auth                        *authn.Service
-	Bots                        *bots.Service
-	Channels                    *channels.Service
-	FileOps                     *fileops.Service
-	Shares                      *shares.Service
-	TelegramAccount             telegramstore.Account
-	DefaultEncryptionKeyVersion int32
+	Catalog                    *catalog.Service
+	Uploads                    *uploads.Service
+	UploadPipeline             *transfer.Pipeline
+	Downloader                 *transfer.Downloader
+	Events                     *events.Service
+	Health                     *health.Service
+	Jobs                       *jobs.Runtime
+	Auth                       *authn.Service
+	Bots                       *bots.Service
+	Channels                   *channels.Service
+	FileOps                    *fileops.Service
+	Shares                     *shares.Service
+	TelegramAccount            telegramstore.Account
+	ActiveEncryptionKeyVersion int32
 }
 
-func NewHandler(catalogService *catalog.Service, uploadService *uploads.Service, uploadPipeline *transfer.Pipeline, downloader *transfer.Downloader, healthService *health.Service, defaultEncryptionKeyVersion int32, eventService *events.Service) *Handler {
+func NewHandler(catalogService *catalog.Service, uploadService *uploads.Service, uploadPipeline *transfer.Pipeline, downloader *transfer.Downloader, healthService *health.Service, activeEncryptionKeyVersion int32, eventService *events.Service) *Handler {
 	return &Handler{
 		Catalog: catalogService, Uploads: uploadService, UploadPipeline: uploadPipeline,
 		Downloader: downloader, Events: eventService, Health: healthService,
-		DefaultEncryptionKeyVersion: defaultEncryptionKeyVersion,
+		ActiveEncryptionKeyVersion: activeEncryptionKeyVersion,
 	}
 }
 

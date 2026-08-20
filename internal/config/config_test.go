@@ -77,7 +77,7 @@ func TestLoadFromAppliesEnvironment(t *testing.T) {
 		"TELDRIVE_TELEGRAM_RANDOMIZE_PART_NAMES": "false",
 		"TELDRIVE_TELEGRAM_AUTO_CHANNEL_CREATE":  "false",
 		"TELDRIVE_TELEGRAM_CHANNEL_PART_LIMIT":   "12345",
-		"TELDRIVE_ENCRYPTION_DEFAULT_VERSION":    "2",
+		"TELDRIVE_ENCRYPTION_ACTIVE_KEY_VERSION": "2",
 		"TELDRIVE_ENCRYPTION_KEYS":               "1:first-secret,2:second-secret",
 		"TELDRIVE_UPLOADS_SESSION_TTL":           "72h",
 		"TELDRIVE_CACHE_STREAM_DIR":              "/tmp/teldrive-stream-cache",
@@ -102,7 +102,7 @@ func TestLoadFromAppliesEnvironment(t *testing.T) {
 	if cfg.Telegram.UploadThreads != 6 || cfg.Telegram.DownloadBots != 3 || cfg.Telegram.RandomizePartNames || cfg.Telegram.AutoChannelCreate || cfg.Telegram.ChannelPartLimit != 12345 {
 		t.Fatalf("Telegram config = %#v", cfg.Telegram)
 	}
-	if cfg.Encryption.DefaultVersion != 2 || cfg.Encryption.Keys[2] != "second-secret" {
+	if cfg.Encryption.ActiveKeyVersion != 2 || cfg.Encryption.Keys[2] != "second-secret" {
 		t.Fatalf("encryption config = %#v", cfg.Encryption)
 	}
 	if cfg.Logging.LogLevel != "debug" || cfg.Logging.LogFormat != "text" {
@@ -137,13 +137,22 @@ func TestLoadFromRejectsInvalidValuesWithoutLeakingSecrets(t *testing.T) {
 	}
 }
 
-func TestValidateRequiresConfiguredDefaultEncryptionKey(t *testing.T) {
+func TestValidateRequiresConfiguredActiveEncryptionKey(t *testing.T) {
 	t.Parallel()
 	cfg := Default()
 	cfg.Database.URL = "postgres://example/teldrive"
-	cfg.Encryption.DefaultVersion = 3
+	cfg.Encryption.ActiveKeyVersion = 3
 	cfg.Encryption.Keys = map[int32]string{2: "other"}
 	if err := cfg.Validate(); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("Validate() error = %v", err)
+	}
+}
+
+func TestValidateRequiresActiveVersionWhenEncryptionKeysConfigured(t *testing.T) {
+	t.Parallel()
+	cfg := validTestConfig()
+	cfg.Encryption.Keys = map[int32]string{1: "key"}
+	if err := cfg.Validate(); !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "active encryption key version is required") {
 		t.Fatalf("Validate() error = %v", err)
 	}
 }
@@ -222,7 +231,7 @@ func TestValidateCoversAllCriticalStartupConstraints(t *testing.T) {
 	cfg.Telegram.UploadThreads = 0
 	cfg.Telegram.ChannelPartLimit = 0
 	cfg.Telegram.ChannelNamePrefix = ""
-	cfg.Encryption.DefaultVersion = -1
+	cfg.Encryption.ActiveKeyVersion = -1
 	cfg.Encryption.Keys = map[int32]string{0: "", 2: ""}
 	cfg.Security.SigningKey = "short"
 	cfg.Security.DataKey = ""

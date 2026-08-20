@@ -21,8 +21,8 @@ RUN CGO_ENABLED=0 go build -trimpath \
     -o /out/teldrive ./cmd/teldrive
 
 FROM gcr.io/distroless/static-debian12:nonroot
-COPY --from=build /out/teldrive /usr/local/bin/teldrive
+COPY --from=build /out/teldrive /usr/bin/teldrive
 EXPOSE 8080
 USER nonroot:nonroot
-ENTRYPOINT ["/usr/local/bin/teldrive"]
+ENTRYPOINT ["/usr/bin/teldrive"]
 CMD ["serve"]
