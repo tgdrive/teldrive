@@ -108,6 +108,51 @@ func TestCatalogLifecycleAgainstRealPostgres(t *testing.T) {
 	}
 }
 
+func TestTrashRootListingIncludesNestedDeletedItems(t *testing.T) {
+	db := testpostgres.New(t)
+	ctx := context.Background()
+	seedUser(t, db.Pool, 1001)
+	svc := catalog.NewService(db.Pool)
+
+	activeFolder, err := svc.CreateFolder(ctx, catalog.CreateFolderInput{UserID: 1001, Name: "Active"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	activeFolderID := mustUUID(t, activeFolder.ID)
+	deletedFileID := seedFile(t, db.Pool, 1001, &activeFolderID, "deleted-by-rclone.txt", "text/plain", 10, time.Now())
+	if _, err := svc.Trash(ctx, 1001, deletedFileID); err != nil {
+		t.Fatalf("trash nested file: %v", err)
+	}
+
+	trashedFolder, err := svc.CreateFolder(ctx, catalog.CreateFolderInput{UserID: 1001, Name: "DeletedFolder"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	trashedFolderID := mustUUID(t, trashedFolder.ID)
+	trashedChildID := seedFile(t, db.Pool, 1001, &trashedFolderID, "child.txt", "text/plain", 20, time.Now())
+	if _, err := svc.BulkTrash(ctx, 1001, []uuid.UUID{trashedFolderID}); err != nil {
+		t.Fatalf("trash folder subtree: %v", err)
+	}
+
+	items, err := svc.List(ctx, catalog.ListInput{UserID: 1001, Status: sqlcgen.FileStatusTrashed, Limit: 100})
+	if err != nil {
+		t.Fatalf("list trash root: %v", err)
+	}
+	got := map[uuid.UUID]bool{}
+	for _, item := range items {
+		got[mustUUID(t, item.ID)] = true
+	}
+	if !got[deletedFileID] {
+		t.Fatalf("trash root missing nested deleted file %s: %#v", deletedFileID, items)
+	}
+	if !got[trashedFolderID] {
+		t.Fatalf("trash root missing trashed folder %s: %#v", trashedFolderID, items)
+	}
+	if got[trashedChildID] {
+		t.Fatalf("trash root unexpectedly includes child of trashed folder %s: %#v", trashedChildID, items)
+	}
+}
+
 func TestAdvancedListingBulkOperationsAndStatistics(t *testing.T) {
 	db := testpostgres.New(t)
 	ctx := context.Background()

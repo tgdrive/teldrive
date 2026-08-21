@@ -531,14 +531,28 @@ func (q *Queries) ListFileSubtreeIDs(ctx context.Context, arg ListFileSubtreeIDs
 const listFiles = `-- name: ListFiles :many
 SELECT id, user_id, parent_id, name, normalized_name, kind, mime_type, size, hash_algorithm, hash_value, encryption, encryption_key_version, status, mod_time, generation, created_at, updated_at, deleted_at
 FROM /* TEMPLATE: schema */files
-WHERE user_id = $1
-  AND parent_id IS NOT DISTINCT FROM $2::uuid
-  AND status = $3::/* TEMPLATE: schema */file_status
-  AND ($4::/* TEMPLATE: schema */file_kind IS NULL OR kind = $4::/* TEMPLATE: schema */file_kind)
+WHERE files.user_id = $1
+  AND (
+    files.parent_id IS NOT DISTINCT FROM $2::uuid
+    OR (
+      $3::/* TEMPLATE: schema */file_status = 'trashed'
+      AND $2::uuid IS NULL
+      AND files.parent_id IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1
+        FROM /* TEMPLATE: schema */files parent
+        WHERE parent.id = files.parent_id
+          AND parent.user_id = files.user_id
+          AND parent.status = 'trashed'
+      )
+    )
+  )
+  AND files.status = $3::/* TEMPLATE: schema */file_status
+  AND ($4::/* TEMPLATE: schema */file_kind IS NULL OR files.kind = $4::/* TEMPLATE: schema */file_kind)
   AND (
     $5::text IS NULL
-    OR normalized_name % $5::text
-    OR normalized_name ILIKE '%' || $5::text || '%'
+    OR files.normalized_name % $5::text
+    OR files.normalized_name ILIKE '%' || $5::text || '%'
   )
   AND (
     $6::text IS NULL
@@ -611,7 +625,21 @@ const listFilesAdvanced = `-- name: ListFilesAdvanced :many
 SELECT f.id, f.user_id, f.parent_id, f.name, f.normalized_name, f.kind, f.mime_type, f.size, f.hash_algorithm, f.hash_value, f.encryption, f.encryption_key_version, f.status, f.mod_time, f.generation, f.created_at, f.updated_at, f.deleted_at
 FROM /* TEMPLATE: schema */files f
 WHERE f.user_id = $1
-  AND f.parent_id IS NOT DISTINCT FROM $2::uuid
+  AND (
+    f.parent_id IS NOT DISTINCT FROM $2::uuid
+    OR (
+      $3::/* TEMPLATE: schema */file_status = 'trashed'
+      AND $2::uuid IS NULL
+      AND f.parent_id IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1
+        FROM /* TEMPLATE: schema */files parent
+        WHERE parent.id = f.parent_id
+          AND parent.user_id = f.user_id
+          AND parent.status = 'trashed'
+      )
+    )
+  )
   AND f.status = $3::/* TEMPLATE: schema */file_status
   AND ($4::/* TEMPLATE: schema */file_kind IS NULL OR f.kind = $4::/* TEMPLATE: schema */file_kind)
   AND (

@@ -15,14 +15,28 @@ WHERE id = sqlc.arg(folder_id)
 -- name: ListFiles :many
 SELECT *
 FROM /* TEMPLATE: schema */files
-WHERE user_id = sqlc.arg(user_id)
-  AND parent_id IS NOT DISTINCT FROM sqlc.narg(parent_id)::uuid
-  AND status = sqlc.arg(status)::/* TEMPLATE: schema */file_status
-  AND (sqlc.narg(kind)::/* TEMPLATE: schema */file_kind IS NULL OR kind = sqlc.narg(kind)::/* TEMPLATE: schema */file_kind)
+WHERE files.user_id = sqlc.arg(user_id)
+  AND (
+    files.parent_id IS NOT DISTINCT FROM sqlc.narg(parent_id)::uuid
+    OR (
+      sqlc.arg(status)::/* TEMPLATE: schema */file_status = 'trashed'
+      AND sqlc.narg(parent_id)::uuid IS NULL
+      AND files.parent_id IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1
+        FROM /* TEMPLATE: schema */files parent
+        WHERE parent.id = files.parent_id
+          AND parent.user_id = files.user_id
+          AND parent.status = 'trashed'
+      )
+    )
+  )
+  AND files.status = sqlc.arg(status)::/* TEMPLATE: schema */file_status
+  AND (sqlc.narg(kind)::/* TEMPLATE: schema */file_kind IS NULL OR files.kind = sqlc.narg(kind)::/* TEMPLATE: schema */file_kind)
   AND (
     sqlc.narg(search)::text IS NULL
-    OR normalized_name % sqlc.narg(search)::text
-    OR normalized_name ILIKE '%' || sqlc.narg(search)::text || '%'
+    OR files.normalized_name % sqlc.narg(search)::text
+    OR files.normalized_name ILIKE '%' || sqlc.narg(search)::text || '%'
   )
   AND (
     sqlc.narg(after_name)::text IS NULL
@@ -165,7 +179,21 @@ WHERE user_id = sqlc.arg(user_id)
 SELECT f.*
 FROM /* TEMPLATE: schema */files f
 WHERE f.user_id = sqlc.arg(user_id)
-  AND f.parent_id IS NOT DISTINCT FROM sqlc.narg(parent_id)::uuid
+  AND (
+    f.parent_id IS NOT DISTINCT FROM sqlc.narg(parent_id)::uuid
+    OR (
+      sqlc.arg(status)::/* TEMPLATE: schema */file_status = 'trashed'
+      AND sqlc.narg(parent_id)::uuid IS NULL
+      AND f.parent_id IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1
+        FROM /* TEMPLATE: schema */files parent
+        WHERE parent.id = f.parent_id
+          AND parent.user_id = f.user_id
+          AND parent.status = 'trashed'
+      )
+    )
+  )
   AND f.status = sqlc.arg(status)::/* TEMPLATE: schema */file_status
   AND (sqlc.narg(kind)::/* TEMPLATE: schema */file_kind IS NULL OR f.kind = sqlc.narg(kind)::/* TEMPLATE: schema */file_kind)
   AND (
