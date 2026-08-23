@@ -17,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/tgdrive/teldrive/v2/internal/cache"
 	"github.com/tgdrive/teldrive/v2/internal/catalog"
 	"github.com/tgdrive/teldrive/v2/internal/db/sqlcgen"
 	"github.com/tgdrive/teldrive/v2/internal/dbtypes"
@@ -83,13 +84,14 @@ type Service struct {
 	catalog *catalog.Service
 	random  io.Reader
 	now     func() time.Time
+	cache   cache.Cacher
 }
 
-func NewService(pool *pgxpool.Pool, catalogService *catalog.Service) (*Service, error) {
+func NewService(pool *pgxpool.Pool, catalogService *catalog.Service, c cache.Cacher) (*Service, error) {
 	if pool == nil || catalogService == nil {
 		return nil, ErrInvalidInput
 	}
-	return &Service{queries: sqlcgen.New(pool), catalog: catalogService, random: rand.Reader, now: time.Now}, nil
+	return &Service{queries: sqlcgen.New(pool), catalog: catalogService, random: rand.Reader, now: time.Now, cache: c}, nil
 }
 
 func (s *Service) Create(ctx context.Context, in CreateInput) (*Created, error) {
@@ -249,6 +251,9 @@ func (s *Service) Revoke(ctx context.Context, ownerID int64, shareID uuid.UUID) 
 	if count == 0 {
 		return ErrNotFound
 	}
+	if s.cache != nil {
+		_ = s.cache.DeletePattern(ctx, cache.Key("shares", "token", "*"))
+	}
 	return nil
 }
 
@@ -289,7 +294,20 @@ func (s *Service) resolveRow(ctx context.Context, token, password string) (*sqlc
 	if token == "" {
 		return nil, ErrNotFound
 	}
-	row, err := s.queries.GetActiveShareByTokenHash(ctx, tokenHash(token))
+	var row *sqlcgen.GetActiveShareByTokenHashRow
+	var err error
+	if s.cache != nil {
+		key := cache.Key("shares", "token", fmt.Sprintf("%x", tokenHash(token)))
+		row, err = cache.Fetch(ctx, s.cache, key, 30*time.Second, func() (*sqlcgen.GetActiveShareByTokenHashRow, error) {
+			r, e := s.queries.GetActiveShareByTokenHash(ctx, tokenHash(token))
+			if e != nil {
+				return nil, e
+			}
+			return r, nil
+		})
+	} else {
+		row, err = s.queries.GetActiveShareByTokenHash(ctx, tokenHash(token))
+	}
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrExpired
 	}

@@ -20,7 +20,7 @@ func TestDownloaderReadsAcrossTelegramParts(t *testing.T) {
 	db := testpostgres.New(t)
 	seedTransferOwner(t, db.Pool, 1001, 9001)
 	uploadCatalog := uploads.NewService(db.Pool)
-	fileCatalog := catalog.NewService(db.Pool)
+	fileCatalog := catalog.NewService(db.Pool, nil)
 	storage := &memoryStorage{}
 	pipeline := transfer.NewPipeline(uploadCatalog, &fixedResolver{channelID: 9001}, storage, nil, transfer.Config{})
 
@@ -75,7 +75,7 @@ func TestDownloaderDecryptsRangeAcrossCipherBlocks(t *testing.T) {
 	db := testpostgres.New(t)
 	seedTransferOwner(t, db.Pool, 1001, 9001)
 	uploadCatalog := uploads.NewService(db.Pool)
-	fileCatalog := catalog.NewService(db.Pool)
+	fileCatalog := catalog.NewService(db.Pool, nil)
 	storage := &memoryStorage{}
 	keyVersion := int32(3)
 	keys := transfer.StaticKeyProvider{3: "download-compatible-key"}

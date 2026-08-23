@@ -28,7 +28,7 @@ func TestCopyConflictPolicies(t *testing.T) {
 	replaceConflictID := insertFolder(t, db, nil, "replace-target")
 	replaceChildID := insertFolder(t, db, &replaceConflictID, "replace-child")
 
-	catalogService := catalog.NewService(db.Pool)
+	catalogService := catalog.NewService(db.Pool, nil)
 	channelService := channels.NewService(db.Pool, nil, channels.Config{PartLimit: 100})
 	service, err := NewService(db.Pool, catalogService, channelService, &fileStorage{messages: map[int64][]byte{}})
 	if err != nil {

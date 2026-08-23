@@ -77,6 +77,8 @@ uploads:
 
 # Stream caching is opt-in. Leave dir empty to avoid disk use.
 cache:
+  memory:
+    size: 2MB
   stream:
     dir: ""
     max-age: 168h

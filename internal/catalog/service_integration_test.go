@@ -24,7 +24,7 @@ func TestCatalogLifecycleAgainstRealPostgres(t *testing.T) {
 	seedUser(t, db.Pool, 1001)
 	seedUser(t, db.Pool, 2002)
 
-	svc := catalog.NewService(db.Pool)
+	svc := catalog.NewService(db.Pool, nil)
 	docs, err := svc.CreateFolder(ctx, catalog.CreateFolderInput{UserID: 1001, Name: "Docs"})
 	if err != nil {
 		t.Fatalf("create root folder: %v", err)
@@ -112,7 +112,7 @@ func TestTrashRootListingIncludesNestedDeletedItems(t *testing.T) {
 	db := testpostgres.New(t)
 	ctx := context.Background()
 	seedUser(t, db.Pool, 1001)
-	svc := catalog.NewService(db.Pool)
+	svc := catalog.NewService(db.Pool, nil)
 
 	activeFolder, err := svc.CreateFolder(ctx, catalog.CreateFolderInput{UserID: 1001, Name: "Active"})
 	if err != nil {
@@ -157,7 +157,7 @@ func TestAdvancedListingBulkOperationsAndStatistics(t *testing.T) {
 	db := testpostgres.New(t)
 	ctx := context.Background()
 	seedUser(t, db.Pool, 1001)
-	svc := catalog.NewService(db.Pool)
+	svc := catalog.NewService(db.Pool, nil)
 
 	docs, err := svc.CreateFolder(ctx, catalog.CreateFolderInput{UserID: 1001, Name: "Docs"})
 	if err != nil {
@@ -232,7 +232,7 @@ func TestCatalogRejectsInvalidParent(t *testing.T) {
 	db := testpostgres.New(t)
 	ctx := context.Background()
 	seedUser(t, db.Pool, 1001)
-	svc := catalog.NewService(db.Pool)
+	svc := catalog.NewService(db.Pool, nil)
 	missing := uuid.New()
 	if _, err := svc.CreateFolder(ctx, catalog.CreateFolderInput{UserID: 1001, ParentID: &missing, Name: "child"}); !errors.Is(err, catalog.ErrInvalidParent) {
 		t.Fatalf("invalid parent error = %v", err)

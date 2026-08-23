@@ -29,7 +29,7 @@ INSERT INTO files (id,user_id,name,normalized_name,kind,mime_type,size,encryptio
 VALUES ($1,1001,'shared.bin','shared.bin','file','application/octet-stream',4,false,'active',now())`, fileID); err != nil {
 		t.Fatal(err)
 	}
-	service, err := NewService(db.Pool, catalog.NewService(db.Pool))
+	service, err := NewService(db.Pool, catalog.NewService(db.Pool, nil))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -119,7 +119,7 @@ VALUES
 		rootID, childFolderID, fileID); err != nil {
 		t.Fatal(err)
 	}
-	service, err := NewService(db.Pool, catalog.NewService(db.Pool))
+	service, err := NewService(db.Pool, catalog.NewService(db.Pool, nil))
 	if err != nil {
 		t.Fatal(err)
 	}

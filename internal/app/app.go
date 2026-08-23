@@ -19,6 +19,7 @@ import (
 	varccache "github.com/tgdrive/varc/cache"
 
 	api "github.com/tgdrive/teldrive/v2/internal/api"
+	"github.com/tgdrive/teldrive/v2/internal/cache"
 	"github.com/tgdrive/teldrive/v2/internal/authn"
 	"github.com/tgdrive/teldrive/v2/internal/bots"
 	"github.com/tgdrive/teldrive/v2/internal/catalog"
@@ -58,6 +59,7 @@ type App struct {
 	events            *userevents.Service
 	telegramDownloads *telegramstore.DownloadClientPool
 	streamCache       *varccache.Cache
+	globalCache       cache.Cacher
 
 	mu      sync.Mutex
 	running bool
@@ -112,7 +114,8 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 	if err != nil {
 		return nil, fmt.Errorf("create secure data cipher: %w", err)
 	}
-	telegram, err := buildTelegramComponents(cfg, pool, secureCipher, dependencies.Logger, dependencies.Storage)
+	globalCache := cache.NewMemoryCache(int(cfg.Cache.Memory.Size))
+	telegram, err := buildTelegramComponents(cfg, pool, secureCipher, dependencies.Logger, dependencies.Storage, globalCache)
 	if err != nil {
 		return nil, err
 	}
@@ -135,10 +138,6 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 	}
 	storage := telegram.storage
 	telegramAccount := telegram.account
-	botService, err := bots.NewService(pool, secureCipher, telegram.verifier)
-	if err != nil {
-		return nil, fmt.Errorf("create bot service: %w", err)
-	}
 	authenticator := dependencies.Authenticator
 	if authenticator == nil {
 		authenticator = authService
@@ -160,7 +159,11 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 	if err != nil {
 		return nil, fmt.Errorf("create event service: %w", err)
 	}
-	catalogService := catalog.NewService(pool)
+	botService, err := bots.NewService(pool, secureCipher, telegram.verifier)
+	if err != nil {
+		return nil, fmt.Errorf("create bot service: %w", err)
+	}
+	catalogService := catalog.NewService(pool, globalCache)
 	uploadService := uploads.NewService(pool, cfg.Uploads.SessionTTL)
 	channelService := channels.NewService(pool, channels.TelegramCreator{Storage: storage}, channels.Config{
 		PartLimit: cfg.Telegram.ChannelPartLimit, AutoCreate: cfg.Telegram.AutoChannelCreate,
@@ -205,7 +208,7 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 	if err != nil {
 		return nil, fmt.Errorf("create file operations service: %w", err)
 	}
-	shareService, err := shares.NewService(pool, catalogService)
+	shareService, err := shares.NewService(pool, catalogService, globalCache)
 	if err != nil {
 		return nil, fmt.Errorf("create share service: %w", err)
 	}
@@ -247,6 +250,7 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 		events:            eventService,
 		telegramDownloads: telegram.downloadClients,
 		streamCache:       streamCache,
+		globalCache:       globalCache,
 		http: &http.Server{
 			Addr:              cfg.HTTP.Address,
 			Handler:           mux,
@@ -308,6 +312,13 @@ func (a *App) Pool() *pgxpool.Pool {
 		return nil
 	}
 	return a.pool
+}
+
+func (a *App) Cache() cache.Cacher {
+	if a == nil {
+		return nil
+	}
+	return a.globalCache
 }
 
 // Run binds the configured address and owns the full server lifecycle until the

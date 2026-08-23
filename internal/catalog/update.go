@@ -55,5 +55,6 @@ func (s *Service) Update(ctx context.Context, in UpdateInput) (*sqlcgen.File, er
 	if err != nil {
 		return nil, classifyWriteError("update file", err)
 	}
+	s.invalidateFile(ctx, in.UserID, in.FileID)
 	return file, nil
 }

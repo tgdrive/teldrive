@@ -122,7 +122,7 @@ func TestTelegramRangeReaderPipelinesPastCompletedChunk(t *testing.T) {
 	}()
 
 	started := map[int64]bool{}
-	for len(started) < 2 {
+	for len(started) < 3 {
 		select {
 		case offset := <-invoker.started:
 			started[offset] = true
@@ -130,17 +130,8 @@ func TestTelegramRangeReaderPipelinesPastCompletedChunk(t *testing.T) {
 			t.Fatal("initial Telegram reads did not start")
 		}
 	}
-	if !started[0] || !started[telegramReadChunk] {
+	if !started[0] || !started[telegramReadChunk] || !started[2*telegramReadChunk] {
 		t.Fatalf("initial offsets = %#v", started)
-	}
-
-	select {
-	case offset := <-invoker.started:
-		if offset != 2*telegramReadChunk {
-			t.Fatalf("next offset = %d, want %d", offset, 2*telegramReadChunk)
-		}
-	case <-time.After(time.Second):
-		t.Fatal("third Telegram read waited for the slow first chunk")
 	}
 
 	close(releaseFirst)

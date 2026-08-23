@@ -75,6 +75,11 @@ func (s *Service) BulkTrash(ctx context.Context, userID int64, rawIDs []uuid.UUI
 	if err := tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("commit bulk trash: %w", err)
 	}
+	for _, file := range items {
+		if id, ok := fileUUID(file); ok {
+			s.invalidateFile(ctx, userID, id)
+		}
+	}
 	return items, nil
 }
 
@@ -219,6 +224,11 @@ func (s *Service) bulkMove(ctx context.Context, userID int64, rawIDs []uuid.UUID
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return nil, classifyWriteError("commit bulk move", err)
+	}
+	for _, file := range result {
+		if id, ok := fileUUID(file); ok {
+			s.invalidateFile(ctx, userID, id)
+		}
 	}
 	return result, nil
 }

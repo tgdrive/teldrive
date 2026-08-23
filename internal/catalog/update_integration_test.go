@@ -18,7 +18,7 @@ func TestUpdateMetadataAgainstRealPostgres(t *testing.T) {
 	db := testpostgres.New(t)
 	ctx := context.Background()
 	seedUser(t, db.Pool, 1001)
-	svc := catalog.NewService(db.Pool)
+	svc := catalog.NewService(db.Pool, nil)
 	created, err := svc.CreateFolder(ctx, catalog.CreateFolderInput{UserID: 1001, Name: "Before"})
 	if err != nil {
 		t.Fatal(err)

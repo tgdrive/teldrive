@@ -25,7 +25,7 @@ func TestServerPersistsGotdStorageLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRunner() error = %v", err)
 	}
-	storage := telegramstore.NewGotdStorage(runner)
+	storage := telegramstore.NewGotdStorage(runner, nil)
 
 	channel, err := storage.CreateChannel(ctx, 1001, "rclone")
 	if err != nil {
@@ -75,7 +75,7 @@ func TestServerPersistsGotdStorageLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	reopenedStorage := telegramstore.NewGotdStorage(reopenedRunner)
+	reopenedStorage := telegramstore.NewGotdStorage(reopenedRunner, nil)
 	assertRange(t, reopenedStorage, copied, 0, int64(len(payload)), payload)
 
 	if err := reopenedStorage.DeleteMessages(ctx, 1001, channel.ID, []int64{copied.MessageID}); err != nil {
@@ -104,7 +104,7 @@ func TestServerSupportsBigFileUpload(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	storage := telegramstore.NewGotdStorage(runner)
+	storage := telegramstore.NewGotdStorage(runner, nil)
 	channel, err := storage.CreateChannel(ctx, 1001, "big")
 	if err != nil {
 		t.Fatal(err)

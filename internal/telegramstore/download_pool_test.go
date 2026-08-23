@@ -30,7 +30,7 @@ func TestDownloadClientPoolReusesClientAfterRequestCancellation(t *testing.T) {
 		ClientsPerUser: 1, MaxClients: 4, MaxSessions: 4,
 		IdleTimeout: time.Minute, AcquireTimeout: time.Second,
 	})
-	storage := NewGotdStorage(runner, WithDownloadClientPool(pool))
+	storage := NewGotdStorage(runner, nil, WithDownloadClientPool(pool))
 
 	requestCtx, cancelRequest := context.WithCancel(context.Background())
 	first, err := storage.OpenDownloadSession(requestCtx, 42)
@@ -76,7 +76,7 @@ func TestDownloadClientPoolSharesLocationCacheAcrossSessions(t *testing.T) {
 	}
 	firstGotd := first.(*gotdDownloadSession)
 	secondGotd := second.(*gotdDownloadSession)
-	if firstGotd.locationCache == nil || firstGotd.locationCache != secondGotd.locationCache {
+	if firstGotd.globalCache != secondGotd.globalCache {
 		t.Fatal("sessions sharing a warm Telegram client do not share document location cache")
 	}
 	_ = first.Close()
@@ -180,7 +180,7 @@ func TestDownloadClientPoolUsesConfiguredConnections(t *testing.T) {
 
 func newTestDownloadClientPool(t *testing.T, runner Runner, config DownloadClientPoolConfig) *DownloadClientPool {
 	t.Helper()
-	pool, err := NewDownloadClientPool(runner, config)
+	pool, err := NewDownloadClientPool(runner, config, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

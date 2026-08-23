@@ -10,7 +10,7 @@ import (
 
 func TestServiceRejectsInvalidInputsBeforeDatabaseAccess(t *testing.T) {
 	t.Parallel()
-	svc := NewService(nil)
+	svc := NewService(nil, nil)
 	ctx := context.Background()
 	id := uuid.New()
 

@@ -37,12 +37,12 @@ func TestGeneratedServerUploadCompleteAndRangeDownload(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	catalogService := catalog.NewService(db.Pool)
+	catalogService := catalog.NewService(db.Pool, nil)
 	uploadService := uploads.NewService(db.Pool)
 	storage := &apiMemoryStorage{}
 	pipeline := transfer.NewPipeline(uploadService, apiFixedResolver(9001), storage, nil, transfer.Config{})
 	downloader := transfer.NewDownloader(catalogService, storage, nil)
-	shareService, err := shares.NewService(db.Pool, catalogService)
+	shareService, err := shares.NewService(db.Pool, catalogService, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +173,7 @@ func TestGeneratedServerUploadCompleteAndRangeDownload(t *testing.T) {
 
 func TestGeneratedServerRejectsMissingAuthentication(t *testing.T) {
 	db := testpostgres.New(t)
-	handler := api.NewHandler(catalog.NewService(db.Pool), uploads.NewService(db.Pool), nil, nil, health.NewService("test", db.Pool), 0, nil)
+	handler := api.NewHandler(catalog.NewService(db.Pool, nil), uploads.NewService(db.Pool), nil, nil, health.NewService("test", db.Pool), 0, nil)
 	authenticator := apiAuthenticator{}
 	server, err := api.NewServer(handler, api.NewSecurity(authenticator))
 	if err != nil {

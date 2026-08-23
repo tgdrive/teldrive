@@ -12,6 +12,7 @@ import (
 	"github.com/tgdrive/teldrive/v2/internal/authn"
 	"github.com/tgdrive/teldrive/v2/internal/botgateway"
 	"github.com/tgdrive/teldrive/v2/internal/bots"
+	"github.com/tgdrive/teldrive/v2/internal/cache"
 	"github.com/tgdrive/teldrive/v2/internal/config"
 	"github.com/tgdrive/teldrive/v2/internal/localtelegram"
 	"github.com/tgdrive/teldrive/v2/internal/logingateway"
@@ -27,7 +28,7 @@ type telegramComponents struct {
 	downloadClients *telegramstore.DownloadClientPool
 }
 
-func buildTelegramComponents(cfg config.Config, pool *pgxpool.Pool, cipher *secureblob.Cipher, logger *slog.Logger, injected telegramstore.Storage) (telegramComponents, error) {
+func buildTelegramComponents(cfg config.Config, pool *pgxpool.Pool, cipher *secureblob.Cipher, logger *slog.Logger, injected telegramstore.Storage, globalCache cache.Cacher) (telegramComponents, error) {
 	switch strings.ToLower(strings.TrimSpace(cfg.Telegram.Backend)) {
 	case "filesystem":
 		root, err := expandHomePath(cfg.Telegram.LocalRoot)
@@ -48,7 +49,7 @@ func buildTelegramComponents(cfg config.Config, pool *pgxpool.Pool, cipher *secu
 		}
 		storage := injected
 		if storage == nil {
-			storage = telegramstore.NewGotdStorage(runner)
+			storage = telegramstore.NewGotdStorage(runner, globalCache)
 		}
 		return telegramComponents{
 			login: localTelegramLogin{}, verifier: localBotVerifier{}, account: account, storage: storage,
@@ -118,13 +119,13 @@ func buildTelegramComponents(cfg config.Config, pool *pgxpool.Pool, cipher *secu
 					ReadParallel:   cfg.Telegram.DownloadReadParallel,
 					IdleTimeout:    cfg.Telegram.DownloadClientIdleTimeout,
 					AcquireTimeout: cfg.Telegram.DownloadClientAcquireTimeout,
-				})
+				}, globalCache)
 				if err != nil {
 					return telegramComponents{}, fmt.Errorf("create Telegram download client pool: %w", err)
 				}
 				options = append(options, telegramstore.WithDownloadClientPool(downloadClients))
 			}
-			storage = telegramstore.NewGotdStorage(uploadRunner, options...)
+			storage = telegramstore.NewGotdStorage(uploadRunner, globalCache, options...)
 		}
 		return telegramComponents{
 			login: login, verifier: verifier, account: account, storage: storage, downloadClients: downloadClients,

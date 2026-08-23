@@ -119,8 +119,13 @@ type StreamCache struct {
 	ReadAhead    size.Size     `koanf:"read-ahead" default:"4MB" validate:"gte=0" description:"Bytes fetched ahead of requested stream ranges"`
 }
 
+type MemoryCache struct {
+	Size size.Size `koanf:"size" default:"2MB" validate:"gt=0" description:"Global freecache memory size (e.g., 2MB, 10MB)"`
+}
+
 type Cache struct {
 	Stream StreamCache `koanf:"stream"`
+	Memory MemoryCache `koanf:"memory"`
 }
 
 type Config struct {

@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/tgdrive/teldrive/v2/internal/cache"
 	"github.com/tgdrive/teldrive/v2/internal/db/sqlcgen"
 	"github.com/tgdrive/teldrive/v2/internal/dbtypes"
 )
@@ -31,10 +32,15 @@ type Service struct {
 	pool    *pgxpool.Pool
 	queries *sqlcgen.Queries
 	now     func() time.Time
+	cache   cache.Cacher
 }
 
-func NewService(pool *pgxpool.Pool) *Service {
-	return &Service{pool: pool, queries: sqlcgen.New(pool), now: time.Now}
+func NewService(pool *pgxpool.Pool, c cache.Cacher) *Service {
+	return &Service{pool: pool, queries: sqlcgen.New(pool), now: time.Now, cache: c}
+}
+
+func (s *Service) cacheKey(parts ...any) string {
+	return cache.Key(parts...)
 }
 
 type CreateFolderInput struct {
@@ -84,6 +90,22 @@ func (s *Service) CreateFolder(ctx context.Context, in CreateFolderInput) (*sqlc
 func (s *Service) Get(ctx context.Context, userID int64, fileID uuid.UUID) (*sqlcgen.File, error) {
 	if userID <= 0 {
 		return nil, ErrInvalidOwner
+	}
+	if s.cache != nil {
+		key := s.cacheKey("catalog", "file", userID, fileID.String())
+		return cache.Fetch(ctx, s.cache, key, time.Minute, func() (*sqlcgen.File, error) {
+			f, err := s.queries.GetFileForUser(ctx, sqlcgen.GetFileForUserParams{
+				FileID: dbtypes.UUID(fileID),
+				UserID: userID,
+			})
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil, ErrNotFound
+			}
+			if err != nil {
+				return nil, fmt.Errorf("get file: %w", err)
+			}
+			return f, nil
+		})
 	}
 	file, err := s.queries.GetFileForUser(ctx, sqlcgen.GetFileForUserParams{
 		FileID: dbtypes.UUID(fileID),
@@ -143,6 +165,16 @@ func (s *Service) Parts(ctx context.Context, userID int64, fileID uuid.UUID) ([]
 	if file.Kind != sqlcgen.FileKindFile || file.Status != sqlcgen.FileStatusActive {
 		return nil, ErrNotAFile
 	}
+	if s.cache != nil {
+		key := s.cacheKey("catalog", "parts", fileID.String())
+		return cache.Fetch(ctx, s.cache, key, time.Minute, func() ([]*sqlcgen.FilePart, error) {
+			p, err := s.queries.ListFileParts(ctx, dbtypes.UUID(fileID))
+			if err != nil {
+				return nil, fmt.Errorf("list file parts: %w", err)
+			}
+			return p, nil
+		})
+	}
 	parts, err := s.queries.ListFileParts(ctx, dbtypes.UUID(fileID))
 	if err != nil {
 		return nil, fmt.Errorf("list file parts: %w", err)
@@ -157,6 +189,9 @@ func (s *Service) UpdatePartSizes(ctx context.Context, fileID uuid.UUID, partNo 
 	})
 	if err != nil {
 		return fmt.Errorf("update file part sizes: %w", err)
+	}
+	if s.cache != nil {
+		_ = s.cache.Delete(ctx, s.cacheKey("catalog", "parts", fileID.String()))
 	}
 	return nil
 }
@@ -273,6 +308,7 @@ func (s *Service) Rename(ctx context.Context, userID int64, fileID uuid.UUID, ex
 	if err != nil {
 		return nil, classifyWriteError("rename file", err)
 	}
+	s.invalidateFile(ctx, userID, fileID)
 	return file, nil
 }
 
@@ -304,7 +340,15 @@ func (s *Service) Restore(ctx context.Context, userID int64, fileID uuid.UUID) (
 	if err != nil {
 		return nil, classifyWriteError("restore file", err)
 	}
+	s.invalidateFile(ctx, userID, fileID)
 	return file, nil
+}
+
+func (s *Service) invalidateFile(ctx context.Context, userID int64, fileID uuid.UUID) {
+	if s.cache == nil {
+		return
+	}
+	_ = s.cache.Delete(ctx, s.cacheKey("catalog", "file", userID, fileID.String()), s.cacheKey("catalog", "parts", fileID.String()))
 }
 
 func classifyWriteError(action string, err error) error {

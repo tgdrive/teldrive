@@ -11,7 +11,7 @@ import (
 
 func TestServiceValidationAndTokenHash(t *testing.T) {
 	t.Parallel()
-	if _, err := NewService(nil, nil); !errors.Is(err, ErrInvalidInput) {
+	if _, err := NewService(nil, nil, nil); !errors.Is(err, ErrInvalidInput) {
 		t.Fatalf("NewService(nil) error = %v", err)
 	}
 	s := &Service{now: time.Now}

@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/gotd/td/tg"
+
+	"github.com/tgdrive/teldrive/v2/internal/cache"
 )
 
 var (
@@ -26,10 +28,11 @@ type DownloadClientPoolConfig struct {
 }
 
 type DownloadClientPool struct {
-	runner Runner
-	config DownloadClientPoolConfig
-	ctx    context.Context
-	cancel context.CancelFunc
+	runner      Runner
+	config      DownloadClientPoolConfig
+	globalCache cache.Cacher
+	ctx         context.Context
+	cancel      context.CancelFunc
 
 	mu      sync.Mutex
 	entries map[int64][]*downloadClientEntry
@@ -40,19 +43,18 @@ type DownloadClientPool struct {
 }
 
 type downloadClientEntry struct {
-	userID        int64
-	ctx           context.Context
-	cancel        context.CancelFunc
-	ready         chan struct{}
-	done          chan struct{}
-	api           *tg.Client
-	locationCache *documentLocationCache
-	err           error
-	refs          int
-	lastUsed      time.Time
+	userID   int64
+	ctx      context.Context
+	cancel   context.CancelFunc
+	ready    chan struct{}
+	done     chan struct{}
+	api      *tg.Client
+	err      error
+	refs     int
+	lastUsed time.Time
 }
 
-func NewDownloadClientPool(runner Runner, config DownloadClientPoolConfig) (*DownloadClientPool, error) {
+func NewDownloadClientPool(runner Runner, config DownloadClientPoolConfig, c cache.Cacher) (*DownloadClientPool, error) {
 	if config.ReadBuffers <= 0 {
 		config.ReadBuffers = defaultTelegramReadBuffers
 	}
@@ -65,7 +67,7 @@ func NewDownloadClientPool(runner Runner, config DownloadClientPoolConfig) (*Dow
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	pool := &DownloadClientPool{
-		runner: runner, config: config, ctx: ctx, cancel: cancel,
+		runner: runner, config: config, globalCache: c, ctx: ctx, cancel: cancel,
 		entries: make(map[int64][]*downloadClientEntry), notify: make(chan struct{}, 1), done: make(chan struct{}),
 	}
 	go pool.reap()
@@ -105,7 +107,7 @@ func (p *DownloadClientPool) OpenDownloadSession(ctx context.Context, userID int
 					closeFn:              func() error { p.release(entry); return nil },
 					downloadReadBuffers:  p.config.ReadBuffers,
 					downloadReadParallel: p.config.ReadParallel,
-					locationCache:        entry.locationCache,
+					globalCache:          p.globalCache,
 				}, nil
 			case <-acquireCtx.Done():
 				p.release(entry)
@@ -158,7 +160,7 @@ func (p *DownloadClientPool) reserve(userID int64) (*downloadClientEntry, bool, 
 	entryCtx, cancel := context.WithCancel(p.ctx)
 	entry := &downloadClientEntry{
 		userID: userID, ctx: entryCtx, cancel: cancel, ready: make(chan struct{}), done: make(chan struct{}),
-		refs: 1, lastUsed: time.Now(), locationCache: newDocumentLocationCache(),
+		refs: 1, lastUsed: time.Now(),
 	}
 	p.entries[userID] = append(p.entries[userID], entry)
 	p.total++

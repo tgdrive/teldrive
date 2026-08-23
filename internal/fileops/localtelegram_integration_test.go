@@ -30,7 +30,7 @@ func TestPurgeThroughLocalTelegramStorage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	storage := telegramstore.NewGotdStorage(runner)
+	storage := telegramstore.NewGotdStorage(runner, nil)
 	channel, err := storage.CreateChannel(ctx, 1001, "storage")
 	if err != nil {
 		t.Fatal(err)
@@ -71,7 +71,7 @@ INSERT INTO upload_sessions (
 `, uploadID, len(payload), fileID); err != nil {
 		t.Fatal(err)
 	}
-	catalogService := catalog.NewService(db.Pool)
+	catalogService := catalog.NewService(db.Pool, nil)
 	channelService := channels.NewService(db.Pool, nil, channels.Config{PartLimit: 100})
 	service, err := NewService(db.Pool, catalogService, channelService, storage)
 	if err != nil {

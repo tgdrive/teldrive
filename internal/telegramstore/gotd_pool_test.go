@@ -27,7 +27,7 @@ func (r *recordingPooledRunner) RunPooled(ctx context.Context, userID int64, ope
 func TestGotdStorageRunUploadUsesConnectionPool(t *testing.T) {
 	t.Parallel()
 	runner := &recordingPooledRunner{}
-	storage := NewGotdStorage(runner)
+	storage := NewGotdStorage(runner, nil)
 
 	if err := storage.runUpload(context.Background(), 42, 8, func(context.Context, *tg.Client) error { return nil }); err != nil {
 		t.Fatalf("runUpload() error = %v", err)
@@ -40,7 +40,7 @@ func TestGotdStorageRunUploadUsesConnectionPool(t *testing.T) {
 func TestGotdStorageRunUploadUsesRegularRunnerForSingleThread(t *testing.T) {
 	t.Parallel()
 	runner := &recordingPooledRunner{}
-	storage := NewGotdStorage(runner)
+	storage := NewGotdStorage(runner, nil)
 
 	if err := storage.runUpload(context.Background(), 42, 1, func(context.Context, *tg.Client) error { return nil }); err != nil {
 		t.Fatalf("runUpload() error = %v", err)
@@ -53,7 +53,7 @@ func TestGotdStorageRunUploadUsesRegularRunnerForSingleThread(t *testing.T) {
 func TestGotdDownloadSessionUsesConnectionPool(t *testing.T) {
 	t.Parallel()
 	runner := &recordingPooledRunner{}
-	storage := NewGotdStorage(runner, WithDownloadReadParallel(8))
+	storage := NewGotdStorage(runner, nil, WithDownloadReadParallel(8))
 
 	session, err := storage.OpenDownloadSession(context.Background(), 42)
 	if err != nil {

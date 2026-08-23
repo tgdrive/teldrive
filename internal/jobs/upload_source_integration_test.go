@@ -38,7 +38,7 @@ func TestUploadSourceWorkerPublishesAndSkipsMatchingLocalFile(t *testing.T) {
 	}
 	storage := &uploadWorkerStorage{}
 	uploadService := uploads.NewService(db.Pool)
-	catalogService := catalog.NewService(db.Pool)
+	catalogService := catalog.NewService(db.Pool, nil)
 	channelService := channels.NewService(db.Pool, channels.TelegramCreator{Storage: storage}, channels.Config{PartLimit: 1000})
 	pipeline := transfer.NewPipeline(uploadService, channelService, storage, nil, transfer.Config{})
 	worker := jobs.NewUploadSourceWorker(db.Pool, catalogService, uploadService, pipeline, nil, 0)

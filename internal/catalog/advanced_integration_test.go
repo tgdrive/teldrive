@@ -38,7 +38,7 @@ VALUES
 		t.Fatal(err)
 	}
 
-	svc := catalog.NewService(db.Pool)
+	svc := catalog.NewService(db.Pool, nil)
 	resolved, err := svc.ResolveFolderPath(ctx, 1001, nil, " /Photos/Nested/ ")
 	if err != nil || resolved == nil || *resolved != nestedID {
 		t.Fatalf("ResolveFolderPath() = %v, %v", resolved, err)
@@ -141,7 +141,7 @@ func TestEnsureFolderPathCreatesMissingFolders(t *testing.T) {
 	if _, err := db.Pool.Exec(ctx, "INSERT INTO users (user_id) VALUES (1001)"); err != nil {
 		t.Fatal(err)
 	}
-	svc := catalog.NewService(db.Pool)
+	svc := catalog.NewService(db.Pool, nil)
 	created, err := svc.EnsureFolderPath(ctx, 1001, nil, "/Photos/Uploads/Incoming")
 	if err != nil || created == nil {
 		t.Fatalf("EnsureFolderPath() = %v, %v", created, err)

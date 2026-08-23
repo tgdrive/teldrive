@@ -31,7 +31,7 @@ func TestCopyAndPurgeUseIndependentTelegramMessages(t *testing.T) {
 	}
 	sourceID := insertStoredFile(t, db, "source.bin", 10)
 	storage := &fileStorage{messages: map[int64][]byte{10: []byte("data")}, nextID: 100}
-	catalogService := catalog.NewService(db.Pool)
+	catalogService := catalog.NewService(db.Pool, nil)
 	channelService := channels.NewService(db.Pool, nil, channels.Config{PartLimit: 100})
 	service, err := NewService(db.Pool, catalogService, channelService, storage)
 	if err != nil {
@@ -155,7 +155,7 @@ VALUES
 		messages: map[int64][]byte{41: []byte("part"), 42: []byte("part")},
 		nextID:   200, failCopyAt: 2,
 	}
-	catalogService := catalog.NewService(db.Pool)
+	catalogService := catalog.NewService(db.Pool, nil)
 	channelService := channels.NewService(db.Pool, nil, channels.Config{PartLimit: 100})
 	service, err := NewService(db.Pool, catalogService, channelService, storage)
 	if err != nil {
@@ -198,7 +198,7 @@ INSERT INTO upload_sessions (id,user_id,parent_id,name,normalized_name,expected_
 VALUES ($1,1001,$2,'pending.bin','pending.bin',1,now(),false,'fail',1,'aborted',now())`, uploadID, folderID); err != nil {
 		t.Fatal(err)
 	}
-	catalogService := catalog.NewService(db.Pool)
+	catalogService := catalog.NewService(db.Pool, nil)
 	service, err := NewService(db.Pool, catalogService, channels.NewService(db.Pool, nil, channels.Config{PartLimit: 100}), &fileStorage{})
 	if err != nil {
 		t.Fatal(err)
