@@ -1,11 +1,14 @@
 import {
+  Avatar,
   Button,
+  Dropdown,
+  Label,
   RouterProvider as AriaRouterProvider,
   Separator,
   cn,
 } from "@heroui/react";
 import { buttonVariants } from "@heroui/styles";
-import type { QueryClient } from "@tanstack/react-query";
+import { useQuery, type QueryClient } from "@tanstack/react-query";
 import {
   createRootRouteWithContext,
   Link,
@@ -15,7 +18,8 @@ import {
   useNavigate,
 } from "@tanstack/react-router";
 import { useTheme } from "next-themes";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type Ref } from "react";
+import { toast } from "sonner";
 import MenuIcon from "~icons/gravity-ui/bars";
 import ChevronLeftIcon from "~icons/gravity-ui/chevron-left";
 import ChevronRightIcon from "~icons/gravity-ui/chevron-right";
@@ -28,11 +32,14 @@ import SearchIcon from "~icons/gravity-ui/magnifier";
 import MoonIcon from "~icons/gravity-ui/moon";
 import SunIcon from "~icons/gravity-ui/sun";
 import CloseIcon from "~icons/gravity-ui/xmark";
+import LogoutIcon from "~icons/gravity-ui/arrow-right-from-square";
 import { useCommandPalette } from "../components/command-palette-context";
 import { SearchOverlay } from "../components/search-overlay";
 import { UploadShelf } from "../components/upload-shelf";
 import { currentUserQueryOptions } from "../auth/queries";
-import { isUnauthorized } from "../api/errors";
+import { $api } from "../api/client";
+import { isUnauthorized, userMessage } from "../api/errors";
+import { getQueryClient } from "../lib/queryClient";
 
 const mainNav = [
   { label: "Files", icon: GridIcon, path: "/files" },
@@ -41,13 +48,11 @@ const mainNav = [
   { label: "Trash", icon: GridIcon, path: "/trash" },
 ] as const;
 
-const bottomNav = [
-  { label: "Settings", icon: SettingsIcon, path: "/settings" },
-] as const;
 const DESKTOP_BREAKPOINT = 1024;
 
 function getPageTitle(pathname: string) {
-  const item = [...mainNav, ...bottomNav].find(
+  if (pathname.startsWith("/settings")) return "Settings";
+  const item = mainNav.find(
     (entry) => pathname === entry.path || pathname.startsWith(entry.path),
   );
   return item?.label ?? "Teldrive";
@@ -62,9 +67,34 @@ function Sidebar({
   mobile?: boolean;
   onNavigate?: () => void;
 }) {
-  const renderItem = (
-    item: (typeof mainNav)[number] | (typeof bottomNav)[number],
-  ) => {
+  const navigate = useNavigate();
+  const { data: user } = useQuery(currentUserQueryOptions());
+  const logout = $api.useMutation("post", "/v1/auth/cookie/logout");
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const displayName =
+    user?.displayName?.trim() || user?.username?.trim() || (user ? `User ${user.userId}` : "Account");
+  const secondaryLabel = user?.username
+    ? `@${user.username}`
+    : user?.premium
+      ? "Telegram Premium"
+      : "Telegram";
+  const initials = displayName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "U";
+  const signOut = async () => {
+    try {
+      await logout.mutateAsync({});
+      getQueryClient().clear();
+      onNavigate?.();
+      await navigate({ to: "/login", search: { redirect: "/files" }, replace: true });
+    } catch (error) {
+      toast.error("Unable to log out", { description: userMessage(error) });
+    }
+  };
+  const renderItem = (item: (typeof mainNav)[number]) => {
     const link = (
       <Link
         key={item.label}
@@ -132,8 +162,71 @@ function Sidebar({
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
         {mainNav.map(renderItem)}
       </nav>
-      <div className="space-y-1 border-t border-border px-3 py-3">
-        {bottomNav.map(renderItem)}
+      <div className="border-t border-border px-3 py-3">
+        <Dropdown isOpen={accountMenuOpen} onOpenChange={setAccountMenuOpen}>
+          {collapsed && !mobile ? (
+            <Dropdown.Trigger className="flex size-10 items-center justify-center rounded-full hover:bg-default/30">
+              <Avatar className="size-8 cursor-pointer">
+                <Avatar.Image alt={displayName} src="/api/v1/me/photo" />
+                <Avatar.Fallback>{initials}</Avatar.Fallback>
+              </Avatar>
+            </Dropdown.Trigger>
+          ) : (
+            <Button
+              variant="ghost"
+              aria-label={`Open account menu for ${displayName}`}
+              className="flex h-14 w-full items-center justify-start gap-3 rounded-xl px-2 text-muted hover:bg-default/30 hover:text-foreground"
+            >
+              <Avatar className="size-9 shrink-0">
+                <Avatar.Image alt={displayName} src="/api/v1/me/photo" />
+                <Avatar.Fallback>{initials}</Avatar.Fallback>
+              </Avatar>
+              <div className="min-w-0 overflow-hidden whitespace-nowrap text-left">
+                <p className="truncate text-sm font-medium text-foreground">{displayName}</p>
+                <p className="truncate text-xs text-muted">{secondaryLabel}</p>
+              </div>
+            </Button>
+          )}
+          <Dropdown.Popover placement="top start" className="min-w-52">
+            <Dropdown.Menu
+              aria-label="Account"
+              onAction={(key) => {
+                if (key === "logout") void signOut();
+              }}
+            >
+              <Dropdown.Item
+                id="settings"
+                textValue="Settings"
+                render={({ ref, ...itemProps }) => {
+                  return (
+                    // @ts-expect-error HeroUI types render props for a menu item div; this render target is an anchor.
+                    <Link
+                      {...itemProps}
+                      ref={ref as Ref<HTMLAnchorElement>}
+                      to="/settings"
+                      preload="intent"
+                      onClick={() => {
+                        setAccountMenuOpen(false);
+                        onNavigate?.();
+                      }}
+                    />
+                  );
+                }}
+              >
+                <SettingsIcon className="size-4" />
+                <Label>Settings</Label>
+              </Dropdown.Item>
+              <Dropdown.Item
+                id="logout"
+                textValue="Log out"
+                isDisabled={logout.isPending}
+              >
+                <LogoutIcon className="size-4" />
+                <Label>{logout.isPending ? "Logging out…" : "Log out"}</Label>
+              </Dropdown.Item>
+            </Dropdown.Menu>
+          </Dropdown.Popover>
+        </Dropdown>
       </div>
     </aside>
   );

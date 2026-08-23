@@ -35,13 +35,13 @@ function AccountSettings() {
   );
   const logout = $api.useMutation("post", "/v1/auth/cookie/logout");
 
-  const signOut = async () => {
+  const logOut = async () => {
     try {
       await logout.mutateAsync({});
       getQueryClient().clear();
       await navigate({ to: "/login", search: { redirect: "/files" }, replace: true });
     } catch (error) {
-      toast.error("Unable to sign out", { description: userMessage(error) });
+      toast.error("Unable to log out", { description: userMessage(error) });
     }
   };
 
@@ -53,9 +53,9 @@ function AccountSettings() {
         title="Account"
         description="Your authenticated Teldrive profile, storage usage, and current session."
         actions={
-          <Button variant="danger" onPress={signOut} isDisabled={logout.isPending}>
+          <Button variant="danger" onPress={logOut} isDisabled={logout.isPending}>
             <LogoutIcon className="size-4" />
-            Sign out
+            Log out
           </Button>
         }
       />

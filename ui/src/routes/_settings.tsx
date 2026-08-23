@@ -57,7 +57,7 @@ function SettingsLayout() {
   return (
     <div className="mx-auto grid w-full max-w-7xl gap-6 lg:grid-cols-[15rem_minmax(0,1fr)]">
       <aside className="hidden lg:block">
-        <div className="sticky top-0 flex max-h-[calc(100dvh-3rem)] flex-col gap-5 overflow-y-auto border-r border-border pr-5">
+        <div className="sticky top-0 flex max-h-[calc(100dvh-7rem)] flex-col gap-5 overflow-y-auto border-r border-border pr-5">
           <div>
             <Typography type="h2" className="text-lg font-semibold">
               Settings
