@@ -182,30 +182,85 @@ func (r *Runtime) ListPeriodicJobs(ctx context.Context) ([]PeriodicJob, error) {
 	return result, nil
 }
 
+func (r *Runtime) ResetPeriodicJobs(ctx context.Context) ([]PeriodicJob, error) {
+	if r == nil || r.client == nil {
+		return nil, ErrRuntimeNotConfigured
+	}
+
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for {
+		rows, err := r.client.PeriodicJobList(ctx, &riverpro.PeriodicJobListOpts{Max: 1000})
+		if err != nil {
+			return nil, fmt.Errorf("list periodic jobs for reset: %w", err)
+		}
+		if len(rows) == 0 {
+			break
+		}
+		for _, row := range rows {
+			if _, err := r.client.PeriodicJobDelete(ctx, row.ID); err != nil {
+				return nil, fmt.Errorf("delete periodic job %q during reset: %w", row.ID, err)
+			}
+		}
+	}
+
+	templates := r.PeriodicJobCatalog()
+	result := make([]PeriodicJob, 0, len(templates))
+	for _, template := range templates {
+		job, err := r.CreatePeriodicJob(ctx, PeriodicJobInput{
+			ID:          template.ID,
+			Kind:        template.Kind,
+			Args:        template.DefaultArgs,
+			Queue:       template.DefaultQueue,
+			Priority:    template.DefaultPriority,
+			MaxAttempts: template.DefaultMaxAttempts,
+			Tags:        append([]string(nil), template.DefaultTags...),
+			Schedule: PeriodicSchedule{
+				CronExpression: template.DefaultCronExpression,
+				CronTimezone:   template.DefaultCronTimezone,
+			},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("restore default periodic job %q: %w", template.ID, err)
+		}
+		result = append(result, job)
+	}
+	return result, nil
+}
+
 func (r *Runtime) PeriodicJobCatalog() []PeriodicTemplate {
 	templates := []PeriodicTemplate{
 		{
-			ID: cleanupPeriodicID, Label: "Upload cleanup", Description: "Remove abandoned upload sessions and temporary parts.",
-			Kind: CleanupSweepKind, DefaultArgs: rawArgs(CleanupSweepArgs{BatchSize: defaultBatchSize}),
+			ID: uploadCleanupPeriodicID, Label: "Upload cleanup", Description: "Remove abandoned upload sessions and temporary parts.",
+			Kind: UploadCleanupSweepKind, DefaultArgs: rawArgs(UploadCleanupSweepArgs{BatchSize: defaultBatchSize}),
 			DefaultQueue: CleanupQueue, DefaultPriority: 2, DefaultMaxAttempts: 3,
-			DefaultCronExpression: defaultCron, DefaultCronTimezone: maintenanceTimezone,
+			DefaultCronExpression: uploadCleanupDefaultCron, DefaultCronTimezone: maintenanceTimezone,
 		},
 	}
 	if r.purgeEnabled {
-		templates = append(templates, PeriodicTemplate{
-			ID: purgePeriodicID, Label: "Pending file purge", Description: "Remove expired pending Telegram file records.",
-			Kind: PurgeSweepKind, DefaultArgs: rawArgs(PurgeSweepArgs{BatchSize: defaultBatchSize}),
-			DefaultQueue: PurgeQueue, DefaultPriority: 1, DefaultMaxAttempts: 3,
-			DefaultCronExpression: defaultCron, DefaultCronTimezone: maintenanceTimezone,
-		})
+		templates = append(templates,
+			PeriodicTemplate{
+				ID: trashCleanupPeriodicID, Label: "Trash cleanup", Description: "Permanently remove trashed files after their retention period.",
+				Kind: TrashCleanupSweepKind, DefaultArgs: rawArgs(TrashCleanupSweepArgs{Retention: "720h", BatchSize: defaultBatchSize}),
+				DefaultQueue: CleanupQueue, DefaultPriority: 1, DefaultMaxAttempts: 3,
+				DefaultCronExpression: trashCleanupDefaultCron, DefaultCronTimezone: maintenanceTimezone,
+			},
+			PeriodicTemplate{
+				ID: purgePeriodicID, Label: "Pending deletion cleanup", Description: "Finish permanent deletion for files already marked deletion-pending.",
+				Kind: PurgeSweepKind, DefaultArgs: rawArgs(PurgeSweepArgs{BatchSize: defaultBatchSize}),
+				DefaultQueue: PurgeQueue, DefaultPriority: 1, DefaultMaxAttempts: 3,
+				DefaultCronExpression: pendingDeletionCleanupDefaultCron, DefaultCronTimezone: maintenanceTimezone,
+			},
+		)
 	}
 	if r.orphanCleanupEnabled {
 		templates = append(templates, PeriodicTemplate{
-			ID: "teldrive-orphaned-telegram-part-cleanup", Label: "Orphaned Telegram-part cleanup",
+			ID: orphanCleanupPeriodicID, Label: "Orphaned Telegram-part cleanup",
 			Description: "Delete old Telegram documents that are not referenced by file or upload parts.",
 			Kind:        OrphanCleanupKind, DefaultArgs: rawArgs(OrphanCleanupArgs{PageSize: 100}),
 			DefaultQueue: CleanupQueue, DefaultPriority: 3, DefaultMaxAttempts: 3,
-			DefaultCronExpression: "@every 336h", DefaultCronTimezone: maintenanceTimezone,
+			DefaultCronExpression: orphanCleanupDefaultCron, DefaultCronTimezone: maintenanceTimezone,
 		})
 	}
 	return templates
@@ -385,7 +440,7 @@ func (r *Runtime) Create(ctx context.Context, input CreateInput) (Job, error) {
 		return Job{}, ErrRuntimeNotConfigured
 	}
 	kind := strings.TrimSpace(input.Kind)
-	if kind != CleanupSweepKind && kind != PurgeSweepKind && kind != OrphanCleanupKind {
+	if kind != UploadCleanupSweepKind && kind != TrashCleanupSweepKind && kind != PurgeSweepKind && kind != OrphanCleanupKind {
 		return Job{}, fmt.Errorf("unsupported job kind %q", kind)
 	}
 	encoded, err := json.Marshal(input.Args)

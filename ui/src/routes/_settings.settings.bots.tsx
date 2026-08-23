@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import TrashIcon from "~icons/gravity-ui/trash-bin";
 import { $api } from "@/api/client";
 import { userMessage } from "@/api/errors";
+import { ConfirmDialog } from "@/components/dialogs/confirm-dialog";
 import { SettingsPageHeader, SettingsRow, SettingsSection } from "@/components/settings-layout";
 import { newIdempotencyKey } from "@/features/shared/idempotency";
 import { getQueryClient } from "@/lib/queryClient";
@@ -21,6 +22,7 @@ export const Route = createFileRoute("/_settings/settings/bots")({
 function BotsSettings() {
   const [token, setToken] = useState("");
   const [isAddingBots, setIsAddingBots] = useState(false);
+  const [deleteBot, setDeleteBot] = useState<{ id: number; name: string } | null>(null);
   const query = $api.useSuspenseQuery(
     "get",
     "/v1/bots",
@@ -28,7 +30,16 @@ function BotsSettings() {
     { staleTime: 20_000 },
   );
   const create = $api.useMutation("post", "/v1/bots");
-  const remove = $api.useMutation("delete", "/v1/bots/{botId}");
+  const remove = $api.useMutation("delete", "/v1/bots/{botId}", {
+    onSuccess: () => {
+      setDeleteBot(null);
+      void refresh();
+      toast.success("Telegram bot deleted");
+    },
+    onError: (error) => {
+      toast.error("Telegram bot could not be deleted", { description: userMessage(error) });
+    },
+  });
   const refresh = () =>
     getQueryClient().invalidateQueries({ queryKey: $api.queryOptions("get", "/v1/bots").queryKey });
 
@@ -125,17 +136,8 @@ function BotsSettings() {
                   size="sm"
                   variant="ghost"
                   aria-label={`Delete bot ${bot.username || bot.id}`}
-                  isDisabled={remove.isPending}
-                  onPress={async () => {
-                    if (
-                      !window.confirm(
-                        "Delete this Telegram bot? Uploads using other bots or your user session will continue.",
-                      )
-                    )
-                      return;
-                    await remove.mutateAsync({ params: { path: { botId: bot.id } } });
-                    await refresh();
-                  }}
+                  isDisabled={remove.isPending && deleteBot?.id === bot.id}
+                  onPress={() => setDeleteBot({ id: bot.id, name: bot.username || `bot-${bot.id}` })}
                 >
                   <TrashIcon className="size-4" />
                 </Button>
@@ -146,6 +148,21 @@ function BotsSettings() {
           <div className="px-5 py-8 text-sm text-muted">No Telegram bots are configured.</div>
         )}
       </SettingsSection>
+      <ConfirmDialog
+        open={deleteBot !== null}
+        onOpenChange={(open) => {
+          if (!open && !remove.isPending) setDeleteBot(null);
+        }}
+        title="Delete Telegram bot?"
+        message={`Uploads using other bots or your user session will continue after “${deleteBot?.name ?? ""}” is removed.`}
+        confirmLabel="Delete bot"
+        isPending={remove.isPending}
+        onConfirm={() => {
+          if (deleteBot) {
+            remove.mutate({ params: { path: { botId: deleteBot.id } } });
+          }
+        }}
+      />
     </div>
   );
 }

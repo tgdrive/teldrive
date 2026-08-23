@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -29,10 +30,11 @@ var (
 )
 
 type Service struct {
-	pool    *pgxpool.Pool
-	queries *sqlcgen.Queries
-	now     func() time.Time
-	cache   cache.Cacher
+	pool         *pgxpool.Pool
+	queries      *sqlcgen.Queries
+	now          func() time.Time
+	cache        cache.Cacher
+	cacheStripes [64]sync.RWMutex
 }
 
 func NewService(pool *pgxpool.Pool, c cache.Cacher) *Service {
@@ -41,6 +43,10 @@ func NewService(pool *pgxpool.Pool, c cache.Cacher) *Service {
 
 func (s *Service) cacheKey(parts ...any) string {
 	return cache.Key(parts...)
+}
+
+func (s *Service) cacheStripe(fileID uuid.UUID) *sync.RWMutex {
+	return &s.cacheStripes[int(fileID[15])%len(s.cacheStripes)]
 }
 
 type CreateFolderInput struct {
@@ -92,8 +98,13 @@ func (s *Service) Get(ctx context.Context, userID int64, fileID uuid.UUID) (*sql
 		return nil, ErrInvalidOwner
 	}
 	if s.cache != nil {
+		stripe := s.cacheStripe(fileID)
+		stripe.RLock()
+		defer stripe.RUnlock()
+	}
+	if s.cache != nil {
 		key := s.cacheKey("catalog", "file", userID, fileID.String())
-		return cache.Fetch(ctx, s.cache, key, time.Minute, func() (*sqlcgen.File, error) {
+		return cache.Fetch(ctx, s.cache, key, 0, func() (*sqlcgen.File, error) {
 			f, err := s.queries.GetFileForUser(ctx, sqlcgen.GetFileForUserParams{
 				FileID: dbtypes.UUID(fileID),
 				UserID: userID,
@@ -166,13 +177,16 @@ func (s *Service) Parts(ctx context.Context, userID int64, fileID uuid.UUID) ([]
 		return nil, ErrNotAFile
 	}
 	if s.cache != nil {
+		stripe := s.cacheStripe(fileID)
+		stripe.RLock()
+		defer stripe.RUnlock()
 		key := s.cacheKey("catalog", "parts", fileID.String())
-		return cache.Fetch(ctx, s.cache, key, time.Minute, func() ([]*sqlcgen.FilePart, error) {
-			p, err := s.queries.ListFileParts(ctx, dbtypes.UUID(fileID))
+		return cache.Fetch(ctx, s.cache, key, 0, func() ([]*sqlcgen.FilePart, error) {
+			parts, err := s.queries.ListFileParts(ctx, dbtypes.UUID(fileID))
 			if err != nil {
 				return nil, fmt.Errorf("list file parts: %w", err)
 			}
-			return p, nil
+			return parts, nil
 		})
 	}
 	parts, err := s.queries.ListFileParts(ctx, dbtypes.UUID(fileID))
@@ -191,7 +205,10 @@ func (s *Service) UpdatePartSizes(ctx context.Context, fileID uuid.UUID, partNo 
 		return fmt.Errorf("update file part sizes: %w", err)
 	}
 	if s.cache != nil {
+		stripe := s.cacheStripe(fileID)
+		stripe.Lock()
 		_ = s.cache.Delete(ctx, s.cacheKey("catalog", "parts", fileID.String()))
+		stripe.Unlock()
 	}
 	return nil
 }
@@ -344,11 +361,26 @@ func (s *Service) Restore(ctx context.Context, userID int64, fileID uuid.UUID) (
 	return file, nil
 }
 
-func (s *Service) invalidateFile(ctx context.Context, userID int64, fileID uuid.UUID) {
-	if s.cache == nil {
+func (s *Service) InvalidateFiles(ctx context.Context, userID int64, fileIDs ...uuid.UUID) {
+	if s.cache == nil || userID <= 0 {
 		return
 	}
-	_ = s.cache.Delete(ctx, s.cacheKey("catalog", "file", userID, fileID.String()), s.cacheKey("catalog", "parts", fileID.String()))
+	for _, fileID := range fileIDs {
+		if fileID == uuid.Nil {
+			continue
+		}
+		stripe := s.cacheStripe(fileID)
+		stripe.Lock()
+		_ = s.cache.Delete(ctx,
+			s.cacheKey("catalog", "file", userID, fileID.String()),
+			s.cacheKey("catalog", "parts", fileID.String()),
+		)
+		stripe.Unlock()
+	}
+}
+
+func (s *Service) invalidateFile(ctx context.Context, userID int64, fileID uuid.UUID) {
+	s.InvalidateFiles(ctx, userID, fileID)
 }
 
 func classifyWriteError(action string, err error) error {

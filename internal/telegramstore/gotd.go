@@ -146,7 +146,7 @@ func (s *GotdStorage) Metadata(ctx context.Context, request MetadataRequest) (St
 	}
 	var stored StoredPart
 	err := s.runner.Run(ctx, request.UserID, OperationDownload, func(runCtx context.Context, api *tg.Client) error {
-		_, size, err := fetchDocumentLocation(runCtx, api, request.ChannelID, request.MessageID, s.globalCache)
+		_, size, err := fetchDocumentLocation(runCtx, api, request.UserID, request.ChannelID, request.MessageID, s.globalCache)
 		if err != nil {
 			return err
 		}
@@ -167,7 +167,7 @@ func (s *GotdStorage) OpenRange(ctx context.Context, request RangeRequest) (io.R
 	reader := newTelegramRangeReader(streamCtx, cancel, s.downloadReadBuffers, s.downloadReadParallel)
 	go func() {
 		err := runWithConnections(streamCtx, s.runner, request.UserID, OperationDownload, s.downloadReadParallel, func(runCtx context.Context, api *tg.Client) error {
-			location, documentSize, err := fetchDocumentLocation(runCtx, api, request.ChannelID, request.MessageID, s.globalCache)
+			location, documentSize, err := fetchDocumentLocation(runCtx, api, request.UserID, request.ChannelID, request.MessageID, s.globalCache)
 			if err != nil {
 				return err
 			}
@@ -202,6 +202,7 @@ type gotdDownloadSession struct {
 	mu                   sync.Mutex
 	downloadReadBuffers  int
 	downloadReadParallel int
+	userID               int64
 
 	globalCache cache.Cacher
 }
@@ -211,11 +212,11 @@ type cachedDocumentLocation struct {
 	Size     int64                         `msgpack:"size"`
 }
 
-func fetchDocumentLocation(ctx context.Context, api *tg.Client, channelID, messageID int64, c cache.Cacher) (*tg.InputDocumentFileLocation, int64, error) {
+func fetchDocumentLocation(ctx context.Context, api *tg.Client, userID, channelID, messageID int64, c cache.Cacher) (*tg.InputDocumentFileLocation, int64, error) {
 	if c == nil {
 		return documentLocation(ctx, api, channelID, messageID)
 	}
-	gk := cache.Key("telegram", "document", channelID, messageID)
+	gk := cache.Key("telegram", "document", userID, channelID, messageID)
 	result, err := cache.Fetch(ctx, c, gk, 30*time.Minute, func() (cachedDocumentLocation, error) {
 		loc, size, err := documentLocation(ctx, api, channelID, messageID)
 		if err != nil {
@@ -238,6 +239,7 @@ func (s *GotdStorage) OpenDownloadSession(ctx context.Context, userID int64) (Do
 	sessionCtx, cancel := context.WithCancel(ctx)
 	session := &gotdDownloadSession{
 		ctx: sessionCtx, cancel: cancel, ready: make(chan struct{}), done: make(chan struct{}),
+		userID:               userID,
 		downloadReadBuffers:  s.downloadReadBuffers,
 		downloadReadParallel: s.downloadReadParallel,
 		globalCache:          s.globalCache,
@@ -305,7 +307,7 @@ func (s *gotdDownloadSession) OpenRange(ctx context.Context, request RangeReques
 }
 
 func (s *gotdDownloadSession) documentLocation(ctx context.Context, api *tg.Client, channelID, messageID int64) (*tg.InputDocumentFileLocation, int64, error) {
-	return fetchDocumentLocation(ctx, api, channelID, messageID, s.globalCache)
+	return fetchDocumentLocation(ctx, api, s.userID, channelID, messageID, s.globalCache)
 }
 
 func (s *gotdDownloadSession) client() (*tg.Client, error) {

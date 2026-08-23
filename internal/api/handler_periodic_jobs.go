@@ -39,6 +39,18 @@ func (h *Handler) GetPeriodicJobCatalog(context.Context) (gen.GetPeriodicJobCata
 	return &response, nil
 }
 
+func (h *Handler) ResetPeriodicJobs(ctx context.Context) (gen.ResetPeriodicJobsRes, error) {
+	items, err := h.Jobs.ResetPeriodicJobs(ctx)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	response := gen.PeriodicJobList{Jobs: make([]gen.PeriodicJob, 0, len(items))}
+	for _, item := range items {
+		response.Jobs = append(response.Jobs, periodicJobResponse(item))
+	}
+	return &response, nil
+}
+
 func (h *Handler) CreatePeriodicJob(ctx context.Context, req *gen.PeriodicJobCreate) (gen.CreatePeriodicJobRes, error) {
 	paused, _ := req.Paused.Get()
 	item, err := h.Jobs.CreatePeriodicJob(ctx, jobs.PeriodicJobInput{

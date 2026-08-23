@@ -42,6 +42,9 @@ func TestDefaultIncludesLegacyPublicTelegramClientIdentity(t *testing.T) {
 	if cfg.Uploads.SessionTTL != 7*24*time.Hour {
 		t.Fatalf("Uploads SessionTTL = %s, want 168h", cfg.Uploads.SessionTTL)
 	}
+	if cfg.Cache.Memory.Size.String() != "5MB" {
+		t.Fatalf("memory cache default = %s, want 5MB", cfg.Cache.Memory.Size)
+	}
 	if cfg.Cache.Stream.Dir != "" || cfg.Cache.Stream.MaxSize.String() != "50GB" || cfg.Cache.Stream.ShardDepth != 1 || cfg.Cache.Stream.ChunkStreams != 4 {
 		t.Fatalf("stream cache defaults = %#v", cfg.Cache.Stream)
 	}

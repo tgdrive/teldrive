@@ -5,18 +5,6 @@ type AbortUploadRes interface {
 	abortUploadRes()
 }
 
-type BrowserTelegramLoginVerifyCodeRes interface {
-	browserTelegramLoginVerifyCodeRes()
-}
-
-type BrowserTelegramLoginVerifyPasswordRes interface {
-	browserTelegramLoginVerifyPasswordRes()
-}
-
-type BrowserTelegramQRLoginPollRes interface {
-	browserTelegramQRLoginPollRes()
-}
-
 type BulkMoveFilesRes interface {
 	bulkMoveFilesRes()
 }
@@ -31,6 +19,18 @@ type CancelJobRes interface {
 
 type CompleteUploadRes interface {
 	completeUploadRes()
+}
+
+type CookieTelegramLoginVerifyCodeRes interface {
+	cookieTelegramLoginVerifyCodeRes()
+}
+
+type CookieTelegramLoginVerifyPasswordRes interface {
+	cookieTelegramLoginVerifyPasswordRes()
+}
+
+type CookieTelegramQRLoginPollRes interface {
+	cookieTelegramQRLoginPollRes()
 }
 
 type CopyFileRes interface {
@@ -221,8 +221,8 @@ type ListUploadsRes interface {
 	listUploadsRes()
 }
 
-type LogoutBrowserSessionRes interface {
-	logoutBrowserSessionRes()
+type LogoutCookieSessionRes interface {
+	logoutCookieSessionRes()
 }
 
 type LogoutSessionRes interface {
@@ -257,12 +257,16 @@ type PutUploadPartRes interface {
 	putUploadPartRes()
 }
 
-type RefreshBrowserSessionRes interface {
-	refreshBrowserSessionRes()
+type RefreshCookieSessionRes interface {
+	refreshCookieSessionRes()
 }
 
 type RefreshSessionRes interface {
 	refreshSessionRes()
+}
+
+type ResetPeriodicJobsRes interface {
+	resetPeriodicJobsRes()
 }
 
 type RestoreFileRes interface {

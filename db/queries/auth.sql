@@ -103,15 +103,16 @@ RETURNING *;
 
 -- name: RevokeSession :execrows
 UPDATE /* TEMPLATE: schema */sessions
-SET revoked_at = now()
+SET revoked_at = COALESCE(revoked_at, now())
 WHERE id = sqlc.arg(session_id)
-  AND user_id = sqlc.arg(user_id)
-  AND revoked_at IS NULL;
+  AND user_id = sqlc.arg(user_id);
 
 -- name: ListSessions :many
 SELECT *
 FROM /* TEMPLATE: schema */sessions
 WHERE user_id = sqlc.arg(user_id)
+  AND revoked_at IS NULL
+  AND expires_at > now()
   AND (
     sqlc.narg(after_created_at)::timestamptz IS NULL
     OR (created_at, id) < (

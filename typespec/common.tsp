@@ -12,12 +12,12 @@ scalar Cursor extends string;
 scalar ETag extends string;
 scalar Checksum extends string;
 
-model BrowserCookieAuth is ApiKeyAuth<ApiKeyLocation.cookie, "teldrive_access">;
+model CookieAuth is ApiKeyAuth<ApiKeyLocation.cookie, "teldrive_access">;
 model ExternalApiKeyAuth is ApiKeyAuth<ApiKeyLocation.header, "X-Api-Key">;
 
-alias BearerOrCookieAuth = BearerAuth | BrowserCookieAuth;
+alias BearerOrCookieAuth = BearerAuth | CookieAuth;
 
-alias TelDriveAuth = BearerAuth | BrowserCookieAuth | ExternalApiKeyAuth;
+alias TelDriveAuth = BearerAuth | CookieAuth | ExternalApiKeyAuth;
 
 model ErrorDetail {
   /** Stable machine-readable error code. */

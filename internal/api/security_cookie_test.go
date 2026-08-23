@@ -26,7 +26,7 @@ func (a *cookieTestAuthenticator) AuthenticateAPIKey(_ context.Context, key stri
 	return a.identity, a.err
 }
 
-func TestHandleBrowserCookieAuthUsesBearerAuthentication(t *testing.T) {
+func TestHandleCookieAuthUsesBearerAuthentication(t *testing.T) {
 	t.Parallel()
 	sessionID := uuid.MustParse("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
 	authenticator := &cookieTestAuthenticator{identity: Identity{
@@ -36,9 +36,9 @@ func TestHandleBrowserCookieAuthUsesBearerAuthentication(t *testing.T) {
 		Source:    "bearer",
 	}}
 	security := NewSecurity(authenticator)
-	ctx, err := security.HandleBrowserCookieAuth(context.Background(), gen.GetCurrentUserOperation, gen.BrowserCookieAuth{APIKey: "cookie-access-token"})
+	ctx, err := security.HandleCookieAuth(context.Background(), gen.GetCurrentUserOperation, gen.CookieAuth{APIKey: "cookie-access-token"})
 	if err != nil {
-		t.Fatalf("HandleBrowserCookieAuth() error = %v", err)
+		t.Fatalf("HandleCookieAuth() error = %v", err)
 	}
 	if authenticator.bearerToken != "cookie-access-token" {
 		t.Fatalf("bearer token = %q", authenticator.bearerToken)
@@ -52,7 +52,7 @@ func TestHandleBrowserCookieAuthUsesBearerAuthentication(t *testing.T) {
 	}
 }
 
-func TestHandleBrowserCookieAuthRejectsInvalidCredentials(t *testing.T) {
+func TestHandleCookieAuthRejectsInvalidCredentials(t *testing.T) {
 	t.Parallel()
 	for _, test := range []struct {
 		name          string
@@ -66,7 +66,7 @@ func TestHandleBrowserCookieAuthRejectsInvalidCredentials(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			security := NewSecurity(test.authenticator)
-			_, err := security.HandleBrowserCookieAuth(context.Background(), gen.GetCurrentUserOperation, gen.BrowserCookieAuth{APIKey: test.token})
+			_, err := security.HandleCookieAuth(context.Background(), gen.GetCurrentUserOperation, gen.CookieAuth{APIKey: test.token})
 			if !errors.Is(err, test.want) {
 				t.Fatalf("error = %v, want %v", err, test.want)
 			}

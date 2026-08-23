@@ -26,11 +26,17 @@ import (
 )
 
 const (
-	cleanupPeriodicID   = "teldrive-upload-cleanup"
-	purgePeriodicID     = "teldrive-pending-file-purge"
-	defaultCron         = "*/5 * * * *"
-	maintenanceTimezone = "UTC"
-	maintenanceWorkers  = 2
+	uploadCleanupPeriodicID           = "teldrive-upload-cleanup"
+	trashCleanupPeriodicID            = "teldrive-trash-cleanup"
+	purgePeriodicID                   = "teldrive-pending-file-purge"
+	orphanCleanupPeriodicID           = "teldrive-orphaned-telegram-part-cleanup"
+	uploadCleanupDefaultCron          = "@every 12h"
+	trashCleanupDefaultCron           = "@every 1h"
+	pendingDeletionCleanupDefaultCron = "@every 12h"
+	orphanCleanupDefaultCron          = "@every 336h"
+	maintenanceTimezone               = "UTC"
+	maintenanceWorkers                = 2
+	cleanupPeriodicID                 = uploadCleanupPeriodicID // deprecated compatibility name
 )
 
 var ErrRuntimeNotConfigured = errors.New("job runtime is not configured")
@@ -77,7 +83,7 @@ func newRuntimeWithSchema(pool *pgxpool.Pool, storage telegramstore.Storage, sch
 	}
 	workers := river.NewWorkers()
 	if err := river.AddWorkerSafely(workers, NewUploadCleanupWorker(pool, storage)); err != nil {
-		return nil, fmt.Errorf("register cleanup worker: %w", err)
+		return nil, fmt.Errorf("register upload cleanup worker: %w", err)
 	}
 	var purgeService PurgeService
 	if len(purgeServices) > 0 {
@@ -86,6 +92,9 @@ func newRuntimeWithSchema(pool *pgxpool.Pool, storage telegramstore.Storage, sch
 	if purgeService != nil {
 		if err := river.AddWorkerSafely(workers, NewPendingFilePurgeWorker(pool, purgeService)); err != nil {
 			return nil, fmt.Errorf("register purge worker: %w", err)
+		}
+		if err := river.AddWorkerSafely(workers, NewTrashCleanupWorker(pool, purgeService)); err != nil {
+			return nil, fmt.Errorf("register trash cleanup worker: %w", err)
 		}
 	}
 	lister, orphanCleanupEnabled := storage.(telegramstore.DocumentMessageLister)
@@ -157,25 +166,44 @@ func (r *Runtime) Start(ctx context.Context) error {
 	if r.started {
 		return nil
 	}
-	cleanupArgs, err := json.Marshal(CleanupSweepArgs{BatchSize: defaultBatchSize})
+	uploadCleanupArgs, err := json.Marshal(UploadCleanupSweepArgs{BatchSize: defaultBatchSize})
 	if err != nil {
-		return fmt.Errorf("marshal cleanup periodic args: %w", err)
+		return fmt.Errorf("marshal upload cleanup periodic args: %w", err)
 	}
 	if _, err := r.client.PeriodicJobInsert(ctx, &riverpro.PeriodicJobInsertOpts{
-		ID:          cleanupPeriodicID,
-		Kind:        CleanupSweepKind,
-		Args:        cleanupArgs,
+		ID:          uploadCleanupPeriodicID,
+		Kind:        UploadCleanupSweepKind,
+		Args:        uploadCleanupArgs,
 		Queue:       CleanupQueue,
 		Priority:    2,
 		MaxAttempts: 3,
 		Schedule: &riverpro.PeriodicJobSchedule{
-			CronExpression: defaultCron,
+			CronExpression: uploadCleanupDefaultCron,
 			CronTimezone:   maintenanceTimezone,
 		},
 	}); err != nil && !errors.Is(err, riverpro.ErrPeriodicJobAlreadyExists) {
-		return fmt.Errorf("upsert cleanup periodic job: %w", err)
+		return fmt.Errorf("upsert upload cleanup periodic job: %w", err)
 	}
 	if r.purgeEnabled {
+		trashCleanupArgs, err := json.Marshal(TrashCleanupSweepArgs{Retention: "720h", BatchSize: defaultBatchSize})
+		if err != nil {
+			return fmt.Errorf("marshal trash cleanup periodic args: %w", err)
+		}
+		if _, err := r.client.PeriodicJobInsert(ctx, &riverpro.PeriodicJobInsertOpts{
+			ID:          trashCleanupPeriodicID,
+			Kind:        TrashCleanupSweepKind,
+			Args:        trashCleanupArgs,
+			Queue:       CleanupQueue,
+			Priority:    1,
+			MaxAttempts: 3,
+			Schedule: &riverpro.PeriodicJobSchedule{
+				CronExpression: trashCleanupDefaultCron,
+				CronTimezone:   maintenanceTimezone,
+			},
+		}); err != nil && !errors.Is(err, riverpro.ErrPeriodicJobAlreadyExists) {
+			return fmt.Errorf("upsert trash cleanup periodic job: %w", err)
+		}
+
 		purgeArgs, err := json.Marshal(PurgeSweepArgs{BatchSize: defaultBatchSize})
 		if err != nil {
 			return fmt.Errorf("marshal purge periodic args: %w", err)
@@ -188,11 +216,31 @@ func (r *Runtime) Start(ctx context.Context) error {
 			Priority:    1,
 			MaxAttempts: 3,
 			Schedule: &riverpro.PeriodicJobSchedule{
-				CronExpression: defaultCron,
+				CronExpression: pendingDeletionCleanupDefaultCron,
 				CronTimezone:   maintenanceTimezone,
 			},
 		}); err != nil && !errors.Is(err, riverpro.ErrPeriodicJobAlreadyExists) {
 			return fmt.Errorf("upsert purge periodic job: %w", err)
+		}
+	}
+	if r.orphanCleanupEnabled {
+		orphanCleanupArgs, err := json.Marshal(OrphanCleanupArgs{PageSize: 100})
+		if err != nil {
+			return fmt.Errorf("marshal orphan cleanup periodic args: %w", err)
+		}
+		if _, err := r.client.PeriodicJobInsert(ctx, &riverpro.PeriodicJobInsertOpts{
+			ID:          orphanCleanupPeriodicID,
+			Kind:        OrphanCleanupKind,
+			Args:        orphanCleanupArgs,
+			Queue:       CleanupQueue,
+			Priority:    3,
+			MaxAttempts: 3,
+			Schedule: &riverpro.PeriodicJobSchedule{
+				CronExpression: orphanCleanupDefaultCron,
+				CronTimezone:   maintenanceTimezone,
+			},
+		}); err != nil && !errors.Is(err, riverpro.ErrPeriodicJobAlreadyExists) {
+			return fmt.Errorf("upsert orphan cleanup periodic job: %w", err)
 		}
 	}
 	if err := r.client.Start(ctx); err != nil {
@@ -218,17 +266,22 @@ func (r *Runtime) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (r *Runtime) InsertCleanup(ctx context.Context, batchSize int32) error {
+func (r *Runtime) InsertUploadCleanup(ctx context.Context, batchSize int32) error {
 	if r == nil || r.client == nil {
 		return ErrRuntimeNotConfigured
 	}
 	if batchSize <= 0 {
 		batchSize = defaultBatchSize
 	}
-	if _, err := r.client.Insert(ctx, CleanupSweepArgs{BatchSize: batchSize}, nil); err != nil {
-		return fmt.Errorf("insert cleanup sweep: %w", err)
+	if _, err := r.client.Insert(ctx, UploadCleanupSweepArgs{BatchSize: batchSize}, nil); err != nil {
+		return fmt.Errorf("insert upload cleanup sweep: %w", err)
 	}
 	return nil
+}
+
+// InsertCleanup is kept for callers using the previous generic name.
+func (r *Runtime) InsertCleanup(ctx context.Context, batchSize int32) error {
+	return r.InsertUploadCleanup(ctx, batchSize)
 }
 
 func (r *Runtime) InsertPurge(ctx context.Context, batchSize int32) error {

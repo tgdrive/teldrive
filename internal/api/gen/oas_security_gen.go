@@ -15,8 +15,8 @@ import (
 type SecurityHandler interface {
 	// HandleBearerAuth handles BearerAuth security.
 	HandleBearerAuth(ctx context.Context, operationName OperationName, t BearerAuth) (context.Context, error)
-	// HandleBrowserCookieAuth handles BrowserCookieAuth security.
-	HandleBrowserCookieAuth(ctx context.Context, operationName OperationName, t BrowserCookieAuth) (context.Context, error)
+	// HandleCookieAuth handles CookieAuth security.
+	HandleCookieAuth(ctx context.Context, operationName OperationName, t CookieAuth) (context.Context, error)
 	// HandleEventTicketAuth handles EventTicketAuth security.
 	HandleEventTicketAuth(ctx context.Context, operationName OperationName, t EventTicketAuth) (context.Context, error)
 	// HandleExternalApiKeyAuth handles ExternalApiKeyAuth security.
@@ -95,6 +95,7 @@ var operationRolesBearerAuth = map[string][]string{
 	PurgeJobsOperation:                 []string{},
 	PutFileViewStateOperation:          []string{},
 	PutUploadPartOperation:             []string{},
+	ResetPeriodicJobsOperation:         []string{},
 	RestoreFileOperation:               []string{},
 	ResumeJobQueueOperation:            []string{},
 	ResumePeriodicJobOperation:         []string{},
@@ -132,8 +133,8 @@ func GetRolesForBearerAuth(operation string) []string {
 	return result
 }
 
-// operationRolesBrowserCookieAuth is a private map storing roles per operation.
-var operationRolesBrowserCookieAuth = map[string][]string{
+// operationRolesCookieAuth is a private map storing roles per operation.
+var operationRolesCookieAuth = map[string][]string{
 	AbortUploadOperation:               []string{},
 	BulkMoveFilesOperation:             []string{},
 	BulkTrashFilesOperation:            []string{},
@@ -181,7 +182,7 @@ var operationRolesBrowserCookieAuth = map[string][]string{
 	ListSessionsOperation:              []string{},
 	ListUploadPartsOperation:           []string{},
 	ListUploadsOperation:               []string{},
-	LogoutBrowserSessionOperation:      []string{},
+	LogoutCookieSessionOperation:       []string{},
 	LogoutSessionOperation:             []string{},
 	MoveFileOperation:                  []string{},
 	PauseJobQueueOperation:             []string{},
@@ -190,6 +191,7 @@ var operationRolesBrowserCookieAuth = map[string][]string{
 	PurgeJobsOperation:                 []string{},
 	PutFileViewStateOperation:          []string{},
 	PutUploadPartOperation:             []string{},
+	ResetPeriodicJobsOperation:         []string{},
 	RestoreFileOperation:               []string{},
 	ResumeJobQueueOperation:            []string{},
 	ResumePeriodicJobOperation:         []string{},
@@ -205,18 +207,18 @@ var operationRolesBrowserCookieAuth = map[string][]string{
 	UpdateShareOperation:               []string{},
 }
 
-// GetRolesForBrowserCookieAuth returns the required roles for the given operation.
+// GetRolesForCookieAuth returns the required roles for the given operation.
 //
 // This is useful for authorization scenarios where you need to know which roles
 // are required for an operation.
 //
 // Example:
 //
-//	requiredRoles := GetRolesForBrowserCookieAuth(AddPetOperation)
+//	requiredRoles := GetRolesForCookieAuth(AddPetOperation)
 //
 // Returns nil if the operation has no role requirements or if the operation is unknown.
-func GetRolesForBrowserCookieAuth(operation string) []string {
-	roles, ok := operationRolesBrowserCookieAuth[operation]
+func GetRolesForCookieAuth(operation string) []string {
+	roles, ok := operationRolesCookieAuth[operation]
 	if !ok {
 		return nil
 	}
@@ -303,6 +305,7 @@ var operationRolesExternalApiKeyAuth = map[string][]string{
 	PurgeJobsOperation:                 []string{},
 	PutFileViewStateOperation:          []string{},
 	PutUploadPartOperation:             []string{},
+	ResetPeriodicJobsOperation:         []string{},
 	RestoreFileOperation:               []string{},
 	ResumeJobQueueOperation:            []string{},
 	ResumePeriodicJobOperation:         []string{},
@@ -355,8 +358,8 @@ func (s *Server) securityBearerAuth(ctx context.Context, operationName Operation
 	return rctx, true, err
 }
 
-func (s *Server) securityBrowserCookieAuth(ctx context.Context, operationName OperationName, req *http.Request) (context.Context, bool, error) {
-	var t BrowserCookieAuth
+func (s *Server) securityCookieAuth(ctx context.Context, operationName OperationName, req *http.Request) (context.Context, bool, error) {
+	var t CookieAuth
 	const parameterName = "teldrive_access"
 	var value string
 	switch cookie, err := req.Cookie(parameterName); {
@@ -368,8 +371,8 @@ func (s *Server) securityBrowserCookieAuth(ctx context.Context, operationName Op
 		return nil, false, errors.Wrap(err, "get cookie value")
 	}
 	t.APIKey = value
-	t.Roles = operationRolesBrowserCookieAuth[operationName]
-	rctx, err := s.sec.HandleBrowserCookieAuth(ctx, operationName, t)
+	t.Roles = operationRolesCookieAuth[operationName]
+	rctx, err := s.sec.HandleCookieAuth(ctx, operationName, t)
 	if errors.Is(err, ogenerrors.ErrSkipServerSecurity) {
 		return nil, false, nil
 	} else if err != nil {
@@ -419,8 +422,8 @@ func (s *Server) securityExternalApiKeyAuth(ctx context.Context, operationName O
 type SecuritySource interface {
 	// BearerAuth provides BearerAuth security value.
 	BearerAuth(ctx context.Context, operationName OperationName) (BearerAuth, error)
-	// BrowserCookieAuth provides BrowserCookieAuth security value.
-	BrowserCookieAuth(ctx context.Context, operationName OperationName) (BrowserCookieAuth, error)
+	// CookieAuth provides CookieAuth security value.
+	CookieAuth(ctx context.Context, operationName OperationName) (CookieAuth, error)
 	// EventTicketAuth provides EventTicketAuth security value.
 	EventTicketAuth(ctx context.Context, operationName OperationName) (EventTicketAuth, error)
 	// ExternalApiKeyAuth provides ExternalApiKeyAuth security value.
@@ -435,10 +438,10 @@ func (s *Client) securityBearerAuth(ctx context.Context, operationName Operation
 	req.Header.Set("Authorization", "Bearer "+t.Token)
 	return nil
 }
-func (s *Client) securityBrowserCookieAuth(ctx context.Context, operationName OperationName, req *http.Request) error {
-	t, err := s.sec.BrowserCookieAuth(ctx, operationName)
+func (s *Client) securityCookieAuth(ctx context.Context, operationName OperationName, req *http.Request) error {
+	t, err := s.sec.CookieAuth(ctx, operationName)
 	if err != nil {
-		return errors.Wrap(err, "security source \"BrowserCookieAuth\"")
+		return errors.Wrap(err, "security source \"CookieAuth\"")
 	}
 	req.AddCookie(&http.Cookie{
 		Name:  "teldrive_access",

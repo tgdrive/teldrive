@@ -130,14 +130,14 @@ func (s *Server) handleAbortUploadRequest(args [1]string, argsEscaped bool, w ht
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, AbortUploadOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, AbortUploadOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -256,480 +256,6 @@ func (s *Server) handleAbortUploadRequest(args [1]string, argsEscaped bool, w ht
 	}
 }
 
-// handleBrowserTelegramLoginVerifyCodeRequest handles browserTelegramLoginVerifyCode operation.
-//
-// Complete Telegram code verification for the browser UI and establish an HttpOnly cookie session.
-//
-// POST /v1/auth/browser/telegram/verify-code
-func (s *Server) handleBrowserTelegramLoginVerifyCodeRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
-	statusWriter := &codeRecorder{ResponseWriter: w}
-	w = statusWriter
-	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("browserTelegramLoginVerifyCode"),
-		semconv.HTTPRequestMethodKey.String("POST"),
-		semconv.HTTPRouteKey.String("/v1/auth/browser/telegram/verify-code"),
-	}
-	// Add attributes from config.
-	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
-
-	// Start a span for this request.
-	ctx, span := s.cfg.Tracer.Start(r.Context(), BrowserTelegramLoginVerifyCodeOperation,
-		trace.WithAttributes(otelAttrs...),
-		serverSpanKind,
-	)
-	defer span.End()
-
-	// Add Labeler to context.
-	labeler := &Labeler{attrs: otelAttrs}
-	ctx = contextWithLabeler(ctx, labeler)
-
-	// Run stopwatch.
-	startTime := time.Now()
-	defer func() {
-		elapsedDuration := time.Since(startTime)
-
-		attrSet := labeler.AttributeSet()
-		attrs := attrSet.ToSlice()
-		code := statusWriter.status
-		if code != 0 {
-			codeAttr := semconv.HTTPResponseStatusCode(code)
-			attrs = append(attrs, codeAttr)
-			span.SetAttributes(attrs...)
-		}
-		attrOpt := metric.WithAttributes(attrs...)
-
-		// Increment request counter.
-		s.requests.Add(ctx, 1, attrOpt)
-
-		// Use floating point division here for higher precision (instead of Millisecond method).
-		s.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), attrOpt)
-	}()
-
-	var (
-		recordError = func(stage string, err error) {
-			span.RecordError(err)
-
-			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
-			// Span Status MUST be left unset if HTTP status code was in the 1xx, 2xx or 3xx ranges,
-			// unless there was another error (e.g., network error receiving the response body; or 3xx codes with
-			// max redirects exceeded), in which case status MUST be set to Error.
-			code := statusWriter.status
-			if code < 100 || code >= 500 {
-				span.SetStatus(codes.Error, stage)
-			}
-
-			attrSet := labeler.AttributeSet()
-			attrs := attrSet.ToSlice()
-			if code != 0 {
-				attrs = append(attrs, semconv.HTTPResponseStatusCode(code))
-			}
-
-			s.errors.Add(ctx, 1, metric.WithAttributes(attrs...))
-		}
-		err          error
-		opErrContext = ogenerrors.OperationContext{
-			Name: BrowserTelegramLoginVerifyCodeOperation,
-			ID:   "browserTelegramLoginVerifyCode",
-		}
-	)
-	params, err := decodeBrowserTelegramLoginVerifyCodeParams(args, argsEscaped, r)
-	if err != nil {
-		err = &ogenerrors.DecodeParamsError{
-			OperationContext: opErrContext,
-			Err:              err,
-		}
-		defer recordError("DecodeParams", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
-		return
-	}
-
-	var rawBody []byte
-	request, rawBody, close, err := s.decodeBrowserTelegramLoginVerifyCodeRequest(r)
-	if err != nil {
-		err = &ogenerrors.DecodeRequestError{
-			OperationContext: opErrContext,
-			Err:              err,
-		}
-		defer recordError("DecodeRequest", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
-		return
-	}
-	defer func() {
-		if err := close(); err != nil {
-			recordError("CloseRequest", err)
-		}
-	}()
-
-	var response BrowserTelegramLoginVerifyCodeRes
-	if m := s.cfg.Middleware; m != nil {
-		mreq := middleware.Request{
-			Context:          ctx,
-			OperationName:    BrowserTelegramLoginVerifyCodeOperation,
-			OperationSummary: "",
-			OperationID:      "browserTelegramLoginVerifyCode",
-			Body:             request,
-			RawBody:          rawBody,
-			Params: middleware.Parameters{
-				{
-					Name: "Idempotency-Key",
-					In:   "header",
-				}: params.IdempotencyKey,
-			},
-			Raw: r,
-		}
-
-		type (
-			Request  = *TelegramCodeVerifyRequest
-			Params   = BrowserTelegramLoginVerifyCodeParams
-			Response = BrowserTelegramLoginVerifyCodeRes
-		)
-		response, err = middleware.HookMiddleware[
-			Request,
-			Params,
-			Response,
-		](
-			m,
-			mreq,
-			unpackBrowserTelegramLoginVerifyCodeParams,
-			func(ctx context.Context, request Request, params Params) (response Response, err error) {
-				response, err = s.h.BrowserTelegramLoginVerifyCode(ctx, request, params)
-				return response, err
-			},
-		)
-	} else {
-		response, err = s.h.BrowserTelegramLoginVerifyCode(ctx, request, params)
-	}
-	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
-		return
-	}
-
-	if err := encodeBrowserTelegramLoginVerifyCodeResponse(response, w, span); err != nil {
-		defer recordError("EncodeResponse", err)
-		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
-			s.cfg.ErrorHandler(ctx, w, r, err)
-		}
-		return
-	}
-}
-
-// handleBrowserTelegramLoginVerifyPasswordRequest handles browserTelegramLoginVerifyPassword operation.
-//
-// Complete Telegram password verification for the browser UI and establish an HttpOnly cookie session.
-//
-// POST /v1/auth/browser/telegram/verify-password
-func (s *Server) handleBrowserTelegramLoginVerifyPasswordRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
-	statusWriter := &codeRecorder{ResponseWriter: w}
-	w = statusWriter
-	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("browserTelegramLoginVerifyPassword"),
-		semconv.HTTPRequestMethodKey.String("POST"),
-		semconv.HTTPRouteKey.String("/v1/auth/browser/telegram/verify-password"),
-	}
-	// Add attributes from config.
-	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
-
-	// Start a span for this request.
-	ctx, span := s.cfg.Tracer.Start(r.Context(), BrowserTelegramLoginVerifyPasswordOperation,
-		trace.WithAttributes(otelAttrs...),
-		serverSpanKind,
-	)
-	defer span.End()
-
-	// Add Labeler to context.
-	labeler := &Labeler{attrs: otelAttrs}
-	ctx = contextWithLabeler(ctx, labeler)
-
-	// Run stopwatch.
-	startTime := time.Now()
-	defer func() {
-		elapsedDuration := time.Since(startTime)
-
-		attrSet := labeler.AttributeSet()
-		attrs := attrSet.ToSlice()
-		code := statusWriter.status
-		if code != 0 {
-			codeAttr := semconv.HTTPResponseStatusCode(code)
-			attrs = append(attrs, codeAttr)
-			span.SetAttributes(attrs...)
-		}
-		attrOpt := metric.WithAttributes(attrs...)
-
-		// Increment request counter.
-		s.requests.Add(ctx, 1, attrOpt)
-
-		// Use floating point division here for higher precision (instead of Millisecond method).
-		s.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), attrOpt)
-	}()
-
-	var (
-		recordError = func(stage string, err error) {
-			span.RecordError(err)
-
-			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
-			// Span Status MUST be left unset if HTTP status code was in the 1xx, 2xx or 3xx ranges,
-			// unless there was another error (e.g., network error receiving the response body; or 3xx codes with
-			// max redirects exceeded), in which case status MUST be set to Error.
-			code := statusWriter.status
-			if code < 100 || code >= 500 {
-				span.SetStatus(codes.Error, stage)
-			}
-
-			attrSet := labeler.AttributeSet()
-			attrs := attrSet.ToSlice()
-			if code != 0 {
-				attrs = append(attrs, semconv.HTTPResponseStatusCode(code))
-			}
-
-			s.errors.Add(ctx, 1, metric.WithAttributes(attrs...))
-		}
-		err          error
-		opErrContext = ogenerrors.OperationContext{
-			Name: BrowserTelegramLoginVerifyPasswordOperation,
-			ID:   "browserTelegramLoginVerifyPassword",
-		}
-	)
-	params, err := decodeBrowserTelegramLoginVerifyPasswordParams(args, argsEscaped, r)
-	if err != nil {
-		err = &ogenerrors.DecodeParamsError{
-			OperationContext: opErrContext,
-			Err:              err,
-		}
-		defer recordError("DecodeParams", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
-		return
-	}
-
-	var rawBody []byte
-	request, rawBody, close, err := s.decodeBrowserTelegramLoginVerifyPasswordRequest(r)
-	if err != nil {
-		err = &ogenerrors.DecodeRequestError{
-			OperationContext: opErrContext,
-			Err:              err,
-		}
-		defer recordError("DecodeRequest", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
-		return
-	}
-	defer func() {
-		if err := close(); err != nil {
-			recordError("CloseRequest", err)
-		}
-	}()
-
-	var response BrowserTelegramLoginVerifyPasswordRes
-	if m := s.cfg.Middleware; m != nil {
-		mreq := middleware.Request{
-			Context:          ctx,
-			OperationName:    BrowserTelegramLoginVerifyPasswordOperation,
-			OperationSummary: "",
-			OperationID:      "browserTelegramLoginVerifyPassword",
-			Body:             request,
-			RawBody:          rawBody,
-			Params: middleware.Parameters{
-				{
-					Name: "Idempotency-Key",
-					In:   "header",
-				}: params.IdempotencyKey,
-			},
-			Raw: r,
-		}
-
-		type (
-			Request  = *TelegramPasswordVerifyRequest
-			Params   = BrowserTelegramLoginVerifyPasswordParams
-			Response = BrowserTelegramLoginVerifyPasswordRes
-		)
-		response, err = middleware.HookMiddleware[
-			Request,
-			Params,
-			Response,
-		](
-			m,
-			mreq,
-			unpackBrowserTelegramLoginVerifyPasswordParams,
-			func(ctx context.Context, request Request, params Params) (response Response, err error) {
-				response, err = s.h.BrowserTelegramLoginVerifyPassword(ctx, request, params)
-				return response, err
-			},
-		)
-	} else {
-		response, err = s.h.BrowserTelegramLoginVerifyPassword(ctx, request, params)
-	}
-	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
-		return
-	}
-
-	if err := encodeBrowserTelegramLoginVerifyPasswordResponse(response, w, span); err != nil {
-		defer recordError("EncodeResponse", err)
-		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
-			s.cfg.ErrorHandler(ctx, w, r, err)
-		}
-		return
-	}
-}
-
-// handleBrowserTelegramQRLoginPollRequest handles browserTelegramQRLoginPoll operation.
-//
-// Poll Telegram QR login for the browser UI and establish an HttpOnly cookie session when authorized.
-//
-// POST /v1/auth/browser/telegram/qr/poll
-func (s *Server) handleBrowserTelegramQRLoginPollRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
-	statusWriter := &codeRecorder{ResponseWriter: w}
-	w = statusWriter
-	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("browserTelegramQRLoginPoll"),
-		semconv.HTTPRequestMethodKey.String("POST"),
-		semconv.HTTPRouteKey.String("/v1/auth/browser/telegram/qr/poll"),
-	}
-	// Add attributes from config.
-	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
-
-	// Start a span for this request.
-	ctx, span := s.cfg.Tracer.Start(r.Context(), BrowserTelegramQRLoginPollOperation,
-		trace.WithAttributes(otelAttrs...),
-		serverSpanKind,
-	)
-	defer span.End()
-
-	// Add Labeler to context.
-	labeler := &Labeler{attrs: otelAttrs}
-	ctx = contextWithLabeler(ctx, labeler)
-
-	// Run stopwatch.
-	startTime := time.Now()
-	defer func() {
-		elapsedDuration := time.Since(startTime)
-
-		attrSet := labeler.AttributeSet()
-		attrs := attrSet.ToSlice()
-		code := statusWriter.status
-		if code != 0 {
-			codeAttr := semconv.HTTPResponseStatusCode(code)
-			attrs = append(attrs, codeAttr)
-			span.SetAttributes(attrs...)
-		}
-		attrOpt := metric.WithAttributes(attrs...)
-
-		// Increment request counter.
-		s.requests.Add(ctx, 1, attrOpt)
-
-		// Use floating point division here for higher precision (instead of Millisecond method).
-		s.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), attrOpt)
-	}()
-
-	var (
-		recordError = func(stage string, err error) {
-			span.RecordError(err)
-
-			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
-			// Span Status MUST be left unset if HTTP status code was in the 1xx, 2xx or 3xx ranges,
-			// unless there was another error (e.g., network error receiving the response body; or 3xx codes with
-			// max redirects exceeded), in which case status MUST be set to Error.
-			code := statusWriter.status
-			if code < 100 || code >= 500 {
-				span.SetStatus(codes.Error, stage)
-			}
-
-			attrSet := labeler.AttributeSet()
-			attrs := attrSet.ToSlice()
-			if code != 0 {
-				attrs = append(attrs, semconv.HTTPResponseStatusCode(code))
-			}
-
-			s.errors.Add(ctx, 1, metric.WithAttributes(attrs...))
-		}
-		err          error
-		opErrContext = ogenerrors.OperationContext{
-			Name: BrowserTelegramQRLoginPollOperation,
-			ID:   "browserTelegramQRLoginPoll",
-		}
-	)
-	params, err := decodeBrowserTelegramQRLoginPollParams(args, argsEscaped, r)
-	if err != nil {
-		err = &ogenerrors.DecodeParamsError{
-			OperationContext: opErrContext,
-			Err:              err,
-		}
-		defer recordError("DecodeParams", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
-		return
-	}
-
-	var rawBody []byte
-	request, rawBody, close, err := s.decodeBrowserTelegramQRLoginPollRequest(r)
-	if err != nil {
-		err = &ogenerrors.DecodeRequestError{
-			OperationContext: opErrContext,
-			Err:              err,
-		}
-		defer recordError("DecodeRequest", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
-		return
-	}
-	defer func() {
-		if err := close(); err != nil {
-			recordError("CloseRequest", err)
-		}
-	}()
-
-	var response BrowserTelegramQRLoginPollRes
-	if m := s.cfg.Middleware; m != nil {
-		mreq := middleware.Request{
-			Context:          ctx,
-			OperationName:    BrowserTelegramQRLoginPollOperation,
-			OperationSummary: "",
-			OperationID:      "browserTelegramQRLoginPoll",
-			Body:             request,
-			RawBody:          rawBody,
-			Params: middleware.Parameters{
-				{
-					Name: "Idempotency-Key",
-					In:   "header",
-				}: params.IdempotencyKey,
-			},
-			Raw: r,
-		}
-
-		type (
-			Request  = *TelegramQRLoginPollRequest
-			Params   = BrowserTelegramQRLoginPollParams
-			Response = BrowserTelegramQRLoginPollRes
-		)
-		response, err = middleware.HookMiddleware[
-			Request,
-			Params,
-			Response,
-		](
-			m,
-			mreq,
-			unpackBrowserTelegramQRLoginPollParams,
-			func(ctx context.Context, request Request, params Params) (response Response, err error) {
-				response, err = s.h.BrowserTelegramQRLoginPoll(ctx, request, params)
-				return response, err
-			},
-		)
-	} else {
-		response, err = s.h.BrowserTelegramQRLoginPoll(ctx, request, params)
-	}
-	if err != nil {
-		defer recordError("Internal", err)
-		s.cfg.ErrorHandler(ctx, w, r, err)
-		return
-	}
-
-	if err := encodeBrowserTelegramQRLoginPollResponse(response, w, span); err != nil {
-		defer recordError("EncodeResponse", err)
-		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
-			s.cfg.ErrorHandler(ctx, w, r, err)
-		}
-		return
-	}
-}
-
 // handleBulkMoveFilesRequest handles bulkMoveFiles operation.
 //
 // Transactionally move multiple files or folders.
@@ -827,14 +353,14 @@ func (s *Server) handleBulkMoveFilesRequest(args [0]string, argsEscaped bool, w 
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, BulkMoveFilesOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, BulkMoveFilesOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -1065,14 +591,14 @@ func (s *Server) handleBulkTrashFilesRequest(args [0]string, argsEscaped bool, w
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, BulkTrashFilesOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, BulkTrashFilesOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -1301,14 +827,14 @@ func (s *Server) handleCancelJobRequest(args [1]string, argsEscaped bool, w http
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, CancelJobOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, CancelJobOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -1525,14 +1051,14 @@ func (s *Server) handleCompleteUploadRequest(args [1]string, argsEscaped bool, w
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, CompleteUploadOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, CompleteUploadOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -1655,6 +1181,480 @@ func (s *Server) handleCompleteUploadRequest(args [1]string, argsEscaped bool, w
 	}
 }
 
+// handleCookieTelegramLoginVerifyCodeRequest handles cookieTelegramLoginVerifyCode operation.
+//
+// Complete Telegram code verification and establish an HttpOnly cookie session.
+//
+// POST /v1/auth/cookie/telegram/verify-code
+func (s *Server) handleCookieTelegramLoginVerifyCodeRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
+	statusWriter := &codeRecorder{ResponseWriter: w}
+	w = statusWriter
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("cookieTelegramLoginVerifyCode"),
+		semconv.HTTPRequestMethodKey.String("POST"),
+		semconv.HTTPRouteKey.String("/v1/auth/cookie/telegram/verify-code"),
+	}
+	// Add attributes from config.
+	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
+
+	// Start a span for this request.
+	ctx, span := s.cfg.Tracer.Start(r.Context(), CookieTelegramLoginVerifyCodeOperation,
+		trace.WithAttributes(otelAttrs...),
+		serverSpanKind,
+	)
+	defer span.End()
+
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		elapsedDuration := time.Since(startTime)
+
+		attrSet := labeler.AttributeSet()
+		attrs := attrSet.ToSlice()
+		code := statusWriter.status
+		if code != 0 {
+			codeAttr := semconv.HTTPResponseStatusCode(code)
+			attrs = append(attrs, codeAttr)
+			span.SetAttributes(attrs...)
+		}
+		attrOpt := metric.WithAttributes(attrs...)
+
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), attrOpt)
+	}()
+
+	var (
+		recordError = func(stage string, err error) {
+			span.RecordError(err)
+
+			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
+			// Span Status MUST be left unset if HTTP status code was in the 1xx, 2xx or 3xx ranges,
+			// unless there was another error (e.g., network error receiving the response body; or 3xx codes with
+			// max redirects exceeded), in which case status MUST be set to Error.
+			code := statusWriter.status
+			if code < 100 || code >= 500 {
+				span.SetStatus(codes.Error, stage)
+			}
+
+			attrSet := labeler.AttributeSet()
+			attrs := attrSet.ToSlice()
+			if code != 0 {
+				attrs = append(attrs, semconv.HTTPResponseStatusCode(code))
+			}
+
+			s.errors.Add(ctx, 1, metric.WithAttributes(attrs...))
+		}
+		err          error
+		opErrContext = ogenerrors.OperationContext{
+			Name: CookieTelegramLoginVerifyCodeOperation,
+			ID:   "cookieTelegramLoginVerifyCode",
+		}
+	)
+	params, err := decodeCookieTelegramLoginVerifyCodeParams(args, argsEscaped, r)
+	if err != nil {
+		err = &ogenerrors.DecodeParamsError{
+			OperationContext: opErrContext,
+			Err:              err,
+		}
+		defer recordError("DecodeParams", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+
+	var rawBody []byte
+	request, rawBody, close, err := s.decodeCookieTelegramLoginVerifyCodeRequest(r)
+	if err != nil {
+		err = &ogenerrors.DecodeRequestError{
+			OperationContext: opErrContext,
+			Err:              err,
+		}
+		defer recordError("DecodeRequest", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+	defer func() {
+		if err := close(); err != nil {
+			recordError("CloseRequest", err)
+		}
+	}()
+
+	var response CookieTelegramLoginVerifyCodeRes
+	if m := s.cfg.Middleware; m != nil {
+		mreq := middleware.Request{
+			Context:          ctx,
+			OperationName:    CookieTelegramLoginVerifyCodeOperation,
+			OperationSummary: "",
+			OperationID:      "cookieTelegramLoginVerifyCode",
+			Body:             request,
+			RawBody:          rawBody,
+			Params: middleware.Parameters{
+				{
+					Name: "Idempotency-Key",
+					In:   "header",
+				}: params.IdempotencyKey,
+			},
+			Raw: r,
+		}
+
+		type (
+			Request  = *TelegramCodeVerifyRequest
+			Params   = CookieTelegramLoginVerifyCodeParams
+			Response = CookieTelegramLoginVerifyCodeRes
+		)
+		response, err = middleware.HookMiddleware[
+			Request,
+			Params,
+			Response,
+		](
+			m,
+			mreq,
+			unpackCookieTelegramLoginVerifyCodeParams,
+			func(ctx context.Context, request Request, params Params) (response Response, err error) {
+				response, err = s.h.CookieTelegramLoginVerifyCode(ctx, request, params)
+				return response, err
+			},
+		)
+	} else {
+		response, err = s.h.CookieTelegramLoginVerifyCode(ctx, request, params)
+	}
+	if err != nil {
+		defer recordError("Internal", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+
+	if err := encodeCookieTelegramLoginVerifyCodeResponse(response, w, span); err != nil {
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
+		return
+	}
+}
+
+// handleCookieTelegramLoginVerifyPasswordRequest handles cookieTelegramLoginVerifyPassword operation.
+//
+// Complete Telegram password verification and establish an HttpOnly cookie session.
+//
+// POST /v1/auth/cookie/telegram/verify-password
+func (s *Server) handleCookieTelegramLoginVerifyPasswordRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
+	statusWriter := &codeRecorder{ResponseWriter: w}
+	w = statusWriter
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("cookieTelegramLoginVerifyPassword"),
+		semconv.HTTPRequestMethodKey.String("POST"),
+		semconv.HTTPRouteKey.String("/v1/auth/cookie/telegram/verify-password"),
+	}
+	// Add attributes from config.
+	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
+
+	// Start a span for this request.
+	ctx, span := s.cfg.Tracer.Start(r.Context(), CookieTelegramLoginVerifyPasswordOperation,
+		trace.WithAttributes(otelAttrs...),
+		serverSpanKind,
+	)
+	defer span.End()
+
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		elapsedDuration := time.Since(startTime)
+
+		attrSet := labeler.AttributeSet()
+		attrs := attrSet.ToSlice()
+		code := statusWriter.status
+		if code != 0 {
+			codeAttr := semconv.HTTPResponseStatusCode(code)
+			attrs = append(attrs, codeAttr)
+			span.SetAttributes(attrs...)
+		}
+		attrOpt := metric.WithAttributes(attrs...)
+
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), attrOpt)
+	}()
+
+	var (
+		recordError = func(stage string, err error) {
+			span.RecordError(err)
+
+			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
+			// Span Status MUST be left unset if HTTP status code was in the 1xx, 2xx or 3xx ranges,
+			// unless there was another error (e.g., network error receiving the response body; or 3xx codes with
+			// max redirects exceeded), in which case status MUST be set to Error.
+			code := statusWriter.status
+			if code < 100 || code >= 500 {
+				span.SetStatus(codes.Error, stage)
+			}
+
+			attrSet := labeler.AttributeSet()
+			attrs := attrSet.ToSlice()
+			if code != 0 {
+				attrs = append(attrs, semconv.HTTPResponseStatusCode(code))
+			}
+
+			s.errors.Add(ctx, 1, metric.WithAttributes(attrs...))
+		}
+		err          error
+		opErrContext = ogenerrors.OperationContext{
+			Name: CookieTelegramLoginVerifyPasswordOperation,
+			ID:   "cookieTelegramLoginVerifyPassword",
+		}
+	)
+	params, err := decodeCookieTelegramLoginVerifyPasswordParams(args, argsEscaped, r)
+	if err != nil {
+		err = &ogenerrors.DecodeParamsError{
+			OperationContext: opErrContext,
+			Err:              err,
+		}
+		defer recordError("DecodeParams", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+
+	var rawBody []byte
+	request, rawBody, close, err := s.decodeCookieTelegramLoginVerifyPasswordRequest(r)
+	if err != nil {
+		err = &ogenerrors.DecodeRequestError{
+			OperationContext: opErrContext,
+			Err:              err,
+		}
+		defer recordError("DecodeRequest", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+	defer func() {
+		if err := close(); err != nil {
+			recordError("CloseRequest", err)
+		}
+	}()
+
+	var response CookieTelegramLoginVerifyPasswordRes
+	if m := s.cfg.Middleware; m != nil {
+		mreq := middleware.Request{
+			Context:          ctx,
+			OperationName:    CookieTelegramLoginVerifyPasswordOperation,
+			OperationSummary: "",
+			OperationID:      "cookieTelegramLoginVerifyPassword",
+			Body:             request,
+			RawBody:          rawBody,
+			Params: middleware.Parameters{
+				{
+					Name: "Idempotency-Key",
+					In:   "header",
+				}: params.IdempotencyKey,
+			},
+			Raw: r,
+		}
+
+		type (
+			Request  = *TelegramPasswordVerifyRequest
+			Params   = CookieTelegramLoginVerifyPasswordParams
+			Response = CookieTelegramLoginVerifyPasswordRes
+		)
+		response, err = middleware.HookMiddleware[
+			Request,
+			Params,
+			Response,
+		](
+			m,
+			mreq,
+			unpackCookieTelegramLoginVerifyPasswordParams,
+			func(ctx context.Context, request Request, params Params) (response Response, err error) {
+				response, err = s.h.CookieTelegramLoginVerifyPassword(ctx, request, params)
+				return response, err
+			},
+		)
+	} else {
+		response, err = s.h.CookieTelegramLoginVerifyPassword(ctx, request, params)
+	}
+	if err != nil {
+		defer recordError("Internal", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+
+	if err := encodeCookieTelegramLoginVerifyPasswordResponse(response, w, span); err != nil {
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
+		return
+	}
+}
+
+// handleCookieTelegramQRLoginPollRequest handles cookieTelegramQRLoginPoll operation.
+//
+// Poll Telegram QR login and establish an HttpOnly cookie session when authorized.
+//
+// POST /v1/auth/cookie/telegram/qr/poll
+func (s *Server) handleCookieTelegramQRLoginPollRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
+	statusWriter := &codeRecorder{ResponseWriter: w}
+	w = statusWriter
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("cookieTelegramQRLoginPoll"),
+		semconv.HTTPRequestMethodKey.String("POST"),
+		semconv.HTTPRouteKey.String("/v1/auth/cookie/telegram/qr/poll"),
+	}
+	// Add attributes from config.
+	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
+
+	// Start a span for this request.
+	ctx, span := s.cfg.Tracer.Start(r.Context(), CookieTelegramQRLoginPollOperation,
+		trace.WithAttributes(otelAttrs...),
+		serverSpanKind,
+	)
+	defer span.End()
+
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		elapsedDuration := time.Since(startTime)
+
+		attrSet := labeler.AttributeSet()
+		attrs := attrSet.ToSlice()
+		code := statusWriter.status
+		if code != 0 {
+			codeAttr := semconv.HTTPResponseStatusCode(code)
+			attrs = append(attrs, codeAttr)
+			span.SetAttributes(attrs...)
+		}
+		attrOpt := metric.WithAttributes(attrs...)
+
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), attrOpt)
+	}()
+
+	var (
+		recordError = func(stage string, err error) {
+			span.RecordError(err)
+
+			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
+			// Span Status MUST be left unset if HTTP status code was in the 1xx, 2xx or 3xx ranges,
+			// unless there was another error (e.g., network error receiving the response body; or 3xx codes with
+			// max redirects exceeded), in which case status MUST be set to Error.
+			code := statusWriter.status
+			if code < 100 || code >= 500 {
+				span.SetStatus(codes.Error, stage)
+			}
+
+			attrSet := labeler.AttributeSet()
+			attrs := attrSet.ToSlice()
+			if code != 0 {
+				attrs = append(attrs, semconv.HTTPResponseStatusCode(code))
+			}
+
+			s.errors.Add(ctx, 1, metric.WithAttributes(attrs...))
+		}
+		err          error
+		opErrContext = ogenerrors.OperationContext{
+			Name: CookieTelegramQRLoginPollOperation,
+			ID:   "cookieTelegramQRLoginPoll",
+		}
+	)
+	params, err := decodeCookieTelegramQRLoginPollParams(args, argsEscaped, r)
+	if err != nil {
+		err = &ogenerrors.DecodeParamsError{
+			OperationContext: opErrContext,
+			Err:              err,
+		}
+		defer recordError("DecodeParams", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+
+	var rawBody []byte
+	request, rawBody, close, err := s.decodeCookieTelegramQRLoginPollRequest(r)
+	if err != nil {
+		err = &ogenerrors.DecodeRequestError{
+			OperationContext: opErrContext,
+			Err:              err,
+		}
+		defer recordError("DecodeRequest", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+	defer func() {
+		if err := close(); err != nil {
+			recordError("CloseRequest", err)
+		}
+	}()
+
+	var response CookieTelegramQRLoginPollRes
+	if m := s.cfg.Middleware; m != nil {
+		mreq := middleware.Request{
+			Context:          ctx,
+			OperationName:    CookieTelegramQRLoginPollOperation,
+			OperationSummary: "",
+			OperationID:      "cookieTelegramQRLoginPoll",
+			Body:             request,
+			RawBody:          rawBody,
+			Params: middleware.Parameters{
+				{
+					Name: "Idempotency-Key",
+					In:   "header",
+				}: params.IdempotencyKey,
+			},
+			Raw: r,
+		}
+
+		type (
+			Request  = *TelegramQRLoginPollRequest
+			Params   = CookieTelegramQRLoginPollParams
+			Response = CookieTelegramQRLoginPollRes
+		)
+		response, err = middleware.HookMiddleware[
+			Request,
+			Params,
+			Response,
+		](
+			m,
+			mreq,
+			unpackCookieTelegramQRLoginPollParams,
+			func(ctx context.Context, request Request, params Params) (response Response, err error) {
+				response, err = s.h.CookieTelegramQRLoginPoll(ctx, request, params)
+				return response, err
+			},
+		)
+	} else {
+		response, err = s.h.CookieTelegramQRLoginPoll(ctx, request, params)
+	}
+	if err != nil {
+		defer recordError("Internal", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+
+	if err := encodeCookieTelegramQRLoginPollResponse(response, w, span); err != nil {
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
+		return
+	}
+}
+
 // handleCopyFileRequest handles copyFile operation.
 //
 // Copy a file or folder to another destination.
@@ -1752,14 +1752,14 @@ func (s *Server) handleCopyFileRequest(args [1]string, argsEscaped bool, w http.
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, CopyFileOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, CopyFileOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -1992,14 +1992,14 @@ func (s *Server) handleCreateApiKeyRequest(args [0]string, argsEscaped bool, w h
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, CreateApiKeyOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, CreateApiKeyOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -2210,14 +2210,14 @@ func (s *Server) handleCreateBotsRequest(args [0]string, argsEscaped bool, w htt
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, CreateBotsOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, CreateBotsOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -2428,14 +2428,14 @@ func (s *Server) handleCreateChannelRequest(args [0]string, argsEscaped bool, w 
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, CreateChannelOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, CreateChannelOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -2666,14 +2666,14 @@ func (s *Server) handleCreateEventStreamTicketRequest(args [0]string, argsEscape
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, CreateEventStreamTicketOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, CreateEventStreamTicketOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -2872,14 +2872,14 @@ func (s *Server) handleCreateFolderRequest(args [0]string, argsEscaped bool, w h
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, CreateFolderOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, CreateFolderOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -3108,14 +3108,14 @@ func (s *Server) handleCreateJobRequest(args [0]string, argsEscaped bool, w http
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, CreateJobOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, CreateJobOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -3329,14 +3329,14 @@ func (s *Server) handleCreatePeriodicJobRequest(args [0]string, argsEscaped bool
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, CreatePeriodicJobOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, CreatePeriodicJobOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -3550,14 +3550,14 @@ func (s *Server) handleCreateShareRequest(args [1]string, argsEscaped bool, w ht
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, CreateShareOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, CreateShareOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -3792,14 +3792,14 @@ func (s *Server) handleCreateUploadRequest(args [0]string, argsEscaped bool, w h
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, CreateUploadOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, CreateUploadOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -4030,14 +4030,14 @@ func (s *Server) handleCreateUploadImportRequest(args [0]string, argsEscaped boo
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, CreateUploadImportOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, CreateUploadImportOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -4251,14 +4251,14 @@ func (s *Server) handleDeleteBotRequest(args [1]string, argsEscaped bool, w http
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, DeleteBotOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, DeleteBotOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -4454,14 +4454,14 @@ func (s *Server) handleDeleteChannelRequest(args [1]string, argsEscaped bool, w 
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, DeleteChannelOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, DeleteChannelOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -4677,14 +4677,14 @@ func (s *Server) handleDeleteFileViewStateRequest(args [1]string, argsEscaped bo
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, DeleteFileViewStateOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, DeleteFileViewStateOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -4898,14 +4898,14 @@ func (s *Server) handleDeleteJobRequest(args [1]string, argsEscaped bool, w http
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, DeleteJobOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, DeleteJobOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -5119,14 +5119,14 @@ func (s *Server) handleDeletePeriodicJobRequest(args [1]string, argsEscaped bool
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, DeletePeriodicJobOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, DeletePeriodicJobOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -5342,14 +5342,14 @@ func (s *Server) handleDiscoverChannelsRequest(args [0]string, argsEscaped bool,
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, DiscoverChannelsOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, DiscoverChannelsOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -5550,14 +5550,14 @@ func (s *Server) handleDownloadFileRequest(args [1]string, argsEscaped bool, w h
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, DownloadFileOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, DownloadFileOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -5914,14 +5914,14 @@ func (s *Server) handleGetCurrentUserRequest(args [0]string, argsEscaped bool, w
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, GetCurrentUserOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, GetCurrentUserOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -6122,14 +6122,14 @@ func (s *Server) handleGetDriveStatisticsRequest(args [0]string, argsEscaped boo
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, GetDriveStatisticsOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, GetDriveStatisticsOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -6330,14 +6330,14 @@ func (s *Server) handleGetFileRequest(args [1]string, argsEscaped bool, w http.R
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, GetFileOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, GetFileOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -6553,14 +6553,14 @@ func (s *Server) handleGetFileCategoryStatisticsRequest(args [0]string, argsEsca
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, GetFileCategoryStatisticsOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, GetFileCategoryStatisticsOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -6761,14 +6761,14 @@ func (s *Server) handleGetFileViewStateRequest(args [1]string, argsEscaped bool,
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, GetFileViewStateOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, GetFileViewStateOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -6982,14 +6982,14 @@ func (s *Server) handleGetJobRequest(args [1]string, argsEscaped bool, w http.Re
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, GetJobOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, GetJobOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -7203,14 +7203,14 @@ func (s *Server) handleGetJobStatisticsRequest(args [0]string, argsEscaped bool,
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, GetJobStatisticsOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, GetJobStatisticsOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -7409,14 +7409,14 @@ func (s *Server) handleGetPeriodicJobCatalogRequest(args [0]string, argsEscaped 
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, GetPeriodicJobCatalogOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, GetPeriodicJobCatalogOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -7617,14 +7617,14 @@ func (s *Server) handleGetProfilePhotoRequest(args [0]string, argsEscaped bool, 
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, GetProfilePhotoOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, GetProfilePhotoOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -7970,14 +7970,14 @@ func (s *Server) handleGetStorageStatsRequest(args [0]string, argsEscaped bool, 
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, GetStorageStatsOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, GetStorageStatsOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -8178,14 +8178,14 @@ func (s *Server) handleGetUploadRequest(args [1]string, argsEscaped bool, w http
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, GetUploadOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, GetUploadOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -8401,14 +8401,14 @@ func (s *Server) handleGetUploadStatisticsRequest(args [0]string, argsEscaped bo
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, GetUploadStatisticsOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, GetUploadStatisticsOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -8624,14 +8624,14 @@ func (s *Server) handleHeadFileRequest(args [1]string, argsEscaped bool, w http.
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, HeadFileOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, HeadFileOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -9238,14 +9238,14 @@ func (s *Server) handleListApiKeysRequest(args [0]string, argsEscaped bool, w ht
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, ListApiKeysOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, ListApiKeysOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -9445,14 +9445,14 @@ func (s *Server) handleListBotsRequest(args [0]string, argsEscaped bool, w http.
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, ListBotsOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, ListBotsOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -9652,14 +9652,14 @@ func (s *Server) handleListChannelsRequest(args [0]string, argsEscaped bool, w h
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, ListChannelsOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, ListChannelsOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -9877,14 +9877,14 @@ func (s *Server) handleListFileSharesRequest(args [1]string, argsEscaped bool, w
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, ListFileSharesOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, ListFileSharesOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -10108,14 +10108,14 @@ func (s *Server) handleListFilesRequest(args [0]string, argsEscaped bool, w http
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, ListFilesOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, ListFilesOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -10377,14 +10377,14 @@ func (s *Server) handleListJobQueuesRequest(args [0]string, argsEscaped bool, w 
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, ListJobQueuesOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, ListJobQueuesOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -10583,14 +10583,14 @@ func (s *Server) handleListJobsRequest(args [0]string, argsEscaped bool, w http.
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, ListJobsOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, ListJobsOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -10820,14 +10820,14 @@ func (s *Server) handleListPeriodicJobsRequest(args [0]string, argsEscaped bool,
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, ListPeriodicJobsOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, ListPeriodicJobsOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -11191,14 +11191,14 @@ func (s *Server) handleListSessionsRequest(args [0]string, argsEscaped bool, w h
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, ListSessionsOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, ListSessionsOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -11400,14 +11400,14 @@ func (s *Server) handleListUploadPartsRequest(args [1]string, argsEscaped bool, 
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, ListUploadPartsOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, ListUploadPartsOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -11631,14 +11631,14 @@ func (s *Server) handleListUploadsRequest(args [0]string, argsEscaped bool, w ht
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, ListUploadsOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, ListUploadsOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -11765,24 +11765,24 @@ func (s *Server) handleListUploadsRequest(args [0]string, argsEscaped bool, w ht
 	}
 }
 
-// handleLogoutBrowserSessionRequest handles logoutBrowserSession operation.
+// handleLogoutCookieSessionRequest handles logoutCookieSession operation.
 //
-// Revoke the browser session and clear its HttpOnly cookies.
+// Revoke the cookie session and clear its HttpOnly cookies.
 //
-// POST /v1/auth/browser/logout
-func (s *Server) handleLogoutBrowserSessionRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
+// POST /v1/auth/cookie/logout
+func (s *Server) handleLogoutCookieSessionRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	statusWriter := &codeRecorder{ResponseWriter: w}
 	w = statusWriter
 	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("logoutBrowserSession"),
+		otelogen.OperationID("logoutCookieSession"),
 		semconv.HTTPRequestMethodKey.String("POST"),
-		semconv.HTTPRouteKey.String("/v1/auth/browser/logout"),
+		semconv.HTTPRouteKey.String("/v1/auth/cookie/logout"),
 	}
 	// Add attributes from config.
 	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
 
 	// Start a span for this request.
-	ctx, span := s.cfg.Tracer.Start(r.Context(), LogoutBrowserSessionOperation,
+	ctx, span := s.cfg.Tracer.Start(r.Context(), LogoutCookieSessionOperation,
 		trace.WithAttributes(otelAttrs...),
 		serverSpanKind,
 	)
@@ -11837,22 +11837,22 @@ func (s *Server) handleLogoutBrowserSessionRequest(args [0]string, argsEscaped b
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
-			Name: LogoutBrowserSessionOperation,
-			ID:   "logoutBrowserSession",
+			Name: LogoutCookieSessionOperation,
+			ID:   "logoutCookieSession",
 		}
 	)
 	{
 		type bitset = [1]uint8
 		var satisfied bitset
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, LogoutBrowserSessionOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, LogoutCookieSessionOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -11888,13 +11888,13 @@ func (s *Server) handleLogoutBrowserSessionRequest(args [0]string, argsEscaped b
 
 	var rawBody []byte
 
-	var response LogoutBrowserSessionRes
+	var response LogoutCookieSessionRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
 			Context:          ctx,
-			OperationName:    LogoutBrowserSessionOperation,
+			OperationName:    LogoutCookieSessionOperation,
 			OperationSummary: "",
-			OperationID:      "logoutBrowserSession",
+			OperationID:      "logoutCookieSession",
 			Body:             nil,
 			RawBody:          rawBody,
 			Params:           middleware.Parameters{},
@@ -11904,7 +11904,7 @@ func (s *Server) handleLogoutBrowserSessionRequest(args [0]string, argsEscaped b
 		type (
 			Request  = struct{}
 			Params   = struct{}
-			Response = LogoutBrowserSessionRes
+			Response = LogoutCookieSessionRes
 		)
 		response, err = middleware.HookMiddleware[
 			Request,
@@ -11915,12 +11915,12 @@ func (s *Server) handleLogoutBrowserSessionRequest(args [0]string, argsEscaped b
 			mreq,
 			nil,
 			func(ctx context.Context, request Request, params Params) (response Response, err error) {
-				response, err = s.h.LogoutBrowserSession(ctx)
+				response, err = s.h.LogoutCookieSession(ctx)
 				return response, err
 			},
 		)
 	} else {
-		response, err = s.h.LogoutBrowserSession(ctx)
+		response, err = s.h.LogoutCookieSession(ctx)
 	}
 	if err != nil {
 		defer recordError("Internal", err)
@@ -11928,7 +11928,7 @@ func (s *Server) handleLogoutBrowserSessionRequest(args [0]string, argsEscaped b
 		return
 	}
 
-	if err := encodeLogoutBrowserSessionResponse(response, w, span); err != nil {
+	if err := encodeLogoutCookieSessionResponse(response, w, span); err != nil {
 		defer recordError("EncodeResponse", err)
 		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
 			s.cfg.ErrorHandler(ctx, w, r, err)
@@ -12034,14 +12034,14 @@ func (s *Server) handleLogoutSessionRequest(args [0]string, argsEscaped bool, w 
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, LogoutSessionOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, LogoutSessionOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -12242,14 +12242,14 @@ func (s *Server) handleMoveFileRequest(args [1]string, argsEscaped bool, w http.
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, MoveFileOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, MoveFileOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -12486,14 +12486,14 @@ func (s *Server) handlePauseJobQueueRequest(args [1]string, argsEscaped bool, w 
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, PauseJobQueueOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, PauseJobQueueOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -12707,14 +12707,14 @@ func (s *Server) handlePausePeriodicJobRequest(args [1]string, argsEscaped bool,
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, PausePeriodicJobOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, PausePeriodicJobOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -12930,14 +12930,14 @@ func (s *Server) handlePurgeFileRequest(args [1]string, argsEscaped bool, w http
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, PurgeFileOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, PurgeFileOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -13151,14 +13151,14 @@ func (s *Server) handlePurgeJobsRequest(args [0]string, argsEscaped bool, w http
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, PurgeJobsOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, PurgeJobsOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -13374,14 +13374,14 @@ func (s *Server) handlePutFileViewStateRequest(args [1]string, argsEscaped bool,
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, PutFileViewStateOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, PutFileViewStateOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -13613,14 +13613,14 @@ func (s *Server) handlePutUploadPartRequest(args [2]string, argsEscaped bool, w 
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, PutUploadPartOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, PutUploadPartOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -13766,24 +13766,24 @@ func (s *Server) handlePutUploadPartRequest(args [2]string, argsEscaped bool, w 
 	}
 }
 
-// handleRefreshBrowserSessionRequest handles refreshBrowserSession operation.
+// handleRefreshCookieSessionRequest handles refreshCookieSession operation.
 //
-// Rotate browser session cookies using the HttpOnly refresh cookie.
+// Rotate session cookies using the HttpOnly refresh cookie.
 //
-// POST /v1/auth/browser/refresh
-func (s *Server) handleRefreshBrowserSessionRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
+// POST /v1/auth/cookie/refresh
+func (s *Server) handleRefreshCookieSessionRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	statusWriter := &codeRecorder{ResponseWriter: w}
 	w = statusWriter
 	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("refreshBrowserSession"),
+		otelogen.OperationID("refreshCookieSession"),
 		semconv.HTTPRequestMethodKey.String("POST"),
-		semconv.HTTPRouteKey.String("/v1/auth/browser/refresh"),
+		semconv.HTTPRouteKey.String("/v1/auth/cookie/refresh"),
 	}
 	// Add attributes from config.
 	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
 
 	// Start a span for this request.
-	ctx, span := s.cfg.Tracer.Start(r.Context(), RefreshBrowserSessionOperation,
+	ctx, span := s.cfg.Tracer.Start(r.Context(), RefreshCookieSessionOperation,
 		trace.WithAttributes(otelAttrs...),
 		serverSpanKind,
 	)
@@ -13838,11 +13838,11 @@ func (s *Server) handleRefreshBrowserSessionRequest(args [0]string, argsEscaped 
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
-			Name: RefreshBrowserSessionOperation,
-			ID:   "refreshBrowserSession",
+			Name: RefreshCookieSessionOperation,
+			ID:   "refreshCookieSession",
 		}
 	)
-	params, err := decodeRefreshBrowserSessionParams(args, argsEscaped, r)
+	params, err := decodeRefreshCookieSessionParams(args, argsEscaped, r)
 	if err != nil {
 		err = &ogenerrors.DecodeParamsError{
 			OperationContext: opErrContext,
@@ -13855,13 +13855,13 @@ func (s *Server) handleRefreshBrowserSessionRequest(args [0]string, argsEscaped 
 
 	var rawBody []byte
 
-	var response RefreshBrowserSessionRes
+	var response RefreshCookieSessionRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
 			Context:          ctx,
-			OperationName:    RefreshBrowserSessionOperation,
+			OperationName:    RefreshCookieSessionOperation,
 			OperationSummary: "",
-			OperationID:      "refreshBrowserSession",
+			OperationID:      "refreshCookieSession",
 			Body:             nil,
 			RawBody:          rawBody,
 			Params: middleware.Parameters{
@@ -13875,8 +13875,8 @@ func (s *Server) handleRefreshBrowserSessionRequest(args [0]string, argsEscaped 
 
 		type (
 			Request  = struct{}
-			Params   = RefreshBrowserSessionParams
-			Response = RefreshBrowserSessionRes
+			Params   = RefreshCookieSessionParams
+			Response = RefreshCookieSessionRes
 		)
 		response, err = middleware.HookMiddleware[
 			Request,
@@ -13885,14 +13885,14 @@ func (s *Server) handleRefreshBrowserSessionRequest(args [0]string, argsEscaped 
 		](
 			m,
 			mreq,
-			unpackRefreshBrowserSessionParams,
+			unpackRefreshCookieSessionParams,
 			func(ctx context.Context, request Request, params Params) (response Response, err error) {
-				response, err = s.h.RefreshBrowserSession(ctx, params)
+				response, err = s.h.RefreshCookieSession(ctx, params)
 				return response, err
 			},
 		)
 	} else {
-		response, err = s.h.RefreshBrowserSession(ctx, params)
+		response, err = s.h.RefreshCookieSession(ctx, params)
 	}
 	if err != nil {
 		defer recordError("Internal", err)
@@ -13900,7 +13900,7 @@ func (s *Server) handleRefreshBrowserSessionRequest(args [0]string, argsEscaped 
 		return
 	}
 
-	if err := encodeRefreshBrowserSessionResponse(response, w, span); err != nil {
+	if err := encodeRefreshCookieSessionResponse(response, w, span); err != nil {
 		defer recordError("EncodeResponse", err)
 		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
 			s.cfg.ErrorHandler(ctx, w, r, err)
@@ -14052,6 +14052,212 @@ func (s *Server) handleRefreshSessionRequest(args [0]string, argsEscaped bool, w
 	}
 }
 
+// handleResetPeriodicJobsRequest handles resetPeriodicJobs operation.
+//
+// POST /v1/periodic-jobs/reset
+func (s *Server) handleResetPeriodicJobsRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
+	statusWriter := &codeRecorder{ResponseWriter: w}
+	w = statusWriter
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("resetPeriodicJobs"),
+		semconv.HTTPRequestMethodKey.String("POST"),
+		semconv.HTTPRouteKey.String("/v1/periodic-jobs/reset"),
+	}
+	// Add attributes from config.
+	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
+
+	// Start a span for this request.
+	ctx, span := s.cfg.Tracer.Start(r.Context(), ResetPeriodicJobsOperation,
+		trace.WithAttributes(otelAttrs...),
+		serverSpanKind,
+	)
+	defer span.End()
+
+	// Add Labeler to context.
+	labeler := &Labeler{attrs: otelAttrs}
+	ctx = contextWithLabeler(ctx, labeler)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		elapsedDuration := time.Since(startTime)
+
+		attrSet := labeler.AttributeSet()
+		attrs := attrSet.ToSlice()
+		code := statusWriter.status
+		if code != 0 {
+			codeAttr := semconv.HTTPResponseStatusCode(code)
+			attrs = append(attrs, codeAttr)
+			span.SetAttributes(attrs...)
+		}
+		attrOpt := metric.WithAttributes(attrs...)
+
+		// Increment request counter.
+		s.requests.Add(ctx, 1, attrOpt)
+
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		s.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), attrOpt)
+	}()
+
+	var (
+		recordError = func(stage string, err error) {
+			span.RecordError(err)
+
+			// https://opentelemetry.io/docs/specs/semconv/http/http-spans/#status
+			// Span Status MUST be left unset if HTTP status code was in the 1xx, 2xx or 3xx ranges,
+			// unless there was another error (e.g., network error receiving the response body; or 3xx codes with
+			// max redirects exceeded), in which case status MUST be set to Error.
+			code := statusWriter.status
+			if code < 100 || code >= 500 {
+				span.SetStatus(codes.Error, stage)
+			}
+
+			attrSet := labeler.AttributeSet()
+			attrs := attrSet.ToSlice()
+			if code != 0 {
+				attrs = append(attrs, semconv.HTTPResponseStatusCode(code))
+			}
+
+			s.errors.Add(ctx, 1, metric.WithAttributes(attrs...))
+		}
+		err          error
+		opErrContext = ogenerrors.OperationContext{
+			Name: ResetPeriodicJobsOperation,
+			ID:   "resetPeriodicJobs",
+		}
+	)
+	{
+		type bitset = [1]uint8
+		var satisfied bitset
+		{
+			sctx, ok, err := s.securityBearerAuth(ctx, ResetPeriodicJobsOperation, r)
+			if err != nil {
+				err = &ogenerrors.SecurityError{
+					OperationContext: opErrContext,
+					Security:         "BearerAuth",
+					Err:              err,
+				}
+				defer recordError("Security:BearerAuth", err)
+				s.cfg.ErrorHandler(ctx, w, r, err)
+				return
+			}
+			if ok {
+				satisfied[0] |= 1 << 0
+				ctx = sctx
+			}
+		}
+		{
+			sctx, ok, err := s.securityCookieAuth(ctx, ResetPeriodicJobsOperation, r)
+			if err != nil {
+				err = &ogenerrors.SecurityError{
+					OperationContext: opErrContext,
+					Security:         "CookieAuth",
+					Err:              err,
+				}
+				defer recordError("Security:CookieAuth", err)
+				s.cfg.ErrorHandler(ctx, w, r, err)
+				return
+			}
+			if ok {
+				satisfied[0] |= 1 << 1
+				ctx = sctx
+			}
+		}
+		{
+			sctx, ok, err := s.securityExternalApiKeyAuth(ctx, ResetPeriodicJobsOperation, r)
+			if err != nil {
+				err = &ogenerrors.SecurityError{
+					OperationContext: opErrContext,
+					Security:         "ExternalApiKeyAuth",
+					Err:              err,
+				}
+				defer recordError("Security:ExternalApiKeyAuth", err)
+				s.cfg.ErrorHandler(ctx, w, r, err)
+				return
+			}
+			if ok {
+				satisfied[0] |= 1 << 2
+				ctx = sctx
+			}
+		}
+
+		if ok := func() bool {
+		nextRequirement:
+			for _, requirement := range []bitset{
+				{0b00000001},
+				{0b00000010},
+				{0b00000100},
+			} {
+				for i, mask := range requirement {
+					if satisfied[i]&mask != mask {
+						continue nextRequirement
+					}
+				}
+				return true
+			}
+			return false
+		}(); !ok {
+			err = &ogenerrors.SecurityError{
+				OperationContext: opErrContext,
+				Err:              ogenerrors.ErrSecurityRequirementIsNotSatisfied,
+			}
+			defer recordError("Security", err)
+			s.cfg.ErrorHandler(ctx, w, r, err)
+			return
+		}
+	}
+
+	var rawBody []byte
+
+	var response ResetPeriodicJobsRes
+	if m := s.cfg.Middleware; m != nil {
+		mreq := middleware.Request{
+			Context:          ctx,
+			OperationName:    ResetPeriodicJobsOperation,
+			OperationSummary: "",
+			OperationID:      "resetPeriodicJobs",
+			Body:             nil,
+			RawBody:          rawBody,
+			Params:           middleware.Parameters{},
+			Raw:              r,
+		}
+
+		type (
+			Request  = struct{}
+			Params   = struct{}
+			Response = ResetPeriodicJobsRes
+		)
+		response, err = middleware.HookMiddleware[
+			Request,
+			Params,
+			Response,
+		](
+			m,
+			mreq,
+			nil,
+			func(ctx context.Context, request Request, params Params) (response Response, err error) {
+				response, err = s.h.ResetPeriodicJobs(ctx)
+				return response, err
+			},
+		)
+	} else {
+		response, err = s.h.ResetPeriodicJobs(ctx)
+	}
+	if err != nil {
+		defer recordError("Internal", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+
+	if err := encodeResetPeriodicJobsResponse(response, w, span); err != nil {
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
+		return
+	}
+}
+
 // handleRestoreFileRequest handles restoreFile operation.
 //
 // Restore a trashed file or folder.
@@ -14149,14 +14355,14 @@ func (s *Server) handleRestoreFileRequest(args [1]string, argsEscaped bool, w ht
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, RestoreFileOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, RestoreFileOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -14374,14 +14580,14 @@ func (s *Server) handleResumeJobQueueRequest(args [1]string, argsEscaped bool, w
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, ResumeJobQueueOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, ResumeJobQueueOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -14595,14 +14801,14 @@ func (s *Server) handleResumePeriodicJobRequest(args [1]string, argsEscaped bool
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, ResumePeriodicJobOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, ResumePeriodicJobOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -14816,14 +15022,14 @@ func (s *Server) handleRetryJobRequest(args [1]string, argsEscaped bool, w http.
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, RetryJobOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, RetryJobOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -15037,14 +15243,14 @@ func (s *Server) handleRevokeApiKeyRequest(args [1]string, argsEscaped bool, w h
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, RevokeApiKeyOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, RevokeApiKeyOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -15242,14 +15448,14 @@ func (s *Server) handleRevokeSessionRequest(args [1]string, argsEscaped bool, w 
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, RevokeSessionOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, RevokeSessionOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -15445,14 +15651,14 @@ func (s *Server) handleRevokeShareRequest(args [1]string, argsEscaped bool, w ht
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, RevokeShareOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, RevokeShareOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -15666,14 +15872,14 @@ func (s *Server) handleSelectChannelRequest(args [1]string, argsEscaped bool, w 
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, SelectChannelOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, SelectChannelOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -16110,14 +16316,14 @@ func (s *Server) handleSyncChannelsRequest(args [0]string, argsEscaped bool, w h
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, SyncChannelsOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, SyncChannelsOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -17108,14 +17314,14 @@ func (s *Server) handleTrashFileRequest(args [1]string, argsEscaped bool, w http
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, TrashFileOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, TrashFileOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -17331,14 +17537,14 @@ func (s *Server) handleUpdateFileRequest(args [1]string, argsEscaped bool, w htt
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, UpdateFileOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, UpdateFileOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -17571,14 +17777,14 @@ func (s *Server) handleUpdatePeriodicJobRequest(args [1]string, argsEscaped bool
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, UpdatePeriodicJobOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, UpdatePeriodicJobOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}
@@ -17807,14 +18013,14 @@ func (s *Server) handleUpdateShareRequest(args [1]string, argsEscaped bool, w ht
 			}
 		}
 		{
-			sctx, ok, err := s.securityBrowserCookieAuth(ctx, UpdateShareOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, UpdateShareOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
-					Security:         "BrowserCookieAuth",
+					Security:         "CookieAuth",
 					Err:              err,
 				}
-				defer recordError("Security:BrowserCookieAuth", err)
+				defer recordError("Security:CookieAuth", err)
 				s.cfg.ErrorHandler(ctx, w, r, err)
 				return
 			}

@@ -50,7 +50,7 @@ model RefreshTokenRequest {
   refreshToken: string;
 }
 
-model BrowserRefreshCookie {
+model RefreshCookie {
   @cookie("teldrive_refresh")
   refreshToken: string;
 }
@@ -62,12 +62,12 @@ model TokenPair {
   expiresIn: int32;
 }
 
-model BrowserSession {
+model CookieSession {
   authenticated: true;
   expiresAt: utcDateTime;
 }
 
-model BrowserSessionResponse<Status extends int32> {
+model CookieSessionResponse<Status extends int32> {
   @statusCode
   statusCode: Status;
 
@@ -75,10 +75,10 @@ model BrowserSessionResponse<Status extends int32> {
   setCookie: string[];
 
   @body
-  body: BrowserSession;
+  body: CookieSession;
 }
 
-model BrowserSessionNoContent<Status extends int32> {
+model CookieSessionNoContent<Status extends int32> {
   @statusCode
   statusCode: Status;
 
@@ -228,15 +228,15 @@ namespace Authentication {
     | ErrorResponse<401>
     | ErrorResponse<429>;
 
-  /** Complete Telegram code verification for the browser UI and establish an HttpOnly cookie session. */
+  /** Complete Telegram code verification and establish an HttpOnly cookie session. */
   @post
-  @route("/browser/telegram/verify-code")
-  @operationId("browserTelegramLoginVerifyCode")
-  op browserVerifyCode(
+  @route("/cookie/telegram/verify-code")
+  @operationId("cookieTelegramLoginVerifyCode")
+  op cookieVerifyCode(
     ...IdempotencyHeader,
     @body body: TelegramCodeVerifyRequest,
   ):
-    | BrowserSessionResponse<200>
+    | CookieSessionResponse<200>
     | JsonResponse<202, TelegramLoginStartResponse>
     | ErrorResponse<400>
     | ErrorResponse<401>
@@ -244,30 +244,30 @@ namespace Authentication {
     | ErrorResponse<422>
     | ErrorResponse<429>;
 
-  /** Complete Telegram password verification for the browser UI and establish an HttpOnly cookie session. */
+  /** Complete Telegram password verification and establish an HttpOnly cookie session. */
   @post
-  @route("/browser/telegram/verify-password")
-  @operationId("browserTelegramLoginVerifyPassword")
-  op browserVerifyPassword(
+  @route("/cookie/telegram/verify-password")
+  @operationId("cookieTelegramLoginVerifyPassword")
+  op cookieVerifyPassword(
     ...IdempotencyHeader,
     @body body: TelegramPasswordVerifyRequest,
   ):
-    | BrowserSessionResponse<200>
+    | CookieSessionResponse<200>
     | ErrorResponse<400>
     | ErrorResponse<401>
     | ErrorResponse<410>
     | ErrorResponse<422>
     | ErrorResponse<429>;
 
-  /** Poll Telegram QR login for the browser UI and establish an HttpOnly cookie session when authorized. */
+  /** Poll Telegram QR login and establish an HttpOnly cookie session when authorized. */
   @post
-  @route("/browser/telegram/qr/poll")
-  @operationId("browserTelegramQRLoginPoll")
-  op browserQrPoll(
+  @route("/cookie/telegram/qr/poll")
+  @operationId("cookieTelegramQRLoginPoll")
+  op cookieQrPoll(
     ...IdempotencyHeader,
     @body body: TelegramQRLoginPollRequest,
   ):
-    | BrowserSessionResponse<200>
+    | CookieSessionResponse<200>
     | JsonResponse<202, TelegramQRLoginResponse>
     | ErrorResponse<400>
     | ErrorResponse<401>
@@ -275,21 +275,21 @@ namespace Authentication {
     | ErrorResponse<422>
     | ErrorResponse<429>;
 
-  /** Rotate browser session cookies using the HttpOnly refresh cookie. */
+  /** Rotate session cookies using the HttpOnly refresh cookie. */
   @post
-  @route("/browser/refresh")
-  @operationId("refreshBrowserSession")
-  op browserRefresh(...BrowserRefreshCookie):
-    | BrowserSessionResponse<200>
+  @route("/cookie/refresh")
+  @operationId("refreshCookieSession")
+  op cookieRefresh(...RefreshCookie):
+    | CookieSessionResponse<200>
     | ErrorResponse<401>
     | ErrorResponse<429>;
 
-  /** Revoke the browser session and clear its HttpOnly cookies. */
+  /** Revoke the cookie session and clear its HttpOnly cookies. */
   @post
-  @route("/browser/logout")
-  @operationId("logoutBrowserSession")
-  @useAuth(BrowserCookieAuth)
-  op browserLogout(): BrowserSessionNoContent<204> | ErrorResponse<401>;
+  @route("/cookie/logout")
+  @operationId("logoutCookieSession")
+  @useAuth(CookieAuth)
+  op cookieLogout(): CookieSessionNoContent<204> | ErrorResponse<401>;
 }
 
 @tag("Account")

@@ -172,6 +172,7 @@ func (s *Service) Copy(ctx context.Context, in CopyInput) (*sqlcgen.File, error)
 		compensate()
 		return nil, fmt.Errorf("check copy destination conflict: %w", conflictErr)
 	}
+	var replacedIDs []uuid.UUID
 	if conflictErr == nil {
 		conflictID, ok := dbtypes.GoogleUUID(conflict.ID)
 		if !ok {
@@ -189,6 +190,18 @@ func (s *Service) Copy(ctx context.Context, in CopyInput) (*sqlcgen.File, error)
 				return nil, err
 			}
 		case sqlcgen.NameConflictPolicyReplace:
+			subtreeIDs, err := queries.ListFileSubtreeIDs(ctx, sqlcgen.ListFileSubtreeIDsParams{
+				FileID: dbtypes.UUID(conflictID), UserID: in.UserID,
+			})
+			if err != nil {
+				compensate()
+				return nil, fmt.Errorf("list replaced copy destination subtree: %w", err)
+			}
+			for _, subtreeID := range subtreeIDs {
+				if value, ok := dbtypes.GoogleUUID(subtreeID); ok {
+					replacedIDs = append(replacedIDs, value)
+				}
+			}
 			if err := queries.MarkFileSubtreeDeletionPending(ctx, sqlcgen.MarkFileSubtreeDeletionPendingParams{
 				UserID: in.UserID, FileID: dbtypes.UUID(conflictID),
 			}); err != nil {
@@ -243,6 +256,7 @@ func (s *Service) Copy(ctx context.Context, in CopyInput) (*sqlcgen.File, error)
 		compensate()
 		return nil, fmt.Errorf("commit file copy: %w", err)
 	}
+	s.catalog.InvalidateFiles(ctx, in.UserID, replacedIDs...)
 	return s.catalog.Get(ctx, in.UserID, rootNewID)
 }
 
@@ -353,6 +367,7 @@ func (s *Service) Purge(ctx context.Context, userID int64, fileID uuid.UUID) err
 	}); err != nil {
 		return fmt.Errorf("mark subtree deletion pending: %w", err)
 	}
+	s.catalog.InvalidateFiles(ctx, userID, ids...)
 
 	refs, err := s.queries.ListFilePartMessageRefs(ctx, fileIDs)
 	if err != nil {
@@ -403,6 +418,7 @@ func (s *Service) Purge(ctx context.Context, userID int64, fileID uuid.UUID) err
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit file purge: %w", err)
 	}
+	s.catalog.InvalidateFiles(ctx, userID, ids...)
 	return nil
 }
 

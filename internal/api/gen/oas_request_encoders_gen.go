@@ -10,48 +10,6 @@ import (
 	ht "github.com/ogen-go/ogen/http"
 )
 
-func encodeBrowserTelegramLoginVerifyCodeRequest(
-	req *TelegramCodeVerifyRequest,
-	r *http.Request,
-) error {
-	const contentType = "application/json"
-	e := new(jx.Encoder)
-	{
-		req.Encode(e)
-	}
-	encoded := e.Bytes()
-	ht.SetBody(r, bytes.NewReader(encoded), contentType)
-	return nil
-}
-
-func encodeBrowserTelegramLoginVerifyPasswordRequest(
-	req *TelegramPasswordVerifyRequest,
-	r *http.Request,
-) error {
-	const contentType = "application/json"
-	e := new(jx.Encoder)
-	{
-		req.Encode(e)
-	}
-	encoded := e.Bytes()
-	ht.SetBody(r, bytes.NewReader(encoded), contentType)
-	return nil
-}
-
-func encodeBrowserTelegramQRLoginPollRequest(
-	req *TelegramQRLoginPollRequest,
-	r *http.Request,
-) error {
-	const contentType = "application/json"
-	e := new(jx.Encoder)
-	{
-		req.Encode(e)
-	}
-	encoded := e.Bytes()
-	ht.SetBody(r, bytes.NewReader(encoded), contentType)
-	return nil
-}
-
 func encodeBulkMoveFilesRequest(
 	req *FileBulkMoveRequest,
 	r *http.Request,
@@ -68,6 +26,48 @@ func encodeBulkMoveFilesRequest(
 
 func encodeBulkTrashFilesRequest(
 	req *FileBulkTrashRequest,
+	r *http.Request,
+) error {
+	const contentType = "application/json"
+	e := new(jx.Encoder)
+	{
+		req.Encode(e)
+	}
+	encoded := e.Bytes()
+	ht.SetBody(r, bytes.NewReader(encoded), contentType)
+	return nil
+}
+
+func encodeCookieTelegramLoginVerifyCodeRequest(
+	req *TelegramCodeVerifyRequest,
+	r *http.Request,
+) error {
+	const contentType = "application/json"
+	e := new(jx.Encoder)
+	{
+		req.Encode(e)
+	}
+	encoded := e.Bytes()
+	ht.SetBody(r, bytes.NewReader(encoded), contentType)
+	return nil
+}
+
+func encodeCookieTelegramLoginVerifyPasswordRequest(
+	req *TelegramPasswordVerifyRequest,
+	r *http.Request,
+) error {
+	const contentType = "application/json"
+	e := new(jx.Encoder)
+	{
+		req.Encode(e)
+	}
+	encoded := e.Bytes()
+	ht.SetBody(r, bytes.NewReader(encoded), contentType)
+	return nil
+}
+
+func encodeCookieTelegramQRLoginPollRequest(
+	req *TelegramQRLoginPollRequest,
 	r *http.Request,
 ) error {
 	const contentType = "application/json"

@@ -228,7 +228,7 @@ func (h *Handler) RevokeApiKey(ctx context.Context, params gen.RevokeApiKeyParam
 
 func (h *Handler) ListSessions(ctx context.Context, params gen.ListSessionsParams) (gen.ListSessionsRes, error) {
 	identity, ok := IdentityFromContext(ctx)
-	if !ok || h.Auth == nil || identity.Source != "bearer" {
+	if !ok || h.Auth == nil {
 		return nil, mapServiceError(authn.ErrSessionNotFound)
 	}
 	var cursor datedUUIDCursor
@@ -271,7 +271,7 @@ func (h *Handler) ListSessions(ctx context.Context, params gen.ListSessionsParam
 
 func (h *Handler) RevokeSession(ctx context.Context, params gen.RevokeSessionParams) (gen.RevokeSessionRes, error) {
 	identity, ok := IdentityFromContext(ctx)
-	if !ok || h.Auth == nil || identity.Source != "bearer" {
+	if !ok || h.Auth == nil {
 		return nil, mapServiceError(authn.ErrSessionNotFound)
 	}
 	if err := h.Auth.RevokeSession(ctx, identity.UserID, googleUUID(params.SessionId)); err != nil {

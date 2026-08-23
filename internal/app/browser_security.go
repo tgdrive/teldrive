@@ -17,43 +17,43 @@ import (
 )
 
 const (
-	browserAccessCookieName  = "teldrive_access"
-	browserRefreshCookieName = "teldrive_refresh"
+	accessCookieName  = "teldrive_access"
+	refreshCookieName = "teldrive_refresh"
 )
 
 const (
-	browserAccessRefreshSkew = 10 * time.Second
-	browserRefreshTimeout    = 5 * time.Second
+	accessRefreshSkew = 10 * time.Second
+	refreshTimeout    = 5 * time.Second
 )
 
-type browserSessionRefresher interface {
+type sessionRefresher interface {
 	RenewAccess(context.Context, string) (*authn.AccessRenewal, error)
 }
 
-type browserSessionRenewer struct {
-	auth browserSessionRefresher
+type sessionRenewer struct {
+	auth sessionRefresher
 	now  func() time.Time
 }
 
-func browserSessionRenewalMiddleware(auth browserSessionRefresher, next http.Handler) http.Handler {
+func sessionRenewalMiddleware(auth sessionRefresher, next http.Handler) http.Handler {
 	if auth == nil {
 		return next
 	}
-	return (&browserSessionRenewer{auth: auth, now: time.Now}).middleware(next)
+	return (&sessionRenewer{auth: auth, now: time.Now}).middleware(next)
 }
 
-func (m *browserSessionRenewer) middleware(next http.Handler) http.Handler {
+func (m *sessionRenewer) middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if browserSessionRenewalSkipped(r) {
+		if sessionRenewalSkipped(r) {
 			next.ServeHTTP(w, r)
 			return
 		}
-		refreshCookie, err := r.Cookie(browserRefreshCookieName)
+		refreshCookie, err := r.Cookie(refreshCookieName)
 		if err != nil || strings.TrimSpace(refreshCookie.Value) == "" {
 			next.ServeHTTP(w, r)
 			return
 		}
-		accessCookie, accessErr := r.Cookie(browserAccessCookieName)
+		accessCookie, accessErr := r.Cookie(accessCookieName)
 		if accessErr == nil && !accessCookieNeedsRefresh(accessCookie.Value, m.now().UTC()) {
 			next.ServeHTTP(w, r)
 			return
@@ -62,7 +62,7 @@ func (m *browserSessionRenewer) middleware(next http.Handler) http.Handler {
 		renewal, err := m.renew(r.Context(), refreshCookie.Value)
 		if err != nil {
 			if errors.Is(err, authn.ErrInvalidCredential) || errors.Is(err, authn.ErrSessionNotFound) {
-				clearBrowserSessionCookies(w, r)
+				clearSessionCookies(w, r)
 				next.ServeHTTP(w, r)
 				return
 			}
@@ -71,32 +71,32 @@ func (m *browserSessionRenewer) middleware(next http.Handler) http.Handler {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"error": map[string]any{
 					"code":    "session_refresh_unavailable",
-					"message": "The browser session could not be renewed.",
+					"message": "The session could not be renewed.",
 				},
 			})
 			return
 		}
 
 		accessTTL := time.Duration(renewal.ExpiresIn) * time.Second
-		access := browserSessionCookie(r, browserAccessCookieName, renewal.AccessToken, accessTTL)
+		access := sessionCookie(r, accessCookieName, renewal.AccessToken, accessTTL)
 		http.SetCookie(w, access)
 		replaceRequestCookie(r, access)
 		next.ServeHTTP(w, r)
 	})
 }
 
-func browserSessionRenewalSkipped(r *http.Request) bool {
+func sessionRenewalSkipped(r *http.Request) bool {
 	if r == nil || hasExplicitAPICredential(r) || !strings.HasPrefix(r.URL.Path, "/v1/") {
 		return true
 	}
 	if !strings.HasPrefix(r.URL.Path, "/v1/auth/") {
 		return false
 	}
-	return r.URL.Path != "/v1/auth/logout" && r.URL.Path != "/v1/auth/browser/logout"
+	return r.URL.Path != "/v1/auth/logout" && r.URL.Path != "/v1/auth/cookie/logout"
 }
 
-func (m *browserSessionRenewer) renew(ctx context.Context, refreshToken string) (*authn.AccessRenewal, error) {
-	refreshCtx, cancel := context.WithTimeout(ctx, browserRefreshTimeout)
+func (m *sessionRenewer) renew(ctx context.Context, refreshToken string) (*authn.AccessRenewal, error) {
+	refreshCtx, cancel := context.WithTimeout(ctx, refreshTimeout)
 	defer cancel()
 	return m.auth.RenewAccess(refreshCtx, refreshToken)
 }
@@ -116,10 +116,10 @@ func accessCookieNeedsRefresh(raw string, now time.Time) bool {
 	if err := json.Unmarshal(payload, &claims); err != nil || claims.ExpiresAt <= 0 {
 		return true
 	}
-	return !time.Unix(claims.ExpiresAt, 0).After(now.Add(browserAccessRefreshSkew))
+	return !time.Unix(claims.ExpiresAt, 0).After(now.Add(accessRefreshSkew))
 }
 
-func browserSessionCookie(r *http.Request, name, value string, ttl time.Duration) *http.Cookie {
+func sessionCookie(r *http.Request, name, value string, ttl time.Duration) *http.Cookie {
 	return &http.Cookie{
 		Name:     name,
 		Value:    value,
@@ -132,8 +132,8 @@ func browserSessionCookie(r *http.Request, name, value string, ttl time.Duration
 	}
 }
 
-func clearBrowserSessionCookies(w http.ResponseWriter, r *http.Request) {
-	for _, name := range []string{browserAccessCookieName, browserRefreshCookieName} {
+func clearSessionCookies(w http.ResponseWriter, r *http.Request) {
+	for _, name := range []string{accessCookieName, refreshCookieName} {
 		http.SetCookie(w, &http.Cookie{
 			Name:     name,
 			Path:     "/",
@@ -190,7 +190,7 @@ func (s *requestSecurity) middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		secure := r.TLS != nil || (s.isTrustedProxy(r) && forwardedProto(r) == "https")
 		ctx := context.WithValue(r.Context(), requestSecureContextKey{}, secure)
-		ctx = api.WithBrowserCookieSecure(ctx, secure)
+		ctx = api.WithCookieSecure(ctx, secure)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -226,7 +226,7 @@ func forwardedProto(r *http.Request) string {
 
 func browserCSRFMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if isSafeMethod(r.Method) || !hasBrowserSessionCookie(r) || hasExplicitAPICredential(r) || isSameOriginBrowserRequest(r) {
+		if isSafeMethod(r.Method) || !hasSessionCookie(r) || hasExplicitAPICredential(r) || isSameOriginBrowserRequest(r) {
 			next.ServeHTTP(w, r)
 			return
 		}
@@ -250,14 +250,14 @@ func isSafeMethod(method string) bool {
 	}
 }
 
-func hasBrowserSessionCookie(r *http.Request) bool {
+func hasSessionCookie(r *http.Request) bool {
 	if r == nil {
 		return false
 	}
-	if cookie, err := r.Cookie(browserAccessCookieName); err == nil && strings.TrimSpace(cookie.Value) != "" {
+	if cookie, err := r.Cookie(accessCookieName); err == nil && strings.TrimSpace(cookie.Value) != "" {
 		return true
 	}
-	if cookie, err := r.Cookie(browserRefreshCookieName); err == nil && strings.TrimSpace(cookie.Value) != "" {
+	if cookie, err := r.Cookie(refreshCookieName); err == nil && strings.TrimSpace(cookie.Value) != "" {
 		return true
 	}
 	return false

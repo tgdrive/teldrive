@@ -36,24 +36,6 @@ type Invoker interface {
 	//
 	// DELETE /v1/uploads/{uploadId}
 	AbortUpload(ctx context.Context, params AbortUploadParams) (AbortUploadRes, error)
-	// BrowserTelegramLoginVerifyCode invokes browserTelegramLoginVerifyCode operation.
-	//
-	// Complete Telegram code verification for the browser UI and establish an HttpOnly cookie session.
-	//
-	// POST /v1/auth/browser/telegram/verify-code
-	BrowserTelegramLoginVerifyCode(ctx context.Context, request *TelegramCodeVerifyRequest, params BrowserTelegramLoginVerifyCodeParams) (BrowserTelegramLoginVerifyCodeRes, error)
-	// BrowserTelegramLoginVerifyPassword invokes browserTelegramLoginVerifyPassword operation.
-	//
-	// Complete Telegram password verification for the browser UI and establish an HttpOnly cookie session.
-	//
-	// POST /v1/auth/browser/telegram/verify-password
-	BrowserTelegramLoginVerifyPassword(ctx context.Context, request *TelegramPasswordVerifyRequest, params BrowserTelegramLoginVerifyPasswordParams) (BrowserTelegramLoginVerifyPasswordRes, error)
-	// BrowserTelegramQRLoginPoll invokes browserTelegramQRLoginPoll operation.
-	//
-	// Poll Telegram QR login for the browser UI and establish an HttpOnly cookie session when authorized.
-	//
-	// POST /v1/auth/browser/telegram/qr/poll
-	BrowserTelegramQRLoginPoll(ctx context.Context, request *TelegramQRLoginPollRequest, params BrowserTelegramQRLoginPollParams) (BrowserTelegramQRLoginPollRes, error)
 	// BulkMoveFiles invokes bulkMoveFiles operation.
 	//
 	// Transactionally move multiple files or folders.
@@ -77,6 +59,24 @@ type Invoker interface {
 	//
 	// POST /v1/uploads/{uploadId}/complete
 	CompleteUpload(ctx context.Context, params CompleteUploadParams) (CompleteUploadRes, error)
+	// CookieTelegramLoginVerifyCode invokes cookieTelegramLoginVerifyCode operation.
+	//
+	// Complete Telegram code verification and establish an HttpOnly cookie session.
+	//
+	// POST /v1/auth/cookie/telegram/verify-code
+	CookieTelegramLoginVerifyCode(ctx context.Context, request *TelegramCodeVerifyRequest, params CookieTelegramLoginVerifyCodeParams) (CookieTelegramLoginVerifyCodeRes, error)
+	// CookieTelegramLoginVerifyPassword invokes cookieTelegramLoginVerifyPassword operation.
+	//
+	// Complete Telegram password verification and establish an HttpOnly cookie session.
+	//
+	// POST /v1/auth/cookie/telegram/verify-password
+	CookieTelegramLoginVerifyPassword(ctx context.Context, request *TelegramPasswordVerifyRequest, params CookieTelegramLoginVerifyPasswordParams) (CookieTelegramLoginVerifyPasswordRes, error)
+	// CookieTelegramQRLoginPoll invokes cookieTelegramQRLoginPoll operation.
+	//
+	// Poll Telegram QR login and establish an HttpOnly cookie session when authorized.
+	//
+	// POST /v1/auth/cookie/telegram/qr/poll
+	CookieTelegramQRLoginPoll(ctx context.Context, request *TelegramQRLoginPollRequest, params CookieTelegramQRLoginPollParams) (CookieTelegramQRLoginPollRes, error)
 	// CopyFile invokes copyFile operation.
 	//
 	// Copy a file or folder to another destination.
@@ -317,12 +317,12 @@ type Invoker interface {
 	//
 	// GET /v1/uploads
 	ListUploads(ctx context.Context, params ListUploadsParams) (ListUploadsRes, error)
-	// LogoutBrowserSession invokes logoutBrowserSession operation.
+	// LogoutCookieSession invokes logoutCookieSession operation.
 	//
-	// Revoke the browser session and clear its HttpOnly cookies.
+	// Revoke the cookie session and clear its HttpOnly cookies.
 	//
-	// POST /v1/auth/browser/logout
-	LogoutBrowserSession(ctx context.Context) (LogoutBrowserSessionRes, error)
+	// POST /v1/auth/cookie/logout
+	LogoutCookieSession(ctx context.Context) (LogoutCookieSessionRes, error)
 	// LogoutSession invokes logoutSession operation.
 	//
 	// Revoke the current session.
@@ -366,18 +366,22 @@ type Invoker interface {
 	//
 	// PUT /v1/uploads/{uploadId}/parts/{partNo}
 	PutUploadPart(ctx context.Context, request PutUploadPartReq, params PutUploadPartParams) (PutUploadPartRes, error)
-	// RefreshBrowserSession invokes refreshBrowserSession operation.
+	// RefreshCookieSession invokes refreshCookieSession operation.
 	//
-	// Rotate browser session cookies using the HttpOnly refresh cookie.
+	// Rotate session cookies using the HttpOnly refresh cookie.
 	//
-	// POST /v1/auth/browser/refresh
-	RefreshBrowserSession(ctx context.Context, params RefreshBrowserSessionParams) (RefreshBrowserSessionRes, error)
+	// POST /v1/auth/cookie/refresh
+	RefreshCookieSession(ctx context.Context, params RefreshCookieSessionParams) (RefreshCookieSessionRes, error)
 	// RefreshSession invokes refreshSession operation.
 	//
 	// Rotate an access/refresh token pair.
 	//
 	// POST /v1/auth/refresh
 	RefreshSession(ctx context.Context, request *RefreshTokenRequest) (RefreshSessionRes, error)
+	// ResetPeriodicJobs invokes resetPeriodicJobs operation.
+	//
+	// POST /v1/periodic-jobs/reset
+	ResetPeriodicJobs(ctx context.Context) (ResetPeriodicJobsRes, error)
 	// RestoreFile invokes restoreFile operation.
 	//
 	// Restore a trashed file or folder.
@@ -612,14 +616,14 @@ func (c *Client) sendAbortUpload(ctx context.Context, params AbortUploadParams) 
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, AbortUploadOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, AbortUploadOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -670,306 +674,6 @@ func (c *Client) sendAbortUpload(ctx context.Context, params AbortUploadParams) 
 
 	stage = "DecodeResponse"
 	result, err := decodeAbortUploadResponse(resp)
-	if err != nil {
-		return res, errors.Wrap(err, "decode response")
-	}
-
-	return result, nil
-}
-
-// BrowserTelegramLoginVerifyCode invokes browserTelegramLoginVerifyCode operation.
-//
-// Complete Telegram code verification for the browser UI and establish an HttpOnly cookie session.
-//
-// POST /v1/auth/browser/telegram/verify-code
-func (c *Client) BrowserTelegramLoginVerifyCode(ctx context.Context, request *TelegramCodeVerifyRequest, params BrowserTelegramLoginVerifyCodeParams) (BrowserTelegramLoginVerifyCodeRes, error) {
-	res, err := c.sendBrowserTelegramLoginVerifyCode(ctx, request, params)
-	return res, err
-}
-
-func (c *Client) sendBrowserTelegramLoginVerifyCode(ctx context.Context, request *TelegramCodeVerifyRequest, params BrowserTelegramLoginVerifyCodeParams) (res BrowserTelegramLoginVerifyCodeRes, err error) {
-	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("browserTelegramLoginVerifyCode"),
-		semconv.HTTPRequestMethodKey.String("POST"),
-		semconv.URLTemplateKey.String("/v1/auth/browser/telegram/verify-code"),
-	}
-	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
-
-	// Run stopwatch.
-	startTime := time.Now()
-	defer func() {
-		// Use floating point division here for higher precision (instead of Millisecond method).
-		elapsedDuration := time.Since(startTime)
-		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
-	}()
-
-	// Increment request counter.
-	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
-
-	// Start a span for this request.
-	ctx, span := c.cfg.Tracer.Start(ctx, BrowserTelegramLoginVerifyCodeOperation,
-		trace.WithAttributes(otelAttrs...),
-		clientSpanKind,
-	)
-	// Track stage for error reporting.
-	var stage string
-	defer func() {
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, stage)
-			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
-		}
-		span.End()
-	}()
-
-	stage = "BuildURL"
-	u := uri.Clone(c.requestURL(ctx))
-	var pathParts [1]string
-	pathParts[0] = "/v1/auth/browser/telegram/verify-code"
-	uri.AddPathParts(u, pathParts[:]...)
-
-	stage = "EncodeRequest"
-	r, err := ht.NewRequest(ctx, "POST", u)
-	if err != nil {
-		return res, errors.Wrap(err, "create request")
-	}
-	if err := encodeBrowserTelegramLoginVerifyCodeRequest(request, r); err != nil {
-		return res, errors.Wrap(err, "encode request")
-	}
-
-	stage = "EncodeHeaderParams"
-	h := uri.NewHeaderEncoder(r.Header)
-	{
-		cfg := uri.HeaderParameterEncodingConfig{
-			Name:    "Idempotency-Key",
-			Explode: false,
-		}
-		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-			if unwrapped := uuid.UUID(params.IdempotencyKey); true {
-				return e.EncodeValue(conv.UUIDToString(unwrapped))
-			}
-			return nil
-		}); err != nil {
-			return res, errors.Wrap(err, "encode header")
-		}
-	}
-
-	stage = "SendRequest"
-	resp, err := c.cfg.Client.Do(r)
-	if err != nil {
-		return res, errors.Wrap(err, "do request")
-	}
-	body := resp.Body
-	defer func() {
-		// Drain the body to EOF before closing, so the underlying
-		// connection can be reused by the Transport regardless of the
-		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
-		_, _ = io.Copy(io.Discard, body)
-		_ = body.Close()
-	}()
-
-	stage = "DecodeResponse"
-	result, err := decodeBrowserTelegramLoginVerifyCodeResponse(resp)
-	if err != nil {
-		return res, errors.Wrap(err, "decode response")
-	}
-
-	return result, nil
-}
-
-// BrowserTelegramLoginVerifyPassword invokes browserTelegramLoginVerifyPassword operation.
-//
-// Complete Telegram password verification for the browser UI and establish an HttpOnly cookie session.
-//
-// POST /v1/auth/browser/telegram/verify-password
-func (c *Client) BrowserTelegramLoginVerifyPassword(ctx context.Context, request *TelegramPasswordVerifyRequest, params BrowserTelegramLoginVerifyPasswordParams) (BrowserTelegramLoginVerifyPasswordRes, error) {
-	res, err := c.sendBrowserTelegramLoginVerifyPassword(ctx, request, params)
-	return res, err
-}
-
-func (c *Client) sendBrowserTelegramLoginVerifyPassword(ctx context.Context, request *TelegramPasswordVerifyRequest, params BrowserTelegramLoginVerifyPasswordParams) (res BrowserTelegramLoginVerifyPasswordRes, err error) {
-	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("browserTelegramLoginVerifyPassword"),
-		semconv.HTTPRequestMethodKey.String("POST"),
-		semconv.URLTemplateKey.String("/v1/auth/browser/telegram/verify-password"),
-	}
-	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
-
-	// Run stopwatch.
-	startTime := time.Now()
-	defer func() {
-		// Use floating point division here for higher precision (instead of Millisecond method).
-		elapsedDuration := time.Since(startTime)
-		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
-	}()
-
-	// Increment request counter.
-	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
-
-	// Start a span for this request.
-	ctx, span := c.cfg.Tracer.Start(ctx, BrowserTelegramLoginVerifyPasswordOperation,
-		trace.WithAttributes(otelAttrs...),
-		clientSpanKind,
-	)
-	// Track stage for error reporting.
-	var stage string
-	defer func() {
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, stage)
-			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
-		}
-		span.End()
-	}()
-
-	stage = "BuildURL"
-	u := uri.Clone(c.requestURL(ctx))
-	var pathParts [1]string
-	pathParts[0] = "/v1/auth/browser/telegram/verify-password"
-	uri.AddPathParts(u, pathParts[:]...)
-
-	stage = "EncodeRequest"
-	r, err := ht.NewRequest(ctx, "POST", u)
-	if err != nil {
-		return res, errors.Wrap(err, "create request")
-	}
-	if err := encodeBrowserTelegramLoginVerifyPasswordRequest(request, r); err != nil {
-		return res, errors.Wrap(err, "encode request")
-	}
-
-	stage = "EncodeHeaderParams"
-	h := uri.NewHeaderEncoder(r.Header)
-	{
-		cfg := uri.HeaderParameterEncodingConfig{
-			Name:    "Idempotency-Key",
-			Explode: false,
-		}
-		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-			if unwrapped := uuid.UUID(params.IdempotencyKey); true {
-				return e.EncodeValue(conv.UUIDToString(unwrapped))
-			}
-			return nil
-		}); err != nil {
-			return res, errors.Wrap(err, "encode header")
-		}
-	}
-
-	stage = "SendRequest"
-	resp, err := c.cfg.Client.Do(r)
-	if err != nil {
-		return res, errors.Wrap(err, "do request")
-	}
-	body := resp.Body
-	defer func() {
-		// Drain the body to EOF before closing, so the underlying
-		// connection can be reused by the Transport regardless of the
-		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
-		_, _ = io.Copy(io.Discard, body)
-		_ = body.Close()
-	}()
-
-	stage = "DecodeResponse"
-	result, err := decodeBrowserTelegramLoginVerifyPasswordResponse(resp)
-	if err != nil {
-		return res, errors.Wrap(err, "decode response")
-	}
-
-	return result, nil
-}
-
-// BrowserTelegramQRLoginPoll invokes browserTelegramQRLoginPoll operation.
-//
-// Poll Telegram QR login for the browser UI and establish an HttpOnly cookie session when authorized.
-//
-// POST /v1/auth/browser/telegram/qr/poll
-func (c *Client) BrowserTelegramQRLoginPoll(ctx context.Context, request *TelegramQRLoginPollRequest, params BrowserTelegramQRLoginPollParams) (BrowserTelegramQRLoginPollRes, error) {
-	res, err := c.sendBrowserTelegramQRLoginPoll(ctx, request, params)
-	return res, err
-}
-
-func (c *Client) sendBrowserTelegramQRLoginPoll(ctx context.Context, request *TelegramQRLoginPollRequest, params BrowserTelegramQRLoginPollParams) (res BrowserTelegramQRLoginPollRes, err error) {
-	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("browserTelegramQRLoginPoll"),
-		semconv.HTTPRequestMethodKey.String("POST"),
-		semconv.URLTemplateKey.String("/v1/auth/browser/telegram/qr/poll"),
-	}
-	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
-
-	// Run stopwatch.
-	startTime := time.Now()
-	defer func() {
-		// Use floating point division here for higher precision (instead of Millisecond method).
-		elapsedDuration := time.Since(startTime)
-		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
-	}()
-
-	// Increment request counter.
-	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
-
-	// Start a span for this request.
-	ctx, span := c.cfg.Tracer.Start(ctx, BrowserTelegramQRLoginPollOperation,
-		trace.WithAttributes(otelAttrs...),
-		clientSpanKind,
-	)
-	// Track stage for error reporting.
-	var stage string
-	defer func() {
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, stage)
-			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
-		}
-		span.End()
-	}()
-
-	stage = "BuildURL"
-	u := uri.Clone(c.requestURL(ctx))
-	var pathParts [1]string
-	pathParts[0] = "/v1/auth/browser/telegram/qr/poll"
-	uri.AddPathParts(u, pathParts[:]...)
-
-	stage = "EncodeRequest"
-	r, err := ht.NewRequest(ctx, "POST", u)
-	if err != nil {
-		return res, errors.Wrap(err, "create request")
-	}
-	if err := encodeBrowserTelegramQRLoginPollRequest(request, r); err != nil {
-		return res, errors.Wrap(err, "encode request")
-	}
-
-	stage = "EncodeHeaderParams"
-	h := uri.NewHeaderEncoder(r.Header)
-	{
-		cfg := uri.HeaderParameterEncodingConfig{
-			Name:    "Idempotency-Key",
-			Explode: false,
-		}
-		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
-			if unwrapped := uuid.UUID(params.IdempotencyKey); true {
-				return e.EncodeValue(conv.UUIDToString(unwrapped))
-			}
-			return nil
-		}); err != nil {
-			return res, errors.Wrap(err, "encode header")
-		}
-	}
-
-	stage = "SendRequest"
-	resp, err := c.cfg.Client.Do(r)
-	if err != nil {
-		return res, errors.Wrap(err, "do request")
-	}
-	body := resp.Body
-	defer func() {
-		// Drain the body to EOF before closing, so the underlying
-		// connection can be reused by the Transport regardless of the
-		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
-		_, _ = io.Copy(io.Discard, body)
-		_ = body.Close()
-	}()
-
-	stage = "DecodeResponse"
-	result, err := decodeBrowserTelegramQRLoginPollResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}
@@ -1069,14 +773,14 @@ func (c *Client) sendBulkMoveFiles(ctx context.Context, request *FileBulkMoveReq
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, BulkMoveFilesOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, BulkMoveFilesOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -1226,14 +930,14 @@ func (c *Client) sendBulkTrashFiles(ctx context.Context, request *FileBulkTrashR
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, BulkTrashFilesOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, BulkTrashFilesOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -1380,14 +1084,14 @@ func (c *Client) sendCancelJob(ctx context.Context, params CancelJobParams) (res
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, CancelJobOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, CancelJobOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -1557,14 +1261,14 @@ func (c *Client) sendCompleteUpload(ctx context.Context, params CompleteUploadPa
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, CompleteUploadOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, CompleteUploadOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -1615,6 +1319,306 @@ func (c *Client) sendCompleteUpload(ctx context.Context, params CompleteUploadPa
 
 	stage = "DecodeResponse"
 	result, err := decodeCompleteUploadResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// CookieTelegramLoginVerifyCode invokes cookieTelegramLoginVerifyCode operation.
+//
+// Complete Telegram code verification and establish an HttpOnly cookie session.
+//
+// POST /v1/auth/cookie/telegram/verify-code
+func (c *Client) CookieTelegramLoginVerifyCode(ctx context.Context, request *TelegramCodeVerifyRequest, params CookieTelegramLoginVerifyCodeParams) (CookieTelegramLoginVerifyCodeRes, error) {
+	res, err := c.sendCookieTelegramLoginVerifyCode(ctx, request, params)
+	return res, err
+}
+
+func (c *Client) sendCookieTelegramLoginVerifyCode(ctx context.Context, request *TelegramCodeVerifyRequest, params CookieTelegramLoginVerifyCodeParams) (res CookieTelegramLoginVerifyCodeRes, err error) {
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("cookieTelegramLoginVerifyCode"),
+		semconv.HTTPRequestMethodKey.String("POST"),
+		semconv.URLTemplateKey.String("/v1/auth/cookie/telegram/verify-code"),
+	}
+	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		elapsedDuration := time.Since(startTime)
+		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
+	}()
+
+	// Increment request counter.
+	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+
+	// Start a span for this request.
+	ctx, span := c.cfg.Tracer.Start(ctx, CookieTelegramLoginVerifyCodeOperation,
+		trace.WithAttributes(otelAttrs...),
+		clientSpanKind,
+	)
+	// Track stage for error reporting.
+	var stage string
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, stage)
+			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+		}
+		span.End()
+	}()
+
+	stage = "BuildURL"
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [1]string
+	pathParts[0] = "/v1/auth/cookie/telegram/verify-code"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	stage = "EncodeRequest"
+	r, err := ht.NewRequest(ctx, "POST", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+	if err := encodeCookieTelegramLoginVerifyCodeRequest(request, r); err != nil {
+		return res, errors.Wrap(err, "encode request")
+	}
+
+	stage = "EncodeHeaderParams"
+	h := uri.NewHeaderEncoder(r.Header)
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "Idempotency-Key",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if unwrapped := uuid.UUID(params.IdempotencyKey); true {
+				return e.EncodeValue(conv.UUIDToString(unwrapped))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+
+	stage = "SendRequest"
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	body := resp.Body
+	defer func() {
+		// Drain the body to EOF before closing, so the underlying
+		// connection can be reused by the Transport regardless of the
+		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
+		_, _ = io.Copy(io.Discard, body)
+		_ = body.Close()
+	}()
+
+	stage = "DecodeResponse"
+	result, err := decodeCookieTelegramLoginVerifyCodeResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// CookieTelegramLoginVerifyPassword invokes cookieTelegramLoginVerifyPassword operation.
+//
+// Complete Telegram password verification and establish an HttpOnly cookie session.
+//
+// POST /v1/auth/cookie/telegram/verify-password
+func (c *Client) CookieTelegramLoginVerifyPassword(ctx context.Context, request *TelegramPasswordVerifyRequest, params CookieTelegramLoginVerifyPasswordParams) (CookieTelegramLoginVerifyPasswordRes, error) {
+	res, err := c.sendCookieTelegramLoginVerifyPassword(ctx, request, params)
+	return res, err
+}
+
+func (c *Client) sendCookieTelegramLoginVerifyPassword(ctx context.Context, request *TelegramPasswordVerifyRequest, params CookieTelegramLoginVerifyPasswordParams) (res CookieTelegramLoginVerifyPasswordRes, err error) {
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("cookieTelegramLoginVerifyPassword"),
+		semconv.HTTPRequestMethodKey.String("POST"),
+		semconv.URLTemplateKey.String("/v1/auth/cookie/telegram/verify-password"),
+	}
+	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		elapsedDuration := time.Since(startTime)
+		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
+	}()
+
+	// Increment request counter.
+	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+
+	// Start a span for this request.
+	ctx, span := c.cfg.Tracer.Start(ctx, CookieTelegramLoginVerifyPasswordOperation,
+		trace.WithAttributes(otelAttrs...),
+		clientSpanKind,
+	)
+	// Track stage for error reporting.
+	var stage string
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, stage)
+			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+		}
+		span.End()
+	}()
+
+	stage = "BuildURL"
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [1]string
+	pathParts[0] = "/v1/auth/cookie/telegram/verify-password"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	stage = "EncodeRequest"
+	r, err := ht.NewRequest(ctx, "POST", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+	if err := encodeCookieTelegramLoginVerifyPasswordRequest(request, r); err != nil {
+		return res, errors.Wrap(err, "encode request")
+	}
+
+	stage = "EncodeHeaderParams"
+	h := uri.NewHeaderEncoder(r.Header)
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "Idempotency-Key",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if unwrapped := uuid.UUID(params.IdempotencyKey); true {
+				return e.EncodeValue(conv.UUIDToString(unwrapped))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+
+	stage = "SendRequest"
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	body := resp.Body
+	defer func() {
+		// Drain the body to EOF before closing, so the underlying
+		// connection can be reused by the Transport regardless of the
+		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
+		_, _ = io.Copy(io.Discard, body)
+		_ = body.Close()
+	}()
+
+	stage = "DecodeResponse"
+	result, err := decodeCookieTelegramLoginVerifyPasswordResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// CookieTelegramQRLoginPoll invokes cookieTelegramQRLoginPoll operation.
+//
+// Poll Telegram QR login and establish an HttpOnly cookie session when authorized.
+//
+// POST /v1/auth/cookie/telegram/qr/poll
+func (c *Client) CookieTelegramQRLoginPoll(ctx context.Context, request *TelegramQRLoginPollRequest, params CookieTelegramQRLoginPollParams) (CookieTelegramQRLoginPollRes, error) {
+	res, err := c.sendCookieTelegramQRLoginPoll(ctx, request, params)
+	return res, err
+}
+
+func (c *Client) sendCookieTelegramQRLoginPoll(ctx context.Context, request *TelegramQRLoginPollRequest, params CookieTelegramQRLoginPollParams) (res CookieTelegramQRLoginPollRes, err error) {
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("cookieTelegramQRLoginPoll"),
+		semconv.HTTPRequestMethodKey.String("POST"),
+		semconv.URLTemplateKey.String("/v1/auth/cookie/telegram/qr/poll"),
+	}
+	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		elapsedDuration := time.Since(startTime)
+		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
+	}()
+
+	// Increment request counter.
+	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+
+	// Start a span for this request.
+	ctx, span := c.cfg.Tracer.Start(ctx, CookieTelegramQRLoginPollOperation,
+		trace.WithAttributes(otelAttrs...),
+		clientSpanKind,
+	)
+	// Track stage for error reporting.
+	var stage string
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, stage)
+			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+		}
+		span.End()
+	}()
+
+	stage = "BuildURL"
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [1]string
+	pathParts[0] = "/v1/auth/cookie/telegram/qr/poll"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	stage = "EncodeRequest"
+	r, err := ht.NewRequest(ctx, "POST", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+	if err := encodeCookieTelegramQRLoginPollRequest(request, r); err != nil {
+		return res, errors.Wrap(err, "encode request")
+	}
+
+	stage = "EncodeHeaderParams"
+	h := uri.NewHeaderEncoder(r.Header)
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "Idempotency-Key",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if unwrapped := uuid.UUID(params.IdempotencyKey); true {
+				return e.EncodeValue(conv.UUIDToString(unwrapped))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+
+	stage = "SendRequest"
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	body := resp.Body
+	defer func() {
+		// Drain the body to EOF before closing, so the underlying
+		// connection can be reused by the Transport regardless of the
+		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
+		_, _ = io.Copy(io.Discard, body)
+		_ = body.Close()
+	}()
+
+	stage = "DecodeResponse"
+	result, err := decodeCookieTelegramQRLoginPollResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}
@@ -1736,14 +1740,14 @@ func (c *Client) sendCopyFile(ctx context.Context, request *FileCopyRequest, par
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, CopyFileOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, CopyFileOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -1891,14 +1895,14 @@ func (c *Client) sendCreateApiKey(ctx context.Context, request *ApiKeyCreateRequ
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, CreateApiKeyOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, CreateApiKeyOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 
@@ -2034,14 +2038,14 @@ func (c *Client) sendCreateBots(ctx context.Context, request *BotCreateRequest, 
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, CreateBotsOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, CreateBotsOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 
@@ -2177,14 +2181,14 @@ func (c *Client) sendCreateChannel(ctx context.Context, request *ChannelCreateRe
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, CreateChannelOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, CreateChannelOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -2314,14 +2318,14 @@ func (c *Client) sendCreateEventStreamTicket(ctx context.Context) (res CreateEve
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, CreateEventStreamTicketOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, CreateEventStreamTicketOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -2469,14 +2473,14 @@ func (c *Client) sendCreateFolder(ctx context.Context, request *FolderCreateRequ
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, CreateFolderOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, CreateFolderOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -2607,14 +2611,14 @@ func (c *Client) sendCreateJob(ctx context.Context, request *JobCreate) (res Cre
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, CreateJobOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, CreateJobOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -2745,14 +2749,14 @@ func (c *Client) sendCreatePeriodicJob(ctx context.Context, request *PeriodicJob
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, CreatePeriodicJobOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, CreatePeriodicJobOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -2922,14 +2926,14 @@ func (c *Client) sendCreateShare(ctx context.Context, request *ShareCreateReques
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, CreateShareOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, CreateShareOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -3079,14 +3083,14 @@ func (c *Client) sendCreateUpload(ctx context.Context, request *UploadCreateRequ
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, CreateUploadOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, CreateUploadOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -3219,14 +3223,14 @@ func (c *Client) sendCreateUploadImport(ctx context.Context, request *UploadImpo
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, CreateUploadImportOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, CreateUploadImportOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -3372,14 +3376,14 @@ func (c *Client) sendDeleteBot(ctx context.Context, params DeleteBotParams) (res
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, DeleteBotOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, DeleteBotOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 
@@ -3513,14 +3517,14 @@ func (c *Client) sendDeleteChannel(ctx context.Context, params DeleteChannelPara
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, DeleteChannelOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, DeleteChannelOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -3672,14 +3676,14 @@ func (c *Client) sendDeleteFileViewState(ctx context.Context, params DeleteFileV
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, DeleteFileViewStateOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, DeleteFileViewStateOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -3825,14 +3829,14 @@ func (c *Client) sendDeleteJob(ctx context.Context, params DeleteJobParams) (res
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, DeleteJobOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, DeleteJobOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -3978,14 +3982,14 @@ func (c *Client) sendDeletePeriodicJob(ctx context.Context, params DeletePeriodi
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, DeletePeriodicJobOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, DeletePeriodicJobOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -4115,14 +4119,14 @@ func (c *Client) sendDiscoverChannels(ctx context.Context) (res DiscoverChannels
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, DiscoverChannelsOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, DiscoverChannelsOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -4308,14 +4312,14 @@ func (c *Client) sendDownloadFile(ctx context.Context, params DownloadFileParams
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, DownloadFileOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, DownloadFileOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -4574,14 +4578,14 @@ func (c *Client) sendGetCurrentUser(ctx context.Context) (res GetCurrentUserRes,
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, GetCurrentUserOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, GetCurrentUserOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -4711,14 +4715,14 @@ func (c *Client) sendGetDriveStatistics(ctx context.Context) (res GetDriveStatis
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, GetDriveStatisticsOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, GetDriveStatisticsOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -4869,14 +4873,14 @@ func (c *Client) sendGetFile(ctx context.Context, params GetFileParams) (res Get
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, GetFileOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, GetFileOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -5006,14 +5010,14 @@ func (c *Client) sendGetFileCategoryStatistics(ctx context.Context) (res GetFile
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, GetFileCategoryStatisticsOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, GetFileCategoryStatisticsOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -5165,14 +5169,14 @@ func (c *Client) sendGetFileViewState(ctx context.Context, params GetFileViewSta
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, GetFileViewStateOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, GetFileViewStateOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -5318,14 +5322,14 @@ func (c *Client) sendGetJob(ctx context.Context, params GetJobParams) (res GetJo
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, GetJobOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, GetJobOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -5453,14 +5457,14 @@ func (c *Client) sendGetJobStatistics(ctx context.Context) (res GetJobStatistics
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, GetJobStatisticsOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, GetJobStatisticsOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -5588,14 +5592,14 @@ func (c *Client) sendGetPeriodicJobCatalog(ctx context.Context) (res GetPeriodic
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, GetPeriodicJobCatalogOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, GetPeriodicJobCatalogOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -5725,14 +5729,14 @@ func (c *Client) sendGetProfilePhoto(ctx context.Context) (res GetProfilePhotoRe
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, GetProfilePhotoOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, GetProfilePhotoOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -5975,14 +5979,14 @@ func (c *Client) sendGetStorageStats(ctx context.Context) (res GetStorageStatsRe
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, GetStorageStatsOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, GetStorageStatsOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -6133,14 +6137,14 @@ func (c *Client) sendGetUpload(ctx context.Context, params GetUploadParams) (res
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, GetUploadOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, GetUploadOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -6291,14 +6295,14 @@ func (c *Client) sendGetUploadStatistics(ctx context.Context, params GetUploadSt
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, GetUploadStatisticsOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, GetUploadStatisticsOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -6450,14 +6454,14 @@ func (c *Client) sendHeadFile(ctx context.Context, params HeadFileParams) (res H
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, HeadFileOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, HeadFileOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -6900,14 +6904,14 @@ func (c *Client) sendListApiKeys(ctx context.Context, params ListApiKeysParams) 
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, ListApiKeysOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, ListApiKeysOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 
@@ -7064,14 +7068,14 @@ func (c *Client) sendListBots(ctx context.Context, params ListBotsParams) (res L
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, ListBotsOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, ListBotsOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 
@@ -7228,14 +7232,14 @@ func (c *Client) sendListChannels(ctx context.Context, params ListChannelsParams
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, ListChannelsOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, ListChannelsOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -7426,14 +7430,14 @@ func (c *Client) sendListFileShares(ctx context.Context, params ListFileSharesPa
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, ListFileSharesOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, ListFileSharesOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -7803,14 +7807,14 @@ func (c *Client) sendListFiles(ctx context.Context, params ListFilesParams) (res
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, ListFilesOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, ListFilesOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -7938,14 +7942,14 @@ func (c *Client) sendListJobQueues(ctx context.Context) (res ListJobQueuesRes, e
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, ListJobQueuesOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, ListJobQueuesOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -8165,14 +8169,14 @@ func (c *Client) sendListJobs(ctx context.Context, params ListJobsParams) (res L
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, ListJobsOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, ListJobsOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -8300,14 +8304,14 @@ func (c *Client) sendListPeriodicJobs(ctx context.Context) (res ListPeriodicJobs
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, ListPeriodicJobsOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, ListPeriodicJobsOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -8669,14 +8673,14 @@ func (c *Client) sendListSessions(ctx context.Context, params ListSessionsParams
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, ListSessionsOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, ListSessionsOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 
@@ -8857,14 +8861,14 @@ func (c *Client) sendListUploadParts(ctx context.Context, params ListUploadParts
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, ListUploadPartsOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, ListUploadPartsOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -9052,14 +9056,14 @@ func (c *Client) sendListUploads(ctx context.Context, params ListUploadsParams) 
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, ListUploadsOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, ListUploadsOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -9117,21 +9121,21 @@ func (c *Client) sendListUploads(ctx context.Context, params ListUploadsParams) 
 	return result, nil
 }
 
-// LogoutBrowserSession invokes logoutBrowserSession operation.
+// LogoutCookieSession invokes logoutCookieSession operation.
 //
-// Revoke the browser session and clear its HttpOnly cookies.
+// Revoke the cookie session and clear its HttpOnly cookies.
 //
-// POST /v1/auth/browser/logout
-func (c *Client) LogoutBrowserSession(ctx context.Context) (LogoutBrowserSessionRes, error) {
-	res, err := c.sendLogoutBrowserSession(ctx)
+// POST /v1/auth/cookie/logout
+func (c *Client) LogoutCookieSession(ctx context.Context) (LogoutCookieSessionRes, error) {
+	res, err := c.sendLogoutCookieSession(ctx)
 	return res, err
 }
 
-func (c *Client) sendLogoutBrowserSession(ctx context.Context) (res LogoutBrowserSessionRes, err error) {
+func (c *Client) sendLogoutCookieSession(ctx context.Context) (res LogoutCookieSessionRes, err error) {
 	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("logoutBrowserSession"),
+		otelogen.OperationID("logoutCookieSession"),
 		semconv.HTTPRequestMethodKey.String("POST"),
-		semconv.URLTemplateKey.String("/v1/auth/browser/logout"),
+		semconv.URLTemplateKey.String("/v1/auth/cookie/logout"),
 	}
 	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
 
@@ -9147,7 +9151,7 @@ func (c *Client) sendLogoutBrowserSession(ctx context.Context) (res LogoutBrowse
 	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
 
 	// Start a span for this request.
-	ctx, span := c.cfg.Tracer.Start(ctx, LogoutBrowserSessionOperation,
+	ctx, span := c.cfg.Tracer.Start(ctx, LogoutCookieSessionOperation,
 		trace.WithAttributes(otelAttrs...),
 		clientSpanKind,
 	)
@@ -9165,7 +9169,7 @@ func (c *Client) sendLogoutBrowserSession(ctx context.Context) (res LogoutBrowse
 	stage = "BuildURL"
 	u := uri.Clone(c.requestURL(ctx))
 	var pathParts [1]string
-	pathParts[0] = "/v1/auth/browser/logout"
+	pathParts[0] = "/v1/auth/cookie/logout"
 	uri.AddPathParts(u, pathParts[:]...)
 
 	stage = "EncodeRequest"
@@ -9178,14 +9182,14 @@ func (c *Client) sendLogoutBrowserSession(ctx context.Context) (res LogoutBrowse
 		type bitset = [1]uint8
 		var satisfied bitset
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, LogoutBrowserSessionOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, LogoutCookieSessionOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 0
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 
@@ -9222,7 +9226,7 @@ func (c *Client) sendLogoutBrowserSession(ctx context.Context) (res LogoutBrowse
 	}()
 
 	stage = "DecodeResponse"
-	result, err := decodeLogoutBrowserSessionResponse(resp)
+	result, err := decodeLogoutCookieSessionResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}
@@ -9302,14 +9306,14 @@ func (c *Client) sendLogoutSession(ctx context.Context) (res LogoutSessionRes, e
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, LogoutSessionOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, LogoutSessionOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -9498,14 +9502,14 @@ func (c *Client) sendMoveFile(ctx context.Context, request *FileMoveRequest, par
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, MoveFileOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, MoveFileOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -9652,14 +9656,14 @@ func (c *Client) sendPauseJobQueue(ctx context.Context, params PauseJobQueuePara
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, PauseJobQueueOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, PauseJobQueueOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -9806,14 +9810,14 @@ func (c *Client) sendPausePeriodicJob(ctx context.Context, params PausePeriodicJ
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, PausePeriodicJobOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, PausePeriodicJobOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -9965,14 +9969,14 @@ func (c *Client) sendPurgeFile(ctx context.Context, params PurgeFileParams) (res
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, PurgeFileOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, PurgeFileOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -10118,14 +10122,14 @@ func (c *Client) sendPurgeJobs(ctx context.Context, params PurgeJobsParams) (res
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, PurgeJobsOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, PurgeJobsOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -10280,14 +10284,14 @@ func (c *Client) sendPutFileViewState(ctx context.Context, request *FileViewStat
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, PutFileViewStateOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, PutFileViewStateOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -10492,14 +10496,14 @@ func (c *Client) sendPutUploadPart(ctx context.Context, request PutUploadPartReq
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, PutUploadPartOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, PutUploadPartOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -10557,21 +10561,21 @@ func (c *Client) sendPutUploadPart(ctx context.Context, request PutUploadPartReq
 	return result, nil
 }
 
-// RefreshBrowserSession invokes refreshBrowserSession operation.
+// RefreshCookieSession invokes refreshCookieSession operation.
 //
-// Rotate browser session cookies using the HttpOnly refresh cookie.
+// Rotate session cookies using the HttpOnly refresh cookie.
 //
-// POST /v1/auth/browser/refresh
-func (c *Client) RefreshBrowserSession(ctx context.Context, params RefreshBrowserSessionParams) (RefreshBrowserSessionRes, error) {
-	res, err := c.sendRefreshBrowserSession(ctx, params)
+// POST /v1/auth/cookie/refresh
+func (c *Client) RefreshCookieSession(ctx context.Context, params RefreshCookieSessionParams) (RefreshCookieSessionRes, error) {
+	res, err := c.sendRefreshCookieSession(ctx, params)
 	return res, err
 }
 
-func (c *Client) sendRefreshBrowserSession(ctx context.Context, params RefreshBrowserSessionParams) (res RefreshBrowserSessionRes, err error) {
+func (c *Client) sendRefreshCookieSession(ctx context.Context, params RefreshCookieSessionParams) (res RefreshCookieSessionRes, err error) {
 	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("refreshBrowserSession"),
+		otelogen.OperationID("refreshCookieSession"),
 		semconv.HTTPRequestMethodKey.String("POST"),
-		semconv.URLTemplateKey.String("/v1/auth/browser/refresh"),
+		semconv.URLTemplateKey.String("/v1/auth/cookie/refresh"),
 	}
 	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
 
@@ -10587,7 +10591,7 @@ func (c *Client) sendRefreshBrowserSession(ctx context.Context, params RefreshBr
 	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
 
 	// Start a span for this request.
-	ctx, span := c.cfg.Tracer.Start(ctx, RefreshBrowserSessionOperation,
+	ctx, span := c.cfg.Tracer.Start(ctx, RefreshCookieSessionOperation,
 		trace.WithAttributes(otelAttrs...),
 		clientSpanKind,
 	)
@@ -10605,7 +10609,7 @@ func (c *Client) sendRefreshBrowserSession(ctx context.Context, params RefreshBr
 	stage = "BuildURL"
 	u := uri.Clone(c.requestURL(ctx))
 	var pathParts [1]string
-	pathParts[0] = "/v1/auth/browser/refresh"
+	pathParts[0] = "/v1/auth/cookie/refresh"
 	uri.AddPathParts(u, pathParts[:]...)
 
 	stage = "EncodeRequest"
@@ -10645,7 +10649,7 @@ func (c *Client) sendRefreshBrowserSession(ctx context.Context, params RefreshBr
 	}()
 
 	stage = "DecodeResponse"
-	result, err := decodeRefreshBrowserSessionResponse(resp)
+	result, err := decodeRefreshCookieSessionResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}
@@ -10729,6 +10733,141 @@ func (c *Client) sendRefreshSession(ctx context.Context, request *RefreshTokenRe
 
 	stage = "DecodeResponse"
 	result, err := decodeRefreshSessionResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// ResetPeriodicJobs invokes resetPeriodicJobs operation.
+//
+// POST /v1/periodic-jobs/reset
+func (c *Client) ResetPeriodicJobs(ctx context.Context) (ResetPeriodicJobsRes, error) {
+	res, err := c.sendResetPeriodicJobs(ctx)
+	return res, err
+}
+
+func (c *Client) sendResetPeriodicJobs(ctx context.Context) (res ResetPeriodicJobsRes, err error) {
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("resetPeriodicJobs"),
+		semconv.HTTPRequestMethodKey.String("POST"),
+		semconv.URLTemplateKey.String("/v1/periodic-jobs/reset"),
+	}
+	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		elapsedDuration := time.Since(startTime)
+		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
+	}()
+
+	// Increment request counter.
+	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+
+	// Start a span for this request.
+	ctx, span := c.cfg.Tracer.Start(ctx, ResetPeriodicJobsOperation,
+		trace.WithAttributes(otelAttrs...),
+		clientSpanKind,
+	)
+	// Track stage for error reporting.
+	var stage string
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, stage)
+			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+		}
+		span.End()
+	}()
+
+	stage = "BuildURL"
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [1]string
+	pathParts[0] = "/v1/periodic-jobs/reset"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	stage = "EncodeRequest"
+	r, err := ht.NewRequest(ctx, "POST", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	{
+		type bitset = [1]uint8
+		var satisfied bitset
+		{
+			stage = "Security:BearerAuth"
+			switch err := c.securityBearerAuth(ctx, ResetPeriodicJobsOperation, r); {
+			case err == nil: // if NO error
+				satisfied[0] |= 1 << 0
+			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
+				// Skip this security.
+			default:
+				return res, errors.Wrap(err, "security \"BearerAuth\"")
+			}
+		}
+		{
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, ResetPeriodicJobsOperation, r); {
+			case err == nil: // if NO error
+				satisfied[0] |= 1 << 1
+			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
+				// Skip this security.
+			default:
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
+			}
+		}
+		{
+			stage = "Security:ExternalApiKeyAuth"
+			switch err := c.securityExternalApiKeyAuth(ctx, ResetPeriodicJobsOperation, r); {
+			case err == nil: // if NO error
+				satisfied[0] |= 1 << 2
+			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
+				// Skip this security.
+			default:
+				return res, errors.Wrap(err, "security \"ExternalApiKeyAuth\"")
+			}
+		}
+
+		if ok := func() bool {
+		nextRequirement:
+			for _, requirement := range []bitset{
+				{0b00000001},
+				{0b00000010},
+				{0b00000100},
+			} {
+				for i, mask := range requirement {
+					if satisfied[i]&mask != mask {
+						continue nextRequirement
+					}
+				}
+				return true
+			}
+			return false
+		}(); !ok {
+			return res, ogenerrors.ErrSecurityRequirementIsNotSatisfied
+		}
+	}
+
+	stage = "SendRequest"
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	body := resp.Body
+	defer func() {
+		// Drain the body to EOF before closing, so the underlying
+		// connection can be reused by the Transport regardless of the
+		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
+		_, _ = io.Copy(io.Discard, body)
+		_ = body.Close()
+	}()
+
+	stage = "DecodeResponse"
+	result, err := decodeResetPeriodicJobsResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}
@@ -10847,14 +10986,14 @@ func (c *Client) sendRestoreFile(ctx context.Context, params RestoreFileParams) 
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, RestoreFileOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, RestoreFileOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -11001,14 +11140,14 @@ func (c *Client) sendResumeJobQueue(ctx context.Context, params ResumeJobQueuePa
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, ResumeJobQueueOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, ResumeJobQueueOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -11155,14 +11294,14 @@ func (c *Client) sendResumePeriodicJob(ctx context.Context, params ResumePeriodi
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, ResumePeriodicJobOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, ResumePeriodicJobOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -11309,14 +11448,14 @@ func (c *Client) sendRetryJob(ctx context.Context, params RetryJobParams) (res R
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, RetryJobOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, RetryJobOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -11465,14 +11604,14 @@ func (c *Client) sendRevokeApiKey(ctx context.Context, params RevokeApiKeyParams
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, RevokeApiKeyOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, RevokeApiKeyOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 
@@ -11611,14 +11750,14 @@ func (c *Client) sendRevokeSession(ctx context.Context, params RevokeSessionPara
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, RevokeSessionOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, RevokeSessionOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 
@@ -11755,14 +11894,14 @@ func (c *Client) sendRevokeShare(ctx context.Context, params RevokeShareParams) 
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, RevokeShareOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, RevokeShareOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -11909,14 +12048,14 @@ func (c *Client) sendSelectChannel(ctx context.Context, params SelectChannelPara
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, SelectChannelOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, SelectChannelOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -12256,14 +12395,14 @@ func (c *Client) sendSyncChannels(ctx context.Context, params SyncChannelsParams
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, SyncChannelsOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, SyncChannelsOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -12911,14 +13050,14 @@ func (c *Client) sendTrashFile(ctx context.Context, params TrashFileParams) (res
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, TrashFileOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, TrashFileOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -13092,14 +13231,14 @@ func (c *Client) sendUpdateFile(ctx context.Context, request *FileUpdateRequest,
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, UpdateFileOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, UpdateFileOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -13248,14 +13387,14 @@ func (c *Client) sendUpdatePeriodicJob(ctx context.Context, request *PeriodicJob
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, UpdatePeriodicJobOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, UpdatePeriodicJobOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{
@@ -13407,14 +13546,14 @@ func (c *Client) sendUpdateShare(ctx context.Context, request *ShareUpdateReques
 			}
 		}
 		{
-			stage = "Security:BrowserCookieAuth"
-			switch err := c.securityBrowserCookieAuth(ctx, UpdateShareOperation, r); {
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, UpdateShareOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
 				// Skip this security.
 			default:
-				return res, errors.Wrap(err, "security \"BrowserCookieAuth\"")
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
 			}
 		}
 		{

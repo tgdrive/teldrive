@@ -79,7 +79,7 @@ login-flow-ttl = "10m"
 session-ttl = "168h"
 
 [cache.memory]
-size = "2MB"
+size = "5MB"
 
 # Stream caching is opt-in. Leave dir empty to avoid disk use.
 [cache.stream]

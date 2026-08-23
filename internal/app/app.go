@@ -19,9 +19,9 @@ import (
 	varccache "github.com/tgdrive/varc/cache"
 
 	api "github.com/tgdrive/teldrive/v2/internal/api"
-	"github.com/tgdrive/teldrive/v2/internal/cache"
 	"github.com/tgdrive/teldrive/v2/internal/authn"
 	"github.com/tgdrive/teldrive/v2/internal/bots"
+	"github.com/tgdrive/teldrive/v2/internal/cache"
 	"github.com/tgdrive/teldrive/v2/internal/catalog"
 	"github.com/tgdrive/teldrive/v2/internal/channels"
 	"github.com/tgdrive/teldrive/v2/internal/config"
@@ -114,7 +114,15 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 	if err != nil {
 		return nil, fmt.Errorf("create secure data cipher: %w", err)
 	}
+	// One bounded process-local cache is shared by domains, while each domain
+	// owns its key policy and explicit post-commit invalidation rules.
 	globalCache := cache.NewMemoryCache(int(cfg.Cache.Memory.Size))
+	cleanupGlobalCache := true
+	defer func() {
+		if cleanupGlobalCache {
+			globalCache.Close()
+		}
+	}()
 	telegram, err := buildTelegramComponents(cfg, pool, secureCipher, dependencies.Logger, dependencies.Storage, globalCache)
 	if err != nil {
 		return nil, err
@@ -165,6 +173,7 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 	}
 	catalogService := catalog.NewService(pool, globalCache)
 	uploadService := uploads.NewService(pool, cfg.Uploads.SessionTTL)
+	uploadService.SetCacheInvalidator(catalogService)
 	channelService := channels.NewService(pool, channels.TelegramCreator{Storage: storage}, channels.Config{
 		PartLimit: cfg.Telegram.ChannelPartLimit, AutoCreate: cfg.Telegram.AutoChannelCreate,
 		NamePrefix: cfg.Telegram.ChannelNamePrefix,
@@ -208,7 +217,7 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 	if err != nil {
 		return nil, fmt.Errorf("create file operations service: %w", err)
 	}
-	shareService, err := shares.NewService(pool, catalogService, globalCache)
+	shareService, err := shares.NewService(pool, catalogService)
 	if err != nil {
 		return nil, fmt.Errorf("create share service: %w", err)
 	}
@@ -241,7 +250,7 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 	if err != nil {
 		return nil, fmt.Errorf("configure trusted proxies: %w", err)
 	}
-	routeApplication(mux, requestSecurity.middleware(browserCSRFMiddleware(browserSessionRenewalMiddleware(authService, httpServer))), webUI)
+	routeApplication(mux, requestSecurity.middleware(browserCSRFMiddleware(sessionRenewalMiddleware(authService, httpServer))), webUI)
 
 	application := &App{
 		config:            cfg,
@@ -263,6 +272,7 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 	cleanupPool = false
 	cleanupTelegramDownloads = false
 	cleanupStreamCache = false
+	cleanupGlobalCache = false
 	return application, nil
 }
 
@@ -423,6 +433,9 @@ func (a *App) Shutdown(ctx context.Context) error {
 		if err := a.jobs.Stop(ctx); err != nil && !errors.Is(err, jobs.ErrRuntimeNotConfigured) {
 			result = errors.Join(result, err)
 		}
+	}
+	if closer, ok := a.globalCache.(interface{ Close() }); ok {
+		closer.Close()
 	}
 	if a.pool != nil {
 		a.pool.Close()

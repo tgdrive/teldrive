@@ -79,6 +79,58 @@ func TestRuntimePreservesPeriodicJobConfigurationOnRestart(t *testing.T) {
 	t.Fatalf("periodic job %q not found", cleanupPeriodicID)
 }
 
+func TestRuntimeResetPeriodicJobsRestoresDefaults(t *testing.T) {
+	db := testpostgres.New(t)
+	ctx := context.Background()
+	runtime, err := NewRuntime(db.Pool, defaultsStorage{})
+	if err != nil {
+		t.Fatalf("NewRuntime() error = %v", err)
+	}
+	if err := runtime.Start(ctx); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
+
+	if _, err := runtime.UpdatePeriodicJob(ctx, cleanupPeriodicID, PeriodicJobInput{
+		ID: cleanupPeriodicID, Kind: CleanupSweepKind,
+		Args:  rawArgs(CleanupSweepArgs{BatchSize: 25}),
+		Queue: CleanupQueue, Priority: 2, MaxAttempts: 3,
+		Schedule: PeriodicSchedule{CronExpression: "15 3 * * *", CronTimezone: maintenanceTimezone},
+	}); err != nil {
+		t.Fatalf("UpdatePeriodicJob() error = %v", err)
+	}
+	if _, err := runtime.CreatePeriodicJob(ctx, PeriodicJobInput{
+		ID: "custom-upload-cleanup", Kind: UploadCleanupSweepKind,
+		Args: rawArgs(UploadCleanupSweepArgs{BatchSize: 7}), Queue: CleanupQueue,
+		Priority: 2, MaxAttempts: 3,
+		Schedule: PeriodicSchedule{CronExpression: "30 4 * * *", CronTimezone: maintenanceTimezone},
+	}); err != nil {
+		t.Fatalf("CreatePeriodicJob() error = %v", err)
+	}
+
+	reset, err := runtime.ResetPeriodicJobs(ctx)
+	if err != nil {
+		t.Fatalf("ResetPeriodicJobs() error = %v", err)
+	}
+	if len(reset) != 1 {
+		t.Fatalf("reset periodic jobs = %d, want 1", len(reset))
+	}
+	if reset[0].ID != uploadCleanupPeriodicID || reset[0].Schedule.CronExpression != uploadCleanupDefaultCron {
+		t.Fatalf("reset periodic job = %#v", reset[0])
+	}
+	if got := string(reset[0].Args["batch_size"]); got != "100" {
+		t.Fatalf("reset batch size = %s, want 100", got)
+	}
+
+	persisted, err := runtime.ListPeriodicJobs(ctx)
+	if err != nil {
+		t.Fatalf("ListPeriodicJobs() error = %v", err)
+	}
+	if len(persisted) != 1 || persisted[0].ID != uploadCleanupPeriodicID {
+		t.Fatalf("persisted periodic jobs after reset = %#v", persisted)
+	}
+}
+
 type defaultsStorage struct{}
 
 func (defaultsStorage) Upload(context.Context, telegramstore.UploadRequest) (telegramstore.StoredPart, error) {

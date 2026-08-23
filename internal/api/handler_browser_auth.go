@@ -10,22 +10,22 @@ import (
 )
 
 const (
-	browserAccessCookieName  = "teldrive_access"
-	browserRefreshCookieName = "teldrive_refresh"
+	accessCookieName  = "teldrive_access"
+	refreshCookieName = "teldrive_refresh"
 )
 
-type browserCookieSecureContextKey struct{}
+type cookieSecureContextKey struct{}
 
-func WithBrowserCookieSecure(ctx context.Context, secure bool) context.Context {
-	return context.WithValue(ctx, browserCookieSecureContextKey{}, secure)
+func WithCookieSecure(ctx context.Context, secure bool) context.Context {
+	return context.WithValue(ctx, cookieSecureContextKey{}, secure)
 }
 
-func browserCookieSecure(ctx context.Context) bool {
-	secure, _ := ctx.Value(browserCookieSecureContextKey{}).(bool)
+func cookieSecure(ctx context.Context) bool {
+	secure, _ := ctx.Value(cookieSecureContextKey{}).(bool)
 	return secure
 }
 
-func (h *Handler) BrowserTelegramLoginVerifyCode(ctx context.Context, req *gen.TelegramCodeVerifyRequest, _ gen.BrowserTelegramLoginVerifyCodeParams) (gen.BrowserTelegramLoginVerifyCodeRes, error) {
+func (h *Handler) CookieTelegramLoginVerifyCode(ctx context.Context, req *gen.TelegramCodeVerifyRequest, _ gen.CookieTelegramLoginVerifyCodeParams) (gen.CookieTelegramLoginVerifyCodeRes, error) {
 	if h.Auth == nil || req == nil {
 		return nil, mapServiceError(ErrOperationUnavailable)
 	}
@@ -37,10 +37,10 @@ func (h *Handler) BrowserTelegramLoginVerifyCode(ctx context.Context, req *gen.T
 		response := loginFlowResponse(result.Flow)
 		return &response, nil
 	}
-	return h.browserSessionResponse(ctx, result.Tokens)
+	return h.cookieSessionResponse(ctx, result.Tokens)
 }
 
-func (h *Handler) BrowserTelegramLoginVerifyPassword(ctx context.Context, req *gen.TelegramPasswordVerifyRequest, _ gen.BrowserTelegramLoginVerifyPasswordParams) (gen.BrowserTelegramLoginVerifyPasswordRes, error) {
+func (h *Handler) CookieTelegramLoginVerifyPassword(ctx context.Context, req *gen.TelegramPasswordVerifyRequest, _ gen.CookieTelegramLoginVerifyPasswordParams) (gen.CookieTelegramLoginVerifyPasswordRes, error) {
 	if h.Auth == nil || req == nil {
 		return nil, mapServiceError(ErrOperationUnavailable)
 	}
@@ -48,10 +48,10 @@ func (h *Handler) BrowserTelegramLoginVerifyPassword(ctx context.Context, req *g
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
-	return h.browserSessionResponse(ctx, result.Tokens)
+	return h.cookieSessionResponse(ctx, result.Tokens)
 }
 
-func (h *Handler) BrowserTelegramQRLoginPoll(ctx context.Context, req *gen.TelegramQRLoginPollRequest, _ gen.BrowserTelegramQRLoginPollParams) (gen.BrowserTelegramQRLoginPollRes, error) {
+func (h *Handler) CookieTelegramQRLoginPoll(ctx context.Context, req *gen.TelegramQRLoginPollRequest, _ gen.CookieTelegramQRLoginPollParams) (gen.CookieTelegramQRLoginPollRes, error) {
 	if h.Auth == nil || req == nil {
 		return nil, mapServiceError(ErrOperationUnavailable)
 	}
@@ -63,10 +63,10 @@ func (h *Handler) BrowserTelegramQRLoginPoll(ctx context.Context, req *gen.Teleg
 		response := qrLoginFlowResponse(result.QRFlow)
 		return &response, nil
 	}
-	return h.browserSessionResponse(ctx, result.Tokens)
+	return h.cookieSessionResponse(ctx, result.Tokens)
 }
 
-func (h *Handler) RefreshBrowserSession(ctx context.Context, params gen.RefreshBrowserSessionParams) (gen.RefreshBrowserSessionRes, error) {
+func (h *Handler) RefreshCookieSession(ctx context.Context, params gen.RefreshCookieSessionParams) (gen.RefreshCookieSessionRes, error) {
 	if h.Auth == nil {
 		return nil, mapServiceError(ErrOperationUnavailable)
 	}
@@ -74,10 +74,10 @@ func (h *Handler) RefreshBrowserSession(ctx context.Context, params gen.RefreshB
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
-	return h.browserSessionResponse(ctx, tokens)
+	return h.cookieSessionResponse(ctx, tokens)
 }
 
-func (h *Handler) LogoutBrowserSession(ctx context.Context) (gen.LogoutBrowserSessionRes, error) {
+func (h *Handler) LogoutCookieSession(ctx context.Context) (gen.LogoutCookieSessionRes, error) {
 	if h.Auth == nil {
 		return nil, mapServiceError(ErrOperationUnavailable)
 	}
@@ -88,29 +88,29 @@ func (h *Handler) LogoutBrowserSession(ctx context.Context) (gen.LogoutBrowserSe
 	if err := h.Auth.Logout(ctx, identity); err != nil {
 		return nil, mapServiceError(err)
 	}
-	return &gen.LogoutBrowserSessionNoContent{SetCookie: h.expiredBrowserCookies(ctx)}, nil
+	return &gen.LogoutCookieSessionNoContent{SetCookie: h.expiredCookies(ctx)}, nil
 }
 
-func (h *Handler) browserSessionResponse(ctx context.Context, tokens *authn.TokenPair) (*gen.BrowserSessionHeaders, error) {
+func (h *Handler) cookieSessionResponse(ctx context.Context, tokens *authn.TokenPair) (*gen.CookieSessionHeaders, error) {
 	if h == nil || h.Auth == nil || tokens == nil || tokens.AccessToken == "" || tokens.RefreshToken == "" || tokens.ExpiresIn <= 0 {
 		return nil, ErrOperationUnavailable
 	}
 	now := time.Now().UTC()
 	accessTTL := time.Duration(tokens.ExpiresIn) * time.Second
 	refreshTTL := h.Auth.RefreshTokenTTL()
-	return &gen.BrowserSessionHeaders{
+	return &gen.CookieSessionHeaders{
 		SetCookie: []string{
-			h.browserCookie(ctx, browserAccessCookieName, tokens.AccessToken, accessTTL).String(),
-			h.browserCookie(ctx, browserRefreshCookieName, tokens.RefreshToken, refreshTTL).String(),
+			h.cookie(ctx, accessCookieName, tokens.AccessToken, accessTTL).String(),
+			h.cookie(ctx, refreshCookieName, tokens.RefreshToken, refreshTTL).String(),
 		},
-		Response: gen.BrowserSession{
-			Authenticated: gen.BrowserSessionAuthenticatedTrue,
+		Response: gen.CookieSession{
+			Authenticated: gen.CookieSessionAuthenticatedTrue,
 			ExpiresAt:     now.Add(accessTTL),
 		},
 	}, nil
 }
 
-func (h *Handler) browserCookie(ctx context.Context, name, value string, ttl time.Duration) *http.Cookie {
+func (h *Handler) cookie(ctx context.Context, name, value string, ttl time.Duration) *http.Cookie {
 	maxAge := int(ttl / time.Second)
 	return &http.Cookie{
 		Name:     name,
@@ -119,22 +119,22 @@ func (h *Handler) browserCookie(ctx context.Context, name, value string, ttl tim
 		MaxAge:   maxAge,
 		Expires:  time.Now().UTC().Add(ttl),
 		HttpOnly: true,
-		Secure:   browserCookieSecure(ctx),
+		Secure:   cookieSecure(ctx),
 		SameSite: http.SameSiteLaxMode,
 	}
 }
 
-func (h *Handler) expiredBrowserCookies(ctx context.Context) []string {
+func (h *Handler) expiredCookies(ctx context.Context) []string {
 	expires := time.Unix(1, 0).UTC()
 	cookies := make([]string, 0, 2)
-	for _, name := range []string{browserAccessCookieName, browserRefreshCookieName} {
+	for _, name := range []string{accessCookieName, refreshCookieName} {
 		cookies = append(cookies, (&http.Cookie{
 			Name:     name,
 			Path:     "/",
 			MaxAge:   -1,
 			Expires:  expires,
 			HttpOnly: true,
-			Secure:   browserCookieSecure(ctx),
+			Secure:   cookieSecure(ctx),
 			SameSite: http.SameSiteLaxMode,
 		}).String())
 	}

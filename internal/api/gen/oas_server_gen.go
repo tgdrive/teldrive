@@ -15,24 +15,6 @@ type Handler interface {
 	//
 	// DELETE /v1/uploads/{uploadId}
 	AbortUpload(ctx context.Context, params AbortUploadParams) (AbortUploadRes, error)
-	// BrowserTelegramLoginVerifyCode implements browserTelegramLoginVerifyCode operation.
-	//
-	// Complete Telegram code verification for the browser UI and establish an HttpOnly cookie session.
-	//
-	// POST /v1/auth/browser/telegram/verify-code
-	BrowserTelegramLoginVerifyCode(ctx context.Context, req *TelegramCodeVerifyRequest, params BrowserTelegramLoginVerifyCodeParams) (BrowserTelegramLoginVerifyCodeRes, error)
-	// BrowserTelegramLoginVerifyPassword implements browserTelegramLoginVerifyPassword operation.
-	//
-	// Complete Telegram password verification for the browser UI and establish an HttpOnly cookie session.
-	//
-	// POST /v1/auth/browser/telegram/verify-password
-	BrowserTelegramLoginVerifyPassword(ctx context.Context, req *TelegramPasswordVerifyRequest, params BrowserTelegramLoginVerifyPasswordParams) (BrowserTelegramLoginVerifyPasswordRes, error)
-	// BrowserTelegramQRLoginPoll implements browserTelegramQRLoginPoll operation.
-	//
-	// Poll Telegram QR login for the browser UI and establish an HttpOnly cookie session when authorized.
-	//
-	// POST /v1/auth/browser/telegram/qr/poll
-	BrowserTelegramQRLoginPoll(ctx context.Context, req *TelegramQRLoginPollRequest, params BrowserTelegramQRLoginPollParams) (BrowserTelegramQRLoginPollRes, error)
 	// BulkMoveFiles implements bulkMoveFiles operation.
 	//
 	// Transactionally move multiple files or folders.
@@ -56,6 +38,24 @@ type Handler interface {
 	//
 	// POST /v1/uploads/{uploadId}/complete
 	CompleteUpload(ctx context.Context, params CompleteUploadParams) (CompleteUploadRes, error)
+	// CookieTelegramLoginVerifyCode implements cookieTelegramLoginVerifyCode operation.
+	//
+	// Complete Telegram code verification and establish an HttpOnly cookie session.
+	//
+	// POST /v1/auth/cookie/telegram/verify-code
+	CookieTelegramLoginVerifyCode(ctx context.Context, req *TelegramCodeVerifyRequest, params CookieTelegramLoginVerifyCodeParams) (CookieTelegramLoginVerifyCodeRes, error)
+	// CookieTelegramLoginVerifyPassword implements cookieTelegramLoginVerifyPassword operation.
+	//
+	// Complete Telegram password verification and establish an HttpOnly cookie session.
+	//
+	// POST /v1/auth/cookie/telegram/verify-password
+	CookieTelegramLoginVerifyPassword(ctx context.Context, req *TelegramPasswordVerifyRequest, params CookieTelegramLoginVerifyPasswordParams) (CookieTelegramLoginVerifyPasswordRes, error)
+	// CookieTelegramQRLoginPoll implements cookieTelegramQRLoginPoll operation.
+	//
+	// Poll Telegram QR login and establish an HttpOnly cookie session when authorized.
+	//
+	// POST /v1/auth/cookie/telegram/qr/poll
+	CookieTelegramQRLoginPoll(ctx context.Context, req *TelegramQRLoginPollRequest, params CookieTelegramQRLoginPollParams) (CookieTelegramQRLoginPollRes, error)
 	// CopyFile implements copyFile operation.
 	//
 	// Copy a file or folder to another destination.
@@ -286,12 +286,12 @@ type Handler interface {
 	//
 	// GET /v1/uploads
 	ListUploads(ctx context.Context, params ListUploadsParams) (ListUploadsRes, error)
-	// LogoutBrowserSession implements logoutBrowserSession operation.
+	// LogoutCookieSession implements logoutCookieSession operation.
 	//
-	// Revoke the browser session and clear its HttpOnly cookies.
+	// Revoke the cookie session and clear its HttpOnly cookies.
 	//
-	// POST /v1/auth/browser/logout
-	LogoutBrowserSession(ctx context.Context) (LogoutBrowserSessionRes, error)
+	// POST /v1/auth/cookie/logout
+	LogoutCookieSession(ctx context.Context) (LogoutCookieSessionRes, error)
 	// LogoutSession implements logoutSession operation.
 	//
 	// Revoke the current session.
@@ -335,18 +335,22 @@ type Handler interface {
 	//
 	// PUT /v1/uploads/{uploadId}/parts/{partNo}
 	PutUploadPart(ctx context.Context, req PutUploadPartReq, params PutUploadPartParams) (PutUploadPartRes, error)
-	// RefreshBrowserSession implements refreshBrowserSession operation.
+	// RefreshCookieSession implements refreshCookieSession operation.
 	//
-	// Rotate browser session cookies using the HttpOnly refresh cookie.
+	// Rotate session cookies using the HttpOnly refresh cookie.
 	//
-	// POST /v1/auth/browser/refresh
-	RefreshBrowserSession(ctx context.Context, params RefreshBrowserSessionParams) (RefreshBrowserSessionRes, error)
+	// POST /v1/auth/cookie/refresh
+	RefreshCookieSession(ctx context.Context, params RefreshCookieSessionParams) (RefreshCookieSessionRes, error)
 	// RefreshSession implements refreshSession operation.
 	//
 	// Rotate an access/refresh token pair.
 	//
 	// POST /v1/auth/refresh
 	RefreshSession(ctx context.Context, req *RefreshTokenRequest) (RefreshSessionRes, error)
+	// ResetPeriodicJobs implements resetPeriodicJobs operation.
+	//
+	// POST /v1/periodic-jobs/reset
+	ResetPeriodicJobs(ctx context.Context) (ResetPeriodicJobsRes, error)
 	// RestoreFile implements restoreFile operation.
 	//
 	// Restore a trashed file or folder.

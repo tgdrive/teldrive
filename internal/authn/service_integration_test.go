@@ -109,6 +109,13 @@ func TestLoginRefreshAPIKeyAndLogoutAgainstRealPostgres(t *testing.T) {
 	if err := service.RevokeSession(ctx, 1001, secondSessionID); err != nil {
 		t.Fatalf("RevokeSession() error = %v", err)
 	}
+	if err := service.RevokeSession(ctx, 1001, secondSessionID); err != nil {
+		t.Fatalf("idempotent RevokeSession() error = %v", err)
+	}
+	sessions, err = service.ListSessions(ctx, ListSessionsInput{UserID: 1001, Limit: 10})
+	if err != nil || len(sessions) != 1 {
+		t.Fatalf("ListSessions(after revoke) = %#v, %v", sessions, err)
+	}
 	if err := service.RevokeSession(ctx, 2002, secondSessionID); !errors.Is(err, ErrSessionNotFound) {
 		t.Fatalf("cross-user RevokeSession() error = %v", err)
 	}

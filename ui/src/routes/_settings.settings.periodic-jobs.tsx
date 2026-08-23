@@ -15,7 +15,9 @@ import { useEffect, useMemo, useState } from "react";
 import AddIcon from "~icons/gravity-ui/plus";
 import EditIcon from "~icons/gravity-ui/pencil";
 import PlayIcon from "~icons/gravity-ui/play";
+import PauseIcon from "~icons/gravity-ui/pause";
 import TrashBinIcon from "~icons/gravity-ui/trash-bin";
+import ResetIcon from "~icons/material-symbols/restart-alt-rounded";
 import { AppDialog } from "../components/dialogs/app-dialog";
 import { ConfirmDialog } from "../components/dialogs/confirm-dialog";
 import { SettingsPageHeader } from "../components/settings-layout";
@@ -82,6 +84,7 @@ function PeriodicJobsPage() {
   const [editorOpen, setEditorOpen] = useState(false);
   const [editingJob, setEditingJob] = useState<PeriodicJob | null>(null);
   const [deleteJob, setDeleteJob] = useState<PeriodicJob | null>(null);
+  const [resetOpen, setResetOpen] = useState(false);
 
   const invalidate = () =>
     queryClient.invalidateQueries({
@@ -125,6 +128,16 @@ function PeriodicJobsPage() {
       void invalidate();
     },
     onError: () => toast.danger("Failed to resume periodic job"),
+  });
+  const resetMutation = api.useMutation("post", "/v1/periodic-jobs/reset", {
+    onSuccess: () => {
+      toast.success("Periodic jobs reset to defaults");
+      setResetOpen(false);
+      void queryClient.resetQueries({
+        queryKey: api.queryOptions("get", "/v1/periodic-jobs").queryKey,
+      });
+    },
+    onError: () => toast.danger("Failed to reset periodic jobs"),
   });
 
   const openCreate = () => {
@@ -173,9 +186,14 @@ function PeriodicJobsPage() {
         title="Periodic Jobs"
         description="Manage durable schedules stored in PostgreSQL and shared by every worker instance."
         actions={
-          <Button variant="primary" onPress={openCreate}>
-            <AddIcon className="size-4" /> Add periodic job
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="tertiary" onPress={() => setResetOpen(true)}>
+              <ResetIcon className="size-4" /> Reset to defaults
+            </Button>
+            <Button variant="primary" onPress={openCreate}>
+              <AddIcon className="size-4" /> Add periodic job
+            </Button>
+          </div>
         }
       />
 
@@ -199,7 +217,12 @@ function PeriodicJobsPage() {
             <PeriodicJobCard
               key={job.id}
               job={job}
-              isToggling={pauseMutation.isPending || resumeMutation.isPending}
+              isToggling={
+                (pauseMutation.isPending &&
+                  pauseMutation.variables?.params.path.periodicJobId === job.id) ||
+                (resumeMutation.isPending &&
+                  resumeMutation.variables?.params.path.periodicJobId === job.id)
+              }
               onEdit={() => openEdit(job)}
               onDelete={() => setDeleteJob(job)}
               onToggle={() => {
@@ -233,6 +256,16 @@ function PeriodicJobsPage() {
           if (deleteJob?.id)
             deleteMutation.mutate({ params: { path: { periodicJobId: deleteJob.id } } });
         }}
+      />
+
+      <ConfirmDialog
+        open={resetOpen}
+        onOpenChange={setResetOpen}
+        title="Reset periodic jobs?"
+        message="All periodic jobs, including custom schedules, will be deleted and the built-in jobs will be recreated with their defaults."
+        confirmLabel="Reset to defaults"
+        isPending={resetMutation.isPending}
+        onConfirm={() => resetMutation.mutate({})}
       />
     </div>
   );
@@ -284,15 +317,27 @@ function PeriodicJobCard({
           </div>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2 lg:justify-end">
-          <Button size="sm" variant="tertiary" isPending={isToggling} onPress={onToggle}>
-            {job.paused ? <PlayIcon className="size-4" /> : null}
-            {job.paused ? "Resume" : "Pause"}
+          <Button
+            isIconOnly
+            size="sm"
+            variant="tertiary"
+            aria-label={job.paused ? `Resume ${job.id}` : `Pause ${job.id}`}
+            isPending={isToggling}
+            onPress={onToggle}
+          >
+            {job.paused ? <PlayIcon className="size-4" /> : <PauseIcon className="size-4" />}
           </Button>
-          <Button size="sm" variant="tertiary" onPress={onEdit}>
-            <EditIcon className="size-4" /> Edit
+          <Button isIconOnly size="sm" variant="tertiary" aria-label={`Edit ${job.id}`} onPress={onEdit}>
+            <EditIcon className="size-4" />
           </Button>
-          <Button size="sm" variant="danger-soft" onPress={onDelete}>
-            <TrashBinIcon className="size-4" /> Delete
+          <Button
+            isIconOnly
+            size="sm"
+            variant="danger-soft"
+            aria-label={`Delete ${job.id}`}
+            onPress={onDelete}
+          >
+            <TrashBinIcon className="size-4" />
           </Button>
         </div>
       </div>

@@ -120,7 +120,7 @@ type StreamCache struct {
 }
 
 type MemoryCache struct {
-	Size size.Size `koanf:"size" default:"2MB" validate:"gt=0" description:"Global freecache memory size (e.g., 2MB, 10MB)"`
+	Size size.Size `koanf:"size" default:"5MB" validate:"gt=0" description:"Global Ristretto memory cache size (e.g., 5MB, 10MB)"`
 }
 
 type Cache struct {

@@ -97,7 +97,7 @@ func TestBrowserCSRFMiddleware(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			request := httptest.NewRequest(test.method, "http://drive.example.test/v1/files", nil)
 			if test.cookie {
-				request.AddCookie(&http.Cookie{Name: browserAccessCookieName, Value: "access"})
+				request.AddCookie(&http.Cookie{Name: accessCookieName, Value: "access"})
 			}
 			for name, value := range test.headers {
 				request.Header.Set(name, value)
@@ -134,7 +134,7 @@ func (s *renewalStub) RenewAccess(_ context.Context, _ string) (*authn.AccessRen
 	return &renewal, nil
 }
 
-func TestBrowserSessionRenewalMiddleware(t *testing.T) {
+func TestSessionRenewalMiddleware(t *testing.T) {
 	now := time.Now().UTC()
 	if accessCookieNeedsRefresh(testAccessJWT(now.Add(time.Hour)), now) {
 		t.Fatal("fresh access cookie requested renewal")
@@ -142,23 +142,23 @@ func TestBrowserSessionRenewalMiddleware(t *testing.T) {
 	if !accessCookieNeedsRefresh(testAccessJWT(now.Add(-time.Minute)), now) {
 		t.Fatal("expired access cookie did not request renewal")
 	}
-	for _, path := range []string{"/health/live", "/v1/auth/refresh", "/v1/auth/browser/refresh", "/v1/auth/telegram/start"} {
-		if !browserSessionRenewalSkipped(httptest.NewRequest(http.MethodGet, "http://drive.example.test"+path, nil)) {
+	for _, path := range []string{"/health/live", "/v1/auth/refresh", "/v1/auth/cookie/refresh", "/v1/auth/telegram/start"} {
+		if !sessionRenewalSkipped(httptest.NewRequest(http.MethodGet, "http://drive.example.test"+path, nil)) {
 			t.Fatalf("renewal should skip %s", path)
 		}
 	}
-	for _, path := range []string{"/v1/me", "/v1/files", "/v1/auth/logout", "/v1/auth/browser/logout"} {
-		if browserSessionRenewalSkipped(httptest.NewRequest(http.MethodGet, "http://drive.example.test"+path, nil)) {
+	for _, path := range []string{"/v1/me", "/v1/files", "/v1/auth/logout", "/v1/auth/cookie/logout"} {
+		if sessionRenewalSkipped(httptest.NewRequest(http.MethodGet, "http://drive.example.test"+path, nil)) {
 			t.Fatalf("renewal should allow %s", path)
 		}
 	}
 	stub := &renewalStub{renewal: authn.AccessRenewal{AccessToken: "a2", ExpiresIn: 900}}
-	handler := browserSessionRenewalMiddleware(stub, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		access, err := r.Cookie(browserAccessCookieName)
+	handler := sessionRenewalMiddleware(stub, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		access, err := r.Cookie(accessCookieName)
 		if err != nil || access.Value != "a2" {
 			t.Fatalf("renewed access cookie = %#v, %v", access, err)
 		}
-		refresh, err := r.Cookie(browserRefreshCookieName)
+		refresh, err := r.Cookie(refreshCookieName)
 		if err != nil || refresh.Value != "r1" {
 			t.Fatalf("refresh cookie changed = %#v, %v", refresh, err)
 		}
@@ -167,15 +167,15 @@ func TestBrowserSessionRenewalMiddleware(t *testing.T) {
 
 	for range 2 {
 		request := httptest.NewRequest(http.MethodGet, "http://drive.example.test/v1/files", nil)
-		request.AddCookie(&http.Cookie{Name: browserAccessCookieName, Value: testAccessJWT(now.Add(-time.Minute))})
-		request.AddCookie(&http.Cookie{Name: browserRefreshCookieName, Value: "r1"})
+		request.AddCookie(&http.Cookie{Name: accessCookieName, Value: testAccessJWT(now.Add(-time.Minute))})
+		request.AddCookie(&http.Cookie{Name: refreshCookieName, Value: "r1"})
 		response := httptest.NewRecorder()
 		handler.ServeHTTP(response, request)
 		if response.Code != http.StatusNoContent {
 			t.Fatalf("status = %d", response.Code)
 		}
 		cookies := response.Result().Cookies()
-		if len(cookies) != 1 || cookies[0].Name != browserAccessCookieName || cookies[0].Value != "a2" {
+		if len(cookies) != 1 || cookies[0].Name != accessCookieName || cookies[0].Value != "a2" {
 			t.Fatalf("renewal cookies = %#v", cookies)
 		}
 	}

@@ -35,9 +35,12 @@ const SETTINGS_GROUPS = [
     label: "Preferences",
     items: [
       { label: "Uploads", path: "/settings/uploads", icon: UploadIcon },
-      { label: "Periodic Jobs", path: "/settings/periodic-jobs", icon: ClockIcon },
       { label: "Appearance", path: "/settings/appearance", icon: PaletteIcon },
     ],
+  },
+  {
+    label: "System",
+    items: [{ label: "Periodic Jobs", path: "/settings/periodic-jobs", icon: ClockIcon }],
   },
 ] as const;
 

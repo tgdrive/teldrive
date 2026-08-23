@@ -302,6 +302,21 @@ async function installApi(page: Page) {
               createdAt: now,
               updatedAt: now,
             },
+            {
+              id: "custom-periodic-job",
+              kind: "teldrive_upload_cleanup",
+              args: { batchSize: 25 },
+              queue: "maintenance",
+              priority: 2,
+              maxAttempts: 10,
+              tags: [],
+              cronExpression: "0 * * * *",
+              cronTimezone: "UTC",
+              nextRunAt: now,
+              paused: false,
+              createdAt: now,
+              updatedAt: now,
+            },
           ],
         },
       });
@@ -528,6 +543,46 @@ test("periodic jobs appears in settings with the editor", async ({ page }) => {
   await page.getByRole("button", { name: "Add periodic job" }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
 });
+
+test("periodic job controls are icon buttons with row-scoped pending state", async ({ page }) => {
+  let releasePause!: () => void;
+  const pauseResponse = new Promise<void>((resolve) => {
+    releasePause = resolve;
+  });
+  await page.route("**/api/v1/periodic-jobs/teldrive-upload-cleanup/pause", async (route) => {
+    await pauseResponse;
+    await route.fulfill({
+      json: {
+        id: "teldrive-upload-cleanup",
+        kind: "teldrive_upload_cleanup",
+        args: { batchSize: 100 },
+        queue: "maintenance",
+        priority: 2,
+        maxAttempts: 10,
+        tags: ["teldrive", "cleanup", "uploads"],
+        cronExpression: "*/5 * * * *",
+        cronTimezone: "UTC",
+        nextRunAt: new Date().toISOString(),
+        paused: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    });
+  });
+
+  await page.goto("/settings/periodic-jobs");
+  const firstPause = page.getByRole("button", { name: "Pause teldrive-upload-cleanup" });
+  const secondPause = page.getByRole("button", { name: "Pause custom-periodic-job" });
+  await expect(page.getByRole("button", { name: "Edit teldrive-upload-cleanup" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Delete teldrive-upload-cleanup" })).toBeVisible();
+
+  await firstPause.click();
+  await expect(firstPause).toBeDisabled();
+  await expect(secondPause).toBeEnabled();
+  releasePause();
+  await expect(page.getByRole("button", { name: "Resume teldrive-upload-cleanup" })).toBeVisible();
+});
+
 
 test("task launcher queues a Teldrive River job", async ({ page, isMobile }) => {
   test.skip(isMobile, "desktop task launcher interaction");

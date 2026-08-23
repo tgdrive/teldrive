@@ -103,6 +103,7 @@ func (p *DownloadClientPool) OpenDownloadSession(ctx context.Context, userID int
 					return nil, runErr
 				}
 				return &gotdDownloadSession{
+					userID:               userID,
 					clientFn:             func() (*tg.Client, error) { return p.client(entry, api) },
 					closeFn:              func() error { p.release(entry); return nil },
 					downloadReadBuffers:  p.config.ReadBuffers,

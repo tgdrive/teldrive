@@ -7,6 +7,7 @@ import TrashIcon from "~icons/gravity-ui/trash-bin";
 import { $api } from "@/api/client";
 import { userMessage } from "@/api/errors";
 import type { ApiKeyCreated } from "@/api/types";
+import { ConfirmDialog } from "@/components/dialogs/confirm-dialog";
 import { SettingsPageHeader, SettingsRow, SettingsSection } from "@/components/settings-layout";
 import { newIdempotencyKey } from "@/features/shared/idempotency";
 import { getQueryClient } from "@/lib/queryClient";
@@ -27,6 +28,7 @@ function formatDate(value?: string | null) {
 function ApiKeysSettings() {
   const [name, setName] = useState("");
   const [created, setCreated] = useState<ApiKeyCreated>();
+  const [revokeKey, setRevokeKey] = useState<{ id: string; name: string } | null>(null);
   const query = $api.useSuspenseQuery(
     "get",
     "/v1/api-keys",
@@ -34,7 +36,16 @@ function ApiKeysSettings() {
     { staleTime: 20_000 },
   );
   const create = $api.useMutation("post", "/v1/api-keys");
-  const revoke = $api.useMutation("delete", "/v1/api-keys/{apiKeyId}");
+  const revoke = $api.useMutation("delete", "/v1/api-keys/{apiKeyId}", {
+    onSuccess: () => {
+      setRevokeKey(null);
+      void refresh();
+      toast.success("API key revoked");
+    },
+    onError: (error) => {
+      toast.error("API key could not be revoked", { description: userMessage(error) });
+    },
+  });
   const refresh = () =>
     getQueryClient().invalidateQueries({
       queryKey: $api.queryOptions("get", "/v1/api-keys").queryKey,
@@ -123,18 +134,8 @@ function ApiKeysSettings() {
                   size="sm"
                   variant="ghost"
                   aria-label={`Revoke ${item.name}`}
-                  isDisabled={revoke.isPending}
-                  onPress={async () => {
-                    if (
-                      !window.confirm(
-                        "Revoke this API key? Applications using it will lose access immediately.",
-                      )
-                    )
-                      return;
-                    await revoke.mutateAsync({ params: { path: { apiKeyId: item.id } } });
-                    await refresh();
-                    toast.success("API key revoked");
-                  }}
+                  isDisabled={revoke.isPending && revokeKey?.id === item.id}
+                  onPress={() => setRevokeKey({ id: item.id, name: item.name })}
                 >
                   <TrashIcon className="size-4" />
                 </Button>
@@ -145,6 +146,21 @@ function ApiKeysSettings() {
           <div className="px-5 py-8 text-sm text-muted">No API keys created.</div>
         )}
       </SettingsSection>
+      <ConfirmDialog
+        open={revokeKey !== null}
+        onOpenChange={(open) => {
+          if (!open && !revoke.isPending) setRevokeKey(null);
+        }}
+        title="Revoke API key?"
+        message={`Applications using “${revokeKey?.name ?? ""}” will lose access immediately.`}
+        confirmLabel="Revoke key"
+        isPending={revoke.isPending}
+        onConfirm={() => {
+          if (revokeKey) {
+            revoke.mutate({ params: { path: { apiKeyId: revokeKey.id } } });
+          }
+        }}
+      />
     </div>
   );
 }

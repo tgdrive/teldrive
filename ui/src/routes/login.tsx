@@ -20,7 +20,7 @@ type Flow = {
   qrUrl?: string;
   qrExpiresAt?: string;
 };
-type BrowserSession = { authenticated: true; expiresAt: string };
+type CookieSession = { authenticated: true; expiresAt: string };
 
 export const Route = createFileRoute("/login")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -32,7 +32,7 @@ export const Route = createFileRoute("/login")({
   component: LoginPage,
 });
 
-function isSession(value: unknown): value is BrowserSession {
+function isSession(value: unknown): value is CookieSession {
   return Boolean(value && typeof value === "object" && "authenticated" in value);
 }
 
@@ -49,10 +49,10 @@ function LoginPage() {
   const [qrExpiry, setQrExpiry] = useState("");
 
   const startPhone = $api.useMutation("post", "/v1/auth/telegram/start");
-  const verifyCode = $api.useMutation("post", "/v1/auth/browser/telegram/verify-code");
-  const verifyPassword = $api.useMutation("post", "/v1/auth/browser/telegram/verify-password");
+  const verifyCode = $api.useMutation("post", "/v1/auth/cookie/telegram/verify-code");
+  const verifyPassword = $api.useMutation("post", "/v1/auth/cookie/telegram/verify-password");
   const startQr = $api.useMutation("post", "/v1/auth/telegram/qr/start");
-  const pollQr = $api.useMutation("post", "/v1/auth/browser/telegram/qr/poll");
+  const pollQr = $api.useMutation("post", "/v1/auth/cookie/telegram/qr/poll");
   const pending = startPhone.isPending || verifyCode.isPending || verifyPassword.isPending;
 
   const finish = async () => {
@@ -160,9 +160,6 @@ function LoginPage() {
             one focused interface.
           </p>
         </div>
-        <p className="text-xs uppercase tracking-[0.14em] text-muted">
-          Secure browser cookie sessions
-        </p>
       </section>
       <section className="flex items-center justify-center p-4 sm:p-8 lg:p-12">
         <Card className="w-full max-w-md border border-border bg-surface/90 shadow-xl">

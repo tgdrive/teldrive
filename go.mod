@@ -4,6 +4,7 @@ go 1.26
 
 require (
 	github.com/cenkalti/backoff/v4 v4.3.0
+	github.com/dgraph-io/ristretto/v2 v2.4.2
 	github.com/divyam234/riverpro v0.0.0-20260811182024-3f4b645e66e1
 	github.com/go-chi/chi/v5 v5.3.1
 	github.com/go-faster/errors v0.8.0
@@ -29,6 +30,7 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
 	github.com/tgdrive/varc v0.0.0-20260812045828-d0198bd602a0
+	github.com/vmihailenco/msgpack/v5 v5.4.1
 	github.com/zeebo/blake3 v0.2.4
 	go.opentelemetry.io/otel v1.45.0
 	go.opentelemetry.io/otel/metric v1.45.0
@@ -44,8 +46,8 @@ require (
 	github.com/andybalholm/brotli v1.2.2 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/coder/websocket v1.8.15 // indirect
-	github.com/coocood/freecache v1.2.7 // indirect
 	github.com/dlclark/regexp2 v1.12.0 // indirect
+	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/fatih/color v1.19.0 // indirect
 	github.com/fsnotify/fsnotify v1.10.1 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.15 // indirect
@@ -82,7 +84,6 @@ require (
 	github.com/tidwall/match v1.2.0 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	github.com/tidwall/sjson v1.2.5 // indirect
-	github.com/vmihailenco/msgpack/v5 v5.4.1 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/yuin/goldmark v1.8.5 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect

@@ -44,12 +44,17 @@ var (
 	ErrUnsupportedConflictPolicy = errors.New("upload conflict policy is not implemented")
 )
 
+type CatalogCacheInvalidator interface {
+	InvalidateFiles(context.Context, int64, ...uuid.UUID)
+}
+
 type Service struct {
-	pool       *pgxpool.Pool
-	queries    *sqlcgen.Queries
-	now        func() time.Time
-	sessionTTL time.Duration
-	leaseTTL   time.Duration
+	pool               *pgxpool.Pool
+	queries            *sqlcgen.Queries
+	now                func() time.Time
+	sessionTTL         time.Duration
+	leaseTTL           time.Duration
+	catalogInvalidator CatalogCacheInvalidator
 }
 
 func NewService(pool *pgxpool.Pool, sessionTTLs ...time.Duration) *Service {
@@ -64,6 +69,10 @@ func NewService(pool *pgxpool.Pool, sessionTTLs ...time.Duration) *Service {
 		sessionTTL: sessionTTL,
 		leaseTTL:   defaultLeaseTTL,
 	}
+}
+
+func (s *Service) SetCacheInvalidator(catalogInvalidator CatalogCacheInvalidator) {
+	s.catalogInvalidator = catalogInvalidator
 }
 
 type CreateInput struct {
@@ -436,7 +445,8 @@ func (s *Service) Complete(ctx context.Context, userID int64, uploadID uuid.UUID
 			return nil, ErrHashMismatch
 		}
 	}
-	if err := prepareConflictPolicy(ctx, tx, session); err != nil {
+	replacedID, err := prepareConflictPolicy(ctx, tx, session)
+	if err != nil {
 		return nil, err
 	}
 	if _, err := q.MarkUploadCompleting(ctx, sqlcgen.MarkUploadCompletingParams{
@@ -482,16 +492,21 @@ func (s *Service) Complete(ctx context.Context, userID int64, uploadID uuid.UUID
 	if err := tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("commit upload completion: %w", err)
 	}
+	if replacedID != nil {
+		if s.catalogInvalidator != nil {
+			s.catalogInvalidator.InvalidateFiles(ctx, userID, *replacedID)
+		}
+	}
 	return file, nil
 }
 
-func prepareConflictPolicy(ctx context.Context, tx pgx.Tx, session *sqlcgen.UploadSession) error {
+func prepareConflictPolicy(ctx context.Context, tx pgx.Tx, session *sqlcgen.UploadSession) (*uuid.UUID, error) {
 	if session == nil {
-		return ErrInvalidInput
+		return nil, ErrInvalidInput
 	}
 	queries := sqlcgen.New(tx)
 	if err := queries.AcquireAdvisoryTransactionLock(ctx, uploadDestinationLockID(session)); err != nil {
-		return fmt.Errorf("lock upload destination: %w", err)
+		return nil, fmt.Errorf("lock upload destination: %w", err)
 	}
 
 	existing, err := queries.LockUploadDestinationConflict(ctx, sqlcgen.LockUploadDestinationConflictParams{
@@ -499,63 +514,63 @@ func prepareConflictPolicy(ctx context.Context, tx pgx.Tx, session *sqlcgen.Uplo
 	})
 	hasConflict := err == nil
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return fmt.Errorf("check upload destination conflict: %w", err)
+		return nil, fmt.Errorf("check upload destination conflict: %w", err)
 	}
 
 	switch session.ConflictPolicy {
 	case sqlcgen.NameConflictPolicyFail:
 		if hasConflict {
-			return ErrNameConflict
+			return nil, ErrNameConflict
 		}
-		return nil
+		return nil, nil
 	case sqlcgen.NameConflictPolicyReplace:
 		if !hasConflict {
-			return nil
+			return nil, nil
 		}
 		if existing.Kind != sqlcgen.FileKindFile {
-			return ErrNameConflict
+			return nil, ErrNameConflict
 		}
 		existingID, ok := dbtypes.GoogleUUID(existing.ID)
 		if !ok {
-			return ErrNameConflict
+			return nil, ErrNameConflict
 		}
 		count, err := queries.MarkActiveFileDeletionPendingForReplace(ctx, sqlcgen.MarkActiveFileDeletionPendingForReplaceParams{
 			FileID: dbtypes.UUID(existingID), UserID: session.UserID,
 		})
 		if err != nil {
-			return fmt.Errorf("mark replaced file for cleanup: %w", err)
+			return nil, fmt.Errorf("mark replaced file for cleanup: %w", err)
 		}
 		if count != 1 {
-			return ErrNameConflict
+			return nil, ErrNameConflict
 		}
 		if err := queries.RevokeActiveSharesForFile(ctx, sqlcgen.RevokeActiveSharesForFileParams{
 			FileID: dbtypes.UUID(existingID), UserID: session.UserID,
 		}); err != nil {
-			return fmt.Errorf("revoke replaced file shares: %w", err)
+			return nil, fmt.Errorf("revoke replaced file shares: %w", err)
 		}
-		return nil
+		return &existingID, nil
 	case sqlcgen.NameConflictPolicyRename:
 		if !hasConflict {
-			return nil
+			return nil, nil
 		}
 		name, normalized, err := nextAvailableUploadName(ctx, queries, session)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		count, err := queries.RenameUploadSession(ctx, sqlcgen.RenameUploadSessionParams{
 			Name: name, NormalizedName: normalized, UploadID: session.ID, UserID: session.UserID,
 		})
 		if err != nil {
-			return fmt.Errorf("rename upload destination: %w", err)
+			return nil, fmt.Errorf("rename upload destination: %w", err)
 		}
 		if count != 1 {
-			return ErrInvalidState
+			return nil, ErrInvalidState
 		}
 		session.Name = name
 		session.NormalizedName = normalized
-		return nil
+		return nil, nil
 	default:
-		return ErrInvalidInput
+		return nil, ErrInvalidInput
 	}
 }
 

@@ -362,11 +362,11 @@ paths:
               $ref: "#/components/schemas/RefreshTokenRequest"
       security:
         - {}
-  /v1/auth/browser/telegram/verify-code:
+  /v1/auth/cookie/telegram/verify-code:
     post:
-      operationId: browserTelegramLoginVerifyCode
-      description: Complete Telegram code verification for the browser UI and
-        establish an HttpOnly cookie session.
+      operationId: cookieTelegramLoginVerifyCode
+      description: Complete Telegram code verification and establish an HttpOnly
+        cookie session.
       parameters:
         - $ref: "#/components/parameters/IdempotencyHeader"
       responses:
@@ -382,7 +382,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BrowserSession"
+                $ref: "#/components/schemas/CookieSession"
         "202":
           description: The request has been accepted for processing, but processing has
             not yet completed.
@@ -430,11 +430,11 @@ paths:
               $ref: "#/components/schemas/TelegramCodeVerifyRequest"
       security:
         - {}
-  /v1/auth/browser/telegram/verify-password:
+  /v1/auth/cookie/telegram/verify-password:
     post:
-      operationId: browserTelegramLoginVerifyPassword
-      description: Complete Telegram password verification for the browser UI and
-        establish an HttpOnly cookie session.
+      operationId: cookieTelegramLoginVerifyPassword
+      description: Complete Telegram password verification and establish an HttpOnly
+        cookie session.
       parameters:
         - $ref: "#/components/parameters/IdempotencyHeader"
       responses:
@@ -450,7 +450,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BrowserSession"
+                $ref: "#/components/schemas/CookieSession"
         "400":
           description: The server could not understand the request due to invalid syntax.
           content:
@@ -491,11 +491,11 @@ paths:
               $ref: "#/components/schemas/TelegramPasswordVerifyRequest"
       security:
         - {}
-  /v1/auth/browser/telegram/qr/poll:
+  /v1/auth/cookie/telegram/qr/poll:
     post:
-      operationId: browserTelegramQRLoginPoll
-      description: Poll Telegram QR login for the browser UI and establish an HttpOnly
-        cookie session when authorized.
+      operationId: cookieTelegramQRLoginPoll
+      description: Poll Telegram QR login and establish an HttpOnly cookie session
+        when authorized.
       parameters:
         - $ref: "#/components/parameters/IdempotencyHeader"
       responses:
@@ -511,7 +511,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BrowserSession"
+                $ref: "#/components/schemas/CookieSession"
         "202":
           description: The request has been accepted for processing, but processing has
             not yet completed.
@@ -559,12 +559,12 @@ paths:
               $ref: "#/components/schemas/TelegramQRLoginPollRequest"
       security:
         - {}
-  /v1/auth/browser/refresh:
+  /v1/auth/cookie/refresh:
     post:
-      operationId: refreshBrowserSession
-      description: Rotate browser session cookies using the HttpOnly refresh cookie.
+      operationId: refreshCookieSession
+      description: Rotate session cookies using the HttpOnly refresh cookie.
       parameters:
-        - $ref: "#/components/parameters/BrowserRefreshCookie"
+        - $ref: "#/components/parameters/RefreshCookie"
       responses:
         "200":
           description: The request has succeeded.
@@ -578,7 +578,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/BrowserSession"
+                $ref: "#/components/schemas/CookieSession"
         "401":
           description: Access is unauthorized.
           content:
@@ -595,10 +595,10 @@ paths:
         - Authentication
       security:
         - {}
-  /v1/auth/browser/logout:
+  /v1/auth/cookie/logout:
     post:
-      operationId: logoutBrowserSession
-      description: Revoke the browser session and clear its HttpOnly cookies.
+      operationId: logoutCookieSession
+      description: Revoke the cookie session and clear its HttpOnly cookies.
       parameters: []
       responses:
         "204":
@@ -620,7 +620,7 @@ paths:
       tags:
         - Authentication
       security:
-        - BrowserCookieAuth: []
+        - CookieAuth: []
   /v1/me:
     get:
       operationId: getCurrentUser
@@ -643,7 +643,7 @@ paths:
         - Account
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/me/photo:
     get:
@@ -695,7 +695,7 @@ paths:
         - Account
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/auth/logout:
     post:
@@ -716,7 +716,7 @@ paths:
         - Account
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/api-keys:
     get:
@@ -750,7 +750,7 @@ paths:
         - API keys
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
     post:
       operationId: createApiKey
       parameters:
@@ -791,7 +791,7 @@ paths:
               $ref: "#/components/schemas/ApiKeyCreateRequest"
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
   /v1/api-keys/{apiKeyId}:
     delete:
       operationId: revokeApiKey
@@ -821,7 +821,7 @@ paths:
         - API keys
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
   /v1/sessions:
     get:
       operationId: listSessions
@@ -855,7 +855,7 @@ paths:
         - Sessions
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
   /v1/sessions/{sessionId}:
     delete:
       operationId: revokeSession
@@ -887,7 +887,7 @@ paths:
         - Sessions
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
   /v1/channels:
     get:
       operationId: listChannels
@@ -920,7 +920,7 @@ paths:
         - Channels
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
     post:
       operationId: createChannel
@@ -968,7 +968,7 @@ paths:
               $ref: "#/components/schemas/ChannelCreateRequest"
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/channels/discover:
     get:
@@ -1001,7 +1001,7 @@ paths:
         - Channels
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/channels/sync:
     post:
@@ -1041,7 +1041,7 @@ paths:
         - Channels
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/channels/{channelId}/select:
     post:
@@ -1082,7 +1082,7 @@ paths:
         - Channels
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/channels/{channelId}:
     delete:
@@ -1120,7 +1120,7 @@ paths:
         - Channels
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/bots:
     get:
@@ -1154,7 +1154,7 @@ paths:
         - Bots
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
     post:
       operationId: createBots
       parameters:
@@ -1200,7 +1200,7 @@ paths:
               $ref: "#/components/schemas/BotCreateRequest"
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
   /v1/bots/{botId}:
     delete:
       operationId: deleteBot
@@ -1237,7 +1237,7 @@ paths:
         - Bots
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
   /v1/events/ticket:
     post:
       operationId: createEventStreamTicket
@@ -1266,7 +1266,7 @@ paths:
         - Events
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/events:
     get:
@@ -1398,7 +1398,7 @@ paths:
         - Files
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/files/{fileId}:
     get:
@@ -1438,7 +1438,7 @@ paths:
         - Files
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
     patch:
       operationId: updateFile
@@ -1502,7 +1502,7 @@ paths:
               $ref: "#/components/schemas/FileUpdateRequest"
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
     delete:
       operationId: trashFile
@@ -1539,7 +1539,7 @@ paths:
         - Files
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/files/{fileId}/move:
     post:
@@ -1605,7 +1605,7 @@ paths:
               $ref: "#/components/schemas/FileMoveRequest"
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/files/{fileId}/copy:
     post:
@@ -1669,7 +1669,7 @@ paths:
               $ref: "#/components/schemas/FileCopyRequest"
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/files/{fileId}/restore:
     post:
@@ -1716,7 +1716,7 @@ paths:
         - Files
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/files/{fileId}/purge:
     delete:
@@ -1754,7 +1754,7 @@ paths:
         - Files
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/files/{fileId}/content:
     get:
@@ -1876,7 +1876,7 @@ paths:
         - Files
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
     head:
       operationId: headFile
@@ -1943,7 +1943,7 @@ paths:
         - Files
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/files/{fileId}/view-state:
     get:
@@ -1981,7 +1981,7 @@ paths:
         - Files
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
     put:
       operationId: putFileViewState
@@ -2027,7 +2027,7 @@ paths:
               $ref: "#/components/schemas/FileViewStateUpdate"
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
     delete:
       operationId: deleteFileViewState
@@ -2052,7 +2052,7 @@ paths:
         - Files
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/files/bulk/move:
     post:
@@ -2101,7 +2101,7 @@ paths:
               $ref: "#/components/schemas/FileBulkMoveRequest"
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/files/bulk/trash:
     post:
@@ -2150,7 +2150,7 @@ paths:
               $ref: "#/components/schemas/FileBulkTrashRequest"
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/files/statistics/categories:
     get:
@@ -2176,7 +2176,7 @@ paths:
         - Files
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/files/statistics/drive:
     get:
@@ -2200,7 +2200,7 @@ paths:
         - Files
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/folders:
     post:
@@ -2258,7 +2258,7 @@ paths:
               $ref: "#/components/schemas/FolderCreateRequest"
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/uploads:
     get:
@@ -2305,7 +2305,7 @@ paths:
         - Uploads
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
     post:
       operationId: createUpload
@@ -2366,7 +2366,7 @@ paths:
               $ref: "#/components/schemas/UploadCreateRequest"
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/uploads/statistics:
     get:
@@ -2408,7 +2408,7 @@ paths:
         - Uploads
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/uploads/imports:
     post:
@@ -2458,7 +2458,7 @@ paths:
               $ref: "#/components/schemas/UploadImportRequest"
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/uploads/{uploadId}:
     get:
@@ -2499,7 +2499,7 @@ paths:
         - Uploads
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
     delete:
       operationId: abortUpload
@@ -2536,7 +2536,7 @@ paths:
         - Uploads
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/uploads/{uploadId}/parts:
     get:
@@ -2588,7 +2588,7 @@ paths:
         - Uploads
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/uploads/{uploadId}/parts/{partNo}:
     put:
@@ -2692,7 +2692,7 @@ paths:
               format: binary
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/uploads/{uploadId}/complete:
     post:
@@ -2775,7 +2775,7 @@ paths:
         - Uploads
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/files/{fileId}/shares:
     post:
@@ -2829,7 +2829,7 @@ paths:
               $ref: "#/components/schemas/ShareCreateRequest"
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
     get:
       operationId: listFileShares
@@ -2873,7 +2873,7 @@ paths:
         - Shares
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/shares/{shareId}:
     patch:
@@ -2919,7 +2919,7 @@ paths:
               $ref: "#/components/schemas/ShareUpdateRequest"
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
     delete:
       operationId: revokeShare
@@ -2949,7 +2949,7 @@ paths:
         - Shares
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/public/shares/{token}:
     get:
@@ -3290,7 +3290,7 @@ paths:
         - Jobs
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
     post:
       operationId: createJob
@@ -3331,7 +3331,7 @@ paths:
               $ref: "#/components/schemas/JobCreate"
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/jobs/statistics:
     get:
@@ -3354,7 +3354,7 @@ paths:
         - Jobs
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/jobs/queues:
     get:
@@ -3377,7 +3377,7 @@ paths:
         - Jobs
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/jobs/queues/{queue}/pause:
     post:
@@ -3408,7 +3408,7 @@ paths:
         - Jobs
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/jobs/queues/{queue}/resume:
     post:
@@ -3439,7 +3439,7 @@ paths:
         - Jobs
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/jobs/purge:
     delete:
@@ -3469,7 +3469,7 @@ paths:
         - Jobs
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/jobs/{jobId}:
     get:
@@ -3503,7 +3503,7 @@ paths:
         - Jobs
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
     delete:
       operationId: deleteJob
@@ -3539,7 +3539,7 @@ paths:
         - Jobs
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/jobs/{jobId}/cancel:
     post:
@@ -3579,7 +3579,7 @@ paths:
         - Jobs
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/jobs/{jobId}/retry:
     post:
@@ -3619,7 +3619,7 @@ paths:
         - Jobs
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/periodic-jobs:
     get:
@@ -3642,7 +3642,7 @@ paths:
         - Periodic Jobs
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
     post:
       operationId: createPeriodicJob
@@ -3683,7 +3683,7 @@ paths:
               $ref: "#/components/schemas/PeriodicJobCreate"
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/periodic-jobs/catalog:
     get:
@@ -3706,7 +3706,30 @@ paths:
         - Periodic Jobs
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/periodic-jobs/reset:
+    post:
+      operationId: resetPeriodicJobs
+      parameters: []
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PeriodicJobList"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Periodic Jobs
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/periodic-jobs/{periodicJobId}:
     put:
@@ -3752,7 +3775,7 @@ paths:
               $ref: "#/components/schemas/PeriodicJobUpdate"
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
     delete:
       operationId: deletePeriodicJob
@@ -3782,7 +3805,7 @@ paths:
         - Periodic Jobs
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/periodic-jobs/{periodicJobId}/pause:
     post:
@@ -3816,7 +3839,7 @@ paths:
         - Periodic Jobs
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/periodic-jobs/{periodicJobId}/resume:
     post:
@@ -3850,7 +3873,7 @@ paths:
         - Periodic Jobs
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
   /v1/storage/stats:
     get:
@@ -3874,7 +3897,7 @@ paths:
         - Storage
       security:
         - BearerAuth: []
-        - BrowserCookieAuth: []
+        - CookieAuth: []
         - ExternalApiKeyAuth: []
 components:
   parameters:
@@ -3885,7 +3908,7 @@ components:
       description: Stable UUID generated by the caller for safe request retries.
       schema:
         $ref: "#/components/schemas/Uuid"
-    BrowserRefreshCookie:
+    RefreshCookie:
       name: teldrive_refresh
       in: cookie
       required: true
@@ -4231,7 +4254,7 @@ components:
       properties:
         refreshToken:
           type: string
-    BrowserSession:
+    CookieSession:
       type: object
       required:
         - authenticated
@@ -5608,7 +5631,7 @@ components:
           items:
             $ref: "#/components/schemas/StorageActivity"
   securitySchemes:
-    BrowserCookieAuth:
+    CookieAuth:
       type: apiKey
       in: cookie
       name: teldrive_access

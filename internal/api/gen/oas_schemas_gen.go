@@ -317,162 +317,6 @@ func (s *BotSummary) SetCreatedAt(val time.Time) {
 	s.CreatedAt = val
 }
 
-type BrowserCookieAuth struct {
-	APIKey string
-	Roles  []string
-}
-
-// GetAPIKey returns the value of APIKey.
-func (s *BrowserCookieAuth) GetAPIKey() string {
-	return s.APIKey
-}
-
-// GetRoles returns the value of Roles.
-func (s *BrowserCookieAuth) GetRoles() []string {
-	return s.Roles
-}
-
-// SetAPIKey sets the value of APIKey.
-func (s *BrowserCookieAuth) SetAPIKey(val string) {
-	s.APIKey = val
-}
-
-// SetRoles sets the value of Roles.
-func (s *BrowserCookieAuth) SetRoles(val []string) {
-	s.Roles = val
-}
-
-// Ref: #/components/schemas/BrowserSession
-type BrowserSession struct {
-	Authenticated BrowserSessionAuthenticated `json:"authenticated"`
-	ExpiresAt     time.Time                   `json:"expiresAt"`
-}
-
-// GetAuthenticated returns the value of Authenticated.
-func (s *BrowserSession) GetAuthenticated() BrowserSessionAuthenticated {
-	return s.Authenticated
-}
-
-// GetExpiresAt returns the value of ExpiresAt.
-func (s *BrowserSession) GetExpiresAt() time.Time {
-	return s.ExpiresAt
-}
-
-// SetAuthenticated sets the value of Authenticated.
-func (s *BrowserSession) SetAuthenticated(val BrowserSessionAuthenticated) {
-	s.Authenticated = val
-}
-
-// SetExpiresAt sets the value of ExpiresAt.
-func (s *BrowserSession) SetExpiresAt(val time.Time) {
-	s.ExpiresAt = val
-}
-
-type BrowserSessionAuthenticated bool
-
-const (
-	BrowserSessionAuthenticatedTrue BrowserSessionAuthenticated = true
-)
-
-// AllValues returns all BrowserSessionAuthenticated values.
-func (BrowserSessionAuthenticated) AllValues() []BrowserSessionAuthenticated {
-	return []BrowserSessionAuthenticated{
-		BrowserSessionAuthenticatedTrue,
-	}
-}
-
-// BrowserSessionHeaders wraps BrowserSession with response headers.
-type BrowserSessionHeaders struct {
-	SetCookie []string
-	Response  BrowserSession
-}
-
-// GetSetCookie returns the value of SetCookie.
-func (s *BrowserSessionHeaders) GetSetCookie() []string {
-	return s.SetCookie
-}
-
-// GetResponse returns the value of Response.
-func (s *BrowserSessionHeaders) GetResponse() BrowserSession {
-	return s.Response
-}
-
-// SetSetCookie sets the value of SetCookie.
-func (s *BrowserSessionHeaders) SetSetCookie(val []string) {
-	s.SetCookie = val
-}
-
-// SetResponse sets the value of Response.
-func (s *BrowserSessionHeaders) SetResponse(val BrowserSession) {
-	s.Response = val
-}
-
-func (*BrowserSessionHeaders) browserTelegramLoginVerifyCodeRes()     {}
-func (*BrowserSessionHeaders) browserTelegramLoginVerifyPasswordRes() {}
-func (*BrowserSessionHeaders) browserTelegramQRLoginPollRes()         {}
-func (*BrowserSessionHeaders) refreshBrowserSessionRes()              {}
-
-type BrowserTelegramLoginVerifyCodeBadRequest ErrorEnvelope
-
-func (*BrowserTelegramLoginVerifyCodeBadRequest) browserTelegramLoginVerifyCodeRes() {}
-
-type BrowserTelegramLoginVerifyCodeGone ErrorEnvelope
-
-func (*BrowserTelegramLoginVerifyCodeGone) browserTelegramLoginVerifyCodeRes() {}
-
-type BrowserTelegramLoginVerifyCodeTooManyRequests ErrorEnvelope
-
-func (*BrowserTelegramLoginVerifyCodeTooManyRequests) browserTelegramLoginVerifyCodeRes() {}
-
-type BrowserTelegramLoginVerifyCodeUnauthorized ErrorEnvelope
-
-func (*BrowserTelegramLoginVerifyCodeUnauthorized) browserTelegramLoginVerifyCodeRes() {}
-
-type BrowserTelegramLoginVerifyCodeUnprocessableEntity ErrorEnvelope
-
-func (*BrowserTelegramLoginVerifyCodeUnprocessableEntity) browserTelegramLoginVerifyCodeRes() {}
-
-type BrowserTelegramLoginVerifyPasswordBadRequest ErrorEnvelope
-
-func (*BrowserTelegramLoginVerifyPasswordBadRequest) browserTelegramLoginVerifyPasswordRes() {}
-
-type BrowserTelegramLoginVerifyPasswordGone ErrorEnvelope
-
-func (*BrowserTelegramLoginVerifyPasswordGone) browserTelegramLoginVerifyPasswordRes() {}
-
-type BrowserTelegramLoginVerifyPasswordTooManyRequests ErrorEnvelope
-
-func (*BrowserTelegramLoginVerifyPasswordTooManyRequests) browserTelegramLoginVerifyPasswordRes() {}
-
-type BrowserTelegramLoginVerifyPasswordUnauthorized ErrorEnvelope
-
-func (*BrowserTelegramLoginVerifyPasswordUnauthorized) browserTelegramLoginVerifyPasswordRes() {}
-
-type BrowserTelegramLoginVerifyPasswordUnprocessableEntity ErrorEnvelope
-
-func (*BrowserTelegramLoginVerifyPasswordUnprocessableEntity) browserTelegramLoginVerifyPasswordRes() {
-}
-
-type BrowserTelegramQRLoginPollBadRequest ErrorEnvelope
-
-func (*BrowserTelegramQRLoginPollBadRequest) browserTelegramQRLoginPollRes() {}
-
-type BrowserTelegramQRLoginPollGone ErrorEnvelope
-
-func (*BrowserTelegramQRLoginPollGone) browserTelegramQRLoginPollRes() {}
-
-type BrowserTelegramQRLoginPollTooManyRequests ErrorEnvelope
-
-func (*BrowserTelegramQRLoginPollTooManyRequests) browserTelegramQRLoginPollRes() {}
-
-type BrowserTelegramQRLoginPollUnauthorized ErrorEnvelope
-
-func (*BrowserTelegramQRLoginPollUnauthorized) browserTelegramQRLoginPollRes() {}
-
-type BrowserTelegramQRLoginPollUnprocessableEntity ErrorEnvelope
-
-func (*BrowserTelegramQRLoginPollUnprocessableEntity) browserTelegramQRLoginPollRes() {}
-
 type BulkMoveFilesConflict ErrorEnvelope
 
 func (*BulkMoveFilesConflict) bulkMoveFilesRes() {}
@@ -691,6 +535,161 @@ func (*CompleteUploadUnauthorized) completeUploadRes() {}
 type CompleteUploadUnprocessableEntity ErrorEnvelope
 
 func (*CompleteUploadUnprocessableEntity) completeUploadRes() {}
+
+type CookieAuth struct {
+	APIKey string
+	Roles  []string
+}
+
+// GetAPIKey returns the value of APIKey.
+func (s *CookieAuth) GetAPIKey() string {
+	return s.APIKey
+}
+
+// GetRoles returns the value of Roles.
+func (s *CookieAuth) GetRoles() []string {
+	return s.Roles
+}
+
+// SetAPIKey sets the value of APIKey.
+func (s *CookieAuth) SetAPIKey(val string) {
+	s.APIKey = val
+}
+
+// SetRoles sets the value of Roles.
+func (s *CookieAuth) SetRoles(val []string) {
+	s.Roles = val
+}
+
+// Ref: #/components/schemas/CookieSession
+type CookieSession struct {
+	Authenticated CookieSessionAuthenticated `json:"authenticated"`
+	ExpiresAt     time.Time                  `json:"expiresAt"`
+}
+
+// GetAuthenticated returns the value of Authenticated.
+func (s *CookieSession) GetAuthenticated() CookieSessionAuthenticated {
+	return s.Authenticated
+}
+
+// GetExpiresAt returns the value of ExpiresAt.
+func (s *CookieSession) GetExpiresAt() time.Time {
+	return s.ExpiresAt
+}
+
+// SetAuthenticated sets the value of Authenticated.
+func (s *CookieSession) SetAuthenticated(val CookieSessionAuthenticated) {
+	s.Authenticated = val
+}
+
+// SetExpiresAt sets the value of ExpiresAt.
+func (s *CookieSession) SetExpiresAt(val time.Time) {
+	s.ExpiresAt = val
+}
+
+type CookieSessionAuthenticated bool
+
+const (
+	CookieSessionAuthenticatedTrue CookieSessionAuthenticated = true
+)
+
+// AllValues returns all CookieSessionAuthenticated values.
+func (CookieSessionAuthenticated) AllValues() []CookieSessionAuthenticated {
+	return []CookieSessionAuthenticated{
+		CookieSessionAuthenticatedTrue,
+	}
+}
+
+// CookieSessionHeaders wraps CookieSession with response headers.
+type CookieSessionHeaders struct {
+	SetCookie []string
+	Response  CookieSession
+}
+
+// GetSetCookie returns the value of SetCookie.
+func (s *CookieSessionHeaders) GetSetCookie() []string {
+	return s.SetCookie
+}
+
+// GetResponse returns the value of Response.
+func (s *CookieSessionHeaders) GetResponse() CookieSession {
+	return s.Response
+}
+
+// SetSetCookie sets the value of SetCookie.
+func (s *CookieSessionHeaders) SetSetCookie(val []string) {
+	s.SetCookie = val
+}
+
+// SetResponse sets the value of Response.
+func (s *CookieSessionHeaders) SetResponse(val CookieSession) {
+	s.Response = val
+}
+
+func (*CookieSessionHeaders) cookieTelegramLoginVerifyCodeRes()     {}
+func (*CookieSessionHeaders) cookieTelegramLoginVerifyPasswordRes() {}
+func (*CookieSessionHeaders) cookieTelegramQRLoginPollRes()         {}
+func (*CookieSessionHeaders) refreshCookieSessionRes()              {}
+
+type CookieTelegramLoginVerifyCodeBadRequest ErrorEnvelope
+
+func (*CookieTelegramLoginVerifyCodeBadRequest) cookieTelegramLoginVerifyCodeRes() {}
+
+type CookieTelegramLoginVerifyCodeGone ErrorEnvelope
+
+func (*CookieTelegramLoginVerifyCodeGone) cookieTelegramLoginVerifyCodeRes() {}
+
+type CookieTelegramLoginVerifyCodeTooManyRequests ErrorEnvelope
+
+func (*CookieTelegramLoginVerifyCodeTooManyRequests) cookieTelegramLoginVerifyCodeRes() {}
+
+type CookieTelegramLoginVerifyCodeUnauthorized ErrorEnvelope
+
+func (*CookieTelegramLoginVerifyCodeUnauthorized) cookieTelegramLoginVerifyCodeRes() {}
+
+type CookieTelegramLoginVerifyCodeUnprocessableEntity ErrorEnvelope
+
+func (*CookieTelegramLoginVerifyCodeUnprocessableEntity) cookieTelegramLoginVerifyCodeRes() {}
+
+type CookieTelegramLoginVerifyPasswordBadRequest ErrorEnvelope
+
+func (*CookieTelegramLoginVerifyPasswordBadRequest) cookieTelegramLoginVerifyPasswordRes() {}
+
+type CookieTelegramLoginVerifyPasswordGone ErrorEnvelope
+
+func (*CookieTelegramLoginVerifyPasswordGone) cookieTelegramLoginVerifyPasswordRes() {}
+
+type CookieTelegramLoginVerifyPasswordTooManyRequests ErrorEnvelope
+
+func (*CookieTelegramLoginVerifyPasswordTooManyRequests) cookieTelegramLoginVerifyPasswordRes() {}
+
+type CookieTelegramLoginVerifyPasswordUnauthorized ErrorEnvelope
+
+func (*CookieTelegramLoginVerifyPasswordUnauthorized) cookieTelegramLoginVerifyPasswordRes() {}
+
+type CookieTelegramLoginVerifyPasswordUnprocessableEntity ErrorEnvelope
+
+func (*CookieTelegramLoginVerifyPasswordUnprocessableEntity) cookieTelegramLoginVerifyPasswordRes() {}
+
+type CookieTelegramQRLoginPollBadRequest ErrorEnvelope
+
+func (*CookieTelegramQRLoginPollBadRequest) cookieTelegramQRLoginPollRes() {}
+
+type CookieTelegramQRLoginPollGone ErrorEnvelope
+
+func (*CookieTelegramQRLoginPollGone) cookieTelegramQRLoginPollRes() {}
+
+type CookieTelegramQRLoginPollTooManyRequests ErrorEnvelope
+
+func (*CookieTelegramQRLoginPollTooManyRequests) cookieTelegramQRLoginPollRes() {}
+
+type CookieTelegramQRLoginPollUnauthorized ErrorEnvelope
+
+func (*CookieTelegramQRLoginPollUnauthorized) cookieTelegramQRLoginPollRes() {}
+
+type CookieTelegramQRLoginPollUnprocessableEntity ErrorEnvelope
+
+func (*CookieTelegramQRLoginPollUnprocessableEntity) cookieTelegramQRLoginPollRes() {}
 
 type CopyFileConflict ErrorEnvelope
 
@@ -1776,8 +1775,9 @@ func (*ErrorEnvelope) listChannelsRes()              {}
 func (*ErrorEnvelope) listJobQueuesRes()             {}
 func (*ErrorEnvelope) listPeriodicJobsRes()          {}
 func (*ErrorEnvelope) listSessionsRes()              {}
-func (*ErrorEnvelope) logoutBrowserSessionRes()      {}
+func (*ErrorEnvelope) logoutCookieSessionRes()       {}
 func (*ErrorEnvelope) logoutSessionRes()             {}
+func (*ErrorEnvelope) resetPeriodicJobsRes()         {}
 
 // Ref: #/components/schemas/EventStreamTicket
 type EventStreamTicket struct {
@@ -4536,22 +4536,22 @@ type ListUploadsUnprocessableEntity ErrorEnvelope
 
 func (*ListUploadsUnprocessableEntity) listUploadsRes() {}
 
-// LogoutBrowserSessionNoContent is response for LogoutBrowserSession operation.
-type LogoutBrowserSessionNoContent struct {
+// LogoutCookieSessionNoContent is response for LogoutCookieSession operation.
+type LogoutCookieSessionNoContent struct {
 	SetCookie []string
 }
 
 // GetSetCookie returns the value of SetCookie.
-func (s *LogoutBrowserSessionNoContent) GetSetCookie() []string {
+func (s *LogoutCookieSessionNoContent) GetSetCookie() []string {
 	return s.SetCookie
 }
 
 // SetSetCookie sets the value of SetCookie.
-func (s *LogoutBrowserSessionNoContent) SetSetCookie(val []string) {
+func (s *LogoutCookieSessionNoContent) SetSetCookie(val []string) {
 	s.SetCookie = val
 }
 
-func (*LogoutBrowserSessionNoContent) logoutBrowserSessionRes() {}
+func (*LogoutCookieSessionNoContent) logoutCookieSessionRes() {}
 
 // LogoutSessionNoContent is response for LogoutSession operation.
 type LogoutSessionNoContent struct{}
@@ -6313,7 +6313,8 @@ func (s *PeriodicJobList) SetJobs(val []PeriodicJob) {
 	s.Jobs = val
 }
 
-func (*PeriodicJobList) listPeriodicJobsRes() {}
+func (*PeriodicJobList) listPeriodicJobsRes()  {}
+func (*PeriodicJobList) resetPeriodicJobsRes() {}
 
 // Ref: #/components/schemas/PeriodicJobTemplate
 type PeriodicJobTemplate struct {
@@ -6666,13 +6667,13 @@ type PutUploadPartUnprocessableEntity ErrorEnvelope
 
 func (*PutUploadPartUnprocessableEntity) putUploadPartRes() {}
 
-type RefreshBrowserSessionTooManyRequests ErrorEnvelope
+type RefreshCookieSessionTooManyRequests ErrorEnvelope
 
-func (*RefreshBrowserSessionTooManyRequests) refreshBrowserSessionRes() {}
+func (*RefreshCookieSessionTooManyRequests) refreshCookieSessionRes() {}
 
-type RefreshBrowserSessionUnauthorized ErrorEnvelope
+type RefreshCookieSessionUnauthorized ErrorEnvelope
 
-func (*RefreshBrowserSessionUnauthorized) refreshBrowserSessionRes() {}
+func (*RefreshCookieSessionUnauthorized) refreshCookieSessionRes() {}
 
 type RefreshSessionTooManyRequests ErrorEnvelope
 
@@ -7737,9 +7738,9 @@ func (s *TelegramLoginStartResponse) SetPasswordRequired(val bool) {
 	s.PasswordRequired = val
 }
 
-func (*TelegramLoginStartResponse) browserTelegramLoginVerifyCodeRes() {}
-func (*TelegramLoginStartResponse) telegramLoginStartRes()             {}
-func (*TelegramLoginStartResponse) telegramLoginVerifyCodeRes()        {}
+func (*TelegramLoginStartResponse) cookieTelegramLoginVerifyCodeRes() {}
+func (*TelegramLoginStartResponse) telegramLoginStartRes()            {}
+func (*TelegramLoginStartResponse) telegramLoginVerifyCodeRes()       {}
 
 type TelegramLoginStartTooManyRequests ErrorEnvelope
 
@@ -7909,9 +7910,9 @@ func (s *TelegramQRLoginResponse) SetQrExpiresAt(val OptDateTime) {
 	s.QrExpiresAt = val
 }
 
-func (*TelegramQRLoginResponse) browserTelegramQRLoginPollRes() {}
-func (*TelegramQRLoginResponse) telegramQRLoginPollRes()        {}
-func (*TelegramQRLoginResponse) telegramQRLoginStartRes()       {}
+func (*TelegramQRLoginResponse) cookieTelegramQRLoginPollRes() {}
+func (*TelegramQRLoginResponse) telegramQRLoginPollRes()       {}
+func (*TelegramQRLoginResponse) telegramQRLoginStartRes()      {}
 
 type TelegramQRLoginStartBadRequest ErrorEnvelope
 

@@ -75,11 +75,7 @@ func (s *Service) BulkTrash(ctx context.Context, userID int64, rawIDs []uuid.UUI
 	if err := tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("commit bulk trash: %w", err)
 	}
-	for _, file := range items {
-		if id, ok := fileUUID(file); ok {
-			s.invalidateFile(ctx, userID, id)
-		}
-	}
+	s.InvalidateFiles(ctx, userID, StableIDs(items)...)
 	return items, nil
 }
 
@@ -169,6 +165,7 @@ func (s *Service) bulkMove(ctx context.Context, userID int64, rawIDs []uuid.UUID
 	}
 
 	result := make([]*sqlcgen.File, 0, len(ids))
+	invalidated := make([]uuid.UUID, 0)
 	for _, id := range ids {
 		file := locked[id]
 		name, normalized := file.Name, file.NormalizedName
@@ -189,6 +186,17 @@ func (s *Service) bulkMove(ctx context.Context, userID int64, rawIDs []uuid.UUID
 			case "replace":
 				if _, partOfRequest := requested[conflictID]; partOfRequest {
 					return nil, ErrConflict
+				}
+				replacedIDs, err := queries.ListFileSubtreeIDs(ctx, sqlcgen.ListFileSubtreeIDsParams{
+					FileID: dbtypes.UUID(conflictID), UserID: userID,
+				})
+				if err != nil {
+					return nil, fmt.Errorf("list replaced subtree: %w", err)
+				}
+				for _, replacedID := range replacedIDs {
+					if value, ok := dbtypes.GoogleUUID(replacedID); ok {
+						invalidated = append(invalidated, value)
+					}
 				}
 				if err := queries.MarkFileSubtreeDeletionPending(ctx, sqlcgen.MarkFileSubtreeDeletionPendingParams{
 					FileID: dbtypes.UUID(conflictID), UserID: userID,
@@ -227,9 +235,10 @@ func (s *Service) bulkMove(ctx context.Context, userID int64, rawIDs []uuid.UUID
 	}
 	for _, file := range result {
 		if id, ok := fileUUID(file); ok {
-			s.invalidateFile(ctx, userID, id)
+			invalidated = append(invalidated, id)
 		}
 	}
+	s.InvalidateFiles(ctx, userID, invalidated...)
 	return result, nil
 }
 

@@ -17,20 +17,27 @@ import (
 )
 
 const (
-	CleanupSweepKind = "teldrive_cleanup_uploads"
-	CleanupQueue     = "maintenance"
-	defaultBatchSize = 100
+	UploadCleanupSweepKind = "teldrive_cleanup_uploads"
+	CleanupQueue           = "maintenance"
+	defaultBatchSize       = 100
 )
 
-var ErrCleanupNotConfigured = errors.New("upload cleanup worker is not configured")
+var ErrUploadCleanupNotConfigured = errors.New("upload cleanup worker is not configured")
 
-type CleanupSweepArgs struct {
+// Deprecated compatibility names; new code should use the explicit upload-cleanup names.
+const CleanupSweepKind = UploadCleanupSweepKind
+
+var ErrCleanupNotConfigured = ErrUploadCleanupNotConfigured
+
+type UploadCleanupSweepArgs struct {
 	BatchSize int32 `json:"batch_size,omitempty"`
 }
 
-func (CleanupSweepArgs) Kind() string { return CleanupSweepKind }
+type CleanupSweepArgs = UploadCleanupSweepArgs
 
-func (CleanupSweepArgs) InsertOpts() river.InsertOpts {
+func (UploadCleanupSweepArgs) Kind() string { return UploadCleanupSweepKind }
+
+func (UploadCleanupSweepArgs) InsertOpts() river.InsertOpts {
 	return river.InsertOpts{
 		Queue:       CleanupQueue,
 		MaxAttempts: 3,
@@ -39,7 +46,7 @@ func (CleanupSweepArgs) InsertOpts() river.InsertOpts {
 }
 
 type UploadCleanupWorker struct {
-	river.WorkerDefaults[CleanupSweepArgs]
+	river.WorkerDefaults[UploadCleanupSweepArgs]
 	pool    *pgxpool.Pool
 	queries *sqlcgen.Queries
 	storage telegramstore.Storage
@@ -49,13 +56,13 @@ func NewUploadCleanupWorker(pool *pgxpool.Pool, storage telegramstore.Storage) *
 	return &UploadCleanupWorker{pool: pool, queries: sqlcgen.New(pool), storage: storage}
 }
 
-func (w *UploadCleanupWorker) Timeout(*river.Job[CleanupSweepArgs]) time.Duration {
+func (w *UploadCleanupWorker) Timeout(*river.Job[UploadCleanupSweepArgs]) time.Duration {
 	return 10 * time.Minute
 }
 
-func (w *UploadCleanupWorker) Work(ctx context.Context, job *river.Job[CleanupSweepArgs]) error {
+func (w *UploadCleanupWorker) Work(ctx context.Context, job *river.Job[UploadCleanupSweepArgs]) error {
 	if w.pool == nil || w.storage == nil {
-		return ErrCleanupNotConfigured
+		return ErrUploadCleanupNotConfigured
 	}
 	batchSize := job.Args.BatchSize
 	if batchSize <= 0 {

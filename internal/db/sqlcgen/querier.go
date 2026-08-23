@@ -99,6 +99,7 @@ type Querier interface {
 	ListStorageChannelStatistics(ctx context.Context, userID int64) ([]*ListStorageChannelStatisticsRow, error)
 	ListStorageGrowth(ctx context.Context, userID int64) ([]*ListStorageGrowthRow, error)
 	ListStoredUploadPartHashes(ctx context.Context, uploadID pgtype.UUID) ([][]byte, error)
+	ListTrashedRootsBefore(ctx context.Context, arg ListTrashedRootsBeforeParams) ([]*ListTrashedRootsBeforeRow, error)
 	ListUploadDailyStatistics(ctx context.Context, arg ListUploadDailyStatisticsParams) ([]*ListUploadDailyStatisticsRow, error)
 	ListUploadEligibleBots(ctx context.Context, userID int64) ([]*Bot, error)
 	ListUploadParts(ctx context.Context, arg ListUploadPartsParams) ([]*UploadPart, error)

@@ -80,7 +80,7 @@ func (s *Security) HandleExternalApiKeyAuth(ctx context.Context, _ gen.Operation
 	return principal.WithIdentity(ctx, identity), nil
 }
 
-func (s *Security) HandleBrowserCookieAuth(ctx context.Context, _ gen.OperationName, auth gen.BrowserCookieAuth) (context.Context, error) {
+func (s *Security) HandleCookieAuth(ctx context.Context, _ gen.OperationName, auth gen.CookieAuth) (context.Context, error) {
 	if s == nil || s.authenticator == nil || strings.TrimSpace(auth.APIKey) == "" {
 		return ctx, ErrUnauthenticated
 	}

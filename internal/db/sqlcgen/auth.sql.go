@@ -433,6 +433,8 @@ const listSessions = `-- name: ListSessions :many
 SELECT id, user_id, telegram_session, refresh_token_hash, expires_at, last_used_at, revoked_at, created_at
 FROM /* TEMPLATE: schema */sessions
 WHERE user_id = $1
+  AND revoked_at IS NULL
+  AND expires_at > now()
   AND (
     $2::timestamptz IS NULL
     OR (created_at, id) < (
@@ -508,10 +510,9 @@ func (q *Queries) RevokeAPIKey(ctx context.Context, arg RevokeAPIKeyParams) (int
 
 const revokeSession = `-- name: RevokeSession :execrows
 UPDATE /* TEMPLATE: schema */sessions
-SET revoked_at = now()
+SET revoked_at = COALESCE(revoked_at, now())
 WHERE id = $1
   AND user_id = $2
-  AND revoked_at IS NULL
 `
 
 type RevokeSessionParams struct {

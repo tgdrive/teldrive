@@ -33,7 +33,7 @@ function AccountSettings() {
     {},
     { staleTime: 30_000 },
   );
-  const logout = $api.useMutation("post", "/v1/auth/browser/logout");
+  const logout = $api.useMutation("post", "/v1/auth/cookie/logout");
 
   const signOut = async () => {
     try {
@@ -51,7 +51,7 @@ function AccountSettings() {
     <div className="space-y-6">
       <SettingsPageHeader
         title="Account"
-        description="Your authenticated Teldrive profile, storage usage, and browser session."
+        description="Your authenticated Teldrive profile, storage usage, and current session."
         actions={
           <Button variant="danger" onPress={signOut} isDisabled={logout.isPending}>
             <LogoutIcon className="size-4" />

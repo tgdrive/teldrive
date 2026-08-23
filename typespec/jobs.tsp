@@ -275,6 +275,11 @@ namespace PeriodicJobs {
   @operationId("getPeriodicJobCatalog")
   op catalog(): JsonResponse<200, PeriodicJobCatalog> | ErrorResponse<401>;
 
+  @post
+  @route("/reset")
+  @operationId("resetPeriodicJobs")
+  op reset(): JsonResponse<200, PeriodicJobList> | ErrorResponse<401>;
+
   @put
   @route("/{periodicJobId}")
   @operationId("updatePeriodicJob")

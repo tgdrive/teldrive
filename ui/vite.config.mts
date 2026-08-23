@@ -73,6 +73,11 @@ function pdfJsAssets() {
 }
 
 export default defineConfig(() => {
+  const backendAddress = process.env.TELDRIVE_HTTP_ADDRESS ?? "127.0.0.1:8080";
+  const backendHost = backendAddress.startsWith("0.0.0.0:")
+    ? `127.0.0.1:${backendAddress.slice("0.0.0.0:".length)}`
+    : backendAddress;
+
   return {
     plugins: [
       pdfJsAssets(),
@@ -104,7 +109,7 @@ export default defineConfig(() => {
       cors: true,
       proxy: {
         "/api": {
-          target: "http://localhost:8081",
+          target: `http://${backendHost}`,
         },
       },
     },

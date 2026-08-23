@@ -990,719 +990,6 @@ func (s *BotSummary) UnmarshalJSON(data []byte) error {
 	return s.Decode(d)
 }
 
-// Encode implements json.Marshaler.
-func (s *BrowserSession) Encode(e *jx.Encoder) {
-	e.ObjStart()
-	s.encodeFields(e)
-	e.ObjEnd()
-}
-
-// encodeFields encodes fields.
-func (s *BrowserSession) encodeFields(e *jx.Encoder) {
-	{
-		e.FieldStart("authenticated")
-		s.Authenticated.Encode(e)
-	}
-	{
-		e.FieldStart("expiresAt")
-		json.EncodeDateTime(e, s.ExpiresAt)
-	}
-}
-
-var jsonFieldsNameOfBrowserSession = [2]string{
-	0: "authenticated",
-	1: "expiresAt",
-}
-
-// Decode decodes BrowserSession from json.
-func (s *BrowserSession) Decode(d *jx.Decoder) error {
-	if s == nil {
-		return errors.New("invalid: unable to decode BrowserSession to nil")
-	}
-	var requiredBitSet [1]uint8
-
-	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
-		switch string(k) {
-		case "authenticated":
-			requiredBitSet[0] |= 1 << 0
-			if err := func() error {
-				if err := s.Authenticated.Decode(d); err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return errors.Wrap(err, "decode field \"authenticated\"")
-			}
-		case "expiresAt":
-			requiredBitSet[0] |= 1 << 1
-			if err := func() error {
-				v, err := json.DecodeDateTime(d)
-				s.ExpiresAt = v
-				if err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return errors.Wrap(err, "decode field \"expiresAt\"")
-			}
-		default:
-			return d.Skip()
-		}
-		return nil
-	}); err != nil {
-		return errors.Wrap(err, "decode BrowserSession")
-	}
-	// Validate required fields.
-	var failures []validate.FieldError
-	for i, mask := range [1]uint8{
-		0b00000011,
-	} {
-		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
-			// Mask only required fields and check equality to mask using XOR.
-			//
-			// If XOR result is not zero, result is not equal to expected, so some fields are missed.
-			// Bits of fields which would be set are actually bits of missed fields.
-			missed := bits.OnesCount8(result)
-			for bitN := 0; bitN < missed; bitN++ {
-				bitIdx := bits.TrailingZeros8(result)
-				fieldIdx := i*8 + bitIdx
-				var name string
-				if fieldIdx < len(jsonFieldsNameOfBrowserSession) {
-					name = jsonFieldsNameOfBrowserSession[fieldIdx]
-				} else {
-					name = strconv.Itoa(fieldIdx)
-				}
-				failures = append(failures, validate.FieldError{
-					Name:  name,
-					Error: validate.ErrFieldRequired,
-				})
-				// Reset bit.
-				result &^= 1 << bitIdx
-			}
-		}
-	}
-	if len(failures) > 0 {
-		return &validate.Error{Fields: failures}
-	}
-
-	return nil
-}
-
-// MarshalJSON implements stdjson.Marshaler.
-func (s *BrowserSession) MarshalJSON() ([]byte, error) {
-	e := jx.Encoder{}
-	s.Encode(&e)
-	return e.Bytes(), nil
-}
-
-// UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *BrowserSession) UnmarshalJSON(data []byte) error {
-	d := jx.DecodeBytes(data)
-	return s.Decode(d)
-}
-
-// Encode encodes BrowserSessionAuthenticated as json.
-func (s BrowserSessionAuthenticated) Encode(e *jx.Encoder) {
-	e.Bool(bool(s))
-}
-
-// Decode decodes BrowserSessionAuthenticated from json.
-func (s *BrowserSessionAuthenticated) Decode(d *jx.Decoder) error {
-	if s == nil {
-		return errors.New("invalid: unable to decode BrowserSessionAuthenticated to nil")
-	}
-	v, err := d.Bool()
-	if err != nil {
-		return err
-	}
-	*s = BrowserSessionAuthenticated(v)
-
-	return nil
-}
-
-// MarshalJSON implements stdjson.Marshaler.
-func (s BrowserSessionAuthenticated) MarshalJSON() ([]byte, error) {
-	e := jx.Encoder{}
-	s.Encode(&e)
-	return e.Bytes(), nil
-}
-
-// UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *BrowserSessionAuthenticated) UnmarshalJSON(data []byte) error {
-	d := jx.DecodeBytes(data)
-	return s.Decode(d)
-}
-
-// Encode encodes BrowserTelegramLoginVerifyCodeBadRequest as json.
-func (s *BrowserTelegramLoginVerifyCodeBadRequest) Encode(e *jx.Encoder) {
-	unwrapped := (*ErrorEnvelope)(s)
-
-	unwrapped.Encode(e)
-}
-
-// Decode decodes BrowserTelegramLoginVerifyCodeBadRequest from json.
-func (s *BrowserTelegramLoginVerifyCodeBadRequest) Decode(d *jx.Decoder) error {
-	if s == nil {
-		return errors.New("invalid: unable to decode BrowserTelegramLoginVerifyCodeBadRequest to nil")
-	}
-	var unwrapped ErrorEnvelope
-	if err := func() error {
-		if err := unwrapped.Decode(d); err != nil {
-			return err
-		}
-		return nil
-	}(); err != nil {
-		return errors.Wrap(err, "alias")
-	}
-	*s = BrowserTelegramLoginVerifyCodeBadRequest(unwrapped)
-	return nil
-}
-
-// MarshalJSON implements stdjson.Marshaler.
-func (s *BrowserTelegramLoginVerifyCodeBadRequest) MarshalJSON() ([]byte, error) {
-	e := jx.Encoder{}
-	s.Encode(&e)
-	return e.Bytes(), nil
-}
-
-// UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *BrowserTelegramLoginVerifyCodeBadRequest) UnmarshalJSON(data []byte) error {
-	d := jx.DecodeBytes(data)
-	return s.Decode(d)
-}
-
-// Encode encodes BrowserTelegramLoginVerifyCodeGone as json.
-func (s *BrowserTelegramLoginVerifyCodeGone) Encode(e *jx.Encoder) {
-	unwrapped := (*ErrorEnvelope)(s)
-
-	unwrapped.Encode(e)
-}
-
-// Decode decodes BrowserTelegramLoginVerifyCodeGone from json.
-func (s *BrowserTelegramLoginVerifyCodeGone) Decode(d *jx.Decoder) error {
-	if s == nil {
-		return errors.New("invalid: unable to decode BrowserTelegramLoginVerifyCodeGone to nil")
-	}
-	var unwrapped ErrorEnvelope
-	if err := func() error {
-		if err := unwrapped.Decode(d); err != nil {
-			return err
-		}
-		return nil
-	}(); err != nil {
-		return errors.Wrap(err, "alias")
-	}
-	*s = BrowserTelegramLoginVerifyCodeGone(unwrapped)
-	return nil
-}
-
-// MarshalJSON implements stdjson.Marshaler.
-func (s *BrowserTelegramLoginVerifyCodeGone) MarshalJSON() ([]byte, error) {
-	e := jx.Encoder{}
-	s.Encode(&e)
-	return e.Bytes(), nil
-}
-
-// UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *BrowserTelegramLoginVerifyCodeGone) UnmarshalJSON(data []byte) error {
-	d := jx.DecodeBytes(data)
-	return s.Decode(d)
-}
-
-// Encode encodes BrowserTelegramLoginVerifyCodeTooManyRequests as json.
-func (s *BrowserTelegramLoginVerifyCodeTooManyRequests) Encode(e *jx.Encoder) {
-	unwrapped := (*ErrorEnvelope)(s)
-
-	unwrapped.Encode(e)
-}
-
-// Decode decodes BrowserTelegramLoginVerifyCodeTooManyRequests from json.
-func (s *BrowserTelegramLoginVerifyCodeTooManyRequests) Decode(d *jx.Decoder) error {
-	if s == nil {
-		return errors.New("invalid: unable to decode BrowserTelegramLoginVerifyCodeTooManyRequests to nil")
-	}
-	var unwrapped ErrorEnvelope
-	if err := func() error {
-		if err := unwrapped.Decode(d); err != nil {
-			return err
-		}
-		return nil
-	}(); err != nil {
-		return errors.Wrap(err, "alias")
-	}
-	*s = BrowserTelegramLoginVerifyCodeTooManyRequests(unwrapped)
-	return nil
-}
-
-// MarshalJSON implements stdjson.Marshaler.
-func (s *BrowserTelegramLoginVerifyCodeTooManyRequests) MarshalJSON() ([]byte, error) {
-	e := jx.Encoder{}
-	s.Encode(&e)
-	return e.Bytes(), nil
-}
-
-// UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *BrowserTelegramLoginVerifyCodeTooManyRequests) UnmarshalJSON(data []byte) error {
-	d := jx.DecodeBytes(data)
-	return s.Decode(d)
-}
-
-// Encode encodes BrowserTelegramLoginVerifyCodeUnauthorized as json.
-func (s *BrowserTelegramLoginVerifyCodeUnauthorized) Encode(e *jx.Encoder) {
-	unwrapped := (*ErrorEnvelope)(s)
-
-	unwrapped.Encode(e)
-}
-
-// Decode decodes BrowserTelegramLoginVerifyCodeUnauthorized from json.
-func (s *BrowserTelegramLoginVerifyCodeUnauthorized) Decode(d *jx.Decoder) error {
-	if s == nil {
-		return errors.New("invalid: unable to decode BrowserTelegramLoginVerifyCodeUnauthorized to nil")
-	}
-	var unwrapped ErrorEnvelope
-	if err := func() error {
-		if err := unwrapped.Decode(d); err != nil {
-			return err
-		}
-		return nil
-	}(); err != nil {
-		return errors.Wrap(err, "alias")
-	}
-	*s = BrowserTelegramLoginVerifyCodeUnauthorized(unwrapped)
-	return nil
-}
-
-// MarshalJSON implements stdjson.Marshaler.
-func (s *BrowserTelegramLoginVerifyCodeUnauthorized) MarshalJSON() ([]byte, error) {
-	e := jx.Encoder{}
-	s.Encode(&e)
-	return e.Bytes(), nil
-}
-
-// UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *BrowserTelegramLoginVerifyCodeUnauthorized) UnmarshalJSON(data []byte) error {
-	d := jx.DecodeBytes(data)
-	return s.Decode(d)
-}
-
-// Encode encodes BrowserTelegramLoginVerifyCodeUnprocessableEntity as json.
-func (s *BrowserTelegramLoginVerifyCodeUnprocessableEntity) Encode(e *jx.Encoder) {
-	unwrapped := (*ErrorEnvelope)(s)
-
-	unwrapped.Encode(e)
-}
-
-// Decode decodes BrowserTelegramLoginVerifyCodeUnprocessableEntity from json.
-func (s *BrowserTelegramLoginVerifyCodeUnprocessableEntity) Decode(d *jx.Decoder) error {
-	if s == nil {
-		return errors.New("invalid: unable to decode BrowserTelegramLoginVerifyCodeUnprocessableEntity to nil")
-	}
-	var unwrapped ErrorEnvelope
-	if err := func() error {
-		if err := unwrapped.Decode(d); err != nil {
-			return err
-		}
-		return nil
-	}(); err != nil {
-		return errors.Wrap(err, "alias")
-	}
-	*s = BrowserTelegramLoginVerifyCodeUnprocessableEntity(unwrapped)
-	return nil
-}
-
-// MarshalJSON implements stdjson.Marshaler.
-func (s *BrowserTelegramLoginVerifyCodeUnprocessableEntity) MarshalJSON() ([]byte, error) {
-	e := jx.Encoder{}
-	s.Encode(&e)
-	return e.Bytes(), nil
-}
-
-// UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *BrowserTelegramLoginVerifyCodeUnprocessableEntity) UnmarshalJSON(data []byte) error {
-	d := jx.DecodeBytes(data)
-	return s.Decode(d)
-}
-
-// Encode encodes BrowserTelegramLoginVerifyPasswordBadRequest as json.
-func (s *BrowserTelegramLoginVerifyPasswordBadRequest) Encode(e *jx.Encoder) {
-	unwrapped := (*ErrorEnvelope)(s)
-
-	unwrapped.Encode(e)
-}
-
-// Decode decodes BrowserTelegramLoginVerifyPasswordBadRequest from json.
-func (s *BrowserTelegramLoginVerifyPasswordBadRequest) Decode(d *jx.Decoder) error {
-	if s == nil {
-		return errors.New("invalid: unable to decode BrowserTelegramLoginVerifyPasswordBadRequest to nil")
-	}
-	var unwrapped ErrorEnvelope
-	if err := func() error {
-		if err := unwrapped.Decode(d); err != nil {
-			return err
-		}
-		return nil
-	}(); err != nil {
-		return errors.Wrap(err, "alias")
-	}
-	*s = BrowserTelegramLoginVerifyPasswordBadRequest(unwrapped)
-	return nil
-}
-
-// MarshalJSON implements stdjson.Marshaler.
-func (s *BrowserTelegramLoginVerifyPasswordBadRequest) MarshalJSON() ([]byte, error) {
-	e := jx.Encoder{}
-	s.Encode(&e)
-	return e.Bytes(), nil
-}
-
-// UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *BrowserTelegramLoginVerifyPasswordBadRequest) UnmarshalJSON(data []byte) error {
-	d := jx.DecodeBytes(data)
-	return s.Decode(d)
-}
-
-// Encode encodes BrowserTelegramLoginVerifyPasswordGone as json.
-func (s *BrowserTelegramLoginVerifyPasswordGone) Encode(e *jx.Encoder) {
-	unwrapped := (*ErrorEnvelope)(s)
-
-	unwrapped.Encode(e)
-}
-
-// Decode decodes BrowserTelegramLoginVerifyPasswordGone from json.
-func (s *BrowserTelegramLoginVerifyPasswordGone) Decode(d *jx.Decoder) error {
-	if s == nil {
-		return errors.New("invalid: unable to decode BrowserTelegramLoginVerifyPasswordGone to nil")
-	}
-	var unwrapped ErrorEnvelope
-	if err := func() error {
-		if err := unwrapped.Decode(d); err != nil {
-			return err
-		}
-		return nil
-	}(); err != nil {
-		return errors.Wrap(err, "alias")
-	}
-	*s = BrowserTelegramLoginVerifyPasswordGone(unwrapped)
-	return nil
-}
-
-// MarshalJSON implements stdjson.Marshaler.
-func (s *BrowserTelegramLoginVerifyPasswordGone) MarshalJSON() ([]byte, error) {
-	e := jx.Encoder{}
-	s.Encode(&e)
-	return e.Bytes(), nil
-}
-
-// UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *BrowserTelegramLoginVerifyPasswordGone) UnmarshalJSON(data []byte) error {
-	d := jx.DecodeBytes(data)
-	return s.Decode(d)
-}
-
-// Encode encodes BrowserTelegramLoginVerifyPasswordTooManyRequests as json.
-func (s *BrowserTelegramLoginVerifyPasswordTooManyRequests) Encode(e *jx.Encoder) {
-	unwrapped := (*ErrorEnvelope)(s)
-
-	unwrapped.Encode(e)
-}
-
-// Decode decodes BrowserTelegramLoginVerifyPasswordTooManyRequests from json.
-func (s *BrowserTelegramLoginVerifyPasswordTooManyRequests) Decode(d *jx.Decoder) error {
-	if s == nil {
-		return errors.New("invalid: unable to decode BrowserTelegramLoginVerifyPasswordTooManyRequests to nil")
-	}
-	var unwrapped ErrorEnvelope
-	if err := func() error {
-		if err := unwrapped.Decode(d); err != nil {
-			return err
-		}
-		return nil
-	}(); err != nil {
-		return errors.Wrap(err, "alias")
-	}
-	*s = BrowserTelegramLoginVerifyPasswordTooManyRequests(unwrapped)
-	return nil
-}
-
-// MarshalJSON implements stdjson.Marshaler.
-func (s *BrowserTelegramLoginVerifyPasswordTooManyRequests) MarshalJSON() ([]byte, error) {
-	e := jx.Encoder{}
-	s.Encode(&e)
-	return e.Bytes(), nil
-}
-
-// UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *BrowserTelegramLoginVerifyPasswordTooManyRequests) UnmarshalJSON(data []byte) error {
-	d := jx.DecodeBytes(data)
-	return s.Decode(d)
-}
-
-// Encode encodes BrowserTelegramLoginVerifyPasswordUnauthorized as json.
-func (s *BrowserTelegramLoginVerifyPasswordUnauthorized) Encode(e *jx.Encoder) {
-	unwrapped := (*ErrorEnvelope)(s)
-
-	unwrapped.Encode(e)
-}
-
-// Decode decodes BrowserTelegramLoginVerifyPasswordUnauthorized from json.
-func (s *BrowserTelegramLoginVerifyPasswordUnauthorized) Decode(d *jx.Decoder) error {
-	if s == nil {
-		return errors.New("invalid: unable to decode BrowserTelegramLoginVerifyPasswordUnauthorized to nil")
-	}
-	var unwrapped ErrorEnvelope
-	if err := func() error {
-		if err := unwrapped.Decode(d); err != nil {
-			return err
-		}
-		return nil
-	}(); err != nil {
-		return errors.Wrap(err, "alias")
-	}
-	*s = BrowserTelegramLoginVerifyPasswordUnauthorized(unwrapped)
-	return nil
-}
-
-// MarshalJSON implements stdjson.Marshaler.
-func (s *BrowserTelegramLoginVerifyPasswordUnauthorized) MarshalJSON() ([]byte, error) {
-	e := jx.Encoder{}
-	s.Encode(&e)
-	return e.Bytes(), nil
-}
-
-// UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *BrowserTelegramLoginVerifyPasswordUnauthorized) UnmarshalJSON(data []byte) error {
-	d := jx.DecodeBytes(data)
-	return s.Decode(d)
-}
-
-// Encode encodes BrowserTelegramLoginVerifyPasswordUnprocessableEntity as json.
-func (s *BrowserTelegramLoginVerifyPasswordUnprocessableEntity) Encode(e *jx.Encoder) {
-	unwrapped := (*ErrorEnvelope)(s)
-
-	unwrapped.Encode(e)
-}
-
-// Decode decodes BrowserTelegramLoginVerifyPasswordUnprocessableEntity from json.
-func (s *BrowserTelegramLoginVerifyPasswordUnprocessableEntity) Decode(d *jx.Decoder) error {
-	if s == nil {
-		return errors.New("invalid: unable to decode BrowserTelegramLoginVerifyPasswordUnprocessableEntity to nil")
-	}
-	var unwrapped ErrorEnvelope
-	if err := func() error {
-		if err := unwrapped.Decode(d); err != nil {
-			return err
-		}
-		return nil
-	}(); err != nil {
-		return errors.Wrap(err, "alias")
-	}
-	*s = BrowserTelegramLoginVerifyPasswordUnprocessableEntity(unwrapped)
-	return nil
-}
-
-// MarshalJSON implements stdjson.Marshaler.
-func (s *BrowserTelegramLoginVerifyPasswordUnprocessableEntity) MarshalJSON() ([]byte, error) {
-	e := jx.Encoder{}
-	s.Encode(&e)
-	return e.Bytes(), nil
-}
-
-// UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *BrowserTelegramLoginVerifyPasswordUnprocessableEntity) UnmarshalJSON(data []byte) error {
-	d := jx.DecodeBytes(data)
-	return s.Decode(d)
-}
-
-// Encode encodes BrowserTelegramQRLoginPollBadRequest as json.
-func (s *BrowserTelegramQRLoginPollBadRequest) Encode(e *jx.Encoder) {
-	unwrapped := (*ErrorEnvelope)(s)
-
-	unwrapped.Encode(e)
-}
-
-// Decode decodes BrowserTelegramQRLoginPollBadRequest from json.
-func (s *BrowserTelegramQRLoginPollBadRequest) Decode(d *jx.Decoder) error {
-	if s == nil {
-		return errors.New("invalid: unable to decode BrowserTelegramQRLoginPollBadRequest to nil")
-	}
-	var unwrapped ErrorEnvelope
-	if err := func() error {
-		if err := unwrapped.Decode(d); err != nil {
-			return err
-		}
-		return nil
-	}(); err != nil {
-		return errors.Wrap(err, "alias")
-	}
-	*s = BrowserTelegramQRLoginPollBadRequest(unwrapped)
-	return nil
-}
-
-// MarshalJSON implements stdjson.Marshaler.
-func (s *BrowserTelegramQRLoginPollBadRequest) MarshalJSON() ([]byte, error) {
-	e := jx.Encoder{}
-	s.Encode(&e)
-	return e.Bytes(), nil
-}
-
-// UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *BrowserTelegramQRLoginPollBadRequest) UnmarshalJSON(data []byte) error {
-	d := jx.DecodeBytes(data)
-	return s.Decode(d)
-}
-
-// Encode encodes BrowserTelegramQRLoginPollGone as json.
-func (s *BrowserTelegramQRLoginPollGone) Encode(e *jx.Encoder) {
-	unwrapped := (*ErrorEnvelope)(s)
-
-	unwrapped.Encode(e)
-}
-
-// Decode decodes BrowserTelegramQRLoginPollGone from json.
-func (s *BrowserTelegramQRLoginPollGone) Decode(d *jx.Decoder) error {
-	if s == nil {
-		return errors.New("invalid: unable to decode BrowserTelegramQRLoginPollGone to nil")
-	}
-	var unwrapped ErrorEnvelope
-	if err := func() error {
-		if err := unwrapped.Decode(d); err != nil {
-			return err
-		}
-		return nil
-	}(); err != nil {
-		return errors.Wrap(err, "alias")
-	}
-	*s = BrowserTelegramQRLoginPollGone(unwrapped)
-	return nil
-}
-
-// MarshalJSON implements stdjson.Marshaler.
-func (s *BrowserTelegramQRLoginPollGone) MarshalJSON() ([]byte, error) {
-	e := jx.Encoder{}
-	s.Encode(&e)
-	return e.Bytes(), nil
-}
-
-// UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *BrowserTelegramQRLoginPollGone) UnmarshalJSON(data []byte) error {
-	d := jx.DecodeBytes(data)
-	return s.Decode(d)
-}
-
-// Encode encodes BrowserTelegramQRLoginPollTooManyRequests as json.
-func (s *BrowserTelegramQRLoginPollTooManyRequests) Encode(e *jx.Encoder) {
-	unwrapped := (*ErrorEnvelope)(s)
-
-	unwrapped.Encode(e)
-}
-
-// Decode decodes BrowserTelegramQRLoginPollTooManyRequests from json.
-func (s *BrowserTelegramQRLoginPollTooManyRequests) Decode(d *jx.Decoder) error {
-	if s == nil {
-		return errors.New("invalid: unable to decode BrowserTelegramQRLoginPollTooManyRequests to nil")
-	}
-	var unwrapped ErrorEnvelope
-	if err := func() error {
-		if err := unwrapped.Decode(d); err != nil {
-			return err
-		}
-		return nil
-	}(); err != nil {
-		return errors.Wrap(err, "alias")
-	}
-	*s = BrowserTelegramQRLoginPollTooManyRequests(unwrapped)
-	return nil
-}
-
-// MarshalJSON implements stdjson.Marshaler.
-func (s *BrowserTelegramQRLoginPollTooManyRequests) MarshalJSON() ([]byte, error) {
-	e := jx.Encoder{}
-	s.Encode(&e)
-	return e.Bytes(), nil
-}
-
-// UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *BrowserTelegramQRLoginPollTooManyRequests) UnmarshalJSON(data []byte) error {
-	d := jx.DecodeBytes(data)
-	return s.Decode(d)
-}
-
-// Encode encodes BrowserTelegramQRLoginPollUnauthorized as json.
-func (s *BrowserTelegramQRLoginPollUnauthorized) Encode(e *jx.Encoder) {
-	unwrapped := (*ErrorEnvelope)(s)
-
-	unwrapped.Encode(e)
-}
-
-// Decode decodes BrowserTelegramQRLoginPollUnauthorized from json.
-func (s *BrowserTelegramQRLoginPollUnauthorized) Decode(d *jx.Decoder) error {
-	if s == nil {
-		return errors.New("invalid: unable to decode BrowserTelegramQRLoginPollUnauthorized to nil")
-	}
-	var unwrapped ErrorEnvelope
-	if err := func() error {
-		if err := unwrapped.Decode(d); err != nil {
-			return err
-		}
-		return nil
-	}(); err != nil {
-		return errors.Wrap(err, "alias")
-	}
-	*s = BrowserTelegramQRLoginPollUnauthorized(unwrapped)
-	return nil
-}
-
-// MarshalJSON implements stdjson.Marshaler.
-func (s *BrowserTelegramQRLoginPollUnauthorized) MarshalJSON() ([]byte, error) {
-	e := jx.Encoder{}
-	s.Encode(&e)
-	return e.Bytes(), nil
-}
-
-// UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *BrowserTelegramQRLoginPollUnauthorized) UnmarshalJSON(data []byte) error {
-	d := jx.DecodeBytes(data)
-	return s.Decode(d)
-}
-
-// Encode encodes BrowserTelegramQRLoginPollUnprocessableEntity as json.
-func (s *BrowserTelegramQRLoginPollUnprocessableEntity) Encode(e *jx.Encoder) {
-	unwrapped := (*ErrorEnvelope)(s)
-
-	unwrapped.Encode(e)
-}
-
-// Decode decodes BrowserTelegramQRLoginPollUnprocessableEntity from json.
-func (s *BrowserTelegramQRLoginPollUnprocessableEntity) Decode(d *jx.Decoder) error {
-	if s == nil {
-		return errors.New("invalid: unable to decode BrowserTelegramQRLoginPollUnprocessableEntity to nil")
-	}
-	var unwrapped ErrorEnvelope
-	if err := func() error {
-		if err := unwrapped.Decode(d); err != nil {
-			return err
-		}
-		return nil
-	}(); err != nil {
-		return errors.Wrap(err, "alias")
-	}
-	*s = BrowserTelegramQRLoginPollUnprocessableEntity(unwrapped)
-	return nil
-}
-
-// MarshalJSON implements stdjson.Marshaler.
-func (s *BrowserTelegramQRLoginPollUnprocessableEntity) MarshalJSON() ([]byte, error) {
-	e := jx.Encoder{}
-	s.Encode(&e)
-	return e.Bytes(), nil
-}
-
-// UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *BrowserTelegramQRLoginPollUnprocessableEntity) UnmarshalJSON(data []byte) error {
-	d := jx.DecodeBytes(data)
-	return s.Decode(d)
-}
-
 // Encode encodes BulkMoveFilesConflict as json.
 func (s *BulkMoveFilesConflict) Encode(e *jx.Encoder) {
 	unwrapped := (*ErrorEnvelope)(s)
@@ -2634,6 +1921,719 @@ func (s *CompleteUploadUnprocessableEntity) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
 func (s *CompleteUploadUnprocessableEntity) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *CookieSession) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *CookieSession) encodeFields(e *jx.Encoder) {
+	{
+		e.FieldStart("authenticated")
+		s.Authenticated.Encode(e)
+	}
+	{
+		e.FieldStart("expiresAt")
+		json.EncodeDateTime(e, s.ExpiresAt)
+	}
+}
+
+var jsonFieldsNameOfCookieSession = [2]string{
+	0: "authenticated",
+	1: "expiresAt",
+}
+
+// Decode decodes CookieSession from json.
+func (s *CookieSession) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode CookieSession to nil")
+	}
+	var requiredBitSet [1]uint8
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "authenticated":
+			requiredBitSet[0] |= 1 << 0
+			if err := func() error {
+				if err := s.Authenticated.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"authenticated\"")
+			}
+		case "expiresAt":
+			requiredBitSet[0] |= 1 << 1
+			if err := func() error {
+				v, err := json.DecodeDateTime(d)
+				s.ExpiresAt = v
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"expiresAt\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode CookieSession")
+	}
+	// Validate required fields.
+	var failures []validate.FieldError
+	for i, mask := range [1]uint8{
+		0b00000011,
+	} {
+		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
+			// Mask only required fields and check equality to mask using XOR.
+			//
+			// If XOR result is not zero, result is not equal to expected, so some fields are missed.
+			// Bits of fields which would be set are actually bits of missed fields.
+			missed := bits.OnesCount8(result)
+			for bitN := 0; bitN < missed; bitN++ {
+				bitIdx := bits.TrailingZeros8(result)
+				fieldIdx := i*8 + bitIdx
+				var name string
+				if fieldIdx < len(jsonFieldsNameOfCookieSession) {
+					name = jsonFieldsNameOfCookieSession[fieldIdx]
+				} else {
+					name = strconv.Itoa(fieldIdx)
+				}
+				failures = append(failures, validate.FieldError{
+					Name:  name,
+					Error: validate.ErrFieldRequired,
+				})
+				// Reset bit.
+				result &^= 1 << bitIdx
+			}
+		}
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *CookieSession) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *CookieSession) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes CookieSessionAuthenticated as json.
+func (s CookieSessionAuthenticated) Encode(e *jx.Encoder) {
+	e.Bool(bool(s))
+}
+
+// Decode decodes CookieSessionAuthenticated from json.
+func (s *CookieSessionAuthenticated) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode CookieSessionAuthenticated to nil")
+	}
+	v, err := d.Bool()
+	if err != nil {
+		return err
+	}
+	*s = CookieSessionAuthenticated(v)
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s CookieSessionAuthenticated) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *CookieSessionAuthenticated) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes CookieTelegramLoginVerifyCodeBadRequest as json.
+func (s *CookieTelegramLoginVerifyCodeBadRequest) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorEnvelope)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes CookieTelegramLoginVerifyCodeBadRequest from json.
+func (s *CookieTelegramLoginVerifyCodeBadRequest) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode CookieTelegramLoginVerifyCodeBadRequest to nil")
+	}
+	var unwrapped ErrorEnvelope
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = CookieTelegramLoginVerifyCodeBadRequest(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *CookieTelegramLoginVerifyCodeBadRequest) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *CookieTelegramLoginVerifyCodeBadRequest) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes CookieTelegramLoginVerifyCodeGone as json.
+func (s *CookieTelegramLoginVerifyCodeGone) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorEnvelope)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes CookieTelegramLoginVerifyCodeGone from json.
+func (s *CookieTelegramLoginVerifyCodeGone) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode CookieTelegramLoginVerifyCodeGone to nil")
+	}
+	var unwrapped ErrorEnvelope
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = CookieTelegramLoginVerifyCodeGone(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *CookieTelegramLoginVerifyCodeGone) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *CookieTelegramLoginVerifyCodeGone) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes CookieTelegramLoginVerifyCodeTooManyRequests as json.
+func (s *CookieTelegramLoginVerifyCodeTooManyRequests) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorEnvelope)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes CookieTelegramLoginVerifyCodeTooManyRequests from json.
+func (s *CookieTelegramLoginVerifyCodeTooManyRequests) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode CookieTelegramLoginVerifyCodeTooManyRequests to nil")
+	}
+	var unwrapped ErrorEnvelope
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = CookieTelegramLoginVerifyCodeTooManyRequests(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *CookieTelegramLoginVerifyCodeTooManyRequests) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *CookieTelegramLoginVerifyCodeTooManyRequests) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes CookieTelegramLoginVerifyCodeUnauthorized as json.
+func (s *CookieTelegramLoginVerifyCodeUnauthorized) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorEnvelope)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes CookieTelegramLoginVerifyCodeUnauthorized from json.
+func (s *CookieTelegramLoginVerifyCodeUnauthorized) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode CookieTelegramLoginVerifyCodeUnauthorized to nil")
+	}
+	var unwrapped ErrorEnvelope
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = CookieTelegramLoginVerifyCodeUnauthorized(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *CookieTelegramLoginVerifyCodeUnauthorized) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *CookieTelegramLoginVerifyCodeUnauthorized) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes CookieTelegramLoginVerifyCodeUnprocessableEntity as json.
+func (s *CookieTelegramLoginVerifyCodeUnprocessableEntity) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorEnvelope)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes CookieTelegramLoginVerifyCodeUnprocessableEntity from json.
+func (s *CookieTelegramLoginVerifyCodeUnprocessableEntity) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode CookieTelegramLoginVerifyCodeUnprocessableEntity to nil")
+	}
+	var unwrapped ErrorEnvelope
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = CookieTelegramLoginVerifyCodeUnprocessableEntity(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *CookieTelegramLoginVerifyCodeUnprocessableEntity) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *CookieTelegramLoginVerifyCodeUnprocessableEntity) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes CookieTelegramLoginVerifyPasswordBadRequest as json.
+func (s *CookieTelegramLoginVerifyPasswordBadRequest) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorEnvelope)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes CookieTelegramLoginVerifyPasswordBadRequest from json.
+func (s *CookieTelegramLoginVerifyPasswordBadRequest) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode CookieTelegramLoginVerifyPasswordBadRequest to nil")
+	}
+	var unwrapped ErrorEnvelope
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = CookieTelegramLoginVerifyPasswordBadRequest(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *CookieTelegramLoginVerifyPasswordBadRequest) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *CookieTelegramLoginVerifyPasswordBadRequest) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes CookieTelegramLoginVerifyPasswordGone as json.
+func (s *CookieTelegramLoginVerifyPasswordGone) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorEnvelope)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes CookieTelegramLoginVerifyPasswordGone from json.
+func (s *CookieTelegramLoginVerifyPasswordGone) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode CookieTelegramLoginVerifyPasswordGone to nil")
+	}
+	var unwrapped ErrorEnvelope
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = CookieTelegramLoginVerifyPasswordGone(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *CookieTelegramLoginVerifyPasswordGone) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *CookieTelegramLoginVerifyPasswordGone) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes CookieTelegramLoginVerifyPasswordTooManyRequests as json.
+func (s *CookieTelegramLoginVerifyPasswordTooManyRequests) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorEnvelope)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes CookieTelegramLoginVerifyPasswordTooManyRequests from json.
+func (s *CookieTelegramLoginVerifyPasswordTooManyRequests) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode CookieTelegramLoginVerifyPasswordTooManyRequests to nil")
+	}
+	var unwrapped ErrorEnvelope
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = CookieTelegramLoginVerifyPasswordTooManyRequests(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *CookieTelegramLoginVerifyPasswordTooManyRequests) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *CookieTelegramLoginVerifyPasswordTooManyRequests) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes CookieTelegramLoginVerifyPasswordUnauthorized as json.
+func (s *CookieTelegramLoginVerifyPasswordUnauthorized) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorEnvelope)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes CookieTelegramLoginVerifyPasswordUnauthorized from json.
+func (s *CookieTelegramLoginVerifyPasswordUnauthorized) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode CookieTelegramLoginVerifyPasswordUnauthorized to nil")
+	}
+	var unwrapped ErrorEnvelope
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = CookieTelegramLoginVerifyPasswordUnauthorized(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *CookieTelegramLoginVerifyPasswordUnauthorized) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *CookieTelegramLoginVerifyPasswordUnauthorized) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes CookieTelegramLoginVerifyPasswordUnprocessableEntity as json.
+func (s *CookieTelegramLoginVerifyPasswordUnprocessableEntity) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorEnvelope)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes CookieTelegramLoginVerifyPasswordUnprocessableEntity from json.
+func (s *CookieTelegramLoginVerifyPasswordUnprocessableEntity) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode CookieTelegramLoginVerifyPasswordUnprocessableEntity to nil")
+	}
+	var unwrapped ErrorEnvelope
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = CookieTelegramLoginVerifyPasswordUnprocessableEntity(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *CookieTelegramLoginVerifyPasswordUnprocessableEntity) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *CookieTelegramLoginVerifyPasswordUnprocessableEntity) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes CookieTelegramQRLoginPollBadRequest as json.
+func (s *CookieTelegramQRLoginPollBadRequest) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorEnvelope)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes CookieTelegramQRLoginPollBadRequest from json.
+func (s *CookieTelegramQRLoginPollBadRequest) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode CookieTelegramQRLoginPollBadRequest to nil")
+	}
+	var unwrapped ErrorEnvelope
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = CookieTelegramQRLoginPollBadRequest(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *CookieTelegramQRLoginPollBadRequest) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *CookieTelegramQRLoginPollBadRequest) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes CookieTelegramQRLoginPollGone as json.
+func (s *CookieTelegramQRLoginPollGone) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorEnvelope)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes CookieTelegramQRLoginPollGone from json.
+func (s *CookieTelegramQRLoginPollGone) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode CookieTelegramQRLoginPollGone to nil")
+	}
+	var unwrapped ErrorEnvelope
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = CookieTelegramQRLoginPollGone(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *CookieTelegramQRLoginPollGone) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *CookieTelegramQRLoginPollGone) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes CookieTelegramQRLoginPollTooManyRequests as json.
+func (s *CookieTelegramQRLoginPollTooManyRequests) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorEnvelope)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes CookieTelegramQRLoginPollTooManyRequests from json.
+func (s *CookieTelegramQRLoginPollTooManyRequests) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode CookieTelegramQRLoginPollTooManyRequests to nil")
+	}
+	var unwrapped ErrorEnvelope
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = CookieTelegramQRLoginPollTooManyRequests(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *CookieTelegramQRLoginPollTooManyRequests) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *CookieTelegramQRLoginPollTooManyRequests) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes CookieTelegramQRLoginPollUnauthorized as json.
+func (s *CookieTelegramQRLoginPollUnauthorized) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorEnvelope)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes CookieTelegramQRLoginPollUnauthorized from json.
+func (s *CookieTelegramQRLoginPollUnauthorized) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode CookieTelegramQRLoginPollUnauthorized to nil")
+	}
+	var unwrapped ErrorEnvelope
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = CookieTelegramQRLoginPollUnauthorized(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *CookieTelegramQRLoginPollUnauthorized) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *CookieTelegramQRLoginPollUnauthorized) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes CookieTelegramQRLoginPollUnprocessableEntity as json.
+func (s *CookieTelegramQRLoginPollUnprocessableEntity) Encode(e *jx.Encoder) {
+	unwrapped := (*ErrorEnvelope)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes CookieTelegramQRLoginPollUnprocessableEntity from json.
+func (s *CookieTelegramQRLoginPollUnprocessableEntity) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode CookieTelegramQRLoginPollUnprocessableEntity to nil")
+	}
+	var unwrapped ErrorEnvelope
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = CookieTelegramQRLoginPollUnprocessableEntity(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *CookieTelegramQRLoginPollUnprocessableEntity) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *CookieTelegramQRLoginPollUnprocessableEntity) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
@@ -16406,17 +16406,17 @@ func (s *PutUploadPartUnprocessableEntity) UnmarshalJSON(data []byte) error {
 	return s.Decode(d)
 }
 
-// Encode encodes RefreshBrowserSessionTooManyRequests as json.
-func (s *RefreshBrowserSessionTooManyRequests) Encode(e *jx.Encoder) {
+// Encode encodes RefreshCookieSessionTooManyRequests as json.
+func (s *RefreshCookieSessionTooManyRequests) Encode(e *jx.Encoder) {
 	unwrapped := (*ErrorEnvelope)(s)
 
 	unwrapped.Encode(e)
 }
 
-// Decode decodes RefreshBrowserSessionTooManyRequests from json.
-func (s *RefreshBrowserSessionTooManyRequests) Decode(d *jx.Decoder) error {
+// Decode decodes RefreshCookieSessionTooManyRequests from json.
+func (s *RefreshCookieSessionTooManyRequests) Decode(d *jx.Decoder) error {
 	if s == nil {
-		return errors.New("invalid: unable to decode RefreshBrowserSessionTooManyRequests to nil")
+		return errors.New("invalid: unable to decode RefreshCookieSessionTooManyRequests to nil")
 	}
 	var unwrapped ErrorEnvelope
 	if err := func() error {
@@ -16427,34 +16427,34 @@ func (s *RefreshBrowserSessionTooManyRequests) Decode(d *jx.Decoder) error {
 	}(); err != nil {
 		return errors.Wrap(err, "alias")
 	}
-	*s = RefreshBrowserSessionTooManyRequests(unwrapped)
+	*s = RefreshCookieSessionTooManyRequests(unwrapped)
 	return nil
 }
 
 // MarshalJSON implements stdjson.Marshaler.
-func (s *RefreshBrowserSessionTooManyRequests) MarshalJSON() ([]byte, error) {
+func (s *RefreshCookieSessionTooManyRequests) MarshalJSON() ([]byte, error) {
 	e := jx.Encoder{}
 	s.Encode(&e)
 	return e.Bytes(), nil
 }
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *RefreshBrowserSessionTooManyRequests) UnmarshalJSON(data []byte) error {
+func (s *RefreshCookieSessionTooManyRequests) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
 
-// Encode encodes RefreshBrowserSessionUnauthorized as json.
-func (s *RefreshBrowserSessionUnauthorized) Encode(e *jx.Encoder) {
+// Encode encodes RefreshCookieSessionUnauthorized as json.
+func (s *RefreshCookieSessionUnauthorized) Encode(e *jx.Encoder) {
 	unwrapped := (*ErrorEnvelope)(s)
 
 	unwrapped.Encode(e)
 }
 
-// Decode decodes RefreshBrowserSessionUnauthorized from json.
-func (s *RefreshBrowserSessionUnauthorized) Decode(d *jx.Decoder) error {
+// Decode decodes RefreshCookieSessionUnauthorized from json.
+func (s *RefreshCookieSessionUnauthorized) Decode(d *jx.Decoder) error {
 	if s == nil {
-		return errors.New("invalid: unable to decode RefreshBrowserSessionUnauthorized to nil")
+		return errors.New("invalid: unable to decode RefreshCookieSessionUnauthorized to nil")
 	}
 	var unwrapped ErrorEnvelope
 	if err := func() error {
@@ -16465,19 +16465,19 @@ func (s *RefreshBrowserSessionUnauthorized) Decode(d *jx.Decoder) error {
 	}(); err != nil {
 		return errors.Wrap(err, "alias")
 	}
-	*s = RefreshBrowserSessionUnauthorized(unwrapped)
+	*s = RefreshCookieSessionUnauthorized(unwrapped)
 	return nil
 }
 
 // MarshalJSON implements stdjson.Marshaler.
-func (s *RefreshBrowserSessionUnauthorized) MarshalJSON() ([]byte, error) {
+func (s *RefreshCookieSessionUnauthorized) MarshalJSON() ([]byte, error) {
 	e := jx.Encoder{}
 	s.Encode(&e)
 	return e.Bytes(), nil
 }
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *RefreshBrowserSessionUnauthorized) UnmarshalJSON(data []byte) error {
+func (s *RefreshCookieSessionUnauthorized) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }

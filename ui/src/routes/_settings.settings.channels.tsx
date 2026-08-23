@@ -7,6 +7,7 @@ import RefreshIcon from "~icons/gravity-ui/arrow-rotate-left";
 import TrashIcon from "~icons/gravity-ui/trash-bin";
 import { $api } from "@/api/client";
 import { userMessage } from "@/api/errors";
+import { ConfirmDialog } from "@/components/dialogs/confirm-dialog";
 import { SettingsPageHeader, SettingsRow, SettingsSection } from "@/components/settings-layout";
 import { newIdempotencyKey } from "@/features/shared/idempotency";
 import { getQueryClient } from "@/lib/queryClient";
@@ -22,6 +23,7 @@ export const Route = createFileRoute("/_settings/settings/channels")({
 
 function ChannelsSettings() {
   const [name, setName] = useState("");
+  const [deleteChannel, setDeleteChannel] = useState<{ id: number; name: string } | null>(null);
   const query = $api.useSuspenseQuery(
     "get",
     "/v1/channels",
@@ -31,7 +33,16 @@ function ChannelsSettings() {
   const create = $api.useMutation("post", "/v1/channels");
   const select = $api.useMutation("post", "/v1/channels/{channelId}/select");
   const sync = $api.useMutation("post", "/v1/channels/sync");
-  const remove = $api.useMutation("delete", "/v1/channels/{channelId}");
+  const remove = $api.useMutation("delete", "/v1/channels/{channelId}", {
+    onSuccess: () => {
+      setDeleteChannel(null);
+      void refresh();
+      toast.success("Storage channel deleted");
+    },
+    onError: (error) => {
+      toast.error("Storage channel could not be deleted", { description: userMessage(error) });
+    },
+  });
   const refresh = () =>
     getQueryClient().invalidateQueries({
       queryKey: $api.queryOptions("get", "/v1/channels").queryKey,
@@ -136,17 +147,8 @@ function ChannelsSettings() {
                   size="sm"
                   variant="ghost"
                   aria-label={`Delete ${channel.name}`}
-                  isDisabled={remove.isPending}
-                  onPress={async () => {
-                    if (
-                      !window.confirm(
-                        "Delete this storage channel? Deletion is blocked while files still reference it.",
-                      )
-                    )
-                      return;
-                    await remove.mutateAsync({ params: { path: { channelId: channel.id } } });
-                    await refresh();
-                  }}
+                  isDisabled={remove.isPending && deleteChannel?.id === channel.id}
+                  onPress={() => setDeleteChannel({ id: channel.id, name: channel.name })}
                 >
                   <TrashIcon className="size-4" />
                 </Button>
@@ -157,6 +159,21 @@ function ChannelsSettings() {
           <div className="px-5 py-8 text-sm text-muted">No storage channels are configured.</div>
         )}
       </SettingsSection>
+      <ConfirmDialog
+        open={deleteChannel !== null}
+        onOpenChange={(open) => {
+          if (!open && !remove.isPending) setDeleteChannel(null);
+        }}
+        title="Delete storage channel?"
+        message={`“${deleteChannel?.name ?? ""}” can only be deleted when no files reference it.`}
+        confirmLabel="Delete channel"
+        isPending={remove.isPending}
+        onConfirm={() => {
+          if (deleteChannel) {
+            remove.mutate({ params: { path: { channelId: deleteChannel.id } } });
+          }
+        }}
+      />
     </div>
   );
 }

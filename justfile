@@ -53,38 +53,61 @@ generate-ui: generate-openapi
 generate: generate-api generate-db generate-ui
     go mod tidy
 
-ui-install:
-    bun ci --cwd {{ui_dir}}
-
-ui-format:
-    bun run --cwd {{ui_dir}} format:check
-
-ui-lint:
-    bun run --cwd {{ui_dir}} lint
-
-ui-typecheck: generate-ui
-    bun run --cwd {{ui_dir}} typecheck
-
-ui-test:
-    bun run --cwd {{ui_dir}} test
-
-ui-build: generate-ui
-    bun run --cwd {{ui_dir}} build
-
-ui-dev:
-    bun run --cwd {{ui_dir}} dev
-
 ui-e2e:
     ./hack/test-ui.sh
 
-ui-check: ui-format ui-lint ui-typecheck ui-test ui-build
+ui-check: generate-ui
+    bun run --cwd {{ui_dir}} lint
+    bun run --cwd {{ui_dir}} typecheck
+    bun run --cwd {{ui_dir}} test
+    bun run --cwd {{ui_dir}} build
 
-build: ui-build
+build: generate-ui
+    bun run --cwd {{ui_dir}} build
     mkdir -p bin
     CGO_ENABLED=0 go build -trimpath -ldflags '{{ldflags}}' -o {{binary}} ./cmd/teldrive
 
-run:
-    go run ./cmd/teldrive serve
+dev:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    backend_pid=""
+    ui_pid=""
+
+    cleanup() {
+        trap - INT TERM EXIT
+        if [ -n "$ui_pid" ]; then
+            kill -TERM "$ui_pid" 2>/dev/null || true
+        fi
+        if [ -n "$backend_pid" ]; then
+            kill -TERM "$backend_pid" 2>/dev/null || true
+        fi
+        if [ -n "$ui_pid" ]; then
+            wait "$ui_pid" 2>/dev/null || true
+        fi
+        if [ -n "$backend_pid" ]; then
+            wait "$backend_pid" 2>/dev/null || true
+        fi
+    }
+
+    trap 'cleanup; exit 130' INT
+    trap 'cleanup; exit 143' TERM
+    trap cleanup EXIT
+
+    go run ./cmd/teldrive run &
+    backend_pid=$!
+
+
+    bun run --cwd {{ui_dir}} dev -- --host &
+    ui_pid=$!
+
+    set +e
+    wait -n "$backend_pid" "$ui_pid"
+    status=$?
+    set -e
+
+    cleanup
+    exit "$status"
 
 image:
     podman build --build-arg VERSION={{version}} --build-arg COMMIT={{commit}} --build-arg BUILD_DATE={{build_date}} -t teldrive-backend:{{version}} .
@@ -101,9 +124,10 @@ test-race:
 coverage:
     ./hack/coverage.sh
 
-check: generate lint ui-typecheck ui-test ui-build test-unit coverage
-
-ci: check
+check: generate lint test-unit coverage
+    bun run --cwd {{ui_dir}} typecheck
+    bun run --cwd {{ui_dir}} test
+    bun run --cwd {{ui_dir}} build
 
 clean-generated:
     rm -rf openapi internal/api/gen internal/db/sqlcgen ui/src/api/schema.ts ui/dist coverage.out

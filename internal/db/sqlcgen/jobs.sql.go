@@ -53,3 +53,53 @@ func (q *Queries) ListDeletionPendingRoots(ctx context.Context, batchSize int32)
 	}
 	return items, nil
 }
+
+const listTrashedRootsBefore = `-- name: ListTrashedRootsBefore :many
+SELECT f.user_id, f.id AS file_id
+FROM /* TEMPLATE: schema */files f
+WHERE f.status = 'trashed'
+  AND f.deleted_at IS NOT NULL
+  AND f.deleted_at <= $1
+  AND (
+    f.parent_id IS NULL
+    OR NOT EXISTS (
+      SELECT 1
+      FROM /* TEMPLATE: schema */files parent
+      WHERE parent.id = f.parent_id
+        AND parent.user_id = f.user_id
+        AND parent.status = 'trashed'
+    )
+  )
+ORDER BY f.deleted_at, f.id
+LIMIT $2
+`
+
+type ListTrashedRootsBeforeParams struct {
+	DeletedBefore pgtype.Timestamptz `json:"deleted_before"`
+	BatchSize     int32              `json:"batch_size"`
+}
+
+type ListTrashedRootsBeforeRow struct {
+	UserID int64       `json:"user_id"`
+	FileID pgtype.UUID `json:"file_id"`
+}
+
+func (q *Queries) ListTrashedRootsBefore(ctx context.Context, arg ListTrashedRootsBeforeParams) ([]*ListTrashedRootsBeforeRow, error) {
+	rows, err := q.db.Query(ctx, listTrashedRootsBefore, arg.DeletedBefore, arg.BatchSize)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*ListTrashedRootsBeforeRow{}
+	for rows.Next() {
+		var i ListTrashedRootsBeforeRow
+		if err := rows.Scan(&i.UserID, &i.FileID); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

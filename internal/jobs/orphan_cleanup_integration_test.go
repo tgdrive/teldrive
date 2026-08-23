@@ -47,12 +47,29 @@ SELECT id, 1, 9001, 12, 1, 1, 'stored' FROM session`); err != nil {
 	if template.DefaultCronExpression != "@every 336h" || template.DefaultMaxAttempts != 3 || len(template.DefaultTags) != 0 {
 		t.Fatalf("orphan cleanup template = %#v", template)
 	}
-	if _, err := runtime.CreatePeriodicJob(ctx, jobs.PeriodicJobInput{
-		ID: template.ID, Kind: template.Kind, Args: template.DefaultArgs, Queue: template.DefaultQueue,
-		Priority: template.DefaultPriority, MaxAttempts: template.DefaultMaxAttempts,
-		Schedule: jobs.PeriodicSchedule{CronExpression: template.DefaultCronExpression, CronTimezone: template.DefaultCronTimezone},
-	}); err != nil {
-		t.Fatalf("CreatePeriodicJob() error = %v", err)
+	if err := runtime.Start(ctx); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	defer func() {
+		if err := runtime.Stop(context.Background()); err != nil {
+			t.Errorf("Stop() error = %v", err)
+		}
+	}()
+	periodicJobs, err := runtime.ListPeriodicJobs(ctx)
+	if err != nil {
+		t.Fatalf("ListPeriodicJobs() error = %v", err)
+	}
+	found := false
+	for _, periodicJob := range periodicJobs {
+		if periodicJob.Kind == jobs.OrphanCleanupKind {
+			found = true
+			if periodicJob.Schedule.CronExpression != "@every 336h" {
+				t.Fatalf("orphan cleanup schedule = %q", periodicJob.Schedule.CronExpression)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("orphan cleanup periodic job not persisted")
 	}
 	worker := jobs.NewOrphanedTelegramPartsCleanupWorker(db.Pool, storage, storage, 7*24*time.Hour)
 	if err := worker.Work(ctx, &river.Job[jobs.OrphanCleanupArgs]{Args: jobs.OrphanCleanupArgs{PageSize: 100}}); err != nil {
