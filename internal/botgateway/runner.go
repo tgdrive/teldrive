@@ -141,7 +141,7 @@ func (r *UploadAwareRunner) runBot(ctx context.Context, userID int64, bot *sqlcg
 			defer closePool()
 			api = pooled
 		}
-		return fn(runCtx, api)
+		return fn(telegramstore.WithClientID(runCtx, bot.BotID), api)
 	})
 	if err != nil {
 		return err

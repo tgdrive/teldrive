@@ -8,6 +8,7 @@ import (
 
 	"github.com/gotd/td/bin"
 	"github.com/gotd/td/tg"
+	"github.com/gotd/td/tgerr"
 )
 
 func TestPlanTelegramReadsAlignsShortTail(t *testing.T) {
@@ -118,7 +119,7 @@ func TestTelegramRangeReaderPipelinesPastCompletedChunk(t *testing.T) {
 	reader := newTelegramRangeReader(ctx, cancel, 4, 2)
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- reader.fill(ctx, api, &tg.InputDocumentFileLocation{}, 0, 3*telegramReadChunk)
+		errCh <- reader.fill(ctx, api, &tg.InputDocumentFileLocation{}, 0, 3*telegramReadChunk, nil)
 	}()
 
 	started := map[int64]bool{}
@@ -143,6 +144,47 @@ func TestTelegramRangeReaderPipelinesPastCompletedChunk(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("fill() did not complete")
 	}
+}
+
+func TestTelegramRangeReaderRefreshesExpiredFileReference(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	invoker := &expiringDownloadInvoker{}
+	api := tg.NewClient(invoker)
+	reader := newTelegramRangeReader(ctx, cancel, 2, 1)
+	fresh := &tg.InputDocumentFileLocation{ID: 2}
+	var refreshes atomic.Int32
+	err := reader.fill(ctx, api, &tg.InputDocumentFileLocation{ID: 1}, 0, telegramReadAlign, func(context.Context) (*tg.InputDocumentFileLocation, error) {
+		refreshes.Add(1)
+		return fresh, nil
+	})
+	if err != nil {
+		t.Fatalf("fill() error = %v", err)
+	}
+	if got := invoker.calls.Load(); got != 2 {
+		t.Fatalf("download calls = %d, want 2", got)
+	}
+	if got := refreshes.Load(); got != 1 {
+		t.Fatalf("refresh calls = %d, want 1", got)
+	}
+}
+
+type expiringDownloadInvoker struct {
+	calls atomic.Int32
+}
+
+func (i *expiringDownloadInvoker) Invoke(_ context.Context, input bin.Encoder, output bin.Decoder) error {
+	request := input.(*tg.UploadGetFileRequest)
+	if i.calls.Add(1) == 1 {
+		return tgerr.New(400, "FILE_REFERENCE_EXPIRED")
+	}
+	if request.Location.(*tg.InputDocumentFileLocation).ID != 2 {
+		return tgerr.New(400, "FILE_REFERENCE_EXPIRED")
+	}
+	box := output.(*tg.UploadFileBox)
+	box.File = &tg.UploadFile{Bytes: make([]byte, request.Limit)}
+	return nil
 }
 
 type pipelinedDownloadInvoker struct {

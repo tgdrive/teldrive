@@ -44,6 +44,7 @@ type DownloadClientPool struct {
 
 type downloadClientEntry struct {
 	userID   int64
+	clientID int64
 	ctx      context.Context
 	cancel   context.CancelFunc
 	ready    chan struct{}
@@ -103,7 +104,7 @@ func (p *DownloadClientPool) OpenDownloadSession(ctx context.Context, userID int
 					return nil, runErr
 				}
 				return &gotdDownloadSession{
-					userID:               userID,
+					clientID:             entry.clientID,
 					clientFn:             func() (*tg.Client, error) { return p.client(entry, api) },
 					closeFn:              func() error { p.release(entry); return nil },
 					downloadReadBuffers:  p.config.ReadBuffers,
@@ -174,6 +175,7 @@ func (p *DownloadClientPool) start(entry *downloadClientEntry) {
 		err := runWithConnections(entry.ctx, p.runner, entry.userID, OperationDownload, p.config.ReadParallel, func(runCtx context.Context, api *tg.Client) error {
 			p.mu.Lock()
 			entry.api = api
+			entry.clientID, _ = ClientID(runCtx)
 			p.mu.Unlock()
 			ready.Do(func() { close(entry.ready) })
 			p.signal()

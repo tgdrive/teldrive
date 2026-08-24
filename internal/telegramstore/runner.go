@@ -12,6 +12,20 @@ import (
 
 var ErrClientUnavailable = errors.New("Telegram client is unavailable")
 
+type clientIDContextKey struct{}
+
+func WithClientID(ctx context.Context, clientID int64) context.Context {
+	if clientID <= 0 {
+		return ctx
+	}
+	return context.WithValue(ctx, clientIDContextKey{}, clientID)
+}
+
+func ClientID(ctx context.Context) (int64, bool) {
+	clientID, ok := ctx.Value(clientIDContextKey{}).(int64)
+	return clientID, ok && clientID > 0
+}
+
 // ClientProvider owns user/bot session lookup, persistent session storage, and
 // gotd middleware construction. Returning a new or safely reusable client is an
 // infrastructure concern; storage business logic only needs the running API.
@@ -87,7 +101,7 @@ func (r ClientRunner) run(ctx context.Context, userID int64, operation Operation
 			defer closePool()
 			api = pooled
 		}
-		return fn(runCtx, api)
+		return fn(WithClientID(runCtx, status.User.ID), api)
 	}); err != nil {
 		return fmt.Errorf("run Telegram client for %s: %w", operation, err)
 	}
