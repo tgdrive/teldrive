@@ -19,6 +19,7 @@ var transientTelegramErrors = []string{
 }
 
 var transientTelegramMessages = []string{
+	"timeout",
 	"timedout",
 	"no workers running",
 	"memory limit exit",

@@ -177,6 +177,23 @@ func TestTelegramRangeReaderRetriesTimedOutChunk(t *testing.T) {
 	}
 }
 
+func TestTelegramRangeReaderRetriesRPCTimeout(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	invoker := &rpcTimeoutThenSuccessDownloadInvoker{}
+	api := tg.NewClient(invoker)
+	reader := newTelegramRangeReader(ctx, cancel, 2, 1)
+	reader.attempts = 2
+
+	if err := reader.fill(ctx, api, &tg.InputDocumentFileLocation{}, 0, telegramReadAlign, nil); err != nil {
+		t.Fatalf("fill() error = %v", err)
+	}
+	if got := invoker.calls.Load(); got != 2 {
+		t.Fatalf("download calls = %d, want 2", got)
+	}
+}
+
 func TestTelegramRangeReaderRefreshesExpiredFileReference(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -247,6 +264,20 @@ func (i *timeoutThenSuccessDownloadInvoker) Invoke(ctx context.Context, input bi
 	if i.calls.Add(1) == 1 {
 		<-ctx.Done()
 		return ctx.Err()
+	}
+	box := output.(*tg.UploadFileBox)
+	box.File = &tg.UploadFile{Bytes: make([]byte, request.Limit)}
+	return nil
+}
+
+type rpcTimeoutThenSuccessDownloadInvoker struct {
+	calls atomic.Int32
+}
+
+func (i *rpcTimeoutThenSuccessDownloadInvoker) Invoke(_ context.Context, input bin.Encoder, output bin.Decoder) error {
+	request := input.(*tg.UploadGetFileRequest)
+	if i.calls.Add(1) == 1 {
+		return tgerr.New(-503, "Timeout")
 	}
 	box := output.(*tg.UploadFileBox)
 	box.File = &tg.UploadFile{Bytes: make([]byte, request.Limit)}

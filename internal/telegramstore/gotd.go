@@ -526,7 +526,7 @@ func (r *telegramRangeReader) fill(ctx context.Context, api *tg.Client, location
 					err = fetchCtx.Err()
 					break
 				}
-				if !errors.Is(err, context.DeadlineExceeded) {
+				if !errors.Is(err, context.DeadlineExceeded) && !isTransientTelegramError(err) {
 					break
 				}
 			}
