@@ -27,6 +27,8 @@ const (
 	telegramReadAlign           = 4 * 1024
 	defaultTelegramReadBuffers  = 32
 	defaultTelegramReadParallel = 4
+	defaultTelegramReadTimeout  = 30 * time.Second
+	defaultTelegramReadAttempts = 3
 	deleteBatchSize             = 100
 )
 
@@ -371,6 +373,8 @@ type telegramRangeReader struct {
 	closeOnce  sync.Once
 	mu         sync.Mutex
 	parallel   int
+	timeout    time.Duration
+	attempts   int
 }
 
 type telegramRangeBuffer struct {
@@ -394,6 +398,7 @@ func newTelegramRangeReader(ctx context.Context, cancel context.CancelFunc, buff
 	}
 	return &telegramRangeReader{
 		ctx: ctx, cancel: cancel, parallel: parallel,
+		timeout: defaultTelegramReadTimeout, attempts: defaultTelegramReadAttempts,
 		buffers: make(chan *telegramRangeBuffer, buffers), done: make(chan struct{}),
 	}
 }
@@ -459,9 +464,10 @@ func (r *telegramRangeReader) fill(ctx context.Context, api *tg.Client, location
 
 	nextOffset, nextRemaining := offset, remaining
 	var nextSeq int64
+	var emitSeq int64
 	active := 0
 	launchNext := func() bool {
-		if nextRemaining <= 0 {
+		if nextRemaining <= 0 || nextSeq-emitSeq >= int64(r.parallel) {
 			return false
 		}
 		plan := planTelegramReads(nextOffset, nextRemaining, 1)[0]
@@ -475,36 +481,56 @@ func (r *telegramRangeReader) fill(ctx context.Context, api *tg.Client, location
 			locationMu.RLock()
 			usedLocation := currentLocation
 			locationMu.RUnlock()
-			download := func(loc *tg.InputDocumentFileLocation) (tg.UploadFileClass, error) {
-				return api.UploadGetFile(fetchCtx, &tg.UploadGetFileRequest{
+
+			download := func(callCtx context.Context, loc *tg.InputDocumentFileLocation) (tg.UploadFileClass, error) {
+				return api.UploadGetFile(callCtx, &tg.UploadGetFileRequest{
 					Location: loc,
 					Offset:   plan.offset,
 					Limit:    plan.limit,
 					Precise:  true,
 				})
 			}
-			response, err := download(usedLocation)
-			if _, expired := tgerr.AsType(err, "FILE_REFERENCE_EXPIRED"); expired && refresh != nil {
-				refreshMu.Lock()
-				locationMu.RLock()
-				latestLocation := currentLocation
-				locationMu.RUnlock()
-				if latestLocation == usedLocation {
-					refreshed, refreshErr := refresh(fetchCtx)
-					if refreshErr != nil {
-						err = refreshErr
-					} else {
-						locationMu.Lock()
-						currentLocation = refreshed
-						locationMu.Unlock()
-						latestLocation = refreshed
+
+			var response tg.UploadFileClass
+			var err error
+			for attempt := 0; attempt < r.attempts; attempt++ {
+				attemptCtx, attemptCancel := context.WithTimeout(fetchCtx, r.timeout)
+				response, err = download(attemptCtx, usedLocation)
+				if _, expired := tgerr.AsType(err, "FILE_REFERENCE_EXPIRED"); expired && refresh != nil {
+					refreshMu.Lock()
+					locationMu.RLock()
+					latestLocation := currentLocation
+					locationMu.RUnlock()
+					if latestLocation == usedLocation {
+						refreshed, refreshErr := refresh(attemptCtx)
+						if refreshErr != nil {
+							err = refreshErr
+						} else {
+							locationMu.Lock()
+							currentLocation = refreshed
+							locationMu.Unlock()
+							latestLocation = refreshed
+						}
+					}
+					refreshMu.Unlock()
+					if latestLocation != nil && latestLocation != usedLocation {
+						usedLocation = latestLocation
+						response, err = download(attemptCtx, latestLocation)
 					}
 				}
-				refreshMu.Unlock()
-				if latestLocation != nil && latestLocation != usedLocation {
-					response, err = download(latestLocation)
+				attemptCancel()
+				if err == nil {
+					break
+				}
+				if fetchCtx.Err() != nil {
+					err = fetchCtx.Err()
+					break
+				}
+				if !errors.Is(err, context.DeadlineExceeded) {
+					break
 				}
 			}
+
 			if err != nil {
 				result.err = fmt.Errorf("download Telegram document chunk at %d: %w", plan.offset, err)
 			} else if file, ok := response.(*tg.UploadFile); !ok {
@@ -526,7 +552,6 @@ func (r *telegramRangeReader) fill(ctx context.Context, api *tg.Client, location
 	}
 
 	ready := make(map[int64][]byte, r.parallel)
-	var emitSeq int64
 	for active > 0 {
 		var result readResult
 		select {
@@ -540,11 +565,6 @@ func (r *telegramRangeReader) fill(ctx context.Context, api *tg.Client, location
 		}
 		ready[result.seq] = result.payload
 
-		// Refill immediately when any request completes so a slow earlier chunk
-		// does not leave otherwise-idle pooled Telegram connections.
-		for active < r.parallel && launchNext() {
-		}
-
 		for {
 			payload, ok := ready[emitSeq]
 			if !ok {
@@ -557,6 +577,9 @@ func (r *telegramRangeReader) fill(ctx context.Context, api *tg.Client, location
 			case <-ctx.Done():
 				return ctx.Err()
 			}
+		}
+
+		for active < r.parallel && launchNext() {
 		}
 	}
 	return nil

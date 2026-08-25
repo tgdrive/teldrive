@@ -104,7 +104,7 @@ func TestPlanTelegramReadsStaysWithinTelegramBoundaries(t *testing.T) {
 		}
 	}
 }
-func TestTelegramRangeReaderPipelinesPastCompletedChunk(t *testing.T) {
+func TestTelegramRangeReaderBoundsReadAheadBehindSlowChunk(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -123,7 +123,7 @@ func TestTelegramRangeReaderPipelinesPastCompletedChunk(t *testing.T) {
 	}()
 
 	started := map[int64]bool{}
-	for len(started) < 3 {
+	for len(started) < 2 {
 		select {
 		case offset := <-invoker.started:
 			started[offset] = true
@@ -131,11 +131,24 @@ func TestTelegramRangeReaderPipelinesPastCompletedChunk(t *testing.T) {
 			t.Fatal("initial Telegram reads did not start")
 		}
 	}
-	if !started[0] || !started[telegramReadChunk] || !started[2*telegramReadChunk] {
+	if !started[0] || !started[telegramReadChunk] {
 		t.Fatalf("initial offsets = %#v", started)
+	}
+	select {
+	case offset := <-invoker.started:
+		t.Fatalf("read-ahead escaped ordered window while first chunk was stalled: offset %d", offset)
+	case <-time.After(50 * time.Millisecond):
 	}
 
 	close(releaseFirst)
+	select {
+	case offset := <-invoker.started:
+		if offset != 2*telegramReadChunk {
+			t.Fatalf("next offset = %d, want %d", offset, 2*telegramReadChunk)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("next Telegram read did not start after stalled head completed")
+	}
 	select {
 	case err := <-errCh:
 		if err != nil {
@@ -143,6 +156,24 @@ func TestTelegramRangeReaderPipelinesPastCompletedChunk(t *testing.T) {
 		}
 	case <-time.After(time.Second):
 		t.Fatal("fill() did not complete")
+	}
+}
+
+func TestTelegramRangeReaderRetriesTimedOutChunk(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	invoker := &timeoutThenSuccessDownloadInvoker{}
+	api := tg.NewClient(invoker)
+	reader := newTelegramRangeReader(ctx, cancel, 2, 1)
+	reader.timeout = 10 * time.Millisecond
+	reader.attempts = 2
+
+	if err := reader.fill(ctx, api, &tg.InputDocumentFileLocation{}, 0, telegramReadAlign, nil); err != nil {
+		t.Fatalf("fill() error = %v", err)
+	}
+	if got := invoker.calls.Load(); got != 2 {
+		t.Fatalf("download calls = %d, want 2", got)
 	}
 }
 
@@ -201,6 +232,21 @@ func (i *pipelinedDownloadInvoker) Invoke(ctx context.Context, input bin.Encoder
 		case <-ctx.Done():
 			return ctx.Err()
 		}
+	}
+	box := output.(*tg.UploadFileBox)
+	box.File = &tg.UploadFile{Bytes: make([]byte, request.Limit)}
+	return nil
+}
+
+type timeoutThenSuccessDownloadInvoker struct {
+	calls atomic.Int32
+}
+
+func (i *timeoutThenSuccessDownloadInvoker) Invoke(ctx context.Context, input bin.Encoder, output bin.Decoder) error {
+	request := input.(*tg.UploadGetFileRequest)
+	if i.calls.Add(1) == 1 {
+		<-ctx.Done()
+		return ctx.Err()
 	}
 	box := output.(*tg.UploadFileBox)
 	box.File = &tg.UploadFile{Bytes: make([]byte, request.Limit)}
