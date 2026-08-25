@@ -1,14 +1,22 @@
+-- name: AcquireUserBootstrapLock :exec
+SELECT pg_advisory_xact_lock(846742351);
+
 -- name: UpsertUser :one
 INSERT INTO /* TEMPLATE: schema */users (
     user_id,
     display_name,
     username,
-    premium
+    premium,
+    role
 ) VALUES (
     sqlc.arg(user_id),
     sqlc.narg(display_name),
     sqlc.narg(username),
-    sqlc.arg(premium)
+    sqlc.arg(premium),
+    CASE
+        WHEN EXISTS (SELECT 1 FROM /* TEMPLATE: schema */users) THEN 'user'::/* TEMPLATE: schema */user_role
+        ELSE 'owner'::/* TEMPLATE: schema */user_role
+    END
 )
 ON CONFLICT (user_id) DO UPDATE
 SET display_name = EXCLUDED.display_name,
@@ -21,6 +29,46 @@ RETURNING *;
 SELECT *
 FROM /* TEMPLATE: schema */users
 WHERE user_id = sqlc.arg(user_id);
+
+-- name: ListUsers :many
+SELECT *
+FROM /* TEMPLATE: schema */users
+WHERE (
+    sqlc.narg(search)::text IS NULL
+    OR display_name ILIKE '%' || sqlc.narg(search)::text || '%'
+    OR username ILIKE '%' || sqlc.narg(search)::text || '%'
+    OR user_id::text = sqlc.narg(search)::text
+)
+ORDER BY created_at ASC, user_id ASC
+LIMIT sqlc.arg(page_size);
+
+-- name: UpdateUserRole :one
+UPDATE /* TEMPLATE: schema */users
+SET role = sqlc.arg(role), updated_at = now()
+WHERE user_id = sqlc.arg(user_id)
+  AND role <> 'owner'
+  AND sqlc.arg(role)::/* TEMPLATE: schema */user_role IN ('admin', 'user')
+RETURNING *;
+
+-- name: SetUserDisabled :one
+UPDATE /* TEMPLATE: schema */users
+SET disabled_at = CASE WHEN sqlc.arg(disabled)::boolean THEN COALESCE(disabled_at, now()) ELSE NULL END,
+    updated_at = now()
+WHERE user_id = sqlc.arg(user_id)
+  AND role <> 'owner'
+RETURNING *;
+
+-- name: RevokeAllSessionsForUser :execrows
+UPDATE /* TEMPLATE: schema */sessions
+SET revoked_at = COALESCE(revoked_at, now())
+WHERE user_id = sqlc.arg(user_id)
+  AND revoked_at IS NULL;
+
+-- name: RevokeAllAPIKeysForUser :execrows
+UPDATE /* TEMPLATE: schema */api_keys
+SET revoked_at = COALESCE(revoked_at, now())
+WHERE user_id = sqlc.arg(user_id)
+  AND revoked_at IS NULL;
 
 -- name: CreateTelegramLoginFlow :one
 INSERT INTO /* TEMPLATE: schema */telegram_login_flows (
@@ -210,3 +258,17 @@ SET telegram_session = sqlc.arg(telegram_session),
 WHERE id = sqlc.arg(session_id)
   AND revoked_at IS NULL
   AND expires_at > now();
+
+
+-- name: SearchUsersForShare :many
+SELECT *
+FROM /* TEMPLATE: schema */users
+WHERE user_id <> sqlc.arg(exclude_user_id)
+  AND disabled_at IS NULL
+  AND (
+    display_name ILIKE '%' || sqlc.arg(search)::text || '%'
+    OR username ILIKE '%' || sqlc.arg(search)::text || '%'
+    OR user_id::text = sqlc.arg(search)::text
+  )
+ORDER BY username ASC NULLS LAST, display_name ASC NULLS LAST, user_id ASC
+LIMIT sqlc.arg(page_size);

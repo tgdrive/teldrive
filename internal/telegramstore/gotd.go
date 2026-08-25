@@ -669,6 +669,9 @@ func (s *GotdStorage) DeleteMessages(ctx context.Context, userID, channelID int6
 	}
 	return s.runner.Run(ctx, userID, OperationManage, func(runCtx context.Context, api *tg.Client) error {
 		channel, err := inputChannel(runCtx, api, channelID)
+		if errors.Is(err, ErrInvalidChannel) {
+			return nil
+		}
 		if err != nil {
 			return err
 		}
@@ -787,6 +790,9 @@ func (s *GotdStorage) DeleteChannel(ctx context.Context, userID, channelID int64
 	}
 	return s.runner.Run(ctx, userID, OperationManage, func(runCtx context.Context, api *tg.Client) error {
 		channel, err := fullChannel(runCtx, api, channelID)
+		if errors.Is(err, ErrInvalidChannel) {
+			return nil
+		}
 		if err != nil {
 			return err
 		}

@@ -12,6 +12,8 @@ tags:
   - name: System
   - name: Authentication
   - name: Account
+  - name: Users
+  - name: Administration
   - name: API keys
   - name: Sessions
   - name: Channels
@@ -714,6 +716,174 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
       tags:
         - Account
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/users/search:
+    get:
+      operationId: searchUsers
+      parameters:
+        - name: search
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 128
+          explode: false
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UserSearchResult"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Users
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/admin/users:
+    get:
+      operationId: listAdminUsers
+      parameters:
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 128
+          explode: false
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AdminUserSummary"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Access is forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Administration
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/admin/users/{userId}:
+    patch:
+      operationId: updateAdminUser
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserSummary"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Access is forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Administration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserAdminUpdateRequest"
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/admin/users/{userId}/revoke-access:
+    post:
+      operationId: revokeAdminUserAccess
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "204":
+          description: "There is no content to send for this request, but the headers may
+            be useful. "
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Access is forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Administration
       security:
         - BearerAuth: []
         - CookieAuth: []
@@ -1746,6 +1916,28 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "409":
           description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/files/trash:
+    delete:
+      operationId: cleanTrash
+      description: Move every trashed file and folder owned by the authenticated user
+        to deletion pending.
+      parameters: []
+      responses:
+        "204":
+          description: "There is no content to send for this request, but the headers may
+            be useful. "
+        "401":
+          description: Access is unauthorized.
           content:
             application/json:
               schema:
@@ -2951,6 +3143,195 @@ paths:
         - BearerAuth: []
         - CookieAuth: []
         - ExternalApiKeyAuth: []
+  /v1/files/{fileId}/grants:
+    post:
+      operationId: createFileAccessGrant
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "201":
+          description: The request has succeeded and a new resource has been created as a
+            result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileAccessGrantSummary"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Shares
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FileAccessGrantCreateRequest"
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+        - ExternalApiKeyAuth: []
+    get:
+      operationId: listFileAccessGrants
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FileAccessGrantSummary"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Shares
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/grants/{grantId}:
+    patch:
+      operationId: updateFileAccessGrant
+      parameters:
+        - name: grantId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileAccessGrantSummary"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Shares
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FileAccessGrantUpdateRequest"
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+        - ExternalApiKeyAuth: []
+    delete:
+      operationId: revokeFileAccessGrant
+      parameters:
+        - name: grantId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "204":
+          description: "There is no content to send for this request, but the headers may
+            be useful. "
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Shares
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/shared-with-me:
+    get:
+      operationId: listSharedWithMe
+      parameters: []
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SharedWithMeEntry"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Shares
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+        - ExternalApiKeyAuth: []
   /v1/public/shares/{token}:
     get:
       operationId: getPublicShare
@@ -3053,6 +3434,213 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "429":
           description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Public shares
+      security:
+        - {}
+  /v1/public/shares/{token}/files/{fileId}/content:
+    get:
+      operationId: downloadPublicShareFile
+      parameters:
+        - $ref: "#/components/parameters/SharePasswordHeader"
+        - $ref: "#/components/parameters/FileContentRequestHeaders.range"
+        - $ref: "#/components/parameters/FileContentRequestHeaders.ifNoneMatch"
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "200":
+          description: The request has succeeded.
+          headers:
+            Content-Length:
+              required: true
+              schema:
+                type: integer
+                format: int64
+            Accept-Ranges:
+              required: true
+              schema:
+                type: string
+                enum:
+                  - bytes
+            Etag:
+              required: true
+              schema:
+                $ref: "#/components/schemas/ETag"
+            Last-Modified:
+              required: true
+              schema:
+                type: string
+                format: http-date
+            Content-Disposition:
+              required: true
+              schema:
+                type: string
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+              x-ogen-raw-response: true
+        "206":
+          description: Successful
+          headers:
+            Content-Length:
+              required: true
+              schema:
+                type: integer
+                format: int64
+            Content-Range:
+              required: true
+              schema:
+                type: string
+            Accept-Ranges:
+              required: true
+              schema:
+                type: string
+                enum:
+                  - bytes
+            Etag:
+              required: true
+              schema:
+                $ref: "#/components/schemas/ETag"
+            Last-Modified:
+              required: true
+              schema:
+                type: string
+                format: http-date
+            Content-Disposition:
+              required: true
+              schema:
+                type: string
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+              x-ogen-raw-response: true
+        "304":
+          description: The client has made a conditional request and the resource has not
+            been modified.
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "410":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "416":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "503":
+          description: Service unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Public shares
+      security:
+        - {}
+    head:
+      operationId: headPublicShareFile
+      parameters:
+        - $ref: "#/components/parameters/SharePasswordHeader"
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "200":
+          description: The request has succeeded.
+          headers:
+            Content-Length:
+              required: true
+              schema:
+                type: integer
+                format: int64
+            Accept-Ranges:
+              required: true
+              schema:
+                type: string
+                enum:
+                  - bytes
+            Etag:
+              required: true
+              schema:
+                $ref: "#/components/schemas/ETag"
+            Last-Modified:
+              required: true
+              schema:
+                type: string
+                format: http-date
+            Content-Disposition:
+              required: true
+              schema:
+                type: string
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "410":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "503":
+          description: Service unavailable.
           content:
             application/json:
               schema:
@@ -3250,6 +3838,480 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "503":
           description: Service unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Public shares
+      security:
+        - {}
+  /v1/public/shares/{token}/folders:
+    post:
+      operationId: createPublicShareFolder
+      parameters:
+        - $ref: "#/components/parameters/SharePasswordHeader"
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          description: The request has succeeded and a new resource has been created as a
+            result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileEntry"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Access is forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "410":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Public shares
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FolderCreateRequest"
+      security:
+        - {}
+  /v1/public/shares/{token}/files/{fileId}:
+    patch:
+      operationId: updatePublicShareFile
+      parameters:
+        - $ref: "#/components/parameters/SharePasswordHeader"
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+        - name: If-Match
+          in: header
+          required: true
+          schema:
+            $ref: "#/components/schemas/ETag"
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileEntry"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Access is forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "410":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "412":
+          description: Precondition failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Public shares
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FileUpdateRequest"
+      security:
+        - {}
+    delete:
+      operationId: trashPublicShareFile
+      parameters:
+        - $ref: "#/components/parameters/SharePasswordHeader"
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "204":
+          description: "There is no content to send for this request, but the headers may
+            be useful. "
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Access is forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "410":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Public shares
+      security:
+        - {}
+  /v1/public/shares/{token}/uploads:
+    post:
+      operationId: createPublicShareUpload
+      parameters:
+        - $ref: "#/components/parameters/SharePasswordHeader"
+        - $ref: "#/components/parameters/IdempotencyHeader"
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          description: The request has succeeded and a new resource has been created as a
+            result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadSession"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Access is forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "410":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Public shares
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadCreateRequest"
+      security:
+        - {}
+  /v1/public/shares/{token}/uploads/{uploadId}/parts/{partNo}:
+    put:
+      operationId: putPublicShareUploadPart
+      parameters:
+        - $ref: "#/components/parameters/SharePasswordHeader"
+        - $ref: "#/components/parameters/UploadPartHeaders.contentLength"
+        - $ref: "#/components/parameters/UploadPartHeaders.checksum"
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: uploadId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+        - name: partNo
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadPart"
+        "201":
+          description: The request has succeeded and a new resource has been created as a
+            result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadPart"
+        "400":
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Access is forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "410":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "503":
+          description: Service unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Public shares
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      security:
+        - {}
+  /v1/public/shares/{token}/uploads/{uploadId}/complete:
+    post:
+      operationId: completePublicShareUpload
+      parameters:
+        - $ref: "#/components/parameters/SharePasswordHeader"
+        - $ref: "#/components/parameters/IdempotencyHeader"
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: uploadId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "200":
+          description: The request has succeeded.
+          headers:
+            Etag:
+              required: true
+              schema:
+                $ref: "#/components/schemas/ETag"
+            Location:
+              required: true
+              schema:
+                $ref: "#/components/schemas/Uri"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileEntry"
+        "201":
+          description: The request has succeeded and a new resource has been created as a
+            result.
+          headers:
+            Etag:
+              required: true
+              schema:
+                $ref: "#/components/schemas/ETag"
+            Location:
+              required: true
+              schema:
+                $ref: "#/components/schemas/Uri"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileEntry"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Access is forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "410":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Public shares
+      security:
+        - {}
+  /v1/public/shares/{token}/uploads/{uploadId}:
+    delete:
+      operationId: abortPublicShareUpload
+      parameters:
+        - $ref: "#/components/parameters/SharePasswordHeader"
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: uploadId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "204":
+          description: "There is no content to send for this request, but the headers may
+            be useful. "
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Access is forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "410":
+          description: Client error
           content:
             application/json:
               schema:
@@ -4267,11 +5329,19 @@ components:
         expiresAt:
           type: string
           format: date-time
+    UserRole:
+      type: string
+      enum:
+        - owner
+        - admin
+        - user
     UserProfile:
       type: object
       required:
         - userId
         - premium
+        - role
+        - capabilities
         - createdAt
       properties:
         userId:
@@ -4283,11 +5353,65 @@ components:
           type: string
         premium:
           type: boolean
+        role:
+          $ref: "#/components/schemas/UserRole"
+        capabilities:
+          type: array
+          items:
+            type: string
         createdAt:
           type: string
           format: date-time
     ETag:
       type: string
+    UserSearchResult:
+      type: object
+      required:
+        - userId
+      properties:
+        userId:
+          type: integer
+          format: int64
+        displayName:
+          type: string
+        username:
+          type: string
+    AdminUserSummary:
+      type: object
+      required:
+        - userId
+        - premium
+        - role
+        - disabled
+        - createdAt
+        - updatedAt
+      properties:
+        userId:
+          type: integer
+          format: int64
+        displayName:
+          type: string
+        username:
+          type: string
+        premium:
+          type: boolean
+        role:
+          $ref: "#/components/schemas/UserRole"
+        disabled:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    UserAdminUpdateRequest:
+      type: object
+      properties:
+        role:
+          $ref: "#/components/schemas/UserRole"
+        disabled:
+          type: boolean
     Cursor:
       type: string
     ApiKeySummary:
@@ -5087,6 +6211,11 @@ components:
         updatedAt:
           type: string
           format: date-time
+    SharePermission:
+      type: string
+      enum:
+        - read
+        - edit
     ShareCreated:
       type: object
       required:
@@ -5095,6 +6224,7 @@ components:
         - token
         - publicUrl
         - passwordProtected
+        - permission
         - createdAt
       properties:
         id:
@@ -5114,6 +6244,8 @@ components:
         maxDownloads:
           type: integer
           format: int64
+        permission:
+          $ref: "#/components/schemas/SharePermission"
         createdAt:
           type: string
           format: date-time
@@ -5131,6 +6263,10 @@ components:
           type: integer
           format: int64
           minimum: 1
+        permission:
+          allOf:
+            - $ref: "#/components/schemas/SharePermission"
+          default: read
     ShareSummary:
       type: object
       required:
@@ -5138,6 +6274,7 @@ components:
         - fileId
         - passwordProtected
         - downloadCount
+        - permission
         - createdAt
       properties:
         id:
@@ -5155,6 +6292,8 @@ components:
         downloadCount:
           type: integer
           format: int64
+        permission:
+          $ref: "#/components/schemas/SharePermission"
         createdAt:
           type: string
           format: date-time
@@ -5183,12 +6322,97 @@ components:
         clearMaxDownloads:
           type: boolean
           default: false
+        permission:
+          $ref: "#/components/schemas/SharePermission"
+    FileAccessGrantSummary:
+      type: object
+      required:
+        - id
+        - fileId
+        - ownerId
+        - granteeUserId
+        - permission
+        - createdAt
+      properties:
+        id:
+          $ref: "#/components/schemas/Uuid"
+        fileId:
+          $ref: "#/components/schemas/Uuid"
+        ownerId:
+          type: integer
+          format: int64
+        granteeUserId:
+          type: integer
+          format: int64
+        granteeDisplayName:
+          type: string
+        granteeUsername:
+          type: string
+        permission:
+          $ref: "#/components/schemas/SharePermission"
+        expiresAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+    FileAccessGrantCreateRequest:
+      type: object
+      required:
+        - granteeUserId
+      properties:
+        granteeUserId:
+          type: integer
+          format: int64
+        permission:
+          allOf:
+            - $ref: "#/components/schemas/SharePermission"
+          default: read
+        expiresAt:
+          type: string
+          format: date-time
+    FileAccessGrantUpdateRequest:
+      type: object
+      properties:
+        permission:
+          $ref: "#/components/schemas/SharePermission"
+        expiresAt:
+          type: string
+          format: date-time
+        clearExpiresAt:
+          type: boolean
+          default: false
+    SharedWithMeEntry:
+      type: object
+      required:
+        - grantId
+        - ownerId
+        - permission
+        - file
+      properties:
+        grantId:
+          $ref: "#/components/schemas/Uuid"
+        ownerId:
+          type: integer
+          format: int64
+        ownerDisplayName:
+          type: string
+        ownerUsername:
+          type: string
+        permission:
+          $ref: "#/components/schemas/SharePermission"
+        expiresAt:
+          type: string
+          format: date-time
+        file:
+          $ref: "#/components/schemas/FileEntry"
     PublicShare:
       type: object
       required:
         - id
         - file
         - passwordProtected
+        - permission
       properties:
         id:
           $ref: "#/components/schemas/Uuid"
@@ -5199,6 +6423,8 @@ components:
         expiresAt:
           type: string
           format: date-time
+        permission:
+          $ref: "#/components/schemas/SharePermission"
     JobPageMeta:
       type: object
       properties:

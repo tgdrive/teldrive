@@ -362,6 +362,10 @@ func (s *Service) completeLogin(ctx context.Context, conn *pgxpool.Conn, flowID 
 	}
 	defer tx.Rollback(ctx)
 	q := s.queries.WithTx(tx)
+
+	if err := q.AcquireUserBootstrapLock(ctx); err != nil {
+		return nil, fmt.Errorf("lock user bootstrap: %w", err)
+	}
 	if _, err := q.UpsertUser(ctx, sqlcgen.UpsertUserParams{
 		UserID: step.User.ID, DisplayName: dbtypes.OptionalText(nonEmpty(step.User.DisplayName)),
 		Username: dbtypes.OptionalText(nonEmpty(step.User.Username)), Premium: step.User.Premium,
@@ -381,7 +385,7 @@ func (s *Service) completeLogin(ctx context.Context, conn *pgxpool.Conn, flowID 
 	if err := tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("commit authenticated session: %w", err)
 	}
-	access, err := s.issueAccessToken(step.User.ID, sessionID)
+	access, err := s.issueAccessToken(ctx, step.User.ID, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -404,7 +408,7 @@ func (s *Service) RenewAccess(ctx context.Context, refreshToken string) (*Access
 	if !ok {
 		return nil, ErrSessionNotFound
 	}
-	access, err := s.issueAccessToken(sessionRow.UserID, sessionID)
+	access, err := s.issueAccessToken(ctx, sessionRow.UserID, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -439,7 +443,7 @@ func (s *Service) Refresh(ctx context.Context, refreshToken string) (*TokenPair,
 	} else if err != nil {
 		return nil, fmt.Errorf("rotate refresh token: %w", err)
 	}
-	access, err := s.issueAccessToken(sessionRow.UserID, sessionID)
+	access, err := s.issueAccessToken(ctx, sessionRow.UserID, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -467,7 +471,11 @@ func (s *Service) AuthenticateBearer(ctx context.Context, raw string) (principal
 		return principal.Identity{}, err
 	}
 	_ = s.queries.TouchSession(ctx, dbtypes.UUID(claims.SessionID))
-	return principal.Identity{UserID: userID, SessionID: claims.SessionID, Roles: append([]string(nil), claims.Roles...), Source: "bearer"}, nil
+	roles, err := s.rolesForUser(ctx, userID)
+	if err != nil {
+		return principal.Identity{}, ErrInvalidCredential
+	}
+	return principal.Identity{UserID: userID, SessionID: claims.SessionID, Roles: roles, Source: "bearer"}, nil
 }
 
 func (s *Service) AuthenticateAPIKey(ctx context.Context, raw string) (principal.Identity, error) {
@@ -483,7 +491,11 @@ func (s *Service) AuthenticateAPIKey(ctx context.Context, raw string) (principal
 		return principal.Identity{}, err
 	}
 	_ = s.queries.TouchAPIKey(ctx, row.ID)
-	return principal.Identity{UserID: row.UserID, Roles: []string{"user"}, Source: "api_key"}, nil
+	roles, err := s.rolesForUser(ctx, row.UserID)
+	if err != nil {
+		return principal.Identity{}, ErrInvalidCredential
+	}
+	return principal.Identity{UserID: row.UserID, Roles: roles, Source: "api_key"}, nil
 }
 
 func (s *Service) GetUser(ctx context.Context, userID int64) (*sqlcgen.User, error) {
@@ -607,10 +619,125 @@ func (s *Service) RevokeAPIKey(ctx context.Context, userID int64, keyID uuid.UUI
 	return nil
 }
 
-func (s *Service) issueAccessToken(userID int64, sessionID uuid.UUID) (string, error) {
+func (s *Service) ListUsers(ctx context.Context, search string) ([]*sqlcgen.User, error) {
+	rows, err := s.queries.ListUsers(ctx, sqlcgen.ListUsersParams{
+		Search: dbtypes.OptionalText(nonEmpty(strings.TrimSpace(search))), PageSize: 500,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list users: %w", err)
+	}
+	return rows, nil
+}
+
+func (s *Service) SearchUsers(ctx context.Context, actorID int64, search string) ([]*sqlcgen.User, error) {
+	search = strings.TrimSpace(search)
+	if actorID <= 0 || search == "" {
+		return nil, ErrInvalidInput
+	}
+	rows, err := s.queries.SearchUsersForShare(ctx, sqlcgen.SearchUsersForShareParams{
+		ExcludeUserID: actorID, Search: search, PageSize: 20,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("search users: %w", err)
+	}
+	return rows, nil
+}
+
+func (s *Service) UpdateUserRole(ctx context.Context, userID int64, role sqlcgen.UserRole) (*sqlcgen.User, error) {
+	if userID <= 0 || (role != sqlcgen.UserRoleAdmin && role != sqlcgen.UserRoleUser) {
+		return nil, ErrInvalidInput
+	}
+	row, err := s.queries.UpdateUserRole(ctx, sqlcgen.UpdateUserRoleParams{Role: role, UserID: userID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrSessionNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("update user role: %w", err)
+	}
+	return row, nil
+}
+
+func (s *Service) SetUserDisabled(ctx context.Context, userID int64, disabled bool) (*sqlcgen.User, error) {
+	if userID <= 0 {
+		return nil, ErrInvalidInput
+	}
+	row, err := s.queries.SetUserDisabled(ctx, sqlcgen.SetUserDisabledParams{Disabled: disabled, UserID: userID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrSessionNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("set user disabled: %w", err)
+	}
+	if disabled {
+		if _, err := s.queries.RevokeAllSessionsForUser(ctx, userID); err != nil {
+			return nil, fmt.Errorf("revoke disabled user sessions: %w", err)
+		}
+		if _, err := s.queries.RevokeAllAPIKeysForUser(ctx, userID); err != nil {
+			return nil, fmt.Errorf("revoke disabled user API keys: %w", err)
+		}
+	}
+	return row, nil
+}
+
+func (s *Service) RevokeUserAccess(ctx context.Context, userID int64) error {
+	if userID <= 0 {
+		return ErrInvalidInput
+	}
+	user, err := s.queries.GetUser(ctx, userID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrSessionNotFound
+	}
+	if err != nil {
+		return fmt.Errorf("get user for access revoke: %w", err)
+	}
+	if user.Role == sqlcgen.UserRoleOwner {
+		return ErrInvalidInput
+	}
+	if _, err := s.queries.RevokeAllSessionsForUser(ctx, userID); err != nil {
+		return fmt.Errorf("revoke user sessions: %w", err)
+	}
+	if _, err := s.queries.RevokeAllAPIKeysForUser(ctx, userID); err != nil {
+		return fmt.Errorf("revoke user API keys: %w", err)
+	}
+	return nil
+}
+
+func Capabilities(role sqlcgen.UserRole) []string {
+	capabilities := []string{"files.read", "files.write", "files.share"}
+	if role == sqlcgen.UserRoleAdmin || role == sqlcgen.UserRoleOwner {
+		capabilities = append(capabilities,
+			"system.manageUsers", "system.manageJobs", "system.manageQueues", "system.localImport", "system.maintenance",
+		)
+	}
+	if role == sqlcgen.UserRoleOwner {
+		capabilities = append(capabilities, "system.owner")
+	}
+	return capabilities
+}
+
+func (s *Service) rolesForUser(ctx context.Context, userID int64) ([]string, error) {
+	user, err := s.queries.GetUser(ctx, userID)
+	if err != nil || user.DisabledAt.Valid {
+		return nil, ErrInvalidCredential
+	}
+	roles := []string{"user"}
+	switch user.Role {
+	case sqlcgen.UserRoleOwner:
+		roles = append(roles, "admin", "owner")
+	case sqlcgen.UserRoleAdmin:
+		roles = append(roles, "admin")
+	}
+	return roles, nil
+}
+
+func (s *Service) issueAccessToken(ctx context.Context, userID int64, sessionID uuid.UUID) (string, error) {
+	roles, err := s.rolesForUser(ctx, userID)
+	if err != nil {
+		return "", err
+	}
 	now := s.now().UTC()
 	claims := accessClaims{
-		SessionID: sessionID, Roles: []string{"user"},
+		SessionID: sessionID, Roles: roles,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer: s.config.Issuer, Subject: fmt.Sprintf("%d", userID),
 			IssuedAt: jwt.NewNumericDate(now), ExpiresAt: jwt.NewNumericDate(now.Add(s.config.AccessTokenTTL)),

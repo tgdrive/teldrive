@@ -86,11 +86,41 @@ model CookieSessionNoContent<Status extends int32> {
   setCookie: string[];
 }
 
+enum UserRole {
+  owner: "owner",
+  admin: "admin",
+  user: "user",
+}
+
+model UserAdminUpdateRequest {
+  role?: UserRole;
+  disabled?: boolean;
+}
+
+model AdminUserSummary {
+  userId: int64;
+  displayName?: string;
+  username?: string;
+  premium: boolean;
+  role: UserRole;
+  disabled: boolean;
+  createdAt: utcDateTime;
+  updatedAt: utcDateTime;
+}
+
+model UserSearchResult {
+  userId: int64;
+  displayName?: string;
+  username?: string;
+}
+
 model UserProfile {
   userId: int64;
   displayName?: string;
   username?: string;
   premium: boolean;
+  role: UserRole;
+  capabilities: string[];
   createdAt: utcDateTime;
 }
 
@@ -316,6 +346,55 @@ namespace Account {
   @route("/auth/logout")
   @operationId("logoutSession")
   op logout(): EmptyResponse<204> | ErrorResponse<401>;
+}
+
+@tag("Users")
+@route("/v1/users")
+@useAuth(TelDriveAuth)
+namespace Users {
+  @get
+  @route("/search")
+  @operationId("searchUsers")
+  op search(
+    @query
+    @minLength(1)
+    @maxLength(128)
+    search: string,
+  ):
+    | JsonResponse<200, UserSearchResult[]>
+    | ErrorResponse<401>
+    | ErrorResponse<422>;
+}
+
+@tag("Administration")
+@route("/v1/admin/users")
+@useAuth(TelDriveAuth)
+namespace Administration {
+  @get
+  @operationId("listAdminUsers")
+  op list(@query @maxLength(128) search?: string):
+    | JsonResponse<200, AdminUserSummary[]>
+    | ErrorResponse<401>
+    | ErrorResponse<403>;
+
+  @patch
+  @route("/{userId}")
+  @operationId("updateAdminUser")
+  op update(@path userId: int64, @body body: UserAdminUpdateRequest):
+    | JsonResponse<200, AdminUserSummary>
+    | ErrorResponse<401>
+    | ErrorResponse<403>
+    | ErrorResponse<404>
+    | ErrorResponse<422>;
+
+  @post
+  @route("/{userId}/revoke-access")
+  @operationId("revokeAdminUserAccess")
+  op revokeAccess(@path userId: int64):
+    | EmptyResponse<204>
+    | ErrorResponse<401>
+    | ErrorResponse<403>
+    | ErrorResponse<404>;
 }
 
 @tag("API keys")

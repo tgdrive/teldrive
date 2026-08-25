@@ -1,8 +1,8 @@
 [http]
 address = "127.0.0.1:8080"
 read-header-timeout = "10s"
-read-timeout = "0s"
-write-timeout = "0s"
+read-timeout = "1h"
+write-timeout = "1h"
 idle-timeout = "2m"
 shutdown-timeout = "10s"
 # Trust forwarding headers only from these proxy IP addresses or CIDRs.
@@ -77,6 +77,7 @@ login-flow-ttl = "10m"
 
 [uploads]
 session-ttl = "168h"
+local-import-roots = []
 
 [cache.memory]
 size = "5MB"

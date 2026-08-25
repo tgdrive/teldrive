@@ -68,7 +68,14 @@ async function installViewerApi(
     const method = request.method();
     if (path === "/v1/me") {
       return route.fulfill({
-        json: { userId: 1, displayName: "Reader", premium: true, createdAt: now },
+        json: {
+          userId: 1,
+          displayName: "Reader",
+          premium: true,
+          role: "user",
+          capabilities: ["files.read", "files.write", "files.share"],
+          createdAt: now,
+        },
       });
     }
     if (path === "/v1/files" && method === "GET") {

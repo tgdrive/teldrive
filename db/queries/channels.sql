@@ -67,7 +67,6 @@ DELETE FROM /* TEMPLATE: schema */channels
 WHERE user_id = sqlc.arg(user_id)
   AND channel_id = sqlc.arg(channel_id)
   AND NOT selected;
-
 -- name: ListBots :many
 SELECT *
 FROM /* TEMPLATE: schema */bots

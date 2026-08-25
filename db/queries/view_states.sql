@@ -12,7 +12,6 @@ INSERT INTO /* TEMPLATE: schema */file_view_states (
     sqlc.arg(position), sqlc.arg(preferences), sqlc.arg(bookmarks)
 FROM /* TEMPLATE: schema */files
 WHERE id = sqlc.arg(file_id)
-  AND user_id = sqlc.arg(user_id)
   AND kind = 'file'
   AND status = 'active'
 ON CONFLICT (user_id, file_id) DO UPDATE

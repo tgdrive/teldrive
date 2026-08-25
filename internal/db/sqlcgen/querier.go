@@ -14,6 +14,7 @@ type Querier interface {
 	AbortUploadSession(ctx context.Context, arg AbortUploadSessionParams) (*UploadSession, error)
 	AcquireAdvisoryLock(ctx context.Context, lockID int64) error
 	AcquireAdvisoryTransactionLock(ctx context.Context, lockID int64) error
+	AcquireUserBootstrapLock(ctx context.Context) error
 	ActivateBot(ctx context.Context, arg ActivateBotParams) (*Bot, error)
 	ClaimUploadPart(ctx context.Context, arg ClaimUploadPartParams) (*UploadPart, error)
 	ClearSelectedChannel(ctx context.Context, userID int64) error
@@ -27,6 +28,7 @@ type Querier interface {
 	CreateAPIKey(ctx context.Context, arg CreateAPIKeyParams) (*ApiKey, error)
 	CreateChannel(ctx context.Context, arg CreateChannelParams) (*Channel, error)
 	CreateEventStreamTicket(ctx context.Context, arg CreateEventStreamTicketParams) error
+	CreateFileAccessGrant(ctx context.Context, arg CreateFileAccessGrantParams) (*FileAccessGrant, error)
 	CreateFileShare(ctx context.Context, arg CreateFileShareParams) (*FileShare, error)
 	CreateFolder(ctx context.Context, arg CreateFolderParams) (*File, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (*Session, error)
@@ -45,6 +47,7 @@ type Querier interface {
 	ExpireUploadSessions(ctx context.Context, batchSize int32) ([]*UploadSession, error)
 	FinalizeUploadExpectedSize(ctx context.Context, arg FinalizeUploadExpectedSizeParams) (*UploadSession, error)
 	GetActiveAPIKeyByHash(ctx context.Context, secretHash []byte) (*ApiKey, error)
+	GetActiveFileAnyOwner(ctx context.Context, fileID pgtype.UUID) (*File, error)
 	GetActiveFolderForUser(ctx context.Context, arg GetActiveFolderForUserParams) (*File, error)
 	GetActiveSession(ctx context.Context, arg GetActiveSessionParams) (*Session, error)
 	GetActiveShareByTokenHash(ctx context.Context, tokenHash []byte) (*GetActiveShareByTokenHashRow, error)
@@ -53,6 +56,7 @@ type Querier interface {
 	GetChannelForUser(ctx context.Context, arg GetChannelForUserParams) (*Channel, error)
 	GetDriveStatistics(ctx context.Context, userID int64) (*GetDriveStatisticsRow, error)
 	GetEventStreamTicketUser(ctx context.Context, tokenHash []byte) (int64, error)
+	GetFileAccessGrantForOwner(ctx context.Context, arg GetFileAccessGrantForOwnerParams) (*FileAccessGrant, error)
 	GetFileForUser(ctx context.Context, arg GetFileForUserParams) (*File, error)
 	GetFileShareForOwner(ctx context.Context, arg GetFileShareForOwnerParams) (*FileShare, error)
 	GetFileViewState(ctx context.Context, arg GetFileViewStateParams) (*FileViewState, error)
@@ -66,6 +70,7 @@ type Querier interface {
 	GetTelegramLoginFlow(ctx context.Context, id pgtype.UUID) (*TelegramLoginFlow, error)
 	GetTelegramLoginFlowForUpdate(ctx context.Context, id pgtype.UUID) (*TelegramLoginFlow, error)
 	GetUploadPart(ctx context.Context, arg GetUploadPartParams) (*UploadPart, error)
+	GetUploadSessionAnyOwner(ctx context.Context, uploadID pgtype.UUID) (*UploadSession, error)
 	GetUploadSessionForUser(ctx context.Context, arg GetUploadSessionForUserParams) (*UploadSession, error)
 	GetUser(ctx context.Context, userID int64) (*User, error)
 	GetUserEventCursorState(ctx context.Context, arg GetUserEventCursorStateParams) (*GetUserEventCursorStateRow, error)
@@ -78,6 +83,7 @@ type Querier interface {
 	InsertPendingBot(ctx context.Context, arg InsertPendingBotParams) (int64, error)
 	InsertUserEvent(ctx context.Context, arg InsertUserEventParams) (*UserEvent, error)
 	ListAPIKeys(ctx context.Context, arg ListAPIKeysParams) ([]*ApiKey, error)
+	ListActiveFileAccessGrantsForGrantee(ctx context.Context, arg ListActiveFileAccessGrantsForGranteeParams) ([]*FileAccessGrant, error)
 	ListActiveNormalizedNames(ctx context.Context, arg ListActiveNormalizedNamesParams) ([]string, error)
 	ListAuditEvents(ctx context.Context, arg ListAuditEventsParams) ([]*AuditEvent, error)
 	ListBots(ctx context.Context, arg ListBotsParams) ([]*Bot, error)
@@ -85,6 +91,7 @@ type Querier interface {
 	ListChannelsForOrphanCleanup(ctx context.Context) ([]*Channel, error)
 	ListDeletionPendingRoots(ctx context.Context, batchSize int32) ([]*ListDeletionPendingRootsRow, error)
 	ListEnabledBots(ctx context.Context, userID int64) ([]*Bot, error)
+	ListFileAccessGrantsForOwner(ctx context.Context, arg ListFileAccessGrantsForOwnerParams) ([]*ListFileAccessGrantsForOwnerRow, error)
 	ListFileCategoryStatistics(ctx context.Context, userID int64) ([]*ListFileCategoryStatisticsRow, error)
 	ListFilePartMessageRefs(ctx context.Context, fileIds []pgtype.UUID) ([]*ListFilePartMessageRefsRow, error)
 	// Recursive move-cycle validation will be implemented as a hand-reviewed query in the file service.
@@ -96,6 +103,7 @@ type Querier interface {
 	ListRecentStorageActivity(ctx context.Context, arg ListRecentStorageActivityParams) ([]*ListRecentStorageActivityRow, error)
 	ListReferencedMessageIDs(ctx context.Context, arg ListReferencedMessageIDsParams) ([]int64, error)
 	ListSessions(ctx context.Context, arg ListSessionsParams) ([]*Session, error)
+	ListSharedWithMe(ctx context.Context, arg ListSharedWithMeParams) ([]*ListSharedWithMeRow, error)
 	ListStorageChannelStatistics(ctx context.Context, userID int64) ([]*ListStorageChannelStatisticsRow, error)
 	ListStorageGrowth(ctx context.Context, userID int64) ([]*ListStorageGrowthRow, error)
 	ListStoredUploadPartHashes(ctx context.Context, uploadID pgtype.UUID) ([][]byte, error)
@@ -107,6 +115,7 @@ type Querier interface {
 	ListUploadSessions(ctx context.Context, arg ListUploadSessionsParams) ([]*UploadSession, error)
 	ListUploadSessionsPendingCleanup(ctx context.Context, batchSize int32) ([]*UploadSession, error)
 	ListUserEventsAfter(ctx context.Context, arg ListUserEventsAfterParams) ([]*UserEvent, error)
+	ListUsers(ctx context.Context, arg ListUsersParams) ([]*User, error)
 	LoadFileSubtree(ctx context.Context, arg LoadFileSubtreeParams) ([]*LoadFileSubtreeRow, error)
 	LockActiveFiles(ctx context.Context, arg LockActiveFilesParams) ([]*File, error)
 	LockActiveFolder(ctx context.Context, arg LockActiveFolderParams) (*File, error)
@@ -114,6 +123,7 @@ type Querier interface {
 	LockUploadDestinationConflict(ctx context.Context, arg LockUploadDestinationConflictParams) (*File, error)
 	LockUploadSessionForCompletion(ctx context.Context, arg LockUploadSessionForCompletionParams) (*UploadSession, error)
 	MarkActiveFileDeletionPendingForReplace(ctx context.Context, arg MarkActiveFileDeletionPendingForReplaceParams) (int64, error)
+	MarkAllTrashedDeletionPending(ctx context.Context, userID int64) (int64, error)
 	MarkBotProvisionFailure(ctx context.Context, arg MarkBotProvisionFailureParams) (int64, error)
 	MarkBotUploadFailure(ctx context.Context, arg MarkBotUploadFailureParams) (int64, error)
 	MarkBotUploadSuccess(ctx context.Context, arg MarkBotUploadSuccessParams) (int64, error)
@@ -135,13 +145,18 @@ type Querier interface {
 	RestoreFile(ctx context.Context, arg RestoreFileParams) (*File, error)
 	RevokeAPIKey(ctx context.Context, arg RevokeAPIKeyParams) (int64, error)
 	RevokeActiveSharesForFile(ctx context.Context, arg RevokeActiveSharesForFileParams) error
+	RevokeAllAPIKeysForUser(ctx context.Context, userID int64) (int64, error)
+	RevokeAllSessionsForUser(ctx context.Context, userID int64) (int64, error)
 	RevokeExpiredShares(ctx context.Context) (int64, error)
+	RevokeFileAccessGrant(ctx context.Context, arg RevokeFileAccessGrantParams) (int64, error)
 	RevokeFileShare(ctx context.Context, arg RevokeFileShareParams) (int64, error)
 	RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error)
 	RevokeSharesForFileSubtree(ctx context.Context, arg RevokeSharesForFileSubtreeParams) error
 	RevokeSharesForFileSubtrees(ctx context.Context, arg RevokeSharesForFileSubtreesParams) error
 	RotateSessionRefreshToken(ctx context.Context, arg RotateSessionRefreshTokenParams) (*Session, error)
+	SearchUsersForShare(ctx context.Context, arg SearchUsersForShareParams) ([]*User, error)
 	SelectChannel(ctx context.Context, arg SelectChannelParams) (*Channel, error)
+	SetUserDisabled(ctx context.Context, arg SetUserDisabledParams) (*User, error)
 	SumFilePartSizes(ctx context.Context, fileID pgtype.UUID) (*SumFilePartSizesRow, error)
 	TouchAPIKey(ctx context.Context, id pgtype.UUID) error
 	TouchSession(ctx context.Context, sessionID pgtype.UUID) error
@@ -150,11 +165,13 @@ type Querier interface {
 	TryAdvisoryLock(ctx context.Context, lockID int64) (bool, error)
 	UpdateBotSession(ctx context.Context, arg UpdateBotSessionParams) (int64, error)
 	UpdateChannelHealth(ctx context.Context, arg UpdateChannelHealthParams) (*Channel, error)
+	UpdateFileAccessGrant(ctx context.Context, arg UpdateFileAccessGrantParams) (*FileAccessGrant, error)
 	UpdateFileMetadata(ctx context.Context, arg UpdateFileMetadataParams) (*File, error)
 	UpdateFilePartSizes(ctx context.Context, arg UpdateFilePartSizesParams) (int64, error)
 	UpdateFileShare(ctx context.Context, arg UpdateFileShareParams) (*FileShare, error)
 	UpdateSessionTelegramSession(ctx context.Context, arg UpdateSessionTelegramSessionParams) (int64, error)
 	UpdateTelegramLoginFlowState(ctx context.Context, arg UpdateTelegramLoginFlowStateParams) (*TelegramLoginFlow, error)
+	UpdateUserRole(ctx context.Context, arg UpdateUserRoleParams) (*User, error)
 	UpsertDiscoveredChannel(ctx context.Context, arg UpsertDiscoveredChannelParams) (*Channel, error)
 	UpsertFileViewState(ctx context.Context, arg UpsertFileViewStateParams) (*FileViewState, error)
 	UpsertUser(ctx context.Context, arg UpsertUserParams) (*User, error)

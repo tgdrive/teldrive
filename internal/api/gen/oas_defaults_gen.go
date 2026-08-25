@@ -11,6 +11,22 @@ func (s *ChannelCreateRequest) setDefaults() {
 }
 
 // setDefaults set default value of fields.
+func (s *FileAccessGrantCreateRequest) setDefaults() {
+	{
+		val := FileAccessGrantCreateRequestPermission("read")
+		s.Permission.SetTo(val)
+	}
+}
+
+// setDefaults set default value of fields.
+func (s *FileAccessGrantUpdateRequest) setDefaults() {
+	{
+		val := bool(false)
+		s.ClearExpiresAt.SetTo(val)
+	}
+}
+
+// setDefaults set default value of fields.
 func (s *FileBulkMoveRequest) setDefaults() {
 	{
 		val := FileBulkMoveRequestConflictPolicy("fail")
@@ -39,6 +55,14 @@ func (s *FolderCreateRequest) setDefaults() {
 	{
 		val := FolderCreateRequestConflictPolicy("fail")
 		s.ConflictPolicy.SetTo(val)
+	}
+}
+
+// setDefaults set default value of fields.
+func (s *ShareCreateRequest) setDefaults() {
+	{
+		val := ShareCreateRequestPermission("read")
+		s.Permission.SetTo(val)
 	}
 }
 

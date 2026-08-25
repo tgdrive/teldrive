@@ -403,6 +403,15 @@ namespace Files {
     | ErrorResponse<404>
     | ErrorResponse<409>;
 
+
+  /** Move every trashed file and folder owned by the authenticated user to deletion pending. */
+  @delete
+  @route("/trash")
+  @operationId("cleanTrash")
+  op cleanTrash():
+    | EmptyResponse<204>
+    | ErrorResponse<401>;
+
   /** Stream complete or partial file content. */
   @get
   @route("/{fileId}/content")

@@ -322,6 +322,17 @@ func copyDestinationLockID(userID int64, parentID *uuid.UUID) int64 {
 	return int64(binary.BigEndian.Uint64(digest[:8]))
 }
 
+func (s *Service) CleanTrash(ctx context.Context, userID int64) (int64, error) {
+	if userID <= 0 {
+		return 0, ErrInvalidInput
+	}
+	count, err := s.queries.MarkAllTrashedDeletionPending(ctx, userID)
+	if err != nil {
+		return 0, fmt.Errorf("mark trash deletion pending: %w", err)
+	}
+	return count, nil
+}
+
 func (s *Service) Purge(ctx context.Context, userID int64, fileID uuid.UUID) error {
 	if userID <= 0 || fileID == uuid.Nil {
 		return ErrInvalidInput

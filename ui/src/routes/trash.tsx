@@ -35,6 +35,7 @@ function TrashPage() {
   );
   const actions = useFileActions();
   const [purging, setPurging] = useState<FileEntry>();
+  const [cleaningTrash, setCleaningTrash] = useState(false);
 
   const restore = async (file: FileEntry) => {
     try {
@@ -54,15 +55,39 @@ function TrashPage() {
     }
   };
 
+  const cleanTrash = async () => {
+    try {
+      await actions.cleanTrash();
+      toast.success("Trash cleaned");
+    } catch (error) {
+      toast.error("Trash could not be cleaned", { description: userMessage(error) });
+    }
+  };
+
   return (
     <Page>
       <PageHeader
         title="Trash"
         description="Restore deleted items or permanently remove them from Teldrive."
         actions={
-          <Button size="sm" variant="tertiary" onPress={() => void query.refetch()}>
-            <RefreshIcon className="size-4" /> Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="danger"
+              isDisabled={query.data.items.length === 0 || actions.pending}
+              onPress={() => setCleaningTrash(true)}
+            >
+              <TrashIcon className="size-4" /> Clean trash
+            </Button>
+            <Button
+              size="sm"
+              variant="tertiary"
+              isDisabled={actions.pending}
+              onPress={() => void query.refetch()}
+            >
+              <RefreshIcon className="size-4" /> Refresh
+            </Button>
+          </div>
         }
       />
       <PageContent>
@@ -131,6 +156,18 @@ function TrashPage() {
         onConfirm={() => {
           if (!purging) return;
           void purge(purging).finally(() => setPurging(undefined));
+        }}
+      />
+
+      <ConfirmDialog
+        open={cleaningTrash}
+        onOpenChange={setCleaningTrash}
+        title="Clean all trash?"
+        message="This permanently deletes every item in trash and schedules its Telegram data for physical cleanup. This action cannot be undone."
+        confirmLabel="Clean trash"
+        isPending={actions.pending}
+        onConfirm={() => {
+          void cleanTrash().finally(() => setCleaningTrash(false));
         }}
       />
     </Page>

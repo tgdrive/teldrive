@@ -31,19 +31,19 @@ func NewRawHandler(handler *Handler) *RawHandler {
 }
 
 func (h *RawHandler) DownloadFile(ctx context.Context, params gen.DownloadFileParams, w http.ResponseWriter) error {
-	userID, err := UserIDFromContext(ctx)
-	if err != nil {
-		return mapServiceError(err)
-	}
 	if h.handler == nil || h.handler.Catalog == nil || h.handler.Downloader == nil {
 		return mapServiceError(ErrOperationUnavailable)
 	}
 	fileID := googleUUID(params.FileId)
-	file, err := h.handler.Catalog.Get(ctx, userID, fileID)
+	access, err := h.handler.resolveAuthenticatedFileAccess(ctx, fileID, false)
 	if err != nil {
 		return mapServiceError(err)
 	}
-	return h.streamFile(ctx, w, userID, fileID, file, params.Range, params.IfNoneMatch)
+	file, err := h.handler.Catalog.Get(ctx, access.OwnerID, fileID)
+	if err != nil {
+		return mapServiceError(err)
+	}
+	return h.streamFile(ctx, w, access.OwnerID, fileID, file, params.Range, params.IfNoneMatch)
 }
 
 func (h *RawHandler) DownloadPublicShare(ctx context.Context, params gen.DownloadPublicShareParams, w http.ResponseWriter) error {
@@ -72,6 +72,30 @@ func (h *RawHandler) DownloadPublicShare(ctx context.Context, params gen.Downloa
 		return mapServiceError(transfer.ErrInvalidDownload)
 	}
 	return h.streamFile(ctx, w, resolved.Share.OwnerID, fileID, file, params.Range, params.IfNoneMatch)
+}
+
+func (h *RawHandler) DownloadPublicShareFile(ctx context.Context, params gen.DownloadPublicShareFileParams, w http.ResponseWriter) error {
+	if h.handler == nil || h.handler.Shares == nil || h.handler.Downloader == nil {
+		return mapServiceError(ErrOperationUnavailable)
+	}
+	password := params.XSharePassword.Or("")
+	fileID := googleUUID(params.FileId)
+	resolved, err := h.handler.Shares.ResolveFile(ctx, params.Token, password, fileID)
+	if err != nil {
+		return mapServiceError(err)
+	}
+	file := resolved.File
+	etag := contentETag(file)
+	if !params.Range.IsSet() && ifNoneMatch(params.IfNoneMatch) == string(etag) {
+		w.Header().Set("ETag", string(etag))
+		w.WriteHeader(http.StatusNotModified)
+		return nil
+	}
+	resolved, err = h.handler.Shares.ReserveFileDownload(ctx, params.Token, password, fileID)
+	if err != nil {
+		return mapServiceError(err)
+	}
+	return h.streamFile(ctx, w, resolved.Share.OwnerID, fileID, resolved.File, params.Range, params.IfNoneMatch)
 }
 
 func (h *RawHandler) streamFile(ctx context.Context, w http.ResponseWriter, userID int64, fileID uuid.UUID, file *sqlcgen.File, rangeValue gen.OptString, noneMatch gen.OptETag) error {

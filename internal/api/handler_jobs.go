@@ -21,12 +21,16 @@ func (h *Handler) ListJobs(ctx context.Context, params gen.ListJobsParams) (gen.
 	if h.Jobs == nil {
 		return nil, mapServiceError(ErrOperationUnavailable)
 	}
+	userID, err := UserIDFromContext(ctx)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
 	cursor, _ := params.Cursor.Get()
 	status, _ := params.Status.Get()
 	kind, _ := params.Type.Get()
 	queue, _ := params.Queue.Get()
 	items, next, err := h.Jobs.List(ctx, jobs.ListInput{
-		Cursor: string(cursor), Limit: params.Limit.Or(100), State: string(status), Kind: kind, Queue: queue,
+		UserID: userID, Cursor: string(cursor), Limit: params.Limit.Or(100), State: string(status), Kind: kind, Queue: queue,
 	})
 	if err != nil {
 		if errors.Is(err, jobs.ErrInvalidCursor) {
@@ -47,6 +51,9 @@ func (h *Handler) ListJobs(ctx context.Context, params gen.ListJobsParams) (gen.
 func (h *Handler) CreateJob(ctx context.Context, req *gen.JobCreate) (gen.CreateJobRes, error) {
 	if h.Jobs == nil {
 		return nil, mapServiceError(ErrOperationUnavailable)
+	}
+	if !HasRole(ctx, "admin") {
+		return nil, problem(http.StatusForbidden, "forbidden", "administrator access is required", nil)
 	}
 	queue, _ := req.Queue.Get()
 	priority, _ := req.Priority.Get()
@@ -112,6 +119,9 @@ func (h *Handler) CreateUploadImport(ctx context.Context, req *gen.UploadImportR
 		if (item.Type == "local" && item.Path == "") || (item.Type == "http" && item.URL == "") {
 			return nil, problem(http.StatusUnprocessableEntity, "invalid_upload_import", "source does not contain the required path or URL", nil)
 		}
+		if item.Type == "local" && !HasRole(ctx, "admin") {
+			return nil, problem(http.StatusForbidden, "forbidden", "local imports require administrator access", nil)
+		}
 		args.Sources = append(args.Sources, item)
 	}
 	item, err := h.Jobs.InsertUploadBatch(ctx, args)
@@ -134,7 +144,11 @@ func (h *Handler) GetJobStatistics(ctx context.Context) (gen.GetJobStatisticsRes
 	if h.Jobs == nil {
 		return nil, mapServiceError(ErrOperationUnavailable)
 	}
-	stats, err := h.Jobs.Statistics(ctx)
+	userID, err := UserIDFromContext(ctx)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	stats, err := h.Jobs.StatisticsForUser(ctx, userID)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -146,11 +160,15 @@ func (h *Handler) GetJobStatistics(ctx context.Context) (gen.GetJobStatisticsRes
 }
 
 func (h *Handler) GetJob(ctx context.Context, params gen.GetJobParams) (gen.GetJobRes, error) {
+	userID, err := UserIDFromContext(ctx)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
 	id, err := parseJobID(params.JobId)
 	if err != nil {
 		return nil, problem(http.StatusNotFound, "not_found", "job was not found", err)
 	}
-	item, err := h.Jobs.Get(ctx, id)
+	item, err := h.Jobs.GetForUser(ctx, id, userID)
 	if err != nil {
 		return nil, mapJobError(err)
 	}
@@ -159,11 +177,15 @@ func (h *Handler) GetJob(ctx context.Context, params gen.GetJobParams) (gen.GetJ
 }
 
 func (h *Handler) CancelJob(ctx context.Context, params gen.CancelJobParams) (gen.CancelJobRes, error) {
+	userID, err := UserIDFromContext(ctx)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
 	id, err := parseJobID(params.JobId)
 	if err != nil {
 		return nil, problem(http.StatusNotFound, "not_found", "job was not found", err)
 	}
-	item, err := h.Jobs.Cancel(ctx, id)
+	item, err := h.Jobs.CancelForUser(ctx, id, userID)
 	if err != nil {
 		return nil, mapJobError(err)
 	}
@@ -172,11 +194,15 @@ func (h *Handler) CancelJob(ctx context.Context, params gen.CancelJobParams) (ge
 }
 
 func (h *Handler) RetryJob(ctx context.Context, params gen.RetryJobParams) (gen.RetryJobRes, error) {
+	userID, err := UserIDFromContext(ctx)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
 	id, err := parseJobID(params.JobId)
 	if err != nil {
 		return nil, problem(http.StatusNotFound, "not_found", "job was not found", err)
 	}
-	item, err := h.Jobs.Retry(ctx, id)
+	item, err := h.Jobs.RetryForUser(ctx, id, userID)
 	if err != nil {
 		return nil, mapJobError(err)
 	}
@@ -185,26 +211,34 @@ func (h *Handler) RetryJob(ctx context.Context, params gen.RetryJobParams) (gen.
 }
 
 func (h *Handler) DeleteJob(ctx context.Context, params gen.DeleteJobParams) (gen.DeleteJobRes, error) {
+	userID, err := UserIDFromContext(ctx)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
 	id, err := parseJobID(params.JobId)
 	if err != nil {
 		return nil, problem(http.StatusNotFound, "not_found", "job was not found", err)
 	}
-	item, err := h.Jobs.Get(ctx, id)
+	item, err := h.Jobs.GetForUser(ctx, id, userID)
 	if err != nil {
 		return nil, mapJobError(err)
 	}
 	if isActiveJobState(item.State) {
-		if _, err := h.Jobs.Cancel(ctx, id); err != nil {
+		if _, err := h.Jobs.CancelForUser(ctx, id, userID); err != nil {
 			return nil, mapJobError(err)
 		}
-	} else if err := h.Jobs.Delete(ctx, id); err != nil {
+	} else if err := h.Jobs.DeleteForUser(ctx, id, userID); err != nil {
 		return nil, mapJobError(err)
 	}
 	return &gen.DeleteJobNoContent{}, nil
 }
 
 func (h *Handler) PurgeJobs(ctx context.Context, params gen.PurgeJobsParams) (gen.PurgeJobsRes, error) {
-	count, err := h.Jobs.Purge(ctx, string(params.Status))
+	userID, err := UserIDFromContext(ctx)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	count, err := h.Jobs.PurgeForUser(ctx, userID, string(params.Status))
 	if err != nil {
 		if errors.Is(err, jobs.ErrInvalidJobState) {
 			return nil, problem(http.StatusConflict, "invalid_state", "only finalized jobs can be purged", err)
@@ -215,7 +249,11 @@ func (h *Handler) PurgeJobs(ctx context.Context, params gen.PurgeJobsParams) (ge
 }
 
 func (h *Handler) ListJobQueues(ctx context.Context) (gen.ListJobQueuesRes, error) {
-	queues, err := h.Jobs.ListQueues(ctx)
+	userID, err := UserIDFromContext(ctx)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	queues, err := h.Jobs.ListQueuesForUser(ctx, userID)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -230,6 +268,9 @@ func (h *Handler) ListJobQueues(ctx context.Context) (gen.ListJobQueuesRes, erro
 }
 
 func (h *Handler) PauseJobQueue(ctx context.Context, params gen.PauseJobQueueParams) (gen.PauseJobQueueRes, error) {
+	if !HasRole(ctx, "admin") {
+		return nil, problem(http.StatusForbidden, "forbidden", "administrator access is required", nil)
+	}
 	if err := h.Jobs.PauseQueue(ctx, params.Queue); err != nil {
 		return nil, mapJobError(err)
 	}
@@ -237,6 +278,9 @@ func (h *Handler) PauseJobQueue(ctx context.Context, params gen.PauseJobQueuePar
 }
 
 func (h *Handler) ResumeJobQueue(ctx context.Context, params gen.ResumeJobQueueParams) (gen.ResumeJobQueueRes, error) {
+	if !HasRole(ctx, "admin") {
+		return nil, problem(http.StatusForbidden, "forbidden", "administrator access is required", nil)
+	}
 	if err := h.Jobs.ResumeQueue(ctx, params.Queue); err != nil {
 		return nil, mapJobError(err)
 	}
@@ -275,7 +319,7 @@ func jobResponse(item jobs.Job) gen.Job {
 		ID: strconv.FormatInt(item.ID, 10), Status: gen.JobState(item.State), Type: item.Kind,
 		Queue: item.Queue, Attempt: int32(item.Attempt), MaxAttempts: int32(item.MaxAttempts),
 		Priority: int32(item.Priority), Tags: append([]string(nil), item.Tags...),
-		Args:   rawMap[gen.JobArgs](item.Args),
+		Args:   rawMap[gen.JobArgs](redactJobArgs(item.Args)),
 		Errors: make([]gen.JobAttemptError, 0, len(item.Errors)), AttemptedBy: append([]string(nil), item.AttemptedBy...),
 		CreatedAt: item.CreatedAt, ScheduledAt: item.ScheduledAt,
 	}
@@ -310,6 +354,52 @@ func jobResponse(item jobs.Job) gen.Job {
 		}
 	}
 	return response
+}
+
+func redactJobArgs(input map[string]json.RawMessage) map[string]json.RawMessage {
+	result := make(map[string]json.RawMessage, len(input))
+	for key, raw := range input {
+		var value any
+		if json.Unmarshal(raw, &value) != nil {
+			result[key] = append(json.RawMessage(nil), raw...)
+			continue
+		}
+		encoded, err := json.Marshal(redactJobValue(key, value))
+		if err != nil {
+			result[key] = append(json.RawMessage(nil), raw...)
+			continue
+		}
+		result[key] = encoded
+	}
+	return result
+}
+
+func redactJobValue(key string, value any) any {
+	normalized := strings.ToLower(strings.ReplaceAll(strings.ReplaceAll(key, "-", "_"), " ", "_"))
+	if normalized == "headers" {
+		if values, ok := value.(map[string]any); ok {
+			redacted := make(map[string]any, len(values))
+			for header := range values {
+				redacted[header] = "[redacted]"
+			}
+			return redacted
+		}
+		return "[redacted]"
+	}
+	if normalized != "user_id" && (strings.Contains(normalized, "password") || strings.Contains(normalized, "secret") || strings.Contains(normalized, "token") || strings.Contains(normalized, "authorization") || strings.Contains(normalized, "cookie") || strings.Contains(normalized, "api_key")) {
+		return "[redacted]"
+	}
+	switch typed := value.(type) {
+	case map[string]any:
+		for childKey, childValue := range typed {
+			typed[childKey] = redactJobValue(childKey, childValue)
+		}
+	case []any:
+		for index, childValue := range typed {
+			typed[index] = redactJobValue("", childValue)
+		}
+	}
+	return value
 }
 
 func rawMap[T ~map[string]jx.Raw](input map[string]json.RawMessage) T {

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver"
 	"github.com/riverqueue/river/rivertype"
@@ -45,7 +46,20 @@ type Job struct {
 	LastError   string
 }
 
+func (j Job) UserID() (int64, bool) {
+	raw, ok := j.Args["user_id"]
+	if !ok {
+		return 0, false
+	}
+	var userID int64
+	if err := json.Unmarshal(raw, &userID); err != nil || userID <= 0 {
+		return 0, false
+	}
+	return userID, true
+}
+
 type ListInput struct {
+	UserID int64
 	Cursor string
 	Limit  int32
 	State  string
@@ -79,6 +93,9 @@ func (r *Runtime) List(ctx context.Context, input ListInput) ([]Job, string, err
 	params := river.NewJobListParams().
 		OrderBy(river.JobListOrderByID, river.SortOrderDesc).
 		First(int(input.Limit) + 1)
+	if input.UserID > 0 {
+		params = params.Where("args->>'user_id' = @user_id", river.NamedArgs{"user_id": strconv.FormatInt(input.UserID, 10)})
+	}
 	if beforeID > 0 {
 		params = params.Where("id < @before_id", river.NamedArgs{"before_id": beforeID})
 	}
@@ -106,6 +123,84 @@ func (r *Runtime) List(ctx context.Context, input ListInput) ([]Job, string, err
 		next = encodeCursor(items[len(items)-1].ID)
 	}
 	return items, next, nil
+}
+
+func (r *Runtime) GetForUser(ctx context.Context, id, userID int64) (Job, error) {
+	if userID <= 0 {
+		return Job{}, river.ErrNotFound
+	}
+	item, err := r.Get(ctx, id)
+	if err != nil {
+		return Job{}, err
+	}
+	ownerID, ok := item.UserID()
+	if !ok || ownerID != userID {
+		return Job{}, river.ErrNotFound
+	}
+	return item, nil
+}
+
+func (r *Runtime) CancelForUser(ctx context.Context, id, userID int64) (Job, error) {
+	if _, err := r.GetForUser(ctx, id, userID); err != nil {
+		return Job{}, err
+	}
+	return r.Cancel(ctx, id)
+}
+
+func (r *Runtime) RetryForUser(ctx context.Context, id, userID int64) (Job, error) {
+	if _, err := r.GetForUser(ctx, id, userID); err != nil {
+		return Job{}, err
+	}
+	return r.Retry(ctx, id)
+}
+
+func (r *Runtime) DeleteForUser(ctx context.Context, id, userID int64) error {
+	if _, err := r.GetForUser(ctx, id, userID); err != nil {
+		return err
+	}
+	return r.Delete(ctx, id)
+}
+
+func (r *Runtime) StatisticsForUser(ctx context.Context, userID int64) (Statistics, error) {
+	if r == nil || r.pool == nil || userID <= 0 {
+		return Statistics{}, ErrRuntimeNotConfigured
+	}
+	jobTable := pgx.Identifier{r.schema, "river_job"}.Sanitize()
+	rows, err := r.pool.Query(ctx, "SELECT state::text, count(*) FROM "+jobTable+" WHERE args->>'user_id' = $1 GROUP BY state", strconv.FormatInt(userID, 10))
+	if err != nil {
+		return Statistics{}, fmt.Errorf("job statistics for user: %w", err)
+	}
+	defer rows.Close()
+	var stats Statistics
+	for rows.Next() {
+		var state string
+		var count int64
+		if err := rows.Scan(&state, &count); err != nil {
+			return Statistics{}, fmt.Errorf("scan job statistics for user: %w", err)
+		}
+		switch rivertype.JobState(state) {
+		case rivertype.JobStateAvailable:
+			stats.Available = count
+		case rivertype.JobStateCancelled:
+			stats.Cancelled = count
+		case rivertype.JobStateCompleted:
+			stats.Completed = count
+		case rivertype.JobStateDiscarded:
+			stats.Discarded = count
+		case rivertype.JobStatePending:
+			stats.Pending = count
+		case rivertype.JobStateRetryable:
+			stats.Retryable = count
+		case rivertype.JobStateRunning:
+			stats.Running = count
+		case rivertype.JobStateScheduled:
+			stats.Scheduled = count
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return Statistics{}, fmt.Errorf("iterate job statistics for user: %w", err)
+	}
+	return stats, nil
 }
 
 func (r *Runtime) Statistics(ctx context.Context) (Statistics, error) {

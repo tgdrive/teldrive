@@ -137,7 +137,9 @@ function BotsSettings() {
                   variant="ghost"
                   aria-label={`Delete bot ${bot.username || bot.id}`}
                   isDisabled={remove.isPending && deleteBot?.id === bot.id}
-                  onPress={() => setDeleteBot({ id: bot.id, name: bot.username || `bot-${bot.id}` })}
+                  onPress={() =>
+                    setDeleteBot({ id: bot.id, name: bot.username || `bot-${bot.id}` })
+                  }
                 >
                   <TrashIcon className="size-4" />
                 </Button>

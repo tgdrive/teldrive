@@ -183,6 +183,48 @@ func (ns NullNameConflictPolicy) Value() (driver.Value, error) {
 	return string(ns.NameConflictPolicy), nil
 }
 
+type SharePermission string
+
+const (
+	SharePermissionRead SharePermission = "read"
+	SharePermissionEdit SharePermission = "edit"
+)
+
+func (e *SharePermission) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = SharePermission(s)
+	case string:
+		*e = SharePermission(s)
+	default:
+		return fmt.Errorf("unsupported scan type for SharePermission: %T", src)
+	}
+	return nil
+}
+
+type NullSharePermission struct {
+	SharePermission SharePermission `json:"share_permission"`
+	Valid           bool            `json:"valid"` // Valid is true if SharePermission is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullSharePermission) Scan(value interface{}) error {
+	if value == nil {
+		ns.SharePermission, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.SharePermission.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullSharePermission) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.SharePermission), nil
+}
+
 type TelegramLoginMethod string
 
 const (
@@ -314,6 +356,49 @@ func (ns NullUploadState) Value() (driver.Value, error) {
 	return string(ns.UploadState), nil
 }
 
+type UserRole string
+
+const (
+	UserRoleOwner UserRole = "owner"
+	UserRoleAdmin UserRole = "admin"
+	UserRoleUser  UserRole = "user"
+)
+
+func (e *UserRole) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = UserRole(s)
+	case string:
+		*e = UserRole(s)
+	default:
+		return fmt.Errorf("unsupported scan type for UserRole: %T", src)
+	}
+	return nil
+}
+
+type NullUserRole struct {
+	UserRole UserRole `json:"user_role"`
+	Valid    bool     `json:"valid"` // Valid is true if UserRole is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullUserRole) Scan(value interface{}) error {
+	if value == nil {
+		ns.UserRole, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.UserRole.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullUserRole) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.UserRole), nil
+}
+
 type ApiKey struct {
 	ID         pgtype.UUID        `json:"id"`
 	UserID     int64              `json:"user_id"`
@@ -398,6 +483,18 @@ type File struct {
 	DeletedAt            pgtype.Timestamptz `json:"deleted_at"`
 }
 
+type FileAccessGrant struct {
+	ID         pgtype.UUID        `json:"id"`
+	FileID     pgtype.UUID        `json:"file_id"`
+	OwnerID    int64              `json:"owner_id"`
+	GranteeID  int64              `json:"grantee_id"`
+	Permission SharePermission    `json:"permission"`
+	ExpiresAt  pgtype.Timestamptz `json:"expires_at"`
+	CreatedAt  pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+	RevokedAt  pgtype.Timestamptz `json:"revoked_at"`
+}
+
 type FilePart struct {
 	FileID     pgtype.UUID        `json:"file_id"`
 	PartNo     int32              `json:"part_no"`
@@ -424,6 +521,7 @@ type FileShare struct {
 	DownloadCount int64              `json:"download_count"`
 	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 	RevokedAt     pgtype.Timestamptz `json:"revoked_at"`
+	Permission    SharePermission    `json:"permission"`
 }
 
 type FileViewState struct {
@@ -521,6 +619,8 @@ type User struct {
 	Premium     bool               `json:"premium"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	Role        UserRole           `json:"role"`
+	DisabledAt  pgtype.Timestamptz `json:"disabled_at"`
 }
 
 type UserEvent struct {

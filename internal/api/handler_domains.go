@@ -498,10 +498,6 @@ func (h *Handler) DeleteChannel(ctx context.Context, params gen.DeleteChannelPar
 }
 
 func (h *Handler) CopyFile(ctx context.Context, req *gen.FileCopyRequest, params gen.CopyFileParams) (gen.CopyFileRes, error) {
-	userID, err := UserIDFromContext(ctx)
-	if err != nil {
-		return nil, mapServiceError(err)
-	}
 	if h.FileOps == nil || req == nil {
 		return nil, mapServiceError(ErrOperationUnavailable)
 	}
@@ -513,8 +509,26 @@ func (h *Handler) CopyFile(ctx context.Context, req *gen.FileCopyRequest, params
 	if value, ok := req.ConflictPolicy.Get(); ok {
 		policy = sqlcgen.NameConflictPolicy(value)
 	}
+	sourceAccess, err := h.resolveAuthenticatedFileAccess(ctx, googleUUID(params.FileId), false)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	parentID := optionalGoogleUUID(req.ParentId)
+	if parentID == nil {
+		if !sourceAccess.Owned {
+			return nil, mapServiceError(shares.ErrForbidden)
+		}
+	} else {
+		destinationAccess, err := h.resolveAuthenticatedFileAccess(ctx, *parentID, true)
+		if err != nil {
+			return nil, mapServiceError(err)
+		}
+		if destinationAccess.OwnerID != sourceAccess.OwnerID {
+			return nil, mapServiceError(shares.ErrForbidden)
+		}
+	}
 	file, err := h.FileOps.Copy(ctx, fileops.CopyInput{
-		UserID: userID, FileID: googleUUID(params.FileId), ParentID: optionalGoogleUUID(req.ParentId), Name: name,
+		UserID: sourceAccess.OwnerID, FileID: googleUUID(params.FileId), ParentID: parentID, Name: name,
 		ConflictPolicy: policy,
 	})
 	if err != nil {
@@ -545,6 +559,20 @@ func (h *Handler) PurgeFile(ctx context.Context, params gen.PurgeFileParams) (ge
 	return &gen.PurgeFileNoContent{}, nil
 }
 
+func (h *Handler) CleanTrash(ctx context.Context) (gen.CleanTrashRes, error) {
+	userID, err := UserIDFromContext(ctx)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	if h.FileOps == nil {
+		return nil, mapServiceError(ErrOperationUnavailable)
+	}
+	if _, err := h.FileOps.CleanTrash(ctx, userID); err != nil {
+		return nil, mapServiceError(err)
+	}
+	return &gen.CleanTrashNoContent{}, nil
+}
+
 func (h *Handler) CreateShare(ctx context.Context, req *gen.ShareCreateRequest, params gen.CreateShareParams) (gen.CreateShareRes, error) {
 	userID, err := UserIDFromContext(ctx)
 	if err != nil {
@@ -565,9 +593,13 @@ func (h *Handler) CreateShare(ctx context.Context, req *gen.ShareCreateRequest, 
 	if value, ok := req.MaxDownloads.Get(); ok {
 		maxDownloads = &value
 	}
+	permission := sqlcgen.SharePermissionRead
+	if value, ok := req.Permission.Get(); ok {
+		permission = sqlcgen.SharePermission(value)
+	}
 	created, err := h.Shares.Create(ctx, shares.CreateInput{
 		OwnerID: userID, FileID: googleUUID(params.FileId), Password: password,
-		ExpiresAt: expires, MaxDownloads: maxDownloads,
+		ExpiresAt: expires, MaxDownloads: maxDownloads, Permission: permission,
 	})
 	if err != nil {
 		return nil, mapServiceError(err)
@@ -638,6 +670,7 @@ func (h *Handler) GetPublicShare(ctx context.Context, params gen.GetPublicShareP
 	shareID, _ := dbtypes.GoogleUUID(resolved.Share.ID)
 	response := gen.PublicShare{
 		ID: apiUUID(shareID), File: entry, PasswordProtected: resolved.Share.PasswordHash.Valid,
+		Permission: gen.SharePermission(resolved.Share.Permission),
 	}
 	if resolved.Share.ExpiresAt.Valid {
 		response.ExpiresAt = gen.NewOptDateTime(resolved.Share.ExpiresAt.Time)
@@ -659,6 +692,24 @@ func (h *Handler) HeadPublicShare(ctx context.Context, params gen.HeadPublicShar
 	}
 	return &gen.HeadPublicShareOK{
 		AcceptRanges: gen.HeadPublicShareOKAcceptRanges("bytes"), ContentDisposition: contentDisposition(file.Name),
+		ContentLength: file.Size.Int64, Etag: contentETag(file), LastModified: file.ModTime.Time,
+	}, nil
+}
+
+func (h *Handler) HeadPublicShareFile(ctx context.Context, params gen.HeadPublicShareFileParams) (gen.HeadPublicShareFileRes, error) {
+	if h.Shares == nil {
+		return nil, mapServiceError(ErrOperationUnavailable)
+	}
+	resolved, err := h.Shares.ResolveFile(ctx, params.Token, params.XSharePassword.Or(""), googleUUID(params.FileId))
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	file := resolved.File
+	if file.Kind != sqlcgen.FileKindFile || !file.Size.Valid || file.Size.Int64 < 0 {
+		return nil, mapServiceError(transfer.ErrInvalidDownload)
+	}
+	return &gen.HeadPublicShareFileOK{
+		AcceptRanges: gen.HeadPublicShareFileOKAcceptRanges("bytes"), ContentDisposition: contentDisposition(file.Name),
 		ContentLength: file.Size.Int64, Etag: contentETag(file), LastModified: file.ModTime.Time,
 	}, nil
 }
@@ -688,7 +739,10 @@ func tokenPairResponse(tokens *authn.TokenPair) gen.TokenPair {
 }
 
 func userProfile(row *sqlcgen.User) gen.UserProfile {
-	out := gen.UserProfile{UserId: row.UserID, Premium: row.Premium, CreatedAt: row.CreatedAt.Time}
+	out := gen.UserProfile{
+		UserId: row.UserID, Premium: row.Premium, Role: gen.UserRole(row.Role),
+		Capabilities: authn.Capabilities(row.Role), CreatedAt: row.CreatedAt.Time,
+	}
 	if row.DisplayName.Valid {
 		out.DisplayName = gen.NewOptString(row.DisplayName.String)
 	}
@@ -733,7 +787,7 @@ func shareCreated(created *shares.Created) gen.ShareCreated {
 	fileID, _ := dbtypes.GoogleUUID(created.Row.FileID)
 	out := gen.ShareCreated{
 		ID: apiUUID(id), FileId: apiUUID(fileID), Token: created.Token, PublicUrl: gen.URI(created.PublicURL),
-		PasswordProtected: created.Row.PasswordHash.Valid, CreatedAt: created.Row.CreatedAt.Time,
+		PasswordProtected: created.Row.PasswordHash.Valid, Permission: gen.SharePermission(created.Row.Permission), CreatedAt: created.Row.CreatedAt.Time,
 	}
 	if created.Row.ExpiresAt.Valid {
 		out.ExpiresAt = gen.NewOptDateTime(created.Row.ExpiresAt.Time)
@@ -749,7 +803,7 @@ func shareSummary(row *sqlcgen.FileShare) gen.ShareSummary {
 	fileID, _ := dbtypes.GoogleUUID(row.FileID)
 	out := gen.ShareSummary{
 		ID: apiUUID(id), FileId: apiUUID(fileID), PasswordProtected: row.PasswordHash.Valid,
-		DownloadCount: row.DownloadCount, CreatedAt: row.CreatedAt.Time,
+		DownloadCount: row.DownloadCount, Permission: gen.SharePermission(row.Permission), CreatedAt: row.CreatedAt.Time,
 	}
 	if row.ExpiresAt.Valid {
 		out.ExpiresAt = gen.NewOptDateTime(row.ExpiresAt.Time)

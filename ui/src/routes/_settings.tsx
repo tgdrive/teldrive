@@ -1,4 +1,5 @@
 import { Button, Modal, Separator, Typography } from "@heroui/react";
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, Outlet, useLocation } from "@tanstack/react-router";
 import { useState } from "react";
 import KeyIcon from "~icons/gravity-ui/key";
@@ -11,11 +12,20 @@ import StorageIcon from "~icons/gravity-ui/database";
 import UploadIcon from "~icons/gravity-ui/arrow-up-from-line";
 import CloseIcon from "~icons/gravity-ui/xmark";
 import ClockIcon from "~icons/gravity-ui/clock";
+import { currentUserQueryOptions } from "@/auth/queries";
 
 const SETTINGS_GROUPS = [
   {
     label: "Account",
-    items: [{ label: "Overview", path: "/settings", icon: PersonIcon }],
+    items: [
+      { label: "Overview", path: "/settings", icon: PersonIcon },
+      {
+        label: "Users & roles",
+        path: "/settings/users",
+        icon: PersonIcon,
+        capability: "system.manageUsers",
+      },
+    ],
   },
   {
     label: "Telegram storage",
@@ -40,7 +50,14 @@ const SETTINGS_GROUPS = [
   },
   {
     label: "System",
-    items: [{ label: "Periodic Jobs", path: "/settings/periodic-jobs", icon: ClockIcon }],
+    items: [
+      {
+        label: "Periodic Jobs",
+        path: "/settings/periodic-jobs",
+        icon: ClockIcon,
+        capability: "system.maintenance",
+      },
+    ],
   },
 ] as const;
 
@@ -48,8 +65,10 @@ export const Route = createFileRoute("/_settings")({ component: SettingsLayout }
 
 function SettingsLayout() {
   const location = useLocation();
+  const { data: user } = useQuery(currentUserQueryOptions());
   const [mobileOpen, setMobileOpen] = useState(false);
-  const activeLabel = SETTINGS_GROUPS.reduce<string | undefined>(
+  const visibleGroups = settingsGroupsFor(user?.capabilities ?? []);
+  const activeLabel = visibleGroups.reduce<string | undefined>(
     (found, group) => found ?? group.items.find((item) => item.path === location.pathname)?.label,
     undefined,
   );
@@ -66,7 +85,7 @@ function SettingsLayout() {
               Configure Teldrive and this browser.
             </Typography.Paragraph>
           </div>
-          <SettingsNavigation currentPath={location.pathname} />
+          <SettingsNavigation currentPath={location.pathname} groups={visibleGroups} />
         </div>
       </aside>
       <main className="min-w-0">
@@ -114,6 +133,7 @@ function SettingsLayout() {
             <Modal.Body className="py-5">
               <SettingsNavigation
                 currentPath={location.pathname}
+                groups={visibleGroups}
                 onNavigate={() => setMobileOpen(false)}
               />
             </Modal.Body>
@@ -126,14 +146,16 @@ function SettingsLayout() {
 
 function SettingsNavigation({
   currentPath,
+  groups,
   onNavigate,
 }: {
   currentPath: string;
+  groups: SettingsGroup[];
   onNavigate?: () => void;
 }) {
   return (
     <nav aria-label="Settings navigation" className="flex flex-col gap-5">
-      {SETTINGS_GROUPS.map((group, groupIndex) => (
+      {groups.map((group, groupIndex) => (
         <div key={group.label} className="flex flex-col gap-1.5">
           {groupIndex > 0 ? <Separator className="mb-3" /> : null}
           <p className="px-2 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-muted">
@@ -157,4 +179,15 @@ function SettingsNavigation({
       ))}
     </nav>
   );
+}
+
+type SettingsItem = (typeof SETTINGS_GROUPS)[number]["items"][number];
+type SettingsGroup = { label: string; items: SettingsItem[] };
+
+function settingsGroupsFor(capabilities: string[]): SettingsGroup[] {
+  const allowed = new Set(capabilities);
+  return SETTINGS_GROUPS.map((group) => ({
+    label: group.label,
+    items: group.items.filter((item) => !("capability" in item) || allowed.has(item.capability)),
+  })).filter((group) => group.items.length > 0) as SettingsGroup[];
 }

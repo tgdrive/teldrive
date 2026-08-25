@@ -42,7 +42,7 @@ func TestGeneratedServerUploadCompleteAndRangeDownload(t *testing.T) {
 	storage := &apiMemoryStorage{}
 	pipeline := transfer.NewPipeline(uploadService, apiFixedResolver(9001), storage, nil, transfer.Config{})
 	downloader := transfer.NewDownloader(catalogService, storage, nil)
-	shareService, err := shares.NewService(db.Pool, catalogService, nil)
+	shareService, err := shares.NewService(db.Pool, catalogService)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -21,6 +21,11 @@ session_id="aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 logout_session_id="bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
 refresh_session_id="cccccccc-cccc-4ccc-8ccc-cccccccccccc"
 error_session_id="dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+admin_session_id="eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"
+alice_session_id="11111111-aaaa-4111-8111-111111111111"
+bob_session_id="22222222-bbbb-4222-8222-222222222222"
+charlie_session_id="33333333-cccc-4333-8333-333333333333"
+disabled_session_id="44444444-dddd-4444-8444-444444444444"
 refresh_token="tdr_ui_default_session"
 logout_refresh_token="tdr_ui_logout_session"
 refresh_only_token="tdr_ui_refresh_session"
@@ -73,6 +78,11 @@ run_playwright() {
     -e TELDRIVE_UI_TEST_REFRESH_ONLY_TOKEN="$refresh_only_token" \
     -e TELDRIVE_UI_TEST_ERROR_ACCESS_TOKEN="$error_access_token" \
     -e TELDRIVE_UI_TEST_ERROR_REFRESH_TOKEN="$error_refresh_token" \
+    -e TELDRIVE_UI_TEST_ADMIN_ACCESS_TOKEN="$admin_access_token" \
+    -e TELDRIVE_UI_TEST_ALICE_ACCESS_TOKEN="$alice_access_token" \
+    -e TELDRIVE_UI_TEST_BOB_ACCESS_TOKEN="$bob_access_token" \
+    -e TELDRIVE_UI_TEST_CHARLIE_ACCESS_TOKEN="$charlie_access_token" \
+    -e TELDRIVE_UI_TEST_DISABLED_ACCESS_TOKEN="$disabled_access_token" \
     "$playwright_image" \
     npx playwright test "$@"; then
     echo "Playwright failed; Teldrive log follows" >&2
@@ -203,7 +213,7 @@ refresh_hash="$(printf '%s' "$refresh_token" | sha256sum | awk '{print $1}')"
 logout_refresh_hash="$(printf '%s' "$logout_refresh_token" | sha256sum | awk '{print $1}')"
 refresh_only_hash="$(printf '%s' "$refresh_only_token" | sha256sum | awk '{print $1}')"
 error_refresh_hash="$(printf '%s' "$error_refresh_token" | sha256sum | awk '{print $1}')"
-mapfile -t browser_tokens < <(SIGNING_KEY="$signing_key" SESSION_ID="$session_id" LOGOUT_SESSION_ID="$logout_session_id" REFRESH_SESSION_ID="$refresh_session_id" ERROR_SESSION_ID="$error_session_id" python3 - <<'PYJWT'
+mapfile -t browser_tokens < <(SIGNING_KEY="$signing_key" SESSION_ID="$session_id" LOGOUT_SESSION_ID="$logout_session_id" REFRESH_SESSION_ID="$refresh_session_id" ERROR_SESSION_ID="$error_session_id" ADMIN_SESSION_ID="$admin_session_id" ALICE_SESSION_ID="$alice_session_id" BOB_SESSION_ID="$bob_session_id" CHARLIE_SESSION_ID="$charlie_session_id" DISABLED_SESSION_ID="$disabled_session_id" python3 - <<'PYJWT'
 import base64
 import hashlib
 import hmac
@@ -218,11 +228,11 @@ def encoded(value):
     raw = json.dumps(value, separators=(",", ":"), sort_keys=True).encode()
     return base64.urlsafe_b64encode(raw).rstrip(b"=").decode()
 
-def token(session_id, expires_at):
+def token(user_id, session_id, expires_at):
     header = encoded({"alg": "HS256", "typ": "JWT"})
     payload = encoded({
         "iss": "teldrive-v2",
-        "sub": "1001",
+        "sub": str(user_id),
         "iat": now,
         "exp": expires_at,
         "sid": session_id,
@@ -234,21 +244,32 @@ def token(session_id, expires_at):
     ).rstrip(b"=").decode()
     return f"{signing_input}.{signature}"
 
-print(token(os.environ["SESSION_ID"], now + 3600))
-print(token(os.environ["LOGOUT_SESSION_ID"], now + 3600))
-print(token(os.environ["REFRESH_SESSION_ID"], now - 60))
-print(token(os.environ["ERROR_SESSION_ID"], now + 3600))
+print(token(1001, os.environ["SESSION_ID"], now + 3600))
+print(token(1001, os.environ["LOGOUT_SESSION_ID"], now + 3600))
+print(token(1001, os.environ["REFRESH_SESSION_ID"], now - 60))
+print(token(1001, os.environ["ERROR_SESSION_ID"], now + 3600))
+print(token(1002, os.environ["ADMIN_SESSION_ID"], now + 3600))
+print(token(1003, os.environ["ALICE_SESSION_ID"], now + 3600))
+print(token(1004, os.environ["BOB_SESSION_ID"], now + 3600))
+print(token(1005, os.environ["CHARLIE_SESSION_ID"], now + 3600))
+print(token(1006, os.environ["DISABLED_SESSION_ID"], now + 3600))
 PYJWT
 )
 access_token="${browser_tokens[0]}"
 logout_access_token="${browser_tokens[1]}"
 expired_access_token="${browser_tokens[2]}"
 error_access_token="${browser_tokens[3]}"
+admin_access_token="${browser_tokens[4]}"
+alice_access_token="${browser_tokens[5]}"
+bob_access_token="${browser_tokens[6]}"
+charlie_access_token="${browser_tokens[7]}"
+disabled_access_token="${browser_tokens[8]}"
+
+podman cp ui/e2e/fixtures/access-control-seed.sql "$name:/tmp/access-control-seed.sql" >/dev/null
+podman exec -e PGPASSWORD="$password" "$name" \
+  psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U "$user" -d "$database" -f /tmp/access-control-seed.sql >/dev/null
 podman exec -i -e PGPASSWORD="$password" "$name" \
   psql -v ON_ERROR_STOP=1 -h 127.0.0.1 -U "$user" -d "$database" >/dev/null <<SQL
-INSERT INTO users (user_id, display_name, username)
-VALUES (1001, 'Playwright User', 'playwright')
-ON CONFLICT (user_id) DO NOTHING;
 
 INSERT INTO api_keys (user_id, name, key_prefix, secret_hash)
 VALUES (1001, 'playwright integration', '${api_key_prefix}', decode('${api_key_hash}', 'hex'))
@@ -259,7 +280,12 @@ VALUES
   ('${session_id}', 1001, decode('00', 'hex'), decode('${refresh_hash}', 'hex'), now() + interval '1 day'),
   ('${logout_session_id}', 1001, decode('00', 'hex'), decode('${logout_refresh_hash}', 'hex'), now() + interval '1 day'),
   ('${refresh_session_id}', 1001, decode('00', 'hex'), decode('${refresh_only_hash}', 'hex'), now() + interval '1 day'),
-  ('${error_session_id}', 1001, decode('00', 'hex'), decode('${error_refresh_hash}', 'hex'), now() + interval '1 day')
+  ('${error_session_id}', 1001, decode('00', 'hex'), decode('${error_refresh_hash}', 'hex'), now() + interval '1 day'),
+  ('${admin_session_id}', 1002, decode('00', 'hex'), decode('11', 'hex'), now() + interval '1 day'),
+  ('${alice_session_id}', 1003, decode('00', 'hex'), decode('12', 'hex'), now() + interval '1 day'),
+  ('${bob_session_id}', 1004, decode('00', 'hex'), decode('13', 'hex'), now() + interval '1 day'),
+  ('${charlie_session_id}', 1005, decode('00', 'hex'), decode('14', 'hex'), now() + interval '1 day'),
+  ('${disabled_session_id}', 1006, decode('00', 'hex'), decode('15', 'hex'), now() + interval '1 day')
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO files (id, user_id, parent_id, name, normalized_name, kind, status, mod_time, created_at, updated_at, deleted_at)
@@ -305,6 +331,11 @@ if [[ "$mode" == "start" ]]; then
     printf 'refresh_only_token=%q\n' "$refresh_only_token"
     printf 'error_access_token=%q\n' "$error_access_token"
     printf 'error_refresh_token=%q\n' "$error_refresh_token"
+    printf 'admin_access_token=%q\n' "$admin_access_token"
+    printf 'alice_access_token=%q\n' "$alice_access_token"
+    printf 'bob_access_token=%q\n' "$bob_access_token"
+    printf 'charlie_access_token=%q\n' "$charlie_access_token"
+    printf 'disabled_access_token=%q\n' "$disabled_access_token"
   } > "$state_dir/environment"
   chmod 600 "$state_dir/environment"
   preserve_environment=true

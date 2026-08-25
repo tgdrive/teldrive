@@ -136,6 +136,20 @@ func encodeCreateChannelRequest(
 	return nil
 }
 
+func encodeCreateFileAccessGrantRequest(
+	req *FileAccessGrantCreateRequest,
+	r *http.Request,
+) error {
+	const contentType = "application/json"
+	e := new(jx.Encoder)
+	{
+		req.Encode(e)
+	}
+	encoded := e.Bytes()
+	ht.SetBody(r, bytes.NewReader(encoded), contentType)
+	return nil
+}
+
 func encodeCreateFolderRequest(
 	req *FolderCreateRequest,
 	r *http.Request,
@@ -166,6 +180,34 @@ func encodeCreateJobRequest(
 
 func encodeCreatePeriodicJobRequest(
 	req *PeriodicJobCreate,
+	r *http.Request,
+) error {
+	const contentType = "application/json"
+	e := new(jx.Encoder)
+	{
+		req.Encode(e)
+	}
+	encoded := e.Bytes()
+	ht.SetBody(r, bytes.NewReader(encoded), contentType)
+	return nil
+}
+
+func encodeCreatePublicShareFolderRequest(
+	req *FolderCreateRequest,
+	r *http.Request,
+) error {
+	const contentType = "application/json"
+	e := new(jx.Encoder)
+	{
+		req.Encode(e)
+	}
+	encoded := e.Bytes()
+	ht.SetBody(r, bytes.NewReader(encoded), contentType)
+	return nil
+}
+
+func encodeCreatePublicShareUploadRequest(
+	req *UploadCreateRequest,
 	r *http.Request,
 ) error {
 	const contentType = "application/json"
@@ -245,6 +287,16 @@ func encodePutFileViewStateRequest(
 	}
 	encoded := e.Bytes()
 	ht.SetBody(r, bytes.NewReader(encoded), contentType)
+	return nil
+}
+
+func encodePutPublicShareUploadPartRequest(
+	req PutPublicShareUploadPartReq,
+	r *http.Request,
+) error {
+	const contentType = "application/octet-stream"
+	body := req
+	ht.SetBody(r, body, contentType)
 	return nil
 }
 
@@ -328,6 +380,20 @@ func encodeTelegramQRLoginPollRequest(
 	return nil
 }
 
+func encodeUpdateAdminUserRequest(
+	req *UserAdminUpdateRequest,
+	r *http.Request,
+) error {
+	const contentType = "application/json"
+	e := new(jx.Encoder)
+	{
+		req.Encode(e)
+	}
+	encoded := e.Bytes()
+	ht.SetBody(r, bytes.NewReader(encoded), contentType)
+	return nil
+}
+
 func encodeUpdateFileRequest(
 	req *FileUpdateRequest,
 	r *http.Request,
@@ -342,8 +408,36 @@ func encodeUpdateFileRequest(
 	return nil
 }
 
+func encodeUpdateFileAccessGrantRequest(
+	req *FileAccessGrantUpdateRequest,
+	r *http.Request,
+) error {
+	const contentType = "application/json"
+	e := new(jx.Encoder)
+	{
+		req.Encode(e)
+	}
+	encoded := e.Bytes()
+	ht.SetBody(r, bytes.NewReader(encoded), contentType)
+	return nil
+}
+
 func encodeUpdatePeriodicJobRequest(
 	req *PeriodicJobUpdate,
+	r *http.Request,
+) error {
+	const contentType = "application/json"
+	e := new(jx.Encoder)
+	{
+		req.Encode(e)
+	}
+	encoded := e.Bytes()
+	ht.SetBody(r, bytes.NewReader(encoded), contentType)
+	return nil
+}
+
+func encodeUpdatePublicShareFileRequest(
+	req *FileUpdateRequest,
 	r *http.Request,
 ) error {
 	const contentType = "application/json"

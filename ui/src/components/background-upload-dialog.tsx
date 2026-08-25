@@ -1,4 +1,13 @@
-import { Accordion, Button, Input, Label, NumberField, Switch, TextArea, TextField } from "@heroui/react";
+import {
+  Accordion,
+  Button,
+  Input,
+  Label,
+  NumberField,
+  Switch,
+  TextArea,
+  TextField,
+} from "@heroui/react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import PlusIcon from "~icons/gravity-ui/plus";
@@ -161,7 +170,10 @@ export function BackgroundUploadDialog({
 
         <div className="grid gap-3">
           {sources.map((source, index) => (
-            <section key={source.id} className="rounded-xl border border-border bg-default/15 p-3 sm:p-4">
+            <section
+              key={source.id}
+              className="rounded-xl border border-border bg-default/15 p-3 sm:p-4"
+            >
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
                   <div className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
@@ -177,7 +189,9 @@ export function BackgroundUploadDialog({
                   variant="ghost"
                   aria-label={`Remove source ${index + 1}`}
                   isDisabled={sources.length === 1}
-                  onPress={() => setSources((items) => items.filter((item) => item.id !== source.id))}
+                  onPress={() =>
+                    setSources((items) => items.filter((item) => item.id !== source.id))
+                  }
                 >
                   <TrashIcon className="size-3.5" />
                 </Button>
@@ -202,7 +216,13 @@ export function BackgroundUploadDialog({
                   onChange={(value) => patchSource(source.id, { location: value })}
                 >
                   <Label>{source.type === "local" ? "Absolute server path" : "URL"}</Label>
-                  <Input placeholder={source.type === "local" ? "/srv/media/photos" : "https://example.com/archive.zip"} />
+                  <Input
+                    placeholder={
+                      source.type === "local"
+                        ? "/srv/media/photos"
+                        : "https://example.com/archive.zip"
+                    }
+                  />
                 </TextField>
                 <TextField
                   value={source.destinationPath}
@@ -213,10 +233,7 @@ export function BackgroundUploadDialog({
                 </TextField>
               </div>
 
-              <Accordion
-                hideSeparator
-                className="mt-2 w-full"
-              >
+              <Accordion hideSeparator className="mt-2 w-full">
                 <Accordion.Item id={`source-options-${source.id}`}>
                   <Accordion.Heading>
                     <Accordion.Trigger className="rounded-lg text-xs font-medium text-muted hover:text-foreground">
@@ -229,11 +246,25 @@ export function BackgroundUploadDialog({
                       <div className="grid gap-3 border-border border-t pt-3 sm:grid-cols-2">
                         <TextField>
                           <Label>Exclude patterns</Label>
-                          <TextArea value={source.exclude} onChange={(event) => patchSource(source.id, { exclude: event.currentTarget.value })} placeholder={"*.tmp\n**/.git/**"} rows={3} />
+                          <TextArea
+                            value={source.exclude}
+                            onChange={(event) =>
+                              patchSource(source.id, { exclude: event.currentTarget.value })
+                            }
+                            placeholder={"*.tmp\n**/.git/**"}
+                            rows={3}
+                          />
                         </TextField>
                         <TextField isDisabled={source.type !== "http"}>
                           <Label>HTTP headers</Label>
-                          <TextArea value={source.headers} onChange={(event) => patchSource(source.id, { headers: event.currentTarget.value })} placeholder={"Authorization: Bearer …"} rows={3} />
+                          <TextArea
+                            value={source.headers}
+                            onChange={(event) =>
+                              patchSource(source.id, { headers: event.currentTarget.value })
+                            }
+                            placeholder={"Authorization: Bearer …"}
+                            rows={3}
+                          />
                         </TextField>
                       </div>
                     </Accordion.Body>
@@ -263,61 +294,77 @@ export function BackgroundUploadDialog({
             <Accordion.Panel>
               <Accordion.Body>
                 <div className="grid gap-4 border-border border-t py-4">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <TextField value={minSize} onChange={setMinSize}>
-                  <Label>Minimum size</Label>
-                  <Input placeholder="For example 10 MiB" />
-                </TextField>
-                <TextField value={maxSize} onChange={setMaxSize}>
-                  <Label>Maximum size</Label>
-                  <Input placeholder="For example 20 GiB" />
-                </TextField>
-                <NumberField
-                  aria-label="Chunk size in MiB"
-                  value={chunkSizeMiB}
-                  minValue={64}
-                  maxValue={2000}
-                  onChange={(value) => setChunkSizeMiB(Math.max(64, Math.min(2000, value ?? 512)))}
-                >
-                  <Label>Chunk size (MiB)</Label>
-                  <NumberField.Group>
-                    <NumberField.DecrementButton />
-                    <NumberField.Input />
-                    <span className="pr-2 text-xs text-muted">MiB</span>
-                    <NumberField.IncrementButton />
-                  </NumberField.Group>
-                </NumberField>
-                <NumberField
-                  aria-label="Concurrent upload parts"
-                  value={partConcurrency}
-                  minValue={1}
-                  maxValue={16}
-                  onChange={(value) => setPartConcurrency(Math.max(1, Math.min(16, value ?? 4)))}
-                >
-                  <Label>Concurrent parts</Label>
-                  <NumberField.Group>
-                    <NumberField.DecrementButton />
-                    <NumberField.Input />
-                    <NumberField.IncrementButton />
-                  </NumberField.Group>
-                </NumberField>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <TextField>
-                  <Label>Batch exclusions</Label>
-                  <TextArea value={exclude} onChange={(event) => setExclude(event.currentTarget.value)} placeholder={"*.tmp\n**/node_modules/**"} rows={3} />
-                </TextField>
-                <TextField>
-                  <Label>Default HTTP headers</Label>
-                  <TextArea value={headers} onChange={(event) => setHeaders(event.currentTarget.value)} placeholder={"Authorization: Bearer …"} rows={3} />
-                </TextField>
-              </div>
-              <Switch isSelected={encryption} onChange={setEncryption}>
-                <Switch.Content>
-                  <Switch.Control><Switch.Thumb /></Switch.Control>
-                  <Label>Encrypt uploaded files</Label>
-                </Switch.Content>
-              </Switch>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <TextField value={minSize} onChange={setMinSize}>
+                      <Label>Minimum size</Label>
+                      <Input placeholder="For example 10 MiB" />
+                    </TextField>
+                    <TextField value={maxSize} onChange={setMaxSize}>
+                      <Label>Maximum size</Label>
+                      <Input placeholder="For example 20 GiB" />
+                    </TextField>
+                    <NumberField
+                      aria-label="Chunk size in MiB"
+                      value={chunkSizeMiB}
+                      minValue={64}
+                      maxValue={2000}
+                      onChange={(value) =>
+                        setChunkSizeMiB(Math.max(64, Math.min(2000, value ?? 512)))
+                      }
+                    >
+                      <Label>Chunk size (MiB)</Label>
+                      <NumberField.Group>
+                        <NumberField.DecrementButton />
+                        <NumberField.Input />
+                        <span className="pr-2 text-xs text-muted">MiB</span>
+                        <NumberField.IncrementButton />
+                      </NumberField.Group>
+                    </NumberField>
+                    <NumberField
+                      aria-label="Concurrent upload parts"
+                      value={partConcurrency}
+                      minValue={1}
+                      maxValue={16}
+                      onChange={(value) =>
+                        setPartConcurrency(Math.max(1, Math.min(16, value ?? 4)))
+                      }
+                    >
+                      <Label>Concurrent parts</Label>
+                      <NumberField.Group>
+                        <NumberField.DecrementButton />
+                        <NumberField.Input />
+                        <NumberField.IncrementButton />
+                      </NumberField.Group>
+                    </NumberField>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <TextField>
+                      <Label>Batch exclusions</Label>
+                      <TextArea
+                        value={exclude}
+                        onChange={(event) => setExclude(event.currentTarget.value)}
+                        placeholder={"*.tmp\n**/node_modules/**"}
+                        rows={3}
+                      />
+                    </TextField>
+                    <TextField>
+                      <Label>Default HTTP headers</Label>
+                      <TextArea
+                        value={headers}
+                        onChange={(event) => setHeaders(event.currentTarget.value)}
+                        placeholder={"Authorization: Bearer …"}
+                        rows={3}
+                      />
+                    </TextField>
+                  </div>
+                  <Switch isSelected={encryption} onChange={setEncryption}>
+                    <Switch.Content>
+                      <Switch.Control>
+                        <Switch.Thumb />
+                      </Switch.Control>
+                      <Label>Encrypt uploaded files</Label>
+                    </Switch.Content>
+                  </Switch>
                 </div>
               </Accordion.Body>
             </Accordion.Panel>
@@ -329,7 +376,10 @@ export function BackgroundUploadDialog({
 }
 
 function lines(value: string) {
-  const result = value.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  const result = value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
   return result.length ? result : undefined;
 }
 

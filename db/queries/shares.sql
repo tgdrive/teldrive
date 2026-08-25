@@ -7,7 +7,8 @@ INSERT INTO /* TEMPLATE: schema */file_shares (
     token_hash,
     password_hash,
     expires_at,
-    max_downloads
+    max_downloads,
+    permission
 ) VALUES (
     sqlc.arg(id),
     sqlc.arg(file_id),
@@ -16,7 +17,8 @@ INSERT INTO /* TEMPLATE: schema */file_shares (
     sqlc.arg(token_hash),
     sqlc.narg(password_hash),
     sqlc.narg(expires_at),
-    sqlc.narg(max_downloads)
+    sqlc.narg(max_downloads),
+    sqlc.arg(permission)
 )
 RETURNING *;
 
@@ -54,7 +56,8 @@ SET password_hash = CASE
     max_downloads = CASE
       WHEN sqlc.arg(clear_max_downloads)::boolean THEN NULL
       ELSE COALESCE(sqlc.narg(max_downloads), max_downloads)
-    END
+    END,
+    permission = COALESCE(sqlc.narg(permission)::/* TEMPLATE: schema */share_permission, permission)
 WHERE id = sqlc.arg(id)
   AND owner_id = sqlc.arg(owner_id)
   AND revoked_at IS NULL
@@ -97,3 +100,82 @@ SET revoked_at = now()
 WHERE revoked_at IS NULL
   AND expires_at IS NOT NULL
   AND expires_at <= now();
+
+-- name: CreateFileAccessGrant :one
+INSERT INTO /* TEMPLATE: schema */file_access_grants (
+    id, file_id, owner_id, grantee_id, permission, expires_at
+) VALUES (
+    sqlc.arg(id), sqlc.arg(file_id), sqlc.arg(owner_id), sqlc.arg(grantee_id),
+    sqlc.arg(permission), sqlc.narg(expires_at)
+)
+ON CONFLICT (file_id, grantee_id) WHERE revoked_at IS NULL
+DO UPDATE SET
+    permission = EXCLUDED.permission,
+    expires_at = EXCLUDED.expires_at,
+    updated_at = now()
+RETURNING *;
+
+-- name: ListFileAccessGrantsForOwner :many
+SELECT g.*, u.display_name AS grantee_display_name, u.username AS grantee_username
+FROM /* TEMPLATE: schema */file_access_grants g
+JOIN /* TEMPLATE: schema */users u ON u.user_id = g.grantee_id
+WHERE g.owner_id = sqlc.arg(owner_id)
+  AND g.file_id = sqlc.arg(file_id)
+  AND g.revoked_at IS NULL
+ORDER BY g.created_at DESC, g.id DESC;
+
+-- name: ListSharedWithMe :many
+SELECT g.*, f.name AS file_name, f.kind AS file_kind, f.size AS file_size, f.mime_type AS file_mime_type,
+       f.mod_time AS file_mod_time, f.created_at AS file_created_at, f.updated_at AS file_updated_at,
+       u.display_name AS owner_display_name, u.username AS owner_username
+FROM /* TEMPLATE: schema */file_access_grants g
+JOIN /* TEMPLATE: schema */files f ON f.id = g.file_id AND f.user_id = g.owner_id
+JOIN /* TEMPLATE: schema */users u ON u.user_id = g.owner_id
+WHERE g.grantee_id = sqlc.arg(grantee_id)
+  AND g.revoked_at IS NULL
+  AND (g.expires_at IS NULL OR g.expires_at > now())
+  AND f.status = 'active'
+ORDER BY g.created_at DESC, g.id DESC
+LIMIT sqlc.arg(page_size);
+
+-- name: UpdateFileAccessGrant :one
+UPDATE /* TEMPLATE: schema */file_access_grants
+SET permission = COALESCE(sqlc.narg(permission)::/* TEMPLATE: schema */share_permission, permission),
+    expires_at = CASE
+      WHEN sqlc.arg(clear_expires_at)::boolean THEN NULL
+      ELSE COALESCE(sqlc.narg(expires_at), expires_at)
+    END,
+    updated_at = now()
+WHERE id = sqlc.arg(id)
+  AND owner_id = sqlc.arg(owner_id)
+  AND revoked_at IS NULL
+RETURNING *;
+
+-- name: RevokeFileAccessGrant :execrows
+UPDATE /* TEMPLATE: schema */file_access_grants
+SET revoked_at = now(), updated_at = now()
+WHERE id = sqlc.arg(id)
+  AND owner_id = sqlc.arg(owner_id)
+  AND revoked_at IS NULL;
+
+-- name: GetFileAccessGrantForOwner :one
+SELECT *
+FROM /* TEMPLATE: schema */file_access_grants
+WHERE id = sqlc.arg(id)
+  AND owner_id = sqlc.arg(owner_id)
+  AND revoked_at IS NULL;
+
+-- name: GetActiveFileAnyOwner :one
+SELECT *
+FROM /* TEMPLATE: schema */files
+WHERE id = sqlc.arg(file_id)
+  AND status = 'active';
+
+-- name: ListActiveFileAccessGrantsForGrantee :many
+SELECT *
+FROM /* TEMPLATE: schema */file_access_grants
+WHERE grantee_id = sqlc.arg(grantee_id)
+  AND owner_id = sqlc.arg(owner_id)
+  AND revoked_at IS NULL
+  AND (expires_at IS NULL OR expires_at > now())
+ORDER BY (permission = 'edit') DESC, created_at DESC;

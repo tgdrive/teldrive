@@ -42,6 +42,12 @@ FROM /* TEMPLATE: schema */upload_sessions
 WHERE id = sqlc.arg(upload_id)
   AND user_id = sqlc.arg(user_id);
 
+
+-- name: GetUploadSessionAnyOwner :one
+SELECT *
+FROM /* TEMPLATE: schema */upload_sessions
+WHERE id = sqlc.arg(upload_id);
+
 -- name: ListUploadSessions :many
 SELECT *
 FROM /* TEMPLATE: schema */upload_sessions

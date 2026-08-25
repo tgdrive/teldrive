@@ -16,12 +16,13 @@ func (h *Handler) GetFileViewState(ctx context.Context, params gen.GetFileViewSt
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
+	if _, accessErr := h.resolveAuthenticatedFileAccess(ctx, googleUUID(params.FileId), false); accessErr != nil {
+		return nil, mapServiceError(accessErr)
+	}
 	state, err := h.Catalog.GetViewState(ctx, userID, googleUUID(params.FileId))
 	if err != nil {
 		if err == catalog.ErrNotFound {
-			if _, fileErr := h.Catalog.Get(ctx, userID, googleUUID(params.FileId)); fileErr == nil {
-				return &gen.GetFileViewStateNoContent{}, nil
-			}
+			return &gen.GetFileViewStateNoContent{}, nil
 		}
 		return nil, mapServiceError(err)
 	}
@@ -32,6 +33,9 @@ func (h *Handler) PutFileViewState(ctx context.Context, req *gen.FileViewStateUp
 	userID, err := UserIDFromContext(ctx)
 	if err != nil {
 		return nil, mapServiceError(err)
+	}
+	if _, accessErr := h.resolveAuthenticatedFileAccess(ctx, googleUUID(params.FileId), false); accessErr != nil {
+		return nil, mapServiceError(accessErr)
 	}
 	position, err := json.Marshal(req.Position.Or(gen.FileViewStateUpdatePosition{}))
 	if err != nil {
@@ -56,6 +60,9 @@ func (h *Handler) DeleteFileViewState(ctx context.Context, params gen.DeleteFile
 	userID, err := UserIDFromContext(ctx)
 	if err != nil {
 		return nil, mapServiceError(err)
+	}
+	if _, accessErr := h.resolveAuthenticatedFileAccess(ctx, googleUUID(params.FileId), false); accessErr != nil {
+		return nil, mapServiceError(accessErr)
 	}
 	if err := h.Catalog.DeleteViewState(ctx, userID, googleUUID(params.FileId)); err != nil {
 		return nil, mapServiceError(err)

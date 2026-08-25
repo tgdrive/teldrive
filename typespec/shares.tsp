@@ -3,6 +3,11 @@ using TypeSpec.OpenAPI;
 
 namespace TelDrive;
 
+enum SharePermission {
+  read: "read",
+  edit: "edit",
+}
+
 model ShareCreateRequest {
   /** Optional password. The server stores only a password hash. */
   @minLength(1)
@@ -12,6 +17,8 @@ model ShareCreateRequest {
 
   @minValue(1)
   maxDownloads?: int64;
+
+  permission?: SharePermission = SharePermission.read;
 }
 
 model ShareUpdateRequest {
@@ -26,6 +33,7 @@ model ShareUpdateRequest {
   maxDownloads?: int64;
 
   clearMaxDownloads?: boolean = false;
+  permission?: SharePermission;
 }
 
 model PublicShareListQuery {
@@ -50,6 +58,7 @@ model ShareCreated {
   passwordProtected: boolean;
   expiresAt?: utcDateTime;
   maxDownloads?: int64;
+  permission: SharePermission;
   createdAt: utcDateTime;
 }
 
@@ -60,6 +69,7 @@ model ShareSummary {
   expiresAt?: utcDateTime;
   maxDownloads?: int64;
   downloadCount: int64;
+  permission: SharePermission;
   createdAt: utcDateTime;
   revokedAt?: utcDateTime;
 }
@@ -69,6 +79,41 @@ model PublicShare {
   file: FileEntry;
   passwordProtected: boolean;
   expiresAt?: utcDateTime;
+  permission: SharePermission;
+}
+
+model FileAccessGrantCreateRequest {
+  granteeUserId: int64;
+  permission?: SharePermission = SharePermission.read;
+  expiresAt?: utcDateTime;
+}
+
+model FileAccessGrantUpdateRequest {
+  permission?: SharePermission;
+  expiresAt?: utcDateTime;
+  clearExpiresAt?: boolean = false;
+}
+
+model FileAccessGrantSummary {
+  id: Uuid;
+  fileId: Uuid;
+  ownerId: int64;
+  granteeUserId: int64;
+  granteeDisplayName?: string;
+  granteeUsername?: string;
+  permission: SharePermission;
+  expiresAt?: utcDateTime;
+  createdAt: utcDateTime;
+}
+
+model SharedWithMeEntry {
+  grantId: Uuid;
+  ownerId: int64;
+  ownerDisplayName?: string;
+  ownerUsername?: string;
+  permission: SharePermission;
+  expiresAt?: utcDateTime;
+  file: FileEntry;
 }
 
 model SharePasswordHeader {
@@ -118,6 +163,51 @@ namespace Shares {
     | EmptyResponse<204>
     | ErrorResponse<401>
     | ErrorResponse<404>;
+
+  @post
+  @route("/files/{fileId}/grants")
+  @operationId("createFileAccessGrant")
+  op createGrant(@path fileId: Uuid, @body body: FileAccessGrantCreateRequest):
+    | JsonResponse<201, FileAccessGrantSummary>
+    | ErrorResponse<401>
+    | ErrorResponse<404>
+    | ErrorResponse<409>
+    | ErrorResponse<422>;
+
+  @get
+  @route("/files/{fileId}/grants")
+  @operationId("listFileAccessGrants")
+  op listGrants(@path fileId: Uuid):
+    | JsonResponse<200, FileAccessGrantSummary[]>
+    | ErrorResponse<401>
+    | ErrorResponse<404>;
+
+  @patch
+  @route("/grants/{grantId}")
+  @operationId("updateFileAccessGrant")
+  op updateGrant(
+    @path grantId: Uuid,
+    @body body: FileAccessGrantUpdateRequest,
+  ):
+    | JsonResponse<200, FileAccessGrantSummary>
+    | ErrorResponse<401>
+    | ErrorResponse<404>
+    | ErrorResponse<422>;
+
+  @delete
+  @route("/grants/{grantId}")
+  @operationId("revokeFileAccessGrant")
+  op revokeGrant(@path grantId: Uuid):
+    | EmptyResponse<204>
+    | ErrorResponse<401>
+    | ErrorResponse<404>;
+
+  @get
+  @route("/shared-with-me")
+  @operationId("listSharedWithMe")
+  op sharedWithMe():
+    | JsonResponse<200, SharedWithMeEntry[]>
+    | ErrorResponse<401>;
 }
 
 @tag("Public shares")
@@ -152,6 +242,36 @@ namespace PublicShares {
     | ErrorResponse<429>;
 
   @get
+  @route("/{token}/files/{fileId}/content")
+  @operationId("downloadPublicShareFile")
+  op downloadFile(
+    ...SharePasswordHeader,
+    ...FileContentRequestHeaders,
+    @path token: string,
+    @path fileId: Uuid,
+  ):
+    | FileContentResponse
+    | FilePartialContentResponse
+    | EmptyResponse<304>
+    | ErrorResponse<401>
+    | ErrorResponse<404>
+    | ErrorResponse<410>
+    | ErrorResponse<416>
+    | ErrorResponse<429>
+    | ErrorResponse<503>;
+
+  @head
+  @route("/{token}/files/{fileId}/content")
+  @operationId("headPublicShareFile")
+  op headFile(...SharePasswordHeader, @path token: string, @path fileId: Uuid):
+    | FileHeadResponse
+    | ErrorResponse<401>
+    | ErrorResponse<404>
+    | ErrorResponse<410>
+    | ErrorResponse<429>
+    | ErrorResponse<503>;
+
+  @get
   @route("/{token}/content")
   @operationId("downloadPublicShare")
   op download(
@@ -179,4 +299,120 @@ namespace PublicShares {
     | ErrorResponse<410>
     | ErrorResponse<429>
     | ErrorResponse<503>;
+
+  @post
+  @route("/{token}/folders")
+  @operationId("createPublicShareFolder")
+  op createFolder(
+    ...SharePasswordHeader,
+    @path token: string,
+    @body body: FolderCreateRequest,
+  ):
+    | JsonResponse<201, FileEntry>
+    | ErrorResponse<401>
+    | ErrorResponse<403>
+    | ErrorResponse<404>
+    | ErrorResponse<410>
+    | ErrorResponse<422>;
+
+  @patch
+  @route("/{token}/files/{fileId}")
+  @operationId("updatePublicShareFile")
+  op updateFile(
+    ...SharePasswordHeader,
+    @path token: string,
+    @path fileId: Uuid,
+    @header("If-Match") ifMatch: ETag,
+    @body body: FileUpdateRequest,
+  ):
+    | JsonResponse<200, FileEntry>
+    | ErrorResponse<401>
+    | ErrorResponse<403>
+    | ErrorResponse<404>
+    | ErrorResponse<410>
+    | ErrorResponse<412>
+    | ErrorResponse<422>;
+
+  @delete
+  @route("/{token}/files/{fileId}")
+  @operationId("trashPublicShareFile")
+  op trashFile(
+    ...SharePasswordHeader,
+    @path token: string,
+    @path fileId: Uuid,
+  ):
+    | EmptyResponse<204>
+    | ErrorResponse<401>
+    | ErrorResponse<403>
+    | ErrorResponse<404>
+    | ErrorResponse<410>;
+
+  @post
+  @route("/{token}/uploads")
+  @operationId("createPublicShareUpload")
+  op createUpload(
+    ...SharePasswordHeader,
+    ...IdempotencyHeader,
+    @path token: string,
+    @body body: UploadCreateRequest,
+  ):
+    | JsonResponse<201, UploadSession>
+    | ErrorResponse<401>
+    | ErrorResponse<403>
+    | ErrorResponse<404>
+    | ErrorResponse<409>
+    | ErrorResponse<410>
+    | ErrorResponse<422>;
+
+  @put
+  @route("/{token}/uploads/{uploadId}/parts/{partNo}")
+  @operationId("putPublicShareUploadPart")
+  op putUploadPart(
+    ...SharePasswordHeader,
+    ...UploadPartHeaders,
+    @path token: string,
+    @path uploadId: Uuid,
+    @path @minValue(1) partNo: int32,
+    @body body: bytes,
+  ):
+    | UploadPartStoredResponse
+    | ErrorResponse<400>
+    | ErrorResponse<401>
+    | ErrorResponse<403>
+    | ErrorResponse<404>
+    | ErrorResponse<409>
+    | ErrorResponse<410>
+    | ErrorResponse<422>
+    | ErrorResponse<503>;
+
+  @post
+  @route("/{token}/uploads/{uploadId}/complete")
+  @operationId("completePublicShareUpload")
+  op completeUpload(
+    ...SharePasswordHeader,
+    ...IdempotencyHeader,
+    @path token: string,
+    @path uploadId: Uuid,
+  ):
+    | UploadCompletedResponse
+    | ErrorResponse<401>
+    | ErrorResponse<403>
+    | ErrorResponse<404>
+    | ErrorResponse<409>
+    | ErrorResponse<410>
+    | ErrorResponse<422>;
+
+  @delete
+  @route("/{token}/uploads/{uploadId}")
+  @operationId("abortPublicShareUpload")
+  op abortUpload(
+    ...SharePasswordHeader,
+    @path token: string,
+    @path uploadId: Uuid,
+  ):
+    | EmptyResponse<204>
+    | ErrorResponse<401>
+    | ErrorResponse<403>
+    | ErrorResponse<404>
+    | ErrorResponse<410>;
 }

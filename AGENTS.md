@@ -5,17 +5,17 @@
 - Use `justfile` for supported workflows; it loads a root `.env` automatically.
 - TypeSpec files in `typespec/` own the HTTP contract. Do not hand-edit `openapi/teldrive.openapi.yaml`, `internal/api/gen/`, or `ui/src/api/schema.ts`; run `just generate-api`, `just generate-ui`, or `just generate` as appropriate.
 - SQL lives in `db/queries/` and migrations in `db/migrations/`. Do not edit `internal/db/sqlcgen/` manually.
-- Always run `just generate-db` after SQL changes. A bare `sqlc generate` omits the required `hack/patch-sqlc-schema.py` step and breaks configurable PostgreSQL schema rewriting in `internal/db/sqlcgen/db.go`.
+- Always run `just generate-db` after SQL changes. A bare `sqlc generate` omits the required `go run ./internal/tools/patchsqlc` step and breaks configurable PostgreSQL schema rewriting in `internal/db/sqlcgen/db.go`.
 - Preserve `/* TEMPLATE: schema */` markers in SQL; the generated DB wrapper replaces them with the configured schema at runtime.
 
 ## Commands
 
 - Install pinned JS dependencies: `just install-tools` (uses Bun for both `typespec/` and `ui/`).
 - Backend unit tests: `go test ./...`; focused package/test: `go test ./internal/transfer -run '^TestName$'`.
-- Integration tests require Podman and must use the harness: `hack/test-postgres.sh go test -tags=integration ./internal/uploads`; use `just test-integration` for all packages.
+- Integration tests require Podman and must use the harness: `scripts/test-postgres.sh go test -tags=integration ./internal/uploads`; use `just test-integration` for all packages.
 - Race tests also require the PostgreSQL harness: `just test-race`.
 - Full project validation: `just check`. This regenerates artifacts and runs lint, UI checks/build, unit tests, and the Podman-backed 80% core coverage gate; it is intentionally expensive.
-- UI checks: `just ui-check`. Browser E2E with real backend/filesystem Telegram: `just ui-e2e`; `hack/test-ui.sh start|test|status|stop` supports a reusable environment.
+- UI checks: `just ui-check`. Browser E2E with real backend/filesystem Telegram: `just ui-e2e`; `scripts/test-ui.sh start|test|status|stop` supports a reusable environment.
 - Format only handwritten code with `just format`; generated Go directories are deliberately excluded.
 
 ## Architecture

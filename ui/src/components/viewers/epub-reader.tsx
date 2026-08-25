@@ -320,9 +320,7 @@ export function EpubReader({ file, url, state, onPosition, onClose }: EpubReader
 
         <div className="min-w-0 flex-1 px-1 sm:px-2">
           <p className="truncate text-sm font-semibold tracking-[-0.01em]">{title}</p>
-          <p className="truncate text-[11px] text-(--reader-muted)">
-            {chapter || "EPUB reader"}
-          </p>
+          <p className="truncate text-[11px] text-(--reader-muted)">{chapter || "EPUB reader"}</p>
         </div>
 
         <div className="hidden min-w-28 text-center text-[11px] text-(--reader-muted) md:block">

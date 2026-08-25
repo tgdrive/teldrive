@@ -65,6 +65,8 @@ func mapServiceError(err error) error {
 		return problem(http.StatusUnauthorized, "unauthorized", "authentication is required", err)
 	case errors.Is(err, shares.ErrPasswordNeeded), errors.Is(err, shares.ErrInvalidPassword):
 		return problem(http.StatusUnauthorized, "share_password_required", "a valid share password is required", err)
+	case errors.Is(err, shares.ErrForbidden):
+		return problem(http.StatusForbidden, "forbidden", "operation is not permitted", err)
 	case errors.Is(err, events.ErrInvalidCursor):
 		return problem(http.StatusUnprocessableEntity, "invalid_event_cursor", "event cursor is invalid", err)
 	case errors.Is(err, events.ErrTooManyConnections):

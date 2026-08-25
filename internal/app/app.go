@@ -224,7 +224,7 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 	healthService := health.NewService(dependencies.Version, pool)
 	jobRuntime, err := jobs.NewRuntimeWithServices(
 		pool, storage, cfg.Database.Schema, botService, secureCipher, cfg.Uploads.SessionTTL,
-		jobs.UploaderServices{Catalog: catalogService, Uploads: uploadService, Pipeline: uploadPipeline, ActiveKeyVersion: cfg.Encryption.ActiveKeyVersion},
+		jobs.UploaderServices{Catalog: catalogService, Uploads: uploadService, Pipeline: uploadPipeline, ActiveKeyVersion: cfg.Encryption.ActiveKeyVersion, LocalImportRoots: cfg.Uploads.LocalImportRoots},
 		fileService,
 	)
 	if err != nil {

@@ -132,6 +132,49 @@ func (r *Runtime) ListQueues(ctx context.Context) ([]Queue, error) {
 	return result, nil
 }
 
+func (r *Runtime) ListQueuesForUser(ctx context.Context, userID int64) ([]Queue, error) {
+	if r == nil || r.pool == nil || userID <= 0 {
+		return nil, ErrRuntimeNotConfigured
+	}
+	jobTable := pgx.Identifier{r.schema, "river_job"}.Sanitize()
+	rows, err := r.pool.Query(ctx, fmt.Sprintf(`
+SELECT queue,
+       count(*) FILTER (WHERE state::text = 'available'),
+       count(*) FILTER (WHERE state::text = 'running'),
+       count(*) FILTER (WHERE state::text = 'retryable'),
+       count(*) FILTER (WHERE state::text = 'scheduled')
+FROM %s
+WHERE args->>'user_id' = $1
+GROUP BY queue
+ORDER BY queue`, jobTable), fmt.Sprintf("%d", userID))
+	if err != nil {
+		return nil, fmt.Errorf("list user queues: %w", err)
+	}
+	defer rows.Close()
+	result := make([]Queue, 0)
+	for rows.Next() {
+		var queue Queue
+		if err := rows.Scan(&queue.Name, &queue.Available, &queue.Running, &queue.Retryable, &queue.Scheduled); err != nil {
+			return nil, fmt.Errorf("scan user queue: %w", err)
+		}
+		result = append(result, queue)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate user queues: %w", err)
+	}
+	global, err := r.ListQueues(ctx)
+	if err == nil {
+		paused := make(map[string]bool, len(global))
+		for _, queue := range global {
+			paused[queue.Name] = queue.Paused
+		}
+		for index := range result {
+			result[index].Paused = paused[result[index].Name]
+		}
+	}
+	return result, nil
+}
+
 func (r *Runtime) PauseQueue(ctx context.Context, name string) error {
 	if r == nil || r.client == nil {
 		return ErrRuntimeNotConfigured
@@ -159,6 +202,23 @@ func (r *Runtime) Purge(ctx context.Context, state string) (int64, error) {
 	command, err := r.pool.Exec(ctx, fmt.Sprintf("DELETE FROM %s WHERE state::text = $1", jobTable), state)
 	if err != nil {
 		return 0, fmt.Errorf("purge %s jobs: %w", state, err)
+	}
+	return command.RowsAffected(), nil
+}
+
+func (r *Runtime) PurgeForUser(ctx context.Context, userID int64, state string) (int64, error) {
+	if r == nil || r.pool == nil || userID <= 0 {
+		return 0, ErrRuntimeNotConfigured
+	}
+	switch state {
+	case "cancelled", "completed", "discarded":
+	default:
+		return 0, ErrInvalidJobState
+	}
+	jobTable := pgx.Identifier{r.schema, "river_job"}.Sanitize()
+	command, err := r.pool.Exec(ctx, fmt.Sprintf("DELETE FROM %s WHERE state::text = $1 AND args->>'user_id' = $2", jobTable), state, fmt.Sprintf("%d", userID))
+	if err != nil {
+		return 0, fmt.Errorf("purge %s jobs for user: %w", state, err)
 	}
 	return command.RowsAffected(), nil
 }

@@ -12,22 +12,44 @@ import (
 )
 
 func (h *Handler) BulkMoveFiles(ctx context.Context, req *gen.FileBulkMoveRequest, params gen.BulkMoveFilesParams) (gen.BulkMoveFilesRes, error) {
-	userID, err := UserIDFromContext(ctx)
-	if err != nil {
-		return nil, mapServiceError(err)
-	}
 	if h.Catalog == nil || req == nil {
 		return nil, mapServiceError(ErrOperationUnavailable)
 	}
 	fileIDs := make([]uuid.UUID, 0, len(req.FileIds))
+	ownerID := int64(0)
 	for _, value := range req.FileIds {
-		fileIDs = append(fileIDs, googleUUID(value))
+		fileID := googleUUID(value)
+		access, err := h.resolveAuthenticatedFileAccess(ctx, fileID, true)
+		if err != nil {
+			return nil, mapServiceError(err)
+		}
+		if ownerID == 0 {
+			ownerID = access.OwnerID
+		} else if ownerID != access.OwnerID {
+			return nil, mapServiceError(shares.ErrForbidden)
+		}
+		fileIDs = append(fileIDs, fileID)
+	}
+	parentID := optionalGoogleUUID(req.ParentId)
+	if parentID == nil {
+		actorID, err := UserIDFromContext(ctx)
+		if err != nil || ownerID != actorID {
+			return nil, mapServiceError(shares.ErrForbidden)
+		}
+	} else {
+		destinationAccess, err := h.resolveAuthenticatedFileAccess(ctx, *parentID, true)
+		if err != nil {
+			return nil, mapServiceError(err)
+		}
+		if destinationAccess.OwnerID != ownerID {
+			return nil, mapServiceError(shares.ErrForbidden)
+		}
 	}
 	policy := "fail"
 	if value, ok := req.ConflictPolicy.Get(); ok {
 		policy = string(value)
 	}
-	files, err := h.Catalog.BulkMove(ctx, userID, fileIDs, optionalGoogleUUID(req.ParentId), policy)
+	files, err := h.Catalog.BulkMove(ctx, ownerID, fileIDs, parentID, policy)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -39,18 +61,28 @@ func (h *Handler) BulkMoveFiles(ctx context.Context, req *gen.FileBulkMoveReques
 }
 
 func (h *Handler) BulkTrashFiles(ctx context.Context, req *gen.FileBulkTrashRequest, params gen.BulkTrashFilesParams) (gen.BulkTrashFilesRes, error) {
-	userID, err := UserIDFromContext(ctx)
-	if err != nil {
-		return nil, mapServiceError(err)
-	}
 	if h.Catalog == nil || req == nil {
 		return nil, mapServiceError(ErrOperationUnavailable)
 	}
 	fileIDs := make([]uuid.UUID, 0, len(req.FileIds))
+	ownerID := int64(0)
 	for _, value := range req.FileIds {
-		fileIDs = append(fileIDs, googleUUID(value))
+		fileID := googleUUID(value)
+		access, err := h.resolveAuthenticatedFileAccess(ctx, fileID, true)
+		if err != nil {
+			return nil, mapServiceError(err)
+		}
+		if !access.Owned && access.RootFileID == fileID {
+			return nil, mapServiceError(shares.ErrForbidden)
+		}
+		if ownerID == 0 {
+			ownerID = access.OwnerID
+		} else if ownerID != access.OwnerID {
+			return nil, mapServiceError(shares.ErrForbidden)
+		}
+		fileIDs = append(fileIDs, fileID)
 	}
-	files, err := h.Catalog.BulkTrash(ctx, userID, fileIDs)
+	files, err := h.Catalog.BulkTrash(ctx, ownerID, fileIDs)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -122,6 +154,10 @@ func (h *Handler) UpdateShare(ctx context.Context, req *gen.ShareUpdateRequest, 
 	}
 	if value, ok := req.MaxDownloads.Get(); ok {
 		input.MaxDownloads = &value
+	}
+	if value, ok := req.Permission.Get(); ok {
+		permission := sqlcgen.SharePermission(value)
+		input.Permission = &permission
 	}
 	row, err := h.Shares.Update(ctx, input)
 	if err != nil {

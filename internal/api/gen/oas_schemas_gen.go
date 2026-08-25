@@ -13,6 +13,27 @@ import (
 	"github.com/google/uuid"
 )
 
+type AbortPublicShareUploadForbidden ErrorEnvelope
+
+func (*AbortPublicShareUploadForbidden) abortPublicShareUploadRes() {}
+
+type AbortPublicShareUploadGone ErrorEnvelope
+
+func (*AbortPublicShareUploadGone) abortPublicShareUploadRes() {}
+
+// AbortPublicShareUploadNoContent is response for AbortPublicShareUpload operation.
+type AbortPublicShareUploadNoContent struct{}
+
+func (*AbortPublicShareUploadNoContent) abortPublicShareUploadRes() {}
+
+type AbortPublicShareUploadNotFound ErrorEnvelope
+
+func (*AbortPublicShareUploadNotFound) abortPublicShareUploadRes() {}
+
+type AbortPublicShareUploadUnauthorized ErrorEnvelope
+
+func (*AbortPublicShareUploadUnauthorized) abortPublicShareUploadRes() {}
+
 type AbortUploadConflict ErrorEnvelope
 
 func (*AbortUploadConflict) abortUploadRes() {}
@@ -29,6 +50,100 @@ func (*AbortUploadNotFound) abortUploadRes() {}
 type AbortUploadUnauthorized ErrorEnvelope
 
 func (*AbortUploadUnauthorized) abortUploadRes() {}
+
+// Ref: #/components/schemas/AdminUserSummary
+type AdminUserSummary struct {
+	UserId      int64     `json:"userId"`
+	DisplayName OptString `json:"displayName"`
+	Username    OptString `json:"username"`
+	Premium     bool      `json:"premium"`
+	Role        UserRole  `json:"role"`
+	Disabled    bool      `json:"disabled"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
+// GetUserId returns the value of UserId.
+func (s *AdminUserSummary) GetUserId() int64 {
+	return s.UserId
+}
+
+// GetDisplayName returns the value of DisplayName.
+func (s *AdminUserSummary) GetDisplayName() OptString {
+	return s.DisplayName
+}
+
+// GetUsername returns the value of Username.
+func (s *AdminUserSummary) GetUsername() OptString {
+	return s.Username
+}
+
+// GetPremium returns the value of Premium.
+func (s *AdminUserSummary) GetPremium() bool {
+	return s.Premium
+}
+
+// GetRole returns the value of Role.
+func (s *AdminUserSummary) GetRole() UserRole {
+	return s.Role
+}
+
+// GetDisabled returns the value of Disabled.
+func (s *AdminUserSummary) GetDisabled() bool {
+	return s.Disabled
+}
+
+// GetCreatedAt returns the value of CreatedAt.
+func (s *AdminUserSummary) GetCreatedAt() time.Time {
+	return s.CreatedAt
+}
+
+// GetUpdatedAt returns the value of UpdatedAt.
+func (s *AdminUserSummary) GetUpdatedAt() time.Time {
+	return s.UpdatedAt
+}
+
+// SetUserId sets the value of UserId.
+func (s *AdminUserSummary) SetUserId(val int64) {
+	s.UserId = val
+}
+
+// SetDisplayName sets the value of DisplayName.
+func (s *AdminUserSummary) SetDisplayName(val OptString) {
+	s.DisplayName = val
+}
+
+// SetUsername sets the value of Username.
+func (s *AdminUserSummary) SetUsername(val OptString) {
+	s.Username = val
+}
+
+// SetPremium sets the value of Premium.
+func (s *AdminUserSummary) SetPremium(val bool) {
+	s.Premium = val
+}
+
+// SetRole sets the value of Role.
+func (s *AdminUserSummary) SetRole(val UserRole) {
+	s.Role = val
+}
+
+// SetDisabled sets the value of Disabled.
+func (s *AdminUserSummary) SetDisabled(val bool) {
+	s.Disabled = val
+}
+
+// SetCreatedAt sets the value of CreatedAt.
+func (s *AdminUserSummary) SetCreatedAt(val time.Time) {
+	s.CreatedAt = val
+}
+
+// SetUpdatedAt sets the value of UpdatedAt.
+func (s *AdminUserSummary) SetUpdatedAt(val time.Time) {
+	s.UpdatedAt = val
+}
+
+func (*AdminUserSummary) updateAdminUserRes() {}
 
 // Ref: #/components/schemas/ApiKeyCreateRequest
 type ApiKeyCreateRequest struct {
@@ -508,6 +623,43 @@ func (*ChannelSummary) selectChannelRes() {}
 
 type Checksum string
 
+// CleanTrashNoContent is response for CleanTrash operation.
+type CleanTrashNoContent struct{}
+
+func (*CleanTrashNoContent) cleanTrashRes() {}
+
+type CompletePublicShareUploadConflict ErrorEnvelope
+
+func (*CompletePublicShareUploadConflict) completePublicShareUploadRes() {}
+
+type CompletePublicShareUploadCreated CopyFileCreatedHeaders
+
+func (*CompletePublicShareUploadCreated) completePublicShareUploadRes() {}
+
+type CompletePublicShareUploadForbidden ErrorEnvelope
+
+func (*CompletePublicShareUploadForbidden) completePublicShareUploadRes() {}
+
+type CompletePublicShareUploadGone ErrorEnvelope
+
+func (*CompletePublicShareUploadGone) completePublicShareUploadRes() {}
+
+type CompletePublicShareUploadNotFound ErrorEnvelope
+
+func (*CompletePublicShareUploadNotFound) completePublicShareUploadRes() {}
+
+type CompletePublicShareUploadOK CopyFileCreatedHeaders
+
+func (*CompletePublicShareUploadOK) completePublicShareUploadRes() {}
+
+type CompletePublicShareUploadUnauthorized ErrorEnvelope
+
+func (*CompletePublicShareUploadUnauthorized) completePublicShareUploadRes() {}
+
+type CompletePublicShareUploadUnprocessableEntity ErrorEnvelope
+
+func (*CompletePublicShareUploadUnprocessableEntity) completePublicShareUploadRes() {}
+
 type CompleteUploadConflict ErrorEnvelope
 
 func (*CompleteUploadConflict) completeUploadRes() {}
@@ -799,6 +951,22 @@ type CreateEventStreamTicketUnauthorized ErrorEnvelope
 
 func (*CreateEventStreamTicketUnauthorized) createEventStreamTicketRes() {}
 
+type CreateFileAccessGrantConflict ErrorEnvelope
+
+func (*CreateFileAccessGrantConflict) createFileAccessGrantRes() {}
+
+type CreateFileAccessGrantNotFound ErrorEnvelope
+
+func (*CreateFileAccessGrantNotFound) createFileAccessGrantRes() {}
+
+type CreateFileAccessGrantUnauthorized ErrorEnvelope
+
+func (*CreateFileAccessGrantUnauthorized) createFileAccessGrantRes() {}
+
+type CreateFileAccessGrantUnprocessableEntity ErrorEnvelope
+
+func (*CreateFileAccessGrantUnprocessableEntity) createFileAccessGrantRes() {}
+
 type CreateFolderConflict ErrorEnvelope
 
 func (*CreateFolderConflict) createFolderRes() {}
@@ -838,6 +1006,50 @@ func (*CreatePeriodicJobConflict) createPeriodicJobRes() {}
 type CreatePeriodicJobUnauthorized ErrorEnvelope
 
 func (*CreatePeriodicJobUnauthorized) createPeriodicJobRes() {}
+
+type CreatePublicShareFolderForbidden ErrorEnvelope
+
+func (*CreatePublicShareFolderForbidden) createPublicShareFolderRes() {}
+
+type CreatePublicShareFolderGone ErrorEnvelope
+
+func (*CreatePublicShareFolderGone) createPublicShareFolderRes() {}
+
+type CreatePublicShareFolderNotFound ErrorEnvelope
+
+func (*CreatePublicShareFolderNotFound) createPublicShareFolderRes() {}
+
+type CreatePublicShareFolderUnauthorized ErrorEnvelope
+
+func (*CreatePublicShareFolderUnauthorized) createPublicShareFolderRes() {}
+
+type CreatePublicShareFolderUnprocessableEntity ErrorEnvelope
+
+func (*CreatePublicShareFolderUnprocessableEntity) createPublicShareFolderRes() {}
+
+type CreatePublicShareUploadConflict ErrorEnvelope
+
+func (*CreatePublicShareUploadConflict) createPublicShareUploadRes() {}
+
+type CreatePublicShareUploadForbidden ErrorEnvelope
+
+func (*CreatePublicShareUploadForbidden) createPublicShareUploadRes() {}
+
+type CreatePublicShareUploadGone ErrorEnvelope
+
+func (*CreatePublicShareUploadGone) createPublicShareUploadRes() {}
+
+type CreatePublicShareUploadNotFound ErrorEnvelope
+
+func (*CreatePublicShareUploadNotFound) createPublicShareUploadRes() {}
+
+type CreatePublicShareUploadUnauthorized ErrorEnvelope
+
+func (*CreatePublicShareUploadUnauthorized) createPublicShareUploadRes() {}
+
+type CreatePublicShareUploadUnprocessableEntity ErrorEnvelope
+
+func (*CreatePublicShareUploadUnprocessableEntity) createPublicShareUploadRes() {}
 
 type CreateShareConflict ErrorEnvelope
 
@@ -1310,6 +1522,316 @@ type DownloadFileUnauthorized ErrorEnvelope
 
 func (*DownloadFileUnauthorized) downloadFileRes() {}
 
+type DownloadPublicShareFileGone ErrorEnvelope
+
+func (*DownloadPublicShareFileGone) downloadPublicShareFileRes() {}
+
+type DownloadPublicShareFileNotFound ErrorEnvelope
+
+func (*DownloadPublicShareFileNotFound) downloadPublicShareFileRes() {}
+
+// DownloadPublicShareFileNotModified is response for DownloadPublicShareFile operation.
+type DownloadPublicShareFileNotModified struct{}
+
+func (*DownloadPublicShareFileNotModified) downloadPublicShareFileRes() {}
+
+type DownloadPublicShareFileOK struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s DownloadPublicShareFileOK) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+type DownloadPublicShareFileOKAcceptRanges string
+
+const (
+	DownloadPublicShareFileOKAcceptRangesBytes DownloadPublicShareFileOKAcceptRanges = "bytes"
+)
+
+// AllValues returns all DownloadPublicShareFileOKAcceptRanges values.
+func (DownloadPublicShareFileOKAcceptRanges) AllValues() []DownloadPublicShareFileOKAcceptRanges {
+	return []DownloadPublicShareFileOKAcceptRanges{
+		DownloadPublicShareFileOKAcceptRangesBytes,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s DownloadPublicShareFileOKAcceptRanges) MarshalText() ([]byte, error) {
+	switch s {
+	case DownloadPublicShareFileOKAcceptRangesBytes:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *DownloadPublicShareFileOKAcceptRanges) UnmarshalText(data []byte) error {
+	switch DownloadPublicShareFileOKAcceptRanges(data) {
+	case DownloadPublicShareFileOKAcceptRangesBytes:
+		*s = DownloadPublicShareFileOKAcceptRangesBytes
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+// DownloadPublicShareFileOKHeaders wraps DownloadPublicShareFileOK with response headers.
+type DownloadPublicShareFileOKHeaders struct {
+	AcceptRanges       DownloadPublicShareFileOKAcceptRanges
+	ContentDisposition string
+	ContentLength      int64
+	Etag               ETag
+	LastModified       time.Time
+	Response           DownloadPublicShareFileOK
+}
+
+// GetAcceptRanges returns the value of AcceptRanges.
+func (s *DownloadPublicShareFileOKHeaders) GetAcceptRanges() DownloadPublicShareFileOKAcceptRanges {
+	return s.AcceptRanges
+}
+
+// GetContentDisposition returns the value of ContentDisposition.
+func (s *DownloadPublicShareFileOKHeaders) GetContentDisposition() string {
+	return s.ContentDisposition
+}
+
+// GetContentLength returns the value of ContentLength.
+func (s *DownloadPublicShareFileOKHeaders) GetContentLength() int64 {
+	return s.ContentLength
+}
+
+// GetEtag returns the value of Etag.
+func (s *DownloadPublicShareFileOKHeaders) GetEtag() ETag {
+	return s.Etag
+}
+
+// GetLastModified returns the value of LastModified.
+func (s *DownloadPublicShareFileOKHeaders) GetLastModified() time.Time {
+	return s.LastModified
+}
+
+// GetResponse returns the value of Response.
+func (s *DownloadPublicShareFileOKHeaders) GetResponse() DownloadPublicShareFileOK {
+	return s.Response
+}
+
+// SetAcceptRanges sets the value of AcceptRanges.
+func (s *DownloadPublicShareFileOKHeaders) SetAcceptRanges(val DownloadPublicShareFileOKAcceptRanges) {
+	s.AcceptRanges = val
+}
+
+// SetContentDisposition sets the value of ContentDisposition.
+func (s *DownloadPublicShareFileOKHeaders) SetContentDisposition(val string) {
+	s.ContentDisposition = val
+}
+
+// SetContentLength sets the value of ContentLength.
+func (s *DownloadPublicShareFileOKHeaders) SetContentLength(val int64) {
+	s.ContentLength = val
+}
+
+// SetEtag sets the value of Etag.
+func (s *DownloadPublicShareFileOKHeaders) SetEtag(val ETag) {
+	s.Etag = val
+}
+
+// SetLastModified sets the value of LastModified.
+func (s *DownloadPublicShareFileOKHeaders) SetLastModified(val time.Time) {
+	s.LastModified = val
+}
+
+// SetResponse sets the value of Response.
+func (s *DownloadPublicShareFileOKHeaders) SetResponse(val DownloadPublicShareFileOK) {
+	s.Response = val
+}
+
+// DownloadPublicShareFileOKRawApplicationOctetStream represents raw HTTP response for DownloadPublicShareFile application/octet-stream.
+type DownloadPublicShareFileOKRawApplicationOctetStream struct {
+	Response *http.Response `json:"-"`
+}
+
+// GetResponse returns the value of Response.
+func (s *DownloadPublicShareFileOKRawApplicationOctetStream) GetResponse() *http.Response {
+	return s.Response
+}
+
+// SetResponse sets the value of Response.
+func (s *DownloadPublicShareFileOKRawApplicationOctetStream) SetResponse(val *http.Response) {
+	s.Response = val
+}
+
+func (*DownloadPublicShareFileOKRawApplicationOctetStream) downloadPublicShareFileRes() {}
+
+type DownloadPublicShareFilePartialContent struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s DownloadPublicShareFilePartialContent) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+type DownloadPublicShareFilePartialContentAcceptRanges string
+
+const (
+	DownloadPublicShareFilePartialContentAcceptRangesBytes DownloadPublicShareFilePartialContentAcceptRanges = "bytes"
+)
+
+// AllValues returns all DownloadPublicShareFilePartialContentAcceptRanges values.
+func (DownloadPublicShareFilePartialContentAcceptRanges) AllValues() []DownloadPublicShareFilePartialContentAcceptRanges {
+	return []DownloadPublicShareFilePartialContentAcceptRanges{
+		DownloadPublicShareFilePartialContentAcceptRangesBytes,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s DownloadPublicShareFilePartialContentAcceptRanges) MarshalText() ([]byte, error) {
+	switch s {
+	case DownloadPublicShareFilePartialContentAcceptRangesBytes:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *DownloadPublicShareFilePartialContentAcceptRanges) UnmarshalText(data []byte) error {
+	switch DownloadPublicShareFilePartialContentAcceptRanges(data) {
+	case DownloadPublicShareFilePartialContentAcceptRangesBytes:
+		*s = DownloadPublicShareFilePartialContentAcceptRangesBytes
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+// DownloadPublicShareFilePartialContentHeaders wraps DownloadPublicShareFilePartialContent with response headers.
+type DownloadPublicShareFilePartialContentHeaders struct {
+	AcceptRanges       DownloadPublicShareFilePartialContentAcceptRanges
+	ContentDisposition string
+	ContentLength      int64
+	ContentRange       string
+	Etag               ETag
+	LastModified       time.Time
+	Response           DownloadPublicShareFilePartialContent
+}
+
+// GetAcceptRanges returns the value of AcceptRanges.
+func (s *DownloadPublicShareFilePartialContentHeaders) GetAcceptRanges() DownloadPublicShareFilePartialContentAcceptRanges {
+	return s.AcceptRanges
+}
+
+// GetContentDisposition returns the value of ContentDisposition.
+func (s *DownloadPublicShareFilePartialContentHeaders) GetContentDisposition() string {
+	return s.ContentDisposition
+}
+
+// GetContentLength returns the value of ContentLength.
+func (s *DownloadPublicShareFilePartialContentHeaders) GetContentLength() int64 {
+	return s.ContentLength
+}
+
+// GetContentRange returns the value of ContentRange.
+func (s *DownloadPublicShareFilePartialContentHeaders) GetContentRange() string {
+	return s.ContentRange
+}
+
+// GetEtag returns the value of Etag.
+func (s *DownloadPublicShareFilePartialContentHeaders) GetEtag() ETag {
+	return s.Etag
+}
+
+// GetLastModified returns the value of LastModified.
+func (s *DownloadPublicShareFilePartialContentHeaders) GetLastModified() time.Time {
+	return s.LastModified
+}
+
+// GetResponse returns the value of Response.
+func (s *DownloadPublicShareFilePartialContentHeaders) GetResponse() DownloadPublicShareFilePartialContent {
+	return s.Response
+}
+
+// SetAcceptRanges sets the value of AcceptRanges.
+func (s *DownloadPublicShareFilePartialContentHeaders) SetAcceptRanges(val DownloadPublicShareFilePartialContentAcceptRanges) {
+	s.AcceptRanges = val
+}
+
+// SetContentDisposition sets the value of ContentDisposition.
+func (s *DownloadPublicShareFilePartialContentHeaders) SetContentDisposition(val string) {
+	s.ContentDisposition = val
+}
+
+// SetContentLength sets the value of ContentLength.
+func (s *DownloadPublicShareFilePartialContentHeaders) SetContentLength(val int64) {
+	s.ContentLength = val
+}
+
+// SetContentRange sets the value of ContentRange.
+func (s *DownloadPublicShareFilePartialContentHeaders) SetContentRange(val string) {
+	s.ContentRange = val
+}
+
+// SetEtag sets the value of Etag.
+func (s *DownloadPublicShareFilePartialContentHeaders) SetEtag(val ETag) {
+	s.Etag = val
+}
+
+// SetLastModified sets the value of LastModified.
+func (s *DownloadPublicShareFilePartialContentHeaders) SetLastModified(val time.Time) {
+	s.LastModified = val
+}
+
+// SetResponse sets the value of Response.
+func (s *DownloadPublicShareFilePartialContentHeaders) SetResponse(val DownloadPublicShareFilePartialContent) {
+	s.Response = val
+}
+
+// DownloadPublicShareFilePartialContentRawApplicationOctetStream represents raw HTTP response for DownloadPublicShareFile application/octet-stream.
+type DownloadPublicShareFilePartialContentRawApplicationOctetStream struct {
+	Response *http.Response `json:"-"`
+}
+
+// GetResponse returns the value of Response.
+func (s *DownloadPublicShareFilePartialContentRawApplicationOctetStream) GetResponse() *http.Response {
+	return s.Response
+}
+
+// SetResponse sets the value of Response.
+func (s *DownloadPublicShareFilePartialContentRawApplicationOctetStream) SetResponse(val *http.Response) {
+	s.Response = val
+}
+
+func (*DownloadPublicShareFilePartialContentRawApplicationOctetStream) downloadPublicShareFileRes() {}
+
+type DownloadPublicShareFileRequestedRangeNotSatisfiable ErrorEnvelope
+
+func (*DownloadPublicShareFileRequestedRangeNotSatisfiable) downloadPublicShareFileRes() {}
+
+type DownloadPublicShareFileServiceUnavailable ErrorEnvelope
+
+func (*DownloadPublicShareFileServiceUnavailable) downloadPublicShareFileRes() {}
+
+type DownloadPublicShareFileTooManyRequests ErrorEnvelope
+
+func (*DownloadPublicShareFileTooManyRequests) downloadPublicShareFileRes() {}
+
+type DownloadPublicShareFileUnauthorized ErrorEnvelope
+
+func (*DownloadPublicShareFileUnauthorized) downloadPublicShareFileRes() {}
+
 type DownloadPublicShareGone ErrorEnvelope
 
 func (*DownloadPublicShareGone) downloadPublicShareRes() {}
@@ -1761,6 +2283,7 @@ func (s *ErrorEnvelope) SetError(val ErrorDetail) {
 	s.Error = val
 }
 
+func (*ErrorEnvelope) cleanTrashRes()                {}
 func (*ErrorEnvelope) deleteFileViewStateRes()       {}
 func (*ErrorEnvelope) getCurrentUserRes()            {}
 func (*ErrorEnvelope) getDriveStatisticsRes()        {}
@@ -1775,6 +2298,7 @@ func (*ErrorEnvelope) listChannelsRes()              {}
 func (*ErrorEnvelope) listJobQueuesRes()             {}
 func (*ErrorEnvelope) listPeriodicJobsRes()          {}
 func (*ErrorEnvelope) listSessionsRes()              {}
+func (*ErrorEnvelope) listSharedWithMeRes()          {}
 func (*ErrorEnvelope) logoutCookieSessionRes()       {}
 func (*ErrorEnvelope) logoutSessionRes()             {}
 func (*ErrorEnvelope) resetPeriodicJobsRes()         {}
@@ -1856,6 +2380,228 @@ func (s *ExternalApiKeyAuth) SetAPIKey(val string) {
 // SetRoles sets the value of Roles.
 func (s *ExternalApiKeyAuth) SetRoles(val []string) {
 	s.Roles = val
+}
+
+// Ref: #/components/schemas/FileAccessGrantCreateRequest
+type FileAccessGrantCreateRequest struct {
+	GranteeUserId int64                                     `json:"granteeUserId"`
+	Permission    OptFileAccessGrantCreateRequestPermission `json:"permission"`
+	ExpiresAt     OptDateTime                               `json:"expiresAt"`
+}
+
+// GetGranteeUserId returns the value of GranteeUserId.
+func (s *FileAccessGrantCreateRequest) GetGranteeUserId() int64 {
+	return s.GranteeUserId
+}
+
+// GetPermission returns the value of Permission.
+func (s *FileAccessGrantCreateRequest) GetPermission() OptFileAccessGrantCreateRequestPermission {
+	return s.Permission
+}
+
+// GetExpiresAt returns the value of ExpiresAt.
+func (s *FileAccessGrantCreateRequest) GetExpiresAt() OptDateTime {
+	return s.ExpiresAt
+}
+
+// SetGranteeUserId sets the value of GranteeUserId.
+func (s *FileAccessGrantCreateRequest) SetGranteeUserId(val int64) {
+	s.GranteeUserId = val
+}
+
+// SetPermission sets the value of Permission.
+func (s *FileAccessGrantCreateRequest) SetPermission(val OptFileAccessGrantCreateRequestPermission) {
+	s.Permission = val
+}
+
+// SetExpiresAt sets the value of ExpiresAt.
+func (s *FileAccessGrantCreateRequest) SetExpiresAt(val OptDateTime) {
+	s.ExpiresAt = val
+}
+
+// Merged schema.
+type FileAccessGrantCreateRequestPermission string
+
+const (
+	FileAccessGrantCreateRequestPermissionRead FileAccessGrantCreateRequestPermission = "read"
+	FileAccessGrantCreateRequestPermissionEdit FileAccessGrantCreateRequestPermission = "edit"
+)
+
+// AllValues returns all FileAccessGrantCreateRequestPermission values.
+func (FileAccessGrantCreateRequestPermission) AllValues() []FileAccessGrantCreateRequestPermission {
+	return []FileAccessGrantCreateRequestPermission{
+		FileAccessGrantCreateRequestPermissionRead,
+		FileAccessGrantCreateRequestPermissionEdit,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s FileAccessGrantCreateRequestPermission) MarshalText() ([]byte, error) {
+	switch s {
+	case FileAccessGrantCreateRequestPermissionRead:
+		return []byte(s), nil
+	case FileAccessGrantCreateRequestPermissionEdit:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *FileAccessGrantCreateRequestPermission) UnmarshalText(data []byte) error {
+	switch FileAccessGrantCreateRequestPermission(data) {
+	case FileAccessGrantCreateRequestPermissionRead:
+		*s = FileAccessGrantCreateRequestPermissionRead
+		return nil
+	case FileAccessGrantCreateRequestPermissionEdit:
+		*s = FileAccessGrantCreateRequestPermissionEdit
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+// Ref: #/components/schemas/FileAccessGrantSummary
+type FileAccessGrantSummary struct {
+	ID                 UUID            `json:"id"`
+	FileId             UUID            `json:"fileId"`
+	OwnerId            int64           `json:"ownerId"`
+	GranteeUserId      int64           `json:"granteeUserId"`
+	GranteeDisplayName OptString       `json:"granteeDisplayName"`
+	GranteeUsername    OptString       `json:"granteeUsername"`
+	Permission         SharePermission `json:"permission"`
+	ExpiresAt          OptDateTime     `json:"expiresAt"`
+	CreatedAt          time.Time       `json:"createdAt"`
+}
+
+// GetID returns the value of ID.
+func (s *FileAccessGrantSummary) GetID() UUID {
+	return s.ID
+}
+
+// GetFileId returns the value of FileId.
+func (s *FileAccessGrantSummary) GetFileId() UUID {
+	return s.FileId
+}
+
+// GetOwnerId returns the value of OwnerId.
+func (s *FileAccessGrantSummary) GetOwnerId() int64 {
+	return s.OwnerId
+}
+
+// GetGranteeUserId returns the value of GranteeUserId.
+func (s *FileAccessGrantSummary) GetGranteeUserId() int64 {
+	return s.GranteeUserId
+}
+
+// GetGranteeDisplayName returns the value of GranteeDisplayName.
+func (s *FileAccessGrantSummary) GetGranteeDisplayName() OptString {
+	return s.GranteeDisplayName
+}
+
+// GetGranteeUsername returns the value of GranteeUsername.
+func (s *FileAccessGrantSummary) GetGranteeUsername() OptString {
+	return s.GranteeUsername
+}
+
+// GetPermission returns the value of Permission.
+func (s *FileAccessGrantSummary) GetPermission() SharePermission {
+	return s.Permission
+}
+
+// GetExpiresAt returns the value of ExpiresAt.
+func (s *FileAccessGrantSummary) GetExpiresAt() OptDateTime {
+	return s.ExpiresAt
+}
+
+// GetCreatedAt returns the value of CreatedAt.
+func (s *FileAccessGrantSummary) GetCreatedAt() time.Time {
+	return s.CreatedAt
+}
+
+// SetID sets the value of ID.
+func (s *FileAccessGrantSummary) SetID(val UUID) {
+	s.ID = val
+}
+
+// SetFileId sets the value of FileId.
+func (s *FileAccessGrantSummary) SetFileId(val UUID) {
+	s.FileId = val
+}
+
+// SetOwnerId sets the value of OwnerId.
+func (s *FileAccessGrantSummary) SetOwnerId(val int64) {
+	s.OwnerId = val
+}
+
+// SetGranteeUserId sets the value of GranteeUserId.
+func (s *FileAccessGrantSummary) SetGranteeUserId(val int64) {
+	s.GranteeUserId = val
+}
+
+// SetGranteeDisplayName sets the value of GranteeDisplayName.
+func (s *FileAccessGrantSummary) SetGranteeDisplayName(val OptString) {
+	s.GranteeDisplayName = val
+}
+
+// SetGranteeUsername sets the value of GranteeUsername.
+func (s *FileAccessGrantSummary) SetGranteeUsername(val OptString) {
+	s.GranteeUsername = val
+}
+
+// SetPermission sets the value of Permission.
+func (s *FileAccessGrantSummary) SetPermission(val SharePermission) {
+	s.Permission = val
+}
+
+// SetExpiresAt sets the value of ExpiresAt.
+func (s *FileAccessGrantSummary) SetExpiresAt(val OptDateTime) {
+	s.ExpiresAt = val
+}
+
+// SetCreatedAt sets the value of CreatedAt.
+func (s *FileAccessGrantSummary) SetCreatedAt(val time.Time) {
+	s.CreatedAt = val
+}
+
+func (*FileAccessGrantSummary) createFileAccessGrantRes() {}
+func (*FileAccessGrantSummary) updateFileAccessGrantRes() {}
+
+// Ref: #/components/schemas/FileAccessGrantUpdateRequest
+type FileAccessGrantUpdateRequest struct {
+	Permission     OptSharePermission `json:"permission"`
+	ExpiresAt      OptDateTime        `json:"expiresAt"`
+	ClearExpiresAt OptBool            `json:"clearExpiresAt"`
+}
+
+// GetPermission returns the value of Permission.
+func (s *FileAccessGrantUpdateRequest) GetPermission() OptSharePermission {
+	return s.Permission
+}
+
+// GetExpiresAt returns the value of ExpiresAt.
+func (s *FileAccessGrantUpdateRequest) GetExpiresAt() OptDateTime {
+	return s.ExpiresAt
+}
+
+// GetClearExpiresAt returns the value of ClearExpiresAt.
+func (s *FileAccessGrantUpdateRequest) GetClearExpiresAt() OptBool {
+	return s.ClearExpiresAt
+}
+
+// SetPermission sets the value of Permission.
+func (s *FileAccessGrantUpdateRequest) SetPermission(val OptSharePermission) {
+	s.Permission = val
+}
+
+// SetExpiresAt sets the value of ExpiresAt.
+func (s *FileAccessGrantUpdateRequest) SetExpiresAt(val OptDateTime) {
+	s.ExpiresAt = val
+}
+
+// SetClearExpiresAt sets the value of ClearExpiresAt.
+func (s *FileAccessGrantUpdateRequest) SetClearExpiresAt(val OptBool) {
+	s.ClearExpiresAt = val
 }
 
 // Ref: #/components/schemas/FileBulkMoveRequest
@@ -2316,6 +3062,9 @@ func (s *FileEntry) SetCreatedAt(val time.Time) {
 func (s *FileEntry) SetUpdatedAt(val time.Time) {
 	s.UpdatedAt = val
 }
+
+func (*FileEntry) createPublicShareFolderRes() {}
+func (*FileEntry) updatePublicShareFileRes()   {}
 
 // FileEntryHeaders wraps FileEntry with response headers.
 type FileEntryHeaders struct {
@@ -3346,6 +4095,121 @@ type HeadFileUnauthorized ErrorEnvelope
 
 func (*HeadFileUnauthorized) headFileRes() {}
 
+type HeadPublicShareFileGone ErrorEnvelope
+
+func (*HeadPublicShareFileGone) headPublicShareFileRes() {}
+
+type HeadPublicShareFileNotFound ErrorEnvelope
+
+func (*HeadPublicShareFileNotFound) headPublicShareFileRes() {}
+
+// HeadPublicShareFileOK is response for HeadPublicShareFile operation.
+type HeadPublicShareFileOK struct {
+	AcceptRanges       HeadPublicShareFileOKAcceptRanges
+	ContentDisposition string
+	ContentLength      int64
+	Etag               ETag
+	LastModified       time.Time
+}
+
+// GetAcceptRanges returns the value of AcceptRanges.
+func (s *HeadPublicShareFileOK) GetAcceptRanges() HeadPublicShareFileOKAcceptRanges {
+	return s.AcceptRanges
+}
+
+// GetContentDisposition returns the value of ContentDisposition.
+func (s *HeadPublicShareFileOK) GetContentDisposition() string {
+	return s.ContentDisposition
+}
+
+// GetContentLength returns the value of ContentLength.
+func (s *HeadPublicShareFileOK) GetContentLength() int64 {
+	return s.ContentLength
+}
+
+// GetEtag returns the value of Etag.
+func (s *HeadPublicShareFileOK) GetEtag() ETag {
+	return s.Etag
+}
+
+// GetLastModified returns the value of LastModified.
+func (s *HeadPublicShareFileOK) GetLastModified() time.Time {
+	return s.LastModified
+}
+
+// SetAcceptRanges sets the value of AcceptRanges.
+func (s *HeadPublicShareFileOK) SetAcceptRanges(val HeadPublicShareFileOKAcceptRanges) {
+	s.AcceptRanges = val
+}
+
+// SetContentDisposition sets the value of ContentDisposition.
+func (s *HeadPublicShareFileOK) SetContentDisposition(val string) {
+	s.ContentDisposition = val
+}
+
+// SetContentLength sets the value of ContentLength.
+func (s *HeadPublicShareFileOK) SetContentLength(val int64) {
+	s.ContentLength = val
+}
+
+// SetEtag sets the value of Etag.
+func (s *HeadPublicShareFileOK) SetEtag(val ETag) {
+	s.Etag = val
+}
+
+// SetLastModified sets the value of LastModified.
+func (s *HeadPublicShareFileOK) SetLastModified(val time.Time) {
+	s.LastModified = val
+}
+
+func (*HeadPublicShareFileOK) headPublicShareFileRes() {}
+
+type HeadPublicShareFileOKAcceptRanges string
+
+const (
+	HeadPublicShareFileOKAcceptRangesBytes HeadPublicShareFileOKAcceptRanges = "bytes"
+)
+
+// AllValues returns all HeadPublicShareFileOKAcceptRanges values.
+func (HeadPublicShareFileOKAcceptRanges) AllValues() []HeadPublicShareFileOKAcceptRanges {
+	return []HeadPublicShareFileOKAcceptRanges{
+		HeadPublicShareFileOKAcceptRangesBytes,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s HeadPublicShareFileOKAcceptRanges) MarshalText() ([]byte, error) {
+	switch s {
+	case HeadPublicShareFileOKAcceptRangesBytes:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *HeadPublicShareFileOKAcceptRanges) UnmarshalText(data []byte) error {
+	switch HeadPublicShareFileOKAcceptRanges(data) {
+	case HeadPublicShareFileOKAcceptRangesBytes:
+		*s = HeadPublicShareFileOKAcceptRangesBytes
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+type HeadPublicShareFileServiceUnavailable ErrorEnvelope
+
+func (*HeadPublicShareFileServiceUnavailable) headPublicShareFileRes() {}
+
+type HeadPublicShareFileTooManyRequests ErrorEnvelope
+
+func (*HeadPublicShareFileTooManyRequests) headPublicShareFileRes() {}
+
+type HeadPublicShareFileUnauthorized ErrorEnvelope
+
+func (*HeadPublicShareFileUnauthorized) headPublicShareFileRes() {}
+
 type HeadPublicShareGone ErrorEnvelope
 
 func (*HeadPublicShareGone) headPublicShareRes() {}
@@ -4225,6 +5089,18 @@ func (s *JobStatistics) SetScheduled(val int64) {
 
 func (*JobStatistics) getJobStatisticsRes() {}
 
+type ListAdminUsersForbidden ErrorEnvelope
+
+func (*ListAdminUsersForbidden) listAdminUsersRes() {}
+
+type ListAdminUsersOKApplicationJSON []AdminUserSummary
+
+func (*ListAdminUsersOKApplicationJSON) listAdminUsersRes() {}
+
+type ListAdminUsersUnauthorized ErrorEnvelope
+
+func (*ListAdminUsersUnauthorized) listAdminUsersRes() {}
+
 type ListApiKeysOK struct {
 	Items      []ApiKeySummary `json:"items"`
 	NextCursor OptCursor       `json:"nextCursor"`
@@ -4305,6 +5181,18 @@ func (s *ListChannelsOK) SetNextCursor(val OptCursor) {
 }
 
 func (*ListChannelsOK) listChannelsRes() {}
+
+type ListFileAccessGrantsNotFound ErrorEnvelope
+
+func (*ListFileAccessGrantsNotFound) listFileAccessGrantsRes() {}
+
+type ListFileAccessGrantsOKApplicationJSON []FileAccessGrantSummary
+
+func (*ListFileAccessGrantsOKApplicationJSON) listFileAccessGrantsRes() {}
+
+type ListFileAccessGrantsUnauthorized ErrorEnvelope
+
+func (*ListFileAccessGrantsUnauthorized) listFileAccessGrantsRes() {}
 
 type ListFileSharesNotFound ErrorEnvelope
 
@@ -4461,6 +5349,10 @@ func (s *ListSessionsOK) SetNextCursor(val OptCursor) {
 }
 
 func (*ListSessionsOK) listSessionsRes() {}
+
+type ListSharedWithMeOKApplicationJSON []SharedWithMeEntry
+
+func (*ListSharedWithMeOKApplicationJSON) listSharedWithMeRes() {}
 
 type ListUploadPartsGone ErrorEnvelope
 
@@ -4897,6 +5789,52 @@ func (o OptErrorDetailDetails) Get() (v ErrorDetailDetails, ok bool) {
 
 // Or returns value if set, or given parameter if does not.
 func (o OptErrorDetailDetails) Or(d ErrorDetailDetails) ErrorDetailDetails {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptFileAccessGrantCreateRequestPermission returns new OptFileAccessGrantCreateRequestPermission with value set to v.
+func NewOptFileAccessGrantCreateRequestPermission(v FileAccessGrantCreateRequestPermission) OptFileAccessGrantCreateRequestPermission {
+	return OptFileAccessGrantCreateRequestPermission{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptFileAccessGrantCreateRequestPermission is optional FileAccessGrantCreateRequestPermission.
+type OptFileAccessGrantCreateRequestPermission struct {
+	Value FileAccessGrantCreateRequestPermission
+	Set   bool
+}
+
+// IsSet returns true if OptFileAccessGrantCreateRequestPermission was set.
+func (o OptFileAccessGrantCreateRequestPermission) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptFileAccessGrantCreateRequestPermission) Reset() {
+	var v FileAccessGrantCreateRequestPermission
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptFileAccessGrantCreateRequestPermission) SetTo(v FileAccessGrantCreateRequestPermission) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptFileAccessGrantCreateRequestPermission) Get() (v FileAccessGrantCreateRequestPermission, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptFileAccessGrantCreateRequestPermission) Or(d FileAccessGrantCreateRequestPermission) FileAccessGrantCreateRequestPermission {
 	if v, ok := o.Get(); ok {
 		return v
 	}
@@ -5639,6 +6577,98 @@ func (o OptJobState) Or(d JobState) JobState {
 	return d
 }
 
+// NewOptShareCreateRequestPermission returns new OptShareCreateRequestPermission with value set to v.
+func NewOptShareCreateRequestPermission(v ShareCreateRequestPermission) OptShareCreateRequestPermission {
+	return OptShareCreateRequestPermission{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptShareCreateRequestPermission is optional ShareCreateRequestPermission.
+type OptShareCreateRequestPermission struct {
+	Value ShareCreateRequestPermission
+	Set   bool
+}
+
+// IsSet returns true if OptShareCreateRequestPermission was set.
+func (o OptShareCreateRequestPermission) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptShareCreateRequestPermission) Reset() {
+	var v ShareCreateRequestPermission
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptShareCreateRequestPermission) SetTo(v ShareCreateRequestPermission) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptShareCreateRequestPermission) Get() (v ShareCreateRequestPermission, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptShareCreateRequestPermission) Or(d ShareCreateRequestPermission) ShareCreateRequestPermission {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptSharePermission returns new OptSharePermission with value set to v.
+func NewOptSharePermission(v SharePermission) OptSharePermission {
+	return OptSharePermission{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptSharePermission is optional SharePermission.
+type OptSharePermission struct {
+	Value SharePermission
+	Set   bool
+}
+
+// IsSet returns true if OptSharePermission was set.
+func (o OptSharePermission) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptSharePermission) Reset() {
+	var v SharePermission
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptSharePermission) SetTo(v SharePermission) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptSharePermission) Get() (v SharePermission, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptSharePermission) Or(d SharePermission) SharePermission {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
 // NewOptString returns new OptString with value set to v.
 func NewOptString(v string) OptString {
 	return OptString{
@@ -5955,6 +6985,52 @@ func (o OptUploadState) Get() (v UploadState, ok bool) {
 
 // Or returns value if set, or given parameter if does not.
 func (o OptUploadState) Or(d UploadState) UploadState {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptUserRole returns new OptUserRole with value set to v.
+func NewOptUserRole(v UserRole) OptUserRole {
+	return OptUserRole{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptUserRole is optional UserRole.
+type OptUserRole struct {
+	Value UserRole
+	Set   bool
+}
+
+// IsSet returns true if OptUserRole was set.
+func (o OptUserRole) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptUserRole) Reset() {
+	var v UserRole
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptUserRole) SetTo(v UserRole) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptUserRole) Get() (v UserRole, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptUserRole) Or(d UserRole) UserRole {
 	if v, ok := o.Get(); ok {
 		return v
 	}
@@ -6524,10 +7600,11 @@ func (s *PeriodicJobUpdateArgs) init() PeriodicJobUpdateArgs {
 
 // Ref: #/components/schemas/PublicShare
 type PublicShare struct {
-	ID                UUID        `json:"id"`
-	File              FileEntry   `json:"file"`
-	PasswordProtected bool        `json:"passwordProtected"`
-	ExpiresAt         OptDateTime `json:"expiresAt"`
+	ID                UUID            `json:"id"`
+	File              FileEntry       `json:"file"`
+	PasswordProtected bool            `json:"passwordProtected"`
+	ExpiresAt         OptDateTime     `json:"expiresAt"`
+	Permission        SharePermission `json:"permission"`
 }
 
 // GetID returns the value of ID.
@@ -6550,6 +7627,11 @@ func (s *PublicShare) GetExpiresAt() OptDateTime {
 	return s.ExpiresAt
 }
 
+// GetPermission returns the value of Permission.
+func (s *PublicShare) GetPermission() SharePermission {
+	return s.Permission
+}
+
 // SetID sets the value of ID.
 func (s *PublicShare) SetID(val UUID) {
 	s.ID = val
@@ -6568,6 +7650,11 @@ func (s *PublicShare) SetPasswordProtected(val bool) {
 // SetExpiresAt sets the value of ExpiresAt.
 func (s *PublicShare) SetExpiresAt(val OptDateTime) {
 	s.ExpiresAt = val
+}
+
+// SetPermission sets the value of Permission.
+func (s *PublicShare) SetPermission(val SharePermission) {
+	s.Permission = val
 }
 
 func (*PublicShare) getPublicShareRes() {}
@@ -6608,6 +7695,60 @@ func (*PutFileViewStateUnauthorized) putFileViewStateRes() {}
 type PutFileViewStateUnprocessableEntity ErrorEnvelope
 
 func (*PutFileViewStateUnprocessableEntity) putFileViewStateRes() {}
+
+type PutPublicShareUploadPartBadRequest ErrorEnvelope
+
+func (*PutPublicShareUploadPartBadRequest) putPublicShareUploadPartRes() {}
+
+type PutPublicShareUploadPartConflict ErrorEnvelope
+
+func (*PutPublicShareUploadPartConflict) putPublicShareUploadPartRes() {}
+
+type PutPublicShareUploadPartCreated UploadPart
+
+func (*PutPublicShareUploadPartCreated) putPublicShareUploadPartRes() {}
+
+type PutPublicShareUploadPartForbidden ErrorEnvelope
+
+func (*PutPublicShareUploadPartForbidden) putPublicShareUploadPartRes() {}
+
+type PutPublicShareUploadPartGone ErrorEnvelope
+
+func (*PutPublicShareUploadPartGone) putPublicShareUploadPartRes() {}
+
+type PutPublicShareUploadPartNotFound ErrorEnvelope
+
+func (*PutPublicShareUploadPartNotFound) putPublicShareUploadPartRes() {}
+
+type PutPublicShareUploadPartOK UploadPart
+
+func (*PutPublicShareUploadPartOK) putPublicShareUploadPartRes() {}
+
+type PutPublicShareUploadPartReq struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s PutPublicShareUploadPartReq) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+type PutPublicShareUploadPartServiceUnavailable ErrorEnvelope
+
+func (*PutPublicShareUploadPartServiceUnavailable) putPublicShareUploadPartRes() {}
+
+type PutPublicShareUploadPartUnauthorized ErrorEnvelope
+
+func (*PutPublicShareUploadPartUnauthorized) putPublicShareUploadPartRes() {}
+
+type PutPublicShareUploadPartUnprocessableEntity ErrorEnvelope
+
+func (*PutPublicShareUploadPartUnprocessableEntity) putPublicShareUploadPartRes() {}
 
 type PutUploadPartBadRequest ErrorEnvelope
 
@@ -6743,6 +7884,23 @@ type RetryJobUnauthorized ErrorEnvelope
 
 func (*RetryJobUnauthorized) retryJobRes() {}
 
+type RevokeAdminUserAccessForbidden ErrorEnvelope
+
+func (*RevokeAdminUserAccessForbidden) revokeAdminUserAccessRes() {}
+
+// RevokeAdminUserAccessNoContent is response for RevokeAdminUserAccess operation.
+type RevokeAdminUserAccessNoContent struct{}
+
+func (*RevokeAdminUserAccessNoContent) revokeAdminUserAccessRes() {}
+
+type RevokeAdminUserAccessNotFound ErrorEnvelope
+
+func (*RevokeAdminUserAccessNotFound) revokeAdminUserAccessRes() {}
+
+type RevokeAdminUserAccessUnauthorized ErrorEnvelope
+
+func (*RevokeAdminUserAccessUnauthorized) revokeAdminUserAccessRes() {}
+
 // RevokeApiKeyNoContent is response for RevokeApiKey operation.
 type RevokeApiKeyNoContent struct{}
 
@@ -6755,6 +7913,19 @@ func (*RevokeApiKeyNotFound) revokeApiKeyRes() {}
 type RevokeApiKeyUnauthorized ErrorEnvelope
 
 func (*RevokeApiKeyUnauthorized) revokeApiKeyRes() {}
+
+// RevokeFileAccessGrantNoContent is response for RevokeFileAccessGrant operation.
+type RevokeFileAccessGrantNoContent struct{}
+
+func (*RevokeFileAccessGrantNoContent) revokeFileAccessGrantRes() {}
+
+type RevokeFileAccessGrantNotFound ErrorEnvelope
+
+func (*RevokeFileAccessGrantNotFound) revokeFileAccessGrantRes() {}
+
+type RevokeFileAccessGrantUnauthorized ErrorEnvelope
+
+func (*RevokeFileAccessGrantUnauthorized) revokeFileAccessGrantRes() {}
 
 // RevokeSessionNoContent is response for RevokeSession operation.
 type RevokeSessionNoContent struct{}
@@ -6781,6 +7952,18 @@ func (*RevokeShareNotFound) revokeShareRes() {}
 type RevokeShareUnauthorized ErrorEnvelope
 
 func (*RevokeShareUnauthorized) revokeShareRes() {}
+
+type SearchUsersOKApplicationJSON []UserSearchResult
+
+func (*SearchUsersOKApplicationJSON) searchUsersRes() {}
+
+type SearchUsersUnauthorized ErrorEnvelope
+
+func (*SearchUsersUnauthorized) searchUsersRes() {}
+
+type SearchUsersUnprocessableEntity ErrorEnvelope
+
+func (*SearchUsersUnprocessableEntity) searchUsersRes() {}
 
 type SelectChannelConflict ErrorEnvelope
 
@@ -6867,9 +8050,10 @@ func (s *SessionSummary) SetRevokedAt(val OptDateTime) {
 // Ref: #/components/schemas/ShareCreateRequest
 type ShareCreateRequest struct {
 	// Optional password. The server stores only a password hash.
-	Password     OptString   `json:"password"`
-	ExpiresAt    OptDateTime `json:"expiresAt"`
-	MaxDownloads OptInt64    `json:"maxDownloads"`
+	Password     OptString                       `json:"password"`
+	ExpiresAt    OptDateTime                     `json:"expiresAt"`
+	MaxDownloads OptInt64                        `json:"maxDownloads"`
+	Permission   OptShareCreateRequestPermission `json:"permission"`
 }
 
 // GetPassword returns the value of Password.
@@ -6887,6 +8071,11 @@ func (s *ShareCreateRequest) GetMaxDownloads() OptInt64 {
 	return s.MaxDownloads
 }
 
+// GetPermission returns the value of Permission.
+func (s *ShareCreateRequest) GetPermission() OptShareCreateRequestPermission {
+	return s.Permission
+}
+
 // SetPassword sets the value of Password.
 func (s *ShareCreateRequest) SetPassword(val OptString) {
 	s.Password = val
@@ -6902,17 +8091,65 @@ func (s *ShareCreateRequest) SetMaxDownloads(val OptInt64) {
 	s.MaxDownloads = val
 }
 
+// SetPermission sets the value of Permission.
+func (s *ShareCreateRequest) SetPermission(val OptShareCreateRequestPermission) {
+	s.Permission = val
+}
+
+// Merged schema.
+type ShareCreateRequestPermission string
+
+const (
+	ShareCreateRequestPermissionRead ShareCreateRequestPermission = "read"
+	ShareCreateRequestPermissionEdit ShareCreateRequestPermission = "edit"
+)
+
+// AllValues returns all ShareCreateRequestPermission values.
+func (ShareCreateRequestPermission) AllValues() []ShareCreateRequestPermission {
+	return []ShareCreateRequestPermission{
+		ShareCreateRequestPermissionRead,
+		ShareCreateRequestPermissionEdit,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s ShareCreateRequestPermission) MarshalText() ([]byte, error) {
+	switch s {
+	case ShareCreateRequestPermissionRead:
+		return []byte(s), nil
+	case ShareCreateRequestPermissionEdit:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *ShareCreateRequestPermission) UnmarshalText(data []byte) error {
+	switch ShareCreateRequestPermission(data) {
+	case ShareCreateRequestPermissionRead:
+		*s = ShareCreateRequestPermissionRead
+		return nil
+	case ShareCreateRequestPermissionEdit:
+		*s = ShareCreateRequestPermissionEdit
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
 // Ref: #/components/schemas/ShareCreated
 type ShareCreated struct {
 	ID     UUID `json:"id"`
 	FileId UUID `json:"fileId"`
 	// Opaque public token returned only when the share is created.
-	Token             string      `json:"token"`
-	PublicUrl         URI         `json:"publicUrl"`
-	PasswordProtected bool        `json:"passwordProtected"`
-	ExpiresAt         OptDateTime `json:"expiresAt"`
-	MaxDownloads      OptInt64    `json:"maxDownloads"`
-	CreatedAt         time.Time   `json:"createdAt"`
+	Token             string          `json:"token"`
+	PublicUrl         URI             `json:"publicUrl"`
+	PasswordProtected bool            `json:"passwordProtected"`
+	ExpiresAt         OptDateTime     `json:"expiresAt"`
+	MaxDownloads      OptInt64        `json:"maxDownloads"`
+	Permission        SharePermission `json:"permission"`
+	CreatedAt         time.Time       `json:"createdAt"`
 }
 
 // GetID returns the value of ID.
@@ -6948,6 +8185,11 @@ func (s *ShareCreated) GetExpiresAt() OptDateTime {
 // GetMaxDownloads returns the value of MaxDownloads.
 func (s *ShareCreated) GetMaxDownloads() OptInt64 {
 	return s.MaxDownloads
+}
+
+// GetPermission returns the value of Permission.
+func (s *ShareCreated) GetPermission() SharePermission {
+	return s.Permission
 }
 
 // GetCreatedAt returns the value of CreatedAt.
@@ -6990,6 +8232,11 @@ func (s *ShareCreated) SetMaxDownloads(val OptInt64) {
 	s.MaxDownloads = val
 }
 
+// SetPermission sets the value of Permission.
+func (s *ShareCreated) SetPermission(val SharePermission) {
+	s.Permission = val
+}
+
 // SetCreatedAt sets the value of CreatedAt.
 func (s *ShareCreated) SetCreatedAt(val time.Time) {
 	s.CreatedAt = val
@@ -6997,16 +8244,59 @@ func (s *ShareCreated) SetCreatedAt(val time.Time) {
 
 func (*ShareCreated) createShareRes() {}
 
+// Ref: #/components/schemas/SharePermission
+type SharePermission string
+
+const (
+	SharePermissionRead SharePermission = "read"
+	SharePermissionEdit SharePermission = "edit"
+)
+
+// AllValues returns all SharePermission values.
+func (SharePermission) AllValues() []SharePermission {
+	return []SharePermission{
+		SharePermissionRead,
+		SharePermissionEdit,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s SharePermission) MarshalText() ([]byte, error) {
+	switch s {
+	case SharePermissionRead:
+		return []byte(s), nil
+	case SharePermissionEdit:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *SharePermission) UnmarshalText(data []byte) error {
+	switch SharePermission(data) {
+	case SharePermissionRead:
+		*s = SharePermissionRead
+		return nil
+	case SharePermissionEdit:
+		*s = SharePermissionEdit
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
 // Ref: #/components/schemas/ShareSummary
 type ShareSummary struct {
-	ID                UUID        `json:"id"`
-	FileId            UUID        `json:"fileId"`
-	PasswordProtected bool        `json:"passwordProtected"`
-	ExpiresAt         OptDateTime `json:"expiresAt"`
-	MaxDownloads      OptInt64    `json:"maxDownloads"`
-	DownloadCount     int64       `json:"downloadCount"`
-	CreatedAt         time.Time   `json:"createdAt"`
-	RevokedAt         OptDateTime `json:"revokedAt"`
+	ID                UUID            `json:"id"`
+	FileId            UUID            `json:"fileId"`
+	PasswordProtected bool            `json:"passwordProtected"`
+	ExpiresAt         OptDateTime     `json:"expiresAt"`
+	MaxDownloads      OptInt64        `json:"maxDownloads"`
+	DownloadCount     int64           `json:"downloadCount"`
+	Permission        SharePermission `json:"permission"`
+	CreatedAt         time.Time       `json:"createdAt"`
+	RevokedAt         OptDateTime     `json:"revokedAt"`
 }
 
 // GetID returns the value of ID.
@@ -7037,6 +8327,11 @@ func (s *ShareSummary) GetMaxDownloads() OptInt64 {
 // GetDownloadCount returns the value of DownloadCount.
 func (s *ShareSummary) GetDownloadCount() int64 {
 	return s.DownloadCount
+}
+
+// GetPermission returns the value of Permission.
+func (s *ShareSummary) GetPermission() SharePermission {
+	return s.Permission
 }
 
 // GetCreatedAt returns the value of CreatedAt.
@@ -7079,6 +8374,11 @@ func (s *ShareSummary) SetDownloadCount(val int64) {
 	s.DownloadCount = val
 }
 
+// SetPermission sets the value of Permission.
+func (s *ShareSummary) SetPermission(val SharePermission) {
+	s.Permission = val
+}
+
 // SetCreatedAt sets the value of CreatedAt.
 func (s *ShareSummary) SetCreatedAt(val time.Time) {
 	s.CreatedAt = val
@@ -7093,12 +8393,13 @@ func (*ShareSummary) updateShareRes() {}
 
 // Ref: #/components/schemas/ShareUpdateRequest
 type ShareUpdateRequest struct {
-	Password          OptString   `json:"password"`
-	ClearPassword     OptBool     `json:"clearPassword"`
-	ExpiresAt         OptDateTime `json:"expiresAt"`
-	ClearExpiresAt    OptBool     `json:"clearExpiresAt"`
-	MaxDownloads      OptInt64    `json:"maxDownloads"`
-	ClearMaxDownloads OptBool     `json:"clearMaxDownloads"`
+	Password          OptString          `json:"password"`
+	ClearPassword     OptBool            `json:"clearPassword"`
+	ExpiresAt         OptDateTime        `json:"expiresAt"`
+	ClearExpiresAt    OptBool            `json:"clearExpiresAt"`
+	MaxDownloads      OptInt64           `json:"maxDownloads"`
+	ClearMaxDownloads OptBool            `json:"clearMaxDownloads"`
+	Permission        OptSharePermission `json:"permission"`
 }
 
 // GetPassword returns the value of Password.
@@ -7131,6 +8432,11 @@ func (s *ShareUpdateRequest) GetClearMaxDownloads() OptBool {
 	return s.ClearMaxDownloads
 }
 
+// GetPermission returns the value of Permission.
+func (s *ShareUpdateRequest) GetPermission() OptSharePermission {
+	return s.Permission
+}
+
 // SetPassword sets the value of Password.
 func (s *ShareUpdateRequest) SetPassword(val OptString) {
 	s.Password = val
@@ -7159,6 +8465,92 @@ func (s *ShareUpdateRequest) SetMaxDownloads(val OptInt64) {
 // SetClearMaxDownloads sets the value of ClearMaxDownloads.
 func (s *ShareUpdateRequest) SetClearMaxDownloads(val OptBool) {
 	s.ClearMaxDownloads = val
+}
+
+// SetPermission sets the value of Permission.
+func (s *ShareUpdateRequest) SetPermission(val OptSharePermission) {
+	s.Permission = val
+}
+
+// Ref: #/components/schemas/SharedWithMeEntry
+type SharedWithMeEntry struct {
+	GrantId          UUID            `json:"grantId"`
+	OwnerId          int64           `json:"ownerId"`
+	OwnerDisplayName OptString       `json:"ownerDisplayName"`
+	OwnerUsername    OptString       `json:"ownerUsername"`
+	Permission       SharePermission `json:"permission"`
+	ExpiresAt        OptDateTime     `json:"expiresAt"`
+	File             FileEntry       `json:"file"`
+}
+
+// GetGrantId returns the value of GrantId.
+func (s *SharedWithMeEntry) GetGrantId() UUID {
+	return s.GrantId
+}
+
+// GetOwnerId returns the value of OwnerId.
+func (s *SharedWithMeEntry) GetOwnerId() int64 {
+	return s.OwnerId
+}
+
+// GetOwnerDisplayName returns the value of OwnerDisplayName.
+func (s *SharedWithMeEntry) GetOwnerDisplayName() OptString {
+	return s.OwnerDisplayName
+}
+
+// GetOwnerUsername returns the value of OwnerUsername.
+func (s *SharedWithMeEntry) GetOwnerUsername() OptString {
+	return s.OwnerUsername
+}
+
+// GetPermission returns the value of Permission.
+func (s *SharedWithMeEntry) GetPermission() SharePermission {
+	return s.Permission
+}
+
+// GetExpiresAt returns the value of ExpiresAt.
+func (s *SharedWithMeEntry) GetExpiresAt() OptDateTime {
+	return s.ExpiresAt
+}
+
+// GetFile returns the value of File.
+func (s *SharedWithMeEntry) GetFile() FileEntry {
+	return s.File
+}
+
+// SetGrantId sets the value of GrantId.
+func (s *SharedWithMeEntry) SetGrantId(val UUID) {
+	s.GrantId = val
+}
+
+// SetOwnerId sets the value of OwnerId.
+func (s *SharedWithMeEntry) SetOwnerId(val int64) {
+	s.OwnerId = val
+}
+
+// SetOwnerDisplayName sets the value of OwnerDisplayName.
+func (s *SharedWithMeEntry) SetOwnerDisplayName(val OptString) {
+	s.OwnerDisplayName = val
+}
+
+// SetOwnerUsername sets the value of OwnerUsername.
+func (s *SharedWithMeEntry) SetOwnerUsername(val OptString) {
+	s.OwnerUsername = val
+}
+
+// SetPermission sets the value of Permission.
+func (s *SharedWithMeEntry) SetPermission(val SharePermission) {
+	s.Permission = val
+}
+
+// SetExpiresAt sets the value of ExpiresAt.
+func (s *SharedWithMeEntry) SetExpiresAt(val OptDateTime) {
+	s.ExpiresAt = val
+}
+
+// SetFile sets the value of File.
+func (s *SharedWithMeEntry) SetFile(val FileEntry) {
+	s.File = val
 }
 
 // Ref: #/components/schemas/StorageActivity
@@ -8076,9 +9468,58 @@ type TrashFileUnauthorized ErrorEnvelope
 
 func (*TrashFileUnauthorized) trashFileRes() {}
 
+type TrashPublicShareFileForbidden ErrorEnvelope
+
+func (*TrashPublicShareFileForbidden) trashPublicShareFileRes() {}
+
+type TrashPublicShareFileGone ErrorEnvelope
+
+func (*TrashPublicShareFileGone) trashPublicShareFileRes() {}
+
+// TrashPublicShareFileNoContent is response for TrashPublicShareFile operation.
+type TrashPublicShareFileNoContent struct{}
+
+func (*TrashPublicShareFileNoContent) trashPublicShareFileRes() {}
+
+type TrashPublicShareFileNotFound ErrorEnvelope
+
+func (*TrashPublicShareFileNotFound) trashPublicShareFileRes() {}
+
+type TrashPublicShareFileUnauthorized ErrorEnvelope
+
+func (*TrashPublicShareFileUnauthorized) trashPublicShareFileRes() {}
+
 type URI url.URL
 
 type UUID uuid.UUID
+
+type UpdateAdminUserForbidden ErrorEnvelope
+
+func (*UpdateAdminUserForbidden) updateAdminUserRes() {}
+
+type UpdateAdminUserNotFound ErrorEnvelope
+
+func (*UpdateAdminUserNotFound) updateAdminUserRes() {}
+
+type UpdateAdminUserUnauthorized ErrorEnvelope
+
+func (*UpdateAdminUserUnauthorized) updateAdminUserRes() {}
+
+type UpdateAdminUserUnprocessableEntity ErrorEnvelope
+
+func (*UpdateAdminUserUnprocessableEntity) updateAdminUserRes() {}
+
+type UpdateFileAccessGrantNotFound ErrorEnvelope
+
+func (*UpdateFileAccessGrantNotFound) updateFileAccessGrantRes() {}
+
+type UpdateFileAccessGrantUnauthorized ErrorEnvelope
+
+func (*UpdateFileAccessGrantUnauthorized) updateFileAccessGrantRes() {}
+
+type UpdateFileAccessGrantUnprocessableEntity ErrorEnvelope
+
+func (*UpdateFileAccessGrantUnprocessableEntity) updateFileAccessGrantRes() {}
 
 type UpdateFileConflict ErrorEnvelope
 
@@ -8111,6 +9552,30 @@ func (*UpdatePeriodicJobNotFound) updatePeriodicJobRes() {}
 type UpdatePeriodicJobUnauthorized ErrorEnvelope
 
 func (*UpdatePeriodicJobUnauthorized) updatePeriodicJobRes() {}
+
+type UpdatePublicShareFileForbidden ErrorEnvelope
+
+func (*UpdatePublicShareFileForbidden) updatePublicShareFileRes() {}
+
+type UpdatePublicShareFileGone ErrorEnvelope
+
+func (*UpdatePublicShareFileGone) updatePublicShareFileRes() {}
+
+type UpdatePublicShareFileNotFound ErrorEnvelope
+
+func (*UpdatePublicShareFileNotFound) updatePublicShareFileRes() {}
+
+type UpdatePublicShareFilePreconditionFailed ErrorEnvelope
+
+func (*UpdatePublicShareFilePreconditionFailed) updatePublicShareFileRes() {}
+
+type UpdatePublicShareFileUnauthorized ErrorEnvelope
+
+func (*UpdatePublicShareFileUnauthorized) updatePublicShareFileRes() {}
+
+type UpdatePublicShareFileUnprocessableEntity ErrorEnvelope
+
+func (*UpdatePublicShareFileUnprocessableEntity) updatePublicShareFileRes() {}
 
 type UpdateShareNotFound ErrorEnvelope
 
@@ -8871,8 +10336,9 @@ func (s *UploadSession) SetFileId(val OptUUID) {
 	s.FileId = val
 }
 
-func (*UploadSession) createUploadRes() {}
-func (*UploadSession) getUploadRes()    {}
+func (*UploadSession) createPublicShareUploadRes() {}
+func (*UploadSession) createUploadRes()            {}
+func (*UploadSession) getUploadRes()               {}
 
 // Ref: #/components/schemas/UploadState
 type UploadState string
@@ -8937,13 +10403,41 @@ func (s *UploadState) UnmarshalText(data []byte) error {
 	}
 }
 
+// Ref: #/components/schemas/UserAdminUpdateRequest
+type UserAdminUpdateRequest struct {
+	Role     OptUserRole `json:"role"`
+	Disabled OptBool     `json:"disabled"`
+}
+
+// GetRole returns the value of Role.
+func (s *UserAdminUpdateRequest) GetRole() OptUserRole {
+	return s.Role
+}
+
+// GetDisabled returns the value of Disabled.
+func (s *UserAdminUpdateRequest) GetDisabled() OptBool {
+	return s.Disabled
+}
+
+// SetRole sets the value of Role.
+func (s *UserAdminUpdateRequest) SetRole(val OptUserRole) {
+	s.Role = val
+}
+
+// SetDisabled sets the value of Disabled.
+func (s *UserAdminUpdateRequest) SetDisabled(val OptBool) {
+	s.Disabled = val
+}
+
 // Ref: #/components/schemas/UserProfile
 type UserProfile struct {
-	UserId      int64     `json:"userId"`
-	DisplayName OptString `json:"displayName"`
-	Username    OptString `json:"username"`
-	Premium     bool      `json:"premium"`
-	CreatedAt   time.Time `json:"createdAt"`
+	UserId       int64     `json:"userId"`
+	DisplayName  OptString `json:"displayName"`
+	Username     OptString `json:"username"`
+	Premium      bool      `json:"premium"`
+	Role         UserRole  `json:"role"`
+	Capabilities []string  `json:"capabilities"`
+	CreatedAt    time.Time `json:"createdAt"`
 }
 
 // GetUserId returns the value of UserId.
@@ -8964,6 +10458,16 @@ func (s *UserProfile) GetUsername() OptString {
 // GetPremium returns the value of Premium.
 func (s *UserProfile) GetPremium() bool {
 	return s.Premium
+}
+
+// GetRole returns the value of Role.
+func (s *UserProfile) GetRole() UserRole {
+	return s.Role
+}
+
+// GetCapabilities returns the value of Capabilities.
+func (s *UserProfile) GetCapabilities() []string {
+	return s.Capabilities
 }
 
 // GetCreatedAt returns the value of CreatedAt.
@@ -8991,12 +10495,108 @@ func (s *UserProfile) SetPremium(val bool) {
 	s.Premium = val
 }
 
+// SetRole sets the value of Role.
+func (s *UserProfile) SetRole(val UserRole) {
+	s.Role = val
+}
+
+// SetCapabilities sets the value of Capabilities.
+func (s *UserProfile) SetCapabilities(val []string) {
+	s.Capabilities = val
+}
+
 // SetCreatedAt sets the value of CreatedAt.
 func (s *UserProfile) SetCreatedAt(val time.Time) {
 	s.CreatedAt = val
 }
 
 func (*UserProfile) getCurrentUserRes() {}
+
+// Ref: #/components/schemas/UserRole
+type UserRole string
+
+const (
+	UserRoleOwner UserRole = "owner"
+	UserRoleAdmin UserRole = "admin"
+	UserRoleUser  UserRole = "user"
+)
+
+// AllValues returns all UserRole values.
+func (UserRole) AllValues() []UserRole {
+	return []UserRole{
+		UserRoleOwner,
+		UserRoleAdmin,
+		UserRoleUser,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s UserRole) MarshalText() ([]byte, error) {
+	switch s {
+	case UserRoleOwner:
+		return []byte(s), nil
+	case UserRoleAdmin:
+		return []byte(s), nil
+	case UserRoleUser:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *UserRole) UnmarshalText(data []byte) error {
+	switch UserRole(data) {
+	case UserRoleOwner:
+		*s = UserRoleOwner
+		return nil
+	case UserRoleAdmin:
+		*s = UserRoleAdmin
+		return nil
+	case UserRoleUser:
+		*s = UserRoleUser
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+// Ref: #/components/schemas/UserSearchResult
+type UserSearchResult struct {
+	UserId      int64     `json:"userId"`
+	DisplayName OptString `json:"displayName"`
+	Username    OptString `json:"username"`
+}
+
+// GetUserId returns the value of UserId.
+func (s *UserSearchResult) GetUserId() int64 {
+	return s.UserId
+}
+
+// GetDisplayName returns the value of DisplayName.
+func (s *UserSearchResult) GetDisplayName() OptString {
+	return s.DisplayName
+}
+
+// GetUsername returns the value of Username.
+func (s *UserSearchResult) GetUsername() OptString {
+	return s.Username
+}
+
+// SetUserId sets the value of UserId.
+func (s *UserSearchResult) SetUserId(val int64) {
+	s.UserId = val
+}
+
+// SetDisplayName sets the value of DisplayName.
+func (s *UserSearchResult) SetDisplayName(val OptString) {
+	s.DisplayName = val
+}
+
+// SetUsername sets the value of Username.
+func (s *UserSearchResult) SetUsername(val OptString) {
+	s.Username = val
+}
 
 // Ref: #/components/schemas/ViewerKind
 type ViewerKind string

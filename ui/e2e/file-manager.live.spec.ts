@@ -9,7 +9,7 @@ test("real backend supports the file-manager create, rename, trash, and restore 
   page,
   isMobile,
 }) => {
-  test.skip(!baseURL || !accessToken || !refreshToken, "requires hack/test-ui.sh");
+  test.skip(!baseURL || !accessToken || !refreshToken, "requires scripts/test-ui.sh");
   test.skip(isMobile, "the live lifecycle only needs one browser project");
 
   await context.addCookies([

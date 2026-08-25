@@ -1029,6 +1029,23 @@ func (q *Queries) LockActiveNameConflict(ctx context.Context, arg LockActiveName
 	return &i, err
 }
 
+const markAllTrashedDeletionPending = `-- name: MarkAllTrashedDeletionPending :execrows
+UPDATE /* TEMPLATE: schema */files
+SET status = 'deletion_pending',
+    deleted_at = COALESCE(deleted_at, now()),
+    updated_at = now()
+WHERE user_id = $1
+  AND status = 'trashed'
+`
+
+func (q *Queries) MarkAllTrashedDeletionPending(ctx context.Context, userID int64) (int64, error) {
+	result, err := q.db.Exec(ctx, markAllTrashedDeletionPending, userID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const markFileDeletionPending = `-- name: MarkFileDeletionPending :one
 UPDATE /* TEMPLATE: schema */files
 SET status = 'deletion_pending',

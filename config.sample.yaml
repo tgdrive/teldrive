@@ -1,8 +1,8 @@
 http:
   address: 127.0.0.1:8080
   read-header-timeout: 10s
-  read-timeout: 0s
-  write-timeout: 0s
+  read-timeout: 1h
+  write-timeout: 1h
   idle-timeout: 2m
   shutdown-timeout: 10s
   # Trust forwarding headers only from these proxy IP addresses or CIDRs.
@@ -74,6 +74,7 @@ security:
 
 uploads:
   session-ttl: 168h
+  local-import-roots: []
 
 # Stream caching is opt-in. Leave dir empty to avoid disk use.
 cache:

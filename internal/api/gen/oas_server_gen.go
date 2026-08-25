@@ -9,6 +9,10 @@ import (
 
 // Handler handles operations described by OpenAPI v3 specification.
 type Handler interface {
+	// AbortPublicShareUpload implements abortPublicShareUpload operation.
+	//
+	// DELETE /v1/public/shares/{token}/uploads/{uploadId}
+	AbortPublicShareUpload(ctx context.Context, params AbortPublicShareUploadParams) (AbortPublicShareUploadRes, error)
 	// AbortUpload implements abortUpload operation.
 	//
 	// Abort an upload and schedule physical Telegram cleanup.
@@ -31,6 +35,16 @@ type Handler interface {
 	//
 	// POST /v1/jobs/{jobId}/cancel
 	CancelJob(ctx context.Context, params CancelJobParams) (CancelJobRes, error)
+	// CleanTrash implements cleanTrash operation.
+	//
+	// Move every trashed file and folder owned by the authenticated user to deletion pending.
+	//
+	// DELETE /v1/files/trash
+	CleanTrash(ctx context.Context) (CleanTrashRes, error)
+	// CompletePublicShareUpload implements completePublicShareUpload operation.
+	//
+	// POST /v1/public/shares/{token}/uploads/{uploadId}/complete
+	CompletePublicShareUpload(ctx context.Context, params CompletePublicShareUploadParams) (CompletePublicShareUploadRes, error)
 	// CompleteUpload implements completeUpload operation.
 	//
 	// Validate all parts and transactionally publish the file. A successful response guarantees immediate
@@ -80,6 +94,10 @@ type Handler interface {
 	//
 	// POST /v1/events/ticket
 	CreateEventStreamTicket(ctx context.Context) (CreateEventStreamTicketRes, error)
+	// CreateFileAccessGrant implements createFileAccessGrant operation.
+	//
+	// POST /v1/files/{fileId}/grants
+	CreateFileAccessGrant(ctx context.Context, req *FileAccessGrantCreateRequest, params CreateFileAccessGrantParams) (CreateFileAccessGrantRes, error)
 	// CreateFolder implements createFolder operation.
 	//
 	// POST /v1/folders
@@ -92,6 +110,14 @@ type Handler interface {
 	//
 	// POST /v1/periodic-jobs
 	CreatePeriodicJob(ctx context.Context, req *PeriodicJobCreate) (CreatePeriodicJobRes, error)
+	// CreatePublicShareFolder implements createPublicShareFolder operation.
+	//
+	// POST /v1/public/shares/{token}/folders
+	CreatePublicShareFolder(ctx context.Context, req *FolderCreateRequest, params CreatePublicShareFolderParams) (CreatePublicShareFolderRes, error)
+	// CreatePublicShareUpload implements createPublicShareUpload operation.
+	//
+	// POST /v1/public/shares/{token}/uploads
+	CreatePublicShareUpload(ctx context.Context, req *UploadCreateRequest, params CreatePublicShareUploadParams) (CreatePublicShareUploadRes, error)
 	// CreateShare implements createShare operation.
 	//
 	// POST /v1/files/{fileId}/shares
@@ -216,6 +242,10 @@ type Handler interface {
 	//
 	// HEAD /v1/public/shares/{token}/content
 	HeadPublicShare(ctx context.Context, params HeadPublicShareParams) (HeadPublicShareRes, error)
+	// HeadPublicShareFile implements headPublicShareFile operation.
+	//
+	// HEAD /v1/public/shares/{token}/files/{fileId}/content
+	HeadPublicShareFile(ctx context.Context, params HeadPublicShareFileParams) (HeadPublicShareFileRes, error)
 	// HealthLive implements healthLive operation.
 	//
 	// Process liveness check.
@@ -228,6 +258,10 @@ type Handler interface {
 	//
 	// GET /health/ready
 	HealthReady(ctx context.Context) (HealthReadyRes, error)
+	// ListAdminUsers implements listAdminUsers operation.
+	//
+	// GET /v1/admin/users
+	ListAdminUsers(ctx context.Context, params ListAdminUsersParams) (ListAdminUsersRes, error)
 	// ListApiKeys implements listApiKeys operation.
 	//
 	// GET /v1/api-keys
@@ -240,6 +274,10 @@ type Handler interface {
 	//
 	// GET /v1/channels
 	ListChannels(ctx context.Context, params ListChannelsParams) (ListChannelsRes, error)
+	// ListFileAccessGrants implements listFileAccessGrants operation.
+	//
+	// GET /v1/files/{fileId}/grants
+	ListFileAccessGrants(ctx context.Context, params ListFileAccessGrantsParams) (ListFileAccessGrantsRes, error)
 	// ListFileShares implements listFileShares operation.
 	//
 	// GET /v1/files/{fileId}/shares
@@ -274,6 +312,10 @@ type Handler interface {
 	//
 	// GET /v1/sessions
 	ListSessions(ctx context.Context, params ListSessionsParams) (ListSessionsRes, error)
+	// ListSharedWithMe implements listSharedWithMe operation.
+	//
+	// GET /v1/shared-with-me
+	ListSharedWithMe(ctx context.Context) (ListSharedWithMeRes, error)
 	// ListUploadParts implements listUploadParts operation.
 	//
 	// List parts already known to the upload session.
@@ -328,6 +370,10 @@ type Handler interface {
 	//
 	// PUT /v1/files/{fileId}/view-state
 	PutFileViewState(ctx context.Context, req *FileViewStateUpdate, params PutFileViewStateParams) (PutFileViewStateRes, error)
+	// PutPublicShareUploadPart implements putPublicShareUploadPart operation.
+	//
+	// PUT /v1/public/shares/{token}/uploads/{uploadId}/parts/{partNo}
+	PutPublicShareUploadPart(ctx context.Context, req PutPublicShareUploadPartReq, params PutPublicShareUploadPartParams) (PutPublicShareUploadPartRes, error)
 	// PutUploadPart implements putUploadPart operation.
 	//
 	// Upload one part. The `(uploadId, partNo)` pair is the idempotency key. An exact retry returns the
@@ -369,10 +415,18 @@ type Handler interface {
 	//
 	// POST /v1/jobs/{jobId}/retry
 	RetryJob(ctx context.Context, params RetryJobParams) (RetryJobRes, error)
+	// RevokeAdminUserAccess implements revokeAdminUserAccess operation.
+	//
+	// POST /v1/admin/users/{userId}/revoke-access
+	RevokeAdminUserAccess(ctx context.Context, params RevokeAdminUserAccessParams) (RevokeAdminUserAccessRes, error)
 	// RevokeApiKey implements revokeApiKey operation.
 	//
 	// DELETE /v1/api-keys/{apiKeyId}
 	RevokeApiKey(ctx context.Context, params RevokeApiKeyParams) (RevokeApiKeyRes, error)
+	// RevokeFileAccessGrant implements revokeFileAccessGrant operation.
+	//
+	// DELETE /v1/grants/{grantId}
+	RevokeFileAccessGrant(ctx context.Context, params RevokeFileAccessGrantParams) (RevokeFileAccessGrantRes, error)
 	// RevokeSession implements revokeSession operation.
 	//
 	// Revoke one TelDrive session. Revoking the current session invalidates its bearer token immediately.
@@ -383,6 +437,10 @@ type Handler interface {
 	//
 	// DELETE /v1/shares/{shareId}
 	RevokeShare(ctx context.Context, params RevokeShareParams) (RevokeShareRes, error)
+	// SearchUsers implements searchUsers operation.
+	//
+	// GET /v1/users/search
+	SearchUsers(ctx context.Context, params SearchUsersParams) (SearchUsersRes, error)
 	// SelectChannel implements selectChannel operation.
 	//
 	// POST /v1/channels/{channelId}/select
@@ -429,16 +487,32 @@ type Handler interface {
 	//
 	// DELETE /v1/files/{fileId}
 	TrashFile(ctx context.Context, params TrashFileParams) (TrashFileRes, error)
+	// TrashPublicShareFile implements trashPublicShareFile operation.
+	//
+	// DELETE /v1/public/shares/{token}/files/{fileId}
+	TrashPublicShareFile(ctx context.Context, params TrashPublicShareFileParams) (TrashPublicShareFileRes, error)
+	// UpdateAdminUser implements updateAdminUser operation.
+	//
+	// PATCH /v1/admin/users/{userId}
+	UpdateAdminUser(ctx context.Context, req *UserAdminUpdateRequest, params UpdateAdminUserParams) (UpdateAdminUserRes, error)
 	// UpdateFile implements updateFile operation.
 	//
 	// Rename a file/folder or update its modification time.
 	//
 	// PATCH /v1/files/{fileId}
 	UpdateFile(ctx context.Context, req *FileUpdateRequest, params UpdateFileParams) (UpdateFileRes, error)
+	// UpdateFileAccessGrant implements updateFileAccessGrant operation.
+	//
+	// PATCH /v1/grants/{grantId}
+	UpdateFileAccessGrant(ctx context.Context, req *FileAccessGrantUpdateRequest, params UpdateFileAccessGrantParams) (UpdateFileAccessGrantRes, error)
 	// UpdatePeriodicJob implements updatePeriodicJob operation.
 	//
 	// PUT /v1/periodic-jobs/{periodicJobId}
 	UpdatePeriodicJob(ctx context.Context, req *PeriodicJobUpdate, params UpdatePeriodicJobParams) (UpdatePeriodicJobRes, error)
+	// UpdatePublicShareFile implements updatePublicShareFile operation.
+	//
+	// PATCH /v1/public/shares/{token}/files/{fileId}
+	UpdatePublicShareFile(ctx context.Context, req *FileUpdateRequest, params UpdatePublicShareFileParams) (UpdatePublicShareFileRes, error)
 	// UpdateShare implements updateShare operation.
 	//
 	// PATCH /v1/shares/{shareId}
@@ -457,6 +531,10 @@ type RawHandler interface {
 	//
 	// GET /v1/public/shares/{token}/content
 	DownloadPublicShare(ctx context.Context, params DownloadPublicShareParams, w http.ResponseWriter) error
+	// DownloadPublicShareFile implements downloadPublicShareFile operation.
+	//
+	// GET /v1/public/shares/{token}/files/{fileId}/content
+	DownloadPublicShareFile(ctx context.Context, params DownloadPublicShareFileParams, w http.ResponseWriter) error
 	// StreamEvents implements streamEvents operation.
 	//
 	// Subscribe to ordered, replayable events for the authenticated user.

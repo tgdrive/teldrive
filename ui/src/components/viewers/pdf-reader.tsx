@@ -17,7 +17,16 @@ import {
 } from "pdfjs-dist/web/pdf_viewer.mjs";
 import "pdfjs-dist/web/pdf_viewer.css";
 
-import { Button, cn, Drawer, InputGroup, Popover, Spinner, Tabs, useOverlayState } from "@heroui/react";
+import {
+  Button,
+  cn,
+  Drawer,
+  InputGroup,
+  Popover,
+  Spinner,
+  Tabs,
+  useOverlayState,
+} from "@heroui/react";
 import {
   type KeyboardEvent as ReactKeyboardEvent,
   useCallback,

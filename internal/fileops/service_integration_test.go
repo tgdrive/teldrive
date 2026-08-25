@@ -20,6 +20,57 @@ import (
 	testpostgres "github.com/tgdrive/teldrive/v2/internal/testutil/postgres"
 )
 
+func TestCleanTrashMarksAllUserTrashDeletionPending(t *testing.T) {
+	db := testpostgres.New(t)
+	ctx := context.Background()
+	if _, err := db.Pool.Exec(ctx, "INSERT INTO users (user_id) VALUES (1001), (1002)"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Pool.Exec(ctx, "INSERT INTO channels (channel_id,user_id,name,selected) VALUES (9001,1001,'storage',true)"); err != nil {
+		t.Fatal(err)
+	}
+	trashedA, trashedB, active, otherUser := uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	if _, err := db.Pool.Exec(ctx, `
+INSERT INTO files (id,user_id,name,normalized_name,kind,size,encryption,status,mod_time,deleted_at)
+VALUES
+($1,1001,'a','a','file',0,false,'trashed',now(),now()),
+($2,1001,'b','b','folder',NULL,false,'trashed',now(),now()),
+($3,1001,'active','active','file',0,false,'active',now(),NULL),
+($4,1002,'other','other','file',0,false,'trashed',now(),now())`, trashedA, trashedB, active, otherUser); err != nil {
+		t.Fatal(err)
+	}
+	catalogService := catalog.NewService(db.Pool, nil)
+	channelService := channels.NewService(db.Pool, nil, channels.Config{PartLimit: 100})
+	service, err := NewService(db.Pool, catalogService, channelService, &fileStorage{messages: map[int64][]byte{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	count, err := service.CleanTrash(ctx, 1001)
+	if err != nil {
+		t.Fatalf("CleanTrash() error = %v", err)
+	}
+	if count != 2 {
+		t.Fatalf("CleanTrash() count = %d, want 2", count)
+	}
+	for _, tc := range []struct {
+		id   uuid.UUID
+		want string
+	}{
+		{trashedA, "deletion_pending"},
+		{trashedB, "deletion_pending"},
+		{active, "active"},
+		{otherUser, "trashed"},
+	} {
+		var status string
+		if err := db.Pool.QueryRow(ctx, "SELECT status::text FROM files WHERE id = $1", tc.id).Scan(&status); err != nil {
+			t.Fatal(err)
+		}
+		if status != tc.want {
+			t.Fatalf("file %s status = %s, want %s", tc.id, status, tc.want)
+		}
+	}
+}
+
 func TestCopyAndPurgeUseIndependentTelegramMessages(t *testing.T) {
 	db := testpostgres.New(t)
 	ctx := context.Background()
@@ -126,6 +177,15 @@ VALUES ($1,1,9001,30,4,4,repeat('c',64),decode(repeat('cd',32),'hex'))`, childID
 	}
 	if failed.Status != sqlcgen.FileStatusDeletionPending {
 		t.Fatalf("failed purge status = %s", failed.Status)
+	}
+	storage.mu.Lock()
+	storage.deleteErr = nil
+	storage.mu.Unlock()
+	if err := service.Purge(ctx, 1001, failedID); err != nil {
+		t.Fatalf("retry Purge() error = %v", err)
+	}
+	if _, err := catalogService.Get(ctx, 1001, failedID); !errors.Is(err, catalog.ErrNotFound) {
+		t.Fatalf("get retried purge row error = %v, want not found", err)
 	}
 }
 

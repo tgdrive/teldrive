@@ -26,6 +26,7 @@ import ChevronRightIcon from "~icons/gravity-ui/chevron-right";
 import SettingsIcon from "~icons/gravity-ui/gear";
 import LogoIcon from "~icons/gravity-ui/layers";
 import GridIcon from "~icons/gravity-ui/layout-header-cells";
+import FolderIcon from "~icons/gravity-ui/folder";
 import TasksIcon from "~icons/gravity-ui/list-ul";
 import StorageIcon from "~icons/gravity-ui/database";
 import SearchIcon from "~icons/gravity-ui/magnifier";
@@ -43,8 +44,9 @@ import { getQueryClient } from "../lib/queryClient";
 
 const mainNav = [
   { label: "Files", icon: GridIcon, path: "/files" },
+  { label: "Shared with me", icon: FolderIcon, path: "/shared-with-me" },
   { label: "Storage", icon: StorageIcon, path: "/storage" },
-  { label: "Tasks", icon: TasksIcon, path: "/tasks" },
+  { label: "Tasks", icon: TasksIcon, path: "/tasks", capability: "system.manageJobs" },
   { label: "Trash", icon: GridIcon, path: "/trash" },
 ] as const;
 
@@ -52,9 +54,7 @@ const DESKTOP_BREAKPOINT = 1024;
 
 function getPageTitle(pathname: string) {
   if (pathname.startsWith("/settings")) return "Settings";
-  const item = mainNav.find(
-    (entry) => pathname === entry.path || pathname.startsWith(entry.path),
-  );
+  const item = mainNav.find((entry) => pathname === entry.path || pathname.startsWith(entry.path));
   return item?.label ?? "Teldrive";
 }
 
@@ -70,20 +70,26 @@ function Sidebar({
   const navigate = useNavigate();
   const { data: user } = useQuery(currentUserQueryOptions());
   const logout = $api.useMutation("post", "/v1/auth/cookie/logout");
+  const visibleMainNav = mainNav.filter(
+    (item) => !("capability" in item) || Boolean(user?.capabilities.includes(item.capability)),
+  );
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const displayName =
-    user?.displayName?.trim() || user?.username?.trim() || (user ? `User ${user.userId}` : "Account");
+    user?.displayName?.trim() ||
+    user?.username?.trim() ||
+    (user ? `User ${user.userId}` : "Account");
   const secondaryLabel = user?.username
     ? `@${user.username}`
     : user?.premium
       ? "Telegram Premium"
       : "Telegram";
-  const initials = displayName
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0]?.toUpperCase())
-    .join("") || "U";
+  const initials =
+    displayName
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join("") || "U";
   const signOut = async () => {
     try {
       await logout.mutateAsync({});
@@ -103,10 +109,7 @@ function Sidebar({
         activeOptions={{ exact: false }}
         className="h-10 w-full justify-start rounded-full px-3 text-sm font-medium"
         activeProps={{
-          className: cn(
-            buttonVariants({ variant: "secondary" }),
-            "bg-accent/10 text-accent",
-          ),
+          className: cn(buttonVariants({ variant: "secondary" }), "bg-accent/10 text-accent"),
         }}
         inactiveProps={{
           className: cn(
@@ -120,9 +123,7 @@ function Sidebar({
         <span
           className={cn(
             "overflow-hidden whitespace-nowrap transition-[width,opacity,margin] duration-200",
-            collapsed && !mobile
-              ? "ml-0 max-w-0 opacity-0"
-              : "ml-3 max-w-52 opacity-100",
+            collapsed && !mobile ? "ml-0 max-w-0 opacity-0" : "ml-3 max-w-52 opacity-100",
           )}
         >
           {item.label}
@@ -152,15 +153,13 @@ function Sidebar({
           )}
         >
           <p className="text-base font-semibold tracking-tight">Teldrive</p>
-          <p className="text-[10px] uppercase tracking-[0.16em] text-muted">
-            Cloud drive
-          </p>
+          <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Cloud drive</p>
         </div>
       </div>
 
       <Separator className="mx-3 w-auto" />
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-        {mainNav.map(renderItem)}
+        {visibleMainNav.map(renderItem)}
       </nav>
       <div className="border-t border-border px-3 py-3">
         <Dropdown isOpen={accountMenuOpen} onOpenChange={setAccountMenuOpen}>
@@ -216,11 +215,7 @@ function Sidebar({
                 <SettingsIcon className="size-4" />
                 <Label>Settings</Label>
               </Dropdown.Item>
-              <Dropdown.Item
-                id="logout"
-                textValue="Log out"
-                isDisabled={logout.isPending}
-              >
+              <Dropdown.Item id="logout" textValue="Log out" isDisabled={logout.isPending}>
                 <LogoutIcon className="size-4" />
                 <Label>{logout.isPending ? "Logging out…" : "Log out"}</Label>
               </Dropdown.Item>
@@ -257,11 +252,7 @@ function TopBar({
         className="size-9 rounded-xl"
         onPress={desktop ? onToggleSidebar : onOpenMobile}
         aria-label={
-          desktop
-            ? collapsed
-              ? "Expand sidebar"
-              : "Collapse sidebar"
-            : "Open navigation"
+          desktop ? (collapsed ? "Expand sidebar" : "Collapse sidebar") : "Open navigation"
         }
       >
         {desktop ? (
@@ -323,9 +314,7 @@ function Layout() {
   const pathname = useLocation({ select: (location) => location.pathname });
   const [collapsed, setCollapsed] = useState(false);
   const [desktop, setDesktop] = useState(() =>
-    typeof window === "undefined"
-      ? true
-      : window.innerWidth >= DESKTOP_BREAKPOINT,
+    typeof window === "undefined" ? true : window.innerWidth >= DESKTOP_BREAKPOINT,
   );
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -348,7 +337,7 @@ function Layout() {
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
-  if (pathname === "/login") return <Outlet />;
+  if (pathname === "/login" || pathname.startsWith("/share/")) return <Outlet />;
   return (
     <AriaRouterProvider
       navigate={(path) => navigate({ to: String(path) })}
@@ -371,11 +360,7 @@ function Layout() {
               onPress={() => setMobileOpen(false)}
             />
             <div className="relative z-10 h-full animate-in slide-in-from-left duration-200">
-              <Sidebar
-                collapsed={false}
-                mobile
-                onNavigate={() => setMobileOpen(false)}
-              />
+              <Sidebar collapsed={false} mobile onNavigate={() => setMobileOpen(false)} />
               <Button
                 isIconOnly
                 variant="ghost"
@@ -413,7 +398,7 @@ export type RouterContext = {
 
 export const Route = createRootRouteWithContext<RouterContext>()({
   beforeLoad: async ({ context, location }) => {
-    if (location.pathname === "/login") return;
+    if (location.pathname === "/login" || location.pathname.startsWith("/share/")) return;
     try {
       await context.queryClient.ensureQueryData(currentUserQueryOptions());
     } catch (error) {

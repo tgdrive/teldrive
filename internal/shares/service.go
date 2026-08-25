@@ -28,6 +28,7 @@ var (
 	ErrExpired         = errors.New("share expired or exhausted")
 	ErrPasswordNeeded  = errors.New("share password is required")
 	ErrInvalidPassword = errors.New("share password is invalid")
+	ErrForbidden       = errors.New("share permission denied")
 )
 
 type Created struct {
@@ -47,6 +48,7 @@ type CreateInput struct {
 	Password     *string
 	ExpiresAt    *time.Time
 	MaxDownloads *int64
+	Permission   sqlcgen.SharePermission
 }
 
 type ListInput struct {
@@ -66,6 +68,30 @@ type UpdateInput struct {
 	ClearExpiresAt    bool
 	MaxDownloads      *int64
 	ClearMaxDownloads bool
+	Permission        *sqlcgen.SharePermission
+}
+
+type GrantCreateInput struct {
+	OwnerID    int64
+	FileID     uuid.UUID
+	GranteeID  int64
+	Permission sqlcgen.SharePermission
+	ExpiresAt  *time.Time
+}
+
+type GrantUpdateInput struct {
+	OwnerID        int64
+	GrantID        uuid.UUID
+	Permission     *sqlcgen.SharePermission
+	ExpiresAt      *time.Time
+	ClearExpiresAt bool
+}
+
+type Access struct {
+	OwnerID    int64
+	RootFileID uuid.UUID
+	Permission sqlcgen.SharePermission
+	Owned      bool
 }
 
 type PublicListInput struct {
@@ -92,8 +118,27 @@ func NewService(pool *pgxpool.Pool, catalogService *catalog.Service) (*Service, 
 	return &Service{queries: sqlcgen.New(pool), catalog: catalogService, random: rand.Reader, now: time.Now}, nil
 }
 
+func normalizePermission(permission sqlcgen.SharePermission) sqlcgen.SharePermission {
+	if permission == "" {
+		return sqlcgen.SharePermissionRead
+	}
+	return permission
+}
+
+func validPermission(permission sqlcgen.SharePermission) bool {
+	return permission == sqlcgen.SharePermissionRead || permission == sqlcgen.SharePermissionEdit
+}
+
+func optionalPermission(permission *sqlcgen.SharePermission) sqlcgen.NullSharePermission {
+	if permission == nil {
+		return sqlcgen.NullSharePermission{}
+	}
+	return sqlcgen.NullSharePermission{SharePermission: *permission, Valid: true}
+}
+
 func (s *Service) Create(ctx context.Context, in CreateInput) (*Created, error) {
-	if in.OwnerID <= 0 || in.FileID == uuid.Nil || (in.ExpiresAt != nil && !in.ExpiresAt.After(s.now())) || (in.MaxDownloads != nil && *in.MaxDownloads <= 0) {
+	in.Permission = normalizePermission(in.Permission)
+	if in.OwnerID <= 0 || in.FileID == uuid.Nil || !validPermission(in.Permission) || (in.ExpiresAt != nil && !in.ExpiresAt.After(s.now())) || (in.MaxDownloads != nil && *in.MaxDownloads <= 0) {
 		return nil, ErrInvalidInput
 	}
 	file, err := s.catalog.Get(ctx, in.OwnerID, in.FileID)
@@ -128,11 +173,12 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*Created, error) 
 		ID: dbtypes.UUID(uuid.New()), FileID: dbtypes.UUID(in.FileID), OwnerID: in.OwnerID,
 		TokenPrefix: prefix, TokenHash: hash, PasswordHash: dbtypes.OptionalText(passwordHash),
 		ExpiresAt: dbtypes.OptionalTime(in.ExpiresAt), MaxDownloads: dbtypes.OptionalInt8(in.MaxDownloads),
+		Permission: in.Permission,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create file share: %w", err)
 	}
-	publicURL := url.URL{Path: "/v1/public/shares/" + secret}
+	publicURL := url.URL{Path: "/share/" + secret}
 	return &Created{Row: row, Token: secret, PublicURL: publicURL}, nil
 }
 
@@ -167,7 +213,10 @@ func (s *Service) Update(ctx context.Context, in UpdateInput) (*sqlcgen.FileShar
 		(in.MaxDownloads != nil && in.ClearMaxDownloads) {
 		return nil, ErrInvalidInput
 	}
-	if in.Password == nil && !in.ClearPassword && in.ExpiresAt == nil && !in.ClearExpiresAt && in.MaxDownloads == nil && !in.ClearMaxDownloads {
+	if in.Password == nil && !in.ClearPassword && in.ExpiresAt == nil && !in.ClearExpiresAt && in.MaxDownloads == nil && !in.ClearMaxDownloads && in.Permission == nil {
+		return nil, ErrInvalidInput
+	}
+	if in.Permission != nil && !validPermission(*in.Permission) {
 		return nil, ErrInvalidInput
 	}
 	if in.ExpiresAt != nil && !in.ExpiresAt.After(s.now()) {
@@ -205,7 +254,7 @@ func (s *Service) Update(ctx context.Context, in UpdateInput) (*sqlcgen.FileShar
 		ClearPassword: in.ClearPassword, PasswordHash: dbtypes.OptionalText(passwordHash),
 		ClearExpiresAt: in.ClearExpiresAt, ExpiresAt: dbtypes.OptionalTime(in.ExpiresAt),
 		ClearMaxDownloads: in.ClearMaxDownloads, MaxDownloads: dbtypes.OptionalInt8(in.MaxDownloads),
-		ID: dbtypes.UUID(in.ShareID), OwnerID: in.OwnerID,
+		Permission: optionalPermission(in.Permission), ID: dbtypes.UUID(in.ShareID), OwnerID: in.OwnerID,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, ErrNotFound
@@ -268,6 +317,61 @@ func (s *Service) Resolve(ctx context.Context, token, password string) (*Public,
 	return &Public{Share: row, File: file}, nil
 }
 
+func (s *Service) ResolveFile(ctx context.Context, token, password string, fileID uuid.UUID) (*Public, error) {
+	if fileID == uuid.Nil {
+		return nil, ErrNotFound
+	}
+	resolved, err := s.Resolve(ctx, token, password)
+	if err != nil {
+		return nil, err
+	}
+	rootID, ok := dbtypes.GoogleUUID(resolved.File.ID)
+	if !ok {
+		return nil, ErrNotFound
+	}
+	if rootID == fileID {
+		return resolved, nil
+	}
+	if resolved.File.Kind != sqlcgen.FileKindFolder {
+		return nil, ErrNotFound
+	}
+	ids, err := s.queries.ListFileSubtreeIDs(ctx, sqlcgen.ListFileSubtreeIDsParams{FileID: dbtypes.UUID(rootID), UserID: resolved.Share.OwnerID})
+	if err != nil {
+		return nil, fmt.Errorf("list shared subtree: %w", err)
+	}
+	allowed := false
+	for _, id := range ids {
+		if value, ok := dbtypes.GoogleUUID(id); ok && value == fileID {
+			allowed = true
+			break
+		}
+	}
+	if !allowed {
+		return nil, ErrNotFound
+	}
+	file, err := s.catalog.Get(ctx, resolved.Share.OwnerID, fileID)
+	if err != nil {
+		return nil, err
+	}
+	if file.Status != sqlcgen.FileStatusActive {
+		return nil, ErrNotFound
+	}
+	return &Public{Share: resolved.Share, File: file}, nil
+}
+
+func (s *Service) ReserveFileDownload(ctx context.Context, token, password string, fileID uuid.UUID) (*Public, error) {
+	resolved, err := s.ResolveFile(ctx, token, password, fileID)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := s.queries.IncrementShareDownloadCount(ctx, resolved.Share.ID); errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrExpired
+	} else if err != nil {
+		return nil, fmt.Errorf("reserve share download: %w", err)
+	}
+	return resolved, nil
+}
+
 // ReserveDownload atomically consumes one allowed download before bytes are
 // exposed. A failed stream consumes the reservation, preventing concurrent
 // requests from exceeding max_downloads.
@@ -311,6 +415,165 @@ func (s *Service) resolveRow(ctx context.Context, token, password string) (*sqlc
 		}
 	}
 	return row, nil
+}
+
+func (s *Service) CreateGrant(ctx context.Context, in GrantCreateInput) (*sqlcgen.FileAccessGrant, error) {
+	in.Permission = normalizePermission(in.Permission)
+	if in.OwnerID <= 0 || in.GranteeID <= 0 || in.OwnerID == in.GranteeID || in.FileID == uuid.Nil || !validPermission(in.Permission) || (in.ExpiresAt != nil && !in.ExpiresAt.After(s.now())) {
+		return nil, ErrInvalidInput
+	}
+	if _, err := s.catalog.Get(ctx, in.OwnerID, in.FileID); err != nil {
+		return nil, err
+	}
+	user, err := s.queries.GetUser(ctx, in.GranteeID)
+	if errors.Is(err, pgx.ErrNoRows) || (err == nil && user.DisabledAt.Valid) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get grant recipient: %w", err)
+	}
+	row, err := s.queries.CreateFileAccessGrant(ctx, sqlcgen.CreateFileAccessGrantParams{
+		ID: dbtypes.UUID(uuid.New()), FileID: dbtypes.UUID(in.FileID), OwnerID: in.OwnerID, GranteeID: in.GranteeID,
+		Permission: in.Permission, ExpiresAt: dbtypes.OptionalTime(in.ExpiresAt),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create file access grant: %w", err)
+	}
+	return row, nil
+}
+
+func (s *Service) ListGrants(ctx context.Context, ownerID int64, fileID uuid.UUID) ([]*sqlcgen.ListFileAccessGrantsForOwnerRow, error) {
+	if ownerID <= 0 || fileID == uuid.Nil {
+		return nil, ErrInvalidInput
+	}
+	if _, err := s.catalog.Get(ctx, ownerID, fileID); err != nil {
+		return nil, err
+	}
+	rows, err := s.queries.ListFileAccessGrantsForOwner(ctx, sqlcgen.ListFileAccessGrantsForOwnerParams{OwnerID: ownerID, FileID: dbtypes.UUID(fileID)})
+	if err != nil {
+		return nil, fmt.Errorf("list file access grants: %w", err)
+	}
+	return rows, nil
+}
+
+func (s *Service) UpdateGrant(ctx context.Context, in GrantUpdateInput) (*sqlcgen.FileAccessGrant, error) {
+	if in.OwnerID <= 0 || in.GrantID == uuid.Nil || (in.Permission == nil && in.ExpiresAt == nil && !in.ClearExpiresAt) || (in.Permission != nil && !validPermission(*in.Permission)) || (in.ExpiresAt != nil && (!in.ExpiresAt.After(s.now()) || in.ClearExpiresAt)) {
+		return nil, ErrInvalidInput
+	}
+	row, err := s.queries.UpdateFileAccessGrant(ctx, sqlcgen.UpdateFileAccessGrantParams{
+		Permission: optionalPermission(in.Permission), ExpiresAt: dbtypes.OptionalTime(in.ExpiresAt), ClearExpiresAt: in.ClearExpiresAt,
+		ID: dbtypes.UUID(in.GrantID), OwnerID: in.OwnerID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("update file access grant: %w", err)
+	}
+	return row, nil
+}
+
+func (s *Service) RevokeGrant(ctx context.Context, ownerID int64, grantID uuid.UUID) error {
+	if ownerID <= 0 || grantID == uuid.Nil {
+		return ErrInvalidInput
+	}
+	count, err := s.queries.RevokeFileAccessGrant(ctx, sqlcgen.RevokeFileAccessGrantParams{ID: dbtypes.UUID(grantID), OwnerID: ownerID})
+	if err != nil {
+		return fmt.Errorf("revoke file access grant: %w", err)
+	}
+	if count == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
+func (s *Service) ListSharedWithMe(ctx context.Context, granteeID int64) ([]*sqlcgen.ListSharedWithMeRow, error) {
+	if granteeID <= 0 {
+		return nil, ErrInvalidInput
+	}
+	rows, err := s.queries.ListSharedWithMe(ctx, sqlcgen.ListSharedWithMeParams{GranteeID: granteeID, PageSize: 500})
+	if err != nil {
+		return nil, fmt.Errorf("list shared files: %w", err)
+	}
+	return rows, nil
+}
+
+func (s *Service) ResolveAccess(ctx context.Context, actorID int64, fileID uuid.UUID, requireEdit bool) (*Access, error) {
+	if actorID <= 0 || fileID == uuid.Nil {
+		return nil, ErrInvalidInput
+	}
+	file, err := s.queries.GetActiveFileAnyOwner(ctx, dbtypes.UUID(fileID))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("resolve file owner: %w", err)
+	}
+	if file.UserID == actorID {
+		return &Access{OwnerID: actorID, RootFileID: fileID, Permission: sqlcgen.SharePermissionEdit, Owned: true}, nil
+	}
+	grants, err := s.queries.ListActiveFileAccessGrantsForGrantee(ctx, sqlcgen.ListActiveFileAccessGrantsForGranteeParams{GranteeID: actorID, OwnerID: file.UserID})
+	if err != nil {
+		return nil, fmt.Errorf("list effective access grants: %w", err)
+	}
+	for _, grant := range grants {
+		if requireEdit && grant.Permission != sqlcgen.SharePermissionEdit {
+			continue
+		}
+		rootID, ok := dbtypes.GoogleUUID(grant.FileID)
+		if !ok {
+			continue
+		}
+		if rootID == fileID {
+			return &Access{OwnerID: file.UserID, RootFileID: rootID, Permission: grant.Permission}, nil
+		}
+		ids, err := s.queries.ListFileSubtreeIDs(ctx, sqlcgen.ListFileSubtreeIDsParams{FileID: grant.FileID, UserID: file.UserID})
+		if err != nil {
+			return nil, fmt.Errorf("resolve grant subtree: %w", err)
+		}
+		for _, id := range ids {
+			if candidate, ok := dbtypes.GoogleUUID(id); ok && candidate == fileID {
+				return &Access{OwnerID: file.UserID, RootFileID: rootID, Permission: grant.Permission}, nil
+			}
+		}
+	}
+	return nil, ErrForbidden
+}
+
+func (s *Service) ResolvePublicEditableFile(ctx context.Context, token, password string, fileID uuid.UUID) (*Public, error) {
+	resolved, err := s.ResolveFile(ctx, token, password, fileID)
+	if err != nil {
+		return nil, err
+	}
+	if resolved.Share.Permission != sqlcgen.SharePermissionEdit {
+		return nil, ErrForbidden
+	}
+	return resolved, nil
+}
+
+func (s *Service) ResolvePublicEditableParent(ctx context.Context, token, password string, parentID *uuid.UUID) (*Public, uuid.UUID, error) {
+	resolved, err := s.Resolve(ctx, token, password)
+	if err != nil {
+		return nil, uuid.Nil, err
+	}
+	if resolved.Share.Permission != sqlcgen.SharePermissionEdit || resolved.File.Kind != sqlcgen.FileKindFolder {
+		return nil, uuid.Nil, ErrForbidden
+	}
+	rootID, ok := dbtypes.GoogleUUID(resolved.File.ID)
+	if !ok {
+		return nil, uuid.Nil, ErrNotFound
+	}
+	if parentID == nil || *parentID == uuid.Nil || *parentID == rootID {
+		return resolved, rootID, nil
+	}
+	child, err := s.ResolvePublicEditableFile(ctx, token, password, *parentID)
+	if err != nil {
+		return nil, uuid.Nil, err
+	}
+	if child.File.Kind != sqlcgen.FileKindFolder {
+		return nil, uuid.Nil, ErrInvalidInput
+	}
+	return child, *parentID, nil
 }
 
 func (s *Service) newToken() (string, []byte, error) {

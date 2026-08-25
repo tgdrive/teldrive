@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -20,8 +21,8 @@ var ErrInvalid = errors.New("invalid configuration")
 type HTTP struct {
 	Address           string        `koanf:"address" default:"127.0.0.1:8080" validate:"required" description:"HTTP listen address"`
 	ReadHeaderTimeout time.Duration `koanf:"read-header-timeout" default:"10s" validate:"gte=0" description:"Maximum time to read request headers"`
-	ReadTimeout       time.Duration `koanf:"read-timeout" default:"0s" validate:"gte=0" description:"Maximum time to read an entire request; zero disables it for streaming uploads"`
-	WriteTimeout      time.Duration `koanf:"write-timeout" default:"0s" validate:"gte=0" description:"Maximum response write duration; zero disables it for streaming"`
+	ReadTimeout       time.Duration `koanf:"read-timeout" default:"1h" validate:"gte=0" description:"Maximum time to read an entire request; zero disables it for streaming uploads"`
+	WriteTimeout      time.Duration `koanf:"write-timeout" default:"1h" validate:"gte=0" description:"Maximum response write duration; zero disables it for streaming"`
 	IdleTimeout       time.Duration `koanf:"idle-timeout" default:"2m" validate:"gte=0" description:"HTTP keep-alive idle timeout"`
 	ShutdownTimeout   time.Duration `koanf:"shutdown-timeout" default:"10s" validate:"gte=0" description:"Graceful shutdown timeout"`
 	TrustedProxies    []string      `koanf:"trusted-proxies" default:"" description:"Proxy IP addresses or CIDRs trusted to set forwarding headers"`
@@ -104,7 +105,8 @@ type Events struct {
 }
 
 type Uploads struct {
-	SessionTTL time.Duration `koanf:"session-ttl" default:"168h" validate:"gt=0" description:"Lifetime of resumable upload sessions"`
+	SessionTTL       time.Duration `koanf:"session-ttl" default:"168h" validate:"gt=0" description:"Lifetime of resumable upload sessions"`
+	LocalImportRoots []string      `koanf:"local-import-roots" default:"" description:"Absolute server directories allowed as local background-upload sources; empty disables local imports"`
 }
 
 type StreamCache struct {
@@ -197,6 +199,12 @@ func (c Config) Validate() error {
 		if strings.TrimSpace(strings.TrimPrefix(username, "@")) == "" {
 			problems = append(problems, "security allowed users cannot contain an empty username")
 			break
+		}
+	}
+	for _, root := range c.Uploads.LocalImportRoots {
+		value := strings.TrimSpace(root)
+		if value == "" || !filepath.IsAbs(value) {
+			problems = append(problems, fmt.Sprintf("upload local import root %q must be an absolute path", root))
 		}
 	}
 	if c.Events.ReconnectMax < c.Events.ReconnectMin {

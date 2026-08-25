@@ -20,6 +20,10 @@ func TestServiceValidationAndUUIDConversion(t *testing.T) {
 	if err := s.Purge(context.Background(), 0, uuid.Nil); !errors.Is(err, ErrInvalidInput) {
 		t.Fatalf("Purge() error = %v", err)
 	}
+
+	if _, err := s.CleanTrash(context.Background(), 0); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("CleanTrash() error = %v", err)
+	}
 	ids := []uuid.UUID{uuid.New(), uuid.New()}
 	converted := pgUUIDs(ids)
 	if len(converted) != len(ids) {

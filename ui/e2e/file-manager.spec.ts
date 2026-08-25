@@ -61,6 +61,18 @@ async function installFileApi(page: Page) {
           displayName: "Fixture User",
           username: "fixture",
           premium: true,
+          role: "owner",
+          capabilities: [
+            "files.read",
+            "files.write",
+            "files.share",
+            "system.manageUsers",
+            "system.manageJobs",
+            "system.manageQueues",
+            "system.localImport",
+            "system.maintenance",
+            "system.owner",
+          ],
           createdAt: now,
         },
       });

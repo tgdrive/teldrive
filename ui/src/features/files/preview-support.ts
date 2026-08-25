@@ -65,7 +65,9 @@ const mediaTypes: Record<string, string> = {
 
 export type PreviewMediaKind = "image" | "video" | "audio";
 
-export function previewMedia(file: FileEntry): { kind: PreviewMediaKind; type: string } | undefined {
+export function previewMedia(
+  file: FileEntry,
+): { kind: PreviewMediaKind; type: string } | undefined {
   const mime = file.mimeType?.toLowerCase() || "";
   for (const kind of ["image", "video", "audio"] as const) {
     if (mime.startsWith(`${kind}/`)) return { kind, type: mime };

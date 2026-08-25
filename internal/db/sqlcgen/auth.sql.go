@@ -11,6 +11,15 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const acquireUserBootstrapLock = `-- name: AcquireUserBootstrapLock :exec
+SELECT pg_advisory_xact_lock(846742351)
+`
+
+func (q *Queries) AcquireUserBootstrapLock(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, acquireUserBootstrapLock)
+	return err
+}
+
 const completeTelegramLoginFlow = `-- name: CompleteTelegramLoginFlow :one
 UPDATE /* TEMPLATE: schema */telegram_login_flows
 SET completed_at = now()
@@ -353,7 +362,7 @@ func (q *Queries) GetTelegramLoginFlowForUpdate(ctx context.Context, id pgtype.U
 }
 
 const getUser = `-- name: GetUser :one
-SELECT user_id, display_name, username, premium, created_at, updated_at
+SELECT user_id, display_name, username, premium, created_at, updated_at, role, disabled_at
 FROM /* TEMPLATE: schema */users
 WHERE user_id = $1
 `
@@ -368,6 +377,8 @@ func (q *Queries) GetUser(ctx context.Context, userID int64) (*User, error) {
 		&i.Premium,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Role,
+		&i.DisabledAt,
 	)
 	return &i, err
 }
@@ -487,6 +498,53 @@ func (q *Queries) ListSessions(ctx context.Context, arg ListSessionsParams) ([]*
 	return items, nil
 }
 
+const listUsers = `-- name: ListUsers :many
+SELECT user_id, display_name, username, premium, created_at, updated_at, role, disabled_at
+FROM /* TEMPLATE: schema */users
+WHERE (
+    $1::text IS NULL
+    OR display_name ILIKE '%' || $1::text || '%'
+    OR username ILIKE '%' || $1::text || '%'
+    OR user_id::text = $1::text
+)
+ORDER BY created_at ASC, user_id ASC
+LIMIT $2
+`
+
+type ListUsersParams struct {
+	Search   pgtype.Text `json:"search"`
+	PageSize int32       `json:"page_size"`
+}
+
+func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]*User, error) {
+	rows, err := q.db.Query(ctx, listUsers, arg.Search, arg.PageSize)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*User{}
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.UserID,
+			&i.DisplayName,
+			&i.Username,
+			&i.Premium,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Role,
+			&i.DisabledAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const revokeAPIKey = `-- name: RevokeAPIKey :execrows
 UPDATE /* TEMPLATE: schema */api_keys
 SET revoked_at = now()
@@ -502,6 +560,36 @@ type RevokeAPIKeyParams struct {
 
 func (q *Queries) RevokeAPIKey(ctx context.Context, arg RevokeAPIKeyParams) (int64, error) {
 	result, err := q.db.Exec(ctx, revokeAPIKey, arg.ID, arg.UserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const revokeAllAPIKeysForUser = `-- name: RevokeAllAPIKeysForUser :execrows
+UPDATE /* TEMPLATE: schema */api_keys
+SET revoked_at = COALESCE(revoked_at, now())
+WHERE user_id = $1
+  AND revoked_at IS NULL
+`
+
+func (q *Queries) RevokeAllAPIKeysForUser(ctx context.Context, userID int64) (int64, error) {
+	result, err := q.db.Exec(ctx, revokeAllAPIKeysForUser, userID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const revokeAllSessionsForUser = `-- name: RevokeAllSessionsForUser :execrows
+UPDATE /* TEMPLATE: schema */sessions
+SET revoked_at = COALESCE(revoked_at, now())
+WHERE user_id = $1
+  AND revoked_at IS NULL
+`
+
+func (q *Queries) RevokeAllSessionsForUser(ctx context.Context, userID int64) (int64, error) {
+	result, err := q.db.Exec(ctx, revokeAllSessionsForUser, userID)
 	if err != nil {
 		return 0, err
 	}
@@ -557,6 +645,85 @@ func (q *Queries) RotateSessionRefreshToken(ctx context.Context, arg RotateSessi
 		&i.LastUsedAt,
 		&i.RevokedAt,
 		&i.CreatedAt,
+	)
+	return &i, err
+}
+
+const searchUsersForShare = `-- name: SearchUsersForShare :many
+SELECT user_id, display_name, username, premium, created_at, updated_at, role, disabled_at
+FROM /* TEMPLATE: schema */users
+WHERE user_id <> $1
+  AND disabled_at IS NULL
+  AND (
+    display_name ILIKE '%' || $2::text || '%'
+    OR username ILIKE '%' || $2::text || '%'
+    OR user_id::text = $2::text
+  )
+ORDER BY username ASC NULLS LAST, display_name ASC NULLS LAST, user_id ASC
+LIMIT $3
+`
+
+type SearchUsersForShareParams struct {
+	ExcludeUserID int64  `json:"exclude_user_id"`
+	Search        string `json:"search"`
+	PageSize      int32  `json:"page_size"`
+}
+
+func (q *Queries) SearchUsersForShare(ctx context.Context, arg SearchUsersForShareParams) ([]*User, error) {
+	rows, err := q.db.Query(ctx, searchUsersForShare, arg.ExcludeUserID, arg.Search, arg.PageSize)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*User{}
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.UserID,
+			&i.DisplayName,
+			&i.Username,
+			&i.Premium,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Role,
+			&i.DisabledAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const setUserDisabled = `-- name: SetUserDisabled :one
+UPDATE /* TEMPLATE: schema */users
+SET disabled_at = CASE WHEN $1::boolean THEN COALESCE(disabled_at, now()) ELSE NULL END,
+    updated_at = now()
+WHERE user_id = $2
+  AND role <> 'owner'
+RETURNING user_id, display_name, username, premium, created_at, updated_at, role, disabled_at
+`
+
+type SetUserDisabledParams struct {
+	Disabled bool  `json:"disabled"`
+	UserID   int64 `json:"user_id"`
+}
+
+func (q *Queries) SetUserDisabled(ctx context.Context, arg SetUserDisabledParams) (*User, error) {
+	row := q.db.QueryRow(ctx, setUserDisabled, arg.Disabled, arg.UserID)
+	var i User
+	err := row.Scan(
+		&i.UserID,
+		&i.DisplayName,
+		&i.Username,
+		&i.Premium,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Role,
+		&i.DisabledAt,
 	)
 	return &i, err
 }
@@ -638,24 +805,59 @@ func (q *Queries) UpdateTelegramLoginFlowState(ctx context.Context, arg UpdateTe
 	return &i, err
 }
 
+const updateUserRole = `-- name: UpdateUserRole :one
+UPDATE /* TEMPLATE: schema */users
+SET role = $1, updated_at = now()
+WHERE user_id = $2
+  AND role <> 'owner'
+  AND $1::/* TEMPLATE: schema */user_role IN ('admin', 'user')
+RETURNING user_id, display_name, username, premium, created_at, updated_at, role, disabled_at
+`
+
+type UpdateUserRoleParams struct {
+	Role   UserRole `json:"role"`
+	UserID int64    `json:"user_id"`
+}
+
+func (q *Queries) UpdateUserRole(ctx context.Context, arg UpdateUserRoleParams) (*User, error) {
+	row := q.db.QueryRow(ctx, updateUserRole, arg.Role, arg.UserID)
+	var i User
+	err := row.Scan(
+		&i.UserID,
+		&i.DisplayName,
+		&i.Username,
+		&i.Premium,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Role,
+		&i.DisabledAt,
+	)
+	return &i, err
+}
+
 const upsertUser = `-- name: UpsertUser :one
 INSERT INTO /* TEMPLATE: schema */users (
     user_id,
     display_name,
     username,
-    premium
+    premium,
+    role
 ) VALUES (
     $1,
     $2,
     $3,
-    $4
+    $4,
+    CASE
+        WHEN EXISTS (SELECT 1 FROM /* TEMPLATE: schema */users) THEN 'user'::/* TEMPLATE: schema */user_role
+        ELSE 'owner'::/* TEMPLATE: schema */user_role
+    END
 )
 ON CONFLICT (user_id) DO UPDATE
 SET display_name = EXCLUDED.display_name,
     username = EXCLUDED.username,
     premium = EXCLUDED.premium,
     updated_at = now()
-RETURNING user_id, display_name, username, premium, created_at, updated_at
+RETURNING user_id, display_name, username, premium, created_at, updated_at, role, disabled_at
 `
 
 type UpsertUserParams struct {
@@ -680,6 +882,8 @@ func (q *Queries) UpsertUser(ctx context.Context, arg UpsertUserParams) (*User, 
 		&i.Premium,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Role,
+		&i.DisabledAt,
 	)
 	return &i, err
 }

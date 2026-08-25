@@ -111,15 +111,20 @@ func (UploadSourceArgs) InsertOpts() river.InsertOpts {
 
 type UploadBatchWorker struct {
 	river.WorkerDefaults[UploadBatchArgs]
-	httpClient *http.Client
-	catalog    *catalog.Service
+	httpClient       *http.Client
+	catalog          *catalog.Service
+	localImportRoots []string
 }
 
-func NewUploadBatchWorker(httpClient *http.Client, catalogService *catalog.Service) *UploadBatchWorker {
+func NewUploadBatchWorker(httpClient *http.Client, catalogService *catalog.Service, localImportRoots ...[]string) *UploadBatchWorker {
 	if httpClient == nil {
 		httpClient = NewUploadHTTPClient()
 	}
-	return &UploadBatchWorker{httpClient: httpClient, catalog: catalogService}
+	var roots []string
+	if len(localImportRoots) > 0 {
+		roots = append([]string(nil), localImportRoots[0]...)
+	}
+	return &UploadBatchWorker{httpClient: httpClient, catalog: catalogService, localImportRoots: roots}
 }
 
 func (w *UploadBatchWorker) Timeout(*river.Job[UploadBatchArgs]) time.Duration { return time.Hour }
@@ -213,6 +218,9 @@ func (w *UploadBatchWorker) resolveDestination(ctx context.Context, args UploadB
 func (w *UploadBatchWorker) expand(ctx context.Context, source UploadSource, defaults map[string]string, batchFilter uploadFilter) ([]UploadFileSource, error) {
 	switch source.Type {
 	case "local":
+		if err := validateLocalImportSource(source.Path, w.localImportRoots); err != nil {
+			return nil, err
+		}
 		return expandLocalSource(source, batchFilter)
 	case "http":
 		file, err := inspectHTTPSource(ctx, w.httpClient, source, defaults)
@@ -831,6 +839,35 @@ func compileUploadGlob(pattern string) (*regexp.Regexp, error) {
 		return nil, fmt.Errorf("%w: exclusion %q: %v", errInvalidUploadSource, pattern, err)
 	}
 	return compiled, nil
+}
+
+func validateLocalImportSource(location string, roots []string) error {
+	location = filepath.Clean(strings.TrimSpace(location))
+	if !filepath.IsAbs(location) {
+		return fmt.Errorf("%w: local path must be absolute", errInvalidUploadSource)
+	}
+	if len(roots) == 0 {
+		return fmt.Errorf("%w: local imports are disabled", errInvalidUploadSource)
+	}
+	resolvedLocation, err := filepath.EvalSymlinks(location)
+	if err != nil {
+		return fmt.Errorf("inspect local upload source: %w", err)
+	}
+	for _, configuredRoot := range roots {
+		root := filepath.Clean(strings.TrimSpace(configuredRoot))
+		if !filepath.IsAbs(root) {
+			continue
+		}
+		resolvedRoot, err := filepath.EvalSymlinks(root)
+		if err != nil {
+			continue
+		}
+		relative, err := filepath.Rel(resolvedRoot, resolvedLocation)
+		if err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+			return nil
+		}
+	}
+	return fmt.Errorf("%w: local path is outside configured import roots", errInvalidUploadSource)
 }
 
 func expandLocalSource(source UploadSource, batchFilter uploadFilter) ([]UploadFileSource, error) {

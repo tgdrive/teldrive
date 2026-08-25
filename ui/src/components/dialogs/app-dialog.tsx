@@ -33,7 +33,7 @@ export function AppDialog({
   return (
     <Modal.Backdrop isOpen={open} onOpenChange={onOpenChange} isDismissable={isDismissable}>
       <Modal.Container size={size} scroll="inside">
-        <Modal.Dialog className={cn(DEFAULT_DIALOG_CLASS,className)}>
+        <Modal.Dialog className={cn(DEFAULT_DIALOG_CLASS, className)}>
           <Modal.CloseTrigger />
           <Modal.Header className={headerClassName}>
             <Modal.Heading>{title}</Modal.Heading>

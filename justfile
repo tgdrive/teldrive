@@ -45,7 +45,7 @@ generate-api: generate-openapi
 # Generate the typed PostgreSQL query layer.
 generate-db:
     sqlc generate
-    python3 hack/patch-sqlc-schema.py
+    go run ./internal/tools/patchsqlc
 
 generate-ui: generate-openapi
     bun run --cwd {{ui_dir}} generate:api
@@ -54,7 +54,7 @@ generate: generate-api generate-db generate-ui
     go mod tidy
 
 ui-e2e:
-    ./hack/test-ui.sh
+    ./scripts/test-ui.sh
 
 ui-check: generate-ui
     bun run --cwd {{ui_dir}} lint
@@ -116,13 +116,13 @@ test-unit:
     go test ./...
 
 test-integration:
-    ./hack/test-postgres.sh go test -tags=integration ./...
+    ./scripts/test-postgres.sh go test -tags=integration ./...
 
 test-race:
-    ./hack/test-postgres.sh go test -race -tags=integration ./...
+    ./scripts/test-postgres.sh go test -race -tags=integration ./...
 
 coverage:
-    ./hack/coverage.sh
+    ./scripts/coverage.sh
 
 check: generate lint test-unit coverage
     bun run --cwd {{ui_dir}} typecheck

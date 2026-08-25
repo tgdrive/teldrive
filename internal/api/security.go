@@ -50,6 +50,19 @@ func UserIDFromContext(ctx context.Context) (int64, error) {
 	return identity.UserID, nil
 }
 
+func HasRole(ctx context.Context, role string) bool {
+	identity, ok := IdentityFromContext(ctx)
+	if !ok {
+		return false
+	}
+	for _, candidate := range identity.Roles {
+		if candidate == role {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *Security) HandleBearerAuth(ctx context.Context, _ gen.OperationName, auth gen.BearerAuth) (context.Context, error) {
 	if s == nil || s.authenticator == nil || strings.TrimSpace(auth.Token) == "" {
 		return ctx, ErrUnauthenticated

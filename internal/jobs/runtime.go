@@ -71,6 +71,7 @@ type UploaderServices struct {
 	Pipeline         *transfer.Pipeline
 	HTTPClient       *http.Client
 	ActiveKeyVersion int32
+	LocalImportRoots []string
 }
 
 func NewRuntimeWithServices(pool *pgxpool.Pool, storage telegramstore.Storage, schema string, botService *bots.Service, encryptor riverencrypt.Encryptor, uploadSessionTTL time.Duration, uploader UploaderServices, purgeServices ...PurgeService) (*Runtime, error) {
@@ -119,7 +120,7 @@ func newRuntimeWithSchema(pool *pgxpool.Pool, storage telegramstore.Storage, sch
 		if uploader.HTTPClient == nil {
 			uploader.HTTPClient = NewUploadHTTPClient()
 		}
-		if err := river.AddWorkerSafely(workers, NewUploadBatchWorker(uploader.HTTPClient, uploader.Catalog)); err != nil {
+		if err := river.AddWorkerSafely(workers, NewUploadBatchWorker(uploader.HTTPClient, uploader.Catalog, uploader.LocalImportRoots)); err != nil {
 			return nil, fmt.Errorf("register upload batch worker: %w", err)
 		}
 		if err := river.AddWorkerSafely(workers, NewUploadSourceWorker(pool, uploader.Catalog, uploader.Uploads, uploader.Pipeline, uploader.HTTPClient, uploader.ActiveKeyVersion)); err != nil {

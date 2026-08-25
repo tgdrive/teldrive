@@ -77,11 +77,11 @@ func TestLoginRefreshAPIKeyAndLogoutAgainstRealPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AuthenticateBearer() error = %v", err)
 	}
-	if identity.UserID != 1001 || identity.SessionID == uuid.Nil || identity.Source != "bearer" {
+	if identity.UserID != 1001 || identity.SessionID == uuid.Nil || identity.Source != "bearer" || !containsRole(identity.Roles, "owner") {
 		t.Fatalf("identity = %#v", identity)
 	}
 	user, err := service.GetUser(ctx, 1001)
-	if err != nil || user.UserID != 1001 || !user.Premium {
+	if err != nil || user.UserID != 1001 || !user.Premium || user.Role != sqlcgen.UserRoleOwner {
 		t.Fatalf("GetUser() = %#v, %v", user, err)
 	}
 
@@ -378,4 +378,13 @@ func (f *fakeQRLogin) PollQR(context.Context, []byte) (LoginStep, error) {
 		User:    &TelegramUser{ID: userID, DisplayName: "QR User", Username: f.username},
 		Session: []byte("qr-authorized-session"),
 	}, nil
+}
+
+func containsRole(roles []string, target string) bool {
+	for _, role := range roles {
+		if role == target {
+			return true
+		}
+	}
+	return false
 }

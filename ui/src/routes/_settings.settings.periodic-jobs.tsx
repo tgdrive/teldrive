@@ -327,7 +327,13 @@ function PeriodicJobCard({
           >
             {job.paused ? <PlayIcon className="size-4" /> : <PauseIcon className="size-4" />}
           </Button>
-          <Button isIconOnly size="sm" variant="tertiary" aria-label={`Edit ${job.id}`} onPress={onEdit}>
+          <Button
+            isIconOnly
+            size="sm"
+            variant="tertiary"
+            aria-label={`Edit ${job.id}`}
+            onPress={onEdit}
+          >
             <EditIcon className="size-4" />
           </Button>
           <Button

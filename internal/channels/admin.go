@@ -159,13 +159,10 @@ func (s *Service) Delete(ctx context.Context, userID, channelID int64) error {
 	}
 	count, err := s.queries.DeleteChannel(ctx, sqlcgen.DeleteChannelParams{UserID: userID, ChannelID: channelID})
 	if err != nil {
-		_, _ = s.queries.UpdateChannelHealth(ctx, sqlcgen.UpdateChannelHealthParams{
-			Health: sqlcgen.ChannelHealthUnavailable, UserID: userID, ChannelID: channelID,
-		})
 		return fmt.Errorf("delete channel record: %w", err)
 	}
 	if count == 0 {
-		return ErrSelectedChannel
+		return ErrInvalidChannel
 	}
 	return nil
 }

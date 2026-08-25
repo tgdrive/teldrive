@@ -12,6 +12,8 @@ export function useFileActions() {
   const trashMutation = $api.useMutation("delete", "/v1/files/{fileId}");
   const restoreMutation = $api.useMutation("post", "/v1/files/{fileId}/restore");
   const purgeMutation = $api.useMutation("delete", "/v1/files/{fileId}/purge");
+
+  const cleanTrashMutation = $api.useMutation("delete", "/v1/files/trash");
   const bulkMoveMutation = $api.useMutation("post", "/v1/files/bulk/move");
   const bulkTrashMutation = $api.useMutation("post", "/v1/files/bulk/trash");
 
@@ -103,6 +105,13 @@ export function useFileActions() {
     return result;
   }
 
+
+  async function cleanTrash() {
+    const result = await cleanTrashMutation.mutateAsync({});
+    await invalidateFiles();
+    return result;
+  }
+
   async function bulkMove(fileIds: string[], parentId?: string) {
     const result = await bulkMoveMutation.mutateAsync({
       params: { header: { "Idempotency-Key": newIdempotencyKey() } },
@@ -135,12 +144,6 @@ export function useFileActions() {
     await invalidateFiles();
   }
 
-  async function bulkPurge(fileIds: string[]) {
-    await Promise.all(
-      fileIds.map((fileId) => purgeMutation.mutateAsync({ params: { path: { fileId } } })),
-    );
-    await invalidateFiles();
-  }
 
   const mutations = [
     createFolderMutation,
@@ -150,6 +153,8 @@ export function useFileActions() {
     trashMutation,
     restoreMutation,
     purgeMutation,
+
+    cleanTrashMutation,
     bulkMoveMutation,
     bulkTrashMutation,
   ];
@@ -162,10 +167,11 @@ export function useFileActions() {
     trash,
     restore,
     purge,
+
+    cleanTrash,
     bulkMove,
     bulkTrash,
     bulkRestore,
-    bulkPurge,
     pending: mutations.some((mutation) => mutation.isPending),
     error: mutations.find((mutation) => mutation.isError)?.error,
   };

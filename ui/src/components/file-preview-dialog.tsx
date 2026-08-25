@@ -43,13 +43,6 @@ export function FilePreviewDialog({
 
   useEffect(() => {
     if (!file) return;
-    if (kind === "video") {
-      clearTimeout(saveTimer.current);
-      setLoadingState(false);
-      setState(undefined);
-      setStateLoadedFor(file.id);
-      return () => clearTimeout(saveTimer.current);
-    }
     const controller = new AbortController();
     setLoadingState(true);
     setStateLoadedFor(undefined);
@@ -226,7 +219,12 @@ export function FilePreviewDialog({
             ) : null}
             {stateLoadedFor === file.id && kind === "video" ? (
               <Suspense fallback={<ViewerLoading label="Loading video player" />}>
-                <VideoViewer file={file} url={contentUrl} />
+                <VideoViewer
+                  file={file}
+                  url={contentUrl}
+                  initialTime={numberValue(state?.position.seconds)}
+                  onProgress={(seconds) => savePosition({ seconds })}
+                />
               </Suspense>
             ) : null}
             {stateLoadedFor === file.id && kind === "audio" ? (

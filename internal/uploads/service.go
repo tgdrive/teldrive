@@ -180,6 +180,20 @@ func (s *Service) Get(ctx context.Context, userID int64, uploadID uuid.UUID) (*s
 	return session, nil
 }
 
+func (s *Service) GetAnyOwner(ctx context.Context, uploadID uuid.UUID) (*sqlcgen.UploadSession, error) {
+	if uploadID == uuid.Nil {
+		return nil, ErrInvalidInput
+	}
+	session, err := s.queries.GetUploadSessionAnyOwner(ctx, dbtypes.UUID(uploadID))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get upload by id: %w", err)
+	}
+	return session, nil
+}
+
 // GetPart returns one upload part after verifying ownership of its session.
 func (s *Service) GetPart(ctx context.Context, userID int64, uploadID uuid.UUID, partNo int32) (*sqlcgen.UploadPart, error) {
 	if userID <= 0 || uploadID == uuid.Nil || partNo <= 0 {

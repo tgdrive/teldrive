@@ -32,7 +32,7 @@ func New(t testing.TB) *Database {
 
 	baseURL := os.Getenv(testDatabaseEnv)
 	if baseURL == "" {
-		t.Fatalf("%s is required; run tests through hack/test-postgres.sh", testDatabaseEnv)
+		t.Fatalf("%s is required; run tests through scripts/test-postgres.sh", testDatabaseEnv)
 	}
 
 	adminURL, err := withDatabase(baseURL, "postgres")

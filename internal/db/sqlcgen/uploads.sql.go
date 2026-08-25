@@ -533,6 +533,40 @@ func (q *Queries) GetUploadPart(ctx context.Context, arg GetUploadPartParams) (*
 	return &i, err
 }
 
+const getUploadSessionAnyOwner = `-- name: GetUploadSessionAnyOwner :one
+SELECT id, user_id, parent_id, name, normalized_name, expected_size, expected_hash_algorithm, expected_hash_value, mime_type, mod_time, encryption, encryption_key_version, conflict_policy, part_size, state, file_id, expires_at, created_at, updated_at, completed_at
+FROM /* TEMPLATE: schema */upload_sessions
+WHERE id = $1
+`
+
+func (q *Queries) GetUploadSessionAnyOwner(ctx context.Context, uploadID pgtype.UUID) (*UploadSession, error) {
+	row := q.db.QueryRow(ctx, getUploadSessionAnyOwner, uploadID)
+	var i UploadSession
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.ParentID,
+		&i.Name,
+		&i.NormalizedName,
+		&i.ExpectedSize,
+		&i.ExpectedHashAlgorithm,
+		&i.ExpectedHashValue,
+		&i.MimeType,
+		&i.ModTime,
+		&i.Encryption,
+		&i.EncryptionKeyVersion,
+		&i.ConflictPolicy,
+		&i.PartSize,
+		&i.State,
+		&i.FileID,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CompletedAt,
+	)
+	return &i, err
+}
+
 const getUploadSessionForUser = `-- name: GetUploadSessionForUser :one
 SELECT id, user_id, parent_id, name, normalized_name, expected_size, expected_hash_algorithm, expected_hash_value, mime_type, mod_time, encryption, encryption_key_version, conflict_policy, part_size, state, file_id, expires_at, created_at, updated_at, completed_at
 FROM /* TEMPLATE: schema */upload_sessions

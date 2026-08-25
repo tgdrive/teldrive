@@ -30,7 +30,7 @@ core_patterns=(
 mapfile -t core_packages < <(go list "${core_patterns[@]}")
 coverpkg="$(IFS=,; echo "${core_packages[*]}")"
 
-./hack/test-postgres.sh go test \
+./scripts/test-postgres.sh go test \
   -tags=integration \
   -covermode=atomic \
   -coverpkg="$coverpkg" \

@@ -484,6 +484,15 @@ SET status = 'deletion_pending',
 WHERE user_id = sqlc.arg(user_id)
   AND id = ANY(sqlc.arg(file_ids)::uuid[]);
 
+
+-- name: MarkAllTrashedDeletionPending :execrows
+UPDATE /* TEMPLATE: schema */files
+SET status = 'deletion_pending',
+    deleted_at = COALESCE(deleted_at, now()),
+    updated_at = now()
+WHERE user_id = sqlc.arg(user_id)
+  AND status = 'trashed';
+
 -- name: ListFilePartMessageRefs :many
 SELECT channel_id, message_id
 FROM /* TEMPLATE: schema */file_parts
