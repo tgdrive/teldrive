@@ -153,7 +153,7 @@ LIMIT sqlc.arg(page_size);
 
 
 -- name: ListSharedWithMe :many
-SELECT f.*
+SELECT f.*, g.permission
 FROM /* TEMPLATE: schema */file_access_grants g
 JOIN /* TEMPLATE: schema */files f ON f.id = g.file_id AND f.user_id = g.owner_id
 WHERE g.grantee_id = sqlc.arg(grantee_id)

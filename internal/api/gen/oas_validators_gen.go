@@ -2190,7 +2190,7 @@ func (s ListSharedOKApplicationJSON) Validate() error {
 }
 
 func (s ListSharedWithMeOKApplicationJSON) Validate() error {
-	alias := ([]FileEntry)(s)
+	alias := ([]SharedWithMeEntry)(s)
 	if alias == nil {
 		return errors.New("nil is invalid value")
 	}
@@ -2766,6 +2766,40 @@ func (s *ShareUpdateRequest) Validate() error {
 			}(); err != nil {
 				return err
 			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "permission",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s *SharedWithMeEntry) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if err := s.File.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "file",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if err := s.Permission.Validate(); err != nil {
+			return err
 		}
 		return nil
 	}(); err != nil {

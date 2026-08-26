@@ -229,9 +229,9 @@ VALUES
 	if err != nil || len(sharedWithMe) != 1 {
 		t.Fatalf("ListSharedWithMe(grantee) = %#v, %v", sharedWithMe, err)
 	}
-	sharedWithMeID, _ := dbtypes.GoogleUUID(sharedWithMe[0].ID)
-	if sharedWithMeID != rootID {
-		t.Fatalf("ListSharedWithMe(grantee) file = %s, want %s", sharedWithMeID, rootID)
+	sharedWithMeID, _ := dbtypes.GoogleUUID(sharedWithMe[0].File.ID)
+	if sharedWithMeID != rootID || sharedWithMe[0].Permission != sqlcgen.SharePermissionRead {
+		t.Fatalf("ListSharedWithMe(grantee) = %#v, want file %s with read permission", sharedWithMe[0], rootID)
 	}
 
 	grantID, _ := dbtypes.GoogleUUID(grant.ID)
@@ -241,6 +241,11 @@ VALUES
 	}
 	if access, err := service.ResolveAccess(ctx, 2002, childID, true); err != nil || access.Permission != sqlcgen.SharePermissionEdit {
 		t.Fatalf("ResolveAccess(edit) = %#v, %v", access, err)
+
+		sharedWithMe, err = service.ListSharedWithMe(ctx, 2002)
+		if err != nil || len(sharedWithMe) != 1 || sharedWithMe[0].Permission != sqlcgen.SharePermissionEdit {
+			t.Fatalf("ListSharedWithMe(after edit) = %#v, %v", sharedWithMe, err)
+		}
 	}
 	if err := service.RevokeGrant(ctx, 1001, grantID); err != nil {
 		t.Fatalf("RevokeGrant() error = %v", err)

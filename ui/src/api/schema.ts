@@ -2050,6 +2050,10 @@ export interface components {
             /** @default false */
             clearExpiresAt: boolean;
         };
+        SharedWithMeEntry: {
+            file: components["schemas"]["FileEntry"];
+            permission: components["schemas"]["SharePermission"];
+        };
         PublicShare: {
             id: components["schemas"]["Uuid"];
             file: components["schemas"]["FileEntry"];
@@ -6252,7 +6256,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["FileEntry"][];
+                    "application/json": components["schemas"]["SharedWithMeEntry"][];
                 };
             };
             /** @description Access is unauthorized. */

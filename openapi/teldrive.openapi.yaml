@@ -3522,7 +3522,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/FileEntry"
+                  $ref: "#/components/schemas/SharedWithMeEntry"
         "401":
           description: Access is unauthorized.
           content:
@@ -7023,6 +7023,16 @@ components:
         clearExpiresAt:
           type: boolean
           default: false
+    SharedWithMeEntry:
+      type: object
+      required:
+        - file
+        - permission
+      properties:
+        file:
+          $ref: "#/components/schemas/FileEntry"
+        permission:
+          $ref: "#/components/schemas/SharePermission"
     PublicShare:
       type: object
       required:

@@ -42,6 +42,11 @@ type Public struct {
 	File  *sqlcgen.File
 }
 
+type SharedWithMe struct {
+	File       *sqlcgen.File
+	Permission sqlcgen.SharePermission
+}
+
 type CreateInput struct {
 	OwnerID      int64
 	FileID       uuid.UUID
@@ -498,7 +503,7 @@ func (s *Service) ListShared(ctx context.Context, ownerID int64) ([]*sqlcgen.Fil
 	return rows, nil
 }
 
-func (s *Service) ListSharedWithMe(ctx context.Context, granteeID int64) ([]*sqlcgen.File, error) {
+func (s *Service) ListSharedWithMe(ctx context.Context, granteeID int64) ([]SharedWithMe, error) {
 	if granteeID <= 0 {
 		return nil, ErrInvalidInput
 	}
@@ -506,7 +511,18 @@ func (s *Service) ListSharedWithMe(ctx context.Context, granteeID int64) ([]*sql
 	if err != nil {
 		return nil, fmt.Errorf("list files shared with user: %w", err)
 	}
-	return rows, nil
+	out := make([]SharedWithMe, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, SharedWithMe{File: &sqlcgen.File{
+			ID: row.ID, UserID: row.UserID, ParentID: row.ParentID, Name: row.Name,
+			NormalizedName: row.NormalizedName, Kind: row.Kind, MimeType: row.MimeType,
+			Size: row.Size, HashAlgorithm: row.HashAlgorithm, HashValue: row.HashValue,
+			Encryption: row.Encryption, EncryptionKeyVersion: row.EncryptionKeyVersion,
+			Status: row.Status, ModTime: row.ModTime, Generation: row.Generation,
+			CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, DeletedAt: row.DeletedAt,
+		}, Permission: row.Permission})
+	}
+	return out, nil
 }
 
 func (s *Service) ResolveAccess(ctx context.Context, actorID int64, fileID uuid.UUID, requireEdit bool) (*Access, error) {

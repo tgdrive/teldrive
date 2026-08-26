@@ -6643,7 +6643,7 @@ type ListSharedOKApplicationJSON []FileEntry
 
 func (*ListSharedOKApplicationJSON) listSharedRes() {}
 
-type ListSharedWithMeOKApplicationJSON []FileEntry
+type ListSharedWithMeOKApplicationJSON []SharedWithMeEntry
 
 func (*ListSharedWithMeOKApplicationJSON) listSharedWithMeRes() {}
 
@@ -9808,6 +9808,32 @@ func (s *ShareUpdateRequest) SetClearMaxDownloads(val OptBool) {
 
 // SetPermission sets the value of Permission.
 func (s *ShareUpdateRequest) SetPermission(val OptSharePermission) {
+	s.Permission = val
+}
+
+// Ref: #/components/schemas/SharedWithMeEntry
+type SharedWithMeEntry struct {
+	File       FileEntry       `json:"file"`
+	Permission SharePermission `json:"permission"`
+}
+
+// GetFile returns the value of File.
+func (s *SharedWithMeEntry) GetFile() FileEntry {
+	return s.File
+}
+
+// GetPermission returns the value of Permission.
+func (s *SharedWithMeEntry) GetPermission() SharePermission {
+	return s.Permission
+}
+
+// SetFile sets the value of File.
+func (s *SharedWithMeEntry) SetFile(val FileEntry) {
+	s.File = val
+}
+
+// SetPermission sets the value of Permission.
+func (s *SharedWithMeEntry) SetPermission(val SharePermission) {
 	s.Permission = val
 }
 

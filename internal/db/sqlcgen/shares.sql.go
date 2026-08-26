@@ -545,7 +545,7 @@ func (q *Queries) ListShared(ctx context.Context, arg ListSharedParams) ([]*File
 }
 
 const listSharedWithMe = `-- name: ListSharedWithMe :many
-SELECT f.id, f.user_id, f.parent_id, f.name, f.normalized_name, f.kind, f.mime_type, f.size, f.hash_algorithm, f.hash_value, f.encryption, f.encryption_key_version, f.status, f.mod_time, f.generation, f.created_at, f.updated_at, f.deleted_at
+SELECT f.id, f.user_id, f.parent_id, f.name, f.normalized_name, f.kind, f.mime_type, f.size, f.hash_algorithm, f.hash_value, f.encryption, f.encryption_key_version, f.status, f.mod_time, f.generation, f.created_at, f.updated_at, f.deleted_at, g.permission
 FROM /* TEMPLATE: schema */file_access_grants g
 JOIN /* TEMPLATE: schema */files f ON f.id = g.file_id AND f.user_id = g.owner_id
 WHERE g.grantee_id = $1
@@ -561,15 +561,37 @@ type ListSharedWithMeParams struct {
 	PageSize  int32 `json:"page_size"`
 }
 
-func (q *Queries) ListSharedWithMe(ctx context.Context, arg ListSharedWithMeParams) ([]*File, error) {
+type ListSharedWithMeRow struct {
+	ID                   pgtype.UUID        `json:"id"`
+	UserID               int64              `json:"user_id"`
+	ParentID             pgtype.UUID        `json:"parent_id"`
+	Name                 string             `json:"name"`
+	NormalizedName       string             `json:"normalized_name"`
+	Kind                 FileKind           `json:"kind"`
+	MimeType             pgtype.Text        `json:"mime_type"`
+	Size                 pgtype.Int8        `json:"size"`
+	HashAlgorithm        pgtype.Text        `json:"hash_algorithm"`
+	HashValue            pgtype.Text        `json:"hash_value"`
+	Encryption           bool               `json:"encryption"`
+	EncryptionKeyVersion pgtype.Int4        `json:"encryption_key_version"`
+	Status               FileStatus         `json:"status"`
+	ModTime              pgtype.Timestamptz `json:"mod_time"`
+	Generation           int64              `json:"generation"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+	DeletedAt            pgtype.Timestamptz `json:"deleted_at"`
+	Permission           SharePermission    `json:"permission"`
+}
+
+func (q *Queries) ListSharedWithMe(ctx context.Context, arg ListSharedWithMeParams) ([]*ListSharedWithMeRow, error) {
 	rows, err := q.db.Query(ctx, listSharedWithMe, arg.GranteeID, arg.PageSize)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []*File{}
+	items := []*ListSharedWithMeRow{}
 	for rows.Next() {
-		var i File
+		var i ListSharedWithMeRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
@@ -589,6 +611,7 @@ func (q *Queries) ListSharedWithMe(ctx context.Context, arg ListSharedWithMePara
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
+			&i.Permission,
 		); err != nil {
 			return nil, err
 		}

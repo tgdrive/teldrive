@@ -45,6 +45,7 @@ import { getQueryClient } from "../lib/queryClient";
 const mainNav = [
   { label: "Files", icon: GridIcon, path: "/files" },
   { label: "Shared", icon: FolderIcon, path: "/shared" },
+  { label: "Shared with me", icon: FolderIcon, path: "/shared-with-me" },
   { label: "Storage", icon: StorageIcon, path: "/storage" },
   { label: "Tasks", icon: TasksIcon, path: "/tasks", capability: "system.manageJobs" },
   { label: "Trash", icon: GridIcon, path: "/trash" },
@@ -54,7 +55,7 @@ const DESKTOP_BREAKPOINT = 1024;
 
 function getPageTitle(pathname: string) {
   if (pathname.startsWith("/settings")) return "Settings";
-  const item = mainNav.find((entry) => pathname === entry.path || pathname.startsWith(entry.path));
+  const item = mainNav.find((entry) => pathname === entry.path || pathname.startsWith(`${entry.path}/`));
   return item?.label ?? "Teldrive";
 }
 
@@ -106,7 +107,7 @@ function Sidebar({
         key={item.label}
         to={item.path}
         preload="intent"
-        activeOptions={{ exact: false }}
+        activeOptions={{ exact: true }}
         className="h-10 w-full justify-start rounded-full px-3 text-sm font-medium"
         activeProps={{
           className: cn(buttonVariants({ variant: "secondary" }), "bg-accent/10 text-accent"),

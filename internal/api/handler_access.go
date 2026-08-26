@@ -241,11 +241,14 @@ func (h *Handler) ListSharedWithMe(ctx context.Context) (gen.ListSharedWithMeRes
 	}
 	out := make(gen.ListSharedWithMeOKApplicationJSON, 0, len(rows))
 	for _, row := range rows {
-		entry, err := fileEntry(row)
+		entry, err := fileEntry(row.File)
 		if err != nil {
 			continue
 		}
-		out = append(out, entry)
+		out = append(out, gen.SharedWithMeEntry{
+			File:       entry,
+			Permission: gen.SharePermission(row.Permission),
+		})
 	}
 	return &out, nil
 }
