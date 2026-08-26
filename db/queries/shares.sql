@@ -124,18 +124,31 @@ WHERE g.owner_id = sqlc.arg(owner_id)
   AND g.revoked_at IS NULL
 ORDER BY g.created_at DESC, g.id DESC;
 
--- name: ListSharedWithMe :many
-SELECT g.*, f.name AS file_name, f.kind AS file_kind, f.size AS file_size, f.mime_type AS file_mime_type,
-       f.mod_time AS file_mod_time, f.created_at AS file_created_at, f.updated_at AS file_updated_at,
-       u.display_name AS owner_display_name, u.username AS owner_username
-FROM /* TEMPLATE: schema */file_access_grants g
-JOIN /* TEMPLATE: schema */files f ON f.id = g.file_id AND f.user_id = g.owner_id
-JOIN /* TEMPLATE: schema */users u ON u.user_id = g.owner_id
-WHERE g.grantee_id = sqlc.arg(grantee_id)
-  AND g.revoked_at IS NULL
-  AND (g.expires_at IS NULL OR g.expires_at > now())
+-- name: ListShared :many
+SELECT f.*
+FROM /* TEMPLATE: schema */files f
+WHERE f.user_id = sqlc.arg(owner_id)
   AND f.status = 'active'
-ORDER BY g.created_at DESC, g.id DESC
+  AND (
+    EXISTS (
+      SELECT 1
+      FROM /* TEMPLATE: schema */file_access_grants g
+      WHERE g.owner_id = f.user_id
+        AND g.file_id = f.id
+        AND g.revoked_at IS NULL
+        AND (g.expires_at IS NULL OR g.expires_at > now())
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM /* TEMPLATE: schema */file_shares fs
+      WHERE fs.owner_id = f.user_id
+        AND fs.file_id = f.id
+        AND fs.revoked_at IS NULL
+        AND (fs.expires_at IS NULL OR fs.expires_at > now())
+        AND (fs.max_downloads IS NULL OR fs.download_count < fs.max_downloads)
+    )
+  )
+ORDER BY f.updated_at DESC, f.id DESC
 LIMIT sqlc.arg(page_size);
 
 -- name: UpdateFileAccessGrant :one

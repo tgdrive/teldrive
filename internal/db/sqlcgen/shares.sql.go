@@ -472,75 +472,67 @@ func (q *Queries) ListFileShares(ctx context.Context, arg ListFileSharesParams) 
 	return items, nil
 }
 
-const listSharedWithMe = `-- name: ListSharedWithMe :many
-SELECT g.id, g.file_id, g.owner_id, g.grantee_id, g.permission, g.expires_at, g.created_at, g.updated_at, g.revoked_at, f.name AS file_name, f.kind AS file_kind, f.size AS file_size, f.mime_type AS file_mime_type,
-       f.mod_time AS file_mod_time, f.created_at AS file_created_at, f.updated_at AS file_updated_at,
-       u.display_name AS owner_display_name, u.username AS owner_username
-FROM /* TEMPLATE: schema */file_access_grants g
-JOIN /* TEMPLATE: schema */files f ON f.id = g.file_id AND f.user_id = g.owner_id
-JOIN /* TEMPLATE: schema */users u ON u.user_id = g.owner_id
-WHERE g.grantee_id = $1
-  AND g.revoked_at IS NULL
-  AND (g.expires_at IS NULL OR g.expires_at > now())
+const listShared = `-- name: ListShared :many
+SELECT f.id, f.user_id, f.parent_id, f.name, f.normalized_name, f.kind, f.mime_type, f.size, f.hash_algorithm, f.hash_value, f.encryption, f.encryption_key_version, f.status, f.mod_time, f.generation, f.created_at, f.updated_at, f.deleted_at
+FROM /* TEMPLATE: schema */files f
+WHERE f.user_id = $1
   AND f.status = 'active'
-ORDER BY g.created_at DESC, g.id DESC
+  AND (
+    EXISTS (
+      SELECT 1
+      FROM /* TEMPLATE: schema */file_access_grants g
+      WHERE g.owner_id = f.user_id
+        AND g.file_id = f.id
+        AND g.revoked_at IS NULL
+        AND (g.expires_at IS NULL OR g.expires_at > now())
+    )
+    OR EXISTS (
+      SELECT 1
+      FROM /* TEMPLATE: schema */file_shares fs
+      WHERE fs.owner_id = f.user_id
+        AND fs.file_id = f.id
+        AND fs.revoked_at IS NULL
+        AND (fs.expires_at IS NULL OR fs.expires_at > now())
+        AND (fs.max_downloads IS NULL OR fs.download_count < fs.max_downloads)
+    )
+  )
+ORDER BY f.updated_at DESC, f.id DESC
 LIMIT $2
 `
 
-type ListSharedWithMeParams struct {
-	GranteeID int64 `json:"grantee_id"`
-	PageSize  int32 `json:"page_size"`
+type ListSharedParams struct {
+	OwnerID  int64 `json:"owner_id"`
+	PageSize int32 `json:"page_size"`
 }
 
-type ListSharedWithMeRow struct {
-	ID               pgtype.UUID        `json:"id"`
-	FileID           pgtype.UUID        `json:"file_id"`
-	OwnerID          int64              `json:"owner_id"`
-	GranteeID        int64              `json:"grantee_id"`
-	Permission       SharePermission    `json:"permission"`
-	ExpiresAt        pgtype.Timestamptz `json:"expires_at"`
-	CreatedAt        pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
-	RevokedAt        pgtype.Timestamptz `json:"revoked_at"`
-	FileName         string             `json:"file_name"`
-	FileKind         FileKind           `json:"file_kind"`
-	FileSize         pgtype.Int8        `json:"file_size"`
-	FileMimeType     pgtype.Text        `json:"file_mime_type"`
-	FileModTime      pgtype.Timestamptz `json:"file_mod_time"`
-	FileCreatedAt    pgtype.Timestamptz `json:"file_created_at"`
-	FileUpdatedAt    pgtype.Timestamptz `json:"file_updated_at"`
-	OwnerDisplayName pgtype.Text        `json:"owner_display_name"`
-	OwnerUsername    pgtype.Text        `json:"owner_username"`
-}
-
-func (q *Queries) ListSharedWithMe(ctx context.Context, arg ListSharedWithMeParams) ([]*ListSharedWithMeRow, error) {
-	rows, err := q.db.Query(ctx, listSharedWithMe, arg.GranteeID, arg.PageSize)
+func (q *Queries) ListShared(ctx context.Context, arg ListSharedParams) ([]*File, error) {
+	rows, err := q.db.Query(ctx, listShared, arg.OwnerID, arg.PageSize)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []*ListSharedWithMeRow{}
+	items := []*File{}
 	for rows.Next() {
-		var i ListSharedWithMeRow
+		var i File
 		if err := rows.Scan(
 			&i.ID,
-			&i.FileID,
-			&i.OwnerID,
-			&i.GranteeID,
-			&i.Permission,
-			&i.ExpiresAt,
+			&i.UserID,
+			&i.ParentID,
+			&i.Name,
+			&i.NormalizedName,
+			&i.Kind,
+			&i.MimeType,
+			&i.Size,
+			&i.HashAlgorithm,
+			&i.HashValue,
+			&i.Encryption,
+			&i.EncryptionKeyVersion,
+			&i.Status,
+			&i.ModTime,
+			&i.Generation,
 			&i.CreatedAt,
 			&i.UpdatedAt,
-			&i.RevokedAt,
-			&i.FileName,
-			&i.FileKind,
-			&i.FileSize,
-			&i.FileMimeType,
-			&i.FileModTime,
-			&i.FileCreatedAt,
-			&i.FileUpdatedAt,
-			&i.OwnerDisplayName,
-			&i.OwnerUsername,
+			&i.DeletedAt,
 		); err != nil {
 			return nil, err
 		}

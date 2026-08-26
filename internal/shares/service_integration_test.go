@@ -212,9 +212,17 @@ VALUES
 	if _, err := service.ResolveAccess(ctx, 2002, childID, true); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("ResolveAccess(edit with read grant) error = %v", err)
 	}
-	shared, err := service.ListSharedWithMe(ctx, 2002)
-	if err != nil || len(shared) != 1 || shared[0].OwnerID != 1001 {
-		t.Fatalf("ListSharedWithMe() = %#v, %v", shared, err)
+	shared, err := service.ListShared(ctx, 1001)
+	if err != nil || len(shared) != 1 {
+		t.Fatalf("ListShared(owner) = %#v, %v", shared, err)
+	}
+	sharedID, _ := dbtypes.GoogleUUID(shared[0].ID)
+	if sharedID != rootID {
+		t.Fatalf("ListShared(owner) file = %s, want %s", sharedID, rootID)
+	}
+	incomingOnly, err := service.ListShared(ctx, 2002)
+	if err != nil || len(incomingOnly) != 0 {
+		t.Fatalf("ListShared(grantee) = %#v, %v", incomingOnly, err)
 	}
 
 	grantID, _ := dbtypes.GoogleUUID(grant.ID)

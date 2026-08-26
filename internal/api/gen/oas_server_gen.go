@@ -312,10 +312,10 @@ type Handler interface {
 	//
 	// GET /v1/sessions
 	ListSessions(ctx context.Context, params ListSessionsParams) (ListSessionsRes, error)
-	// ListSharedWithMe implements listSharedWithMe operation.
+	// ListShared implements listShared operation.
 	//
-	// GET /v1/shared-with-me
-	ListSharedWithMe(ctx context.Context) (ListSharedWithMeRes, error)
+	// GET /v1/shared
+	ListShared(ctx context.Context) (ListSharedRes, error)
 	// ListUploadParts implements listUploadParts operation.
 	//
 	// List parts already known to the upload session.

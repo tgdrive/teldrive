@@ -487,11 +487,11 @@ func (s *Service) RevokeGrant(ctx context.Context, ownerID int64, grantID uuid.U
 	return nil
 }
 
-func (s *Service) ListSharedWithMe(ctx context.Context, granteeID int64) ([]*sqlcgen.ListSharedWithMeRow, error) {
-	if granteeID <= 0 {
+func (s *Service) ListShared(ctx context.Context, ownerID int64) ([]*sqlcgen.File, error) {
+	if ownerID <= 0 {
 		return nil, ErrInvalidInput
 	}
-	rows, err := s.queries.ListSharedWithMe(ctx, sqlcgen.ListSharedWithMeParams{GranteeID: granteeID, PageSize: 500})
+	rows, err := s.queries.ListShared(ctx, sqlcgen.ListSharedParams{OwnerID: ownerID, PageSize: 500})
 	if err != nil {
 		return nil, fmt.Errorf("list shared files: %w", err)
 	}

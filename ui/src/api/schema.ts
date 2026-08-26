@@ -987,14 +987,14 @@ export interface paths {
         patch: operations["updateFileAccessGrant"];
         trace?: never;
     };
-    "/v1/shared-with-me": {
+    "/v1/shared": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["listSharedWithMe"];
+        get: operations["listShared"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1983,17 +1983,6 @@ export interface components {
             expiresAt?: string;
             /** @default false */
             clearExpiresAt: boolean;
-        };
-        SharedWithMeEntry: {
-            grantId: components["schemas"]["Uuid"];
-            /** Format: int64 */
-            ownerId: number;
-            ownerDisplayName?: string;
-            ownerUsername?: string;
-            permission: components["schemas"]["SharePermission"];
-            /** Format: date-time */
-            expiresAt?: string;
-            file: components["schemas"]["FileEntry"];
         };
         PublicShare: {
             id: components["schemas"]["Uuid"];
@@ -6021,7 +6010,7 @@ export interface operations {
             };
         };
     };
-    listSharedWithMe: {
+    listShared: {
         parameters: {
             query?: never;
             header?: never;
@@ -6036,7 +6025,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["SharedWithMeEntry"][];
+                    "application/json": components["schemas"]["FileEntry"][];
                 };
             };
             /** @description Access is unauthorized. */

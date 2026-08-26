@@ -4068,9 +4068,9 @@ func encodeListSessionsResponse(response ListSessionsRes, w http.ResponseWriter,
 	}
 }
 
-func encodeListSharedWithMeResponse(response ListSharedWithMeRes, w http.ResponseWriter, span trace.Span) error {
+func encodeListSharedResponse(response ListSharedRes, w http.ResponseWriter, span trace.Span) error {
 	switch response := response.(type) {
-	case *ListSharedWithMeOKApplicationJSON:
+	case *ListSharedOKApplicationJSON:
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(200)
 

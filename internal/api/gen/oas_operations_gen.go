@@ -70,7 +70,7 @@ const (
 	ListPeriodicJobsOperation                  OperationName = "ListPeriodicJobs"
 	ListPublicShareFilesOperation              OperationName = "ListPublicShareFiles"
 	ListSessionsOperation                      OperationName = "ListSessions"
-	ListSharedWithMeOperation                  OperationName = "ListSharedWithMe"
+	ListSharedOperation                        OperationName = "ListShared"
 	ListUploadPartsOperation                   OperationName = "ListUploadParts"
 	ListUploadsOperation                       OperationName = "ListUploads"
 	LogoutCookieSessionOperation               OperationName = "LogoutCookieSession"

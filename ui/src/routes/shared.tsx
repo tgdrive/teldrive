@@ -15,14 +15,14 @@ type SharedSearch = {
   view: "list" | "grid";
 };
 
-export const Route = createFileRoute("/shared-with-me")({
+export const Route = createFileRoute("/shared")({
   validateSearch: (search: Record<string, unknown>): SharedSearch => ({
     path: typeof search.path === "string" && search.path ? search.path : "/",
     parentId: typeof search.parentId === "string" ? search.parentId : undefined,
     query: typeof search.query === "string" ? search.query : "",
     view: search.view === "grid" ? "grid" : "list",
   }),
-  component: SharedWithMePage,
+  component: SharedPage,
   pendingComponent: () => (
     <div className="flex min-h-[40vh] items-center justify-center">
       <Spinner size="lg" />
@@ -30,7 +30,7 @@ export const Route = createFileRoute("/shared-with-me")({
   ),
 });
 
-function SharedWithMePage() {
+function SharedPage() {
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
   const [queryDraft, setQueryDraft] = useState(search.query);
@@ -39,7 +39,7 @@ function SharedWithMePage() {
   const atRoot = !search.parentId;
 
   const rootsQuery = useQuery({
-    ...$api.queryOptions("get", "/v1/shared-with-me"),
+    ...$api.queryOptions("get", "/v1/shared"),
     enabled: atRoot,
   });
   const childrenQuery = useQuery({
@@ -68,12 +68,9 @@ function SharedWithMePage() {
     return () => window.clearTimeout(timer);
   }, [deferredQuery, navigate, search]);
 
-  const rootFiles = (rootsQuery.data ?? [])
-    .map((entry) => entry.file)
-    .filter(
-      (file) =>
-        !search.query || file.name.toLocaleLowerCase().includes(search.query.toLocaleLowerCase()),
-    );
+  const rootFiles = (rootsQuery.data ?? []).filter(
+    (file) => !search.query || file.name.toLocaleLowerCase().includes(search.query.toLocaleLowerCase()),
+  );
   const files = atRoot ? rootFiles : (childrenQuery.data?.items ?? []);
   const loading = atRoot ? rootsQuery.isPending : childrenQuery.isPending;
 
@@ -99,7 +96,7 @@ function SharedWithMePage() {
         <FileBrowser
           files={files}
           path={search.path}
-          rootLabel="Shared with me"
+          rootLabel="Shared"
           view={search.view}
           query={queryDraft}
           loading={loading}
@@ -116,11 +113,7 @@ function SharedWithMePage() {
           }}
           onViewChange={(view) => void navigate({ search: { ...search, view }, replace: true })}
           onOpen={openFile}
-          emptyHint={
-            atRoot
-              ? "Files and folders shared directly with you appear here."
-              : "This shared folder is empty."
-          }
+          emptyHint={atRoot ? "Files and folders you shared appear here." : "This shared folder is empty."}
         />
       </PageContent>
       <FilePreviewDialog

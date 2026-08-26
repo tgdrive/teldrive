@@ -2298,7 +2298,7 @@ func (*ErrorEnvelope) listChannelsRes()              {}
 func (*ErrorEnvelope) listJobQueuesRes()             {}
 func (*ErrorEnvelope) listPeriodicJobsRes()          {}
 func (*ErrorEnvelope) listSessionsRes()              {}
-func (*ErrorEnvelope) listSharedWithMeRes()          {}
+func (*ErrorEnvelope) listSharedRes()                {}
 func (*ErrorEnvelope) logoutCookieSessionRes()       {}
 func (*ErrorEnvelope) logoutSessionRes()             {}
 func (*ErrorEnvelope) resetPeriodicJobsRes()         {}
@@ -5350,9 +5350,9 @@ func (s *ListSessionsOK) SetNextCursor(val OptCursor) {
 
 func (*ListSessionsOK) listSessionsRes() {}
 
-type ListSharedWithMeOKApplicationJSON []SharedWithMeEntry
+type ListSharedOKApplicationJSON []FileEntry
 
-func (*ListSharedWithMeOKApplicationJSON) listSharedWithMeRes() {}
+func (*ListSharedOKApplicationJSON) listSharedRes() {}
 
 type ListUploadPartsGone ErrorEnvelope
 
@@ -8470,87 +8470,6 @@ func (s *ShareUpdateRequest) SetClearMaxDownloads(val OptBool) {
 // SetPermission sets the value of Permission.
 func (s *ShareUpdateRequest) SetPermission(val OptSharePermission) {
 	s.Permission = val
-}
-
-// Ref: #/components/schemas/SharedWithMeEntry
-type SharedWithMeEntry struct {
-	GrantId          UUID            `json:"grantId"`
-	OwnerId          int64           `json:"ownerId"`
-	OwnerDisplayName OptString       `json:"ownerDisplayName"`
-	OwnerUsername    OptString       `json:"ownerUsername"`
-	Permission       SharePermission `json:"permission"`
-	ExpiresAt        OptDateTime     `json:"expiresAt"`
-	File             FileEntry       `json:"file"`
-}
-
-// GetGrantId returns the value of GrantId.
-func (s *SharedWithMeEntry) GetGrantId() UUID {
-	return s.GrantId
-}
-
-// GetOwnerId returns the value of OwnerId.
-func (s *SharedWithMeEntry) GetOwnerId() int64 {
-	return s.OwnerId
-}
-
-// GetOwnerDisplayName returns the value of OwnerDisplayName.
-func (s *SharedWithMeEntry) GetOwnerDisplayName() OptString {
-	return s.OwnerDisplayName
-}
-
-// GetOwnerUsername returns the value of OwnerUsername.
-func (s *SharedWithMeEntry) GetOwnerUsername() OptString {
-	return s.OwnerUsername
-}
-
-// GetPermission returns the value of Permission.
-func (s *SharedWithMeEntry) GetPermission() SharePermission {
-	return s.Permission
-}
-
-// GetExpiresAt returns the value of ExpiresAt.
-func (s *SharedWithMeEntry) GetExpiresAt() OptDateTime {
-	return s.ExpiresAt
-}
-
-// GetFile returns the value of File.
-func (s *SharedWithMeEntry) GetFile() FileEntry {
-	return s.File
-}
-
-// SetGrantId sets the value of GrantId.
-func (s *SharedWithMeEntry) SetGrantId(val UUID) {
-	s.GrantId = val
-}
-
-// SetOwnerId sets the value of OwnerId.
-func (s *SharedWithMeEntry) SetOwnerId(val int64) {
-	s.OwnerId = val
-}
-
-// SetOwnerDisplayName sets the value of OwnerDisplayName.
-func (s *SharedWithMeEntry) SetOwnerDisplayName(val OptString) {
-	s.OwnerDisplayName = val
-}
-
-// SetOwnerUsername sets the value of OwnerUsername.
-func (s *SharedWithMeEntry) SetOwnerUsername(val OptString) {
-	s.OwnerUsername = val
-}
-
-// SetPermission sets the value of Permission.
-func (s *SharedWithMeEntry) SetPermission(val SharePermission) {
-	s.Permission = val
-}
-
-// SetExpiresAt sets the value of ExpiresAt.
-func (s *SharedWithMeEntry) SetExpiresAt(val OptDateTime) {
-	s.ExpiresAt = val
-}
-
-// SetFile sets the value of File.
-func (s *SharedWithMeEntry) SetFile(val FileEntry) {
-	s.File = val
 }
 
 // Ref: #/components/schemas/StorageActivity

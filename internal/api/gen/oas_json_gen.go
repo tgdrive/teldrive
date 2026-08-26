@@ -14868,9 +14868,9 @@ func (s *ListSessionsOK) UnmarshalJSON(data []byte) error {
 	return s.Decode(d)
 }
 
-// Encode encodes ListSharedWithMeOKApplicationJSON as json.
-func (s ListSharedWithMeOKApplicationJSON) Encode(e *jx.Encoder) {
-	unwrapped := []SharedWithMeEntry(s)
+// Encode encodes ListSharedOKApplicationJSON as json.
+func (s ListSharedOKApplicationJSON) Encode(e *jx.Encoder) {
+	unwrapped := []FileEntry(s)
 
 	e.ArrStart()
 	for _, elem := range unwrapped {
@@ -14879,16 +14879,16 @@ func (s ListSharedWithMeOKApplicationJSON) Encode(e *jx.Encoder) {
 	e.ArrEnd()
 }
 
-// Decode decodes ListSharedWithMeOKApplicationJSON from json.
-func (s *ListSharedWithMeOKApplicationJSON) Decode(d *jx.Decoder) error {
+// Decode decodes ListSharedOKApplicationJSON from json.
+func (s *ListSharedOKApplicationJSON) Decode(d *jx.Decoder) error {
 	if s == nil {
-		return errors.New("invalid: unable to decode ListSharedWithMeOKApplicationJSON to nil")
+		return errors.New("invalid: unable to decode ListSharedOKApplicationJSON to nil")
 	}
-	var unwrapped []SharedWithMeEntry
+	var unwrapped []FileEntry
 	if err := func() error {
-		unwrapped = make([]SharedWithMeEntry, 0)
+		unwrapped = make([]FileEntry, 0)
 		if err := d.Arr(func(d *jx.Decoder) error {
-			var elem SharedWithMeEntry
+			var elem FileEntry
 			if err := elem.Decode(d); err != nil {
 				return err
 			}
@@ -14901,19 +14901,19 @@ func (s *ListSharedWithMeOKApplicationJSON) Decode(d *jx.Decoder) error {
 	}(); err != nil {
 		return errors.Wrap(err, "alias")
 	}
-	*s = ListSharedWithMeOKApplicationJSON(unwrapped)
+	*s = ListSharedOKApplicationJSON(unwrapped)
 	return nil
 }
 
 // MarshalJSON implements stdjson.Marshaler.
-func (s ListSharedWithMeOKApplicationJSON) MarshalJSON() ([]byte, error) {
+func (s ListSharedOKApplicationJSON) MarshalJSON() ([]byte, error) {
 	e := jx.Encoder{}
 	s.Encode(&e)
 	return e.Bytes(), nil
 }
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *ListSharedWithMeOKApplicationJSON) UnmarshalJSON(data []byte) error {
+func (s *ListSharedOKApplicationJSON) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
@@ -21619,198 +21619,6 @@ func (s *ShareUpdateRequest) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
 func (s *ShareUpdateRequest) UnmarshalJSON(data []byte) error {
-	d := jx.DecodeBytes(data)
-	return s.Decode(d)
-}
-
-// Encode implements json.Marshaler.
-func (s *SharedWithMeEntry) Encode(e *jx.Encoder) {
-	e.ObjStart()
-	s.encodeFields(e)
-	e.ObjEnd()
-}
-
-// encodeFields encodes fields.
-func (s *SharedWithMeEntry) encodeFields(e *jx.Encoder) {
-	{
-		e.FieldStart("grantId")
-		s.GrantId.Encode(e)
-	}
-	{
-		e.FieldStart("ownerId")
-		e.Int64(s.OwnerId)
-	}
-	{
-		if s.OwnerDisplayName.Set {
-			e.FieldStart("ownerDisplayName")
-			s.OwnerDisplayName.Encode(e)
-		}
-	}
-	{
-		if s.OwnerUsername.Set {
-			e.FieldStart("ownerUsername")
-			s.OwnerUsername.Encode(e)
-		}
-	}
-	{
-		e.FieldStart("permission")
-		s.Permission.Encode(e)
-	}
-	{
-		if s.ExpiresAt.Set {
-			e.FieldStart("expiresAt")
-			s.ExpiresAt.Encode(e, json.EncodeDateTime)
-		}
-	}
-	{
-		e.FieldStart("file")
-		s.File.Encode(e)
-	}
-}
-
-var jsonFieldsNameOfSharedWithMeEntry = [7]string{
-	0: "grantId",
-	1: "ownerId",
-	2: "ownerDisplayName",
-	3: "ownerUsername",
-	4: "permission",
-	5: "expiresAt",
-	6: "file",
-}
-
-// Decode decodes SharedWithMeEntry from json.
-func (s *SharedWithMeEntry) Decode(d *jx.Decoder) error {
-	if s == nil {
-		return errors.New("invalid: unable to decode SharedWithMeEntry to nil")
-	}
-	var requiredBitSet [1]uint8
-
-	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
-		switch string(k) {
-		case "grantId":
-			requiredBitSet[0] |= 1 << 0
-			if err := func() error {
-				if err := s.GrantId.Decode(d); err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return errors.Wrap(err, "decode field \"grantId\"")
-			}
-		case "ownerId":
-			requiredBitSet[0] |= 1 << 1
-			if err := func() error {
-				v, err := d.Int64()
-				s.OwnerId = int64(v)
-				if err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return errors.Wrap(err, "decode field \"ownerId\"")
-			}
-		case "ownerDisplayName":
-			if err := func() error {
-				s.OwnerDisplayName.Reset()
-				if err := s.OwnerDisplayName.Decode(d); err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return errors.Wrap(err, "decode field \"ownerDisplayName\"")
-			}
-		case "ownerUsername":
-			if err := func() error {
-				s.OwnerUsername.Reset()
-				if err := s.OwnerUsername.Decode(d); err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return errors.Wrap(err, "decode field \"ownerUsername\"")
-			}
-		case "permission":
-			requiredBitSet[0] |= 1 << 4
-			if err := func() error {
-				if err := s.Permission.Decode(d); err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return errors.Wrap(err, "decode field \"permission\"")
-			}
-		case "expiresAt":
-			if err := func() error {
-				s.ExpiresAt.Reset()
-				if err := s.ExpiresAt.Decode(d, json.DecodeDateTime); err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return errors.Wrap(err, "decode field \"expiresAt\"")
-			}
-		case "file":
-			requiredBitSet[0] |= 1 << 6
-			if err := func() error {
-				if err := s.File.Decode(d); err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return errors.Wrap(err, "decode field \"file\"")
-			}
-		default:
-			return d.Skip()
-		}
-		return nil
-	}); err != nil {
-		return errors.Wrap(err, "decode SharedWithMeEntry")
-	}
-	// Validate required fields.
-	var failures []validate.FieldError
-	for i, mask := range [1]uint8{
-		0b01010011,
-	} {
-		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
-			// Mask only required fields and check equality to mask using XOR.
-			//
-			// If XOR result is not zero, result is not equal to expected, so some fields are missed.
-			// Bits of fields which would be set are actually bits of missed fields.
-			missed := bits.OnesCount8(result)
-			for bitN := 0; bitN < missed; bitN++ {
-				bitIdx := bits.TrailingZeros8(result)
-				fieldIdx := i*8 + bitIdx
-				var name string
-				if fieldIdx < len(jsonFieldsNameOfSharedWithMeEntry) {
-					name = jsonFieldsNameOfSharedWithMeEntry[fieldIdx]
-				} else {
-					name = strconv.Itoa(fieldIdx)
-				}
-				failures = append(failures, validate.FieldError{
-					Name:  name,
-					Error: validate.ErrFieldRequired,
-				})
-				// Reset bit.
-				result &^= 1 << bitIdx
-			}
-		}
-	}
-	if len(failures) > 0 {
-		return &validate.Error{Fields: failures}
-	}
-
-	return nil
-}
-
-// MarshalJSON implements stdjson.Marshaler.
-func (s *SharedWithMeEntry) MarshalJSON() ([]byte, error) {
-	e := jx.Encoder{}
-	s.Encode(&e)
-	return e.Bytes(), nil
-}
-
-// UnmarshalJSON implements stdjson.Unmarshaler.
-func (s *SharedWithMeEntry) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }

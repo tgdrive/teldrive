@@ -10921,7 +10921,7 @@ func decodeListSessionsResponse(resp *http.Response) (res ListSessionsRes, _ err
 	return res, validate.UnexpectedStatusCodeWithResponse(resp)
 }
 
-func decodeListSharedWithMeResponse(resp *http.Response) (res ListSharedWithMeRes, _ error) {
+func decodeListSharedResponse(resp *http.Response) (res ListSharedRes, _ error) {
 	switch resp.StatusCode {
 	case 200:
 		// Code 200.
@@ -10937,7 +10937,7 @@ func decodeListSharedWithMeResponse(resp *http.Response) (res ListSharedWithMeRe
 			}
 			d := jx.DecodeBytes(buf)
 
-			var response ListSharedWithMeOKApplicationJSON
+			var response ListSharedOKApplicationJSON
 			if err := func() error {
 				if err := response.Decode(d); err != nil {
 					return err

@@ -44,7 +44,7 @@ import { getQueryClient } from "../lib/queryClient";
 
 const mainNav = [
   { label: "Files", icon: GridIcon, path: "/files" },
-  { label: "Shared with me", icon: FolderIcon, path: "/shared-with-me" },
+  { label: "Shared", icon: FolderIcon, path: "/shared" },
   { label: "Storage", icon: StorageIcon, path: "/storage" },
   { label: "Tasks", icon: TasksIcon, path: "/tasks", capability: "system.manageJobs" },
   { label: "Trash", icon: GridIcon, path: "/trash" },

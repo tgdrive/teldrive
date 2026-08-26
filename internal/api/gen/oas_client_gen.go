@@ -347,10 +347,10 @@ type Invoker interface {
 	//
 	// GET /v1/sessions
 	ListSessions(ctx context.Context, params ListSessionsParams) (ListSessionsRes, error)
-	// ListSharedWithMe invokes listSharedWithMe operation.
+	// ListShared invokes listShared operation.
 	//
-	// GET /v1/shared-with-me
-	ListSharedWithMe(ctx context.Context) (ListSharedWithMeRes, error)
+	// GET /v1/shared
+	ListShared(ctx context.Context) (ListSharedRes, error)
 	// ListUploadParts invokes listUploadParts operation.
 	//
 	// List parts already known to the upload session.
@@ -10242,19 +10242,19 @@ func (c *Client) sendListSessions(ctx context.Context, params ListSessionsParams
 	return result, nil
 }
 
-// ListSharedWithMe invokes listSharedWithMe operation.
+// ListShared invokes listShared operation.
 //
-// GET /v1/shared-with-me
-func (c *Client) ListSharedWithMe(ctx context.Context) (ListSharedWithMeRes, error) {
-	res, err := c.sendListSharedWithMe(ctx)
+// GET /v1/shared
+func (c *Client) ListShared(ctx context.Context) (ListSharedRes, error) {
+	res, err := c.sendListShared(ctx)
 	return res, err
 }
 
-func (c *Client) sendListSharedWithMe(ctx context.Context) (res ListSharedWithMeRes, err error) {
+func (c *Client) sendListShared(ctx context.Context) (res ListSharedRes, err error) {
 	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("listSharedWithMe"),
+		otelogen.OperationID("listShared"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/v1/shared-with-me"),
+		semconv.URLTemplateKey.String("/v1/shared"),
 	}
 	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
 
@@ -10270,7 +10270,7 @@ func (c *Client) sendListSharedWithMe(ctx context.Context) (res ListSharedWithMe
 	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
 
 	// Start a span for this request.
-	ctx, span := c.cfg.Tracer.Start(ctx, ListSharedWithMeOperation,
+	ctx, span := c.cfg.Tracer.Start(ctx, ListSharedOperation,
 		trace.WithAttributes(otelAttrs...),
 		clientSpanKind,
 	)
@@ -10288,7 +10288,7 @@ func (c *Client) sendListSharedWithMe(ctx context.Context) (res ListSharedWithMe
 	stage = "BuildURL"
 	u := uri.Clone(c.requestURL(ctx))
 	var pathParts [1]string
-	pathParts[0] = "/v1/shared-with-me"
+	pathParts[0] = "/v1/shared"
 	uri.AddPathParts(u, pathParts[:]...)
 
 	stage = "EncodeRequest"
@@ -10302,7 +10302,7 @@ func (c *Client) sendListSharedWithMe(ctx context.Context) (res ListSharedWithMe
 		var satisfied bitset
 		{
 			stage = "Security:BearerAuth"
-			switch err := c.securityBearerAuth(ctx, ListSharedWithMeOperation, r); {
+			switch err := c.securityBearerAuth(ctx, ListSharedOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 0
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
@@ -10313,7 +10313,7 @@ func (c *Client) sendListSharedWithMe(ctx context.Context) (res ListSharedWithMe
 		}
 		{
 			stage = "Security:CookieAuth"
-			switch err := c.securityCookieAuth(ctx, ListSharedWithMeOperation, r); {
+			switch err := c.securityCookieAuth(ctx, ListSharedOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 1
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
@@ -10324,7 +10324,7 @@ func (c *Client) sendListSharedWithMe(ctx context.Context) (res ListSharedWithMe
 		}
 		{
 			stage = "Security:ExternalApiKeyAuth"
-			switch err := c.securityExternalApiKeyAuth(ctx, ListSharedWithMeOperation, r); {
+			switch err := c.securityExternalApiKeyAuth(ctx, ListSharedOperation, r); {
 			case err == nil: // if NO error
 				satisfied[0] |= 1 << 2
 			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
@@ -10369,7 +10369,7 @@ func (c *Client) sendListSharedWithMe(ctx context.Context) (res ListSharedWithMe
 	}()
 
 	stage = "DecodeResponse"
-	result, err := decodeListSharedWithMeResponse(resp)
+	result, err := decodeListSharedResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}

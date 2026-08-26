@@ -204,46 +204,25 @@ func (h *Handler) RevokeFileAccessGrant(ctx context.Context, params gen.RevokeFi
 	return &gen.RevokeFileAccessGrantNoContent{}, nil
 }
 
-func (h *Handler) ListSharedWithMe(ctx context.Context) (gen.ListSharedWithMeRes, error) {
-	actorID, err := UserIDFromContext(ctx)
+func (h *Handler) ListShared(ctx context.Context) (gen.ListSharedRes, error) {
+	ownerID, err := UserIDFromContext(ctx)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
 	if h.Shares == nil {
 		return nil, mapServiceError(ErrOperationUnavailable)
 	}
-	rows, err := h.Shares.ListSharedWithMe(ctx, actorID)
+	rows, err := h.Shares.ListShared(ctx, ownerID)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
-	out := make(gen.ListSharedWithMeOKApplicationJSON, 0, len(rows))
+	out := make(gen.ListSharedOKApplicationJSON, 0, len(rows))
 	for _, row := range rows {
-		fileID, ok := dbtypes.GoogleUUID(row.FileID)
-		if !ok {
-			continue
-		}
-		file, err := h.Catalog.Get(ctx, row.OwnerID, fileID)
+		entry, err := fileEntry(row)
 		if err != nil {
 			continue
 		}
-		entry, err := fileEntry(file)
-		if err != nil {
-			continue
-		}
-		grantID, _ := dbtypes.GoogleUUID(row.ID)
-		item := gen.SharedWithMeEntry{
-			GrantId: apiUUID(grantID), OwnerId: row.OwnerID, Permission: gen.SharePermission(row.Permission), File: entry,
-		}
-		if row.OwnerDisplayName.Valid {
-			item.OwnerDisplayName = gen.NewOptString(row.OwnerDisplayName.String)
-		}
-		if row.OwnerUsername.Valid {
-			item.OwnerUsername = gen.NewOptString(row.OwnerUsername.String)
-		}
-		if row.ExpiresAt.Valid {
-			item.ExpiresAt = gen.NewOptDateTime(row.ExpiresAt.Time)
-		}
-		out = append(out, item)
+		out = append(out, entry)
 	}
 	return &out, nil
 }

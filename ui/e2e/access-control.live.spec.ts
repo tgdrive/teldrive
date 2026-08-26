@@ -100,25 +100,10 @@ test.describe("real backend access control", () => {
     expect(demote.ok()).toBe(true);
   });
 
-  test("internal grants enforce read, edit, expiry, revocation, and subtree isolation", async ({
-    context,
-    page,
-    request,
-    isMobile,
-  }) => {
+  test("internal grants enforce read, edit, expiry, revocation, and subtree isolation", async ({ request, isMobile }) => {
     requireHarness();
-    test.skip(isMobile, "shared-with-me acceptance only needs one browser project");
+    test.skip(isMobile, "internal grant acceptance only needs one browser project");
 
-    const sharedResponse = await request.get("/api/v1/shared-with-me", { headers: bearer(bobToken!) });
-    expect(sharedResponse.ok()).toBe(true);
-    const shared = (await sharedResponse.json()) as Array<{
-      permission: "read" | "edit";
-      file: { id: string; name: string };
-    }>;
-    expect(shared.map((entry) => [entry.file.name, entry.permission])).toEqual([
-      ["Edit shared", "edit"],
-      ["Read shared", "read"],
-    ]);
 
     const readChildren = await request.get(`/api/v1/files?parentId=${readRootId}&limit=100`, {
       headers: bearer(bobToken!),
@@ -162,12 +147,6 @@ test.describe("real backend access control", () => {
     });
     expect([403, 404]).toContain(charlieLookup.status());
 
-    await authenticate(context, bobToken!);
-    await page.goto("/shared-with-me");
-    await expect(page.getByText("Read shared", { exact: true })).toBeVisible();
-    await expect(page.getByText("Edit shared", { exact: true })).toBeVisible();
-    await expect(page.getByText("Expired shared", { exact: true })).toHaveCount(0);
-    await expect(page.getByText("Revoked shared", { exact: true })).toHaveCount(0);
   });
 
   test("public share permission controls anonymous mutation", async ({ request, isMobile }) => {

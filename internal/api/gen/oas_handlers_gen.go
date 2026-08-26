@@ -13111,22 +13111,22 @@ func (s *Server) handleListSessionsRequest(args [0]string, argsEscaped bool, w h
 	}
 }
 
-// handleListSharedWithMeRequest handles listSharedWithMe operation.
+// handleListSharedRequest handles listShared operation.
 //
-// GET /v1/shared-with-me
-func (s *Server) handleListSharedWithMeRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
+// GET /v1/shared
+func (s *Server) handleListSharedRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
 	statusWriter := &codeRecorder{ResponseWriter: w}
 	w = statusWriter
 	otelAttrs := []attribute.KeyValue{
-		otelogen.OperationID("listSharedWithMe"),
+		otelogen.OperationID("listShared"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.HTTPRouteKey.String("/v1/shared-with-me"),
+		semconv.HTTPRouteKey.String("/v1/shared"),
 	}
 	// Add attributes from config.
 	otelAttrs = append(otelAttrs, s.cfg.Attributes...)
 
 	// Start a span for this request.
-	ctx, span := s.cfg.Tracer.Start(r.Context(), ListSharedWithMeOperation,
+	ctx, span := s.cfg.Tracer.Start(r.Context(), ListSharedOperation,
 		trace.WithAttributes(otelAttrs...),
 		serverSpanKind,
 	)
@@ -13181,15 +13181,15 @@ func (s *Server) handleListSharedWithMeRequest(args [0]string, argsEscaped bool,
 		}
 		err          error
 		opErrContext = ogenerrors.OperationContext{
-			Name: ListSharedWithMeOperation,
-			ID:   "listSharedWithMe",
+			Name: ListSharedOperation,
+			ID:   "listShared",
 		}
 	)
 	{
 		type bitset = [1]uint8
 		var satisfied bitset
 		{
-			sctx, ok, err := s.securityBearerAuth(ctx, ListSharedWithMeOperation, r)
+			sctx, ok, err := s.securityBearerAuth(ctx, ListSharedOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
@@ -13206,7 +13206,7 @@ func (s *Server) handleListSharedWithMeRequest(args [0]string, argsEscaped bool,
 			}
 		}
 		{
-			sctx, ok, err := s.securityCookieAuth(ctx, ListSharedWithMeOperation, r)
+			sctx, ok, err := s.securityCookieAuth(ctx, ListSharedOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
@@ -13223,7 +13223,7 @@ func (s *Server) handleListSharedWithMeRequest(args [0]string, argsEscaped bool,
 			}
 		}
 		{
-			sctx, ok, err := s.securityExternalApiKeyAuth(ctx, ListSharedWithMeOperation, r)
+			sctx, ok, err := s.securityExternalApiKeyAuth(ctx, ListSharedOperation, r)
 			if err != nil {
 				err = &ogenerrors.SecurityError{
 					OperationContext: opErrContext,
@@ -13268,13 +13268,13 @@ func (s *Server) handleListSharedWithMeRequest(args [0]string, argsEscaped bool,
 
 	var rawBody []byte
 
-	var response ListSharedWithMeRes
+	var response ListSharedRes
 	if m := s.cfg.Middleware; m != nil {
 		mreq := middleware.Request{
 			Context:          ctx,
-			OperationName:    ListSharedWithMeOperation,
+			OperationName:    ListSharedOperation,
 			OperationSummary: "",
-			OperationID:      "listSharedWithMe",
+			OperationID:      "listShared",
 			Body:             nil,
 			RawBody:          rawBody,
 			Params:           middleware.Parameters{},
@@ -13284,7 +13284,7 @@ func (s *Server) handleListSharedWithMeRequest(args [0]string, argsEscaped bool,
 		type (
 			Request  = struct{}
 			Params   = struct{}
-			Response = ListSharedWithMeRes
+			Response = ListSharedRes
 		)
 		response, err = middleware.HookMiddleware[
 			Request,
@@ -13295,12 +13295,12 @@ func (s *Server) handleListSharedWithMeRequest(args [0]string, argsEscaped bool,
 			mreq,
 			nil,
 			func(ctx context.Context, request Request, params Params) (response Response, err error) {
-				response, err = s.h.ListSharedWithMe(ctx)
+				response, err = s.h.ListShared(ctx)
 				return response, err
 			},
 		)
 	} else {
-		response, err = s.h.ListSharedWithMe(ctx)
+		response, err = s.h.ListShared(ctx)
 	}
 	if err != nil {
 		defer recordError("Internal", err)
@@ -13308,7 +13308,7 @@ func (s *Server) handleListSharedWithMeRequest(args [0]string, argsEscaped bool,
 		return
 	}
 
-	if err := encodeListSharedWithMeResponse(response, w, span); err != nil {
+	if err := encodeListSharedResponse(response, w, span); err != nil {
 		defer recordError("EncodeResponse", err)
 		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
 			s.cfg.ErrorHandler(ctx, w, r, err)

@@ -106,15 +106,6 @@ model FileAccessGrantSummary {
   createdAt: utcDateTime;
 }
 
-model SharedWithMeEntry {
-  grantId: Uuid;
-  ownerId: int64;
-  ownerDisplayName?: string;
-  ownerUsername?: string;
-  permission: SharePermission;
-  expiresAt?: utcDateTime;
-  file: FileEntry;
-}
 
 model SharePasswordHeader {
   @header("X-Share-Password")
@@ -203,10 +194,10 @@ namespace Shares {
     | ErrorResponse<404>;
 
   @get
-  @route("/shared-with-me")
-  @operationId("listSharedWithMe")
-  op sharedWithMe():
-    | JsonResponse<200, SharedWithMeEntry[]>
+  @route("/shared")
+  @operationId("listShared")
+  op shared():
+    | JsonResponse<200, FileEntry[]>
     | ErrorResponse<401>;
 }
 

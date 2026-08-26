@@ -2839,9 +2839,9 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 							break
 						}
 						switch elem[0] {
-						case 'd': // Prefix: "d-with-me"
+						case 'd': // Prefix: "d"
 
-							if l := len("d-with-me"); len(elem) >= l && elem[0:l] == "d-with-me" {
+							if l := len("d"); len(elem) >= l && elem[0:l] == "d" {
 								elem = elem[l:]
 							} else {
 								break
@@ -2851,7 +2851,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 								// Leaf node.
 								switch r.Method {
 								case "GET":
-									s.handleListSharedWithMeRequest([0]string{}, elemIsEscaped, w, r)
+									s.handleListSharedRequest([0]string{}, elemIsEscaped, w, r)
 								default:
 									s.notAllowed(w, r, notAllowedParams{
 										allowedMethods: "GET",
@@ -5839,9 +5839,9 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 							break
 						}
 						switch elem[0] {
-						case 'd': // Prefix: "d-with-me"
+						case 'd': // Prefix: "d"
 
-							if l := len("d-with-me"); len(elem) >= l && elem[0:l] == "d-with-me" {
+							if l := len("d"); len(elem) >= l && elem[0:l] == "d" {
 								elem = elem[l:]
 							} else {
 								break
@@ -5851,11 +5851,11 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 								// Leaf node.
 								switch method {
 								case "GET":
-									r.name = ListSharedWithMeOperation
+									r.name = ListSharedOperation
 									r.summary = ""
-									r.operationID = "listSharedWithMe"
+									r.operationID = "listShared"
 									r.operationGroup = ""
-									r.pathPattern = "/v1/shared-with-me"
+									r.pathPattern = "/v1/shared"
 									r.args = args
 									r.count = 0
 									return r, true

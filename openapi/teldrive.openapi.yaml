@@ -3307,9 +3307,9 @@ paths:
         - BearerAuth: []
         - CookieAuth: []
         - ExternalApiKeyAuth: []
-  /v1/shared-with-me:
+  /v1/shared:
     get:
-      operationId: listSharedWithMe
+      operationId: listShared
       parameters: []
       responses:
         "200":
@@ -3319,7 +3319,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/SharedWithMeEntry"
+                  $ref: "#/components/schemas/FileEntry"
         "401":
           description: Access is unauthorized.
           content:
@@ -6382,30 +6382,6 @@ components:
         clearExpiresAt:
           type: boolean
           default: false
-    SharedWithMeEntry:
-      type: object
-      required:
-        - grantId
-        - ownerId
-        - permission
-        - file
-      properties:
-        grantId:
-          $ref: "#/components/schemas/Uuid"
-        ownerId:
-          type: integer
-          format: int64
-        ownerDisplayName:
-          type: string
-        ownerUsername:
-          type: string
-        permission:
-          $ref: "#/components/schemas/SharePermission"
-        expiresAt:
-          type: string
-          format: date-time
-        file:
-          $ref: "#/components/schemas/FileEntry"
     PublicShare:
       type: object
       required:

@@ -253,8 +253,8 @@ type ListSessionsRes interface {
 	listSessionsRes()
 }
 
-type ListSharedWithMeRes interface {
-	listSharedWithMeRes()
+type ListSharedRes interface {
+	listSharedRes()
 }
 
 type ListUploadPartsRes interface {
