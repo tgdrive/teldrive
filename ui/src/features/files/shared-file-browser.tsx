@@ -10,17 +10,24 @@ import PlusIcon from "~icons/gravity-ui/plus";
 import LinkIcon from "~icons/gravity-ui/link";
 import TrashIcon from "~icons/gravity-ui/trash-bin";
 import CloseIcon from "~icons/gravity-ui/xmark";
-import { $api } from "@/api/client";
+import { $api, fetchClient } from "@/api/client";
 import { userMessage } from "@/api/errors";
 import type { FileEntry } from "@/api/types";
 import { AppDialog } from "@/components/dialogs/app-dialog";
-import { FilePreviewDialog, isPreviewable } from "@/components/file-preview-dialog";
+import {
+  FilePreviewDialog,
+  isPreviewable,
+} from "@/components/file-preview-dialog";
 import { Page, PageContent } from "@/components/page";
 import { startFileDownload } from "@/features/files/download";
-import { FileBrowser, type FileBrowserView } from "@/features/files/file-browser";
+import {
+  FileBrowser,
+  type FileBrowserView,
+} from "@/features/files/file-browser";
 import { useFileActions } from "@/features/files/mutations";
 import { ShareDialog } from "@/features/files/share-dialog";
 import { useUploadStore } from "@/features/uploads/store";
+import { getQueryClient } from "@/lib/queryClient";
 
 type Permission = "read" | "edit";
 
@@ -38,17 +45,28 @@ type SharedFileBrowserProps = {
   navigate: (search: SharedBrowserSearch, replace?: boolean) => void;
 };
 
-export function sharedBrowserSearch(search: Record<string, unknown>): SharedBrowserSearch {
+export function sharedBrowserSearch(
+  search: Record<string, unknown>,
+): SharedBrowserSearch {
   return {
     path: typeof search.path === "string" && search.path ? search.path : "/",
     parentId: typeof search.parentId === "string" ? search.parentId : undefined,
     query: typeof search.query === "string" ? search.query : "",
     view: search.view === "grid" ? "grid" : "list",
-    permission: search.permission === "edit" ? "edit" : search.permission === "read" ? "read" : undefined,
+    permission:
+      search.permission === "edit"
+        ? "edit"
+        : search.permission === "read"
+          ? "read"
+          : undefined,
   };
 }
 
-export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserProps) {
+export function SharedFileBrowser({
+  mode,
+  search,
+  navigate,
+}: SharedFileBrowserProps) {
   const [queryDraft, setQueryDraft] = useState(search.query);
   const deferredQuery = useDeferredValue(queryDraft.trim());
   const [previewFile, setPreviewFile] = useState<FileEntry>();
@@ -90,17 +108,28 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
   useEffect(() => setQueryDraft(search.query), [search.query]);
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      if (deferredQuery !== search.query) navigate({ ...search, query: deferredQuery }, true);
+      if (deferredQuery !== search.query)
+        navigate({ ...search, query: deferredQuery }, true);
     }, 250);
     return () => window.clearTimeout(timer);
   }, [deferredQuery, navigate, search]);
-  useEffect(() => setSelectedKeys(new Set()), [search.parentId, search.path, search.query]);
+  useEffect(
+    () => setSelectedKeys(new Set()),
+    [search.parentId, search.path, search.query],
+  );
 
   const incomingEntries = sharedWithMeQuery.data ?? [];
-  const incomingPermission = new Map(incomingEntries.map((entry) => [entry.file.id, entry.permission]));
-  const roots = mode === "with-me" ? incomingEntries.map((entry) => entry.file) : (sharedQuery.data ?? []);
+  const incomingPermission = new Map(
+    incomingEntries.map((entry) => [entry.file.id, entry.permission]),
+  );
+  const roots =
+    mode === "with-me"
+      ? incomingEntries.map((entry) => entry.file)
+      : (sharedQuery.data ?? []);
   const rootFiles = roots.filter(
-    (file) => !search.query || file.name.toLocaleLowerCase().includes(search.query.toLocaleLowerCase()),
+    (file) =>
+      !search.query ||
+      file.name.toLocaleLowerCase().includes(search.query.toLocaleLowerCase()),
   );
   const files = atRoot ? rootFiles : (childrenQuery.data?.items ?? []);
   const loading = atRoot
@@ -116,12 +145,19 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
     return incomingPermission.get(file.id) ?? "read";
   };
 
-  const selectedIds = selectedKeys === "all" ? files.map((file) => file.id) : Array.from(selectedKeys, String);
+  const selectedIds =
+    selectedKeys === "all"
+      ? files.map((file) => file.id)
+      : Array.from(selectedKeys, String);
   const selectedFiles = files.filter((file) => selectedIds.includes(file.id));
   const selectedCount = selectedFiles.length;
-  const singleSelected = selectedFiles.length === 1 ? selectedFiles[0] : undefined;
-  const selectedWritable = selectedFiles.length > 0 && selectedFiles.every((file) => permissionFor(file) === "edit");
-  const currentFolderEditable = !atRoot && (mode === "shared" || search.permission === "edit");
+  const singleSelected =
+    selectedFiles.length === 1 ? selectedFiles[0] : undefined;
+  const selectedWritable =
+    selectedFiles.length > 0 &&
+    selectedFiles.every((file) => permissionFor(file) === "edit");
+  const currentFolderEditable =
+    !atRoot && (mode === "shared" || search.permission === "edit");
 
   const refreshRoots = async () => {
     if (mode === "with-me") await sharedWithMeQuery.refetch();
@@ -138,12 +174,19 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
       await childrenQuery.refetch();
       toast.success("Folder created");
     } catch (error) {
-      toast.error("Folder could not be created", { description: userMessage(error) });
+      toast.error("Folder could not be created", {
+        description: userMessage(error),
+      });
     }
   };
 
   const renameSelected = async () => {
-    if (!renameFile || !renameName.trim() || permissionFor(renameFile) !== "edit") return;
+    if (
+      !renameFile ||
+      !renameName.trim() ||
+      permissionFor(renameFile) !== "edit"
+    )
+      return;
     try {
       await fileActions.rename(renameFile, renameName.trim());
       setRenameFile(undefined);
@@ -153,20 +196,95 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
       else await childrenQuery.refetch();
       toast.success("Item renamed");
     } catch (error) {
-      toast.error("Item could not be renamed", { description: userMessage(error) });
+      toast.error("Item could not be renamed", {
+        description: userMessage(error),
+      });
     }
   };
 
   const trashSelected = async () => {
     if (!selectedWritable) return;
     try {
-      await Promise.all(selectedFiles.map((file) => fileActions.trash(file.id)));
+      await Promise.all(
+        selectedFiles.map((file) => fileActions.trash(file.id)),
+      );
       setSelectedKeys(new Set());
       if (atRoot) await refreshRoots();
       else await childrenQuery.refetch();
-      toast.success(`${selectedFiles.length} item${selectedFiles.length === 1 ? "" : "s"} moved to trash`);
+      toast.success(
+        `${selectedFiles.length} item${selectedFiles.length === 1 ? "" : "s"} moved to trash`,
+      );
     } catch (error) {
-      toast.error("Items could not be moved to trash", { description: userMessage(error) });
+      toast.error("Items could not be moved to trash", {
+        description: userMessage(error),
+      });
+    }
+  };
+
+  const stopSharingSelected = async () => {
+    if (mode !== "shared" || !atRoot || !selectedFiles.length) return;
+    try {
+      for (const file of selectedFiles) {
+        const { data: grants } = await fetchClient.GET(
+          "/v1/files/{fileId}/grants",
+          {
+            params: { path: { fileId: file.id } },
+          },
+        );
+
+        const shareIds: string[] = [];
+        let cursor: string | undefined;
+        do {
+          const { data: page } = await fetchClient.GET(
+            "/v1/files/{fileId}/shares",
+            {
+              params: {
+                path: { fileId: file.id },
+                query: { limit: 200, cursor },
+              },
+            },
+          );
+          shareIds.push(...(page?.items ?? []).map((share) => share.id));
+          cursor = page?.nextCursor;
+        } while (cursor);
+
+        await Promise.all([
+          ...(grants ?? []).map((grant) =>
+            fetchClient.DELETE("/v1/grants/{grantId}", {
+              params: { path: { grantId: grant.id } },
+            }),
+          ),
+          ...shareIds.map((shareId) =>
+            fetchClient.DELETE("/v1/shares/{shareId}", {
+              params: { path: { shareId } },
+            }),
+          ),
+        ]);
+
+        const queryClient = getQueryClient();
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: $api.queryOptions("get", "/v1/files/{fileId}/grants", {
+              params: { path: { fileId: file.id } },
+            }).queryKey,
+          }),
+          queryClient.invalidateQueries({
+            queryKey: $api.queryOptions("get", "/v1/files/{fileId}/shares", {
+              params: { path: { fileId: file.id }, query: { limit: 200 } },
+            }).queryKey,
+          }),
+        ]);
+      }
+
+      setSelectedKeys(new Set());
+      await refreshRoots();
+      toast.success(
+        `${selectedFiles.length} item${selectedFiles.length === 1 ? "" : "s"} no longer shared`,
+      );
+    } catch (error) {
+      toast.error("Sharing could not be removed", {
+        description: userMessage(error),
+      });
     }
   };
 
@@ -243,7 +361,8 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
                   <FileTrigger
                     allowsMultiple
                     onSelect={(list) => {
-                      if (list?.length) enqueue(Array.from(list), search.parentId, search.path);
+                      if (list?.length)
+                        enqueue(Array.from(list), search.parentId, search.path);
                     }}
                   >
                     <Button ref={uploadTriggerRef}>Choose upload files</Button>
@@ -296,7 +415,17 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
                       <DownloadIcon className="size-4" />
                     </Button>
                   ) : null}
-                  {selectedWritable ? (
+                  {mode === "shared" && atRoot && selectedCount > 0 ? (
+                    <Button
+                      isIconOnly
+                      size="sm"
+                      variant="danger"
+                      aria-label="Stop sharing selected items"
+                      onPress={() => void stopSharingSelected()}
+                    >
+                      <LinkIcon className="size-4" />
+                    </Button>
+                  ) : mode === "with-me" && selectedWritable ? (
                     <Button
                       isIconOnly
                       size="sm"
@@ -337,10 +466,17 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
         title="Create folder"
         footer={
           <>
-            <Button variant="secondary" onPress={() => setFolderDialogOpen(false)}>
+            <Button
+              variant="secondary"
+              onPress={() => setFolderDialogOpen(false)}
+            >
               Cancel
             </Button>
-            <Button variant="primary" isDisabled={!folderName.trim()} onPress={() => void createFolder()}>
+            <Button
+              variant="primary"
+              isDisabled={!folderName.trim()}
+              onPress={() => void createFolder()}
+            >
               Create folder
             </Button>
           </>
@@ -360,10 +496,17 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
         title="Rename item"
         footer={
           <>
-            <Button variant="secondary" onPress={() => setRenameFile(undefined)}>
+            <Button
+              variant="secondary"
+              onPress={() => setRenameFile(undefined)}
+            >
               Cancel
             </Button>
-            <Button variant="primary" isDisabled={!renameName.trim()} onPress={() => void renameSelected()}>
+            <Button
+              variant="primary"
+              isDisabled={!renameName.trim()}
+              onPress={() => void renameSelected()}
+            >
               Rename
             </Button>
           </>
