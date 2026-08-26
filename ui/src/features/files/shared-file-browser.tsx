@@ -7,6 +7,7 @@ import DownloadIcon from "~icons/gravity-ui/arrow-down-to-line";
 import UploadIcon from "~icons/gravity-ui/arrow-up-from-line";
 import PencilIcon from "~icons/gravity-ui/pencil";
 import PlusIcon from "~icons/gravity-ui/plus";
+import LinkIcon from "~icons/gravity-ui/link";
 import TrashIcon from "~icons/gravity-ui/trash-bin";
 import CloseIcon from "~icons/gravity-ui/xmark";
 import { $api } from "@/api/client";
@@ -18,6 +19,7 @@ import { Page, PageContent } from "@/components/page";
 import { startFileDownload } from "@/features/files/download";
 import { FileBrowser, type FileBrowserView } from "@/features/files/file-browser";
 import { useFileActions } from "@/features/files/mutations";
+import { ShareDialog } from "@/features/files/share-dialog";
 import { useUploadStore } from "@/features/uploads/store";
 
 type Permission = "read" | "edit";
@@ -55,6 +57,7 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
   const [folderName, setFolderName] = useState("");
   const [renameFile, setRenameFile] = useState<FileEntry>();
   const [renameName, setRenameName] = useState("");
+  const [shareFile, setShareFile] = useState<FileEntry>();
   const uploadTriggerRef = useRef<HTMLButtonElement>(null);
   const enqueue = useUploadStore((state) => state.enqueue);
   const fileActions = useFileActions();
@@ -271,6 +274,17 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
                       <PencilIcon className="size-4" />
                     </Button>
                   ) : null}
+                  {singleSelected && mode === "shared" ? (
+                    <Button
+                      isIconOnly
+                      size="sm"
+                      variant="ghost"
+                      aria-label="Share selected item"
+                      onPress={() => setShareFile(singleSelected)}
+                    >
+                      <LinkIcon className="size-4" />
+                    </Button>
+                  ) : null}
                   {singleSelected?.kind === "file" ? (
                     <Button
                       isIconOnly
@@ -360,6 +374,13 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
           <Input autoFocus />
         </TextField>
       </AppDialog>
+
+      <ShareDialog
+        file={shareFile}
+        onOpenChange={(open) => {
+          if (!open) setShareFile(undefined);
+        }}
+      />
 
       <FilePreviewDialog
         file={previewFile}
