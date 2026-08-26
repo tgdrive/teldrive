@@ -281,6 +281,10 @@ type ListSharedRes interface {
 	listSharedRes()
 }
 
+type ListSharedWithMeRes interface {
+	listSharedWithMeRes()
+}
+
 type ListUploadPartsRes interface {
 	listUploadPartsRes()
 }

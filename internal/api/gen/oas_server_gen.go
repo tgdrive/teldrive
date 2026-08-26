@@ -330,6 +330,10 @@ type Handler interface {
 	//
 	// GET /v1/shared
 	ListShared(ctx context.Context) (ListSharedRes, error)
+	// ListSharedWithMe implements listSharedWithMe operation.
+	//
+	// GET /v1/shared/with-me
+	ListSharedWithMe(ctx context.Context) (ListSharedWithMeRes, error)
 	// ListUploadParts implements listUploadParts operation.
 	//
 	// List parts already known to the upload session.

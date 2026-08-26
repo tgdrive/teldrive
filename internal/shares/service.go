@@ -498,6 +498,17 @@ func (s *Service) ListShared(ctx context.Context, ownerID int64) ([]*sqlcgen.Fil
 	return rows, nil
 }
 
+func (s *Service) ListSharedWithMe(ctx context.Context, granteeID int64) ([]*sqlcgen.File, error) {
+	if granteeID <= 0 {
+		return nil, ErrInvalidInput
+	}
+	rows, err := s.queries.ListSharedWithMe(ctx, sqlcgen.ListSharedWithMeParams{GranteeID: granteeID, PageSize: 500})
+	if err != nil {
+		return nil, fmt.Errorf("list files shared with user: %w", err)
+	}
+	return rows, nil
+}
+
 func (s *Service) ResolveAccess(ctx context.Context, actorID int64, fileID uuid.UUID, requireEdit bool) (*Access, error) {
 	if actorID <= 0 || fileID == uuid.Nil {
 		return nil, ErrInvalidInput

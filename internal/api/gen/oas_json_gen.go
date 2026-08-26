@@ -15944,6 +15944,56 @@ func (s *ListSharedOKApplicationJSON) UnmarshalJSON(data []byte) error {
 	return s.Decode(d)
 }
 
+// Encode encodes ListSharedWithMeOKApplicationJSON as json.
+func (s ListSharedWithMeOKApplicationJSON) Encode(e *jx.Encoder) {
+	unwrapped := []FileEntry(s)
+
+	e.ArrStart()
+	for _, elem := range unwrapped {
+		elem.Encode(e)
+	}
+	e.ArrEnd()
+}
+
+// Decode decodes ListSharedWithMeOKApplicationJSON from json.
+func (s *ListSharedWithMeOKApplicationJSON) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode ListSharedWithMeOKApplicationJSON to nil")
+	}
+	var unwrapped []FileEntry
+	if err := func() error {
+		unwrapped = make([]FileEntry, 0)
+		if err := d.Arr(func(d *jx.Decoder) error {
+			var elem FileEntry
+			if err := elem.Decode(d); err != nil {
+				return err
+			}
+			unwrapped = append(unwrapped, elem)
+			return nil
+		}); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = ListSharedWithMeOKApplicationJSON(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s ListSharedWithMeOKApplicationJSON) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *ListSharedWithMeOKApplicationJSON) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
 // Encode encodes ListUploadPartsGone as json.
 func (s *ListUploadPartsGone) Encode(e *jx.Encoder) {
 	unwrapped := (*ErrorEnvelope)(s)

@@ -225,6 +225,15 @@ VALUES
 		t.Fatalf("ListShared(grantee) = %#v, %v", incomingOnly, err)
 	}
 
+	sharedWithMe, err := service.ListSharedWithMe(ctx, 2002)
+	if err != nil || len(sharedWithMe) != 1 {
+		t.Fatalf("ListSharedWithMe(grantee) = %#v, %v", sharedWithMe, err)
+	}
+	sharedWithMeID, _ := dbtypes.GoogleUUID(sharedWithMe[0].ID)
+	if sharedWithMeID != rootID {
+		t.Fatalf("ListSharedWithMe(grantee) file = %s, want %s", sharedWithMeID, rootID)
+	}
+
 	grantID, _ := dbtypes.GoogleUUID(grant.ID)
 	editPermission := sqlcgen.SharePermissionEdit
 	if _, err := service.UpdateGrant(ctx, GrantUpdateInput{OwnerID: 1001, GrantID: grantID, Permission: &editPermission}); err != nil {
@@ -238,6 +247,11 @@ VALUES
 	}
 	if _, err := service.ResolveAccess(ctx, 2002, childID, false); !errors.Is(err, ErrForbidden) {
 		t.Fatalf("ResolveAccess(after revoke) error = %v", err)
+	}
+
+	sharedWithMe, err = service.ListSharedWithMe(ctx, 2002)
+	if err != nil || len(sharedWithMe) != 0 {
+		t.Fatalf("ListSharedWithMe(after revoke) = %#v, %v", sharedWithMe, err)
 	}
 
 	if _, err := db.Pool.Exec(ctx, "UPDATE users SET disabled_at = now() WHERE user_id = 3003"); err != nil {

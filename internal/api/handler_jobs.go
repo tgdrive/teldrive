@@ -249,11 +249,22 @@ func (h *Handler) PurgeJobs(ctx context.Context, params gen.PurgeJobsParams) (ge
 }
 
 func (h *Handler) ListJobQueues(ctx context.Context) (gen.ListJobQueuesRes, error) {
-	userID, err := UserIDFromContext(ctx)
-	if err != nil {
-		return nil, mapServiceError(err)
+	if h.Jobs == nil {
+		return nil, mapServiceError(ErrOperationUnavailable)
 	}
-	queues, err := h.Jobs.ListQueuesForUser(ctx, userID)
+	var (
+		queues []jobs.Queue
+		err    error
+	)
+	if HasRole(ctx, "admin") {
+		queues, err = h.Jobs.ListQueues(ctx)
+	} else {
+		userID, userErr := UserIDFromContext(ctx)
+		if userErr != nil {
+			return nil, mapServiceError(userErr)
+		}
+		queues, err = h.Jobs.ListQueuesForUser(ctx, userID)
+	}
 	if err != nil {
 		return nil, mapServiceError(err)
 	}

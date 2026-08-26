@@ -3228,6 +3228,7 @@ func (*ErrorEnvelope) listJobQueuesRes()             {}
 func (*ErrorEnvelope) listPeriodicJobsRes()          {}
 func (*ErrorEnvelope) listSessionsRes()              {}
 func (*ErrorEnvelope) listSharedRes()                {}
+func (*ErrorEnvelope) listSharedWithMeRes()          {}
 func (*ErrorEnvelope) logoutCookieSessionRes()       {}
 func (*ErrorEnvelope) logoutSessionRes()             {}
 func (*ErrorEnvelope) resetPeriodicJobsRes()         {}
@@ -6641,6 +6642,10 @@ func (*ListSessionsOK) listSessionsRes() {}
 type ListSharedOKApplicationJSON []FileEntry
 
 func (*ListSharedOKApplicationJSON) listSharedRes() {}
+
+type ListSharedWithMeOKApplicationJSON []FileEntry
+
+func (*ListSharedWithMeOKApplicationJSON) listSharedWithMeRes() {}
 
 type ListUploadPartsGone ErrorEnvelope
 

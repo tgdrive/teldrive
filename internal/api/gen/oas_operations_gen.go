@@ -77,6 +77,7 @@ const (
 	ListPublicShareFilesOperation              OperationName = "ListPublicShareFiles"
 	ListSessionsOperation                      OperationName = "ListSessions"
 	ListSharedOperation                        OperationName = "ListShared"
+	ListSharedWithMeOperation                  OperationName = "ListSharedWithMe"
 	ListUploadPartsOperation                   OperationName = "ListUploadParts"
 	ListUploadsOperation                       OperationName = "ListUploads"
 	LogoutCookieSessionOperation               OperationName = "LogoutCookieSession"

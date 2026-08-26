@@ -11,6 +11,18 @@ import { newIdempotencyKey } from "@/features/shared/idempotency";
 import { getQueryClient } from "@/lib/queryClient";
 
 type Permission = "read" | "edit";
+type ExpirationMode = "never" | "custom";
+
+const DURATION_UNITS: Record<string, number> = {
+  ms: 1,
+  s: 1000,
+  m: 60 * 1000,
+  h: 60 * 60 * 1000,
+  d: 24 * 60 * 60 * 1000,
+  w: 7 * 24 * 60 * 60 * 1000,
+  M: 30 * 24 * 60 * 60 * 1000,
+  y: 365 * 24 * 60 * 60 * 1000,
+};
 
 export function ShareDialog({
   file,
@@ -25,6 +37,10 @@ export function ShareDialog({
   const [peoplePermission, setPeoplePermission] = useState<Permission>("read");
   const [linkPermission, setLinkPermission] = useState<Permission>("read");
   const [linkPassword, setLinkPassword] = useState("");
+  const [peopleExpirationMode, setPeopleExpirationMode] = useState<ExpirationMode>("never");
+  const [peopleDuration, setPeopleDuration] = useState("1d");
+  const [linkExpirationMode, setLinkExpirationMode] = useState<ExpirationMode>("never");
+  const [linkDuration, setLinkDuration] = useState("1d");
   const [createdUrl, setCreatedUrl] = useState("");
 
   useEffect(() => {
@@ -32,6 +48,10 @@ export function ShareDialog({
     setPeoplePermission("read");
     setLinkPermission("read");
     setLinkPassword("");
+    setPeopleExpirationMode("never");
+    setPeopleDuration("1d");
+    setLinkExpirationMode("never");
+    setLinkDuration("1d");
     setCreatedUrl("");
   }, [file?.id]);
 
@@ -76,7 +96,11 @@ export function ShareDialog({
     try {
       await createGrant.mutateAsync({
         params: { path: { fileId: file.id } },
-        body: { granteeUserId: userId, permission: peoplePermission },
+        body: {
+          granteeUserId: userId,
+          permission: peoplePermission,
+          expiresAt: expirationDate(peopleExpirationMode, peopleDuration),
+        },
       });
       setPeopleSearch("");
       await refreshGrants();
@@ -97,6 +121,7 @@ export function ShareDialog({
         body: {
           password: linkPassword.trim() || undefined,
           permission: linkPermission,
+          expiresAt: expirationDate(linkExpirationMode, linkDuration),
         },
       });
       const publicUrl = new URL(result.publicUrl, window.location.origin).toString();
@@ -131,6 +156,12 @@ export function ShareDialog({
             </p>
           </div>
           <PermissionPicker value={peoplePermission} onChange={setPeoplePermission} />
+          <ExpirationPicker
+            mode={peopleExpirationMode}
+            duration={peopleDuration}
+            onModeChange={setPeopleExpirationMode}
+            onDurationChange={setPeopleDuration}
+          />
           <TextField value={peopleSearch} onChange={setPeopleSearch}>
             <Label>Add a user</Label>
             <Input placeholder="Search by name, username, or Telegram ID" />
@@ -186,6 +217,7 @@ export function ShareDialog({
                     <p className="truncate text-xs text-muted">
                       {grant.granteeUsername ? `@${grant.granteeUsername} · ` : ""}Telegram ID{" "}
                       {grant.granteeUserId}
+                      {grant.expiresAt ? ` · Expires ${new Date(grant.expiresAt).toLocaleString()}` : " · No expiration"}
                     </p>
                   </div>
                   <Chip variant="tertiary">{grant.permission}</Chip>
@@ -248,6 +280,12 @@ export function ShareDialog({
             </p>
           </div>
           <PermissionPicker value={linkPermission} onChange={setLinkPermission} />
+          <ExpirationPicker
+            mode={linkExpirationMode}
+            duration={linkDuration}
+            onModeChange={setLinkExpirationMode}
+            onDurationChange={setLinkDuration}
+          />
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
             <TextField value={linkPassword} onChange={setLinkPassword} className="min-w-0 flex-1">
               <Label>Optional password</Label>
@@ -296,6 +334,7 @@ export function ShareDialog({
                     <p className="text-xs text-muted">
                       {link.passwordProtected ? "Password protected · " : ""}
                       {link.downloadCount} download{link.downloadCount === 1 ? "" : "s"}
+                      {link.expiresAt ? ` · Expires ${new Date(link.expiresAt).toLocaleString()}` : " · No expiration"}
                     </p>
                   </div>
                   <Chip variant="tertiary">{link.permission}</Chip>
@@ -361,4 +400,75 @@ function PermissionPicker({
       </Select.Popover>
     </Select>
   );
+}
+
+
+function ExpirationPicker({
+  mode,
+  duration,
+  onModeChange,
+  onDurationChange,
+}: {
+  mode: ExpirationMode;
+  duration: string;
+  onModeChange: (value: ExpirationMode) => void;
+  onDurationChange: (value: string) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+      <Select
+        aria-label="Expiration"
+        className="w-40"
+        selectedKey={mode}
+        onSelectionChange={(key) => onModeChange(String(key) as ExpirationMode)}
+      >
+        <Select.Trigger className="h-9 min-h-9 py-1.5">
+          <Select.Value>{mode === "never" ? "No expiration" : "Custom"}</Select.Value>
+          <Select.Indicator />
+        </Select.Trigger>
+        <Select.Popover>
+          <ListBox>
+            <ListBox.Item id="never" textValue="No expiration">
+              No expiration
+            </ListBox.Item>
+            <ListBox.Item id="custom" textValue="Custom">
+              Custom
+            </ListBox.Item>
+          </ListBox>
+        </Select.Popover>
+      </Select>
+      {mode === "custom" ? (
+        <TextField value={duration} onChange={onDurationChange} className="min-w-0 flex-1">
+          <Label>Expires after</Label>
+          <Input placeholder="1h, 1d, 1w, 1y" />
+        </TextField>
+      ) : null}
+    </div>
+  );
+}
+
+function expirationDate(mode: ExpirationMode, duration: string): string | undefined {
+  if (mode === "never") return undefined;
+  const milliseconds = parseDuration(duration);
+  const expiresAt = new Date(Date.now() + milliseconds);
+  if (!Number.isFinite(expiresAt.getTime())) throw new Error("Expiration duration is too large");
+  return expiresAt.toISOString();
+}
+
+function parseDuration(input: string): number {
+  const value = input.trim();
+  if (!value) throw new Error("Enter an expiration duration such as 1h, 1d, or 1y");
+
+  const pattern = /(\d+(?:\.\d+)?)(ms|s|m|h|d|w|M|y)/g;
+  let total = 0;
+  let offset = 0;
+  for (const match of value.matchAll(pattern)) {
+    if (match.index !== offset) throw new Error("Invalid expiration duration");
+    total += Number(match[1]) * DURATION_UNITS[match[2]];
+    offset = match.index + match[0].length;
+  }
+  if (offset !== value.length || !Number.isFinite(total) || total <= 0) {
+    throw new Error("Invalid expiration duration. Try 1h, 1d, 1w, or 1y");
+  }
+  return total;
 }

@@ -227,6 +227,29 @@ func (h *Handler) ListShared(ctx context.Context) (gen.ListSharedRes, error) {
 	return &out, nil
 }
 
+func (h *Handler) ListSharedWithMe(ctx context.Context) (gen.ListSharedWithMeRes, error) {
+	granteeID, err := UserIDFromContext(ctx)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	if h.Shares == nil {
+		return nil, mapServiceError(ErrOperationUnavailable)
+	}
+	rows, err := h.Shares.ListSharedWithMe(ctx, granteeID)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	out := make(gen.ListSharedWithMeOKApplicationJSON, 0, len(rows))
+	for _, row := range rows {
+		entry, err := fileEntry(row)
+		if err != nil {
+			continue
+		}
+		out = append(out, entry)
+	}
+	return &out, nil
+}
+
 func (h *Handler) CreatePublicShareFolder(ctx context.Context, req *gen.FolderCreateRequest, params gen.CreatePublicShareFolderParams) (gen.CreatePublicShareFolderRes, error) {
 	if h.Shares == nil || h.Catalog == nil || req == nil {
 		return nil, mapServiceError(ErrOperationUnavailable)

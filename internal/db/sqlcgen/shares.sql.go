@@ -544,6 +544,62 @@ func (q *Queries) ListShared(ctx context.Context, arg ListSharedParams) ([]*File
 	return items, nil
 }
 
+const listSharedWithMe = `-- name: ListSharedWithMe :many
+SELECT f.id, f.user_id, f.parent_id, f.name, f.normalized_name, f.kind, f.mime_type, f.size, f.hash_algorithm, f.hash_value, f.encryption, f.encryption_key_version, f.status, f.mod_time, f.generation, f.created_at, f.updated_at, f.deleted_at
+FROM /* TEMPLATE: schema */file_access_grants g
+JOIN /* TEMPLATE: schema */files f ON f.id = g.file_id AND f.user_id = g.owner_id
+WHERE g.grantee_id = $1
+  AND g.revoked_at IS NULL
+  AND (g.expires_at IS NULL OR g.expires_at > now())
+  AND f.status = 'active'
+ORDER BY g.updated_at DESC, g.id DESC
+LIMIT $2
+`
+
+type ListSharedWithMeParams struct {
+	GranteeID int64 `json:"grantee_id"`
+	PageSize  int32 `json:"page_size"`
+}
+
+func (q *Queries) ListSharedWithMe(ctx context.Context, arg ListSharedWithMeParams) ([]*File, error) {
+	rows, err := q.db.Query(ctx, listSharedWithMe, arg.GranteeID, arg.PageSize)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*File{}
+	for rows.Next() {
+		var i File
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.ParentID,
+			&i.Name,
+			&i.NormalizedName,
+			&i.Kind,
+			&i.MimeType,
+			&i.Size,
+			&i.HashAlgorithm,
+			&i.HashValue,
+			&i.Encryption,
+			&i.EncryptionKeyVersion,
+			&i.Status,
+			&i.ModTime,
+			&i.Generation,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const revokeExpiredShares = `-- name: RevokeExpiredShares :execrows
 UPDATE /* TEMPLATE: schema */file_shares
 SET revoked_at = now()

@@ -151,6 +151,18 @@ WHERE f.user_id = sqlc.arg(owner_id)
 ORDER BY f.updated_at DESC, f.id DESC
 LIMIT sqlc.arg(page_size);
 
+
+-- name: ListSharedWithMe :many
+SELECT f.*
+FROM /* TEMPLATE: schema */file_access_grants g
+JOIN /* TEMPLATE: schema */files f ON f.id = g.file_id AND f.user_id = g.owner_id
+WHERE g.grantee_id = sqlc.arg(grantee_id)
+  AND g.revoked_at IS NULL
+  AND (g.expires_at IS NULL OR g.expires_at > now())
+  AND f.status = 'active'
+ORDER BY g.updated_at DESC, g.id DESC
+LIMIT sqlc.arg(page_size);
+
 -- name: UpdateFileAccessGrant :one
 UPDATE /* TEMPLATE: schema */file_access_grants
 SET permission = COALESCE(sqlc.narg(permission)::/* TEMPLATE: schema */share_permission, permission),
