@@ -185,18 +185,33 @@ type Invoker interface {
 	DiscoverChannels(ctx context.Context) (DiscoverChannelsRes, error)
 	// DownloadFile invokes downloadFile operation.
 	//
-	// Stream complete or partial file content.
+	// Stream complete or partial file content. The filename path segment gives command-line clients a
+	// useful output name.
+	//
+	// GET /v1/files/{fileId}/content/{fileName}
+	DownloadFile(ctx context.Context, params DownloadFileParams) (DownloadFileRes, error)
+	// DownloadFileLegacy invokes downloadFileLegacy operation.
+	//
+	// Stream file content using the legacy URL without a filename segment.
 	//
 	// GET /v1/files/{fileId}/content
-	DownloadFile(ctx context.Context, params DownloadFileParams) (DownloadFileRes, error)
+	DownloadFileLegacy(ctx context.Context, params DownloadFileLegacyParams) (DownloadFileLegacyRes, error)
 	// DownloadPublicShare invokes downloadPublicShare operation.
 	//
-	// GET /v1/public/shares/{token}/content
+	// GET /v1/public/shares/{token}/content/{fileName}
 	DownloadPublicShare(ctx context.Context, params DownloadPublicShareParams) (DownloadPublicShareRes, error)
 	// DownloadPublicShareFile invokes downloadPublicShareFile operation.
 	//
-	// GET /v1/public/shares/{token}/files/{fileId}/content
+	// GET /v1/public/shares/{token}/files/{fileId}/content/{fileName}
 	DownloadPublicShareFile(ctx context.Context, params DownloadPublicShareFileParams) (DownloadPublicShareFileRes, error)
+	// DownloadPublicShareFileLegacy invokes downloadPublicShareFileLegacy operation.
+	//
+	// GET /v1/public/shares/{token}/files/{fileId}/content
+	DownloadPublicShareFileLegacy(ctx context.Context, params DownloadPublicShareFileLegacyParams) (DownloadPublicShareFileLegacyRes, error)
+	// DownloadPublicShareLegacy invokes downloadPublicShareLegacy operation.
+	//
+	// GET /v1/public/shares/{token}/content
+	DownloadPublicShareLegacy(ctx context.Context, params DownloadPublicShareLegacyParams) (DownloadPublicShareLegacyRes, error)
 	// GetCurrentUser invokes getCurrentUser operation.
 	//
 	// Return the authenticated user profile.
@@ -271,16 +286,30 @@ type Invoker interface {
 	//
 	// Return content metadata without streaming the file.
 	//
-	// HEAD /v1/files/{fileId}/content
+	// HEAD /v1/files/{fileId}/content/{fileName}
 	HeadFile(ctx context.Context, params HeadFileParams) (HeadFileRes, error)
+	// HeadFileLegacy invokes headFileLegacy operation.
+	//
+	// Return file metadata using the legacy URL without a filename segment.
+	//
+	// HEAD /v1/files/{fileId}/content
+	HeadFileLegacy(ctx context.Context, params HeadFileLegacyParams) (HeadFileLegacyRes, error)
 	// HeadPublicShare invokes headPublicShare operation.
 	//
-	// HEAD /v1/public/shares/{token}/content
+	// HEAD /v1/public/shares/{token}/content/{fileName}
 	HeadPublicShare(ctx context.Context, params HeadPublicShareParams) (HeadPublicShareRes, error)
 	// HeadPublicShareFile invokes headPublicShareFile operation.
 	//
-	// HEAD /v1/public/shares/{token}/files/{fileId}/content
+	// HEAD /v1/public/shares/{token}/files/{fileId}/content/{fileName}
 	HeadPublicShareFile(ctx context.Context, params HeadPublicShareFileParams) (HeadPublicShareFileRes, error)
+	// HeadPublicShareFileLegacy invokes headPublicShareFileLegacy operation.
+	//
+	// HEAD /v1/public/shares/{token}/files/{fileId}/content
+	HeadPublicShareFileLegacy(ctx context.Context, params HeadPublicShareFileLegacyParams) (HeadPublicShareFileLegacyRes, error)
+	// HeadPublicShareLegacy invokes headPublicShareLegacy operation.
+	//
+	// HEAD /v1/public/shares/{token}/content
+	HeadPublicShareLegacy(ctx context.Context, params HeadPublicShareLegacyParams) (HeadPublicShareLegacyRes, error)
 	// HealthLive invokes healthLive operation.
 	//
 	// Process liveness check.
@@ -5094,9 +5123,10 @@ func (c *Client) sendDiscoverChannels(ctx context.Context) (res DiscoverChannels
 
 // DownloadFile invokes downloadFile operation.
 //
-// Stream complete or partial file content.
+// Stream complete or partial file content. The filename path segment gives command-line clients a
+// useful output name.
 //
-// GET /v1/files/{fileId}/content
+// GET /v1/files/{fileId}/content/{fileName}
 func (c *Client) DownloadFile(ctx context.Context, params DownloadFileParams) (DownloadFileRes, error) {
 	res, err := c.sendDownloadFile(ctx, params)
 	return res, err
@@ -5106,7 +5136,7 @@ func (c *Client) sendDownloadFile(ctx context.Context, params DownloadFileParams
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("downloadFile"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/v1/files/{fileId}/content"),
+		semconv.URLTemplateKey.String("/v1/files/{fileId}/content/{fileName}"),
 	}
 	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
 
@@ -5139,7 +5169,7 @@ func (c *Client) sendDownloadFile(ctx context.Context, params DownloadFileParams
 
 	stage = "BuildURL"
 	u := uri.Clone(c.requestURL(ctx))
-	var pathParts [3]string
+	var pathParts [4]string
 	pathParts[0] = "/v1/files/"
 	{
 		// Encode "fileId" parameter.
@@ -5162,8 +5192,47 @@ func (c *Client) sendDownloadFile(ctx context.Context, params DownloadFileParams
 		}
 		pathParts[1] = encoded
 	}
-	pathParts[2] = "/content"
+	pathParts[2] = "/content/"
+	{
+		// Encode "fileName" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "fileName",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.FileName))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[3] = encoded
+	}
 	uri.AddPathParts(u, pathParts[:]...)
+
+	stage = "EncodeQueryParams"
+	q := uri.NewQueryEncoder()
+	{
+		// Encode "download" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "download",
+			Style:   uri.QueryStyleForm,
+			Explode: false,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.Download.Get(); ok {
+				return e.EncodeValue(conv.StringToString(string(val)))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	u.RawQuery = q.Values().Encode()
 
 	stage = "EncodeRequest"
 	r, err := ht.NewRequest(ctx, "GET", u)
@@ -5277,9 +5346,215 @@ func (c *Client) sendDownloadFile(ctx context.Context, params DownloadFileParams
 	return result, nil
 }
 
+// DownloadFileLegacy invokes downloadFileLegacy operation.
+//
+// Stream file content using the legacy URL without a filename segment.
+//
+// GET /v1/files/{fileId}/content
+func (c *Client) DownloadFileLegacy(ctx context.Context, params DownloadFileLegacyParams) (DownloadFileLegacyRes, error) {
+	res, err := c.sendDownloadFileLegacy(ctx, params)
+	return res, err
+}
+
+func (c *Client) sendDownloadFileLegacy(ctx context.Context, params DownloadFileLegacyParams) (res DownloadFileLegacyRes, err error) {
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("downloadFileLegacy"),
+		semconv.HTTPRequestMethodKey.String("GET"),
+		semconv.URLTemplateKey.String("/v1/files/{fileId}/content"),
+	}
+	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		elapsedDuration := time.Since(startTime)
+		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
+	}()
+
+	// Increment request counter.
+	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+
+	// Start a span for this request.
+	ctx, span := c.cfg.Tracer.Start(ctx, DownloadFileLegacyOperation,
+		trace.WithAttributes(otelAttrs...),
+		clientSpanKind,
+	)
+	// Track stage for error reporting.
+	var stage string
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, stage)
+			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+		}
+		span.End()
+	}()
+
+	stage = "BuildURL"
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [3]string
+	pathParts[0] = "/v1/files/"
+	{
+		// Encode "fileId" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "fileId",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			if unwrapped := uuid.UUID(params.FileId); true {
+				return e.EncodeValue(conv.UUIDToString(unwrapped))
+			}
+			return nil
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	pathParts[2] = "/content"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	stage = "EncodeQueryParams"
+	q := uri.NewQueryEncoder()
+	{
+		// Encode "download" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "download",
+			Style:   uri.QueryStyleForm,
+			Explode: false,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.Download.Get(); ok {
+				return e.EncodeValue(conv.StringToString(string(val)))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	u.RawQuery = q.Values().Encode()
+
+	stage = "EncodeRequest"
+	r, err := ht.NewRequest(ctx, "GET", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	stage = "EncodeHeaderParams"
+	h := uri.NewHeaderEncoder(r.Header)
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "Range",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.Range.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "If-None-Match",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.IfNoneMatch.Get(); ok {
+				if unwrapped := string(val); true {
+					return e.EncodeValue(conv.StringToString(unwrapped))
+				}
+				return nil
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+
+	{
+		type bitset = [1]uint8
+		var satisfied bitset
+		{
+			stage = "Security:BearerAuth"
+			switch err := c.securityBearerAuth(ctx, DownloadFileLegacyOperation, r); {
+			case err == nil: // if NO error
+				satisfied[0] |= 1 << 0
+			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
+				// Skip this security.
+			default:
+				return res, errors.Wrap(err, "security \"BearerAuth\"")
+			}
+		}
+		{
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, DownloadFileLegacyOperation, r); {
+			case err == nil: // if NO error
+				satisfied[0] |= 1 << 1
+			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
+				// Skip this security.
+			default:
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
+			}
+		}
+		{
+			stage = "Security:ExternalApiKeyAuth"
+			switch err := c.securityExternalApiKeyAuth(ctx, DownloadFileLegacyOperation, r); {
+			case err == nil: // if NO error
+				satisfied[0] |= 1 << 2
+			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
+				// Skip this security.
+			default:
+				return res, errors.Wrap(err, "security \"ExternalApiKeyAuth\"")
+			}
+		}
+
+		if ok := func() bool {
+		nextRequirement:
+			for _, requirement := range []bitset{
+				{0b00000001},
+				{0b00000010},
+				{0b00000100},
+			} {
+				for i, mask := range requirement {
+					if satisfied[i]&mask != mask {
+						continue nextRequirement
+					}
+				}
+				return true
+			}
+			return false
+		}(); !ok {
+			return res, ogenerrors.ErrSecurityRequirementIsNotSatisfied
+		}
+	}
+
+	stage = "SendRequest"
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+
+	stage = "DecodeResponse"
+	result, err := decodeDownloadFileLegacyResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
 // DownloadPublicShare invokes downloadPublicShare operation.
 //
-// GET /v1/public/shares/{token}/content
+// GET /v1/public/shares/{token}/content/{fileName}
 func (c *Client) DownloadPublicShare(ctx context.Context, params DownloadPublicShareParams) (DownloadPublicShareRes, error) {
 	res, err := c.sendDownloadPublicShare(ctx, params)
 	return res, err
@@ -5289,7 +5564,7 @@ func (c *Client) sendDownloadPublicShare(ctx context.Context, params DownloadPub
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("downloadPublicShare"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/v1/public/shares/{token}/content"),
+		semconv.URLTemplateKey.String("/v1/public/shares/{token}/content/{fileName}"),
 	}
 	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
 
@@ -5322,7 +5597,7 @@ func (c *Client) sendDownloadPublicShare(ctx context.Context, params DownloadPub
 
 	stage = "BuildURL"
 	u := uri.Clone(c.requestURL(ctx))
-	var pathParts [3]string
+	var pathParts [4]string
 	pathParts[0] = "/v1/public/shares/"
 	{
 		// Encode "token" parameter.
@@ -5342,8 +5617,47 @@ func (c *Client) sendDownloadPublicShare(ctx context.Context, params DownloadPub
 		}
 		pathParts[1] = encoded
 	}
-	pathParts[2] = "/content"
+	pathParts[2] = "/content/"
+	{
+		// Encode "fileName" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "fileName",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.FileName))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[3] = encoded
+	}
 	uri.AddPathParts(u, pathParts[:]...)
+
+	stage = "EncodeQueryParams"
+	q := uri.NewQueryEncoder()
+	{
+		// Encode "download" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "download",
+			Style:   uri.QueryStyleForm,
+			Explode: false,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.Download.Get(); ok {
+				return e.EncodeValue(conv.StringToString(string(val)))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	u.RawQuery = q.Values().Encode()
 
 	stage = "EncodeRequest"
 	r, err := ht.NewRequest(ctx, "GET", u)
@@ -5416,7 +5730,7 @@ func (c *Client) sendDownloadPublicShare(ctx context.Context, params DownloadPub
 
 // DownloadPublicShareFile invokes downloadPublicShareFile operation.
 //
-// GET /v1/public/shares/{token}/files/{fileId}/content
+// GET /v1/public/shares/{token}/files/{fileId}/content/{fileName}
 func (c *Client) DownloadPublicShareFile(ctx context.Context, params DownloadPublicShareFileParams) (DownloadPublicShareFileRes, error) {
 	res, err := c.sendDownloadPublicShareFile(ctx, params)
 	return res, err
@@ -5426,7 +5740,7 @@ func (c *Client) sendDownloadPublicShareFile(ctx context.Context, params Downloa
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("downloadPublicShareFile"),
 		semconv.HTTPRequestMethodKey.String("GET"),
-		semconv.URLTemplateKey.String("/v1/public/shares/{token}/files/{fileId}/content"),
+		semconv.URLTemplateKey.String("/v1/public/shares/{token}/files/{fileId}/content/{fileName}"),
 	}
 	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
 
@@ -5459,7 +5773,7 @@ func (c *Client) sendDownloadPublicShareFile(ctx context.Context, params Downloa
 
 	stage = "BuildURL"
 	u := uri.Clone(c.requestURL(ctx))
-	var pathParts [5]string
+	var pathParts [6]string
 	pathParts[0] = "/v1/public/shares/"
 	{
 		// Encode "token" parameter.
@@ -5501,8 +5815,47 @@ func (c *Client) sendDownloadPublicShareFile(ctx context.Context, params Downloa
 		}
 		pathParts[3] = encoded
 	}
-	pathParts[4] = "/content"
+	pathParts[4] = "/content/"
+	{
+		// Encode "fileName" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "fileName",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.FileName))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[5] = encoded
+	}
 	uri.AddPathParts(u, pathParts[:]...)
+
+	stage = "EncodeQueryParams"
+	q := uri.NewQueryEncoder()
+	{
+		// Encode "download" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "download",
+			Style:   uri.QueryStyleForm,
+			Explode: false,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.Download.Get(); ok {
+				return e.EncodeValue(conv.StringToString(string(val)))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	u.RawQuery = q.Values().Encode()
 
 	stage = "EncodeRequest"
 	r, err := ht.NewRequest(ctx, "GET", u)
@@ -5566,6 +5919,344 @@ func (c *Client) sendDownloadPublicShareFile(ctx context.Context, params Downloa
 
 	stage = "DecodeResponse"
 	result, err := decodeDownloadPublicShareFileResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// DownloadPublicShareFileLegacy invokes downloadPublicShareFileLegacy operation.
+//
+// GET /v1/public/shares/{token}/files/{fileId}/content
+func (c *Client) DownloadPublicShareFileLegacy(ctx context.Context, params DownloadPublicShareFileLegacyParams) (DownloadPublicShareFileLegacyRes, error) {
+	res, err := c.sendDownloadPublicShareFileLegacy(ctx, params)
+	return res, err
+}
+
+func (c *Client) sendDownloadPublicShareFileLegacy(ctx context.Context, params DownloadPublicShareFileLegacyParams) (res DownloadPublicShareFileLegacyRes, err error) {
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("downloadPublicShareFileLegacy"),
+		semconv.HTTPRequestMethodKey.String("GET"),
+		semconv.URLTemplateKey.String("/v1/public/shares/{token}/files/{fileId}/content"),
+	}
+	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		elapsedDuration := time.Since(startTime)
+		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
+	}()
+
+	// Increment request counter.
+	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+
+	// Start a span for this request.
+	ctx, span := c.cfg.Tracer.Start(ctx, DownloadPublicShareFileLegacyOperation,
+		trace.WithAttributes(otelAttrs...),
+		clientSpanKind,
+	)
+	// Track stage for error reporting.
+	var stage string
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, stage)
+			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+		}
+		span.End()
+	}()
+
+	stage = "BuildURL"
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [5]string
+	pathParts[0] = "/v1/public/shares/"
+	{
+		// Encode "token" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "token",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.Token))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	pathParts[2] = "/files/"
+	{
+		// Encode "fileId" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "fileId",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			if unwrapped := uuid.UUID(params.FileId); true {
+				return e.EncodeValue(conv.UUIDToString(unwrapped))
+			}
+			return nil
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[3] = encoded
+	}
+	pathParts[4] = "/content"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	stage = "EncodeQueryParams"
+	q := uri.NewQueryEncoder()
+	{
+		// Encode "download" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "download",
+			Style:   uri.QueryStyleForm,
+			Explode: false,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.Download.Get(); ok {
+				return e.EncodeValue(conv.StringToString(string(val)))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	u.RawQuery = q.Values().Encode()
+
+	stage = "EncodeRequest"
+	r, err := ht.NewRequest(ctx, "GET", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	stage = "EncodeHeaderParams"
+	h := uri.NewHeaderEncoder(r.Header)
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "X-Share-Password",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.XSharePassword.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "Range",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.Range.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "If-None-Match",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.IfNoneMatch.Get(); ok {
+				if unwrapped := string(val); true {
+					return e.EncodeValue(conv.StringToString(unwrapped))
+				}
+				return nil
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+
+	stage = "SendRequest"
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+
+	stage = "DecodeResponse"
+	result, err := decodeDownloadPublicShareFileLegacyResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// DownloadPublicShareLegacy invokes downloadPublicShareLegacy operation.
+//
+// GET /v1/public/shares/{token}/content
+func (c *Client) DownloadPublicShareLegacy(ctx context.Context, params DownloadPublicShareLegacyParams) (DownloadPublicShareLegacyRes, error) {
+	res, err := c.sendDownloadPublicShareLegacy(ctx, params)
+	return res, err
+}
+
+func (c *Client) sendDownloadPublicShareLegacy(ctx context.Context, params DownloadPublicShareLegacyParams) (res DownloadPublicShareLegacyRes, err error) {
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("downloadPublicShareLegacy"),
+		semconv.HTTPRequestMethodKey.String("GET"),
+		semconv.URLTemplateKey.String("/v1/public/shares/{token}/content"),
+	}
+	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		elapsedDuration := time.Since(startTime)
+		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
+	}()
+
+	// Increment request counter.
+	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+
+	// Start a span for this request.
+	ctx, span := c.cfg.Tracer.Start(ctx, DownloadPublicShareLegacyOperation,
+		trace.WithAttributes(otelAttrs...),
+		clientSpanKind,
+	)
+	// Track stage for error reporting.
+	var stage string
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, stage)
+			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+		}
+		span.End()
+	}()
+
+	stage = "BuildURL"
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [3]string
+	pathParts[0] = "/v1/public/shares/"
+	{
+		// Encode "token" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "token",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.Token))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	pathParts[2] = "/content"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	stage = "EncodeQueryParams"
+	q := uri.NewQueryEncoder()
+	{
+		// Encode "download" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "download",
+			Style:   uri.QueryStyleForm,
+			Explode: false,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.Download.Get(); ok {
+				return e.EncodeValue(conv.StringToString(string(val)))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	u.RawQuery = q.Values().Encode()
+
+	stage = "EncodeRequest"
+	r, err := ht.NewRequest(ctx, "GET", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	stage = "EncodeHeaderParams"
+	h := uri.NewHeaderEncoder(r.Header)
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "X-Share-Password",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.XSharePassword.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "Range",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.Range.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "If-None-Match",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.IfNoneMatch.Get(); ok {
+				if unwrapped := string(val); true {
+					return e.EncodeValue(conv.StringToString(unwrapped))
+				}
+				return nil
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+
+	stage = "SendRequest"
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+
+	stage = "DecodeResponse"
+	result, err := decodeDownloadPublicShareLegacyResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}
@@ -7431,7 +8122,7 @@ func (c *Client) sendGetUploadStatistics(ctx context.Context, params GetUploadSt
 //
 // Return content metadata without streaming the file.
 //
-// HEAD /v1/files/{fileId}/content
+// HEAD /v1/files/{fileId}/content/{fileName}
 func (c *Client) HeadFile(ctx context.Context, params HeadFileParams) (HeadFileRes, error) {
 	res, err := c.sendHeadFile(ctx, params)
 	return res, err
@@ -7441,7 +8132,7 @@ func (c *Client) sendHeadFile(ctx context.Context, params HeadFileParams) (res H
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("headFile"),
 		semconv.HTTPRequestMethodKey.String("HEAD"),
-		semconv.URLTemplateKey.String("/v1/files/{fileId}/content"),
+		semconv.URLTemplateKey.String("/v1/files/{fileId}/content/{fileName}"),
 	}
 	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
 
@@ -7474,7 +8165,7 @@ func (c *Client) sendHeadFile(ctx context.Context, params HeadFileParams) (res H
 
 	stage = "BuildURL"
 	u := uri.Clone(c.requestURL(ctx))
-	var pathParts [3]string
+	var pathParts [4]string
 	pathParts[0] = "/v1/files/"
 	{
 		// Encode "fileId" parameter.
@@ -7497,7 +8188,25 @@ func (c *Client) sendHeadFile(ctx context.Context, params HeadFileParams) (res H
 		}
 		pathParts[1] = encoded
 	}
-	pathParts[2] = "/content"
+	pathParts[2] = "/content/"
+	{
+		// Encode "fileName" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "fileName",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.FileName))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[3] = encoded
+	}
 	uri.AddPathParts(u, pathParts[:]...)
 
 	stage = "EncodeRequest"
@@ -7586,9 +8295,168 @@ func (c *Client) sendHeadFile(ctx context.Context, params HeadFileParams) (res H
 	return result, nil
 }
 
+// HeadFileLegacy invokes headFileLegacy operation.
+//
+// Return file metadata using the legacy URL without a filename segment.
+//
+// HEAD /v1/files/{fileId}/content
+func (c *Client) HeadFileLegacy(ctx context.Context, params HeadFileLegacyParams) (HeadFileLegacyRes, error) {
+	res, err := c.sendHeadFileLegacy(ctx, params)
+	return res, err
+}
+
+func (c *Client) sendHeadFileLegacy(ctx context.Context, params HeadFileLegacyParams) (res HeadFileLegacyRes, err error) {
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("headFileLegacy"),
+		semconv.HTTPRequestMethodKey.String("HEAD"),
+		semconv.URLTemplateKey.String("/v1/files/{fileId}/content"),
+	}
+	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		elapsedDuration := time.Since(startTime)
+		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
+	}()
+
+	// Increment request counter.
+	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+
+	// Start a span for this request.
+	ctx, span := c.cfg.Tracer.Start(ctx, HeadFileLegacyOperation,
+		trace.WithAttributes(otelAttrs...),
+		clientSpanKind,
+	)
+	// Track stage for error reporting.
+	var stage string
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, stage)
+			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+		}
+		span.End()
+	}()
+
+	stage = "BuildURL"
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [3]string
+	pathParts[0] = "/v1/files/"
+	{
+		// Encode "fileId" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "fileId",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			if unwrapped := uuid.UUID(params.FileId); true {
+				return e.EncodeValue(conv.UUIDToString(unwrapped))
+			}
+			return nil
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	pathParts[2] = "/content"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	stage = "EncodeRequest"
+	r, err := ht.NewRequest(ctx, "HEAD", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	{
+		type bitset = [1]uint8
+		var satisfied bitset
+		{
+			stage = "Security:BearerAuth"
+			switch err := c.securityBearerAuth(ctx, HeadFileLegacyOperation, r); {
+			case err == nil: // if NO error
+				satisfied[0] |= 1 << 0
+			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
+				// Skip this security.
+			default:
+				return res, errors.Wrap(err, "security \"BearerAuth\"")
+			}
+		}
+		{
+			stage = "Security:CookieAuth"
+			switch err := c.securityCookieAuth(ctx, HeadFileLegacyOperation, r); {
+			case err == nil: // if NO error
+				satisfied[0] |= 1 << 1
+			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
+				// Skip this security.
+			default:
+				return res, errors.Wrap(err, "security \"CookieAuth\"")
+			}
+		}
+		{
+			stage = "Security:ExternalApiKeyAuth"
+			switch err := c.securityExternalApiKeyAuth(ctx, HeadFileLegacyOperation, r); {
+			case err == nil: // if NO error
+				satisfied[0] |= 1 << 2
+			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
+				// Skip this security.
+			default:
+				return res, errors.Wrap(err, "security \"ExternalApiKeyAuth\"")
+			}
+		}
+
+		if ok := func() bool {
+		nextRequirement:
+			for _, requirement := range []bitset{
+				{0b00000001},
+				{0b00000010},
+				{0b00000100},
+			} {
+				for i, mask := range requirement {
+					if satisfied[i]&mask != mask {
+						continue nextRequirement
+					}
+				}
+				return true
+			}
+			return false
+		}(); !ok {
+			return res, ogenerrors.ErrSecurityRequirementIsNotSatisfied
+		}
+	}
+
+	stage = "SendRequest"
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	body := resp.Body
+	defer func() {
+		// Drain the body to EOF before closing, so the underlying
+		// connection can be reused by the Transport regardless of the
+		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
+		_, _ = io.Copy(io.Discard, body)
+		_ = body.Close()
+	}()
+
+	stage = "DecodeResponse"
+	result, err := decodeHeadFileLegacyResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
 // HeadPublicShare invokes headPublicShare operation.
 //
-// HEAD /v1/public/shares/{token}/content
+// HEAD /v1/public/shares/{token}/content/{fileName}
 func (c *Client) HeadPublicShare(ctx context.Context, params HeadPublicShareParams) (HeadPublicShareRes, error) {
 	res, err := c.sendHeadPublicShare(ctx, params)
 	return res, err
@@ -7598,7 +8466,7 @@ func (c *Client) sendHeadPublicShare(ctx context.Context, params HeadPublicShare
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("headPublicShare"),
 		semconv.HTTPRequestMethodKey.String("HEAD"),
-		semconv.URLTemplateKey.String("/v1/public/shares/{token}/content"),
+		semconv.URLTemplateKey.String("/v1/public/shares/{token}/content/{fileName}"),
 	}
 	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
 
@@ -7631,7 +8499,7 @@ func (c *Client) sendHeadPublicShare(ctx context.Context, params HeadPublicShare
 
 	stage = "BuildURL"
 	u := uri.Clone(c.requestURL(ctx))
-	var pathParts [3]string
+	var pathParts [4]string
 	pathParts[0] = "/v1/public/shares/"
 	{
 		// Encode "token" parameter.
@@ -7651,7 +8519,25 @@ func (c *Client) sendHeadPublicShare(ctx context.Context, params HeadPublicShare
 		}
 		pathParts[1] = encoded
 	}
-	pathParts[2] = "/content"
+	pathParts[2] = "/content/"
+	{
+		// Encode "fileName" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "fileName",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.FileName))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[3] = encoded
+	}
 	uri.AddPathParts(u, pathParts[:]...)
 
 	stage = "EncodeRequest"
@@ -7702,7 +8588,7 @@ func (c *Client) sendHeadPublicShare(ctx context.Context, params HeadPublicShare
 
 // HeadPublicShareFile invokes headPublicShareFile operation.
 //
-// HEAD /v1/public/shares/{token}/files/{fileId}/content
+// HEAD /v1/public/shares/{token}/files/{fileId}/content/{fileName}
 func (c *Client) HeadPublicShareFile(ctx context.Context, params HeadPublicShareFileParams) (HeadPublicShareFileRes, error) {
 	res, err := c.sendHeadPublicShareFile(ctx, params)
 	return res, err
@@ -7711,6 +8597,160 @@ func (c *Client) HeadPublicShareFile(ctx context.Context, params HeadPublicShare
 func (c *Client) sendHeadPublicShareFile(ctx context.Context, params HeadPublicShareFileParams) (res HeadPublicShareFileRes, err error) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("headPublicShareFile"),
+		semconv.HTTPRequestMethodKey.String("HEAD"),
+		semconv.URLTemplateKey.String("/v1/public/shares/{token}/files/{fileId}/content/{fileName}"),
+	}
+	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		elapsedDuration := time.Since(startTime)
+		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
+	}()
+
+	// Increment request counter.
+	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+
+	// Start a span for this request.
+	ctx, span := c.cfg.Tracer.Start(ctx, HeadPublicShareFileOperation,
+		trace.WithAttributes(otelAttrs...),
+		clientSpanKind,
+	)
+	// Track stage for error reporting.
+	var stage string
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, stage)
+			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+		}
+		span.End()
+	}()
+
+	stage = "BuildURL"
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [6]string
+	pathParts[0] = "/v1/public/shares/"
+	{
+		// Encode "token" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "token",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.Token))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	pathParts[2] = "/files/"
+	{
+		// Encode "fileId" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "fileId",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			if unwrapped := uuid.UUID(params.FileId); true {
+				return e.EncodeValue(conv.UUIDToString(unwrapped))
+			}
+			return nil
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[3] = encoded
+	}
+	pathParts[4] = "/content/"
+	{
+		// Encode "fileName" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "fileName",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.FileName))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[5] = encoded
+	}
+	uri.AddPathParts(u, pathParts[:]...)
+
+	stage = "EncodeRequest"
+	r, err := ht.NewRequest(ctx, "HEAD", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	stage = "EncodeHeaderParams"
+	h := uri.NewHeaderEncoder(r.Header)
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "X-Share-Password",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.XSharePassword.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+
+	stage = "SendRequest"
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	body := resp.Body
+	defer func() {
+		// Drain the body to EOF before closing, so the underlying
+		// connection can be reused by the Transport regardless of the
+		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
+		_, _ = io.Copy(io.Discard, body)
+		_ = body.Close()
+	}()
+
+	stage = "DecodeResponse"
+	result, err := decodeHeadPublicShareFileResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// HeadPublicShareFileLegacy invokes headPublicShareFileLegacy operation.
+//
+// HEAD /v1/public/shares/{token}/files/{fileId}/content
+func (c *Client) HeadPublicShareFileLegacy(ctx context.Context, params HeadPublicShareFileLegacyParams) (HeadPublicShareFileLegacyRes, error) {
+	res, err := c.sendHeadPublicShareFileLegacy(ctx, params)
+	return res, err
+}
+
+func (c *Client) sendHeadPublicShareFileLegacy(ctx context.Context, params HeadPublicShareFileLegacyParams) (res HeadPublicShareFileLegacyRes, err error) {
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("headPublicShareFileLegacy"),
 		semconv.HTTPRequestMethodKey.String("HEAD"),
 		semconv.URLTemplateKey.String("/v1/public/shares/{token}/files/{fileId}/content"),
 	}
@@ -7728,7 +8768,7 @@ func (c *Client) sendHeadPublicShareFile(ctx context.Context, params HeadPublicS
 	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
 
 	// Start a span for this request.
-	ctx, span := c.cfg.Tracer.Start(ctx, HeadPublicShareFileOperation,
+	ctx, span := c.cfg.Tracer.Start(ctx, HeadPublicShareFileLegacyOperation,
 		trace.WithAttributes(otelAttrs...),
 		clientSpanKind,
 	)
@@ -7828,7 +8868,121 @@ func (c *Client) sendHeadPublicShareFile(ctx context.Context, params HeadPublicS
 	}()
 
 	stage = "DecodeResponse"
-	result, err := decodeHeadPublicShareFileResponse(resp)
+	result, err := decodeHeadPublicShareFileLegacyResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// HeadPublicShareLegacy invokes headPublicShareLegacy operation.
+//
+// HEAD /v1/public/shares/{token}/content
+func (c *Client) HeadPublicShareLegacy(ctx context.Context, params HeadPublicShareLegacyParams) (HeadPublicShareLegacyRes, error) {
+	res, err := c.sendHeadPublicShareLegacy(ctx, params)
+	return res, err
+}
+
+func (c *Client) sendHeadPublicShareLegacy(ctx context.Context, params HeadPublicShareLegacyParams) (res HeadPublicShareLegacyRes, err error) {
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("headPublicShareLegacy"),
+		semconv.HTTPRequestMethodKey.String("HEAD"),
+		semconv.URLTemplateKey.String("/v1/public/shares/{token}/content"),
+	}
+	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		elapsedDuration := time.Since(startTime)
+		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
+	}()
+
+	// Increment request counter.
+	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+
+	// Start a span for this request.
+	ctx, span := c.cfg.Tracer.Start(ctx, HeadPublicShareLegacyOperation,
+		trace.WithAttributes(otelAttrs...),
+		clientSpanKind,
+	)
+	// Track stage for error reporting.
+	var stage string
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, stage)
+			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+		}
+		span.End()
+	}()
+
+	stage = "BuildURL"
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [3]string
+	pathParts[0] = "/v1/public/shares/"
+	{
+		// Encode "token" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "token",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.Token))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	pathParts[2] = "/content"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	stage = "EncodeRequest"
+	r, err := ht.NewRequest(ctx, "HEAD", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+
+	stage = "EncodeHeaderParams"
+	h := uri.NewHeaderEncoder(r.Header)
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "X-Share-Password",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.XSharePassword.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+
+	stage = "SendRequest"
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	body := resp.Body
+	defer func() {
+		// Drain the body to EOF before closing, so the underlying
+		// connection can be reused by the Transport regardless of the
+		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
+		_, _ = io.Copy(io.Discard, body)
+		_ = body.Close()
+	}()
+
+	stage = "DecodeResponse"
+	result, err := decodeHeadPublicShareLegacyResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}

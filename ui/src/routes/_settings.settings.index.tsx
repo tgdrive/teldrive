@@ -70,8 +70,21 @@ function AccountSettings() {
           }
         >
           <div className="flex justify-end">
-            <Chip variant="tertiary">
-              {user.data.premium ? "Telegram Premium" : "Standard account"}
+            <Chip
+              variant="tertiary"
+              color={
+                user.data.role === "owner"
+                  ? "accent"
+                  : user.data.role === "admin"
+                    ? "warning"
+                    : "default"
+              }
+            >
+              {user.data.role === "owner"
+                ? "Owner"
+                : user.data.role === "admin"
+                  ? "Admin"
+                  : "User"}
             </Chip>
           </div>
         </SettingsRow>

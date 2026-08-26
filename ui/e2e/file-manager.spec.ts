@@ -104,7 +104,7 @@ async function installFileApi(page: Page) {
       );
       return route.fulfill({ json: { items } });
     }
-    if (path === `/v1/files/${alphaId}/content` && method === "GET") {
+    if (path === `/v1/files/${alphaId}/content/alpha.txt` && method === "GET") {
       return route.fulfill({ contentType: "text/plain", body: "alpha preview" });
     }
     if (path === "/v1/folders" && method === "POST") {
@@ -381,6 +381,10 @@ test("React Aria file selection supports replacement, ranges, select all, and es
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Rename selected item" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Duplicate selected item" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Download selected file" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Copy selected file download link" }),
+  ).toBeVisible();
   await expect(page.getByRole("button", { name: "Cut selected items" })).toHaveCount(0);
   await beta.click({ modifiers: ["Shift"] });
   await expect(page.getByText("2 selected", { exact: true })).toBeVisible();
@@ -394,6 +398,37 @@ test("React Aria file selection supports replacement, ranges, select all, and es
   await expect(page.getByText("3 selected", { exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByText(/selected$/)).toBeHidden();
+});
+
+test("selected file downloads and copies its attachment URL on an insecure host", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: () => Promise.reject(new Error("insecure context")) },
+    });
+    document.execCommand = (command) => {
+      if (command !== "copy") return false;
+      const selected = document.activeElement;
+      if (selected instanceof HTMLTextAreaElement) {
+        (window as typeof window & { copiedText?: string }).copiedText = selected.value;
+      }
+      return true;
+    };
+  });
+  await page.goto("/files");
+  await page.getByRole("row", { name: /alpha\.txt/ }).click();
+
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download selected file" }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toBe("alpha.txt");
+
+  await page.getByRole("button", { name: "Copy selected file download link" }).click();
+  await expect
+    .poll(() => page.evaluate(() => (window as typeof window & { copiedText?: string }).copiedText))
+    .toBe(`${new URL(page.url()).origin}/api/v1/files/${alphaId}/content/alpha.txt?download=1`);
 });
 
 test("React Aria owns directional navigation, range selection, typeahead, and item actions", async ({

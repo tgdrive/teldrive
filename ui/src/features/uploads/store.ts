@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { apiFetch } from "@/api/client";
 import { invalidResponse, normalizeApiError, userMessage } from "@/api/errors";
 import type { FileEntry, NameConflictPolicy, UploadPart, UploadSession } from "@/api/types";
+import { newClientId } from "@/features/shared/client-id";
 import { newIdempotencyKey } from "@/features/shared/idempotency";
 
 export type UploadTaskStatus =
@@ -106,7 +107,7 @@ export const useUploadStore = create<UploadState>((set, get) => ({
   tasks: [],
   settings: readSettings(),
   enqueue(input, parentId, path = "/") {
-    const batchId = crypto.randomUUID();
+    const batchId = newClientId();
     const relativePaths = input.map((file) => file.webkitRelativePath || file.name);
     const rootNames = new Set(relativePaths.map((relativePath) => relativePath.split("/")[0]));
     const isDirectory = relativePaths.some((relativePath) => relativePath.includes("/"));
@@ -115,7 +116,7 @@ export const useUploadStore = create<UploadState>((set, get) => ({
         ? relativePaths[0].split("/")[0]
         : `${input.length} ${input.length === 1 ? "file" : "files"}`;
     const added = input.map<UploadTask>((file) => {
-      const id = crypto.randomUUID();
+      const id = newClientId();
       const relativePath = file.webkitRelativePath || file.name;
       files.set(id, file);
       return {

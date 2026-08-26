@@ -100,7 +100,7 @@ func TestGeneratedServerUploadCompleteAndRangeDownload(t *testing.T) {
 		t.Fatalf("completed file = %#v", file)
 	}
 
-	downloadPath := "/v1/files/" + uuid.UUID(file.ID).String() + "/content"
+	downloadPath := "/v1/files/" + uuid.UUID(file.ID).String() + "/content/api.bin"
 	download := performRequest(t, server, http.MethodGet, downloadPath, nil, map[string]string{
 		"Authorization": "Bearer test-token",
 		"Range":         "bytes=3-6",
@@ -111,7 +111,7 @@ func TestGeneratedServerUploadCompleteAndRangeDownload(t *testing.T) {
 	if got := download.Header().Get("Content-Range"); got != "bytes 3-6/10" {
 		t.Fatalf("Content-Range = %q", got)
 	}
-	fullDownload := performRequest(t, server, http.MethodGet, downloadPath, nil, map[string]string{
+	fullDownload := performRequest(t, server, http.MethodGet, downloadPath+"?download=1", nil, map[string]string{
 		"Authorization": "Bearer test-token",
 	})
 	if fullDownload.Code != http.StatusOK || fullDownload.Body.String() != "abcdefghij" {
@@ -119,6 +119,9 @@ func TestGeneratedServerUploadCompleteAndRangeDownload(t *testing.T) {
 	}
 	if got := fullDownload.Header().Get("Content-Length"); got != "10" {
 		t.Fatalf("full Content-Length = %q, want 10", got)
+	}
+	if got := fullDownload.Header().Get("Content-Disposition"); got != `attachment; filename=api.bin` {
+		t.Fatalf("full Content-Disposition = %q", got)
 	}
 
 	fileID := uuid.UUID(file.ID)
@@ -130,7 +133,7 @@ func TestGeneratedServerUploadCompleteAndRangeDownload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create share: %v", err)
 	}
-	publicPath := "/v1/public/shares/" + createdShare.Token + "/content"
+	publicPath := "/v1/public/shares/" + createdShare.Token + "/content/api.bin"
 	storage.mu.Lock()
 	beforeHead := storage.openCount
 	storage.mu.Unlock()

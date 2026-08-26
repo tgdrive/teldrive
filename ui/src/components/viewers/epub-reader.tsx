@@ -12,6 +12,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { FileEntry } from "@/api/types";
+import { startFileDownload } from "@/features/files/download";
 import {
   applyPublicationAppearance,
   closePublication,
@@ -367,7 +368,7 @@ export function EpubReader({ file, url, state, onPosition, onClose }: EpubReader
           variant="ghost"
           aria-label="Download ebook"
           className="hidden sm:inline-flex"
-          onPress={() => download(file)}
+          onPress={() => startFileDownload(file)}
         >
           <DownloadIcon className="size-4" />
         </Button>
@@ -783,13 +784,6 @@ function locationLabel(location: Location, progress: number) {
 
 function numberValue(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
-}
-
-function download(file: FileEntry) {
-  const anchor = document.createElement("a");
-  anchor.href = `/api/v1/files/${encodeURIComponent(file.id)}/content`;
-  anchor.download = file.name;
-  anchor.click();
 }
 
 function formatBytes(value: number) {

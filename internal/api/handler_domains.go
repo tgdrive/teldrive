@@ -691,7 +691,25 @@ func (h *Handler) HeadPublicShare(ctx context.Context, params gen.HeadPublicShar
 		return nil, mapServiceError(transfer.ErrInvalidDownload)
 	}
 	return &gen.HeadPublicShareOK{
-		AcceptRanges: gen.HeadPublicShareOKAcceptRanges("bytes"), ContentDisposition: contentDisposition(file.Name),
+		AcceptRanges: gen.HeadPublicShareOKAcceptRanges("bytes"), ContentDisposition: contentDisposition(file.Name, false),
+		ContentLength: file.Size.Int64, Etag: contentETag(file), LastModified: file.ModTime.Time,
+	}, nil
+}
+
+func (h *Handler) HeadPublicShareLegacy(ctx context.Context, params gen.HeadPublicShareLegacyParams) (gen.HeadPublicShareLegacyRes, error) {
+	if h.Shares == nil {
+		return nil, mapServiceError(ErrOperationUnavailable)
+	}
+	resolved, err := h.Shares.Resolve(ctx, params.Token, params.XSharePassword.Or(""))
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	file := resolved.File
+	if file.Kind != sqlcgen.FileKindFile || !file.Size.Valid {
+		return nil, mapServiceError(transfer.ErrInvalidDownload)
+	}
+	return &gen.HeadPublicShareLegacyOK{
+		AcceptRanges: gen.HeadPublicShareLegacyOKAcceptRanges("bytes"), ContentDisposition: contentDisposition(file.Name, false),
 		ContentLength: file.Size.Int64, Etag: contentETag(file), LastModified: file.ModTime.Time,
 	}, nil
 }
@@ -709,7 +727,25 @@ func (h *Handler) HeadPublicShareFile(ctx context.Context, params gen.HeadPublic
 		return nil, mapServiceError(transfer.ErrInvalidDownload)
 	}
 	return &gen.HeadPublicShareFileOK{
-		AcceptRanges: gen.HeadPublicShareFileOKAcceptRanges("bytes"), ContentDisposition: contentDisposition(file.Name),
+		AcceptRanges: gen.HeadPublicShareFileOKAcceptRanges("bytes"), ContentDisposition: contentDisposition(file.Name, false),
+		ContentLength: file.Size.Int64, Etag: contentETag(file), LastModified: file.ModTime.Time,
+	}, nil
+}
+
+func (h *Handler) HeadPublicShareFileLegacy(ctx context.Context, params gen.HeadPublicShareFileLegacyParams) (gen.HeadPublicShareFileLegacyRes, error) {
+	if h.Shares == nil {
+		return nil, mapServiceError(ErrOperationUnavailable)
+	}
+	resolved, err := h.Shares.ResolveFile(ctx, params.Token, params.XSharePassword.Or(""), googleUUID(params.FileId))
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	file := resolved.File
+	if file.Kind != sqlcgen.FileKindFile || !file.Size.Valid || file.Size.Int64 < 0 {
+		return nil, mapServiceError(transfer.ErrInvalidDownload)
+	}
+	return &gen.HeadPublicShareFileLegacyOK{
+		AcceptRanges: gen.HeadPublicShareFileLegacyOKAcceptRanges("bytes"), ContentDisposition: contentDisposition(file.Name, false),
 		ContentLength: file.Size.Int64, Etag: contentETag(file), LastModified: file.ModTime.Time,
 	}, nil
 }

@@ -2241,7 +2241,10 @@ func decodeDeletePeriodicJobParams(args [1]string, argsEscaped bool, r *http.Req
 type DownloadFileParams struct {
 	Range       OptString `json:",omitempty,omitzero"`
 	IfNoneMatch OptETag   `json:",omitempty,omitzero"`
-	FileId      UUID
+	// Force a browser download instead of inline display.
+	Download OptFileContentRequestOptionsDownload `json:",omitempty,omitzero"`
+	FileId   UUID
+	FileName string
 }
 
 func unpackDownloadFileParams(packed middleware.Parameters) (params DownloadFileParams) {
@@ -2265,15 +2268,32 @@ func unpackDownloadFileParams(packed middleware.Parameters) (params DownloadFile
 	}
 	{
 		key := middleware.ParameterKey{
+			Name: "download",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.Download = v.(OptFileContentRequestOptionsDownload)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
 			Name: "fileId",
 			In:   "path",
 		}
 		params.FileId = packed[key].(UUID)
 	}
+	{
+		key := middleware.ParameterKey{
+			Name: "fileName",
+			In:   "path",
+		}
+		params.FileName = packed[key].(string)
+	}
 	return params
 }
 
-func decodeDownloadFileParams(args [1]string, argsEscaped bool, r *http.Request) (params DownloadFileParams, _ error) {
+func decodeDownloadFileParams(args [2]string, argsEscaped bool, r *http.Request) (params DownloadFileParams, _ error) {
+	q := uri.NewQueryDecoder(r.URL.Query())
 	h := uri.NewHeaderDecoder(r.Header)
 	// Decode header: Range.
 	if err := func() error {
@@ -2357,6 +2377,353 @@ func decodeDownloadFileParams(args [1]string, argsEscaped bool, r *http.Request)
 		return params, &ogenerrors.DecodeParamError{
 			Name: "If-None-Match",
 			In:   "header",
+			Err:  err,
+		}
+	}
+	// Decode query: download.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "download",
+			Style:   uri.QueryStyleForm,
+			Explode: false,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotDownloadVal FileContentRequestOptionsDownload
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotDownloadVal = FileContentRequestOptionsDownload(c)
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.Download.SetTo(paramsDotDownloadVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+			if err := func() error {
+				if value, ok := params.Download.Get(); ok {
+					if err := func() error {
+						if err := value.Validate(); err != nil {
+							return err
+						}
+						return nil
+					}(); err != nil {
+						return err
+					}
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "download",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	// Decode path: fileId.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "fileId",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				var paramsDotFileIdVal uuid.UUID
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToUUID(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotFileIdVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.FileId = UUID(paramsDotFileIdVal)
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "fileId",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: fileName.
+	if err := func() error {
+		param := args[1]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[1])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "fileName",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.FileName = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "fileName",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// DownloadFileLegacyParams is parameters of downloadFileLegacy operation.
+type DownloadFileLegacyParams struct {
+	Range       OptString `json:",omitempty,omitzero"`
+	IfNoneMatch OptETag   `json:",omitempty,omitzero"`
+	// Force a browser download instead of inline display.
+	Download OptFileContentRequestOptionsDownload `json:",omitempty,omitzero"`
+	FileId   UUID
+}
+
+func unpackDownloadFileLegacyParams(packed middleware.Parameters) (params DownloadFileLegacyParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "Range",
+			In:   "header",
+		}
+		if v, ok := packed[key]; ok {
+			params.Range = v.(OptString)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "If-None-Match",
+			In:   "header",
+		}
+		if v, ok := packed[key]; ok {
+			params.IfNoneMatch = v.(OptETag)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "download",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.Download = v.(OptFileContentRequestOptionsDownload)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "fileId",
+			In:   "path",
+		}
+		params.FileId = packed[key].(UUID)
+	}
+	return params
+}
+
+func decodeDownloadFileLegacyParams(args [1]string, argsEscaped bool, r *http.Request) (params DownloadFileLegacyParams, _ error) {
+	q := uri.NewQueryDecoder(r.URL.Query())
+	h := uri.NewHeaderDecoder(r.Header)
+	// Decode header: Range.
+	if err := func() error {
+		cfg := uri.HeaderParameterDecodingConfig{
+			Name:    "Range",
+			Explode: false,
+		}
+		if err := h.HasParam(cfg); err == nil {
+			if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotRangeVal string
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotRangeVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.Range.SetTo(paramsDotRangeVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "Range",
+			In:   "header",
+			Err:  err,
+		}
+	}
+	// Decode header: If-None-Match.
+	if err := func() error {
+		cfg := uri.HeaderParameterDecodingConfig{
+			Name:    "If-None-Match",
+			Explode: false,
+		}
+		if err := h.HasParam(cfg); err == nil {
+			if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotIfNoneMatchVal ETag
+				if err := func() error {
+					var paramsDotIfNoneMatchValVal string
+					if err := func() error {
+						val, err := d.DecodeValue()
+						if err != nil {
+							return err
+						}
+
+						c, err := conv.ToString(val)
+						if err != nil {
+							return err
+						}
+
+						paramsDotIfNoneMatchValVal = c
+						return nil
+					}(); err != nil {
+						return err
+					}
+					paramsDotIfNoneMatchVal = ETag(paramsDotIfNoneMatchValVal)
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.IfNoneMatch.SetTo(paramsDotIfNoneMatchVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "If-None-Match",
+			In:   "header",
+			Err:  err,
+		}
+	}
+	// Decode query: download.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "download",
+			Style:   uri.QueryStyleForm,
+			Explode: false,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotDownloadVal FileContentRequestOptionsDownload
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotDownloadVal = FileContentRequestOptionsDownload(c)
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.Download.SetTo(paramsDotDownloadVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+			if err := func() error {
+				if value, ok := params.Download.Get(); ok {
+					if err := func() error {
+						if err := value.Validate(); err != nil {
+							return err
+						}
+						return nil
+					}(); err != nil {
+						return err
+					}
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "download",
+			In:   "query",
 			Err:  err,
 		}
 	}
@@ -2420,7 +2787,10 @@ type DownloadPublicShareParams struct {
 	XSharePassword OptString `json:",omitempty,omitzero"`
 	Range          OptString `json:",omitempty,omitzero"`
 	IfNoneMatch    OptETag   `json:",omitempty,omitzero"`
-	Token          string
+	// Force a browser download instead of inline display.
+	Download OptFileContentRequestOptionsDownload `json:",omitempty,omitzero"`
+	Token    string
+	FileName string
 }
 
 func unpackDownloadPublicShareParams(packed middleware.Parameters) (params DownloadPublicShareParams) {
@@ -2453,15 +2823,32 @@ func unpackDownloadPublicShareParams(packed middleware.Parameters) (params Downl
 	}
 	{
 		key := middleware.ParameterKey{
+			Name: "download",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.Download = v.(OptFileContentRequestOptionsDownload)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
 			Name: "token",
 			In:   "path",
 		}
 		params.Token = packed[key].(string)
 	}
+	{
+		key := middleware.ParameterKey{
+			Name: "fileName",
+			In:   "path",
+		}
+		params.FileName = packed[key].(string)
+	}
 	return params
 }
 
-func decodeDownloadPublicShareParams(args [1]string, argsEscaped bool, r *http.Request) (params DownloadPublicShareParams, _ error) {
+func decodeDownloadPublicShareParams(args [2]string, argsEscaped bool, r *http.Request) (params DownloadPublicShareParams, _ error) {
+	q := uri.NewQueryDecoder(r.URL.Query())
 	h := uri.NewHeaderDecoder(r.Header)
 	// Decode header: X-Share-Password.
 	if err := func() error {
@@ -2584,6 +2971,62 @@ func decodeDownloadPublicShareParams(args [1]string, argsEscaped bool, r *http.R
 		return params, &ogenerrors.DecodeParamError{
 			Name: "If-None-Match",
 			In:   "header",
+			Err:  err,
+		}
+	}
+	// Decode query: download.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "download",
+			Style:   uri.QueryStyleForm,
+			Explode: false,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotDownloadVal FileContentRequestOptionsDownload
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotDownloadVal = FileContentRequestOptionsDownload(c)
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.Download.SetTo(paramsDotDownloadVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+			if err := func() error {
+				if value, ok := params.Download.Get(); ok {
+					if err := func() error {
+						if err := value.Validate(); err != nil {
+							return err
+						}
+						return nil
+					}(); err != nil {
+						return err
+					}
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "download",
+			In:   "query",
 			Err:  err,
 		}
 	}
@@ -2632,6 +3075,51 @@ func decodeDownloadPublicShareParams(args [1]string, argsEscaped bool, r *http.R
 			Err:  err,
 		}
 	}
+	// Decode path: fileName.
+	if err := func() error {
+		param := args[1]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[1])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "fileName",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.FileName = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "fileName",
+			In:   "path",
+			Err:  err,
+		}
+	}
 	return params, nil
 }
 
@@ -2640,8 +3128,11 @@ type DownloadPublicShareFileParams struct {
 	XSharePassword OptString `json:",omitempty,omitzero"`
 	Range          OptString `json:",omitempty,omitzero"`
 	IfNoneMatch    OptETag   `json:",omitempty,omitzero"`
-	Token          string
-	FileId         UUID
+	// Force a browser download instead of inline display.
+	Download OptFileContentRequestOptionsDownload `json:",omitempty,omitzero"`
+	Token    string
+	FileId   UUID
+	FileName string
 }
 
 func unpackDownloadPublicShareFileParams(packed middleware.Parameters) (params DownloadPublicShareFileParams) {
@@ -2674,6 +3165,15 @@ func unpackDownloadPublicShareFileParams(packed middleware.Parameters) (params D
 	}
 	{
 		key := middleware.ParameterKey{
+			Name: "download",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.Download = v.(OptFileContentRequestOptionsDownload)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
 			Name: "token",
 			In:   "path",
 		}
@@ -2686,10 +3186,18 @@ func unpackDownloadPublicShareFileParams(packed middleware.Parameters) (params D
 		}
 		params.FileId = packed[key].(UUID)
 	}
+	{
+		key := middleware.ParameterKey{
+			Name: "fileName",
+			In:   "path",
+		}
+		params.FileName = packed[key].(string)
+	}
 	return params
 }
 
-func decodeDownloadPublicShareFileParams(args [2]string, argsEscaped bool, r *http.Request) (params DownloadPublicShareFileParams, _ error) {
+func decodeDownloadPublicShareFileParams(args [3]string, argsEscaped bool, r *http.Request) (params DownloadPublicShareFileParams, _ error) {
+	q := uri.NewQueryDecoder(r.URL.Query())
 	h := uri.NewHeaderDecoder(r.Header)
 	// Decode header: X-Share-Password.
 	if err := func() error {
@@ -2812,6 +3320,62 @@ func decodeDownloadPublicShareFileParams(args [2]string, argsEscaped bool, r *ht
 		return params, &ogenerrors.DecodeParamError{
 			Name: "If-None-Match",
 			In:   "header",
+			Err:  err,
+		}
+	}
+	// Decode query: download.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "download",
+			Style:   uri.QueryStyleForm,
+			Explode: false,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotDownloadVal FileContentRequestOptionsDownload
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotDownloadVal = FileContentRequestOptionsDownload(c)
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.Download.SetTo(paramsDotDownloadVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+			if err := func() error {
+				if value, ok := params.Download.Get(); ok {
+					if err := func() error {
+						if err := value.Validate(); err != nil {
+							return err
+						}
+						return nil
+					}(); err != nil {
+						return err
+					}
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "download",
+			In:   "query",
 			Err:  err,
 		}
 	}
@@ -2908,6 +3472,687 @@ func decodeDownloadPublicShareFileParams(args [2]string, argsEscaped bool, r *ht
 	}(); err != nil {
 		return params, &ogenerrors.DecodeParamError{
 			Name: "fileId",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: fileName.
+	if err := func() error {
+		param := args[2]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[2])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "fileName",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.FileName = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "fileName",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// DownloadPublicShareFileLegacyParams is parameters of downloadPublicShareFileLegacy operation.
+type DownloadPublicShareFileLegacyParams struct {
+	XSharePassword OptString `json:",omitempty,omitzero"`
+	Range          OptString `json:",omitempty,omitzero"`
+	IfNoneMatch    OptETag   `json:",omitempty,omitzero"`
+	// Force a browser download instead of inline display.
+	Download OptFileContentRequestOptionsDownload `json:",omitempty,omitzero"`
+	Token    string
+	FileId   UUID
+}
+
+func unpackDownloadPublicShareFileLegacyParams(packed middleware.Parameters) (params DownloadPublicShareFileLegacyParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "X-Share-Password",
+			In:   "header",
+		}
+		if v, ok := packed[key]; ok {
+			params.XSharePassword = v.(OptString)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "Range",
+			In:   "header",
+		}
+		if v, ok := packed[key]; ok {
+			params.Range = v.(OptString)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "If-None-Match",
+			In:   "header",
+		}
+		if v, ok := packed[key]; ok {
+			params.IfNoneMatch = v.(OptETag)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "download",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.Download = v.(OptFileContentRequestOptionsDownload)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "token",
+			In:   "path",
+		}
+		params.Token = packed[key].(string)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "fileId",
+			In:   "path",
+		}
+		params.FileId = packed[key].(UUID)
+	}
+	return params
+}
+
+func decodeDownloadPublicShareFileLegacyParams(args [2]string, argsEscaped bool, r *http.Request) (params DownloadPublicShareFileLegacyParams, _ error) {
+	q := uri.NewQueryDecoder(r.URL.Query())
+	h := uri.NewHeaderDecoder(r.Header)
+	// Decode header: X-Share-Password.
+	if err := func() error {
+		cfg := uri.HeaderParameterDecodingConfig{
+			Name:    "X-Share-Password",
+			Explode: false,
+		}
+		if err := h.HasParam(cfg); err == nil {
+			if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotXSharePasswordVal string
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotXSharePasswordVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.XSharePassword.SetTo(paramsDotXSharePasswordVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "X-Share-Password",
+			In:   "header",
+			Err:  err,
+		}
+	}
+	// Decode header: Range.
+	if err := func() error {
+		cfg := uri.HeaderParameterDecodingConfig{
+			Name:    "Range",
+			Explode: false,
+		}
+		if err := h.HasParam(cfg); err == nil {
+			if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotRangeVal string
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotRangeVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.Range.SetTo(paramsDotRangeVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "Range",
+			In:   "header",
+			Err:  err,
+		}
+	}
+	// Decode header: If-None-Match.
+	if err := func() error {
+		cfg := uri.HeaderParameterDecodingConfig{
+			Name:    "If-None-Match",
+			Explode: false,
+		}
+		if err := h.HasParam(cfg); err == nil {
+			if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotIfNoneMatchVal ETag
+				if err := func() error {
+					var paramsDotIfNoneMatchValVal string
+					if err := func() error {
+						val, err := d.DecodeValue()
+						if err != nil {
+							return err
+						}
+
+						c, err := conv.ToString(val)
+						if err != nil {
+							return err
+						}
+
+						paramsDotIfNoneMatchValVal = c
+						return nil
+					}(); err != nil {
+						return err
+					}
+					paramsDotIfNoneMatchVal = ETag(paramsDotIfNoneMatchValVal)
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.IfNoneMatch.SetTo(paramsDotIfNoneMatchVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "If-None-Match",
+			In:   "header",
+			Err:  err,
+		}
+	}
+	// Decode query: download.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "download",
+			Style:   uri.QueryStyleForm,
+			Explode: false,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotDownloadVal FileContentRequestOptionsDownload
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotDownloadVal = FileContentRequestOptionsDownload(c)
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.Download.SetTo(paramsDotDownloadVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+			if err := func() error {
+				if value, ok := params.Download.Get(); ok {
+					if err := func() error {
+						if err := value.Validate(); err != nil {
+							return err
+						}
+						return nil
+					}(); err != nil {
+						return err
+					}
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "download",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	// Decode path: token.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "token",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.Token = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "token",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: fileId.
+	if err := func() error {
+		param := args[1]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[1])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "fileId",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				var paramsDotFileIdVal uuid.UUID
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToUUID(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotFileIdVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.FileId = UUID(paramsDotFileIdVal)
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "fileId",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// DownloadPublicShareLegacyParams is parameters of downloadPublicShareLegacy operation.
+type DownloadPublicShareLegacyParams struct {
+	XSharePassword OptString `json:",omitempty,omitzero"`
+	Range          OptString `json:",omitempty,omitzero"`
+	IfNoneMatch    OptETag   `json:",omitempty,omitzero"`
+	// Force a browser download instead of inline display.
+	Download OptFileContentRequestOptionsDownload `json:",omitempty,omitzero"`
+	Token    string
+}
+
+func unpackDownloadPublicShareLegacyParams(packed middleware.Parameters) (params DownloadPublicShareLegacyParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "X-Share-Password",
+			In:   "header",
+		}
+		if v, ok := packed[key]; ok {
+			params.XSharePassword = v.(OptString)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "Range",
+			In:   "header",
+		}
+		if v, ok := packed[key]; ok {
+			params.Range = v.(OptString)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "If-None-Match",
+			In:   "header",
+		}
+		if v, ok := packed[key]; ok {
+			params.IfNoneMatch = v.(OptETag)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "download",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.Download = v.(OptFileContentRequestOptionsDownload)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "token",
+			In:   "path",
+		}
+		params.Token = packed[key].(string)
+	}
+	return params
+}
+
+func decodeDownloadPublicShareLegacyParams(args [1]string, argsEscaped bool, r *http.Request) (params DownloadPublicShareLegacyParams, _ error) {
+	q := uri.NewQueryDecoder(r.URL.Query())
+	h := uri.NewHeaderDecoder(r.Header)
+	// Decode header: X-Share-Password.
+	if err := func() error {
+		cfg := uri.HeaderParameterDecodingConfig{
+			Name:    "X-Share-Password",
+			Explode: false,
+		}
+		if err := h.HasParam(cfg); err == nil {
+			if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotXSharePasswordVal string
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotXSharePasswordVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.XSharePassword.SetTo(paramsDotXSharePasswordVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "X-Share-Password",
+			In:   "header",
+			Err:  err,
+		}
+	}
+	// Decode header: Range.
+	if err := func() error {
+		cfg := uri.HeaderParameterDecodingConfig{
+			Name:    "Range",
+			Explode: false,
+		}
+		if err := h.HasParam(cfg); err == nil {
+			if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotRangeVal string
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotRangeVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.Range.SetTo(paramsDotRangeVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "Range",
+			In:   "header",
+			Err:  err,
+		}
+	}
+	// Decode header: If-None-Match.
+	if err := func() error {
+		cfg := uri.HeaderParameterDecodingConfig{
+			Name:    "If-None-Match",
+			Explode: false,
+		}
+		if err := h.HasParam(cfg); err == nil {
+			if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotIfNoneMatchVal ETag
+				if err := func() error {
+					var paramsDotIfNoneMatchValVal string
+					if err := func() error {
+						val, err := d.DecodeValue()
+						if err != nil {
+							return err
+						}
+
+						c, err := conv.ToString(val)
+						if err != nil {
+							return err
+						}
+
+						paramsDotIfNoneMatchValVal = c
+						return nil
+					}(); err != nil {
+						return err
+					}
+					paramsDotIfNoneMatchVal = ETag(paramsDotIfNoneMatchValVal)
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.IfNoneMatch.SetTo(paramsDotIfNoneMatchVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "If-None-Match",
+			In:   "header",
+			Err:  err,
+		}
+	}
+	// Decode query: download.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "download",
+			Style:   uri.QueryStyleForm,
+			Explode: false,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotDownloadVal FileContentRequestOptionsDownload
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotDownloadVal = FileContentRequestOptionsDownload(c)
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.Download.SetTo(paramsDotDownloadVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+			if err := func() error {
+				if value, ok := params.Download.Get(); ok {
+					if err := func() error {
+						if err := value.Validate(); err != nil {
+							return err
+						}
+						return nil
+					}(); err != nil {
+						return err
+					}
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "download",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	// Decode path: token.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "token",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.Token = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "token",
 			In:   "path",
 			Err:  err,
 		}
@@ -3407,7 +4652,8 @@ func decodeGetUploadStatisticsParams(args [0]string, argsEscaped bool, r *http.R
 
 // HeadFileParams is parameters of headFile operation.
 type HeadFileParams struct {
-	FileId UUID
+	FileId   UUID
+	FileName string
 }
 
 func unpackHeadFileParams(packed middleware.Parameters) (params HeadFileParams) {
@@ -3418,10 +4664,134 @@ func unpackHeadFileParams(packed middleware.Parameters) (params HeadFileParams) 
 		}
 		params.FileId = packed[key].(UUID)
 	}
+	{
+		key := middleware.ParameterKey{
+			Name: "fileName",
+			In:   "path",
+		}
+		params.FileName = packed[key].(string)
+	}
 	return params
 }
 
-func decodeHeadFileParams(args [1]string, argsEscaped bool, r *http.Request) (params HeadFileParams, _ error) {
+func decodeHeadFileParams(args [2]string, argsEscaped bool, r *http.Request) (params HeadFileParams, _ error) {
+	// Decode path: fileId.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "fileId",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				var paramsDotFileIdVal uuid.UUID
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToUUID(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotFileIdVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.FileId = UUID(paramsDotFileIdVal)
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "fileId",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: fileName.
+	if err := func() error {
+		param := args[1]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[1])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "fileName",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.FileName = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "fileName",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// HeadFileLegacyParams is parameters of headFileLegacy operation.
+type HeadFileLegacyParams struct {
+	FileId UUID
+}
+
+func unpackHeadFileLegacyParams(packed middleware.Parameters) (params HeadFileLegacyParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "fileId",
+			In:   "path",
+		}
+		params.FileId = packed[key].(UUID)
+	}
+	return params
+}
+
+func decodeHeadFileLegacyParams(args [1]string, argsEscaped bool, r *http.Request) (params HeadFileLegacyParams, _ error) {
 	// Decode path: fileId.
 	if err := func() error {
 		param := args[0]
@@ -3481,6 +4851,7 @@ func decodeHeadFileParams(args [1]string, argsEscaped bool, r *http.Request) (pa
 type HeadPublicShareParams struct {
 	XSharePassword OptString `json:",omitempty,omitzero"`
 	Token          string
+	FileName       string
 }
 
 func unpackHeadPublicShareParams(packed middleware.Parameters) (params HeadPublicShareParams) {
@@ -3500,10 +4871,17 @@ func unpackHeadPublicShareParams(packed middleware.Parameters) (params HeadPubli
 		}
 		params.Token = packed[key].(string)
 	}
+	{
+		key := middleware.ParameterKey{
+			Name: "fileName",
+			In:   "path",
+		}
+		params.FileName = packed[key].(string)
+	}
 	return params
 }
 
-func decodeHeadPublicShareParams(args [1]string, argsEscaped bool, r *http.Request) (params HeadPublicShareParams, _ error) {
+func decodeHeadPublicShareParams(args [2]string, argsEscaped bool, r *http.Request) (params HeadPublicShareParams, _ error) {
 	h := uri.NewHeaderDecoder(r.Header)
 	// Decode header: X-Share-Password.
 	if err := func() error {
@@ -3589,6 +4967,51 @@ func decodeHeadPublicShareParams(args [1]string, argsEscaped bool, r *http.Reque
 			Err:  err,
 		}
 	}
+	// Decode path: fileName.
+	if err := func() error {
+		param := args[1]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[1])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "fileName",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.FileName = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "fileName",
+			In:   "path",
+			Err:  err,
+		}
+	}
 	return params, nil
 }
 
@@ -3597,6 +5020,7 @@ type HeadPublicShareFileParams struct {
 	XSharePassword OptString `json:",omitempty,omitzero"`
 	Token          string
 	FileId         UUID
+	FileName       string
 }
 
 func unpackHeadPublicShareFileParams(packed middleware.Parameters) (params HeadPublicShareFileParams) {
@@ -3623,10 +5047,17 @@ func unpackHeadPublicShareFileParams(packed middleware.Parameters) (params HeadP
 		}
 		params.FileId = packed[key].(UUID)
 	}
+	{
+		key := middleware.ParameterKey{
+			Name: "fileName",
+			In:   "path",
+		}
+		params.FileName = packed[key].(string)
+	}
 	return params
 }
 
-func decodeHeadPublicShareFileParams(args [2]string, argsEscaped bool, r *http.Request) (params HeadPublicShareFileParams, _ error) {
+func decodeHeadPublicShareFileParams(args [3]string, argsEscaped bool, r *http.Request) (params HeadPublicShareFileParams, _ error) {
 	h := uri.NewHeaderDecoder(r.Header)
 	// Decode header: X-Share-Password.
 	if err := func() error {
@@ -3760,6 +5191,341 @@ func decodeHeadPublicShareFileParams(args [2]string, argsEscaped bool, r *http.R
 	}(); err != nil {
 		return params, &ogenerrors.DecodeParamError{
 			Name: "fileId",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: fileName.
+	if err := func() error {
+		param := args[2]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[2])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "fileName",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.FileName = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "fileName",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// HeadPublicShareFileLegacyParams is parameters of headPublicShareFileLegacy operation.
+type HeadPublicShareFileLegacyParams struct {
+	XSharePassword OptString `json:",omitempty,omitzero"`
+	Token          string
+	FileId         UUID
+}
+
+func unpackHeadPublicShareFileLegacyParams(packed middleware.Parameters) (params HeadPublicShareFileLegacyParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "X-Share-Password",
+			In:   "header",
+		}
+		if v, ok := packed[key]; ok {
+			params.XSharePassword = v.(OptString)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "token",
+			In:   "path",
+		}
+		params.Token = packed[key].(string)
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "fileId",
+			In:   "path",
+		}
+		params.FileId = packed[key].(UUID)
+	}
+	return params
+}
+
+func decodeHeadPublicShareFileLegacyParams(args [2]string, argsEscaped bool, r *http.Request) (params HeadPublicShareFileLegacyParams, _ error) {
+	h := uri.NewHeaderDecoder(r.Header)
+	// Decode header: X-Share-Password.
+	if err := func() error {
+		cfg := uri.HeaderParameterDecodingConfig{
+			Name:    "X-Share-Password",
+			Explode: false,
+		}
+		if err := h.HasParam(cfg); err == nil {
+			if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotXSharePasswordVal string
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotXSharePasswordVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.XSharePassword.SetTo(paramsDotXSharePasswordVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "X-Share-Password",
+			In:   "header",
+			Err:  err,
+		}
+	}
+	// Decode path: token.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "token",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.Token = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "token",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode path: fileId.
+	if err := func() error {
+		param := args[1]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[1])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "fileId",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				var paramsDotFileIdVal uuid.UUID
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToUUID(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotFileIdVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.FileId = UUID(paramsDotFileIdVal)
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "fileId",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
+// HeadPublicShareLegacyParams is parameters of headPublicShareLegacy operation.
+type HeadPublicShareLegacyParams struct {
+	XSharePassword OptString `json:",omitempty,omitzero"`
+	Token          string
+}
+
+func unpackHeadPublicShareLegacyParams(packed middleware.Parameters) (params HeadPublicShareLegacyParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "X-Share-Password",
+			In:   "header",
+		}
+		if v, ok := packed[key]; ok {
+			params.XSharePassword = v.(OptString)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "token",
+			In:   "path",
+		}
+		params.Token = packed[key].(string)
+	}
+	return params
+}
+
+func decodeHeadPublicShareLegacyParams(args [1]string, argsEscaped bool, r *http.Request) (params HeadPublicShareLegacyParams, _ error) {
+	h := uri.NewHeaderDecoder(r.Header)
+	// Decode header: X-Share-Password.
+	if err := func() error {
+		cfg := uri.HeaderParameterDecodingConfig{
+			Name:    "X-Share-Password",
+			Explode: false,
+		}
+		if err := h.HasParam(cfg); err == nil {
+			if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotXSharePasswordVal string
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotXSharePasswordVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.XSharePassword.SetTo(paramsDotXSharePasswordVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "X-Share-Password",
+			In:   "header",
+			Err:  err,
+		}
+	}
+	// Decode path: token.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "token",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.Token = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "token",
 			In:   "path",
 			Err:  err,
 		}

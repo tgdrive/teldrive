@@ -5,7 +5,9 @@ import { useDeferredValue, useEffect, useEffectEvent, useRef, useState } from "r
 import { DropZone, FileTrigger, type Selection } from "react-aria-components";
 import { toast } from "sonner";
 import UploadIcon from "~icons/gravity-ui/arrow-up-from-line";
+import DownloadIcon from "~icons/gravity-ui/arrow-down-to-line";
 import CopyIcon from "~icons/gravity-ui/copy";
+import CopyLinkIcon from "~icons/gravity-ui/copy-arrow-right";
 import FileIcon from "~icons/gravity-ui/file";
 import FolderIcon from "~icons/gravity-ui/folder";
 import MoveIcon from "~icons/gravity-ui/folder-arrow-right";
@@ -24,6 +26,7 @@ import { Page, PageContent } from "../components/page";
 import { FileBrowser } from "../features/files/file-browser";
 import { ShareDialog } from "../features/files/share-dialog";
 import { FolderPicker } from "../features/files/folder-picker";
+import { absoluteFileDownloadUrl, copyText, startFileDownload } from "../features/files/download";
 import { useFileActions } from "../features/files/mutations";
 import { useInfiniteFilePages } from "../features/files/queries";
 import { useUploadStore } from "../features/uploads/store";
@@ -99,6 +102,8 @@ function FilesPage() {
   const selectedIds =
     selectedKeys === "all" ? files.map((file) => file.id) : Array.from(selectedKeys, String);
   const selectedFiles = files.filter((file) => selectedIds.includes(file.id));
+  const selectedOnlyFiles =
+    selectedFiles.length > 0 && selectedFiles.every((file) => file.kind === "file");
   const singleSelectedFile = selectedFiles.length === 1 ? selectedFiles[0] : undefined;
 
   const createFolder = async () => {
@@ -241,10 +246,18 @@ function FilesPage() {
       setPreviewFile(file);
       return;
     }
-    const anchor = document.createElement("a");
-    anchor.href = `/api/v1/files/${encodeURIComponent(file.id)}/content`;
-    anchor.download = file.name;
-    anchor.click();
+    startFileDownload(file);
+  };
+
+  const copyDownloadLinks = async () => {
+    try {
+      await copyText(selectedFiles.map(absoluteFileDownloadUrl).join("\n"));
+      toast.success(
+        `${selectedFiles.length} download link${selectedFiles.length === 1 ? "" : "s"} copied`,
+      );
+    } catch (error) {
+      toast.error("Download links could not be copied", { description: userMessage(error) });
+    }
   };
 
   return (
@@ -400,7 +413,33 @@ function FilesPage() {
                             >
                               <LinkIcon className="size-4" />
                             </Button>
+                            {singleSelectedFile.kind === "file" ? (
+                              <Button
+                                isIconOnly
+                                size="sm"
+                                variant="ghost"
+                                aria-label="Download selected file"
+                                onPress={() => startFileDownload(singleSelectedFile)}
+                              >
+                                <DownloadIcon className="size-4" />
+                              </Button>
+                            ) : null}
                           </>
+                        ) : null}
+                        {selectedOnlyFiles ? (
+                          <Button
+                            isIconOnly
+                            size="sm"
+                            variant="ghost"
+                            aria-label={
+                              selectedFiles.length === 1
+                                ? "Copy selected file download link"
+                                : "Copy selected files download links"
+                            }
+                            onPress={() => void copyDownloadLinks()}
+                          >
+                            <CopyLinkIcon className="size-4" />
+                          </Button>
                         ) : null}
                         <Button
                           isIconOnly

@@ -226,12 +226,16 @@ model FileCreatedResponse {
   body: FileEntry;
 }
 
-model FileContentRequestHeaders {
+model FileContentRequestOptions {
   @header("Range")
   range?: string;
 
   @header("If-None-Match")
   ifNoneMatch?: ETag;
+
+  /** Force a browser download instead of inline display. */
+  @query
+  download?: "1";
 }
 
 model FileContentResponse {
@@ -403,20 +407,21 @@ namespace Files {
     | ErrorResponse<404>
     | ErrorResponse<409>;
 
-
   /** Move every trashed file and folder owned by the authenticated user to deletion pending. */
   @delete
   @route("/trash")
   @operationId("cleanTrash")
-  op cleanTrash():
-    | EmptyResponse<204>
-    | ErrorResponse<401>;
+  op cleanTrash(): EmptyResponse<204> | ErrorResponse<401>;
 
-  /** Stream complete or partial file content. */
+  /** Stream complete or partial file content. The filename path segment gives command-line clients a useful output name. */
   @get
-  @route("/{fileId}/content")
+  @route("/{fileId}/content/{fileName}")
   @operationId("downloadFile")
-  op download(...FileContentRequestHeaders, @path fileId: Uuid):
+  op download(
+    ...FileContentRequestOptions,
+    @path fileId: Uuid,
+    @path fileName: string,
+  ):
     | FileContentResponse
     | FilePartialContentResponse
     | EmptyResponse<304>
@@ -428,14 +433,35 @@ namespace Files {
 
   /** Return content metadata without streaming the file. */
   @head
-  @route("/{fileId}/content")
+  @route("/{fileId}/content/{fileName}")
   @operationId("headFile")
-  op head(@path fileId: Uuid):
+  op head(@path fileId: Uuid, @path fileName: string):
     | FileHeadResponse
     | ErrorResponse<401>
+    | ErrorResponse<404>;
+
+  /** Stream file content using the legacy URL without a filename segment. */
+  @get
+  @route("/{fileId}/content")
+  @operationId("downloadFileLegacy")
+  op downloadLegacy(...FileContentRequestOptions, @path fileId: Uuid):
+    | FileContentResponse
+    | FilePartialContentResponse
+    | EmptyResponse<304>
+    | ErrorResponse<401>
     | ErrorResponse<404>
+    | ErrorResponse<416>
     | ErrorResponse<429>
     | ErrorResponse<503>;
+
+  /** Return file metadata using the legacy URL without a filename segment. */
+  @head
+  @route("/{fileId}/content")
+  @operationId("headFileLegacy")
+  op headLegacy(@path fileId: Uuid):
+    | FileHeadResponse
+    | ErrorResponse<401>
+    | ErrorResponse<404>;
 
   /** Return the authenticated user's synchronized viewer state for a file. */
   @get

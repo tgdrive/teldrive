@@ -1,4 +1,4 @@
-import { Button, Chip, Input, Label, Spinner, TextField } from "@heroui/react";
+import { Button, Chip, Input, Label, ListBox, Select, Spinner, TextField } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
 import { useDeferredValue, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -6,6 +6,7 @@ import { $api } from "@/api/client";
 import { userMessage } from "@/api/errors";
 import type { FileEntry } from "@/api/types";
 import { AppDialog } from "@/components/dialogs/app-dialog";
+import { copyText } from "@/features/files/download";
 import { newIdempotencyKey } from "@/features/shared/idempotency";
 import { getQueryClient } from "@/lib/queryClient";
 
@@ -100,7 +101,7 @@ export function ShareDialog({
       });
       const publicUrl = new URL(result.publicUrl, window.location.origin).toString();
       setCreatedUrl(publicUrl);
-      await navigator.clipboard.writeText(publicUrl);
+      await copyText(publicUrl);
       await refreshLinks();
       toast.success("Public link created and copied");
     } catch (error) {
@@ -165,7 +166,7 @@ export function ShareDialog({
             )
           ) : null}
 
-          <div className="grid gap-2">
+          <div className="grid min-h-12 content-start gap-2">
             {grantsQuery.isPending ? (
               <div className="flex justify-center py-3">
                 <Spinner size="sm" />
@@ -232,7 +233,9 @@ export function ShareDialog({
                 </div>
               ))
             ) : (
-              <p className="text-xs text-muted">No Teldrive users have access yet.</p>
+              <p className="flex min-h-12 items-center text-xs text-muted">
+                No Teldrive users have access yet.
+              </p>
             )}
           </div>
         </section>
@@ -264,16 +267,20 @@ export function ShareDialog({
               <Button
                 size="sm"
                 variant="secondary"
-                onPress={() => {
-                  void navigator.clipboard.writeText(createdUrl);
-                  toast.success("Link copied");
+                onPress={async () => {
+                  try {
+                    await copyText(createdUrl);
+                    toast.success("Link copied");
+                  } catch (error) {
+                    toast.error("Link could not be copied", { description: userMessage(error) });
+                  }
                 }}
               >
                 Copy
               </Button>
             </div>
           ) : null}
-          <div className="grid gap-2">
+          <div className="grid min-h-12 content-start gap-2">
             {linksQuery.isPending ? (
               <div className="flex justify-center py-3">
                 <Spinner size="sm" />
@@ -313,7 +320,9 @@ export function ShareDialog({
                 </div>
               ))
             ) : (
-              <p className="text-xs text-muted">No public links exist for this item.</p>
+              <p className="flex min-h-12 items-center text-xs text-muted">
+                No public links exist for this item.
+              </p>
             )}
           </div>
         </section>
@@ -330,21 +339,26 @@ function PermissionPicker({
   onChange: (value: Permission) => void;
 }) {
   return (
-    <fieldset className="flex w-fit rounded-lg border border-border p-1" aria-label="Share permission">
-      <Button
-        size="sm"
-        variant={value === "read" ? "secondary" : "ghost"}
-        onPress={() => onChange("read")}
-      >
-        Viewer
-      </Button>
-      <Button
-        size="sm"
-        variant={value === "edit" ? "secondary" : "ghost"}
-        onPress={() => onChange("edit")}
-      >
-        Editor
-      </Button>
-    </fieldset>
+    <Select
+      aria-label="Share permission"
+      className="w-32"
+      selectedKey={value}
+      onSelectionChange={(key) => onChange(String(key) as Permission)}
+    >
+      <Select.Trigger className="h-9 min-h-9 py-1.5">
+        <Select.Value>{value === "read" ? "Viewer" : "Editor"}</Select.Value>
+        <Select.Indicator />
+      </Select.Trigger>
+      <Select.Popover>
+        <ListBox>
+          <ListBox.Item id="read" textValue="Viewer">
+            Viewer
+          </ListBox.Item>
+          <ListBox.Item id="edit" textValue="Editor">
+            Editor
+          </ListBox.Item>
+        </ListBox>
+      </Select.Popover>
+    </Select>
   );
 }

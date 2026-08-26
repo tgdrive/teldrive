@@ -125,12 +125,24 @@ type DiscoverChannelsRes interface {
 	discoverChannelsRes()
 }
 
+type DownloadFileLegacyRes interface {
+	downloadFileLegacyRes()
+}
+
 type DownloadFileRes interface {
 	downloadFileRes()
 }
 
+type DownloadPublicShareFileLegacyRes interface {
+	downloadPublicShareFileLegacyRes()
+}
+
 type DownloadPublicShareFileRes interface {
 	downloadPublicShareFileRes()
+}
+
+type DownloadPublicShareLegacyRes interface {
+	downloadPublicShareLegacyRes()
 }
 
 type DownloadPublicShareRes interface {
@@ -189,12 +201,24 @@ type GetUploadStatisticsRes interface {
 	getUploadStatisticsRes()
 }
 
+type HeadFileLegacyRes interface {
+	headFileLegacyRes()
+}
+
 type HeadFileRes interface {
 	headFileRes()
 }
 
+type HeadPublicShareFileLegacyRes interface {
+	headPublicShareFileLegacyRes()
+}
+
 type HeadPublicShareFileRes interface {
 	headPublicShareFileRes()
+}
+
+type HeadPublicShareLegacyRes interface {
+	headPublicShareLegacyRes()
 }
 
 type HeadPublicShareRes interface {

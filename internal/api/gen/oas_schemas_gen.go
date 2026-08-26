@@ -1216,6 +1216,312 @@ func (s *DiscoveredChannel) SetName(val string) {
 	s.Name = val
 }
 
+type DownloadFileLegacyNotFound ErrorEnvelope
+
+func (*DownloadFileLegacyNotFound) downloadFileLegacyRes() {}
+
+// DownloadFileLegacyNotModified is response for DownloadFileLegacy operation.
+type DownloadFileLegacyNotModified struct{}
+
+func (*DownloadFileLegacyNotModified) downloadFileLegacyRes() {}
+
+type DownloadFileLegacyOK struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s DownloadFileLegacyOK) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+type DownloadFileLegacyOKAcceptRanges string
+
+const (
+	DownloadFileLegacyOKAcceptRangesBytes DownloadFileLegacyOKAcceptRanges = "bytes"
+)
+
+// AllValues returns all DownloadFileLegacyOKAcceptRanges values.
+func (DownloadFileLegacyOKAcceptRanges) AllValues() []DownloadFileLegacyOKAcceptRanges {
+	return []DownloadFileLegacyOKAcceptRanges{
+		DownloadFileLegacyOKAcceptRangesBytes,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s DownloadFileLegacyOKAcceptRanges) MarshalText() ([]byte, error) {
+	switch s {
+	case DownloadFileLegacyOKAcceptRangesBytes:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *DownloadFileLegacyOKAcceptRanges) UnmarshalText(data []byte) error {
+	switch DownloadFileLegacyOKAcceptRanges(data) {
+	case DownloadFileLegacyOKAcceptRangesBytes:
+		*s = DownloadFileLegacyOKAcceptRangesBytes
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+// DownloadFileLegacyOKHeaders wraps DownloadFileLegacyOK with response headers.
+type DownloadFileLegacyOKHeaders struct {
+	AcceptRanges       DownloadFileLegacyOKAcceptRanges
+	ContentDisposition string
+	ContentLength      int64
+	Etag               ETag
+	LastModified       time.Time
+	Response           DownloadFileLegacyOK
+}
+
+// GetAcceptRanges returns the value of AcceptRanges.
+func (s *DownloadFileLegacyOKHeaders) GetAcceptRanges() DownloadFileLegacyOKAcceptRanges {
+	return s.AcceptRanges
+}
+
+// GetContentDisposition returns the value of ContentDisposition.
+func (s *DownloadFileLegacyOKHeaders) GetContentDisposition() string {
+	return s.ContentDisposition
+}
+
+// GetContentLength returns the value of ContentLength.
+func (s *DownloadFileLegacyOKHeaders) GetContentLength() int64 {
+	return s.ContentLength
+}
+
+// GetEtag returns the value of Etag.
+func (s *DownloadFileLegacyOKHeaders) GetEtag() ETag {
+	return s.Etag
+}
+
+// GetLastModified returns the value of LastModified.
+func (s *DownloadFileLegacyOKHeaders) GetLastModified() time.Time {
+	return s.LastModified
+}
+
+// GetResponse returns the value of Response.
+func (s *DownloadFileLegacyOKHeaders) GetResponse() DownloadFileLegacyOK {
+	return s.Response
+}
+
+// SetAcceptRanges sets the value of AcceptRanges.
+func (s *DownloadFileLegacyOKHeaders) SetAcceptRanges(val DownloadFileLegacyOKAcceptRanges) {
+	s.AcceptRanges = val
+}
+
+// SetContentDisposition sets the value of ContentDisposition.
+func (s *DownloadFileLegacyOKHeaders) SetContentDisposition(val string) {
+	s.ContentDisposition = val
+}
+
+// SetContentLength sets the value of ContentLength.
+func (s *DownloadFileLegacyOKHeaders) SetContentLength(val int64) {
+	s.ContentLength = val
+}
+
+// SetEtag sets the value of Etag.
+func (s *DownloadFileLegacyOKHeaders) SetEtag(val ETag) {
+	s.Etag = val
+}
+
+// SetLastModified sets the value of LastModified.
+func (s *DownloadFileLegacyOKHeaders) SetLastModified(val time.Time) {
+	s.LastModified = val
+}
+
+// SetResponse sets the value of Response.
+func (s *DownloadFileLegacyOKHeaders) SetResponse(val DownloadFileLegacyOK) {
+	s.Response = val
+}
+
+// DownloadFileLegacyOKRawApplicationOctetStream represents raw HTTP response for DownloadFileLegacy application/octet-stream.
+type DownloadFileLegacyOKRawApplicationOctetStream struct {
+	Response *http.Response `json:"-"`
+}
+
+// GetResponse returns the value of Response.
+func (s *DownloadFileLegacyOKRawApplicationOctetStream) GetResponse() *http.Response {
+	return s.Response
+}
+
+// SetResponse sets the value of Response.
+func (s *DownloadFileLegacyOKRawApplicationOctetStream) SetResponse(val *http.Response) {
+	s.Response = val
+}
+
+func (*DownloadFileLegacyOKRawApplicationOctetStream) downloadFileLegacyRes() {}
+
+type DownloadFileLegacyPartialContent struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s DownloadFileLegacyPartialContent) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+type DownloadFileLegacyPartialContentAcceptRanges string
+
+const (
+	DownloadFileLegacyPartialContentAcceptRangesBytes DownloadFileLegacyPartialContentAcceptRanges = "bytes"
+)
+
+// AllValues returns all DownloadFileLegacyPartialContentAcceptRanges values.
+func (DownloadFileLegacyPartialContentAcceptRanges) AllValues() []DownloadFileLegacyPartialContentAcceptRanges {
+	return []DownloadFileLegacyPartialContentAcceptRanges{
+		DownloadFileLegacyPartialContentAcceptRangesBytes,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s DownloadFileLegacyPartialContentAcceptRanges) MarshalText() ([]byte, error) {
+	switch s {
+	case DownloadFileLegacyPartialContentAcceptRangesBytes:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *DownloadFileLegacyPartialContentAcceptRanges) UnmarshalText(data []byte) error {
+	switch DownloadFileLegacyPartialContentAcceptRanges(data) {
+	case DownloadFileLegacyPartialContentAcceptRangesBytes:
+		*s = DownloadFileLegacyPartialContentAcceptRangesBytes
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+// DownloadFileLegacyPartialContentHeaders wraps DownloadFileLegacyPartialContent with response headers.
+type DownloadFileLegacyPartialContentHeaders struct {
+	AcceptRanges       DownloadFileLegacyPartialContentAcceptRanges
+	ContentDisposition string
+	ContentLength      int64
+	ContentRange       string
+	Etag               ETag
+	LastModified       time.Time
+	Response           DownloadFileLegacyPartialContent
+}
+
+// GetAcceptRanges returns the value of AcceptRanges.
+func (s *DownloadFileLegacyPartialContentHeaders) GetAcceptRanges() DownloadFileLegacyPartialContentAcceptRanges {
+	return s.AcceptRanges
+}
+
+// GetContentDisposition returns the value of ContentDisposition.
+func (s *DownloadFileLegacyPartialContentHeaders) GetContentDisposition() string {
+	return s.ContentDisposition
+}
+
+// GetContentLength returns the value of ContentLength.
+func (s *DownloadFileLegacyPartialContentHeaders) GetContentLength() int64 {
+	return s.ContentLength
+}
+
+// GetContentRange returns the value of ContentRange.
+func (s *DownloadFileLegacyPartialContentHeaders) GetContentRange() string {
+	return s.ContentRange
+}
+
+// GetEtag returns the value of Etag.
+func (s *DownloadFileLegacyPartialContentHeaders) GetEtag() ETag {
+	return s.Etag
+}
+
+// GetLastModified returns the value of LastModified.
+func (s *DownloadFileLegacyPartialContentHeaders) GetLastModified() time.Time {
+	return s.LastModified
+}
+
+// GetResponse returns the value of Response.
+func (s *DownloadFileLegacyPartialContentHeaders) GetResponse() DownloadFileLegacyPartialContent {
+	return s.Response
+}
+
+// SetAcceptRanges sets the value of AcceptRanges.
+func (s *DownloadFileLegacyPartialContentHeaders) SetAcceptRanges(val DownloadFileLegacyPartialContentAcceptRanges) {
+	s.AcceptRanges = val
+}
+
+// SetContentDisposition sets the value of ContentDisposition.
+func (s *DownloadFileLegacyPartialContentHeaders) SetContentDisposition(val string) {
+	s.ContentDisposition = val
+}
+
+// SetContentLength sets the value of ContentLength.
+func (s *DownloadFileLegacyPartialContentHeaders) SetContentLength(val int64) {
+	s.ContentLength = val
+}
+
+// SetContentRange sets the value of ContentRange.
+func (s *DownloadFileLegacyPartialContentHeaders) SetContentRange(val string) {
+	s.ContentRange = val
+}
+
+// SetEtag sets the value of Etag.
+func (s *DownloadFileLegacyPartialContentHeaders) SetEtag(val ETag) {
+	s.Etag = val
+}
+
+// SetLastModified sets the value of LastModified.
+func (s *DownloadFileLegacyPartialContentHeaders) SetLastModified(val time.Time) {
+	s.LastModified = val
+}
+
+// SetResponse sets the value of Response.
+func (s *DownloadFileLegacyPartialContentHeaders) SetResponse(val DownloadFileLegacyPartialContent) {
+	s.Response = val
+}
+
+// DownloadFileLegacyPartialContentRawApplicationOctetStream represents raw HTTP response for DownloadFileLegacy application/octet-stream.
+type DownloadFileLegacyPartialContentRawApplicationOctetStream struct {
+	Response *http.Response `json:"-"`
+}
+
+// GetResponse returns the value of Response.
+func (s *DownloadFileLegacyPartialContentRawApplicationOctetStream) GetResponse() *http.Response {
+	return s.Response
+}
+
+// SetResponse sets the value of Response.
+func (s *DownloadFileLegacyPartialContentRawApplicationOctetStream) SetResponse(val *http.Response) {
+	s.Response = val
+}
+
+func (*DownloadFileLegacyPartialContentRawApplicationOctetStream) downloadFileLegacyRes() {}
+
+type DownloadFileLegacyRequestedRangeNotSatisfiable ErrorEnvelope
+
+func (*DownloadFileLegacyRequestedRangeNotSatisfiable) downloadFileLegacyRes() {}
+
+type DownloadFileLegacyServiceUnavailable ErrorEnvelope
+
+func (*DownloadFileLegacyServiceUnavailable) downloadFileLegacyRes() {}
+
+type DownloadFileLegacyTooManyRequests ErrorEnvelope
+
+func (*DownloadFileLegacyTooManyRequests) downloadFileLegacyRes() {}
+
+type DownloadFileLegacyUnauthorized ErrorEnvelope
+
+func (*DownloadFileLegacyUnauthorized) downloadFileLegacyRes() {}
+
 type DownloadFileNotFound ErrorEnvelope
 
 func (*DownloadFileNotFound) downloadFileRes() {}
@@ -1526,6 +1832,318 @@ type DownloadPublicShareFileGone ErrorEnvelope
 
 func (*DownloadPublicShareFileGone) downloadPublicShareFileRes() {}
 
+type DownloadPublicShareFileLegacyGone ErrorEnvelope
+
+func (*DownloadPublicShareFileLegacyGone) downloadPublicShareFileLegacyRes() {}
+
+type DownloadPublicShareFileLegacyNotFound ErrorEnvelope
+
+func (*DownloadPublicShareFileLegacyNotFound) downloadPublicShareFileLegacyRes() {}
+
+// DownloadPublicShareFileLegacyNotModified is response for DownloadPublicShareFileLegacy operation.
+type DownloadPublicShareFileLegacyNotModified struct{}
+
+func (*DownloadPublicShareFileLegacyNotModified) downloadPublicShareFileLegacyRes() {}
+
+type DownloadPublicShareFileLegacyOK struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s DownloadPublicShareFileLegacyOK) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+type DownloadPublicShareFileLegacyOKAcceptRanges string
+
+const (
+	DownloadPublicShareFileLegacyOKAcceptRangesBytes DownloadPublicShareFileLegacyOKAcceptRanges = "bytes"
+)
+
+// AllValues returns all DownloadPublicShareFileLegacyOKAcceptRanges values.
+func (DownloadPublicShareFileLegacyOKAcceptRanges) AllValues() []DownloadPublicShareFileLegacyOKAcceptRanges {
+	return []DownloadPublicShareFileLegacyOKAcceptRanges{
+		DownloadPublicShareFileLegacyOKAcceptRangesBytes,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s DownloadPublicShareFileLegacyOKAcceptRanges) MarshalText() ([]byte, error) {
+	switch s {
+	case DownloadPublicShareFileLegacyOKAcceptRangesBytes:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *DownloadPublicShareFileLegacyOKAcceptRanges) UnmarshalText(data []byte) error {
+	switch DownloadPublicShareFileLegacyOKAcceptRanges(data) {
+	case DownloadPublicShareFileLegacyOKAcceptRangesBytes:
+		*s = DownloadPublicShareFileLegacyOKAcceptRangesBytes
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+// DownloadPublicShareFileLegacyOKHeaders wraps DownloadPublicShareFileLegacyOK with response headers.
+type DownloadPublicShareFileLegacyOKHeaders struct {
+	AcceptRanges       DownloadPublicShareFileLegacyOKAcceptRanges
+	ContentDisposition string
+	ContentLength      int64
+	Etag               ETag
+	LastModified       time.Time
+	Response           DownloadPublicShareFileLegacyOK
+}
+
+// GetAcceptRanges returns the value of AcceptRanges.
+func (s *DownloadPublicShareFileLegacyOKHeaders) GetAcceptRanges() DownloadPublicShareFileLegacyOKAcceptRanges {
+	return s.AcceptRanges
+}
+
+// GetContentDisposition returns the value of ContentDisposition.
+func (s *DownloadPublicShareFileLegacyOKHeaders) GetContentDisposition() string {
+	return s.ContentDisposition
+}
+
+// GetContentLength returns the value of ContentLength.
+func (s *DownloadPublicShareFileLegacyOKHeaders) GetContentLength() int64 {
+	return s.ContentLength
+}
+
+// GetEtag returns the value of Etag.
+func (s *DownloadPublicShareFileLegacyOKHeaders) GetEtag() ETag {
+	return s.Etag
+}
+
+// GetLastModified returns the value of LastModified.
+func (s *DownloadPublicShareFileLegacyOKHeaders) GetLastModified() time.Time {
+	return s.LastModified
+}
+
+// GetResponse returns the value of Response.
+func (s *DownloadPublicShareFileLegacyOKHeaders) GetResponse() DownloadPublicShareFileLegacyOK {
+	return s.Response
+}
+
+// SetAcceptRanges sets the value of AcceptRanges.
+func (s *DownloadPublicShareFileLegacyOKHeaders) SetAcceptRanges(val DownloadPublicShareFileLegacyOKAcceptRanges) {
+	s.AcceptRanges = val
+}
+
+// SetContentDisposition sets the value of ContentDisposition.
+func (s *DownloadPublicShareFileLegacyOKHeaders) SetContentDisposition(val string) {
+	s.ContentDisposition = val
+}
+
+// SetContentLength sets the value of ContentLength.
+func (s *DownloadPublicShareFileLegacyOKHeaders) SetContentLength(val int64) {
+	s.ContentLength = val
+}
+
+// SetEtag sets the value of Etag.
+func (s *DownloadPublicShareFileLegacyOKHeaders) SetEtag(val ETag) {
+	s.Etag = val
+}
+
+// SetLastModified sets the value of LastModified.
+func (s *DownloadPublicShareFileLegacyOKHeaders) SetLastModified(val time.Time) {
+	s.LastModified = val
+}
+
+// SetResponse sets the value of Response.
+func (s *DownloadPublicShareFileLegacyOKHeaders) SetResponse(val DownloadPublicShareFileLegacyOK) {
+	s.Response = val
+}
+
+// DownloadPublicShareFileLegacyOKRawApplicationOctetStream represents raw HTTP response for DownloadPublicShareFileLegacy application/octet-stream.
+type DownloadPublicShareFileLegacyOKRawApplicationOctetStream struct {
+	Response *http.Response `json:"-"`
+}
+
+// GetResponse returns the value of Response.
+func (s *DownloadPublicShareFileLegacyOKRawApplicationOctetStream) GetResponse() *http.Response {
+	return s.Response
+}
+
+// SetResponse sets the value of Response.
+func (s *DownloadPublicShareFileLegacyOKRawApplicationOctetStream) SetResponse(val *http.Response) {
+	s.Response = val
+}
+
+func (*DownloadPublicShareFileLegacyOKRawApplicationOctetStream) downloadPublicShareFileLegacyRes() {}
+
+type DownloadPublicShareFileLegacyPartialContent struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s DownloadPublicShareFileLegacyPartialContent) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+type DownloadPublicShareFileLegacyPartialContentAcceptRanges string
+
+const (
+	DownloadPublicShareFileLegacyPartialContentAcceptRangesBytes DownloadPublicShareFileLegacyPartialContentAcceptRanges = "bytes"
+)
+
+// AllValues returns all DownloadPublicShareFileLegacyPartialContentAcceptRanges values.
+func (DownloadPublicShareFileLegacyPartialContentAcceptRanges) AllValues() []DownloadPublicShareFileLegacyPartialContentAcceptRanges {
+	return []DownloadPublicShareFileLegacyPartialContentAcceptRanges{
+		DownloadPublicShareFileLegacyPartialContentAcceptRangesBytes,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s DownloadPublicShareFileLegacyPartialContentAcceptRanges) MarshalText() ([]byte, error) {
+	switch s {
+	case DownloadPublicShareFileLegacyPartialContentAcceptRangesBytes:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *DownloadPublicShareFileLegacyPartialContentAcceptRanges) UnmarshalText(data []byte) error {
+	switch DownloadPublicShareFileLegacyPartialContentAcceptRanges(data) {
+	case DownloadPublicShareFileLegacyPartialContentAcceptRangesBytes:
+		*s = DownloadPublicShareFileLegacyPartialContentAcceptRangesBytes
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+// DownloadPublicShareFileLegacyPartialContentHeaders wraps DownloadPublicShareFileLegacyPartialContent with response headers.
+type DownloadPublicShareFileLegacyPartialContentHeaders struct {
+	AcceptRanges       DownloadPublicShareFileLegacyPartialContentAcceptRanges
+	ContentDisposition string
+	ContentLength      int64
+	ContentRange       string
+	Etag               ETag
+	LastModified       time.Time
+	Response           DownloadPublicShareFileLegacyPartialContent
+}
+
+// GetAcceptRanges returns the value of AcceptRanges.
+func (s *DownloadPublicShareFileLegacyPartialContentHeaders) GetAcceptRanges() DownloadPublicShareFileLegacyPartialContentAcceptRanges {
+	return s.AcceptRanges
+}
+
+// GetContentDisposition returns the value of ContentDisposition.
+func (s *DownloadPublicShareFileLegacyPartialContentHeaders) GetContentDisposition() string {
+	return s.ContentDisposition
+}
+
+// GetContentLength returns the value of ContentLength.
+func (s *DownloadPublicShareFileLegacyPartialContentHeaders) GetContentLength() int64 {
+	return s.ContentLength
+}
+
+// GetContentRange returns the value of ContentRange.
+func (s *DownloadPublicShareFileLegacyPartialContentHeaders) GetContentRange() string {
+	return s.ContentRange
+}
+
+// GetEtag returns the value of Etag.
+func (s *DownloadPublicShareFileLegacyPartialContentHeaders) GetEtag() ETag {
+	return s.Etag
+}
+
+// GetLastModified returns the value of LastModified.
+func (s *DownloadPublicShareFileLegacyPartialContentHeaders) GetLastModified() time.Time {
+	return s.LastModified
+}
+
+// GetResponse returns the value of Response.
+func (s *DownloadPublicShareFileLegacyPartialContentHeaders) GetResponse() DownloadPublicShareFileLegacyPartialContent {
+	return s.Response
+}
+
+// SetAcceptRanges sets the value of AcceptRanges.
+func (s *DownloadPublicShareFileLegacyPartialContentHeaders) SetAcceptRanges(val DownloadPublicShareFileLegacyPartialContentAcceptRanges) {
+	s.AcceptRanges = val
+}
+
+// SetContentDisposition sets the value of ContentDisposition.
+func (s *DownloadPublicShareFileLegacyPartialContentHeaders) SetContentDisposition(val string) {
+	s.ContentDisposition = val
+}
+
+// SetContentLength sets the value of ContentLength.
+func (s *DownloadPublicShareFileLegacyPartialContentHeaders) SetContentLength(val int64) {
+	s.ContentLength = val
+}
+
+// SetContentRange sets the value of ContentRange.
+func (s *DownloadPublicShareFileLegacyPartialContentHeaders) SetContentRange(val string) {
+	s.ContentRange = val
+}
+
+// SetEtag sets the value of Etag.
+func (s *DownloadPublicShareFileLegacyPartialContentHeaders) SetEtag(val ETag) {
+	s.Etag = val
+}
+
+// SetLastModified sets the value of LastModified.
+func (s *DownloadPublicShareFileLegacyPartialContentHeaders) SetLastModified(val time.Time) {
+	s.LastModified = val
+}
+
+// SetResponse sets the value of Response.
+func (s *DownloadPublicShareFileLegacyPartialContentHeaders) SetResponse(val DownloadPublicShareFileLegacyPartialContent) {
+	s.Response = val
+}
+
+// DownloadPublicShareFileLegacyPartialContentRawApplicationOctetStream represents raw HTTP response for DownloadPublicShareFileLegacy application/octet-stream.
+type DownloadPublicShareFileLegacyPartialContentRawApplicationOctetStream struct {
+	Response *http.Response `json:"-"`
+}
+
+// GetResponse returns the value of Response.
+func (s *DownloadPublicShareFileLegacyPartialContentRawApplicationOctetStream) GetResponse() *http.Response {
+	return s.Response
+}
+
+// SetResponse sets the value of Response.
+func (s *DownloadPublicShareFileLegacyPartialContentRawApplicationOctetStream) SetResponse(val *http.Response) {
+	s.Response = val
+}
+
+func (*DownloadPublicShareFileLegacyPartialContentRawApplicationOctetStream) downloadPublicShareFileLegacyRes() {
+}
+
+type DownloadPublicShareFileLegacyRequestedRangeNotSatisfiable ErrorEnvelope
+
+func (*DownloadPublicShareFileLegacyRequestedRangeNotSatisfiable) downloadPublicShareFileLegacyRes() {
+}
+
+type DownloadPublicShareFileLegacyServiceUnavailable ErrorEnvelope
+
+func (*DownloadPublicShareFileLegacyServiceUnavailable) downloadPublicShareFileLegacyRes() {}
+
+type DownloadPublicShareFileLegacyTooManyRequests ErrorEnvelope
+
+func (*DownloadPublicShareFileLegacyTooManyRequests) downloadPublicShareFileLegacyRes() {}
+
+type DownloadPublicShareFileLegacyUnauthorized ErrorEnvelope
+
+func (*DownloadPublicShareFileLegacyUnauthorized) downloadPublicShareFileLegacyRes() {}
+
 type DownloadPublicShareFileNotFound ErrorEnvelope
 
 func (*DownloadPublicShareFileNotFound) downloadPublicShareFileRes() {}
@@ -1835,6 +2453,317 @@ func (*DownloadPublicShareFileUnauthorized) downloadPublicShareFileRes() {}
 type DownloadPublicShareGone ErrorEnvelope
 
 func (*DownloadPublicShareGone) downloadPublicShareRes() {}
+
+type DownloadPublicShareLegacyGone ErrorEnvelope
+
+func (*DownloadPublicShareLegacyGone) downloadPublicShareLegacyRes() {}
+
+type DownloadPublicShareLegacyNotFound ErrorEnvelope
+
+func (*DownloadPublicShareLegacyNotFound) downloadPublicShareLegacyRes() {}
+
+// DownloadPublicShareLegacyNotModified is response for DownloadPublicShareLegacy operation.
+type DownloadPublicShareLegacyNotModified struct{}
+
+func (*DownloadPublicShareLegacyNotModified) downloadPublicShareLegacyRes() {}
+
+type DownloadPublicShareLegacyOK struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s DownloadPublicShareLegacyOK) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+type DownloadPublicShareLegacyOKAcceptRanges string
+
+const (
+	DownloadPublicShareLegacyOKAcceptRangesBytes DownloadPublicShareLegacyOKAcceptRanges = "bytes"
+)
+
+// AllValues returns all DownloadPublicShareLegacyOKAcceptRanges values.
+func (DownloadPublicShareLegacyOKAcceptRanges) AllValues() []DownloadPublicShareLegacyOKAcceptRanges {
+	return []DownloadPublicShareLegacyOKAcceptRanges{
+		DownloadPublicShareLegacyOKAcceptRangesBytes,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s DownloadPublicShareLegacyOKAcceptRanges) MarshalText() ([]byte, error) {
+	switch s {
+	case DownloadPublicShareLegacyOKAcceptRangesBytes:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *DownloadPublicShareLegacyOKAcceptRanges) UnmarshalText(data []byte) error {
+	switch DownloadPublicShareLegacyOKAcceptRanges(data) {
+	case DownloadPublicShareLegacyOKAcceptRangesBytes:
+		*s = DownloadPublicShareLegacyOKAcceptRangesBytes
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+// DownloadPublicShareLegacyOKHeaders wraps DownloadPublicShareLegacyOK with response headers.
+type DownloadPublicShareLegacyOKHeaders struct {
+	AcceptRanges       DownloadPublicShareLegacyOKAcceptRanges
+	ContentDisposition string
+	ContentLength      int64
+	Etag               ETag
+	LastModified       time.Time
+	Response           DownloadPublicShareLegacyOK
+}
+
+// GetAcceptRanges returns the value of AcceptRanges.
+func (s *DownloadPublicShareLegacyOKHeaders) GetAcceptRanges() DownloadPublicShareLegacyOKAcceptRanges {
+	return s.AcceptRanges
+}
+
+// GetContentDisposition returns the value of ContentDisposition.
+func (s *DownloadPublicShareLegacyOKHeaders) GetContentDisposition() string {
+	return s.ContentDisposition
+}
+
+// GetContentLength returns the value of ContentLength.
+func (s *DownloadPublicShareLegacyOKHeaders) GetContentLength() int64 {
+	return s.ContentLength
+}
+
+// GetEtag returns the value of Etag.
+func (s *DownloadPublicShareLegacyOKHeaders) GetEtag() ETag {
+	return s.Etag
+}
+
+// GetLastModified returns the value of LastModified.
+func (s *DownloadPublicShareLegacyOKHeaders) GetLastModified() time.Time {
+	return s.LastModified
+}
+
+// GetResponse returns the value of Response.
+func (s *DownloadPublicShareLegacyOKHeaders) GetResponse() DownloadPublicShareLegacyOK {
+	return s.Response
+}
+
+// SetAcceptRanges sets the value of AcceptRanges.
+func (s *DownloadPublicShareLegacyOKHeaders) SetAcceptRanges(val DownloadPublicShareLegacyOKAcceptRanges) {
+	s.AcceptRanges = val
+}
+
+// SetContentDisposition sets the value of ContentDisposition.
+func (s *DownloadPublicShareLegacyOKHeaders) SetContentDisposition(val string) {
+	s.ContentDisposition = val
+}
+
+// SetContentLength sets the value of ContentLength.
+func (s *DownloadPublicShareLegacyOKHeaders) SetContentLength(val int64) {
+	s.ContentLength = val
+}
+
+// SetEtag sets the value of Etag.
+func (s *DownloadPublicShareLegacyOKHeaders) SetEtag(val ETag) {
+	s.Etag = val
+}
+
+// SetLastModified sets the value of LastModified.
+func (s *DownloadPublicShareLegacyOKHeaders) SetLastModified(val time.Time) {
+	s.LastModified = val
+}
+
+// SetResponse sets the value of Response.
+func (s *DownloadPublicShareLegacyOKHeaders) SetResponse(val DownloadPublicShareLegacyOK) {
+	s.Response = val
+}
+
+// DownloadPublicShareLegacyOKRawApplicationOctetStream represents raw HTTP response for DownloadPublicShareLegacy application/octet-stream.
+type DownloadPublicShareLegacyOKRawApplicationOctetStream struct {
+	Response *http.Response `json:"-"`
+}
+
+// GetResponse returns the value of Response.
+func (s *DownloadPublicShareLegacyOKRawApplicationOctetStream) GetResponse() *http.Response {
+	return s.Response
+}
+
+// SetResponse sets the value of Response.
+func (s *DownloadPublicShareLegacyOKRawApplicationOctetStream) SetResponse(val *http.Response) {
+	s.Response = val
+}
+
+func (*DownloadPublicShareLegacyOKRawApplicationOctetStream) downloadPublicShareLegacyRes() {}
+
+type DownloadPublicShareLegacyPartialContent struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s DownloadPublicShareLegacyPartialContent) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+type DownloadPublicShareLegacyPartialContentAcceptRanges string
+
+const (
+	DownloadPublicShareLegacyPartialContentAcceptRangesBytes DownloadPublicShareLegacyPartialContentAcceptRanges = "bytes"
+)
+
+// AllValues returns all DownloadPublicShareLegacyPartialContentAcceptRanges values.
+func (DownloadPublicShareLegacyPartialContentAcceptRanges) AllValues() []DownloadPublicShareLegacyPartialContentAcceptRanges {
+	return []DownloadPublicShareLegacyPartialContentAcceptRanges{
+		DownloadPublicShareLegacyPartialContentAcceptRangesBytes,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s DownloadPublicShareLegacyPartialContentAcceptRanges) MarshalText() ([]byte, error) {
+	switch s {
+	case DownloadPublicShareLegacyPartialContentAcceptRangesBytes:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *DownloadPublicShareLegacyPartialContentAcceptRanges) UnmarshalText(data []byte) error {
+	switch DownloadPublicShareLegacyPartialContentAcceptRanges(data) {
+	case DownloadPublicShareLegacyPartialContentAcceptRangesBytes:
+		*s = DownloadPublicShareLegacyPartialContentAcceptRangesBytes
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+// DownloadPublicShareLegacyPartialContentHeaders wraps DownloadPublicShareLegacyPartialContent with response headers.
+type DownloadPublicShareLegacyPartialContentHeaders struct {
+	AcceptRanges       DownloadPublicShareLegacyPartialContentAcceptRanges
+	ContentDisposition string
+	ContentLength      int64
+	ContentRange       string
+	Etag               ETag
+	LastModified       time.Time
+	Response           DownloadPublicShareLegacyPartialContent
+}
+
+// GetAcceptRanges returns the value of AcceptRanges.
+func (s *DownloadPublicShareLegacyPartialContentHeaders) GetAcceptRanges() DownloadPublicShareLegacyPartialContentAcceptRanges {
+	return s.AcceptRanges
+}
+
+// GetContentDisposition returns the value of ContentDisposition.
+func (s *DownloadPublicShareLegacyPartialContentHeaders) GetContentDisposition() string {
+	return s.ContentDisposition
+}
+
+// GetContentLength returns the value of ContentLength.
+func (s *DownloadPublicShareLegacyPartialContentHeaders) GetContentLength() int64 {
+	return s.ContentLength
+}
+
+// GetContentRange returns the value of ContentRange.
+func (s *DownloadPublicShareLegacyPartialContentHeaders) GetContentRange() string {
+	return s.ContentRange
+}
+
+// GetEtag returns the value of Etag.
+func (s *DownloadPublicShareLegacyPartialContentHeaders) GetEtag() ETag {
+	return s.Etag
+}
+
+// GetLastModified returns the value of LastModified.
+func (s *DownloadPublicShareLegacyPartialContentHeaders) GetLastModified() time.Time {
+	return s.LastModified
+}
+
+// GetResponse returns the value of Response.
+func (s *DownloadPublicShareLegacyPartialContentHeaders) GetResponse() DownloadPublicShareLegacyPartialContent {
+	return s.Response
+}
+
+// SetAcceptRanges sets the value of AcceptRanges.
+func (s *DownloadPublicShareLegacyPartialContentHeaders) SetAcceptRanges(val DownloadPublicShareLegacyPartialContentAcceptRanges) {
+	s.AcceptRanges = val
+}
+
+// SetContentDisposition sets the value of ContentDisposition.
+func (s *DownloadPublicShareLegacyPartialContentHeaders) SetContentDisposition(val string) {
+	s.ContentDisposition = val
+}
+
+// SetContentLength sets the value of ContentLength.
+func (s *DownloadPublicShareLegacyPartialContentHeaders) SetContentLength(val int64) {
+	s.ContentLength = val
+}
+
+// SetContentRange sets the value of ContentRange.
+func (s *DownloadPublicShareLegacyPartialContentHeaders) SetContentRange(val string) {
+	s.ContentRange = val
+}
+
+// SetEtag sets the value of Etag.
+func (s *DownloadPublicShareLegacyPartialContentHeaders) SetEtag(val ETag) {
+	s.Etag = val
+}
+
+// SetLastModified sets the value of LastModified.
+func (s *DownloadPublicShareLegacyPartialContentHeaders) SetLastModified(val time.Time) {
+	s.LastModified = val
+}
+
+// SetResponse sets the value of Response.
+func (s *DownloadPublicShareLegacyPartialContentHeaders) SetResponse(val DownloadPublicShareLegacyPartialContent) {
+	s.Response = val
+}
+
+// DownloadPublicShareLegacyPartialContentRawApplicationOctetStream represents raw HTTP response for DownloadPublicShareLegacy application/octet-stream.
+type DownloadPublicShareLegacyPartialContentRawApplicationOctetStream struct {
+	Response *http.Response `json:"-"`
+}
+
+// GetResponse returns the value of Response.
+func (s *DownloadPublicShareLegacyPartialContentRawApplicationOctetStream) GetResponse() *http.Response {
+	return s.Response
+}
+
+// SetResponse sets the value of Response.
+func (s *DownloadPublicShareLegacyPartialContentRawApplicationOctetStream) SetResponse(val *http.Response) {
+	s.Response = val
+}
+
+func (*DownloadPublicShareLegacyPartialContentRawApplicationOctetStream) downloadPublicShareLegacyRes() {
+}
+
+type DownloadPublicShareLegacyRequestedRangeNotSatisfiable ErrorEnvelope
+
+func (*DownloadPublicShareLegacyRequestedRangeNotSatisfiable) downloadPublicShareLegacyRes() {}
+
+type DownloadPublicShareLegacyServiceUnavailable ErrorEnvelope
+
+func (*DownloadPublicShareLegacyServiceUnavailable) downloadPublicShareLegacyRes() {}
+
+type DownloadPublicShareLegacyTooManyRequests ErrorEnvelope
+
+func (*DownloadPublicShareLegacyTooManyRequests) downloadPublicShareLegacyRes() {}
+
+type DownloadPublicShareLegacyUnauthorized ErrorEnvelope
+
+func (*DownloadPublicShareLegacyUnauthorized) downloadPublicShareLegacyRes() {}
 
 type DownloadPublicShareNotFound ErrorEnvelope
 
@@ -2828,6 +3757,40 @@ func (s *FileCategoryStatistics) SetTotalFiles(val int64) {
 // SetTotalSize sets the value of TotalSize.
 func (s *FileCategoryStatistics) SetTotalSize(val int64) {
 	s.TotalSize = val
+}
+
+type FileContentRequestOptionsDownload string
+
+const (
+	FileContentRequestOptionsDownload1 FileContentRequestOptionsDownload = "1"
+)
+
+// AllValues returns all FileContentRequestOptionsDownload values.
+func (FileContentRequestOptionsDownload) AllValues() []FileContentRequestOptionsDownload {
+	return []FileContentRequestOptionsDownload{
+		FileContentRequestOptionsDownload1,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s FileContentRequestOptionsDownload) MarshalText() ([]byte, error) {
+	switch s {
+	case FileContentRequestOptionsDownload1:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *FileContentRequestOptionsDownload) UnmarshalText(data []byte) error {
+	switch FileContentRequestOptionsDownload(data) {
+	case FileContentRequestOptionsDownload1:
+		*s = FileContentRequestOptionsDownload1
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
 }
 
 // Ref: #/components/schemas/FileCopyRequest
@@ -3984,6 +4947,109 @@ func (s *HashAlgorithm) UnmarshalText(data []byte) error {
 	}
 }
 
+type HeadFileLegacyNotFound ErrorEnvelope
+
+func (*HeadFileLegacyNotFound) headFileLegacyRes() {}
+
+// HeadFileLegacyOK is response for HeadFileLegacy operation.
+type HeadFileLegacyOK struct {
+	AcceptRanges       HeadFileLegacyOKAcceptRanges
+	ContentDisposition string
+	ContentLength      int64
+	Etag               ETag
+	LastModified       time.Time
+}
+
+// GetAcceptRanges returns the value of AcceptRanges.
+func (s *HeadFileLegacyOK) GetAcceptRanges() HeadFileLegacyOKAcceptRanges {
+	return s.AcceptRanges
+}
+
+// GetContentDisposition returns the value of ContentDisposition.
+func (s *HeadFileLegacyOK) GetContentDisposition() string {
+	return s.ContentDisposition
+}
+
+// GetContentLength returns the value of ContentLength.
+func (s *HeadFileLegacyOK) GetContentLength() int64 {
+	return s.ContentLength
+}
+
+// GetEtag returns the value of Etag.
+func (s *HeadFileLegacyOK) GetEtag() ETag {
+	return s.Etag
+}
+
+// GetLastModified returns the value of LastModified.
+func (s *HeadFileLegacyOK) GetLastModified() time.Time {
+	return s.LastModified
+}
+
+// SetAcceptRanges sets the value of AcceptRanges.
+func (s *HeadFileLegacyOK) SetAcceptRanges(val HeadFileLegacyOKAcceptRanges) {
+	s.AcceptRanges = val
+}
+
+// SetContentDisposition sets the value of ContentDisposition.
+func (s *HeadFileLegacyOK) SetContentDisposition(val string) {
+	s.ContentDisposition = val
+}
+
+// SetContentLength sets the value of ContentLength.
+func (s *HeadFileLegacyOK) SetContentLength(val int64) {
+	s.ContentLength = val
+}
+
+// SetEtag sets the value of Etag.
+func (s *HeadFileLegacyOK) SetEtag(val ETag) {
+	s.Etag = val
+}
+
+// SetLastModified sets the value of LastModified.
+func (s *HeadFileLegacyOK) SetLastModified(val time.Time) {
+	s.LastModified = val
+}
+
+func (*HeadFileLegacyOK) headFileLegacyRes() {}
+
+type HeadFileLegacyOKAcceptRanges string
+
+const (
+	HeadFileLegacyOKAcceptRangesBytes HeadFileLegacyOKAcceptRanges = "bytes"
+)
+
+// AllValues returns all HeadFileLegacyOKAcceptRanges values.
+func (HeadFileLegacyOKAcceptRanges) AllValues() []HeadFileLegacyOKAcceptRanges {
+	return []HeadFileLegacyOKAcceptRanges{
+		HeadFileLegacyOKAcceptRangesBytes,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s HeadFileLegacyOKAcceptRanges) MarshalText() ([]byte, error) {
+	switch s {
+	case HeadFileLegacyOKAcceptRangesBytes:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *HeadFileLegacyOKAcceptRanges) UnmarshalText(data []byte) error {
+	switch HeadFileLegacyOKAcceptRanges(data) {
+	case HeadFileLegacyOKAcceptRangesBytes:
+		*s = HeadFileLegacyOKAcceptRangesBytes
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+type HeadFileLegacyUnauthorized ErrorEnvelope
+
+func (*HeadFileLegacyUnauthorized) headFileLegacyRes() {}
+
 type HeadFileNotFound ErrorEnvelope
 
 func (*HeadFileNotFound) headFileRes() {}
@@ -4083,14 +5149,6 @@ func (s *HeadFileOKAcceptRanges) UnmarshalText(data []byte) error {
 	}
 }
 
-type HeadFileServiceUnavailable ErrorEnvelope
-
-func (*HeadFileServiceUnavailable) headFileRes() {}
-
-type HeadFileTooManyRequests ErrorEnvelope
-
-func (*HeadFileTooManyRequests) headFileRes() {}
-
 type HeadFileUnauthorized ErrorEnvelope
 
 func (*HeadFileUnauthorized) headFileRes() {}
@@ -4098,6 +5156,121 @@ func (*HeadFileUnauthorized) headFileRes() {}
 type HeadPublicShareFileGone ErrorEnvelope
 
 func (*HeadPublicShareFileGone) headPublicShareFileRes() {}
+
+type HeadPublicShareFileLegacyGone ErrorEnvelope
+
+func (*HeadPublicShareFileLegacyGone) headPublicShareFileLegacyRes() {}
+
+type HeadPublicShareFileLegacyNotFound ErrorEnvelope
+
+func (*HeadPublicShareFileLegacyNotFound) headPublicShareFileLegacyRes() {}
+
+// HeadPublicShareFileLegacyOK is response for HeadPublicShareFileLegacy operation.
+type HeadPublicShareFileLegacyOK struct {
+	AcceptRanges       HeadPublicShareFileLegacyOKAcceptRanges
+	ContentDisposition string
+	ContentLength      int64
+	Etag               ETag
+	LastModified       time.Time
+}
+
+// GetAcceptRanges returns the value of AcceptRanges.
+func (s *HeadPublicShareFileLegacyOK) GetAcceptRanges() HeadPublicShareFileLegacyOKAcceptRanges {
+	return s.AcceptRanges
+}
+
+// GetContentDisposition returns the value of ContentDisposition.
+func (s *HeadPublicShareFileLegacyOK) GetContentDisposition() string {
+	return s.ContentDisposition
+}
+
+// GetContentLength returns the value of ContentLength.
+func (s *HeadPublicShareFileLegacyOK) GetContentLength() int64 {
+	return s.ContentLength
+}
+
+// GetEtag returns the value of Etag.
+func (s *HeadPublicShareFileLegacyOK) GetEtag() ETag {
+	return s.Etag
+}
+
+// GetLastModified returns the value of LastModified.
+func (s *HeadPublicShareFileLegacyOK) GetLastModified() time.Time {
+	return s.LastModified
+}
+
+// SetAcceptRanges sets the value of AcceptRanges.
+func (s *HeadPublicShareFileLegacyOK) SetAcceptRanges(val HeadPublicShareFileLegacyOKAcceptRanges) {
+	s.AcceptRanges = val
+}
+
+// SetContentDisposition sets the value of ContentDisposition.
+func (s *HeadPublicShareFileLegacyOK) SetContentDisposition(val string) {
+	s.ContentDisposition = val
+}
+
+// SetContentLength sets the value of ContentLength.
+func (s *HeadPublicShareFileLegacyOK) SetContentLength(val int64) {
+	s.ContentLength = val
+}
+
+// SetEtag sets the value of Etag.
+func (s *HeadPublicShareFileLegacyOK) SetEtag(val ETag) {
+	s.Etag = val
+}
+
+// SetLastModified sets the value of LastModified.
+func (s *HeadPublicShareFileLegacyOK) SetLastModified(val time.Time) {
+	s.LastModified = val
+}
+
+func (*HeadPublicShareFileLegacyOK) headPublicShareFileLegacyRes() {}
+
+type HeadPublicShareFileLegacyOKAcceptRanges string
+
+const (
+	HeadPublicShareFileLegacyOKAcceptRangesBytes HeadPublicShareFileLegacyOKAcceptRanges = "bytes"
+)
+
+// AllValues returns all HeadPublicShareFileLegacyOKAcceptRanges values.
+func (HeadPublicShareFileLegacyOKAcceptRanges) AllValues() []HeadPublicShareFileLegacyOKAcceptRanges {
+	return []HeadPublicShareFileLegacyOKAcceptRanges{
+		HeadPublicShareFileLegacyOKAcceptRangesBytes,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s HeadPublicShareFileLegacyOKAcceptRanges) MarshalText() ([]byte, error) {
+	switch s {
+	case HeadPublicShareFileLegacyOKAcceptRangesBytes:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *HeadPublicShareFileLegacyOKAcceptRanges) UnmarshalText(data []byte) error {
+	switch HeadPublicShareFileLegacyOKAcceptRanges(data) {
+	case HeadPublicShareFileLegacyOKAcceptRangesBytes:
+		*s = HeadPublicShareFileLegacyOKAcceptRangesBytes
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+type HeadPublicShareFileLegacyServiceUnavailable ErrorEnvelope
+
+func (*HeadPublicShareFileLegacyServiceUnavailable) headPublicShareFileLegacyRes() {}
+
+type HeadPublicShareFileLegacyTooManyRequests ErrorEnvelope
+
+func (*HeadPublicShareFileLegacyTooManyRequests) headPublicShareFileLegacyRes() {}
+
+type HeadPublicShareFileLegacyUnauthorized ErrorEnvelope
+
+func (*HeadPublicShareFileLegacyUnauthorized) headPublicShareFileLegacyRes() {}
 
 type HeadPublicShareFileNotFound ErrorEnvelope
 
@@ -4213,6 +5386,121 @@ func (*HeadPublicShareFileUnauthorized) headPublicShareFileRes() {}
 type HeadPublicShareGone ErrorEnvelope
 
 func (*HeadPublicShareGone) headPublicShareRes() {}
+
+type HeadPublicShareLegacyGone ErrorEnvelope
+
+func (*HeadPublicShareLegacyGone) headPublicShareLegacyRes() {}
+
+type HeadPublicShareLegacyNotFound ErrorEnvelope
+
+func (*HeadPublicShareLegacyNotFound) headPublicShareLegacyRes() {}
+
+// HeadPublicShareLegacyOK is response for HeadPublicShareLegacy operation.
+type HeadPublicShareLegacyOK struct {
+	AcceptRanges       HeadPublicShareLegacyOKAcceptRanges
+	ContentDisposition string
+	ContentLength      int64
+	Etag               ETag
+	LastModified       time.Time
+}
+
+// GetAcceptRanges returns the value of AcceptRanges.
+func (s *HeadPublicShareLegacyOK) GetAcceptRanges() HeadPublicShareLegacyOKAcceptRanges {
+	return s.AcceptRanges
+}
+
+// GetContentDisposition returns the value of ContentDisposition.
+func (s *HeadPublicShareLegacyOK) GetContentDisposition() string {
+	return s.ContentDisposition
+}
+
+// GetContentLength returns the value of ContentLength.
+func (s *HeadPublicShareLegacyOK) GetContentLength() int64 {
+	return s.ContentLength
+}
+
+// GetEtag returns the value of Etag.
+func (s *HeadPublicShareLegacyOK) GetEtag() ETag {
+	return s.Etag
+}
+
+// GetLastModified returns the value of LastModified.
+func (s *HeadPublicShareLegacyOK) GetLastModified() time.Time {
+	return s.LastModified
+}
+
+// SetAcceptRanges sets the value of AcceptRanges.
+func (s *HeadPublicShareLegacyOK) SetAcceptRanges(val HeadPublicShareLegacyOKAcceptRanges) {
+	s.AcceptRanges = val
+}
+
+// SetContentDisposition sets the value of ContentDisposition.
+func (s *HeadPublicShareLegacyOK) SetContentDisposition(val string) {
+	s.ContentDisposition = val
+}
+
+// SetContentLength sets the value of ContentLength.
+func (s *HeadPublicShareLegacyOK) SetContentLength(val int64) {
+	s.ContentLength = val
+}
+
+// SetEtag sets the value of Etag.
+func (s *HeadPublicShareLegacyOK) SetEtag(val ETag) {
+	s.Etag = val
+}
+
+// SetLastModified sets the value of LastModified.
+func (s *HeadPublicShareLegacyOK) SetLastModified(val time.Time) {
+	s.LastModified = val
+}
+
+func (*HeadPublicShareLegacyOK) headPublicShareLegacyRes() {}
+
+type HeadPublicShareLegacyOKAcceptRanges string
+
+const (
+	HeadPublicShareLegacyOKAcceptRangesBytes HeadPublicShareLegacyOKAcceptRanges = "bytes"
+)
+
+// AllValues returns all HeadPublicShareLegacyOKAcceptRanges values.
+func (HeadPublicShareLegacyOKAcceptRanges) AllValues() []HeadPublicShareLegacyOKAcceptRanges {
+	return []HeadPublicShareLegacyOKAcceptRanges{
+		HeadPublicShareLegacyOKAcceptRangesBytes,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s HeadPublicShareLegacyOKAcceptRanges) MarshalText() ([]byte, error) {
+	switch s {
+	case HeadPublicShareLegacyOKAcceptRangesBytes:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *HeadPublicShareLegacyOKAcceptRanges) UnmarshalText(data []byte) error {
+	switch HeadPublicShareLegacyOKAcceptRanges(data) {
+	case HeadPublicShareLegacyOKAcceptRangesBytes:
+		*s = HeadPublicShareLegacyOKAcceptRangesBytes
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+type HeadPublicShareLegacyServiceUnavailable ErrorEnvelope
+
+func (*HeadPublicShareLegacyServiceUnavailable) headPublicShareLegacyRes() {}
+
+type HeadPublicShareLegacyTooManyRequests ErrorEnvelope
+
+func (*HeadPublicShareLegacyTooManyRequests) headPublicShareLegacyRes() {}
+
+type HeadPublicShareLegacyUnauthorized ErrorEnvelope
+
+func (*HeadPublicShareLegacyUnauthorized) headPublicShareLegacyRes() {}
 
 type HeadPublicShareNotFound ErrorEnvelope
 
@@ -5881,6 +7169,52 @@ func (o OptFileBulkMoveRequestConflictPolicy) Get() (v FileBulkMoveRequestConfli
 
 // Or returns value if set, or given parameter if does not.
 func (o OptFileBulkMoveRequestConflictPolicy) Or(d FileBulkMoveRequestConflictPolicy) FileBulkMoveRequestConflictPolicy {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptFileContentRequestOptionsDownload returns new OptFileContentRequestOptionsDownload with value set to v.
+func NewOptFileContentRequestOptionsDownload(v FileContentRequestOptionsDownload) OptFileContentRequestOptionsDownload {
+	return OptFileContentRequestOptionsDownload{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptFileContentRequestOptionsDownload is optional FileContentRequestOptionsDownload.
+type OptFileContentRequestOptionsDownload struct {
+	Value FileContentRequestOptionsDownload
+	Set   bool
+}
+
+// IsSet returns true if OptFileContentRequestOptionsDownload was set.
+func (o OptFileContentRequestOptionsDownload) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptFileContentRequestOptionsDownload) Reset() {
+	var v FileContentRequestOptionsDownload
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptFileContentRequestOptionsDownload) SetTo(v FileContentRequestOptionsDownload) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptFileContentRequestOptionsDownload) Get() (v FileContentRequestOptionsDownload, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptFileContentRequestOptionsDownload) Or(d FileContentRequestOptionsDownload) FileContentRequestOptionsDownload {
 	if v, ok := o.Get(); ok {
 		return v
 	}

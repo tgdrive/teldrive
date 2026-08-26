@@ -1948,18 +1948,25 @@ paths:
         - BearerAuth: []
         - CookieAuth: []
         - ExternalApiKeyAuth: []
-  /v1/files/{fileId}/content:
+  /v1/files/{fileId}/content/{fileName}:
     get:
       operationId: downloadFile
-      description: Stream complete or partial file content.
+      description: Stream complete or partial file content. The filename path segment
+        gives command-line clients a useful output name.
       parameters:
-        - $ref: "#/components/parameters/FileContentRequestHeaders.range"
-        - $ref: "#/components/parameters/FileContentRequestHeaders.ifNoneMatch"
+        - $ref: "#/components/parameters/FileContentRequestOptions.range"
+        - $ref: "#/components/parameters/FileContentRequestOptions.ifNoneMatch"
+        - $ref: "#/components/parameters/FileContentRequestOptions.download"
         - name: fileId
           in: path
           required: true
           schema:
             $ref: "#/components/schemas/Uuid"
+        - name: fileName
+          in: path
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: The request has succeeded.
@@ -2079,6 +2086,11 @@ paths:
           required: true
           schema:
             $ref: "#/components/schemas/Uuid"
+        - name: fileName
+          in: path
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: The request has succeeded.
@@ -2119,6 +2131,117 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/files/{fileId}/content:
+    get:
+      operationId: downloadFileLegacy
+      description: Stream file content using the legacy URL without a filename segment.
+      parameters:
+        - $ref: "#/components/parameters/FileContentRequestOptions.range"
+        - $ref: "#/components/parameters/FileContentRequestOptions.ifNoneMatch"
+        - $ref: "#/components/parameters/FileContentRequestOptions.download"
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "200":
+          description: The request has succeeded.
+          headers:
+            Content-Length:
+              required: true
+              schema:
+                type: integer
+                format: int64
+            Accept-Ranges:
+              required: true
+              schema:
+                type: string
+                enum:
+                  - bytes
+            Etag:
+              required: true
+              schema:
+                $ref: "#/components/schemas/ETag"
+            Last-Modified:
+              required: true
+              schema:
+                type: string
+                format: http-date
+            Content-Disposition:
+              required: true
+              schema:
+                type: string
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+              x-ogen-raw-response: true
+        "206":
+          description: Successful
+          headers:
+            Content-Length:
+              required: true
+              schema:
+                type: integer
+                format: int64
+            Content-Range:
+              required: true
+              schema:
+                type: string
+            Accept-Ranges:
+              required: true
+              schema:
+                type: string
+                enum:
+                  - bytes
+            Etag:
+              required: true
+              schema:
+                $ref: "#/components/schemas/ETag"
+            Last-Modified:
+              required: true
+              schema:
+                type: string
+                format: http-date
+            Content-Disposition:
+              required: true
+              schema:
+                type: string
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+              x-ogen-raw-response: true
+        "304":
+          description: The client has made a conditional request and the resource has not
+            been modified.
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "416":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
         "429":
           description: Client error
           content:
@@ -2127,6 +2250,61 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
         "503":
           description: Service unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+        - ExternalApiKeyAuth: []
+    head:
+      operationId: headFileLegacy
+      description: Return file metadata using the legacy URL without a filename segment.
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "200":
+          description: The request has succeeded.
+          headers:
+            Content-Length:
+              required: true
+              schema:
+                type: integer
+                format: int64
+            Accept-Ranges:
+              required: true
+              schema:
+                type: string
+                enum:
+                  - bytes
+            Etag:
+              required: true
+              schema:
+                $ref: "#/components/schemas/ETag"
+            Last-Modified:
+              required: true
+              schema:
+                type: string
+                format: http-date
+            Content-Disposition:
+              required: true
+              schema:
+                type: string
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
           content:
             application/json:
               schema:
@@ -3442,13 +3620,14 @@ paths:
         - Public shares
       security:
         - {}
-  /v1/public/shares/{token}/files/{fileId}/content:
+  /v1/public/shares/{token}/files/{fileId}/content/{fileName}:
     get:
       operationId: downloadPublicShareFile
       parameters:
         - $ref: "#/components/parameters/SharePasswordHeader"
-        - $ref: "#/components/parameters/FileContentRequestHeaders.range"
-        - $ref: "#/components/parameters/FileContentRequestHeaders.ifNoneMatch"
+        - $ref: "#/components/parameters/FileContentRequestOptions.range"
+        - $ref: "#/components/parameters/FileContentRequestOptions.ifNoneMatch"
+        - $ref: "#/components/parameters/FileContentRequestOptions.download"
         - name: token
           in: path
           required: true
@@ -3459,6 +3638,11 @@ paths:
           required: true
           schema:
             $ref: "#/components/schemas/Uuid"
+        - name: fileName
+          in: path
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: The request has succeeded.
@@ -3587,6 +3771,11 @@ paths:
           required: true
           schema:
             $ref: "#/components/schemas/Uuid"
+        - name: fileName
+          in: path
+          required: true
+          schema:
+            type: string
       responses:
         "200":
           description: The request has succeeded.
@@ -3649,14 +3838,20 @@ paths:
         - Public shares
       security:
         - {}
-  /v1/public/shares/{token}/content:
+  /v1/public/shares/{token}/content/{fileName}:
     get:
       operationId: downloadPublicShare
       parameters:
         - $ref: "#/components/parameters/SharePasswordHeader"
-        - $ref: "#/components/parameters/FileContentRequestHeaders.range"
-        - $ref: "#/components/parameters/FileContentRequestHeaders.ifNoneMatch"
+        - $ref: "#/components/parameters/FileContentRequestOptions.range"
+        - $ref: "#/components/parameters/FileContentRequestOptions.ifNoneMatch"
+        - $ref: "#/components/parameters/FileContentRequestOptions.download"
         - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: fileName
           in: path
           required: true
           schema:
@@ -3777,6 +3972,417 @@ paths:
         - {}
     head:
       operationId: headPublicShare
+      parameters:
+        - $ref: "#/components/parameters/SharePasswordHeader"
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: fileName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The request has succeeded.
+          headers:
+            Content-Length:
+              required: true
+              schema:
+                type: integer
+                format: int64
+            Accept-Ranges:
+              required: true
+              schema:
+                type: string
+                enum:
+                  - bytes
+            Etag:
+              required: true
+              schema:
+                $ref: "#/components/schemas/ETag"
+            Last-Modified:
+              required: true
+              schema:
+                type: string
+                format: http-date
+            Content-Disposition:
+              required: true
+              schema:
+                type: string
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "410":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "503":
+          description: Service unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Public shares
+      security:
+        - {}
+  /v1/public/shares/{token}/files/{fileId}/content:
+    get:
+      operationId: downloadPublicShareFileLegacy
+      parameters:
+        - $ref: "#/components/parameters/SharePasswordHeader"
+        - $ref: "#/components/parameters/FileContentRequestOptions.range"
+        - $ref: "#/components/parameters/FileContentRequestOptions.ifNoneMatch"
+        - $ref: "#/components/parameters/FileContentRequestOptions.download"
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "200":
+          description: The request has succeeded.
+          headers:
+            Content-Length:
+              required: true
+              schema:
+                type: integer
+                format: int64
+            Accept-Ranges:
+              required: true
+              schema:
+                type: string
+                enum:
+                  - bytes
+            Etag:
+              required: true
+              schema:
+                $ref: "#/components/schemas/ETag"
+            Last-Modified:
+              required: true
+              schema:
+                type: string
+                format: http-date
+            Content-Disposition:
+              required: true
+              schema:
+                type: string
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+              x-ogen-raw-response: true
+        "206":
+          description: Successful
+          headers:
+            Content-Length:
+              required: true
+              schema:
+                type: integer
+                format: int64
+            Content-Range:
+              required: true
+              schema:
+                type: string
+            Accept-Ranges:
+              required: true
+              schema:
+                type: string
+                enum:
+                  - bytes
+            Etag:
+              required: true
+              schema:
+                $ref: "#/components/schemas/ETag"
+            Last-Modified:
+              required: true
+              schema:
+                type: string
+                format: http-date
+            Content-Disposition:
+              required: true
+              schema:
+                type: string
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+              x-ogen-raw-response: true
+        "304":
+          description: The client has made a conditional request and the resource has not
+            been modified.
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "410":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "416":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "503":
+          description: Service unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Public shares
+      security:
+        - {}
+    head:
+      operationId: headPublicShareFileLegacy
+      parameters:
+        - $ref: "#/components/parameters/SharePasswordHeader"
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "200":
+          description: The request has succeeded.
+          headers:
+            Content-Length:
+              required: true
+              schema:
+                type: integer
+                format: int64
+            Accept-Ranges:
+              required: true
+              schema:
+                type: string
+                enum:
+                  - bytes
+            Etag:
+              required: true
+              schema:
+                $ref: "#/components/schemas/ETag"
+            Last-Modified:
+              required: true
+              schema:
+                type: string
+                format: http-date
+            Content-Disposition:
+              required: true
+              schema:
+                type: string
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "410":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "503":
+          description: Service unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Public shares
+      security:
+        - {}
+  /v1/public/shares/{token}/content:
+    get:
+      operationId: downloadPublicShareLegacy
+      parameters:
+        - $ref: "#/components/parameters/SharePasswordHeader"
+        - $ref: "#/components/parameters/FileContentRequestOptions.range"
+        - $ref: "#/components/parameters/FileContentRequestOptions.ifNoneMatch"
+        - $ref: "#/components/parameters/FileContentRequestOptions.download"
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The request has succeeded.
+          headers:
+            Content-Length:
+              required: true
+              schema:
+                type: integer
+                format: int64
+            Accept-Ranges:
+              required: true
+              schema:
+                type: string
+                enum:
+                  - bytes
+            Etag:
+              required: true
+              schema:
+                $ref: "#/components/schemas/ETag"
+            Last-Modified:
+              required: true
+              schema:
+                type: string
+                format: http-date
+            Content-Disposition:
+              required: true
+              schema:
+                type: string
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+              x-ogen-raw-response: true
+        "206":
+          description: Successful
+          headers:
+            Content-Length:
+              required: true
+              schema:
+                type: integer
+                format: int64
+            Content-Range:
+              required: true
+              schema:
+                type: string
+            Accept-Ranges:
+              required: true
+              schema:
+                type: string
+                enum:
+                  - bytes
+            Etag:
+              required: true
+              schema:
+                $ref: "#/components/schemas/ETag"
+            Last-Modified:
+              required: true
+              schema:
+                type: string
+                format: http-date
+            Content-Disposition:
+              required: true
+              schema:
+                type: string
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+              x-ogen-raw-response: true
+        "304":
+          description: The client has made a conditional request and the resource has not
+            been modified.
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "410":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "416":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "503":
+          description: Service unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Public shares
+      security:
+        - {}
+    head:
+      operationId: headPublicShareLegacy
       parameters:
         - $ref: "#/components/parameters/SharePasswordHeader"
         - name: token
@@ -5095,18 +5701,28 @@ components:
       required: false
       schema:
         $ref: "#/components/schemas/ETag"
-    FileContentRequestHeaders.range:
+    FileContentRequestOptions.range:
       name: Range
       in: header
       required: false
       schema:
         type: string
-    FileContentRequestHeaders.ifNoneMatch:
+    FileContentRequestOptions.ifNoneMatch:
       name: If-None-Match
       in: header
       required: false
       schema:
         $ref: "#/components/schemas/ETag"
+    FileContentRequestOptions.download:
+      name: download
+      in: query
+      required: false
+      description: Force a browser download instead of inline display.
+      schema:
+        type: string
+        enum:
+          - "1"
+      explode: false
     UploadPartHeaders.contentLength:
       name: Content-Length
       in: header

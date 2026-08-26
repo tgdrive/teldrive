@@ -6,6 +6,9 @@ const rawResponseMedia = new Map([
   ["downloadFile", [["200", "application/octet-stream"], ["206", "application/octet-stream"]]],
   ["downloadPublicShare", [["200", "application/octet-stream"], ["206", "application/octet-stream"]]],
   ["downloadPublicShareFile", [["200", "application/octet-stream"], ["206", "application/octet-stream"]]],
+  ["downloadFileLegacy", [["200", "application/octet-stream"], ["206", "application/octet-stream"]]],
+  ["downloadPublicShareLegacy", [["200", "application/octet-stream"], ["206", "application/octet-stream"]]],
+  ["downloadPublicShareFileLegacy", [["200", "application/octet-stream"], ["206", "application/octet-stream"]]],
   ["streamEvents", [["200", "text/event-stream"]]],
 ]);
 

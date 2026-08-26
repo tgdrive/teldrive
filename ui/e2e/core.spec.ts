@@ -134,7 +134,7 @@ async function installApi(page: Page) {
         json: { items: kind === "folder" ? items.filter((file) => file.kind === "folder") : items },
       });
     }
-    if (path === `/v1/files/${fileId}/content` && method === "GET") {
+    if (path === `/v1/files/${fileId}/content/readme.txt` && method === "GET") {
       return route.fulfill({ contentType: "text/plain", body: "fixture preview" });
     }
     if (path === "/v1/storage/stats" && method === "GET") {
@@ -594,7 +594,6 @@ test("periodic job controls are icon buttons with row-scoped pending state", asy
   releasePause();
   await expect(page.getByRole("button", { name: "Resume teldrive-upload-cleanup" })).toBeVisible();
 });
-
 
 test("task launcher queues a Teldrive River job", async ({ page, isMobile }) => {
   test.skip(isMobile, "desktop task launcher interaction");

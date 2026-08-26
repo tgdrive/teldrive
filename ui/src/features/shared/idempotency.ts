@@ -1,3 +1,5 @@
+import { newClientId } from "./client-id";
+
 export function newIdempotencyKey() {
-  return crypto.randomUUID();
+  return newClientId();
 }

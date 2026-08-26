@@ -336,10 +336,14 @@ func parseRange(value gen.OptString, size int64) (byteRange, bool, error) {
 	return byteRange{Offset: start, Length: end - start + 1}, true, nil
 }
 
-func contentDisposition(name string) string {
-	value := mime.FormatMediaType("inline", map[string]string{"filename": name})
+func contentDisposition(name string, attachment bool) string {
+	disposition := "inline"
+	if attachment {
+		disposition = "attachment"
+	}
+	value := mime.FormatMediaType(disposition, map[string]string{"filename": name})
 	if value == "" {
-		return "attachment"
+		return disposition
 	}
 	return value
 }

@@ -675,14 +675,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/files/{fileId}/content": {
+    "/v1/files/{fileId}/content/{fileName}": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** @description Stream complete or partial file content. */
+        /** @description Stream complete or partial file content. The filename path segment gives command-line clients a useful output name. */
         get: operations["downloadFile"];
         put?: never;
         post?: never;
@@ -690,6 +690,24 @@ export interface paths {
         options?: never;
         /** @description Return content metadata without streaming the file. */
         head: operations["headFile"];
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/files/{fileId}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Stream file content using the legacy URL without a filename segment. */
+        get: operations["downloadFileLegacy"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        /** @description Return file metadata using the legacy URL without a filename segment. */
+        head: operations["headFileLegacy"];
         patch?: never;
         trace?: never;
     };
@@ -1036,7 +1054,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/public/shares/{token}/files/{fileId}/content": {
+    "/v1/public/shares/{token}/files/{fileId}/content/{fileName}": {
         parameters: {
             query?: never;
             header?: never;
@@ -1052,7 +1070,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/v1/public/shares/{token}/content": {
+    "/v1/public/shares/{token}/content/{fileName}": {
         parameters: {
             query?: never;
             header?: never;
@@ -1065,6 +1083,38 @@ export interface paths {
         delete?: never;
         options?: never;
         head: operations["headPublicShare"];
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/public/shares/{token}/files/{fileId}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["downloadPublicShareFileLegacy"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head: operations["headPublicShareFileLegacy"];
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/public/shares/{token}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["downloadPublicShareLegacy"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head: operations["headPublicShareLegacy"];
         patch?: never;
         trace?: never;
     };
@@ -2203,8 +2253,10 @@ export interface components {
         "FileListQuery.sort": components["schemas"]["FileSort"];
         "FileListQuery.order": components["schemas"]["SortOrder"];
         OptionalIfMatchHeader: components["schemas"]["ETag"];
-        "FileContentRequestHeaders.range": string;
-        "FileContentRequestHeaders.ifNoneMatch": components["schemas"]["ETag"];
+        "FileContentRequestOptions.range": string;
+        "FileContentRequestOptions.ifNoneMatch": components["schemas"]["ETag"];
+        /** @description Force a browser download instead of inline display. */
+        "FileContentRequestOptions.download": "1";
         "UploadPartHeaders.contentLength": number;
         /** @description BLAKE3 checksum of the plaintext part. */
         "UploadPartHeaders.checksum": components["schemas"]["Checksum"];
@@ -4500,13 +4552,17 @@ export interface operations {
     };
     downloadFile: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Force a browser download instead of inline display. */
+                download?: components["parameters"]["FileContentRequestOptions.download"];
+            };
             header?: {
-                Range?: components["parameters"]["FileContentRequestHeaders.range"];
-                "If-None-Match"?: components["parameters"]["FileContentRequestHeaders.ifNoneMatch"];
+                Range?: components["parameters"]["FileContentRequestOptions.range"];
+                "If-None-Match"?: components["parameters"]["FileContentRequestOptions.ifNoneMatch"];
             };
             path: {
                 fileId: components["schemas"]["Uuid"];
+                fileName: string;
             };
             cookie?: never;
         };
@@ -4601,6 +4657,7 @@ export interface operations {
             header?: never;
             path: {
                 fileId: components["schemas"]["Uuid"];
+                fileName: string;
             };
             cookie?: never;
         };
@@ -4636,6 +4693,88 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
+        };
+    };
+    downloadFileLegacy: {
+        parameters: {
+            query?: {
+                /** @description Force a browser download instead of inline display. */
+                download?: components["parameters"]["FileContentRequestOptions.download"];
+            };
+            header?: {
+                Range?: components["parameters"]["FileContentRequestOptions.range"];
+                "If-None-Match"?: components["parameters"]["FileContentRequestOptions.ifNoneMatch"];
+            };
+            path: {
+                fileId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    "Content-Length": number;
+                    "Accept-Ranges": "bytes";
+                    Etag: components["schemas"]["ETag"];
+                    "Last-Modified": string;
+                    "Content-Disposition": string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            /** @description Successful */
+            206: {
+                headers: {
+                    "Content-Length": number;
+                    "Content-Range": string;
+                    "Accept-Ranges": "bytes";
+                    Etag: components["schemas"]["ETag"];
+                    "Last-Modified": string;
+                    "Content-Disposition": string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            /** @description The client has made a conditional request and the resource has not been modified. */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Client error */
+            416: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
             /** @description Client error */
             429: {
                 headers: {
@@ -4647,6 +4786,49 @@ export interface operations {
             };
             /** @description Service unavailable. */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    headFileLegacy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                fileId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    "Content-Length": number;
+                    "Accept-Ranges": "bytes";
+                    Etag: components["schemas"]["ETag"];
+                    "Last-Modified": string;
+                    "Content-Disposition": string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6179,15 +6361,19 @@ export interface operations {
     };
     downloadPublicShareFile: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Force a browser download instead of inline display. */
+                download?: components["parameters"]["FileContentRequestOptions.download"];
+            };
             header?: {
                 "X-Share-Password"?: components["parameters"]["SharePasswordHeader"];
-                Range?: components["parameters"]["FileContentRequestHeaders.range"];
-                "If-None-Match"?: components["parameters"]["FileContentRequestHeaders.ifNoneMatch"];
+                Range?: components["parameters"]["FileContentRequestOptions.range"];
+                "If-None-Match"?: components["parameters"]["FileContentRequestOptions.ifNoneMatch"];
             };
             path: {
                 token: string;
                 fileId: components["schemas"]["Uuid"];
+                fileName: string;
             };
             cookie?: never;
         };
@@ -6294,6 +6480,7 @@ export interface operations {
             path: {
                 token: string;
                 fileId: components["schemas"]["Uuid"];
+                fileName: string;
             };
             cookie?: never;
         };
@@ -6360,11 +6547,382 @@ export interface operations {
     };
     downloadPublicShare: {
         parameters: {
+            query?: {
+                /** @description Force a browser download instead of inline display. */
+                download?: components["parameters"]["FileContentRequestOptions.download"];
+            };
+            header?: {
+                "X-Share-Password"?: components["parameters"]["SharePasswordHeader"];
+                Range?: components["parameters"]["FileContentRequestOptions.range"];
+                "If-None-Match"?: components["parameters"]["FileContentRequestOptions.ifNoneMatch"];
+            };
+            path: {
+                token: string;
+                fileName: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    "Content-Length": number;
+                    "Accept-Ranges": "bytes";
+                    Etag: components["schemas"]["ETag"];
+                    "Last-Modified": string;
+                    "Content-Disposition": string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            /** @description Successful */
+            206: {
+                headers: {
+                    "Content-Length": number;
+                    "Content-Range": string;
+                    "Accept-Ranges": "bytes";
+                    Etag: components["schemas"]["ETag"];
+                    "Last-Modified": string;
+                    "Content-Disposition": string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            /** @description The client has made a conditional request and the resource has not been modified. */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Client error */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Client error */
+            416: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Client error */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    headPublicShare: {
+        parameters: {
             query?: never;
             header?: {
                 "X-Share-Password"?: components["parameters"]["SharePasswordHeader"];
-                Range?: components["parameters"]["FileContentRequestHeaders.range"];
-                "If-None-Match"?: components["parameters"]["FileContentRequestHeaders.ifNoneMatch"];
+            };
+            path: {
+                token: string;
+                fileName: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    "Content-Length": number;
+                    "Accept-Ranges": "bytes";
+                    Etag: components["schemas"]["ETag"];
+                    "Last-Modified": string;
+                    "Content-Disposition": string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Client error */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Client error */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    downloadPublicShareFileLegacy: {
+        parameters: {
+            query?: {
+                /** @description Force a browser download instead of inline display. */
+                download?: components["parameters"]["FileContentRequestOptions.download"];
+            };
+            header?: {
+                "X-Share-Password"?: components["parameters"]["SharePasswordHeader"];
+                Range?: components["parameters"]["FileContentRequestOptions.range"];
+                "If-None-Match"?: components["parameters"]["FileContentRequestOptions.ifNoneMatch"];
+            };
+            path: {
+                token: string;
+                fileId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    "Content-Length": number;
+                    "Accept-Ranges": "bytes";
+                    Etag: components["schemas"]["ETag"];
+                    "Last-Modified": string;
+                    "Content-Disposition": string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            /** @description Successful */
+            206: {
+                headers: {
+                    "Content-Length": number;
+                    "Content-Range": string;
+                    "Accept-Ranges": "bytes";
+                    Etag: components["schemas"]["ETag"];
+                    "Last-Modified": string;
+                    "Content-Disposition": string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            /** @description The client has made a conditional request and the resource has not been modified. */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Client error */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Client error */
+            416: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Client error */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    headPublicShareFileLegacy: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Share-Password"?: components["parameters"]["SharePasswordHeader"];
+            };
+            path: {
+                token: string;
+                fileId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    "Content-Length": number;
+                    "Accept-Ranges": "bytes";
+                    Etag: components["schemas"]["ETag"];
+                    "Last-Modified": string;
+                    "Content-Disposition": string;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Client error */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Client error */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    downloadPublicShareLegacy: {
+        parameters: {
+            query?: {
+                /** @description Force a browser download instead of inline display. */
+                download?: components["parameters"]["FileContentRequestOptions.download"];
+            };
+            header?: {
+                "X-Share-Password"?: components["parameters"]["SharePasswordHeader"];
+                Range?: components["parameters"]["FileContentRequestOptions.range"];
+                "If-None-Match"?: components["parameters"]["FileContentRequestOptions.ifNoneMatch"];
             };
             path: {
                 token: string;
@@ -6465,7 +7023,7 @@ export interface operations {
             };
         };
     };
-    headPublicShare: {
+    headPublicShareLegacy: {
         parameters: {
             query?: never;
             header?: {

@@ -121,9 +121,10 @@ function PublicSharePage() {
     setError(undefined);
     try {
       const isRootFile = share?.file.kind === "file" && file.id === share.file.id;
+      const fileName = encodeURIComponent(file.name);
       const endpoint = isRootFile
-        ? `/v1/public/shares/${encodeURIComponent(token)}/content`
-        : `/v1/public/shares/${encodeURIComponent(token)}/files/${encodeURIComponent(file.id)}/content`;
+        ? `/v1/public/shares/${encodeURIComponent(token)}/content/${fileName}?download=1`
+        : `/v1/public/shares/${encodeURIComponent(token)}/files/${encodeURIComponent(file.id)}/content/${fileName}?download=1`;
       const response = await apiFetch(endpoint, { headers: shareHeaders(activePassword) });
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);

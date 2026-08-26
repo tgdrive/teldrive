@@ -1,6 +1,7 @@
 import { Button, cn, Modal, Spinner } from "@heroui/react";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import type { FileEntry } from "@/api/types";
+import { fileContentUrl, startFileDownload } from "@/features/files/download";
 import { previewMedia, supportsCodePreview } from "@/features/files/preview-support";
 import { readerKind } from "@/features/files/reader-support";
 import {
@@ -37,7 +38,7 @@ export function FilePreviewDialog({
   const [stateLoadedFor, setStateLoadedFor] = useState<string>();
   const saveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const closeFrame = useRef<number>(undefined);
-  const contentUrl = file ? `/api/v1/files/${encodeURIComponent(file.id)}/content` : "";
+  const contentUrl = file ? fileContentUrl(file) : "";
   const kind = file ? viewerKind(file) : undefined;
   const isReader = kind === "pdf" || kind === "ebook";
 
@@ -199,7 +200,7 @@ export function FilePreviewDialog({
             <Button
               variant={isReader ? "ghost" : "secondary"}
               size="sm"
-              onPress={() => download(file)}
+              onPress={() => startFileDownload(file)}
             >
               <DownloadIcon className="size-4" />
               <span className="hidden sm:inline">Download</span>
@@ -387,12 +388,6 @@ function formatLabel(kind: ViewerKind) {
 }
 function numberValue(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
-}
-function download(file: FileEntry) {
-  const anchor = document.createElement("a");
-  anchor.href = `/api/v1/files/${encodeURIComponent(file.id)}/content`;
-  anchor.download = file.name;
-  anchor.click();
 }
 function formatBytes(value: number) {
   if (!value) return "0 B";

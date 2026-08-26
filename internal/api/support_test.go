@@ -39,6 +39,17 @@ func TestParseRangeResolvesFullContentLength(t *testing.T) {
 	}
 }
 
+func TestContentDisposition(t *testing.T) {
+	t.Parallel()
+
+	if got := contentDisposition("report 2026.pdf", false); got != `inline; filename="report 2026.pdf"` {
+		t.Fatalf("inline disposition = %q", got)
+	}
+	if got := contentDisposition("report 2026.pdf", true); got != `attachment; filename="report 2026.pdf"` {
+		t.Fatalf("attachment disposition = %q", got)
+	}
+}
+
 func TestErrorHandlerIgnoresClientCancellation(t *testing.T) {
 	t.Parallel()
 

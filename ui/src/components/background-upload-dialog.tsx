@@ -14,6 +14,7 @@ import PlusIcon from "~icons/gravity-ui/plus";
 import TrashIcon from "~icons/gravity-ui/trash-bin";
 import type { components } from "@/api/schema";
 import { fetchClient } from "@/api/client";
+import { newClientId } from "@/features/shared/client-id";
 import { AppDialog } from "./dialogs/app-dialog";
 
 type ImportSource = components["schemas"]["UploadImportSource"];
@@ -29,7 +30,7 @@ type SourceDraft = {
 };
 
 const newSource = (): SourceDraft => ({
-  id: crypto.randomUUID(),
+  id: newClientId(),
   type: "local",
   location: "",
   destinationPath: "",

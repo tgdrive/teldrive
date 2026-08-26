@@ -341,6 +341,70 @@ func (s DiscoverChannelsOKApplicationJSON) Validate() error {
 	return nil
 }
 
+func (s DownloadFileLegacyOKAcceptRanges) Validate() error {
+	switch s {
+	case "bytes":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
+func (s *DownloadFileLegacyOKHeaders) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if err := s.AcceptRanges.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "AcceptRanges",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s DownloadFileLegacyPartialContentAcceptRanges) Validate() error {
+	switch s {
+	case "bytes":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
+func (s *DownloadFileLegacyPartialContentHeaders) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if err := s.AcceptRanges.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "AcceptRanges",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
 func (s DownloadFileOKAcceptRanges) Validate() error {
 	switch s {
 	case "bytes":
@@ -405,6 +469,70 @@ func (s *DownloadFilePartialContentHeaders) Validate() error {
 	return nil
 }
 
+func (s DownloadPublicShareFileLegacyOKAcceptRanges) Validate() error {
+	switch s {
+	case "bytes":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
+func (s *DownloadPublicShareFileLegacyOKHeaders) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if err := s.AcceptRanges.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "AcceptRanges",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s DownloadPublicShareFileLegacyPartialContentAcceptRanges) Validate() error {
+	switch s {
+	case "bytes":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
+func (s *DownloadPublicShareFileLegacyPartialContentHeaders) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if err := s.AcceptRanges.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "AcceptRanges",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
 func (s DownloadPublicShareFileOKAcceptRanges) Validate() error {
 	switch s {
 	case "bytes":
@@ -447,6 +575,70 @@ func (s DownloadPublicShareFilePartialContentAcceptRanges) Validate() error {
 }
 
 func (s *DownloadPublicShareFilePartialContentHeaders) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if err := s.AcceptRanges.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "AcceptRanges",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s DownloadPublicShareLegacyOKAcceptRanges) Validate() error {
+	switch s {
+	case "bytes":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
+func (s *DownloadPublicShareLegacyOKHeaders) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if err := s.AcceptRanges.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "AcceptRanges",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s DownloadPublicShareLegacyPartialContentAcceptRanges) Validate() error {
+	switch s {
+	case "bytes":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
+func (s *DownloadPublicShareLegacyPartialContentHeaders) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer
 	}
@@ -800,6 +992,15 @@ func (s *FileCategoryStatistics) Validate() error {
 		return &validate.Error{Fields: failures}
 	}
 	return nil
+}
+
+func (s FileContentRequestOptionsDownload) Validate() error {
+	switch s {
+	case "1":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
 }
 
 func (s *FileCopyRequest) Validate() error {
@@ -1316,6 +1517,38 @@ func (s HashAlgorithm) Validate() error {
 	}
 }
 
+func (s *HeadFileLegacyOK) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if err := s.AcceptRanges.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "AcceptRanges",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s HeadFileLegacyOKAcceptRanges) Validate() error {
+	switch s {
+	case "bytes":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
 func (s *HeadFileOK) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer
@@ -1348,6 +1581,38 @@ func (s HeadFileOKAcceptRanges) Validate() error {
 	}
 }
 
+func (s *HeadPublicShareFileLegacyOK) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if err := s.AcceptRanges.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "AcceptRanges",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s HeadPublicShareFileLegacyOKAcceptRanges) Validate() error {
+	switch s {
+	case "bytes":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
 func (s *HeadPublicShareFileOK) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer
@@ -1372,6 +1637,38 @@ func (s *HeadPublicShareFileOK) Validate() error {
 }
 
 func (s HeadPublicShareFileOKAcceptRanges) Validate() error {
+	switch s {
+	case "bytes":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
+func (s *HeadPublicShareLegacyOK) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if err := s.AcceptRanges.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "AcceptRanges",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s HeadPublicShareLegacyOKAcceptRanges) Validate() error {
 	switch s {
 	case "bytes":
 		return nil

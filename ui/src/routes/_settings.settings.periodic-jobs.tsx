@@ -312,9 +312,6 @@ function PeriodicJobCard({
             <JobDetail label="Queue" value={job.queue ?? "default"} />
             <JobDetail label="Attempts" value={String(job.maxAttempts ?? 25)} />
           </div>
-          <div className="mt-3 truncate font-mono text-[11px] text-muted">
-            {JSON.stringify(job.args ?? {})}
-          </div>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2 lg:justify-end">
           <Button

@@ -49,7 +49,7 @@ function StoragePage() {
   const { data } = $api.useSuspenseQuery("get", "/v1/storage/stats");
   const summary = data.summary;
   const configuredChannels = data.channels.length;
-  const activeChannels = data.channels.filter((channel) => channel.health === "healthy").length;
+  const selectedChannels = data.channels.filter((channel) => channel.selected).length;
   const totalChannelParts = data.channels.reduce((total, channel) => total + channel.partCount, 0);
 
   return (
@@ -78,7 +78,7 @@ function StoragePage() {
         <StatCard
           label="Channels"
           value={configuredChannels.toLocaleString()}
-          detail={`${activeChannels.toLocaleString()} healthy`}
+          detail={`${selectedChannels.toLocaleString()} selected`}
         />
         <StatCard
           label="Reclaimable"
@@ -170,13 +170,6 @@ function StoragePage() {
                         {channel.partCount.toLocaleString()} parts · {percent.toFixed(1)}%
                       </div>
                     </div>
-                    <Chip
-                      size="sm"
-                      color={channel.health === "healthy" ? "success" : "warning"}
-                      variant="tertiary"
-                    >
-                      {channel.health}
-                    </Chip>
                   </div>
                   <ProgressTrack value={percent} label={`${channel.name} storage distribution`} />
                 </div>

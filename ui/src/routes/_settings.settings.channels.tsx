@@ -122,7 +122,7 @@ function ChannelsSettings() {
             <SettingsRow
               key={channel.id}
               label={channel.name}
-              description={`Channel ${channel.id} · ${channel.health}`}
+              description={`Channel ${channel.id}`}
             >
               <div className="flex items-center justify-end gap-2">
                 {channel.selected ? (

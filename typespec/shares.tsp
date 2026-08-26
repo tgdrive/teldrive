@@ -106,7 +106,6 @@ model FileAccessGrantSummary {
   createdAt: utcDateTime;
 }
 
-
 model SharePasswordHeader {
   @header("X-Share-Password")
   password?: string;
@@ -196,9 +195,7 @@ namespace Shares {
   @get
   @route("/shared")
   @operationId("listShared")
-  op shared():
-    | JsonResponse<200, FileEntry[]>
-    | ErrorResponse<401>;
+  op shared(): JsonResponse<200, FileEntry[]> | ErrorResponse<401>;
 }
 
 @tag("Public shares")
@@ -233,11 +230,77 @@ namespace PublicShares {
     | ErrorResponse<429>;
 
   @get
-  @route("/{token}/files/{fileId}/content")
+  @route("/{token}/files/{fileId}/content/{fileName}")
   @operationId("downloadPublicShareFile")
   op downloadFile(
     ...SharePasswordHeader,
-    ...FileContentRequestHeaders,
+    ...FileContentRequestOptions,
+    @path token: string,
+    @path fileId: Uuid,
+    @path fileName: string,
+  ):
+    | FileContentResponse
+    | FilePartialContentResponse
+    | EmptyResponse<304>
+    | ErrorResponse<401>
+    | ErrorResponse<404>
+    | ErrorResponse<410>
+    | ErrorResponse<416>
+    | ErrorResponse<429>
+    | ErrorResponse<503>;
+
+  @head
+  @route("/{token}/files/{fileId}/content/{fileName}")
+  @operationId("headPublicShareFile")
+  op headFile(
+    ...SharePasswordHeader,
+    @path token: string,
+    @path fileId: Uuid,
+    @path fileName: string,
+  ):
+    | FileHeadResponse
+    | ErrorResponse<401>
+    | ErrorResponse<404>
+    | ErrorResponse<410>
+    | ErrorResponse<429>
+    | ErrorResponse<503>;
+
+  @get
+  @route("/{token}/content/{fileName}")
+  @operationId("downloadPublicShare")
+  op download(
+    ...SharePasswordHeader,
+    ...FileContentRequestOptions,
+    @path token: string,
+    @path fileName: string,
+  ):
+    | FileContentResponse
+    | FilePartialContentResponse
+    | EmptyResponse<304>
+    | ErrorResponse<401>
+    | ErrorResponse<404>
+    | ErrorResponse<410>
+    | ErrorResponse<416>
+    | ErrorResponse<429>
+    | ErrorResponse<503>;
+
+  @head
+  @route("/{token}/content/{fileName}")
+  @operationId("headPublicShare")
+  op head(...SharePasswordHeader, @path token: string, @path fileName: string):
+    | FileHeadResponse
+    | ErrorResponse<401>
+    | ErrorResponse<404>
+    | ErrorResponse<410>
+    | ErrorResponse<429>
+    | ErrorResponse<503>;
+
+  @get
+  @route("/{token}/files/{fileId}/content")
+  @operationId("downloadPublicShareFileLegacy")
+  op downloadFileLegacy(
+    ...SharePasswordHeader,
+    ...FileContentRequestOptions,
     @path token: string,
     @path fileId: Uuid,
   ):
@@ -253,8 +316,12 @@ namespace PublicShares {
 
   @head
   @route("/{token}/files/{fileId}/content")
-  @operationId("headPublicShareFile")
-  op headFile(...SharePasswordHeader, @path token: string, @path fileId: Uuid):
+  @operationId("headPublicShareFileLegacy")
+  op headFileLegacy(
+    ...SharePasswordHeader,
+    @path token: string,
+    @path fileId: Uuid,
+  ):
     | FileHeadResponse
     | ErrorResponse<401>
     | ErrorResponse<404>
@@ -264,10 +331,10 @@ namespace PublicShares {
 
   @get
   @route("/{token}/content")
-  @operationId("downloadPublicShare")
-  op download(
+  @operationId("downloadPublicShareLegacy")
+  op downloadLegacy(
     ...SharePasswordHeader,
-    ...FileContentRequestHeaders,
+    ...FileContentRequestOptions,
     @path token: string,
   ):
     | FileContentResponse
@@ -282,8 +349,8 @@ namespace PublicShares {
 
   @head
   @route("/{token}/content")
-  @operationId("headPublicShare")
-  op head(...SharePasswordHeader, @path token: string):
+  @operationId("headPublicShareLegacy")
+  op headLegacy(...SharePasswordHeader, @path token: string):
     | FileHeadResponse
     | ErrorResponse<401>
     | ErrorResponse<404>

@@ -236,16 +236,30 @@ type Handler interface {
 	//
 	// Return content metadata without streaming the file.
 	//
-	// HEAD /v1/files/{fileId}/content
+	// HEAD /v1/files/{fileId}/content/{fileName}
 	HeadFile(ctx context.Context, params HeadFileParams) (HeadFileRes, error)
+	// HeadFileLegacy implements headFileLegacy operation.
+	//
+	// Return file metadata using the legacy URL without a filename segment.
+	//
+	// HEAD /v1/files/{fileId}/content
+	HeadFileLegacy(ctx context.Context, params HeadFileLegacyParams) (HeadFileLegacyRes, error)
 	// HeadPublicShare implements headPublicShare operation.
 	//
-	// HEAD /v1/public/shares/{token}/content
+	// HEAD /v1/public/shares/{token}/content/{fileName}
 	HeadPublicShare(ctx context.Context, params HeadPublicShareParams) (HeadPublicShareRes, error)
 	// HeadPublicShareFile implements headPublicShareFile operation.
 	//
-	// HEAD /v1/public/shares/{token}/files/{fileId}/content
+	// HEAD /v1/public/shares/{token}/files/{fileId}/content/{fileName}
 	HeadPublicShareFile(ctx context.Context, params HeadPublicShareFileParams) (HeadPublicShareFileRes, error)
+	// HeadPublicShareFileLegacy implements headPublicShareFileLegacy operation.
+	//
+	// HEAD /v1/public/shares/{token}/files/{fileId}/content
+	HeadPublicShareFileLegacy(ctx context.Context, params HeadPublicShareFileLegacyParams) (HeadPublicShareFileLegacyRes, error)
+	// HeadPublicShareLegacy implements headPublicShareLegacy operation.
+	//
+	// HEAD /v1/public/shares/{token}/content
+	HeadPublicShareLegacy(ctx context.Context, params HeadPublicShareLegacyParams) (HeadPublicShareLegacyRes, error)
 	// HealthLive implements healthLive operation.
 	//
 	// Process liveness check.
@@ -523,18 +537,33 @@ type Handler interface {
 type RawHandler interface {
 	// DownloadFile implements downloadFile operation.
 	//
-	// Stream complete or partial file content.
+	// Stream complete or partial file content. The filename path segment gives command-line clients a
+	// useful output name.
+	//
+	// GET /v1/files/{fileId}/content/{fileName}
+	DownloadFile(ctx context.Context, params DownloadFileParams, w http.ResponseWriter) error
+	// DownloadFileLegacy implements downloadFileLegacy operation.
+	//
+	// Stream file content using the legacy URL without a filename segment.
 	//
 	// GET /v1/files/{fileId}/content
-	DownloadFile(ctx context.Context, params DownloadFileParams, w http.ResponseWriter) error
+	DownloadFileLegacy(ctx context.Context, params DownloadFileLegacyParams, w http.ResponseWriter) error
 	// DownloadPublicShare implements downloadPublicShare operation.
 	//
-	// GET /v1/public/shares/{token}/content
+	// GET /v1/public/shares/{token}/content/{fileName}
 	DownloadPublicShare(ctx context.Context, params DownloadPublicShareParams, w http.ResponseWriter) error
 	// DownloadPublicShareFile implements downloadPublicShareFile operation.
 	//
-	// GET /v1/public/shares/{token}/files/{fileId}/content
+	// GET /v1/public/shares/{token}/files/{fileId}/content/{fileName}
 	DownloadPublicShareFile(ctx context.Context, params DownloadPublicShareFileParams, w http.ResponseWriter) error
+	// DownloadPublicShareFileLegacy implements downloadPublicShareFileLegacy operation.
+	//
+	// GET /v1/public/shares/{token}/files/{fileId}/content
+	DownloadPublicShareFileLegacy(ctx context.Context, params DownloadPublicShareFileLegacyParams, w http.ResponseWriter) error
+	// DownloadPublicShareLegacy implements downloadPublicShareLegacy operation.
+	//
+	// GET /v1/public/shares/{token}/content
+	DownloadPublicShareLegacy(ctx context.Context, params DownloadPublicShareLegacyParams, w http.ResponseWriter) error
 	// StreamEvents implements streamEvents operation.
 	//
 	// Subscribe to ordered, replayable events for the authenticated user.

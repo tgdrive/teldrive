@@ -8,6 +8,7 @@ import QrIcon from "~icons/gravity-ui/qr-code";
 import ShieldIcon from "~icons/gravity-ui/shield-check";
 import { $api } from "@/api/client";
 import { userMessage } from "@/api/errors";
+import { newIdempotencyKey } from "@/features/shared/idempotency";
 import { getQueryClient } from "@/lib/queryClient";
 import { currentUserQueryOptions } from "@/auth/queries";
 
@@ -68,7 +69,7 @@ function LoginPage() {
     try {
       if (step === "phone") {
         const result = (await startPhone.mutateAsync({
-          params: { header: { "Idempotency-Key": crypto.randomUUID() } },
+          params: { header: { "Idempotency-Key": newIdempotencyKey() } },
           body: { phoneNumber: phone.trim() },
         })) as Flow;
         setFlowId(result.flowId);
@@ -77,7 +78,7 @@ function LoginPage() {
       }
       if (step === "code") {
         const result = await verifyCode.mutateAsync({
-          params: { header: { "Idempotency-Key": crypto.randomUUID() } },
+          params: { header: { "Idempotency-Key": newIdempotencyKey() } },
           body: { flowId, code: code.trim() },
         });
         if (isSession(result)) await finish();
@@ -85,7 +86,7 @@ function LoginPage() {
         return;
       }
       const result = await verifyPassword.mutateAsync({
-        params: { header: { "Idempotency-Key": crypto.randomUUID() } },
+        params: { header: { "Idempotency-Key": newIdempotencyKey() } },
         body: { flowId, password },
       });
       if (isSession(result)) await finish();
@@ -99,7 +100,7 @@ function LoginPage() {
     let active = true;
     let timer = 0;
     void startQr
-      .mutateAsync({ params: { header: { "Idempotency-Key": crypto.randomUUID() } } })
+      .mutateAsync({ params: { header: { "Idempotency-Key": newIdempotencyKey() } } })
       .then((result) => {
         if (!active) return;
         const flow = result as Flow;
@@ -109,7 +110,7 @@ function LoginPage() {
         timer = window.setInterval(async () => {
           try {
             const next = await pollQr.mutateAsync({
-              params: { header: { "Idempotency-Key": crypto.randomUUID() } },
+              params: { header: { "Idempotency-Key": newIdempotencyKey() } },
               body: { flowId: flow.flowId },
             });
             if (!active) return;
@@ -148,7 +149,7 @@ function LoginPage() {
         <div className="flex size-11 items-center justify-center rounded-xl bg-accent font-semibold text-accent-foreground">
           TD
         </div>
-        <div className="max-w-xl">
+        <div className="my-auto max-w-xl">
           <p className="mb-3 text-xs font-medium uppercase tracking-[0.16em] text-accent">
             Teldrive
           </p>

@@ -501,7 +501,29 @@ func (h *Handler) HeadFile(ctx context.Context, params gen.HeadFileParams) (gen.
 		return nil, mapServiceError(transfer.ErrInvalidDownload)
 	}
 	return &gen.HeadFileOK{
-		AcceptRanges: gen.HeadFileOKAcceptRanges("bytes"), ContentDisposition: contentDisposition(file.Name),
+		AcceptRanges: gen.HeadFileOKAcceptRanges("bytes"), ContentDisposition: contentDisposition(file.Name, false),
+		ContentLength: file.Size.Int64, Etag: contentETag(file), LastModified: file.ModTime.Time,
+	}, nil
+}
+
+func (h *Handler) HeadFileLegacy(ctx context.Context, params gen.HeadFileLegacyParams) (gen.HeadFileLegacyRes, error) {
+	if h.Catalog == nil {
+		return nil, mapServiceError(ErrOperationUnavailable)
+	}
+	fileID := googleUUID(params.FileId)
+	access, err := h.resolveAuthenticatedFileAccess(ctx, fileID, false)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	file, err := h.Catalog.Get(ctx, access.OwnerID, fileID)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	if file.Kind != sqlcgen.FileKindFile || !file.Size.Valid {
+		return nil, mapServiceError(catalog.ErrNotFound)
+	}
+	return &gen.HeadFileLegacyOK{
+		AcceptRanges: gen.HeadFileLegacyOKAcceptRanges("bytes"), ContentDisposition: contentDisposition(file.Name, false),
 		ContentLength: file.Size.Int64, Etag: contentETag(file), LastModified: file.ModTime.Time,
 	}, nil
 }

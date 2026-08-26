@@ -6,6 +6,7 @@ import { $api } from "@/api/client";
 import type { FileEntry } from "@/api/types";
 import { FilePreviewDialog, isPreviewable } from "@/components/file-preview-dialog";
 import { Page, PageContent } from "@/components/page";
+import { startFileDownload } from "@/features/files/download";
 import { FileBrowser } from "@/features/files/file-browser";
 
 type SharedSearch = {
@@ -69,7 +70,8 @@ function SharedPage() {
   }, [deferredQuery, navigate, search]);
 
   const rootFiles = (rootsQuery.data ?? []).filter(
-    (file) => !search.query || file.name.toLocaleLowerCase().includes(search.query.toLocaleLowerCase()),
+    (file) =>
+      !search.query || file.name.toLocaleLowerCase().includes(search.query.toLocaleLowerCase()),
   );
   const files = atRoot ? rootFiles : (childrenQuery.data?.items ?? []);
   const loading = atRoot ? rootsQuery.isPending : childrenQuery.isPending;
@@ -84,10 +86,7 @@ function SharedPage() {
       setPreviewFile(file);
       return;
     }
-    const anchor = document.createElement("a");
-    anchor.href = `/api/v1/files/${encodeURIComponent(file.id)}/content`;
-    anchor.download = file.name;
-    anchor.click();
+    startFileDownload(file);
   };
 
   return (
@@ -113,7 +112,9 @@ function SharedPage() {
           }}
           onViewChange={(view) => void navigate({ search: { ...search, view }, replace: true })}
           onOpen={openFile}
-          emptyHint={atRoot ? "Files and folders you shared appear here." : "This shared folder is empty."}
+          emptyHint={
+            atRoot ? "Files and folders you shared appear here." : "This shared folder is empty."
+          }
         />
       </PageContent>
       <FilePreviewDialog
