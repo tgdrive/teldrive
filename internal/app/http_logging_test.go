@@ -45,7 +45,7 @@ func TestHTTPRequestLoggerLevelsAndAttributes(t *testing.T) {
 				w.WriteHeader(test.status)
 			})
 			wrapped := middleware.RequestID(httpRequestLogger(logger)(next))
-			request := httptest.NewRequest(http.MethodGet, "/v1/test?q=value", nil)
+			request := httptest.NewRequest(http.MethodGet, "/api/v1/test?q=value", nil)
 			request.RemoteAddr = "127.0.0.1:1234"
 			request.Header.Set("User-Agent", "test-agent")
 			response := httptest.NewRecorder()
@@ -64,7 +64,7 @@ func TestHTTPRequestLoggerLevelsAndAttributes(t *testing.T) {
 				attrs[attr.Key] = attr.Value.Any()
 				return true
 			})
-			if attrs["status"] != int64(test.status) || attrs["path"] != "/v1/test" || attrs["query"] != "q=value" {
+			if attrs["status"] != int64(test.status) || attrs["path"] != "/api/v1/test" || attrs["query"] != "q=value" {
 				t.Fatalf("attrs = %#v", attrs)
 			}
 			if attrs["request_id"] == "" {
@@ -73,7 +73,6 @@ func TestHTTPRequestLoggerLevelsAndAttributes(t *testing.T) {
 		})
 	}
 }
-
 
 func TestHTTPRequestLoggerSkipsUIRequests(t *testing.T) {
 	t.Parallel()
