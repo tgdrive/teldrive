@@ -15,6 +15,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	varccache "github.com/tgdrive/varc/cache"
 
@@ -245,8 +246,7 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 		return nil, fmt.Errorf("configure web UI: %w", err)
 	}
 	mux := chi.NewRouter()
-	mux.Use(middleware.RequestID)
-	mux.Use(requestIDHeader)
+	mux.Use(requestIDMiddleware)
 	mux.Use(httpRequestLogger(dependencies.Logger))
 	requestSecurity, err := newRequestSecurity(cfg.HTTP.TrustedProxies)
 	if err != nil {
@@ -300,13 +300,15 @@ func expandHomePath(path string) (string, error) {
 	return path, nil
 }
 
-func requestIDHeader(next http.Handler) http.Handler {
+func requestIDMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requestID := middleware.GetReqID(r.Context())
-		if requestID != "" {
-			w.Header().Set("X-Request-ID", requestID)
+		requestID := strings.TrimSpace(r.Header.Get("X-Request-ID"))
+		if requestID == "" {
+			requestID = uuid.NewString()
 		}
-		next.ServeHTTP(w, r)
+		ctx := context.WithValue(r.Context(), middleware.RequestIDKey, requestID)
+		w.Header().Set("X-Request-ID", requestID)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
