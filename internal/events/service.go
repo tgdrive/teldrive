@@ -277,6 +277,21 @@ func (s *Service) ListAfter(ctx context.Context, userID, afterID int64, eventTyp
 	return events, nil
 }
 
+// CurrentCursor returns the newest event ID known for the user.
+func (s *Service) CurrentCursor(ctx context.Context, userID int64) (int64, error) {
+	if s == nil || s.queries == nil || userID <= 0 {
+		return 0, errors.New("invalid event cursor request")
+	}
+	state, err := s.queries.GetUserEventCursorState(ctx, sqlcgen.GetUserEventCursorStateParams{
+		CursorUserID: userID,
+		AfterID:      0,
+	})
+	if err != nil {
+		return 0, fmt.Errorf("get current event cursor: %w", err)
+	}
+	return state.LastEventID, nil
+}
+
 func (s *Service) CursorExpired(ctx context.Context, userID, afterID int64) (bool, error) {
 	if afterID <= 0 {
 		return false, nil

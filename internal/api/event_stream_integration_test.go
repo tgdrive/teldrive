@@ -141,9 +141,25 @@ func TestGeneratedServerEventStreamReplayTicketAndShutdown(t *testing.T) {
 		t.Fatalf("first event data = %#v", firstData)
 	}
 
+	liveResponse, liveCancel := openEventStream(t, server.URL+"/v1/events?types=file.created,file.updated", map[string]string{
+		"Authorization": "Bearer test-token",
+	})
+	liveReader := bufio.NewReader(liveResponse.Body)
+	if frame := readSSEFrame(t, liveReader); frame["retry"] != "3000" {
+		t.Fatalf("initial live stream frame = %#v", frame)
+	}
+
 	if _, err := db.Pool.Exec(ctx, "UPDATE files SET name = 'second', normalized_name = 'second', generation = generation + 1 WHERE id = $1", fileID); err != nil {
 		t.Fatal(err)
 	}
+	liveFrame := readEventFrame(t, liveReader, "file.updated")
+	liveCancel()
+	_ = liveResponse.Body.Close()
+	liveID, err := strconv.ParseInt(liveFrame["id"], 10, 64)
+	if err != nil || liveID <= firstID {
+		t.Fatalf("live event id = %q, first = %d, error = %v", liveFrame["id"], firstID, err)
+	}
+
 	secondResponse, secondCancel := openEventStream(t, server.URL+"/v1/events?types=file.created,file.updated", map[string]string{
 		"Authorization": "Bearer test-token",
 		"Last-Event-ID": strconv.FormatInt(firstID, 10),

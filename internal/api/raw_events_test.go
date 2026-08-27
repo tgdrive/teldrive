@@ -16,24 +16,26 @@ func TestEventCursor(t *testing.T) {
 		name    string
 		params  gen.StreamEventsParams
 		want    int64
+		wantSet bool
 		wantErr bool
 	}{
-		{name: "empty", want: 0},
-		{name: "header", params: gen.StreamEventsParams{LastEventID: gen.NewOptString("42")}, want: 42},
-		{name: "query", params: gen.StreamEventsParams{After: gen.NewOptInt64(7)}, want: 7},
-		{name: "matching", params: gen.StreamEventsParams{LastEventID: gen.NewOptString("7"), After: gen.NewOptInt64(7)}, want: 7},
+		{name: "empty", want: 0, wantSet: false},
+		{name: "header", params: gen.StreamEventsParams{LastEventID: gen.NewOptString("42")}, want: 42, wantSet: true},
+		{name: "query", params: gen.StreamEventsParams{After: gen.NewOptInt64(7)}, want: 7, wantSet: true},
+		{name: "query zero", params: gen.StreamEventsParams{After: gen.NewOptInt64(0)}, want: 0, wantSet: true},
+		{name: "matching", params: gen.StreamEventsParams{LastEventID: gen.NewOptString("7"), After: gen.NewOptInt64(7)}, want: 7, wantSet: true},
 		{name: "conflict", params: gen.StreamEventsParams{LastEventID: gen.NewOptString("7"), After: gen.NewOptInt64(8)}, wantErr: true},
 		{name: "negative", params: gen.StreamEventsParams{After: gen.NewOptInt64(-1)}, wantErr: true},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			got, err := eventCursor(test.params)
+			got, gotSet, err := eventCursor(test.params)
 			if (err != nil) != test.wantErr {
 				t.Fatalf("eventCursor() error = %v", err)
 			}
-			if got != test.want {
-				t.Fatalf("eventCursor() = %d, want %d", got, test.want)
+			if got != test.want || gotSet != test.wantSet {
+				t.Fatalf("eventCursor() = (%d, %t), want (%d, %t)", got, gotSet, test.want, test.wantSet)
 			}
 		})
 	}

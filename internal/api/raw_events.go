@@ -31,7 +31,7 @@ func (h *RawHandler) StreamEvents(ctx context.Context, params gen.StreamEventsPa
 	if h == nil || h.handler == nil || h.handler.Events == nil {
 		return mapServiceError(ErrOperationUnavailable)
 	}
-	cursor, err := eventCursor(params)
+	cursor, cursorSet, err := eventCursor(params)
 	if err != nil {
 		return problem(http.StatusUnprocessableEntity, "invalid_event_cursor", "event cursor is invalid", err)
 	}
@@ -46,6 +46,12 @@ func (h *RawHandler) StreamEvents(ctx context.Context, params gen.StreamEventsPa
 	}
 	defer unsubscribe()
 
+	if !cursorSet {
+		cursor, err = h.handler.Events.CurrentCursor(ctx, userID)
+		if err != nil {
+			return mapServiceError(err)
+		}
+	}
 	expired, err := h.handler.Events.CursorExpired(ctx, userID, cursor)
 	if err != nil {
 		return mapServiceError(err)
@@ -138,30 +144,28 @@ func (h *RawHandler) StreamEvents(ctx context.Context, params gen.StreamEventsPa
 	}
 }
 
-func eventCursor(params gen.StreamEventsParams) (int64, error) {
-	var cursor int64
-	var set bool
+func eventCursor(params gen.StreamEventsParams) (cursor int64, set bool, err error) {
 	if header, ok := params.LastEventID.Get(); ok {
 		value := strings.TrimSpace(header)
 		if value == "" {
-			return 0, errors.New("empty Last-Event-ID")
+			return 0, false, errors.New("empty Last-Event-ID")
 		}
 		parsed, err := strconv.ParseInt(value, 10, 64)
 		if err != nil || parsed < 0 {
-			return 0, errors.New("invalid Last-Event-ID")
+			return 0, false, errors.New("invalid Last-Event-ID")
 		}
 		cursor, set = parsed, true
 	}
 	if after, ok := params.After.Get(); ok {
 		if after < 0 {
-			return 0, errors.New("negative event cursor")
+			return 0, false, errors.New("negative event cursor")
 		}
 		if set && cursor != after {
-			return 0, errors.New("conflicting event cursors")
+			return 0, false, errors.New("conflicting event cursors")
 		}
-		cursor = after
+		cursor, set = after, true
 	}
-	return cursor, nil
+	return cursor, set, nil
 }
 
 func normalizeEventTypes(values []string) ([]string, error) {
