@@ -61,6 +61,8 @@ func mapServiceError(err error) error {
 	switch {
 	case errors.Is(err, context.DeadlineExceeded):
 		return problem(http.StatusGatewayTimeout, "request_timeout", "request timed out", err)
+	case errors.Is(err, authn.ErrPasswordInvalid):
+		return problem(http.StatusUnauthorized, "telegram_password_invalid", "Telegram two-step password is invalid", err)
 	case errors.Is(err, ErrUnauthenticated), errors.Is(err, authn.ErrInvalidCredential), errors.Is(err, authn.ErrUserNotAllowed):
 		return problem(http.StatusUnauthorized, "unauthorized", "authentication is required", err)
 	case errors.Is(err, shares.ErrPasswordNeeded), errors.Is(err, shares.ErrInvalidPassword):
@@ -85,7 +87,7 @@ func mapServiceError(err error) error {
 		return problem(http.StatusRequestedRangeNotSatisfiable, "range_not_satisfiable", "requested byte range is not satisfiable", err)
 	case errors.Is(err, uploads.ErrHashMismatch), errors.Is(err, transfer.ErrChecksumMismatch):
 		return problem(http.StatusUnprocessableEntity, "hash_mismatch", "content hash does not match", err)
-	case errors.Is(err, catalog.ErrInvalidName), errors.Is(err, catalog.ErrInvalidParent), errors.Is(err, catalog.ErrInvalidOwner), errors.Is(err, uploads.ErrInvalidInput), errors.Is(err, uploads.ErrInvalidParent), errors.Is(err, uploads.ErrInvalidChannel), errors.Is(err, uploads.ErrUnsupportedConflictPolicy), errors.Is(err, transfer.ErrInvalidUpload), errors.Is(err, transfer.ErrInvalidDownload), errors.Is(err, authn.ErrInvalidInput), errors.Is(err, authn.ErrCodeInvalid), errors.Is(err, authn.ErrPasswordInvalid), errors.Is(err, bots.ErrInvalidInput), errors.Is(err, bots.ErrNotBot), errors.Is(err, shares.ErrInvalidInput), errors.Is(err, fileops.ErrInvalidInput):
+	case errors.Is(err, catalog.ErrInvalidName), errors.Is(err, catalog.ErrInvalidParent), errors.Is(err, catalog.ErrInvalidOwner), errors.Is(err, uploads.ErrInvalidInput), errors.Is(err, uploads.ErrInvalidParent), errors.Is(err, uploads.ErrInvalidChannel), errors.Is(err, uploads.ErrUnsupportedConflictPolicy), errors.Is(err, transfer.ErrInvalidUpload), errors.Is(err, transfer.ErrInvalidDownload), errors.Is(err, authn.ErrInvalidInput), errors.Is(err, authn.ErrCodeInvalid), errors.Is(err, bots.ErrInvalidInput), errors.Is(err, bots.ErrNotBot), errors.Is(err, shares.ErrInvalidInput), errors.Is(err, fileops.ErrInvalidInput):
 		return problem(http.StatusUnprocessableEntity, "invalid_request", "request is invalid", err)
 	default:
 		return problem(http.StatusInternalServerError, "internal_error", "request failed", err)

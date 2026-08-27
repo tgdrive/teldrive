@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/tgdrive/teldrive/v2/internal/api/gen"
+	"github.com/tgdrive/teldrive/v2/internal/authn"
 )
 
 func TestMapServiceErrorContextLifecycle(t *testing.T) {
@@ -24,6 +25,19 @@ func TestMapServiceErrorContextLifecycle(t *testing.T) {
 	}
 	if problem.Status != http.StatusGatewayTimeout || problem.Code != "request_timeout" {
 		t.Fatalf("deadline problem = %#v", problem)
+	}
+}
+
+func TestMapServiceErrorTelegramPasswordInvalid(t *testing.T) {
+	t.Parallel()
+
+	err := mapServiceError(authn.ErrPasswordInvalid)
+	var problem *Problem
+	if !errors.As(err, &problem) {
+		t.Fatalf("password error = %T, want *Problem", err)
+	}
+	if problem.Status != http.StatusUnauthorized || problem.Code != "telegram_password_invalid" || problem.Message != "Telegram two-step password is invalid" {
+		t.Fatalf("password problem = %#v", problem)
 	}
 }
 

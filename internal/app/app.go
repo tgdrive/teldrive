@@ -247,6 +247,7 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 	mux := chi.NewRouter()
 	mux.Use(middleware.RequestID)
 	mux.Use(requestIDHeader)
+	mux.Use(httpRequestLogger(dependencies.Logger))
 	requestSecurity, err := newRequestSecurity(cfg.HTTP.TrustedProxies)
 	if err != nil {
 		return nil, fmt.Errorf("configure trusted proxies: %w", err)
