@@ -385,7 +385,8 @@ test("React Aria file selection supports replacement, ranges, select all, and es
   await expect(
     page.getByRole("button", { name: "Copy selected file download link" }),
   ).toBeVisible();
-  await expect(page.getByRole("button", { name: "Cut selected items" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Cut selected items" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Copy selected items" })).toBeVisible();
   await beta.click({ modifiers: ["Shift"] });
   await expect(page.getByText("2 selected", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Rename selected item" })).toBeHidden();
@@ -499,7 +500,8 @@ test("selected files move through the destination picker without clipboard state
   await expect(
     page.getByRole("button", { name: "Move selected items", exact: true }),
   ).toBeVisible();
-  await expect(page.getByRole("button", { name: "Cut selected items" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Cut selected items" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Copy selected items" })).toBeVisible();
   await expect(page.getByRole("button", { name: /^Paste / })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Move selected items", exact: true }).click();
@@ -512,6 +514,89 @@ test("selected files move through the destination picker without clipboard state
 
   await page.getByRole("row", { name: /Destination/ }).dblclick();
   await expect(page.getByText("alpha.txt", { exact: true })).toBeVisible();
+});
+
+test("file tabs support modifier-open, independent navigation, shortcuts, and persistence", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, "desktop tab interactions");
+  await page.goto("/files");
+
+  await page.getByRole("row", { name: /Destination/ }).click({ modifiers: ["Control"] });
+  await expect(page.getByRole("button", { name: "Destination tab menu" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Current folder" })).toContainText("Destination");
+
+  await page.locator('[role="row"][data-path="/"]').click();
+  const tabRows = page.locator('[role="row"][data-path]');
+  await page.keyboard.press("Control+KeyT");
+  await expect(tabRows).toHaveCount(3);
+  await expect
+    .poll(async () => tabRows.evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-path"))))
+    .toEqual(["/", "/", "/Destination"]);
+
+  await tabRows.nth(2).dragTo(tabRows.nth(0), { targetPosition: { x: 2, y: 20 } });
+  await expect
+    .poll(async () => tabRows.evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-path"))))
+    .toEqual(["/Destination", "/", "/"]);
+
+  await page.locator('[role="row"][data-path="/"]').first().click();
+  await expect(page.getByRole("navigation", { name: "Current folder" })).not.toContainText("Destination");
+  await page.getByRole("row", { name: "Destination", exact: true }).dblclick();
+  await expect(page.getByRole("navigation", { name: "Current folder" })).toContainText("Destination");
+  await page.keyboard.press("Alt+ArrowLeft");
+  await expect(page.getByRole("navigation", { name: "Current folder" })).not.toContainText("Destination");
+  await page.keyboard.press("Alt+ArrowRight");
+  await expect(page.getByRole("navigation", { name: "Current folder" })).toContainText("Destination");
+
+  await page.keyboard.press("Control+KeyT");
+  await expect(page.getByRole("button", { name: /tab menu$/ })).toHaveCount(4);
+  await page.keyboard.press("Control+KeyW");
+  await expect(page.getByRole("button", { name: /tab menu$/ })).toHaveCount(3);
+  await page.keyboard.press("Control+Shift+KeyT");
+  await expect(page.getByRole("button", { name: /tab menu$/ })).toHaveCount(4);
+
+  const persisted = await page.evaluate(() => localStorage.getItem("teldrive.file-tabs.v1"));
+  expect(persisted).toBeTruthy();
+  await page.reload();
+  await expect(page.getByRole("button", { name: /tab menu$/ })).toHaveCount(4);
+});
+
+
+test("file clipboard copies and cuts across tabs with desktop shortcuts", async ({ page, isMobile }) => {
+  test.skip(isMobile, "desktop clipboard shortcuts");
+  await page.goto("/files");
+
+  const alpha = page.getByRole("row", { name: /alpha\.txt/ });
+  await alpha.click();
+  await page.keyboard.press("Control+KeyC");
+  await expect(page.getByRole("button", { name: "Paste 1 clipboard item" })).toBeVisible();
+
+  await page.getByRole("row", { name: /Destination/ }).click({ modifiers: ["Control"] });
+  await expect(page.getByRole("navigation", { name: "Current folder" })).toContainText("Destination");
+  await page.getByRole("button", { name: "Paste 1 clipboard item" }).click();
+  await expect(page.getByText("alpha.txt", { exact: true })).toBeVisible();
+
+  await page.locator('[role="row"][data-path="/"]').click();
+  await expect(page.getByText("alpha.txt", { exact: true })).toBeVisible();
+
+  const beta = page.getByRole("row", { name: /beta\.txt/ });
+  await beta.click();
+  await page.keyboard.press("Control+KeyX");
+  await expect(beta).toHaveClass(/opacity-45/);
+  await expect(page.getByRole("button", { name: "Paste 1 clipboard item" })).toBeDisabled();
+  await page.locator('[role="row"][data-path="/Destination"]').click();
+  await page.getByRole("button", { name: "Paste 1 clipboard item" }).click();
+  await expect(page.getByText("beta.txt", { exact: true })).toBeVisible();
+
+  await page.locator('[role="row"][data-path="/"]').click();
+  await expect(page.getByText("beta.txt", { exact: true })).toBeHidden();
+
+  await page.getByRole("row", { name: /alpha\.txt/ }).click();
+  await page.keyboard.press("Control+KeyC");
+  await expect(page.getByRole("button", { name: "Paste 1 clipboard item" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: /^Paste / })).toHaveCount(0);
 });
 
 test("touch opens items and exposes an explicit multi-selection control", async ({

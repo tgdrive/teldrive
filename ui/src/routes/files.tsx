@@ -1,13 +1,24 @@
 import { Button, Dropdown, Input, Label, Spinner, TextField } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useDeferredValue, useEffect, useEffectEvent, useRef, useState } from "react";
+import {
+  useDeferredValue,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
 import { DropZone, FileTrigger, type Selection } from "react-aria-components";
+
+import { useKeyboard } from "react-aria";
 import { toast } from "sonner";
 import UploadIcon from "~icons/gravity-ui/arrow-up-from-line";
 import DownloadIcon from "~icons/gravity-ui/arrow-down-to-line";
 import CopyIcon from "~icons/gravity-ui/copy";
 import CopyLinkIcon from "~icons/gravity-ui/copy-arrow-right";
+import PasteIcon from "~icons/gravity-ui/arrow-right-to-square";
+import CutIcon from "~icons/gravity-ui/scissors";
 import FileIcon from "~icons/gravity-ui/file";
 import FolderIcon from "~icons/gravity-ui/folder";
 import MoveIcon from "~icons/gravity-ui/folder-arrow-right";
@@ -24,11 +35,14 @@ import { BackgroundUploadDialog } from "../components/background-upload-dialog";
 import { FilePreviewDialog, isPreviewable } from "../components/file-preview-dialog";
 import { Page, PageContent } from "../components/page";
 import { FileBrowser } from "../features/files/file-browser";
+import { useFileClipboardStore } from "../features/files/clipboard-store";
 import { ShareDialog } from "../features/files/share-dialog";
 import { FolderPicker } from "../features/files/folder-picker";
 import { absoluteFileDownloadUrl, copyText, startFileDownload } from "../features/files/download";
 import { useFileActions } from "../features/files/mutations";
 import { useInfiniteFilePages } from "../features/files/queries";
+import { FileTabs, FileTabNavigation } from "../features/files/tabs/file-tabs";
+import { selectionForTab, useFileTabsStore } from "../features/files/tabs/store";
 import { useUploadStore } from "../features/uploads/store";
 
 type FilesSearch = {
@@ -58,9 +72,22 @@ function FilesPage() {
   const navigate = Route.useNavigate();
   const { data: currentUser } = useQuery(currentUserQueryOptions());
   const canLocalImport = Boolean(currentUser?.capabilities.includes("system.localImport"));
+  const tabs = useFileTabsStore((state) => state.tabs);
+  const activeTabId = useFileTabsStore((state) => state.activeTabId);
+  const hydrateTabs = useFileTabsStore((state) => state.hydrate);
+  const activateTab = useFileTabsStore((state) => state.activate);
+  const newTab = useFileTabsStore((state) => state.newTab);
+  const closeTab = useFileTabsStore((state) => state.close);
+  const reopenClosedTab = useFileTabsStore((state) => state.reopenClosed);
+  const navigateTab = useFileTabsStore((state) => state.navigate);
+  const backTab = useFileTabsStore((state) => state.back);
+  const forwardTab = useFileTabsStore((state) => state.forward);
+  const updateTab = useFileTabsStore((state) => state.update);
+  const setTabSelection = useFileTabsStore((state) => state.setSelection);
+  const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0];
+  const hydratedRef = useRef(false);
   const [queryDraft, setQueryDraft] = useState(search.query);
   const deferredQuery = useDeferredValue(queryDraft.trim());
-  const [selectedKeys, setSelectedKeys] = useState<Selection>(new Set());
   const [folderDialogOpen, setFolderDialogOpen] = useState(false);
   const [backgroundUploadOpen, setBackgroundUploadOpen] = useState(false);
   const [folderName, setFolderName] = useState("");
@@ -74,30 +101,71 @@ function FilesPage() {
   const uploadFolderTriggerRef = useRef<HTMLButtonElement>(null);
   const enqueue = useUploadStore((state) => state.enqueue);
   const fileActions = useFileActions();
+  const clipboardMode = useFileClipboardStore((state) => state.mode);
+  const clipboardItems = useFileClipboardStore((state) => state.items);
+  const clipboardSourceParentId = useFileClipboardStore((state) => state.sourceParentId);
+  const setClipboard = useFileClipboardStore((state) => state.set);
+  const clearClipboard = useFileClipboardStore((state) => state.clear);
+
+  useEffect(() => {
+    if (hydratedRef.current) return;
+    hydratedRef.current = true;
+    hydrateTabs(search);
+  }, [hydrateTabs, search]);
+
+  useEffect(() => {
+    if (!hydratedRef.current || !activeTab) return;
+    setQueryDraft(activeTab.query);
+    navigate({
+      search: {
+        path: activeTab.path,
+        parentId: activeTab.parentId,
+        query: activeTab.query,
+        view: activeTab.view,
+      },
+      replace: true,
+    });
+  }, [activeTab?.path, activeTab?.parentId, activeTab?.query, activeTab?.view, navigate]);
 
   const fileQuery = useInfiniteFilePages(
     {
-      path: search.path,
-      parentId: search.parentId,
-      q: search.query || undefined,
+      path: activeTab?.path ?? search.path,
+      parentId: activeTab?.parentId,
+      q: activeTab?.query || undefined,
       sort: "name",
       order: "asc",
-      view: search.view,
+      view: activeTab?.view ?? search.view,
     },
     "active",
   );
   const files = fileQuery.data?.pages.flatMap((page) => page.items) ?? [];
+  const selectedKeys: Selection = activeTab
+    ? selectionForTab(
+        activeTab,
+        files.map((file) => file.id),
+      )
+    : new Set();
 
-  useEffect(() => setQueryDraft(search.query), [search.query]);
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      if (deferredQuery !== search.query) {
-        navigate({ search: { ...search, query: deferredQuery }, replace: true });
-      }
+      if (!activeTab || deferredQuery === activeTab.query) return;
+      updateTab(activeTab.id, { query: deferredQuery });
+      navigate({
+        search: {
+          path: activeTab.path,
+          parentId: activeTab.parentId,
+          query: deferredQuery,
+          view: activeTab.view,
+        },
+        replace: true,
+      });
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [deferredQuery, navigate, search]);
-  useEffect(() => setSelectedKeys(new Set()), [search.parentId, search.path, search.query]);
+  }, [activeTab, deferredQuery, navigate, updateTab]);
+
+  const setSelectedKeys = (selection: Selection) => {
+    if (activeTab) setTabSelection(activeTab.id, selection);
+  };
   const selectedCount = selectedKeys === "all" ? files.length : selectedKeys.size;
   const selectedIds =
     selectedKeys === "all" ? files.map((file) => file.id) : Array.from(selectedKeys, String);
@@ -105,12 +173,53 @@ function FilesPage() {
   const selectedOnlyFiles =
     selectedFiles.length > 0 && selectedFiles.every((file) => file.kind === "file");
   const singleSelectedFile = selectedFiles.length === 1 ? selectedFiles[0] : undefined;
+  const cutIds =
+    clipboardMode === "cut" ? new Set(clipboardItems.map((file) => file.id)) : undefined;
+  const hasClipboard = Boolean(clipboardMode && clipboardItems.length > 0);
+  const canPasteHere =
+    hasClipboard && !(clipboardMode === "cut" && clipboardSourceParentId === activeTab?.parentId);
+
+  const stageClipboard = (mode: "copy" | "cut") => {
+    if (!activeTab || selectedFiles.length === 0) return;
+    setClipboard(mode, selectedFiles, activeTab.parentId, activeTab.path);
+    toast.success(
+      `${selectedFiles.length} item${selectedFiles.length === 1 ? "" : "s"} ${mode === "cut" ? "cut" : "copied"}`,
+    );
+  };
+
+  const pasteClipboard = async () => {
+    if (!activeTab || !clipboardMode || clipboardItems.length === 0) return;
+    if (clipboardMode === "cut" && clipboardSourceParentId === activeTab.parentId) {
+      toast.info("Items are already in this folder");
+      return;
+    }
+    try {
+      if (clipboardMode === "copy") {
+        await fileActions.copyMany(clipboardItems, activeTab.parentId, "rename");
+      } else if (clipboardItems.length === 1) {
+        await fileActions.move(clipboardItems[0], activeTab.parentId, "rename");
+      } else {
+        await fileActions.bulkMove(
+          clipboardItems.map((file) => file.id),
+          activeTab.parentId,
+          "rename",
+        );
+      }
+      const count = clipboardItems.length;
+      const action = clipboardMode === "copy" ? "copied" : "moved";
+      if (clipboardMode === "cut") clearClipboard();
+      setSelectedKeys(new Set());
+      toast.success(`${count} item${count === 1 ? "" : "s"} ${action}`);
+    } catch (error) {
+      toast.error("Clipboard items could not be pasted", { description: userMessage(error) });
+    }
+  };
 
   const createFolder = async () => {
     const name = folderName.trim();
     if (!name) return;
     try {
-      await fileActions.createFolder(name, search.parentId);
+      await fileActions.createFolder(name, activeTab?.parentId);
       setFolderName("");
       setFolderDialogOpen(false);
       toast.success("Folder created");
@@ -147,7 +256,7 @@ function FilesPage() {
 
   const duplicateFile = async (file: FileEntry) => {
     try {
-      await fileActions.copy(file, search.parentId, `${file.name} copy`, "rename");
+      await fileActions.copy(file, activeTab?.parentId, `${file.name} copy`, "rename");
       setSelectedKeys(new Set());
       toast.success("Item duplicated");
     } catch (error) {
@@ -173,72 +282,152 @@ function FilesPage() {
   };
 
   const navigateToParent = () => {
-    if (search.path === "/") return;
-    const parts = search.path.split("/").filter(Boolean);
+    if (!activeTab || activeTab.path === "/") return;
+    const parts = activeTab.path.split("/").filter(Boolean);
     const parentPath = parts.length <= 1 ? "/" : `/${parts.slice(0, -1).join("/")}`;
-    navigate({ search: { path: parentPath, parentId: undefined, query: "", view: search.view } });
+    navigateTab(activeTab.id, { path: parentPath });
   };
 
-  const handleFileShortcut = useEffectEvent((event: KeyboardEvent) => {
-    if (event.defaultPrevented) return;
-    if (event.key === "Escape") {
-      setFolderDialogOpen(false);
-      setRenameFile(undefined);
-      setMoveDialogOpen(false);
-      setShareFile(undefined);
-      setPreviewFile(undefined);
-      setSelectedKeys(new Set());
-      return;
-    }
-    if (isEditableTarget(event.target)) return;
-    const command = event.ctrlKey || event.metaKey;
-    if (event.key === "F2" && singleSelectedFile) {
-      event.preventDefault();
-      setRenameFile(singleSelectedFile);
-      setRenameName(singleSelectedFile.name);
-      return;
-    }
-    if (event.key === "Delete" && selectedIds.length > 0) {
-      event.preventDefault();
-      void trashSelected();
-      return;
-    }
-    if (command && event.shiftKey && event.key.toLowerCase() === "n") {
-      event.preventDefault();
-      setFolderDialogOpen(true);
-      return;
-    }
-    if (command && event.key.toLowerCase() === "f") {
-      event.preventDefault();
-      const input =
-        searchInputRef.current ??
-        document.querySelector<HTMLInputElement>('input[aria-label="Search this folder"]');
-      input?.focus();
-      input?.select();
-      return;
-    }
-    if (event.altKey && event.key === "ArrowUp") {
-      event.preventDefault();
-      navigateToParent();
-    }
-  });
+  const switchTab = (id: string) => {
+    activateTab(id);
+    setPreviewFile(undefined);
+    setRenameFile(undefined);
+    setMoveDialogOpen(false);
+    setShareFile(undefined);
+  };
 
-  useEffect(() => {
-    document.addEventListener("keydown", handleFileShortcut, true);
-    return () => document.removeEventListener("keydown", handleFileShortcut, true);
-  }, []);
+  const openNewTab = (file?: FileEntry) => {
+    if (file?.kind === "folder" && activeTab) {
+      newTab({
+        path: joinPath(activeTab.path, file.name),
+        parentId: file.id,
+        title: file.name,
+        view: activeTab.view,
+      });
+      return;
+    }
+    newTab({ view: activeTab?.view ?? "list" });
+  };
+
+  const handleFileShortcut = useEffectEvent(
+    (event: ReactKeyboardEvent<HTMLElement> & { continuePropagation?: () => void }) => {
+      if (event.defaultPrevented) {
+        event.continuePropagation?.();
+        return;
+      }
+      if (event.key === "Escape") {
+        setFolderDialogOpen(false);
+        setRenameFile(undefined);
+        setMoveDialogOpen(false);
+        setShareFile(undefined);
+        setPreviewFile(undefined);
+        setSelectedKeys(new Set());
+        clearClipboard();
+        return;
+      }
+      if (isEditableTarget(event.target)) {
+        event.continuePropagation?.();
+        return;
+      }
+      const command = event.ctrlKey || event.metaKey;
+      const key = event.key.toLowerCase();
+
+      if (command && event.shiftKey && key === "t") {
+        event.preventDefault();
+        reopenClosedTab();
+        return;
+      }
+      if (command && key === "t") {
+        event.preventDefault();
+        openNewTab();
+        return;
+      }
+      if (command && key === "w" && activeTab && !activeTab.pinned && tabs.length > 1) {
+        event.preventDefault();
+        closeTab(activeTab.id);
+        return;
+      }
+      if (command && event.key === "Tab" && tabs.length > 1) {
+        event.preventDefault();
+        const currentIndex = tabs.findIndex((tab) => tab.id === activeTabId);
+        const delta = event.shiftKey ? -1 : 1;
+        const nextIndex = (currentIndex + delta + tabs.length) % tabs.length;
+        switchTab(tabs[nextIndex].id);
+        return;
+      }
+      if (event.altKey && event.key === "ArrowLeft" && activeTab?.historyIndex) {
+        event.preventDefault();
+        backTab(activeTab.id);
+        return;
+      }
+      if (
+        event.altKey &&
+        event.key === "ArrowRight" &&
+        activeTab &&
+        activeTab.historyIndex < activeTab.history.length - 1
+      ) {
+        event.preventDefault();
+        forwardTab(activeTab.id);
+        return;
+      }
+      if (event.altKey && event.key === "ArrowUp") {
+        event.preventDefault();
+        navigateToParent();
+        return;
+      }
+      if (command && key === "c" && selectedFiles.length > 0) {
+        event.preventDefault();
+        stageClipboard("copy");
+        return;
+      }
+      if (command && key === "x" && selectedFiles.length > 0) {
+        event.preventDefault();
+        stageClipboard("cut");
+        return;
+      }
+      if (command && key === "v" && hasClipboard) {
+        event.preventDefault();
+        void pasteClipboard();
+        return;
+      }
+      if (event.key === "F2" && singleSelectedFile) {
+        event.preventDefault();
+        setRenameFile(singleSelectedFile);
+        setRenameName(singleSelectedFile.name);
+        return;
+      }
+      if (event.key === "Delete" && selectedIds.length > 0) {
+        event.preventDefault();
+        void trashSelected();
+        return;
+      }
+      if (command && event.shiftKey && key === "n") {
+        event.preventDefault();
+        setFolderDialogOpen(true);
+        return;
+      }
+      if (command && key === "f") {
+        event.preventDefault();
+        const input =
+          searchInputRef.current ??
+          document.querySelector<HTMLInputElement>('input[aria-label="Search this folder"]');
+        input?.focus();
+        input?.select();
+        return;
+      }
+      event.continuePropagation?.();
+    },
+  );
+
+  const { keyboardProps } = useKeyboard({ onKeyDown: handleFileShortcut });
 
   const openFile = (file: FileEntry) => {
-    if (file.kind === "folder") {
-      const nextPath = joinPath(search.path, file.name);
-      navigate({
-        search: {
-          path: nextPath,
-          parentId: file.id,
-          query: "",
-          view: search.view,
-        },
-      });
+    if (file.kind === "folder" && activeTab) {
+      navigateTab(
+        activeTab.id,
+        { path: joinPath(activeTab.path, file.name), parentId: file.id },
+        file.name,
+      );
       setSelectedKeys(new Set());
       return;
     }
@@ -261,46 +450,64 @@ function FilesPage() {
   };
 
   return (
-    <Page className="h-full min-h-0 gap-0 overflow-x-hidden">
+    <Page
+      onKeyDownCapture={keyboardProps.onKeyDown}
+      autoFocus
+      tabIndex={-1}
+      className="h-full min-h-0 gap-0 overflow-x-hidden"
+    >
       <PageContent className="flex min-h-0 flex-1 overflow-x-hidden">
         <DropZone
           data-testid="file-drop-zone"
-          aria-label={`Upload files into ${search.path}`}
+          aria-label={`Upload files into ${activeTab?.path ?? "/"}`}
           getDropOperation={() => "copy"}
           className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden outline-none"
           onDrop={async (event) => {
             const dropped = await Promise.all(
               event.items.filter((item) => item.kind === "file").map((item) => item.getFile()),
             );
-            if (dropped.length) enqueue(dropped, search.parentId, search.path);
+            if (dropped.length) enqueue(dropped, activeTab?.parentId, activeTab?.path ?? "/");
           }}
         >
           {({ isDropTarget }) => (
             <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-x-hidden">
               {isDropTarget ? (
                 <div className="shrink-0 rounded-xl border-2 border-dashed border-accent bg-accent/10 px-4 py-4 text-center text-sm font-medium text-accent sm:px-6 sm:py-6">
-                  Drop files to upload into {search.path}
+                  Drop files to upload into {activeTab?.path ?? "/"}
                 </div>
               ) : null}
+              <FileTabs onSwitch={switchTab} onNew={() => openNewTab()} />
               <FileBrowser
                 files={files}
-                path={search.path}
+                path={activeTab?.path ?? "/"}
                 rootLabel="My files"
-                view={search.view}
+                view={activeTab?.view ?? "list"}
                 query={queryDraft}
                 loading={fileQuery.isPending}
                 onQueryChange={setQueryDraft}
-                onNavigatePath={(path) =>
-                  navigate({ search: { path, query: "", view: search.view }, replace: true })
-                }
-                onViewChange={(view) => navigate({ search: { ...search, view }, replace: true })}
+                onNavigatePath={(path) => activeTab && navigateTab(activeTab.id, { path })}
+                onViewChange={(view) => activeTab && updateTab(activeTab.id, { view })}
                 onOpen={openFile}
+                onOpenInNewTab={openNewTab}
+                headerLeading={
+                  <FileTabNavigation
+                    canBack={Boolean(activeTab && activeTab.historyIndex > 0)}
+                    canForward={Boolean(
+                      activeTab && activeTab.historyIndex < activeTab.history.length - 1,
+                    )}
+                    canUp={Boolean(activeTab && activeTab.path !== "/")}
+                    onBack={() => activeTab && backTab(activeTab.id)}
+                    onForward={() => activeTab && forwardTab(activeTab.id)}
+                    onUp={navigateToParent}
+                  />
+                }
                 searchInputRef={searchInputRef}
                 selection={{
                   selectedKeys,
                   onSelectionChange: setSelectedKeys,
                   onClearSelection: () => setSelectedKeys(new Set()),
                 }}
+                dimmedIds={cutIds}
                 hasNextPage={fileQuery.hasNextPage}
                 isLoadingMore={fileQuery.isFetchingNextPage}
                 onLoadMore={() => {
@@ -353,7 +560,8 @@ function FilesPage() {
                       <FileTrigger
                         allowsMultiple
                         onSelect={(list) => {
-                          if (list?.length) enqueue(Array.from(list), search.parentId, search.path);
+                          if (list?.length)
+                            enqueue(Array.from(list), activeTab?.parentId, activeTab?.path ?? "/");
                         }}
                       >
                         <Button ref={uploadFilesTriggerRef}>Choose upload files</Button>
@@ -362,7 +570,8 @@ function FilesPage() {
                         acceptDirectory
                         allowsMultiple
                         onSelect={(list) => {
-                          if (list?.length) enqueue(Array.from(list), search.parentId, search.path);
+                          if (list?.length)
+                            enqueue(Array.from(list), activeTab?.parentId, activeTab?.path ?? "/");
                         }}
                       >
                         <Button ref={uploadFolderTriggerRef}>Choose upload folder</Button>
@@ -371,12 +580,50 @@ function FilesPage() {
                   </>
                 }
                 selectionOverlay={
-                  selectedCount > 0 ? (
+                  selectedCount > 0 || hasClipboard ? (
                     <div className="pointer-events-none absolute inset-x-0 bottom-4 z-30 flex justify-center px-4">
                       <div className="pointer-events-auto flex max-w-full items-center gap-1.5 overflow-x-auto rounded-full border border-border bg-surface/95 p-1.5 shadow-xl backdrop-blur">
-                        <span className="shrink-0 rounded-full bg-accent/10 px-3 py-2 text-sm font-medium text-accent">
-                          {selectedCount} selected
-                        </span>
+                        {selectedCount > 0 ? (
+                          <span className="shrink-0 rounded-full bg-accent/10 px-3 py-2 text-sm font-medium text-accent">
+                            {selectedCount} selected
+                          </span>
+                        ) : null}
+                        {selectedCount > 0 ? (
+                          <>
+                            <Button
+                              isIconOnly
+                              size="sm"
+                              variant="ghost"
+                              aria-label="Cut selected items"
+                              isDisabled={fileActions.pending}
+                              onPress={() => stageClipboard("cut")}
+                            >
+                              <CutIcon className="size-4" />
+                            </Button>
+                            <Button
+                              isIconOnly
+                              size="sm"
+                              variant="ghost"
+                              aria-label="Copy selected items"
+                              isDisabled={fileActions.pending}
+                              onPress={() => stageClipboard("copy")}
+                            >
+                              <CopyIcon className="size-4" />
+                            </Button>
+                          </>
+                        ) : null}
+                        {hasClipboard ? (
+                          <Button
+                            isIconOnly
+                            size="sm"
+                            variant="ghost"
+                            aria-label={`Paste ${clipboardItems.length} clipboard item${clipboardItems.length === 1 ? "" : "s"}`}
+                            isDisabled={fileActions.pending || !canPasteHere}
+                            onPress={() => void pasteClipboard()}
+                          >
+                            <PasteIcon className="size-4" />
+                          </Button>
+                        ) : null}
                         {singleSelectedFile ? (
                           <>
                             <Button
@@ -441,35 +688,39 @@ function FilesPage() {
                             <CopyLinkIcon className="size-4" />
                           </Button>
                         ) : null}
-                        <Button
-                          isIconOnly
-                          size="sm"
-                          variant="ghost"
-                          aria-label="Move selected items"
-                          isDisabled={fileActions.pending}
-                          onPress={() => setMoveDialogOpen(true)}
-                        >
-                          <MoveIcon className="size-4" />
-                        </Button>
-                        <Button
-                          isIconOnly
-                          size="sm"
-                          variant="danger"
-                          aria-label="Move selected items to trash"
-                          isDisabled={fileActions.pending}
-                          onPress={() => void trashSelected()}
-                        >
-                          <TrashIcon className="size-4" />
-                        </Button>
-                        <Button
-                          isIconOnly
-                          size="sm"
-                          variant="ghost"
-                          aria-label="Clear selection"
-                          onPress={() => setSelectedKeys(new Set())}
-                        >
-                          <CloseIcon className="size-4" />
-                        </Button>
+                        {selectedCount > 0 ? (
+                          <>
+                            <Button
+                              isIconOnly
+                              size="sm"
+                              variant="ghost"
+                              aria-label="Move selected items"
+                              isDisabled={fileActions.pending}
+                              onPress={() => setMoveDialogOpen(true)}
+                            >
+                              <MoveIcon className="size-4" />
+                            </Button>
+                            <Button
+                              isIconOnly
+                              size="sm"
+                              variant="danger"
+                              aria-label="Move selected items to trash"
+                              isDisabled={fileActions.pending}
+                              onPress={() => void trashSelected()}
+                            >
+                              <TrashIcon className="size-4" />
+                            </Button>
+                            <Button
+                              isIconOnly
+                              size="sm"
+                              variant="ghost"
+                              aria-label="Clear selection"
+                              onPress={() => setSelectedKeys(new Set())}
+                            >
+                              <CloseIcon className="size-4" />
+                            </Button>
+                          </>
+                        ) : null}
                       </div>
                     </div>
                   ) : null
@@ -484,7 +735,7 @@ function FilesPage() {
         open={folderDialogOpen}
         onOpenChange={setFolderDialogOpen}
         title="Create folder"
-        description={`Create a folder inside ${search.path}.`}
+        description={`Create a folder inside ${activeTab?.path ?? "/"}.`}
         size="md"
         footer={
           <>
@@ -517,7 +768,7 @@ function FilesPage() {
       <BackgroundUploadDialog
         open={backgroundUploadOpen}
         onOpenChange={setBackgroundUploadOpen}
-        currentPath={search.path}
+        currentPath={activeTab?.path ?? "/"}
       />
 
       <AppDialog

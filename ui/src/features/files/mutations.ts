@@ -82,6 +82,26 @@ export function useFileActions() {
     return result;
   }
 
+  async function copyMany(
+    files: FileEntry[],
+    parentId?: string,
+    conflictPolicy: NameConflictPolicy = "fail",
+  ) {
+    const results = await Promise.all(
+      files.map((file) =>
+        copyMutation.mutateAsync({
+          params: {
+            path: { fileId: file.id },
+            header: { "Idempotency-Key": newIdempotencyKey() },
+          },
+          body: { parentId, conflictPolicy },
+        }),
+      ),
+    );
+    await invalidateFiles();
+    return results;
+  }
+
   async function trash(fileId: string) {
     const result = await trashMutation.mutateAsync({ params: { path: { fileId } } });
     await invalidateFiles();
@@ -111,10 +131,14 @@ export function useFileActions() {
     return result;
   }
 
-  async function bulkMove(fileIds: string[], parentId?: string) {
+  async function bulkMove(
+    fileIds: string[],
+    parentId?: string,
+    conflictPolicy: NameConflictPolicy = "fail",
+  ) {
     const result = await bulkMoveMutation.mutateAsync({
       params: { header: { "Idempotency-Key": newIdempotencyKey() } },
-      body: { fileIds, parentId, conflictPolicy: "fail" },
+      body: { fileIds, parentId, conflictPolicy },
     });
     await invalidateFiles();
     return result;
@@ -162,6 +186,7 @@ export function useFileActions() {
     rename,
     move,
     copy,
+    copyMany,
     trash,
     restore,
     purge,

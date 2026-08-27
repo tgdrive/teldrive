@@ -1,9 +1,12 @@
 import { cn } from "@heroui/react";
-import type { ReactNode } from "react";
+import type { ComponentPropsWithoutRef, ReactNode } from "react";
 
-export function Page({ children, className }: { children: ReactNode; className?: string }) {
+export function Page({ children, className, ...props }: ComponentPropsWithoutRef<"section">) {
   return (
-    <section className={cn("mx-auto flex w-full max-w-[1600px] flex-col gap-5", className)}>
+    <section
+      {...props}
+      className={cn("mx-auto flex w-full max-w-[1600px] flex-col gap-5", className)}
+    >
       {children}
     </section>
   );
