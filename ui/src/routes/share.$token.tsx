@@ -16,11 +16,7 @@ import { ApiError, userMessage } from "@/api/errors";
 import type { FileEntry, PublicShare } from "@/api/types";
 import { AppDialog } from "@/components/dialogs/app-dialog";
 import { Page, PageContent } from "@/components/page";
-import {
-  FileBrowser,
-  formatFileBytes,
-  type FileBrowserView,
-} from "@/features/files/file-browser";
+import { FileBrowser, formatFileBytes, type FileBrowserView } from "@/features/files/file-browser";
 import { copyText } from "@/features/files/download";
 import { newIdempotencyKey } from "@/features/shared/idempotency";
 
@@ -52,22 +48,16 @@ function PublicSharePage() {
   const [uploading, setUploading] = useState(false);
   const editable = share?.permission === "edit" && share.file.kind === "folder";
   const selectedIds =
-    selectedKeys === "all"
-      ? items.map((item) => item.id)
-      : Array.from(selectedKeys, String);
+    selectedKeys === "all" ? items.map((item) => item.id) : Array.from(selectedKeys, String);
   const selectedFiles = items.filter((item) => selectedIds.includes(item.id));
-  const singleSelected =
-    selectedFiles.length === 1 ? selectedFiles[0] : undefined;
+  const singleSelected = selectedFiles.length === 1 ? selectedFiles[0] : undefined;
   const currentParentId = share ? (pathIds[path] ?? share.file.id) : undefined;
 
   const loadShare = async (signal: AbortSignal) => {
-    const response = await apiFetch(
-      `/v1/public/shares/${encodeURIComponent(token)}`,
-      {
-        headers: shareHeaders(activePassword),
-        signal,
-      },
-    );
+    const response = await apiFetch(`/v1/public/shares/${encodeURIComponent(token)}`, {
+      headers: shareHeaders(activePassword),
+      signal,
+    });
     const next = (await response.json()) as PublicShare;
     if (signal.aborted) return;
     setShare(next);
@@ -146,8 +136,7 @@ function PublicSharePage() {
     setError(undefined);
     try {
       const response = await apiFetch(
-        new URL(publicDownloadUrl(file)).pathname +
-          new URL(publicDownloadUrl(file)).search,
+        new URL(publicDownloadUrl(file)).pathname + new URL(publicDownloadUrl(file)).search,
         {
           headers: shareHeaders(activePassword),
         },
@@ -166,9 +155,7 @@ function PublicSharePage() {
 
   const copyDownloadLink = async (file: FileEntry) => {
     if (activePassword) {
-      toast.error(
-        "Direct download links are unavailable for password-protected shares",
-      );
+      toast.error("Direct download links are unavailable for password-protected shares");
       return;
     }
     try {
@@ -294,15 +281,8 @@ function PublicSharePage() {
       uploadId = session.id;
       const partSize = Math.max(1, session.partSize);
       let partNo = 1;
-      for (
-        let offset = 0;
-        offset < file.size;
-        offset += partSize, partNo += 1
-      ) {
-        const chunk = file.slice(
-          offset,
-          Math.min(file.size, offset + partSize),
-        );
+      for (let offset = 0; offset < file.size; offset += partSize, partNo += 1) {
+        const chunk = file.slice(offset, Math.min(file.size, offset + partSize));
         await apiFetch(
           `/v1/public/shares/${encodeURIComponent(token)}/uploads/${encodeURIComponent(uploadId)}/parts/${partNo}`,
           {
@@ -448,11 +428,7 @@ function PublicSharePage() {
                             aria-label="Upload file"
                             isDisabled={uploading}
                           >
-                            {uploading ? (
-                              <Spinner size="sm" />
-                            ) : (
-                              <UploadIcon className="size-4" />
-                            )}
+                            {uploading ? <Spinner size="sm" /> : <UploadIcon className="size-4" />}
                           </Button>
                         </FileTrigger>
                       </>
@@ -496,9 +472,7 @@ function PublicSharePage() {
                               size="sm"
                               variant="ghost"
                               aria-label="Copy download link"
-                              onPress={() =>
-                                void copyDownloadLink(singleSelected)
-                              }
+                              onPress={() => void copyDownloadLink(singleSelected)}
                             >
                               <LinkIcon className="size-4" />
                             </Button>
@@ -546,10 +520,7 @@ function PublicSharePage() {
         title="Create folder"
         footer={
           <>
-            <Button
-              variant="secondary"
-              onPress={() => setFolderDialogOpen(false)}
-            >
+            <Button variant="secondary" onPress={() => setFolderDialogOpen(false)}>
               Cancel
             </Button>
             <Button
@@ -576,10 +547,7 @@ function PublicSharePage() {
         title="Rename item"
         footer={
           <>
-            <Button
-              variant="secondary"
-              onPress={() => setRenameFile(undefined)}
-            >
+            <Button variant="secondary" onPress={() => setRenameFile(undefined)}>
               Cancel
             </Button>
             <Button

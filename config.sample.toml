@@ -77,6 +77,8 @@ login-flow-ttl = "10m"
 
 [uploads]
 session-ttl = "168h"
+# Disable to skip automatic BLAKE3 hashing during uploads. Client-supplied checksums still require verification.
+hashing-enabled = true
 local-import-roots = []
 
 [cache.memory]

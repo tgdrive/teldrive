@@ -1,8 +1,11 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
+
+	"github.com/tgdrive/teldrive/v2/internal/principal"
 )
 
 func TestRedactJobArgs(t *testing.T) {
@@ -40,5 +43,26 @@ func TestRedactJobArgs(t *testing.T) {
 	nested := sources[0]["headers"].(map[string]any)
 	if got := nested["Cookie"]; got != "[redacted]" {
 		t.Fatalf("cookie = %#v", got)
+	}
+}
+
+func TestHasAdminRole(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name  string
+		roles []string
+		want  bool
+	}{
+		{name: "owner", roles: []string{"owner"}, want: true},
+		{name: "admin", roles: []string{"admin"}, want: true},
+		{name: "user", roles: []string{"user"}, want: false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := principal.WithIdentity(context.Background(), principal.Identity{UserID: 1001, Roles: test.roles})
+			if got := HasAdminRole(ctx); got != test.want {
+				t.Fatalf("HasAdminRole() = %t, want %t", got, test.want)
+			}
+		})
 	}
 }

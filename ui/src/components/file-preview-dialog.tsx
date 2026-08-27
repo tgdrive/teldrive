@@ -220,12 +220,7 @@ export function FilePreviewDialog({
             ) : null}
             {stateLoadedFor === file.id && kind === "video" ? (
               <Suspense fallback={<ViewerLoading label="Loading video player" />}>
-                <VideoViewer
-                  file={file}
-                  url={contentUrl}
-                  initialTime={numberValue(state?.position.seconds)}
-                  onProgress={(seconds) => savePosition({ seconds })}
-                />
+                <VideoViewer file={file} url={contentUrl} />
               </Suspense>
             ) : null}
             {stateLoadedFor === file.id && kind === "audio" ? (

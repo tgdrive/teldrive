@@ -42,6 +42,9 @@ func TestDefaultIncludesLegacyPublicTelegramClientIdentity(t *testing.T) {
 	if cfg.Uploads.SessionTTL != 7*24*time.Hour {
 		t.Fatalf("Uploads SessionTTL = %s, want 168h", cfg.Uploads.SessionTTL)
 	}
+	if !cfg.Uploads.HashingEnabled {
+		t.Fatal("Uploads HashingEnabled = false, want true")
+	}
 	if cfg.Cache.Memory.Size.String() != "5MB" {
 		t.Fatalf("memory cache default = %s, want 5MB", cfg.Cache.Memory.Size)
 	}
@@ -92,6 +95,7 @@ func TestLoadFromAppliesEnvironment(t *testing.T) {
 		"TELDRIVE_ENCRYPTION_ACTIVE_KEY_VERSION":   "2",
 		"TELDRIVE_ENCRYPTION_KEYS":                 "1:first-secret,2:second-secret",
 		"TELDRIVE_UPLOADS_SESSION_TTL":             "72h",
+		"TELDRIVE_UPLOADS_HASHING_ENABLED":         "false",
 		"TELDRIVE_CACHE_STREAM_DIR":                "/tmp/teldrive-stream-cache",
 		"TELDRIVE_CACHE_STREAM_MAX_SIZE":           "12GB",
 		"TELDRIVE_CACHE_STREAM_SHARD_DEPTH":        "2",
@@ -120,7 +124,7 @@ func TestLoadFromAppliesEnvironment(t *testing.T) {
 	if cfg.Logging.LogLevel != "debug" || cfg.Logging.LogFormat != "text" {
 		t.Fatalf("logging config = %#v", cfg.Logging)
 	}
-	if cfg.Uploads.SessionTTL != 72*time.Hour {
+	if cfg.Uploads.SessionTTL != 72*time.Hour || cfg.Uploads.HashingEnabled {
 		t.Fatalf("upload config = %#v", cfg.Uploads)
 	}
 	if cfg.Cache.Stream.Dir != "/tmp/teldrive-stream-cache" || cfg.Cache.Stream.MaxSize.String() != "12GB" || cfg.Cache.Stream.ShardDepth != 2 {

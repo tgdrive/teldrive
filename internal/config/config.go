@@ -106,6 +106,7 @@ type Events struct {
 
 type Uploads struct {
 	SessionTTL       time.Duration `koanf:"session-ttl" default:"168h" validate:"gt=0" description:"Lifetime of resumable upload sessions"`
+	HashingEnabled   bool          `koanf:"hashing-enabled" default:"true" description:"Compute and store BLAKE3 hashes for uploaded files"`
 	LocalImportRoots []string      `koanf:"local-import-roots" default:"" description:"Absolute server directories allowed as local background-upload sources; empty disables local imports"`
 }
 

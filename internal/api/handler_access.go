@@ -20,7 +20,7 @@ import (
 )
 
 func requireAdmin(ctx context.Context) error {
-	if !HasRole(ctx, "admin") {
+	if !HasAdminRole(ctx) {
 		return problem(403, "forbidden", "administrator access is required", shares.ErrForbidden)
 	}
 	return nil

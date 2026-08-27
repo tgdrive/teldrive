@@ -14,16 +14,10 @@ import { $api, fetchClient } from "@/api/client";
 import { userMessage } from "@/api/errors";
 import type { FileEntry } from "@/api/types";
 import { AppDialog } from "@/components/dialogs/app-dialog";
-import {
-  FilePreviewDialog,
-  isPreviewable,
-} from "@/components/file-preview-dialog";
+import { FilePreviewDialog, isPreviewable } from "@/components/file-preview-dialog";
 import { Page, PageContent } from "@/components/page";
 import { startFileDownload } from "@/features/files/download";
-import {
-  FileBrowser,
-  type FileBrowserView,
-} from "@/features/files/file-browser";
+import { FileBrowser, type FileBrowserView } from "@/features/files/file-browser";
 import { useFileActions } from "@/features/files/mutations";
 import { ShareDialog } from "@/features/files/share-dialog";
 import { useUploadStore } from "@/features/uploads/store";
@@ -45,28 +39,18 @@ type SharedFileBrowserProps = {
   navigate: (search: SharedBrowserSearch, replace?: boolean) => void;
 };
 
-export function sharedBrowserSearch(
-  search: Record<string, unknown>,
-): SharedBrowserSearch {
+export function sharedBrowserSearch(search: Record<string, unknown>): SharedBrowserSearch {
   return {
     path: typeof search.path === "string" && search.path ? search.path : "/",
     parentId: typeof search.parentId === "string" ? search.parentId : undefined,
     query: typeof search.query === "string" ? search.query : "",
     view: search.view === "grid" ? "grid" : "list",
     permission:
-      search.permission === "edit"
-        ? "edit"
-        : search.permission === "read"
-          ? "read"
-          : undefined,
+      search.permission === "edit" ? "edit" : search.permission === "read" ? "read" : undefined,
   };
 }
 
-export function SharedFileBrowser({
-  mode,
-  search,
-  navigate,
-}: SharedFileBrowserProps) {
+export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserProps) {
   const [queryDraft, setQueryDraft] = useState(search.query);
   const deferredQuery = useDeferredValue(queryDraft.trim());
   const [previewFile, setPreviewFile] = useState<FileEntry>();
@@ -108,28 +92,21 @@ export function SharedFileBrowser({
   useEffect(() => setQueryDraft(search.query), [search.query]);
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      if (deferredQuery !== search.query)
-        navigate({ ...search, query: deferredQuery }, true);
+      if (deferredQuery !== search.query) navigate({ ...search, query: deferredQuery }, true);
     }, 250);
     return () => window.clearTimeout(timer);
   }, [deferredQuery, navigate, search]);
-  useEffect(
-    () => setSelectedKeys(new Set()),
-    [search.parentId, search.path, search.query],
-  );
+  useEffect(() => setSelectedKeys(new Set()), [search.parentId, search.path, search.query]);
 
   const incomingEntries = sharedWithMeQuery.data ?? [];
   const incomingPermission = new Map(
     incomingEntries.map((entry) => [entry.file.id, entry.permission]),
   );
   const roots =
-    mode === "with-me"
-      ? incomingEntries.map((entry) => entry.file)
-      : (sharedQuery.data ?? []);
+    mode === "with-me" ? incomingEntries.map((entry) => entry.file) : (sharedQuery.data ?? []);
   const rootFiles = roots.filter(
     (file) =>
-      !search.query ||
-      file.name.toLocaleLowerCase().includes(search.query.toLocaleLowerCase()),
+      !search.query || file.name.toLocaleLowerCase().includes(search.query.toLocaleLowerCase()),
   );
   const files = atRoot ? rootFiles : (childrenQuery.data?.items ?? []);
   const loading = atRoot
@@ -146,18 +123,13 @@ export function SharedFileBrowser({
   };
 
   const selectedIds =
-    selectedKeys === "all"
-      ? files.map((file) => file.id)
-      : Array.from(selectedKeys, String);
+    selectedKeys === "all" ? files.map((file) => file.id) : Array.from(selectedKeys, String);
   const selectedFiles = files.filter((file) => selectedIds.includes(file.id));
   const selectedCount = selectedFiles.length;
-  const singleSelected =
-    selectedFiles.length === 1 ? selectedFiles[0] : undefined;
+  const singleSelected = selectedFiles.length === 1 ? selectedFiles[0] : undefined;
   const selectedWritable =
-    selectedFiles.length > 0 &&
-    selectedFiles.every((file) => permissionFor(file) === "edit");
-  const currentFolderEditable =
-    !atRoot && (mode === "shared" || search.permission === "edit");
+    selectedFiles.length > 0 && selectedFiles.every((file) => permissionFor(file) === "edit");
+  const currentFolderEditable = !atRoot && (mode === "shared" || search.permission === "edit");
 
   const refreshRoots = async () => {
     if (mode === "with-me") await sharedWithMeQuery.refetch();
@@ -181,12 +153,7 @@ export function SharedFileBrowser({
   };
 
   const renameSelected = async () => {
-    if (
-      !renameFile ||
-      !renameName.trim() ||
-      permissionFor(renameFile) !== "edit"
-    )
-      return;
+    if (!renameFile || !renameName.trim() || permissionFor(renameFile) !== "edit") return;
     try {
       await fileActions.rename(renameFile, renameName.trim());
       setRenameFile(undefined);
@@ -205,9 +172,7 @@ export function SharedFileBrowser({
   const trashSelected = async () => {
     if (!selectedWritable) return;
     try {
-      await Promise.all(
-        selectedFiles.map((file) => fileActions.trash(file.id)),
-      );
+      await Promise.all(selectedFiles.map((file) => fileActions.trash(file.id)));
       setSelectedKeys(new Set());
       if (atRoot) await refreshRoots();
       else await childrenQuery.refetch();
@@ -225,25 +190,19 @@ export function SharedFileBrowser({
     if (mode !== "shared" || !atRoot || !selectedFiles.length) return;
     try {
       for (const file of selectedFiles) {
-        const { data: grants } = await fetchClient.GET(
-          "/v1/files/{fileId}/grants",
-          {
-            params: { path: { fileId: file.id } },
-          },
-        );
+        const { data: grants } = await fetchClient.GET("/v1/files/{fileId}/grants", {
+          params: { path: { fileId: file.id } },
+        });
 
         const shareIds: string[] = [];
         let cursor: string | undefined;
         do {
-          const { data: page } = await fetchClient.GET(
-            "/v1/files/{fileId}/shares",
-            {
-              params: {
-                path: { fileId: file.id },
-                query: { limit: 200, cursor },
-              },
+          const { data: page } = await fetchClient.GET("/v1/files/{fileId}/shares", {
+            params: {
+              path: { fileId: file.id },
+              query: { limit: 200, cursor },
             },
-          );
+          });
           shareIds.push(...(page?.items ?? []).map((share) => share.id));
           cursor = page?.nextCursor;
         } while (cursor);
@@ -361,8 +320,7 @@ export function SharedFileBrowser({
                   <FileTrigger
                     allowsMultiple
                     onSelect={(list) => {
-                      if (list?.length)
-                        enqueue(Array.from(list), search.parentId, search.path);
+                      if (list?.length) enqueue(Array.from(list), search.parentId, search.path);
                     }}
                   >
                     <Button ref={uploadTriggerRef}>Choose upload files</Button>
@@ -466,10 +424,7 @@ export function SharedFileBrowser({
         title="Create folder"
         footer={
           <>
-            <Button
-              variant="secondary"
-              onPress={() => setFolderDialogOpen(false)}
-            >
+            <Button variant="secondary" onPress={() => setFolderDialogOpen(false)}>
               Cancel
             </Button>
             <Button
@@ -496,10 +451,7 @@ export function SharedFileBrowser({
         title="Rename item"
         footer={
           <>
-            <Button
-              variant="secondary"
-              onPress={() => setRenameFile(undefined)}
-            >
+            <Button variant="secondary" onPress={() => setRenameFile(undefined)}>
               Cancel
             </Button>
             <Button

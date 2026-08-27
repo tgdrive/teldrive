@@ -106,7 +106,6 @@ model FileAccessGrantSummary {
   createdAt: utcDateTime;
 }
 
-
 model SharedWithMeEntry {
   file: FileEntry;
   permission: SharePermission;
@@ -203,11 +202,12 @@ namespace Shares {
   @operationId("listShared")
   op shared(): JsonResponse<200, FileEntry[]> | ErrorResponse<401>;
 
-
   @get
   @route("/shared/with-me")
   @operationId("listSharedWithMe")
-  op sharedWithMe(): JsonResponse<200, SharedWithMeEntry[]> | ErrorResponse<401>;
+  op sharedWithMe():
+    | JsonResponse<200, SharedWithMeEntry[]>
+    | ErrorResponse<401>;
 }
 
 @tag("Public shares")

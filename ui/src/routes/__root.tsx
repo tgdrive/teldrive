@@ -55,7 +55,9 @@ const DESKTOP_BREAKPOINT = 1024;
 
 function getPageTitle(pathname: string) {
   if (pathname.startsWith("/settings")) return "Settings";
-  const item = mainNav.find((entry) => pathname === entry.path || pathname.startsWith(`${entry.path}/`));
+  const item = mainNav.find(
+    (entry) => pathname === entry.path || pathname.startsWith(`${entry.path}/`),
+  );
   return item?.label ?? "Teldrive";
 }
 

@@ -47,11 +47,9 @@ export function ShareDialog({
   const [peoplePermission, setPeoplePermission] = useState<Permission>("read");
   const [linkPermission, setLinkPermission] = useState<Permission>("read");
   const [linkPassword, setLinkPassword] = useState("");
-  const [peopleExpirationMode, setPeopleExpirationMode] =
-    useState<ExpirationMode>("never");
+  const [peopleExpirationMode, setPeopleExpirationMode] = useState<ExpirationMode>("never");
   const [peopleDuration, setPeopleDuration] = useState("1d");
-  const [linkExpirationMode, setLinkExpirationMode] =
-    useState<ExpirationMode>("never");
+  const [linkExpirationMode, setLinkExpirationMode] = useState<ExpirationMode>("never");
   const [linkDuration, setLinkDuration] = useState("1d");
   const [createdUrl, setCreatedUrl] = useState("");
 
@@ -140,10 +138,7 @@ export function ShareDialog({
           expiresAt: expirationDate(linkExpirationMode, linkDuration),
         },
       });
-      const publicUrl = new URL(
-        result.publicUrl,
-        window.location.origin,
-      ).toString();
+      const publicUrl = new URL(result.publicUrl, window.location.origin).toString();
       setCreatedUrl(publicUrl);
       await copyText(publicUrl);
       await refreshLinks();
@@ -186,10 +181,7 @@ export function ShareDialog({
 
           <div className="grid gap-3 sm:grid-cols-2">
             <ControlField label="Permission">
-              <PermissionPicker
-                value={peoplePermission}
-                onChange={setPeoplePermission}
-              />
+              <PermissionPicker value={peoplePermission} onChange={setPeoplePermission} />
             </ControlField>
             <ControlField label="Expiration">
               <ExpirationPicker
@@ -218,13 +210,10 @@ export function ShareDialog({
                   >
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-medium">
-                        {user.displayName?.trim() ||
-                          user.username?.trim() ||
-                          `User ${user.userId}`}
+                        {user.displayName?.trim() || user.username?.trim() || `User ${user.userId}`}
                       </span>
                       <span className="block truncate text-xs text-muted">
-                        {user.username ? `@${user.username} · ` : ""}Telegram ID{" "}
-                        {user.userId}
+                        {user.username ? `@${user.username} · ` : ""}Telegram ID {user.userId}
                       </span>
                     </span>
                   </Button>
@@ -253,9 +242,7 @@ export function ShareDialog({
                         `User ${grant.granteeUserId}`}
                     </p>
                     <p className="truncate text-xs text-muted">
-                      {grant.granteeUsername
-                        ? `@${grant.granteeUsername} · `
-                        : ""}
+                      {grant.granteeUsername ? `@${grant.granteeUsername} · ` : ""}
                       Telegram ID {grant.granteeUserId}
                     </p>
                     <p className="mt-0.5 truncate text-xs text-muted">
@@ -268,12 +255,7 @@ export function ShareDialog({
                     {grant.permission === "read" ? "Viewer" : "Editor"}
                   </Chip>
                   <Dropdown>
-                    <Button
-                      isIconOnly
-                      size="sm"
-                      variant="ghost"
-                      aria-label="Grant actions"
-                    >
+                    <Button isIconOnly size="sm" variant="ghost" aria-label="Grant actions">
                       <span className="text-lg leading-none">⋯</span>
                     </Button>
                     <Dropdown.Popover className="min-w-48">
@@ -286,10 +268,7 @@ export function ShareDialog({
                                 await updateGrant.mutateAsync({
                                   params: { path: { grantId: grant.id } },
                                   body: {
-                                    permission:
-                                      grant.permission === "read"
-                                        ? "edit"
-                                        : "read",
+                                    permission: grant.permission === "read" ? "edit" : "read",
                                     clearExpiresAt: false,
                                   },
                                 });
@@ -318,14 +297,8 @@ export function ShareDialog({
                           }
                         }}
                       >
-                        <Dropdown.Item
-                          id="permission"
-                          textValue="Change permission"
-                        >
-                          <Label>
-                            Make{" "}
-                            {grant.permission === "read" ? "editor" : "viewer"}
-                          </Label>
+                        <Dropdown.Item id="permission" textValue="Change permission">
+                          <Label>Make {grant.permission === "read" ? "editor" : "viewer"}</Label>
                         </Dropdown.Item>
                         <Dropdown.Item id="remove" textValue="Remove access">
                           <Label>Remove access</Label>
@@ -347,17 +320,13 @@ export function ShareDialog({
           <div>
             <h3 className="text-sm font-semibold">Public links</h3>
             <p className="mt-1 text-xs text-muted">
-              Anyone with a link can use the selected permission. Password
-              protection is optional.
+              Anyone with a link can use the selected permission. Password protection is optional.
             </p>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
             <ControlField label="Permission">
-              <PermissionPicker
-                value={linkPermission}
-                onChange={setLinkPermission}
-              />
+              <PermissionPicker value={linkPermission} onChange={setLinkPermission} />
             </ControlField>
             <ControlField label="Expiration">
               <ExpirationPicker
@@ -419,8 +388,7 @@ export function ShareDialog({
                 >
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium">
-                      Public {link.permission === "read" ? "viewer" : "editor"}{" "}
-                      link
+                      Public {link.permission === "read" ? "viewer" : "editor"} link
                     </p>
                     <p className="truncate text-xs text-muted">
                       {link.passwordProtected ? "Password protected · " : ""}
@@ -431,16 +399,9 @@ export function ShareDialog({
                         : " · No expiration"}
                     </p>
                   </div>
-                  <Chip variant="tertiary">
-                    {link.permission === "read" ? "Viewer" : "Editor"}
-                  </Chip>
+                  <Chip variant="tertiary">{link.permission === "read" ? "Viewer" : "Editor"}</Chip>
                   <Dropdown>
-                    <Button
-                      isIconOnly
-                      size="sm"
-                      variant="ghost"
-                      aria-label="Public link actions"
-                    >
+                    <Button isIconOnly size="sm" variant="ghost" aria-label="Public link actions">
                       <span className="text-lg leading-none">⋯</span>
                     </Button>
                     <Dropdown.Popover className="min-w-40">
@@ -483,13 +444,7 @@ export function ShareDialog({
   );
 }
 
-function ControlField({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
+function ControlField({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="grid gap-1.5">
       <span className="text-xs font-medium text-muted">{label}</span>
@@ -578,10 +533,7 @@ function ExpirationPicker({
       </Select>
       {mode === "custom" ? (
         <TextField value={duration} onChange={onDurationChange}>
-          <Input
-            aria-label="Custom expiration duration"
-            placeholder="1h, 1d12h, 1y"
-          />
+          <Input aria-label="Custom expiration duration" placeholder="1h, 1d12h, 1y" />
         </TextField>
       ) : null}
     </div>
@@ -597,22 +549,17 @@ function expirationLabel(mode: ExpirationMode) {
   return "Custom";
 }
 
-function expirationDate(
-  mode: ExpirationMode,
-  duration: string,
-): string | undefined {
+function expirationDate(mode: ExpirationMode, duration: string): string | undefined {
   if (mode === "never") return undefined;
   const milliseconds = parseDuration(mode === "custom" ? duration : mode);
   const expiresAt = new Date(Date.now() + milliseconds);
-  if (!Number.isFinite(expiresAt.getTime()))
-    throw new Error("Expiration duration is too large");
+  if (!Number.isFinite(expiresAt.getTime())) throw new Error("Expiration duration is too large");
   return expiresAt.toISOString();
 }
 
 function parseDuration(input: string): number {
   const value = input.trim();
-  if (!value)
-    throw new Error("Enter an expiration duration such as 1h, 1d, or 1y");
+  if (!value) throw new Error("Enter an expiration duration such as 1h, 1d, or 1y");
 
   const pattern = /(\d+(?:\.\d+)?)(ms|s|m|h|d|w|M|y)/g;
   let total = 0;

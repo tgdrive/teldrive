@@ -422,12 +422,16 @@ func ensureEmpty(ctx context.Context, tx pgx.Tx, schema string) error {
 }
 
 func migrateUsers(ctx context.Context, source legacyReader, tx pgx.Tx, schema string) error {
-	rows, err := source.Query(ctx, `SELECT user_id, name, user_name, is_premium, created_at, updated_at FROM teldrive.users ORDER BY user_id`)
+	rows, err := source.Query(ctx, `
+SELECT user_id, name, user_name, is_premium, created_at, updated_at,
+       CASE WHEN row_number() OVER (ORDER BY created_at ASC, user_id ASC) = 1 THEN 'owner' ELSE 'user' END
+FROM teldrive.users
+ORDER BY user_id`)
 	if err != nil {
 		return fmt.Errorf("read users: %w", err)
 	}
 	defer rows.Close()
-	count, err := tx.CopyFrom(ctx, pgx.Identifier{schema, "users"}, []string{"user_id", "display_name", "username", "premium", "created_at", "updated_at"}, pgx.CopyFromFunc(func() ([]any, error) {
+	_, err = tx.CopyFrom(ctx, pgx.Identifier{schema, "users"}, []string{"user_id", "display_name", "username", "premium", "created_at", "updated_at", "role"}, pgx.CopyFromFunc(func() ([]any, error) {
 		if !rows.Next() {
 			return nil, rows.Err()
 		}
@@ -435,15 +439,15 @@ func migrateUsers(ctx context.Context, source legacyReader, tx pgx.Tx, schema st
 		var name, username *string
 		var premium bool
 		var created, updated time.Time
-		if err := rows.Scan(&id, &name, &username, &premium, &created, &updated); err != nil {
+		var role string
+		if err := rows.Scan(&id, &name, &username, &premium, &created, &updated, &role); err != nil {
 			return nil, err
 		}
-		return []any{id, name, username, premium, created, updated}, nil
+		return []any{id, name, username, premium, created, updated, role}, nil
 	}))
 	if err != nil {
 		return fmt.Errorf("copy users: %w", err)
 	}
-	_ = count
 	return nil
 }
 

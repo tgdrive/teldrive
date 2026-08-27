@@ -41,7 +41,9 @@ CREATE TABLE teldrive.files (
     channel_id bigint, parts jsonb, encrypted boolean NOT NULL DEFAULT false,
     hash text, created_at timestamptz NOT NULL, updated_at timestamptz NOT NULL
 );
-INSERT INTO teldrive.users VALUES (101, 'User', 'user', true, now(), now());
+INSERT INTO teldrive.users VALUES
+    (101, 'Owner', 'owner', true, now() - interval '1 hour', now() - interval '1 hour'),
+    (102, 'User', 'user', false, now(), now());
 INSERT INTO teldrive.channels VALUES (201, 'Channel', 101, true, now());
 INSERT INTO teldrive.bots VALUES (101, '123:token', 301);
 `); err != nil {
@@ -49,11 +51,13 @@ INSERT INTO teldrive.bots VALUES (101, '123:token', 301);
 	}
 	folderID := uuid.New()
 	fileID := uuid.New()
+	rootFileID := uuid.New()
 	if _, err := source.Pool.Exec(ctx, `
 INSERT INTO teldrive.files(id,name,type,mime_type,size,user_id,parent_id,status,channel_id,parts,encrypted,created_at,updated_at)
 VALUES
 ($1,'Folder','folder','application/octet-stream',NULL,101,NULL,'active',NULL,'[]',false,now(),now()),
-($2,'File.bin','file','application/octet-stream',10,101,$1,'active',201,'[{"id":401}]',false,now(),now())`, folderID, fileID); err != nil {
+($2,'File.bin','file','application/octet-stream',10,101,$1,'active',201,'[{"id":401}]',false,now(),now()),
+($3,'Top-level empty.bin','file','application/octet-stream',0,101,NULL,'active',NULL,'[]',false,now(),now())`, folderID, fileID, rootFileID); err != nil {
 		t.Fatalf("seed legacy files: %v", err)
 	}
 
@@ -71,7 +75,7 @@ VALUES
 	if !migrated {
 		t.Fatal("legacy database was not migrated")
 	}
-	if report.Users != 1 || report.Channels != 1 || report.Bots != 1 || report.Folders != 1 || report.Files != 1 || report.FileParts != 1 {
+	if report.Users != 2 || report.Channels != 1 || report.Bots != 1 || report.Folders != 1 || report.Files != 2 || report.FileParts != 1 || report.SkippedZero != 1 {
 		t.Fatalf("unexpected report: %+v", report)
 	}
 
@@ -84,8 +88,24 @@ VALUES
 (SELECT count(*) FROM teldrive.file_parts)`).Scan(&users, &channels, &bots, &files, &parts); err != nil {
 		t.Fatalf("count target rows: %v", err)
 	}
-	if users != 1 || channels != 1 || bots != 1 || files != 2 || parts != 1 {
+	if users != 2 || channels != 1 || bots != 1 || files != 3 || parts != 1 {
 		t.Fatalf("target counts = %d,%d,%d,%d,%d", users, channels, bots, files, parts)
+	}
+	var ownerRole, userRole string
+	if err := source.Pool.QueryRow(ctx, `SELECT
+(SELECT role::text FROM teldrive.users WHERE user_id=101),
+(SELECT role::text FROM teldrive.users WHERE user_id=102)`).Scan(&ownerRole, &userRole); err != nil {
+		t.Fatalf("inspect migrated roles: %v", err)
+	}
+	if ownerRole != "owner" || userRole != "user" {
+		t.Fatalf("migrated roles = %q, %q; want owner, user", ownerRole, userRole)
+	}
+	var rootParentMissing bool
+	if err := source.Pool.QueryRow(ctx, `SELECT parent_id IS NULL FROM teldrive.files WHERE id=$1`, rootFileID).Scan(&rootParentMissing); err != nil {
+		t.Fatalf("inspect top-level file: %v", err)
+	}
+	if !rootParentMissing {
+		t.Fatal("top-level legacy file acquired a synthetic parent")
 	}
 	var unresolved bool
 	if err := source.Pool.QueryRow(ctx, `SELECT plain_size IS NULL AND stored_size IS NULL FROM teldrive.file_parts WHERE file_id=$1`, fileID).Scan(&unresolved); err != nil {
@@ -98,8 +118,8 @@ VALUES
 	if err := source.Pool.QueryRow(ctx, `SELECT count(*) FROM `+pgx.Identifier{report.BackupSchema}.Sanitize()+`.users`).Scan(&backupUserCount); err != nil {
 		t.Fatalf("inspect backup schema: %v", err)
 	}
-	if backupUserCount != 1 {
-		t.Fatalf("backup user count = %d, want 1", backupUserCount)
+	if backupUserCount != 2 {
+		t.Fatalf("backup user count = %d, want 2", backupUserCount)
 	}
 	var gooseMoved bool
 	if err := source.Pool.QueryRow(ctx, `SELECT to_regclass($1) IS NOT NULL AND to_regclass('public.goose_db_version') IS NULL`, report.BackupSchema+".goose_db_version").Scan(&gooseMoved); err != nil {

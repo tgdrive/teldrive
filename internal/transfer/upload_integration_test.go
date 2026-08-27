@@ -78,6 +78,37 @@ func TestUploadPipelinePlaintextAndRetry(t *testing.T) {
 	}
 }
 
+func TestUploadPipelineHashingDisabled(t *testing.T) {
+	db := testpostgres.New(t)
+	seedTransferOwner(t, db.Pool, 1001, 9001)
+	catalog := uploads.NewService(db.Pool)
+	body := []byte("upload without hashing")
+	session, err := catalog.Create(context.Background(), uploads.CreateInput{
+		UserID: 1001, Name: "unhashed.bin", ExpectedSize: int64(len(body)), PartSize: int64(len(body)),
+	})
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	uploadID, _ := dbtypes.GoogleUUID(session.ID)
+	pipeline := transfer.NewPipeline(catalog, &fixedResolver{channelID: 9001}, &memoryStorage{}, nil, transfer.Config{DisableHashing: true})
+	result, err := pipeline.UploadPart(context.Background(), transfer.UploadPartRequest{
+		UserID: 1001, UploadID: uploadID, PartNo: 1, PlainSize: int64(len(body)), Body: bytes.NewReader(body),
+	})
+	if err != nil {
+		t.Fatalf("UploadPart() error = %v", err)
+	}
+	if result.Part.Checksum.Valid || len(result.Part.BlockHashes) != 0 {
+		t.Fatalf("stored hash metadata = (%#v, %x), want empty", result.Part.Checksum, result.Part.BlockHashes)
+	}
+	file, err := catalog.Complete(context.Background(), 1001, uploadID)
+	if err != nil {
+		t.Fatalf("Complete() error = %v", err)
+	}
+	if file.HashAlgorithm.Valid || file.HashValue.Valid {
+		t.Fatalf("file hash = (%#v, %#v), want empty", file.HashAlgorithm, file.HashValue)
+	}
+}
+
 func TestUploadPipelineEncryptedCompatibility(t *testing.T) {
 	db := testpostgres.New(t)
 	seedTransferOwner(t, db.Pool, 1001, 9001)

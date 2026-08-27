@@ -57,6 +57,7 @@ type KeyProvider interface {
 type Config struct {
 	UploadThreads      int
 	RandomizePartNames bool
+	DisableHashing     bool
 	Random             io.Reader
 	LeaseRenewInterval time.Duration
 }
@@ -145,9 +146,14 @@ func (p *Pipeline) UploadPart(ctx context.Context, request UploadPartRequest) (*
 	renewErrors := p.renewPartLease(uploadCtx, cancelUpload, request, claim.LeaseToken)
 
 	exact := newExactReader(uploadCtx, request.Body, request.PlainSize)
-	hasher := treehash.NewBlockHasher()
-	plainReader := io.TeeReader(exact, hasher)
-	storedReader := io.Reader(plainReader)
+	shouldHash := !p.config.DisableHashing || request.Checksum != nil || session.ExpectedHashAlgorithm.Valid
+	var hasher *treehash.BlockHasher
+	plainReader := io.Reader(exact)
+	if shouldHash {
+		hasher = treehash.NewBlockHasher()
+		plainReader = io.TeeReader(exact, hasher)
+	}
+	storedReader := plainReader
 	storedSize := request.PlainSize
 	var salt *string
 
@@ -203,15 +209,22 @@ func (p *Pipeline) UploadPart(ctx context.Context, request UploadPartRequest) (*
 		return nil, p.failPart(ctx, request, claim.LeaseToken, "body_size_mismatch", errors.Join(err, cleanupErr))
 	}
 
-	blockHashes := hasher.Sum()
-	if len(blockHashes) == 0 || len(blockHashes)%treehash.DigestSize != 0 {
-		cleanupErr := p.deleteUploaded(ctx, request.UserID, stored)
-		return nil, p.failPart(ctx, request, claim.LeaseToken, "hash_generation_failed", errors.Join(ErrInvalidUpload, cleanupErr))
-	}
-	actualChecksum := treehash.SumToHex(treehash.ComputeTreeHash(blockHashes))
-	if request.Checksum != nil && !strings.EqualFold(*request.Checksum, actualChecksum) {
-		cleanupErr := p.deleteUploaded(ctx, request.UserID, stored)
-		return nil, p.failPart(ctx, request, claim.LeaseToken, "checksum_mismatch", errors.Join(ErrChecksumMismatch, cleanupErr))
+	var (
+		actualChecksum *string
+		blockHashes    []byte
+	)
+	if shouldHash {
+		blockHashes = hasher.Sum()
+		if len(blockHashes) == 0 || len(blockHashes)%treehash.DigestSize != 0 {
+			cleanupErr := p.deleteUploaded(ctx, request.UserID, stored)
+			return nil, p.failPart(ctx, request, claim.LeaseToken, "hash_generation_failed", errors.Join(ErrInvalidUpload, cleanupErr))
+		}
+		value := treehash.SumToHex(treehash.ComputeTreeHash(blockHashes))
+		actualChecksum = &value
+		if request.Checksum != nil && !strings.EqualFold(*request.Checksum, value) {
+			cleanupErr := p.deleteUploaded(ctx, request.UserID, stored)
+			return nil, p.failPart(ctx, request, claim.LeaseToken, "checksum_mismatch", errors.Join(ErrChecksumMismatch, cleanupErr))
+		}
 	}
 
 	storeCtx, cancelStore := partCleanupContext(ctx)
@@ -222,7 +235,7 @@ func (p *Pipeline) UploadPart(ctx context.Context, request UploadPartRequest) (*
 		LeaseToken:  claim.LeaseToken,
 		MessageID:   stored.MessageID,
 		StoredSize:  stored.Size,
-		Checksum:    actualChecksum,
+		Checksum:    valueOrEmpty(actualChecksum),
 		Salt:        salt,
 		BlockHashes: append([]byte(nil), blockHashes...),
 	})
@@ -306,6 +319,12 @@ func (p *Pipeline) partName(uploadID uuid.UUID, partNo int32) string {
 	}
 	digest := sha256.Sum256([]byte(material))
 	return hex.EncodeToString(digest[:])
+}
+func valueOrEmpty(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }
 
 func generateSalt(random io.Reader) (string, error) {

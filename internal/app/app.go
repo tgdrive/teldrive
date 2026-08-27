@@ -184,6 +184,7 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 	}
 	uploadPipeline := transfer.NewPipeline(uploadService, channelService, storage, keys, transfer.Config{
 		UploadThreads: cfg.Telegram.UploadThreads, RandomizePartNames: cfg.Telegram.RandomizePartNames,
+		DisableHashing: !cfg.Uploads.HashingEnabled,
 	})
 	var streamCache *varccache.Cache
 	streamCacheDir := strings.TrimSpace(cfg.Cache.Stream.Dir)

@@ -105,7 +105,6 @@ export function useFileActions() {
     return result;
   }
 
-
   async function cleanTrash() {
     const result = await cleanTrashMutation.mutateAsync({});
     await invalidateFiles();
@@ -143,7 +142,6 @@ export function useFileActions() {
     );
     await invalidateFiles();
   }
-
 
   const mutations = [
     createFolderMutation,

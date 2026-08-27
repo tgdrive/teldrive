@@ -63,6 +63,10 @@ func HasRole(ctx context.Context, role string) bool {
 	return false
 }
 
+func HasAdminRole(ctx context.Context) bool {
+	return HasRole(ctx, "admin") || HasRole(ctx, "owner")
+}
+
 func (s *Security) HandleBearerAuth(ctx context.Context, _ gen.OperationName, auth gen.BearerAuth) (context.Context, error) {
 	if s == nil || s.authenticator == nil || strings.TrimSpace(auth.Token) == "" {
 		return ctx, ErrUnauthenticated

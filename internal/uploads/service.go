@@ -334,17 +334,24 @@ func (s *Service) RenewPart(ctx context.Context, in RenewPartInput) error {
 }
 
 func (s *Service) StorePart(ctx context.Context, in StorePartInput) (*sqlcgen.UploadPart, error) {
-	if in.PartNo <= 0 || in.LeaseToken == uuid.Nil || in.MessageID <= 0 || in.StoredSize < 0 || len(in.BlockHashes) == 0 || len(in.BlockHashes)%treehash.DigestSize != 0 {
+	if in.PartNo <= 0 || in.LeaseToken == uuid.Nil || in.MessageID <= 0 || in.StoredSize < 0 || (len(in.BlockHashes) > 0 && len(in.BlockHashes)%treehash.DigestSize != 0) {
 		return nil, ErrInvalidInput
 	}
-	checksum, err := normalizeDigest(in.Checksum)
-	if err != nil {
-		return nil, err
+	if (strings.TrimSpace(in.Checksum) == "") != (len(in.BlockHashes) == 0) {
+		return nil, ErrInvalidInput
+	}
+	var checksum *string
+	if strings.TrimSpace(in.Checksum) != "" {
+		normalized, err := normalizeDigest(in.Checksum)
+		if err != nil {
+			return nil, err
+		}
+		checksum = &normalized
 	}
 	part, err := s.queries.MarkUploadPartStored(ctx, sqlcgen.MarkUploadPartStoredParams{
 		MessageID:   dbtypes.Int8(in.MessageID),
 		StoredSize:  dbtypes.Int8(in.StoredSize),
-		Checksum:    dbtypes.Text(checksum),
+		Checksum:    dbtypes.OptionalText(checksum),
 		Salt:        dbtypes.OptionalText(in.Salt),
 		BlockHashes: append([]byte(nil), in.BlockHashes...),
 		UploadID:    dbtypes.UUID(in.UploadID),
@@ -445,17 +452,29 @@ func (s *Service) Complete(ctx context.Context, userID int64, uploadID uuid.UUID
 	if err != nil {
 		return nil, fmt.Errorf("list stored upload hashes: %w", err)
 	}
+	var hashAlgorithm, hashValue *string
 	concatenated := make([]byte, 0)
+	sawUnhashed := false
 	for _, blockHashes := range blockHashSets {
-		if len(blockHashes) == 0 || len(blockHashes)%treehash.DigestSize != 0 {
+		if len(blockHashes) == 0 {
+			sawUnhashed = true
+			if len(concatenated) > 0 || session.ExpectedHashAlgorithm.Valid {
+				return nil, ErrIncomplete
+			}
+			continue
+		}
+		if sawUnhashed || len(blockHashes)%treehash.DigestSize != 0 {
 			return nil, ErrIncomplete
 		}
 		concatenated = append(concatenated, blockHashes...)
 	}
-	hashAlgorithm := string(treehash.TypeBlake3)
-	hashValue := treehash.SumToHex(treehash.ComputeTreeHash(concatenated))
+	if len(concatenated) > 0 {
+		algorithm := string(treehash.TypeBlake3)
+		value := treehash.SumToHex(treehash.ComputeTreeHash(concatenated))
+		hashAlgorithm, hashValue = &algorithm, &value
+	}
 	if session.ExpectedHashAlgorithm.Valid {
-		if !strings.EqualFold(session.ExpectedHashAlgorithm.String, hashAlgorithm) || !strings.EqualFold(session.ExpectedHashValue.String, hashValue) {
+		if hashAlgorithm == nil || !strings.EqualFold(session.ExpectedHashAlgorithm.String, *hashAlgorithm) || !strings.EqualFold(session.ExpectedHashValue.String, *hashValue) {
 			return nil, ErrHashMismatch
 		}
 	}
@@ -473,8 +492,8 @@ func (s *Service) Complete(ctx context.Context, userID int64, uploadID uuid.UUID
 	fileID := uuid.New()
 	file, err := q.InsertFileFromUpload(ctx, sqlcgen.InsertFileFromUploadParams{
 		FileID:        dbtypes.UUID(fileID),
-		HashAlgorithm: dbtypes.Text(hashAlgorithm),
-		HashValue:     dbtypes.Text(hashValue),
+		HashAlgorithm: dbtypes.OptionalText(hashAlgorithm),
+		HashValue:     dbtypes.OptionalText(hashValue),
 		UploadID:      dbtypes.UUID(uploadID),
 		UserID:        userID,
 	})

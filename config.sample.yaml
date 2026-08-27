@@ -74,6 +74,8 @@ security:
 
 uploads:
   session-ttl: 168h
+  # Disable to skip automatic BLAKE3 hashing during uploads. Client-supplied checksums still require verification.
+  hashing-enabled: true
   local-import-roots: []
 
 # Stream caching is opt-in. Leave dir empty to avoid disk use.

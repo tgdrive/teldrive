@@ -21,7 +21,7 @@ func (h *Handler) ListJobs(ctx context.Context, params gen.ListJobsParams) (gen.
 	if h.Jobs == nil {
 		return nil, mapServiceError(ErrOperationUnavailable)
 	}
-	userID, err := UserIDFromContext(ctx)
+	userID, err := jobScopeUserID(ctx)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -52,7 +52,7 @@ func (h *Handler) CreateJob(ctx context.Context, req *gen.JobCreate) (gen.Create
 	if h.Jobs == nil {
 		return nil, mapServiceError(ErrOperationUnavailable)
 	}
-	if !HasRole(ctx, "admin") {
+	if !HasAdminRole(ctx) {
 		return nil, problem(http.StatusForbidden, "forbidden", "administrator access is required", nil)
 	}
 	queue, _ := req.Queue.Get()
@@ -119,7 +119,7 @@ func (h *Handler) CreateUploadImport(ctx context.Context, req *gen.UploadImportR
 		if (item.Type == "local" && item.Path == "") || (item.Type == "http" && item.URL == "") {
 			return nil, problem(http.StatusUnprocessableEntity, "invalid_upload_import", "source does not contain the required path or URL", nil)
 		}
-		if item.Type == "local" && !HasRole(ctx, "admin") {
+		if item.Type == "local" && !HasAdminRole(ctx) {
 			return nil, problem(http.StatusForbidden, "forbidden", "local imports require administrator access", nil)
 		}
 		args.Sources = append(args.Sources, item)
@@ -144,11 +144,19 @@ func (h *Handler) GetJobStatistics(ctx context.Context) (gen.GetJobStatisticsRes
 	if h.Jobs == nil {
 		return nil, mapServiceError(ErrOperationUnavailable)
 	}
-	userID, err := UserIDFromContext(ctx)
-	if err != nil {
-		return nil, mapServiceError(err)
+	var (
+		stats jobs.Statistics
+		err   error
+	)
+	if HasAdminRole(ctx) {
+		stats, err = h.Jobs.Statistics(ctx)
+	} else {
+		userID, userErr := UserIDFromContext(ctx)
+		if userErr != nil {
+			return nil, mapServiceError(userErr)
+		}
+		stats, err = h.Jobs.StatisticsForUser(ctx, userID)
 	}
-	stats, err := h.Jobs.StatisticsForUser(ctx, userID)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -160,7 +168,7 @@ func (h *Handler) GetJobStatistics(ctx context.Context) (gen.GetJobStatisticsRes
 }
 
 func (h *Handler) GetJob(ctx context.Context, params gen.GetJobParams) (gen.GetJobRes, error) {
-	userID, err := UserIDFromContext(ctx)
+	userID, err := jobScopeUserID(ctx)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -168,7 +176,12 @@ func (h *Handler) GetJob(ctx context.Context, params gen.GetJobParams) (gen.GetJ
 	if err != nil {
 		return nil, problem(http.StatusNotFound, "not_found", "job was not found", err)
 	}
-	item, err := h.Jobs.GetForUser(ctx, id, userID)
+	var item jobs.Job
+	if userID == 0 {
+		item, err = h.Jobs.Get(ctx, id)
+	} else {
+		item, err = h.Jobs.GetForUser(ctx, id, userID)
+	}
 	if err != nil {
 		return nil, mapJobError(err)
 	}
@@ -177,7 +190,7 @@ func (h *Handler) GetJob(ctx context.Context, params gen.GetJobParams) (gen.GetJ
 }
 
 func (h *Handler) CancelJob(ctx context.Context, params gen.CancelJobParams) (gen.CancelJobRes, error) {
-	userID, err := UserIDFromContext(ctx)
+	userID, err := jobScopeUserID(ctx)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -185,7 +198,12 @@ func (h *Handler) CancelJob(ctx context.Context, params gen.CancelJobParams) (ge
 	if err != nil {
 		return nil, problem(http.StatusNotFound, "not_found", "job was not found", err)
 	}
-	item, err := h.Jobs.CancelForUser(ctx, id, userID)
+	var item jobs.Job
+	if userID == 0 {
+		item, err = h.Jobs.Cancel(ctx, id)
+	} else {
+		item, err = h.Jobs.CancelForUser(ctx, id, userID)
+	}
 	if err != nil {
 		return nil, mapJobError(err)
 	}
@@ -194,7 +212,7 @@ func (h *Handler) CancelJob(ctx context.Context, params gen.CancelJobParams) (ge
 }
 
 func (h *Handler) RetryJob(ctx context.Context, params gen.RetryJobParams) (gen.RetryJobRes, error) {
-	userID, err := UserIDFromContext(ctx)
+	userID, err := jobScopeUserID(ctx)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -202,7 +220,12 @@ func (h *Handler) RetryJob(ctx context.Context, params gen.RetryJobParams) (gen.
 	if err != nil {
 		return nil, problem(http.StatusNotFound, "not_found", "job was not found", err)
 	}
-	item, err := h.Jobs.RetryForUser(ctx, id, userID)
+	var item jobs.Job
+	if userID == 0 {
+		item, err = h.Jobs.Retry(ctx, id)
+	} else {
+		item, err = h.Jobs.RetryForUser(ctx, id, userID)
+	}
 	if err != nil {
 		return nil, mapJobError(err)
 	}
@@ -211,7 +234,7 @@ func (h *Handler) RetryJob(ctx context.Context, params gen.RetryJobParams) (gen.
 }
 
 func (h *Handler) DeleteJob(ctx context.Context, params gen.DeleteJobParams) (gen.DeleteJobRes, error) {
-	userID, err := UserIDFromContext(ctx)
+	userID, err := jobScopeUserID(ctx)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -219,26 +242,43 @@ func (h *Handler) DeleteJob(ctx context.Context, params gen.DeleteJobParams) (ge
 	if err != nil {
 		return nil, problem(http.StatusNotFound, "not_found", "job was not found", err)
 	}
-	item, err := h.Jobs.GetForUser(ctx, id, userID)
+	var item jobs.Job
+	if userID == 0 {
+		item, err = h.Jobs.Get(ctx, id)
+	} else {
+		item, err = h.Jobs.GetForUser(ctx, id, userID)
+	}
 	if err != nil {
 		return nil, mapJobError(err)
 	}
 	if isActiveJobState(item.State) {
-		if _, err := h.Jobs.CancelForUser(ctx, id, userID); err != nil {
-			return nil, mapJobError(err)
+		if userID == 0 {
+			_, err = h.Jobs.Cancel(ctx, id)
+		} else {
+			_, err = h.Jobs.CancelForUser(ctx, id, userID)
 		}
-	} else if err := h.Jobs.DeleteForUser(ctx, id, userID); err != nil {
+	} else if userID == 0 {
+		err = h.Jobs.Delete(ctx, id)
+	} else {
+		err = h.Jobs.DeleteForUser(ctx, id, userID)
+	}
+	if err != nil {
 		return nil, mapJobError(err)
 	}
 	return &gen.DeleteJobNoContent{}, nil
 }
 
 func (h *Handler) PurgeJobs(ctx context.Context, params gen.PurgeJobsParams) (gen.PurgeJobsRes, error) {
-	userID, err := UserIDFromContext(ctx)
+	userID, err := jobScopeUserID(ctx)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
-	count, err := h.Jobs.PurgeForUser(ctx, userID, string(params.Status))
+	var count int64
+	if userID == 0 {
+		count, err = h.Jobs.Purge(ctx, string(params.Status))
+	} else {
+		count, err = h.Jobs.PurgeForUser(ctx, userID, string(params.Status))
+	}
 	if err != nil {
 		if errors.Is(err, jobs.ErrInvalidJobState) {
 			return nil, problem(http.StatusConflict, "invalid_state", "only finalized jobs can be purged", err)
@@ -246,6 +286,13 @@ func (h *Handler) PurgeJobs(ctx context.Context, params gen.PurgeJobsParams) (ge
 		return nil, mapServiceError(err)
 	}
 	return &gen.JobPurgeResult{Count: count}, nil
+}
+
+func jobScopeUserID(ctx context.Context) (int64, error) {
+	if HasAdminRole(ctx) {
+		return 0, nil
+	}
+	return UserIDFromContext(ctx)
 }
 
 func (h *Handler) ListJobQueues(ctx context.Context) (gen.ListJobQueuesRes, error) {
@@ -256,7 +303,7 @@ func (h *Handler) ListJobQueues(ctx context.Context) (gen.ListJobQueuesRes, erro
 		queues []jobs.Queue
 		err    error
 	)
-	if HasRole(ctx, "admin") {
+	if HasAdminRole(ctx) {
 		queues, err = h.Jobs.ListQueues(ctx)
 	} else {
 		userID, userErr := UserIDFromContext(ctx)
@@ -279,7 +326,7 @@ func (h *Handler) ListJobQueues(ctx context.Context) (gen.ListJobQueuesRes, erro
 }
 
 func (h *Handler) PauseJobQueue(ctx context.Context, params gen.PauseJobQueueParams) (gen.PauseJobQueueRes, error) {
-	if !HasRole(ctx, "admin") {
+	if !HasAdminRole(ctx) {
 		return nil, problem(http.StatusForbidden, "forbidden", "administrator access is required", nil)
 	}
 	if err := h.Jobs.PauseQueue(ctx, params.Queue); err != nil {
@@ -289,7 +336,7 @@ func (h *Handler) PauseJobQueue(ctx context.Context, params gen.PauseJobQueuePar
 }
 
 func (h *Handler) ResumeJobQueue(ctx context.Context, params gen.ResumeJobQueueParams) (gen.ResumeJobQueueRes, error) {
-	if !HasRole(ctx, "admin") {
+	if !HasAdminRole(ctx) {
 		return nil, problem(http.StatusForbidden, "forbidden", "administrator access is required", nil)
 	}
 	if err := h.Jobs.ResumeQueue(ctx, params.Queue); err != nil {
