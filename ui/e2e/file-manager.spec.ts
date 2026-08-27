@@ -516,6 +516,47 @@ test("selected files move through the destination picker without clipboard state
   await expect(page.getByText("alpha.txt", { exact: true })).toBeVisible();
 });
 
+test("file tab routing does not block leaving the files route", async ({ page, isMobile }) => {
+  await page.goto("/files");
+
+  if (isMobile) await page.getByRole("button", { name: "Open navigation" }).click();
+  await page.getByRole("link", { name: "Shared", exact: true }).click();
+  await expect(page).toHaveURL(/\/shared(?:\?|$)/);
+
+  if (isMobile) await page.getByRole("button", { name: "Open navigation" }).click();
+  await page.getByRole("link", { name: "Files", exact: true }).click();
+  await expect(page).toHaveURL(/\/files(?:\?|$)/);
+
+  if (isMobile) await page.getByRole("button", { name: "Open navigation" }).click();
+  await page.getByRole("button", { name: /Open account menu for/ }).click();
+  await page.getByRole("menuitem", { name: "Settings" }).click();
+  await expect(page).toHaveURL(/\/settings(?:\?|$)/);
+});
+
+test("file tab navigation stays in sync with browser history", async ({ page, isMobile }) => {
+  test.skip(isMobile, "desktop tab navigation");
+  await page.goto("/files");
+
+  const currentFolder = page.getByRole("navigation", { name: "Current folder" });
+  await page.getByRole("row", { name: "Destination", exact: true }).dblclick();
+  await expect(currentFolder).toContainText("Destination");
+
+  await page.goBack();
+  await expect(currentFolder).not.toContainText("Destination");
+  await page.goForward();
+  await expect(currentFolder).toContainText("Destination");
+
+  await page.getByRole("button", { name: "Back" }).click();
+  await expect(currentFolder).not.toContainText("Destination");
+  await page.getByRole("button", { name: "Forward" }).click();
+  await expect(currentFolder).toContainText("Destination");
+
+  await page.getByRole("button", { name: "Up one folder" }).click();
+  await expect(currentFolder).not.toContainText("Destination");
+  await page.getByRole("button", { name: "Back" }).click();
+  await expect(currentFolder).toContainText("Destination");
+});
+
 test("file tabs support modifier-open, independent navigation, shortcuts, and persistence", async ({
   page,
   isMobile,

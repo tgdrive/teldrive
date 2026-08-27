@@ -47,6 +47,7 @@ type FileTabsState = {
   navigate: (id: string, location: FileTabLocation, title?: string) => void;
   back: (id: string) => void;
   forward: (id: string) => void;
+  syncLocation: (id: string, location: FileTabLocation) => void;
   update: (id: string, patch: Partial<Pick<FileTab, "query" | "view" | "title">>) => void;
   setSelection: (id: string, selection: Selection) => void;
 };
@@ -333,6 +334,41 @@ export const useFileTabsStore = create<FileTabsState>((set, get) => {
             query: "",
             selectedIds: [],
             historyIndex,
+          };
+        }),
+      }));
+    },
+    syncLocation(id, location) {
+      updateAndPersist((state) => ({
+        tabs: state.tabs.map((tab) => {
+          if (tab.id !== id) return tab;
+          const matchingIndexes = tab.history
+            .map((entry, index) => ({ entry, index }))
+            .filter(
+              ({ entry }) => entry.path === location.path && entry.parentId === location.parentId,
+            );
+          const nearest = matchingIndexes.sort(
+            (a, b) => Math.abs(a.index - tab.historyIndex) - Math.abs(b.index - tab.historyIndex),
+          )[0];
+          if (nearest) {
+            return {
+              ...tab,
+              ...location,
+              title: titleForPath(location.path),
+              query: "",
+              selectedIds: [],
+              historyIndex: nearest.index,
+            };
+          }
+          const history = [...tab.history.slice(0, tab.historyIndex + 1), location];
+          return {
+            ...tab,
+            ...location,
+            title: titleForPath(location.path),
+            query: "",
+            selectedIds: [],
+            history,
+            historyIndex: history.length - 1,
           };
         }),
       }));
