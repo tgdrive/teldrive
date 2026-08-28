@@ -1,6 +1,6 @@
 import { Button, Dropdown, Input, Label, Spinner, TextField } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, useLocation } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import {
   useDeferredValue,
   useEffect,
@@ -45,12 +45,6 @@ import { FileTabs, FileTabNavigation } from "../features/files/tabs/file-tabs";
 import { selectionForTab, useFileTabsStore } from "../features/files/tabs/store";
 import { useUploadStore } from "../features/uploads/store";
 
-declare module "@tanstack/history" {
-  interface HistoryState {
-    fileTabId?: string;
-  }
-}
-
 type FilesSearch = {
   path: string;
   parentId?: string;
@@ -89,9 +83,6 @@ function FilesPage() {
   const backTab = useFileTabsStore((state) => state.back);
   const forwardTab = useFileTabsStore((state) => state.forward);
   const updateTab = useFileTabsStore((state) => state.update);
-  const location = useLocation();
-  const historyTabId = location.state.fileTabId;
-  const pathname = location.pathname;
   const setTabSelection = useFileTabsStore((state) => state.setSelection);
   const activeTab = tabs.find((tab) => tab.id === activeTabId) ?? tabs[0];
   const hydratedRef = useRef(false);
@@ -118,38 +109,23 @@ function FilesPage() {
 
   useEffect(() => {
     if (hydratedRef.current) return;
-    hydrateTabs(search);
     hydratedRef.current = true;
-    const state = useFileTabsStore.getState();
-    const tab = state.tabs.find((item) => item.id === state.activeTabId) ?? state.tabs[0];
-    if (!tab) return;
-    setQueryDraft(tab.query);
-    navigate({
-      search: {
-        path: tab.path,
-        parentId: tab.parentId,
-        query: tab.query,
-        view: tab.view,
-      },
-      state: (historyState) => ({ ...historyState, fileTabId: tab.id }),
-      replace: true,
-    });
-  }, [hydrateTabs, navigate, search]);
+    hydrateTabs(search);
+  }, [hydrateTabs, search]);
 
   useEffect(() => {
-    if (!hydratedRef.current || !historyTabId) return;
-    const state = useFileTabsStore.getState();
-    const tab = state.tabs.find((item) => item.id === historyTabId);
-    if (!tab) return;
-    if (state.activeTabId !== historyTabId) state.activate(historyTabId);
-    if (tab.path !== search.path || tab.parentId !== search.parentId) {
-      state.syncLocation(historyTabId, { path: search.path, parentId: search.parentId });
-    }
-    if (tab.query !== search.query || tab.view !== search.view) {
-      state.update(historyTabId, { query: search.query, view: search.view });
-    }
-    setQueryDraft(search.query);
-  }, [historyTabId, search.parentId, search.path, search.query, search.view]);
+    if (!hydratedRef.current || !activeTab) return;
+    setQueryDraft(activeTab.query);
+    navigate({
+      search: {
+        path: activeTab.path,
+        parentId: activeTab.parentId,
+        query: activeTab.query,
+        view: activeTab.view,
+      },
+      replace: true,
+    });
+  }, [activeTab?.path, activeTab?.parentId, activeTab?.query, activeTab?.view, navigate]);
 
   const fileQuery = useInfiniteFilePages(
     {
@@ -172,7 +148,7 @@ function FilesPage() {
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      if (pathname !== "/files" || !activeTab || deferredQuery === activeTab.query) return;
+      if (!activeTab || deferredQuery === activeTab.query) return;
       updateTab(activeTab.id, { query: deferredQuery });
       navigate({
         search: {
@@ -181,12 +157,11 @@ function FilesPage() {
           query: deferredQuery,
           view: activeTab.view,
         },
-        state: (state) => ({ ...state, fileTabId: activeTab.id }),
         replace: true,
       });
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [activeTab, deferredQuery, navigate, pathname, updateTab]);
+  }, [activeTab, deferredQuery, navigate, updateTab]);
 
   const setSelectedKeys = (selection: Selection) => {
     if (activeTab) setTabSelection(activeTab.id, selection);
@@ -306,80 +281,15 @@ function FilesPage() {
     }
   };
 
-  const changeTabView = (view: "list" | "grid") => {
-    if (!activeTab) return;
-    updateTab(activeTab.id, { view });
-    navigate({
-      search: {
-        path: activeTab.path,
-        parentId: activeTab.parentId,
-        query: activeTab.query,
-        view,
-      },
-      state: (state) => ({ ...state, fileTabId: activeTab.id }),
-      replace: true,
-    });
-  };
-
-  const pushTabLocation = (location: { path: string; parentId?: string }, title?: string) => {
-    if (!activeTab) return;
-    navigateTab(activeTab.id, location, title);
-    navigate({
-      search: {
-        path: location.path,
-        parentId: location.parentId,
-        query: "",
-        view: activeTab.view,
-      },
-      state: (state) => ({ ...state, fileTabId: activeTab.id }),
-    });
-  };
-
   const navigateToParent = () => {
     if (!activeTab || activeTab.path === "/") return;
     const parts = activeTab.path.split("/").filter(Boolean);
     const parentPath = parts.length <= 1 ? "/" : `/${parts.slice(0, -1).join("/")}`;
-    pushTabLocation({ path: parentPath });
-  };
-
-  const navigateTabHistory = (direction: "back" | "forward") => {
-    if (!activeTab) return;
-    const nextIndex = activeTab.historyIndex + (direction === "back" ? -1 : 1);
-    const location = activeTab.history[nextIndex];
-    if (!location) return;
-    if (direction === "back") backTab(activeTab.id);
-    else forwardTab(activeTab.id);
-    navigate({
-      search: {
-        path: location.path,
-        parentId: location.parentId,
-        query: "",
-        view: activeTab.view,
-      },
-      state: (state) => ({ ...state, fileTabId: activeTab.id }),
-      replace: true,
-    });
-  };
-
-  const replaceTabRoute = (id: string) => {
-    const tab = useFileTabsStore.getState().tabs.find((item) => item.id === id);
-    if (!tab) return;
-    activateTab(id);
-    setQueryDraft(tab.query);
-    navigate({
-      search: {
-        path: tab.path,
-        parentId: tab.parentId,
-        query: tab.query,
-        view: tab.view,
-      },
-      state: (state) => ({ ...state, fileTabId: tab.id }),
-      replace: true,
-    });
+    navigateTab(activeTab.id, { path: parentPath });
   };
 
   const switchTab = (id: string) => {
-    replaceTabRoute(id);
+    activateTab(id);
     setPreviewFile(undefined);
     setRenameFile(undefined);
     setMoveDialogOpen(false);
@@ -387,16 +297,16 @@ function FilesPage() {
   };
 
   const openNewTab = (file?: FileEntry) => {
-    const id =
-      file?.kind === "folder" && activeTab
-        ? newTab({
-            path: joinPath(activeTab.path, file.name),
-            parentId: file.id,
-            title: file.name,
-            view: activeTab.view,
-          })
-        : newTab({ view: activeTab?.view ?? "list" });
-    replaceTabRoute(id);
+    if (file?.kind === "folder" && activeTab) {
+      newTab({
+        path: joinPath(activeTab.path, file.name),
+        parentId: file.id,
+        title: file.name,
+        view: activeTab.view,
+      });
+      return;
+    }
+    newTab({ view: activeTab?.view ?? "list" });
   };
 
   const handleFileShortcut = useEffectEvent(
@@ -447,7 +357,7 @@ function FilesPage() {
       }
       if (event.altKey && event.key === "ArrowLeft" && activeTab?.historyIndex) {
         event.preventDefault();
-        navigateTabHistory("back");
+        backTab(activeTab.id);
         return;
       }
       if (
@@ -457,7 +367,7 @@ function FilesPage() {
         activeTab.historyIndex < activeTab.history.length - 1
       ) {
         event.preventDefault();
-        navigateTabHistory("forward");
+        forwardTab(activeTab.id);
         return;
       }
       if (event.altKey && event.key === "ArrowUp") {
@@ -513,7 +423,11 @@ function FilesPage() {
 
   const openFile = (file: FileEntry) => {
     if (file.kind === "folder" && activeTab) {
-      pushTabLocation({ path: joinPath(activeTab.path, file.name), parentId: file.id }, file.name);
+      navigateTab(
+        activeTab.id,
+        { path: joinPath(activeTab.path, file.name), parentId: file.id },
+        file.name,
+      );
       setSelectedKeys(new Set());
       return;
     }
@@ -571,8 +485,8 @@ function FilesPage() {
                 query={queryDraft}
                 loading={fileQuery.isPending}
                 onQueryChange={setQueryDraft}
-                onNavigatePath={(path) => pushTabLocation({ path })}
-                onViewChange={changeTabView}
+                onNavigatePath={(path) => activeTab && navigateTab(activeTab.id, { path })}
+                onViewChange={(view) => activeTab && updateTab(activeTab.id, { view })}
                 onOpen={openFile}
                 onOpenInNewTab={openNewTab}
                 headerLeading={
@@ -582,8 +496,8 @@ function FilesPage() {
                       activeTab && activeTab.historyIndex < activeTab.history.length - 1,
                     )}
                     canUp={Boolean(activeTab && activeTab.path !== "/")}
-                    onBack={() => navigateTabHistory("back")}
-                    onForward={() => navigateTabHistory("forward")}
+                    onBack={() => activeTab && backTab(activeTab.id)}
+                    onForward={() => activeTab && forwardTab(activeTab.id)}
                     onUp={navigateToParent}
                   />
                 }

@@ -109,6 +109,7 @@ function Sidebar({
         key={item.label}
         to={item.path}
         preload="intent"
+        activeOptions={{ exact: true }}
         className="h-10 w-full justify-start rounded-full px-3 text-sm font-medium"
         activeProps={{
           className: cn(buttonVariants({ variant: "secondary" }), "bg-accent/10 text-accent"),
