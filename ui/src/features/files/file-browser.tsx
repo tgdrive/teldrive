@@ -30,8 +30,6 @@ type FileBrowserProps = {
   onNavigatePath: (path: string) => void;
   onViewChange: (view: FileBrowserView) => void;
   onOpen: (file: FileEntry) => void;
-  onOpenInNewTab?: (file: FileEntry) => void;
-  headerLeading?: ReactNode;
   toolbar?: ReactNode;
   selection?: {
     selectedKeys: Selection;
@@ -39,7 +37,6 @@ type FileBrowserProps = {
     onClearSelection: () => void;
   };
   selectionOverlay?: ReactNode;
-  dimmedIds?: ReadonlySet<string>;
   hasNextPage?: boolean;
   isLoadingMore?: boolean;
   onLoadMore?: () => void;
@@ -58,12 +55,9 @@ export function FileBrowser({
   onNavigatePath,
   onViewChange,
   onOpen,
-  onOpenInNewTab,
-  headerLeading,
   toolbar,
   selection,
   selectionOverlay,
-  dimmedIds,
   hasNextPage = false,
   isLoadingMore = false,
   onLoadMore,
@@ -74,7 +68,6 @@ export function FileBrowser({
     <Card className="relative flex min-h-0 min-w-0 flex-1 flex-col gap-0 overflow-hidden border border-border bg-surface/80 shadow-sm">
       <Card.Header className="shrink-0 border-b border-border px-3 py-3 sm:px-4">
         <div className="flex min-w-0 items-center gap-2">
-          {headerLeading}
           <div className="min-w-0 flex-1 overflow-hidden">
             <FileBrowserBreadcrumb
               path={path}
@@ -135,8 +128,6 @@ export function FileBrowser({
               view={view}
               selection={selection}
               onOpen={onOpen}
-              onOpenInNewTab={onOpenInNewTab}
-              dimmedIds={dimmedIds}
               hasNextPage={hasNextPage}
               isLoadingMore={isLoadingMore}
               onLoadMore={onLoadMore}
@@ -155,8 +146,6 @@ function FileCollection({
   view,
   selection,
   onOpen,
-  onOpenInNewTab,
-  dimmedIds,
   hasNextPage,
   isLoadingMore,
   onLoadMore,
@@ -166,8 +155,6 @@ function FileCollection({
   view: FileBrowserView;
   selection?: FileBrowserProps["selection"];
   onOpen: (file: FileEntry) => void;
-  onOpenInNewTab?: (file: FileEntry) => void;
-  dimmedIds?: ReadonlySet<string>;
   hasNextPage: boolean;
   isLoadingMore: boolean;
   onLoadMore?: () => void;
@@ -210,7 +197,7 @@ function FileCollection({
             : `h-full min-h-0 overflow-x-hidden overflow-y-auto outline-none ${hasSelection ? "pb-24" : ""}`
         }
       >
-        <Collection items={files} dependencies={[dimmedIds]}>
+        <Collection items={files}>
           {(file) => (
             <GridListItem
               id={file.id}
@@ -221,7 +208,6 @@ function FileCollection({
                       "group flex min-h-36 cursor-default flex-col justify-between rounded-xl border border-border bg-background/35 p-3 outline-none transition",
                       "hover:-translate-y-0.5 hover:border-accent/30 hover:shadow-md",
                       state.isSelected && "border-accent bg-accent/10",
-                      dimmedIds?.has(file.id) && "opacity-45",
                       state.isFocusVisible && "ring-2 ring-accent/30",
                     ]
                       .filter(Boolean)
@@ -230,24 +216,11 @@ function FileCollection({
                       "group grid min-h-14 cursor-default grid-cols-[minmax(0,1fr)] items-center gap-2 border-b border-border px-3 outline-none transition last:border-b-0 sm:grid-cols-[minmax(0,1fr)_6rem] sm:px-4 lg:grid-cols-[minmax(0,1fr)_8rem_10rem] lg:gap-4",
                       "hover:bg-default/20",
                       state.isSelected && "bg-accent/10",
-                      dimmedIds?.has(file.id) && "opacity-45",
                       state.isFocusVisible && "ring-2 ring-inset ring-accent/30",
                     ]
                       .filter(Boolean)
                       .join(" ")
               }
-              onAuxClick={(event) => {
-                if (event.button !== 1 || !onOpenInNewTab || file.kind !== "folder") return;
-                event.preventDefault();
-                onOpenInNewTab(file);
-              }}
-              onClick={(event) => {
-                if (!(event.ctrlKey || event.metaKey) || !onOpenInNewTab || file.kind !== "folder")
-                  return;
-                event.preventDefault();
-                event.stopPropagation();
-                onOpenInNewTab(file);
-              }}
             >
               {(state) =>
                 grid ? (

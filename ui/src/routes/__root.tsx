@@ -384,12 +384,7 @@ function Layout() {
             onToggleSidebar={() => setCollapsed((value) => !value)}
             onOpenMobile={() => setMobileOpen(true)}
           />
-          <main
-            className={cn(
-              "min-w-0 flex-1 select-none overflow-y-auto px-3 pb-4 sm:px-5 sm:pb-5 lg:px-7 lg:pb-6",
-              pathname === "/files" ? "pt-[2px]" : "pt-4 sm:pt-5 lg:pt-6",
-            )}
-          >
+          <main className="min-w-0 flex-1 select-none overflow-y-auto px-3 py-4 sm:px-5 sm:py-5 lg:px-7 lg:py-6">
             <Outlet />
           </main>
         </div>
