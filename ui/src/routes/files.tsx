@@ -456,6 +456,17 @@ function FilesPage() {
       pane === "secondary" ? secondaryUploadFolderTriggerRef : primaryUploadFolderTriggerRef;
     return (
       <>
+        {pane === "primary" ? (
+          <Button
+            isIconOnly
+            size="sm"
+            variant="secondary"
+            aria-label={search.split ? "Close split view" : "Open split view"}
+            onPress={search.split ? closeSplitView : openSplitView}
+          >
+            <SplitIcon className="size-4" />
+          </Button>
+        ) : null}
         <Button
           isIconOnly
           size="sm"
@@ -714,20 +725,7 @@ function FilesPage() {
   return (
     <Page className="h-full min-h-0 gap-0 overflow-x-hidden">
       <PageContent className="flex min-h-0 flex-1 overflow-x-hidden">
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-x-hidden">
-          <div className="flex shrink-0 justify-end">
-            <Button
-              size="sm"
-              variant="secondary"
-              aria-label={search.split ? "Close split view" : "Open split view"}
-              onPress={search.split ? closeSplitView : openSplitView}
-            >
-              <SplitIcon className="size-4" />
-              <span className="hidden sm:inline">
-                {search.split ? "Close split" : "Split view"}
-              </span>
-            </Button>
-          </div>
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden">
           <div
             className={
               search.split

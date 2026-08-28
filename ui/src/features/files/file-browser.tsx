@@ -65,7 +65,7 @@ export function FileBrowser({
   emptyHint = "This folder is empty.",
 }: FileBrowserProps) {
   return (
-    <Card className="relative flex min-h-0 min-w-0 flex-1 flex-col gap-0 overflow-hidden border border-border bg-surface/80 shadow-sm">
+    <Card className="@container/file-browser relative flex min-h-0 min-w-0 flex-1 flex-col gap-0 overflow-hidden border border-border bg-surface/80 shadow-sm">
       <Card.Header className="shrink-0 border-b border-border px-3 py-3 sm:px-4">
         <div className="flex min-w-0 items-center gap-2">
           <div className="min-w-0 flex-1 overflow-hidden">
@@ -80,9 +80,14 @@ export function FileBrowser({
             aria-label="Search this folder"
             value={query}
             onChange={onQueryChange}
-            className="min-w-0 w-40 shrink sm:w-56 lg:w-72"
+            className="w-9 min-w-9 shrink-0 overflow-hidden transition-[width] duration-150 focus-within:w-56 @3xl/file-browser:w-56 @5xl/file-browser:w-72"
           >
-            <InputGroup>
+            <InputGroup
+              onPointerDown={(event) => {
+                const input = event.currentTarget.querySelector("input");
+                if (input && document.activeElement !== input) input.focus();
+              }}
+            >
               <InputGroup.Prefix>
                 <SearchIcon className="size-4 text-muted" />
               </InputGroup.Prefix>
@@ -90,6 +95,7 @@ export function FileBrowser({
                 ref={searchInputRef}
                 aria-label="Search this folder"
                 placeholder="Search this folder"
+                className="min-w-0 opacity-0 transition-opacity focus:opacity-100 @3xl/file-browser:opacity-100"
               />
             </InputGroup>
           </TextField>

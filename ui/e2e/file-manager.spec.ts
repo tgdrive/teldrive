@@ -526,6 +526,19 @@ test("split view keeps pane navigation independent and uses browser history", as
   const secondary = page.getByTestId("file-pane-secondary");
   await expect(primary).toBeVisible();
   await expect(secondary).toBeVisible();
+  await expect(primary.getByRole("button", { name: "Close split view" })).toBeVisible();
+
+  const secondarySearch = secondary.getByRole("textbox", { name: "Search this folder" });
+  const searchFieldWidth = () =>
+    secondarySearch.evaluate((input) => {
+      let element: HTMLElement | null = input as HTMLElement;
+      while (element && !element.classList.contains("w-9")) element = element.parentElement;
+      return element?.getBoundingClientRect().width ?? 0;
+    });
+  await expect.poll(searchFieldWidth).toBeLessThanOrEqual(40);
+  await secondarySearch.focus();
+  await expect.poll(searchFieldWidth).toBeGreaterThan(160);
+  await page.keyboard.press("Escape");
 
   const primaryFolder = primary.getByRole("navigation", { name: "Current folder" });
   const secondaryFolder = secondary.getByRole("navigation", { name: "Current folder" });
