@@ -89,7 +89,7 @@ export function useFilePage(search: FileRouteSearch, status: FileStatus) {
   });
 }
 
-export function useInfiniteFilePages(search: FileRouteSearch, status: FileStatus) {
+export function useInfiniteFilePages(search: FileRouteSearch, status: FileStatus, enabled = true) {
   const queryKey = [
     "get",
     "/v1/files",
@@ -120,6 +120,7 @@ export function useInfiniteFilePages(search: FileRouteSearch, status: FileStatus
     },
     getNextPageParam: (lastPage) => lastPage.nextCursor,
     staleTime: 15_000,
+    enabled,
   });
 }
 

@@ -514,6 +514,34 @@ test("selected files move through the destination picker without clipboard state
   await expect(page.getByText("alpha.txt", { exact: true })).toBeVisible();
 });
 
+test("split view keeps pane navigation independent and uses browser history", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, "desktop split view");
+  await page.goto("/files");
+
+  await page.getByRole("button", { name: "Open split view" }).click();
+  const primary = page.getByTestId("file-pane-primary");
+  const secondary = page.getByTestId("file-pane-secondary");
+  await expect(primary).toBeVisible();
+  await expect(secondary).toBeVisible();
+
+  const primaryFolder = primary.getByRole("navigation", { name: "Current folder" });
+  const secondaryFolder = secondary.getByRole("navigation", { name: "Current folder" });
+  await secondary.getByRole("row", { name: /Destination/ }).dblclick();
+  await expect(secondaryFolder).toContainText("Destination");
+  await expect(primaryFolder).not.toContainText("Destination");
+
+  await page.goBack();
+  await expect(secondaryFolder).not.toContainText("Destination");
+  await expect(primaryFolder).not.toContainText("Destination");
+  await expect(page.getByRole("button", { name: "Close split view" })).toBeVisible();
+
+  await page.getByRole("button", { name: "Close split view" }).click();
+  await expect(page.getByTestId("file-pane-secondary")).toHaveCount(0);
+});
+
 test("touch opens items and exposes an explicit multi-selection control", async ({
   page,
   isMobile,

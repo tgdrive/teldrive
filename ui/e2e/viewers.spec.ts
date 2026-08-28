@@ -93,7 +93,7 @@ async function installViewerApi(
         },
       });
     }
-    const content = path.match(/^\/v1\/files\/([^/]+)\/content$/)?.[1];
+    const content = path.match(/^\/v1\/files\/([^/]+)\/content(?:\/[^/]+)?$/)?.[1];
     if (content === pdfId) {
       if (stats) stats.pdfContentRequests += 1;
       return route.fulfill({ body: pdf, contentType: "application/pdf" });

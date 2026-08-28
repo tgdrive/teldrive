@@ -42,6 +42,7 @@
             text = ''
               export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath playwrightLibs}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
               export PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="${pkgs.chromium}/bin/chromium"
+              export PLAYWRIGHT_REUSE_EXISTING_SERVER="false"
               exec bun run --cwd ui test "$@"
             '';
           };
