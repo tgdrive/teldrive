@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -28,7 +29,7 @@ type BotProvisionArgs struct {
 func (BotProvisionArgs) Kind() string { return BotProvisionKind }
 
 func (BotProvisionArgs) InsertOpts() river.InsertOpts {
-	return river.InsertOpts{Queue: CleanupQueue, MaxAttempts: 10, Priority: 2}
+	return river.InsertOpts{Queue: CleanupQueue, MaxAttempts: 3, Priority: 2, UniqueOpts: river.UniqueOpts{ByArgs: true}}
 }
 
 type BotProvisionWorker struct {
@@ -66,11 +67,31 @@ func (w *BotProvisionWorker) Work(ctx context.Context, job *river.Job[BotProvisi
 			return fmt.Errorf("verify pending bot %d: %w", botID, verifyErr)
 		}
 		username := strings.TrimSpace(row.Username.String)
+		var wg sync.WaitGroup
+		var inviteErr error
+		var inviteMu sync.Mutex
+		sem := make(chan struct{}, 3)
 		for _, channel := range channels {
-			if inviteErr := w.inviter.InviteBot(ctx, job.Args.UserID, channel.ChannelID, username); inviteErr != nil {
-				_ = w.bots.MarkProvisionFailure(ctx, job.Args.UserID, botID, inviteErr)
-				return fmt.Errorf("provision bot %d in channel %d: %w", botID, channel.ChannelID, inviteErr)
-			}
+			channel := channel
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				sem <- struct{}{}
+				defer func() { <-sem }()
+
+				if err := w.inviter.InviteBot(ctx, job.Args.UserID, channel.ChannelID, username); err != nil {
+					inviteMu.Lock()
+					if inviteErr == nil {
+						inviteErr = err
+					}
+					inviteMu.Unlock()
+				}
+			}()
+		}
+		wg.Wait()
+		if inviteErr != nil {
+			_ = w.bots.MarkProvisionFailure(ctx, job.Args.UserID, botID, inviteErr)
+			return fmt.Errorf("provision bot %d: %w", botID, inviteErr)
 		}
 		slog.InfoContext(ctx, "Telegram bot provisioned", "job_id", job.ID, "user_id", job.Args.UserID, "bot_id", botID, "bot_username", username, "channel_count", len(channels))
 	}

@@ -123,13 +123,19 @@ function PublicSharePage() {
 
   useEffect(() => setSelectedKeys(new Set()), [path, query]);
 
-  const publicDownloadUrl = (file: FileEntry) => {
+  const publicContentUrl = (file: FileEntry) => {
     const isRootFile = share?.file.kind === "file" && file.id === share.file.id;
     const fileName = encodeURIComponent(file.name);
     const endpoint = isRootFile
-      ? `/v1/public/shares/${encodeURIComponent(token)}/content/${fileName}?download=1`
-      : `/v1/public/shares/${encodeURIComponent(token)}/files/${encodeURIComponent(file.id)}/content/${fileName}?download=1`;
+      ? `/v1/public/shares/${encodeURIComponent(token)}/content/${fileName}`
+      : `/v1/public/shares/${encodeURIComponent(token)}/files/${encodeURIComponent(file.id)}/content/${fileName}`;
     return new URL(`/api${endpoint}`, window.location.origin).toString();
+  };
+
+  const publicDownloadUrl = (file: FileEntry) => {
+    const url = new URL(publicContentUrl(file));
+    url.searchParams.set("download", "1");
+    return url.toString();
   };
 
   const download = async (file: FileEntry) => {
@@ -155,14 +161,14 @@ function PublicSharePage() {
 
   const copyDownloadLink = async (file: FileEntry) => {
     if (activePassword) {
-      toast.error("Direct download links are unavailable for password-protected shares");
+      toast.error("Direct links are unavailable for password-protected shares");
       return;
     }
     try {
-      await copyText(publicDownloadUrl(file));
-      toast.success("Download link copied");
+      await copyText(publicContentUrl(file));
+      toast.success("Direct link copied");
     } catch (cause) {
-      toast.error("Download link could not be copied", {
+      toast.error("Direct link could not be copied", {
         description: userMessage(cause),
       });
     }

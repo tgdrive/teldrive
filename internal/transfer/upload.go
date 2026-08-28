@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
 	"io"
 	"strings"
 	"time"
@@ -122,6 +123,7 @@ func (p *Pipeline) UploadPart(ctx context.Context, request UploadPartRequest) (*
 	} else if !errors.Is(err, uploads.ErrNotFound) {
 		return nil, err
 	}
+	slog.DebugContext(ctx, "upload part started", "upload_id", request.UploadID, "part_no", request.PartNo, "plain_size", request.PlainSize, "requested_channel_id", request.RequestedChannelID)
 
 	channelID, err := p.channels.Resolve(ctx, request.UserID, request.RequestedChannelID)
 	if err != nil {
@@ -190,6 +192,7 @@ func (p *Pipeline) UploadPart(ctx context.Context, request UploadPartRequest) (*
 		Size:      storedSize,
 		Threads:   p.config.UploadThreads,
 	})
+	slog.DebugContext(ctx, "uploading part to telegram", "upload_id", request.UploadID, "part_no", request.PartNo, "channel_id", channelID, "stored_size", storedSize, "threads", p.config.UploadThreads)
 	if err != nil {
 		if renewErr := pendingRenewError(renewErrors); renewErr != nil {
 			err = errors.Join(err, renewErr)
@@ -243,6 +246,7 @@ func (p *Pipeline) UploadPart(ctx context.Context, request UploadPartRequest) (*
 		cleanupErr := p.deleteUploaded(ctx, request.UserID, stored)
 		return nil, errors.Join(err, cleanupErr)
 	}
+	slog.DebugContext(ctx, "upload part completed", "upload_id", request.UploadID, "part_no", request.PartNo, "channel_id", stored.ChannelID, "message_id", stored.MessageID, "stored_size", stored.Size)
 	return &UploadPartResult{Part: part}, nil
 }
 

@@ -858,22 +858,25 @@ func setBotAdmin(ctx context.Context, api *tg.Client, channel tg.InputChannelCla
 	if api == nil || channel == nil || bot == nil {
 		return ErrInvalidRequest
 	}
+
+	required := tg.ChatAdminRights{
+		ChangeInfo:     true,
+		PostMessages:   true,
+		EditMessages:   true,
+		DeleteMessages: true,
+		BanUsers:       true,
+		InviteUsers:    true,
+		PinMessages:    true,
+		ManageCall:     true,
+		Other:          true,
+		ManageTopics:   true,
+	}
+
 	_, err := api.ChannelsEditAdmin(ctx, &tg.ChannelsEditAdminRequest{
-		Channel: channel,
-		UserID:  bot,
-		AdminRights: tg.ChatAdminRights{
-			ChangeInfo:     true,
-			PostMessages:   true,
-			EditMessages:   true,
-			DeleteMessages: true,
-			BanUsers:       true,
-			InviteUsers:    true,
-			PinMessages:    true,
-			ManageCall:     true,
-			Other:          true,
-			ManageTopics:   true,
-		},
-		Rank: "bot",
+		Channel:     channel,
+		UserID:      bot,
+		AdminRights: required,
+		Rank:        "bot",
 	})
 	return err
 }
