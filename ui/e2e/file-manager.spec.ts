@@ -480,12 +480,7 @@ test("file operation shortcuts are guarded and update visible state", async ({
   await expect(createFolder).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(createFolder).toBeHidden();
-  await page.keyboard.press("Control+KeyF");
-  const search = page.getByRole("textbox", { name: "Search this folder" });
-  await expect(search).toBeFocused();
-  await search.fill("alpha");
-  await page.keyboard.press("Control+KeyA");
-  await expect(search).toHaveValue("alpha");
+  await expect(page.getByRole("textbox", { name: "Search this folder" })).toHaveCount(0);
   await expect(page.getByText(/selected$/)).toBeHidden();
 });
 
@@ -526,25 +521,19 @@ test("split view keeps pane navigation independent and uses browser history", as
   const secondary = page.getByTestId("file-pane-secondary");
   await expect(primary).toBeVisible();
   await expect(secondary).toBeVisible();
-  await expect(primary.getByRole("button", { name: "Close split view" })).toBeVisible();
+  await expect(secondary.getByRole("button", { name: "Close split view" })).toBeVisible();
 
-  const secondarySearch = secondary.getByRole("textbox", { name: "Search this folder" });
-  const searchFieldWidth = () =>
-    secondarySearch.evaluate((input) => {
-      let element: HTMLElement | null = input as HTMLElement;
-      while (element && !element.classList.contains("w-9")) element = element.parentElement;
-      return element?.getBoundingClientRect().width ?? 0;
-    });
-  await expect.poll(searchFieldWidth).toBeLessThanOrEqual(40);
-  await secondarySearch.focus();
-  await expect.poll(searchFieldWidth).toBeGreaterThan(160);
-  await page.keyboard.press("Escape");
+  await expect(primary.getByRole("textbox", { name: "Search this folder" })).toHaveCount(0);
+  await expect(secondary.getByRole("textbox", { name: "Search this folder" })).toHaveCount(0);
+  await expect(secondary.getByRole("button", { name: "Back" })).toBeVisible();
+  await expect(secondary.getByRole("button", { name: "Up one folder" })).toBeDisabled();
 
   const primaryFolder = primary.getByRole("navigation", { name: "Current folder" });
   const secondaryFolder = secondary.getByRole("navigation", { name: "Current folder" });
   await secondary.getByRole("row", { name: /Destination/ }).dblclick();
   await expect(secondaryFolder).toContainText("Destination");
   await expect(primaryFolder).not.toContainText("Destination");
+  await expect(secondary.getByRole("button", { name: "Up one folder" })).toBeEnabled();
 
   await page.goBack();
   await expect(secondaryFolder).not.toContainText("Destination");
@@ -561,6 +550,9 @@ test("touch opens items and exposes an explicit multi-selection control", async 
 }) => {
   test.skip(!isMobile, "touch-only file interaction");
   await page.goto("/files");
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth))
+    .toBeLessThanOrEqual(1);
   await page
     .getByRole("row", { name: /alpha\.txt/ })
     .locator('[data-slot="checkbox-control"]')
@@ -574,4 +566,8 @@ test("touch opens items and exposes an explicit multi-selection control", async 
   await expect(page.getByRole("navigation", { name: "Current folder" })).toContainText(
     "Destination",
   );
+  await expect(page.getByRole("button", { name: "Up one folder" })).toBeEnabled();
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth))
+    .toBeLessThanOrEqual(1);
 });

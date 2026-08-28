@@ -35,7 +35,6 @@ function PublicSharePage() {
   const [items, setItems] = useState<FileEntry[]>([]);
   const [path, setPath] = useState("/");
   const [pathIds, setPathIds] = useState<Record<string, string>>({});
-  const [query, setQuery] = useState("");
   const [view, setView] = useState<FileBrowserView>("list");
   const [loading, setLoading] = useState(true);
   const [needsPassword, setNeedsPassword] = useState(false);
@@ -64,7 +63,6 @@ function PublicSharePage() {
     setPathIds({ "/": next.file.id });
     setNeedsPassword(false);
     setPath("/");
-    setQuery("");
   };
 
   useEffect(() => {
@@ -94,7 +92,6 @@ function PublicSharePage() {
     }
     const params = new URLSearchParams({ limit: "200" });
     if (path !== "/") params.set("path", path.slice(1));
-    if (query.trim()) params.set("search", query.trim());
     const response = await apiFetch(
       `/v1/public/shares/${encodeURIComponent(token)}/files?${params.toString()}`,
       {
@@ -119,9 +116,9 @@ function PublicSharePage() {
         if (!controller.signal.aborted) setLoading(false);
       });
     return () => controller.abort();
-  }, [share, token, activePassword, path, query]);
+  }, [share, token, activePassword, path]);
 
-  useEffect(() => setSelectedKeys(new Set()), [path, query]);
+  useEffect(() => setSelectedKeys(new Set()), [path]);
 
   const publicContentUrl = (file: FileEntry) => {
     const isRootFile = share?.file.kind === "file" && file.id === share.file.id;
@@ -179,7 +176,6 @@ function PublicSharePage() {
       const nextPath = joinPath(path, file.name);
       setPathIds((current) => ({ ...current, [nextPath]: file.id }));
       setPath(nextPath);
-      setQuery("");
       return;
     }
     void download(file);
@@ -395,13 +391,8 @@ function PublicSharePage() {
                   path={path}
                   rootLabel={share.file.name}
                   view={view}
-                  query={query}
                   loading={loading}
-                  onQueryChange={setQuery}
-                  onNavigatePath={(nextPath) => {
-                    setPath(nextPath);
-                    setQuery("");
-                  }}
+                  onNavigatePath={(nextPath) => setPath(nextPath)}
                   onViewChange={setView}
                   onOpen={openFile}
                   selection={{

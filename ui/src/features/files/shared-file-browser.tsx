@@ -1,6 +1,6 @@
 import { Button, Input, Label, Spinner, TextField } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
-import { useDeferredValue, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FileTrigger, type Selection } from "react-aria-components";
 import { toast } from "sonner";
 import DownloadIcon from "~icons/gravity-ui/arrow-down-to-line";
@@ -51,8 +51,6 @@ export function sharedBrowserSearch(search: Record<string, unknown>): SharedBrow
 }
 
 export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserProps) {
-  const [queryDraft, setQueryDraft] = useState(search.query);
-  const deferredQuery = useDeferredValue(queryDraft.trim());
   const [previewFile, setPreviewFile] = useState<FileEntry>();
   const [selectedKeys, setSelectedKeys] = useState<Selection>(new Set());
   const [folderDialogOpen, setFolderDialogOpen] = useState(false);
@@ -89,13 +87,6 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
     enabled: !atRoot,
   });
 
-  useEffect(() => setQueryDraft(search.query), [search.query]);
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      if (deferredQuery !== search.query) navigate({ ...search, query: deferredQuery }, true);
-    }, 250);
-    return () => window.clearTimeout(timer);
-  }, [deferredQuery, navigate, search]);
   useEffect(() => setSelectedKeys(new Set()), [search.parentId, search.path, search.query]);
 
   const incomingEntries = sharedWithMeQuery.data ?? [];
@@ -273,9 +264,7 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
           path={search.path}
           rootLabel={rootLabel}
           view={search.view}
-          query={queryDraft}
           loading={loading}
-          onQueryChange={setQueryDraft}
           onNavigatePath={(path) => {
             if (path === "/") {
               navigate({ path: "/", query: "", view: search.view }, true);
@@ -288,6 +277,7 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
           }}
           onViewChange={(view) => navigate({ ...search, view }, true)}
           onOpen={openFile}
+          onBack={() => window.history.back()}
           selection={{
             selectedKeys,
             onSelectionChange: setSelectedKeys,

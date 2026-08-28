@@ -1,7 +1,7 @@
 import { Button, Dropdown, Input, Label, Spinner, TextField } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useDeferredValue, useEffect, useEffectEvent, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { DropZone, FileTrigger, type Selection } from "react-aria-components";
 import { toast } from "sonner";
 import UploadIcon from "~icons/gravity-ui/arrow-up-from-line";
@@ -100,10 +100,6 @@ function FilesPage() {
 
   const [activePane, setActivePane] = useState<PaneId>("primary");
   const activePaneRef = useRef<PaneId>("primary");
-  const [primaryQueryDraft, setPrimaryQueryDraft] = useState(primaryLocation.query);
-  const [secondaryQueryDraft, setSecondaryQueryDraft] = useState(secondaryLocation.query);
-  const deferredPrimaryQuery = useDeferredValue(primaryQueryDraft.trim());
-  const deferredSecondaryQuery = useDeferredValue(secondaryQueryDraft.trim());
   const [primarySelectedKeys, setPrimarySelectedKeys] = useState<Selection>(new Set());
   const [secondarySelectedKeys, setSecondarySelectedKeys] = useState<Selection>(new Set());
   const [folderDialogOpen, setFolderDialogOpen] = useState(false);
@@ -114,8 +110,6 @@ function FilesPage() {
   const [renameName, setRenameName] = useState("");
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   const [shareFile, setShareFile] = useState<FileEntry>();
-  const primarySearchInputRef = useRef<HTMLInputElement>(null);
-  const secondarySearchInputRef = useRef<HTMLInputElement>(null);
   const primaryUploadFilesTriggerRef = useRef<HTMLButtonElement>(null);
   const primaryUploadFolderTriggerRef = useRef<HTMLButtonElement>(null);
   const secondaryUploadFilesTriggerRef = useRef<HTMLButtonElement>(null);
@@ -149,28 +143,6 @@ function FilesPage() {
   const primaryFiles = primaryFileQuery.data?.pages.flatMap((page) => page.items) ?? [];
   const secondaryFiles = secondaryFileQuery.data?.pages.flatMap((page) => page.items) ?? [];
 
-  useEffect(() => setPrimaryQueryDraft(primaryLocation.query), [primaryLocation.query]);
-  useEffect(() => setSecondaryQueryDraft(secondaryLocation.query), [secondaryLocation.query]);
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      if (deferredPrimaryQuery !== primaryLocation.query) {
-        navigate({ search: { ...search, query: deferredPrimaryQuery }, replace: true });
-      }
-    }, 250);
-    return () => window.clearTimeout(timer);
-  }, [deferredPrimaryQuery, navigate, primaryLocation.query, search]);
-  useEffect(() => {
-    if (!search.split) return;
-    const timer = window.setTimeout(() => {
-      if (deferredSecondaryQuery !== secondaryLocation.query) {
-        navigate({
-          search: { ...search, secondaryQuery: deferredSecondaryQuery },
-          replace: true,
-        });
-      }
-    }, 250);
-    return () => window.clearTimeout(timer);
-  }, [deferredSecondaryQuery, navigate, search, secondaryLocation.query]);
   useEffect(
     () => setPrimarySelectedKeys(new Set()),
     [primaryLocation.parentId, primaryLocation.path, primaryLocation.query],
@@ -245,7 +217,6 @@ function FilesPage() {
 
   const openSplitView = () => {
     if (search.split) return;
-    setSecondaryQueryDraft(primaryLocation.query);
     setSecondarySelectedKeys(new Set());
     navigate({
       search: {
@@ -394,16 +365,6 @@ function FilesPage() {
       setFolderDialogOpen(true);
       return;
     }
-    if (command && event.key.toLowerCase() === "f") {
-      event.preventDefault();
-      const input =
-        pane === "secondary" && search.split
-          ? secondarySearchInputRef.current
-          : primarySearchInputRef.current;
-      input?.focus();
-      input?.select();
-      return;
-    }
     if (event.altKey && event.key === "ArrowUp") {
       event.preventDefault();
       navigateToParent(pane);
@@ -456,13 +417,23 @@ function FilesPage() {
       pane === "secondary" ? secondaryUploadFolderTriggerRef : primaryUploadFolderTriggerRef;
     return (
       <>
-        {pane === "primary" ? (
+        {pane === "primary" && !search.split ? (
           <Button
             isIconOnly
             size="sm"
             variant="secondary"
-            aria-label={search.split ? "Close split view" : "Open split view"}
-            onPress={search.split ? closeSplitView : openSplitView}
+            aria-label="Open split view"
+            onPress={openSplitView}
+          >
+            <SplitIcon className="size-4" />
+          </Button>
+        ) : pane === "secondary" && search.split ? (
+          <Button
+            isIconOnly
+            size="sm"
+            variant="ghost"
+            aria-label="Close split view"
+            onPress={closeSplitView}
           >
             <SplitIcon className="size-4" />
           </Button>
@@ -654,18 +625,10 @@ function FilesPage() {
     const files = paneFiles(pane);
     const selectedKeys = paneSelectedKeys(pane);
     const fileQuery = pane === "secondary" ? secondaryFileQuery : primaryFileQuery;
-    const queryDraft = pane === "secondary" ? secondaryQueryDraft : primaryQueryDraft;
-    const setQueryDraft = pane === "secondary" ? setSecondaryQueryDraft : setPrimaryQueryDraft;
-    const searchInputRef = pane === "secondary" ? secondarySearchInputRef : primarySearchInputRef;
     return (
       <div
         data-testid={`file-pane-${pane}`}
-        className={[
-          "flex min-h-0 min-w-0 flex-1 rounded-xl",
-          search.split ? "ring-1 ring-border/50 focus-within:ring-accent/40" : "",
-        ]
-          .filter(Boolean)
-          .join(" ")}
+        className="flex min-h-0 min-w-0 flex-1 rounded-xl"
       >
         <DropZone
           data-testid={pane === "primary" ? "file-drop-zone" : "file-drop-zone-secondary"}
@@ -691,15 +654,13 @@ function FilesPage() {
                 path={location.path}
                 rootLabel="My files"
                 view={location.view}
-                query={queryDraft}
                 loading={fileQuery.isPending}
-                onQueryChange={setQueryDraft}
                 onNavigatePath={(path) =>
                   navigatePane(pane, { path, query: "", view: location.view })
                 }
                 onViewChange={(view) => navigatePane(pane, { ...location, view }, true)}
                 onOpen={(file) => openFile(file, pane)}
-                searchInputRef={searchInputRef}
+                onBack={() => window.history.back()}
                 selection={{
                   selectedKeys,
                   onSelectionChange: (selection) => setPaneSelectedKeys(pane, selection),

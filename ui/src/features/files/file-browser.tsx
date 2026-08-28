@@ -1,5 +1,5 @@
-import { Button, Card, Checkbox, InputGroup, Spinner, TextField } from "@heroui/react";
-import type { ReactNode, RefObject } from "react";
+import { Button, Card, Checkbox, Spinner } from "@heroui/react";
+import type { ReactNode } from "react";
 import {
   Collection,
   GridLayout,
@@ -10,11 +10,12 @@ import {
   type Selection,
   Virtualizer,
 } from "react-aria-components";
+import BackIcon from "~icons/gravity-ui/arrow-left";
+import UpIcon from "~icons/gravity-ui/chevron-up";
 import FileIcon from "~icons/gravity-ui/file";
 import FolderIcon from "~icons/gravity-ui/folder";
 import GridIcon from "~icons/gravity-ui/layout-cells";
 import ListIcon from "~icons/gravity-ui/list-ul";
-import SearchIcon from "~icons/gravity-ui/magnifier";
 import type { FileEntry } from "@/api/types";
 
 export type FileBrowserView = "list" | "grid";
@@ -24,13 +25,12 @@ type FileBrowserProps = {
   path: string;
   rootLabel: string;
   view: FileBrowserView;
-  query: string;
   loading: boolean;
-  onQueryChange: (value: string) => void;
   onNavigatePath: (path: string) => void;
   onViewChange: (view: FileBrowserView) => void;
   onOpen: (file: FileEntry) => void;
   toolbar?: ReactNode;
+  onBack?: () => void;
   selection?: {
     selectedKeys: Selection;
     onSelectionChange: (selection: Selection) => void;
@@ -40,7 +40,6 @@ type FileBrowserProps = {
   hasNextPage?: boolean;
   isLoadingMore?: boolean;
   onLoadMore?: () => void;
-  searchInputRef?: RefObject<HTMLInputElement | null>;
   emptyHint?: string;
 };
 
@@ -49,25 +48,42 @@ export function FileBrowser({
   path,
   rootLabel,
   view,
-  query,
   loading,
-  onQueryChange,
   onNavigatePath,
   onViewChange,
   onOpen,
   toolbar,
+  onBack,
   selection,
   selectionOverlay,
   hasNextPage = false,
   isLoadingMore = false,
   onLoadMore,
-  searchInputRef,
   emptyHint = "This folder is empty.",
 }: FileBrowserProps) {
   return (
     <Card className="@container/file-browser relative flex min-h-0 min-w-0 flex-1 flex-col gap-0 overflow-hidden border border-border bg-surface/80 shadow-sm">
       <Card.Header className="shrink-0 border-b border-border px-3 py-3 sm:px-4">
-        <div className="flex min-w-0 items-center gap-2">
+        <div className="flex min-w-0 items-center gap-1.5">
+          {onBack ? (
+            <Button isIconOnly size="sm" variant="ghost" aria-label="Back" onPress={onBack}>
+              <BackIcon className="size-4" />
+            </Button>
+          ) : null}
+          <Button
+            isIconOnly
+            size="sm"
+            variant="ghost"
+            aria-label="Up one folder"
+            isDisabled={path === "/"}
+            onPress={() => {
+              const parts = path.split("/").filter(Boolean);
+              const parentPath = parts.length <= 1 ? "/" : `/${parts.slice(0, -1).join("/")}`;
+              onNavigatePath(parentPath);
+            }}
+          >
+            <UpIcon className="size-4" />
+          </Button>
           <div className="min-w-0 flex-1 overflow-hidden">
             <FileBrowserBreadcrumb
               path={path}
@@ -75,31 +91,7 @@ export function FileBrowser({
               onNavigatePath={onNavigatePath}
             />
           </div>
-          <TextField
-            name="file-search"
-            aria-label="Search this folder"
-            value={query}
-            onChange={onQueryChange}
-            className="w-9 min-w-9 shrink-0 overflow-hidden transition-[width] duration-150 focus-within:w-56 @3xl/file-browser:w-56 @5xl/file-browser:w-72"
-          >
-            <InputGroup
-              onPointerDown={(event) => {
-                const input = event.currentTarget.querySelector("input");
-                if (input && document.activeElement !== input) input.focus();
-              }}
-            >
-              <InputGroup.Prefix>
-                <SearchIcon className="size-4 text-muted" />
-              </InputGroup.Prefix>
-              <InputGroup.Input
-                ref={searchInputRef}
-                aria-label="Search this folder"
-                placeholder="Search this folder"
-                className="min-w-0 opacity-0 transition-opacity focus:opacity-100 @3xl/file-browser:opacity-100"
-              />
-            </InputGroup>
-          </TextField>
-          <div className="flex shrink-0 items-center gap-1.5">
+          <div className="flex shrink-0 items-center gap-1">
             {toolbar}
             <Button
               isIconOnly
@@ -348,6 +340,7 @@ function FileBrowserBreadcrumb({
   onNavigatePath: (path: string) => void;
 }) {
   const parts = path.split("/").filter(Boolean);
+  const lastIndex = parts.length - 1;
   return (
     <nav
       aria-label="Current folder"
@@ -356,24 +349,43 @@ function FileBrowserBreadcrumb({
       <Button
         size="sm"
         variant="ghost"
-        className="h-auto min-w-0 rounded-lg px-2 py-1 text-muted hover:text-foreground"
+        aria-label={rootLabel}
+        className="h-8 max-w-9 shrink-0 gap-1.5 overflow-hidden rounded-lg px-2 text-muted hover:text-foreground @lg/file-browser:max-w-44"
         onPress={() => onNavigatePath("/")}
       >
-        {rootLabel}
+        <FolderIcon className="size-4 shrink-0" />
+        <span className="hidden truncate @lg/file-browser:inline">{rootLabel}</span>
       </Button>
       {parts.map((part, index) => {
         const currentPath = `/${parts.slice(0, index + 1).join("/")}`;
+        const isCurrent = index === lastIndex;
+        const isParent = index === lastIndex - 1;
+        const visibility = isCurrent
+          ? "flex"
+          : isParent
+            ? "hidden @md/file-browser:flex"
+            : "hidden @4xl/file-browser:flex";
         return (
-          <span key={currentPath} className="flex min-w-0 items-center gap-1">
-            <span className="text-muted">/</span>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="h-auto min-w-0 truncate rounded-lg px-2 py-1 text-muted hover:text-foreground"
-              onPress={() => onNavigatePath(currentPath)}
-            >
-              {part}
-            </Button>
+          <span key={currentPath} className={`${visibility} min-w-0 items-center gap-1`}>
+            <span className="shrink-0 text-muted/60">/</span>
+            {isCurrent ? (
+              <span
+                aria-current="page"
+                className="min-w-0 truncate px-1 text-sm font-medium text-foreground"
+                title={part}
+              >
+                {part}
+              </span>
+            ) : (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 min-w-0 max-w-40 truncate rounded-lg px-2 text-muted hover:text-foreground"
+                onPress={() => onNavigatePath(currentPath)}
+              >
+                {part}
+              </Button>
+            )}
           </span>
         );
       })}
