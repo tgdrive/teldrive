@@ -37,6 +37,8 @@ type FileBrowserProps = {
     onClearSelection: () => void;
   };
   selectionOverlay?: ReactNode;
+
+  dimmedIds?: ReadonlySet<string>;
   hasNextPage?: boolean;
   isLoadingMore?: boolean;
   onLoadMore?: () => void;
@@ -56,6 +58,8 @@ export function FileBrowser({
   onBack,
   selection,
   selectionOverlay,
+
+  dimmedIds,
   hasNextPage = false,
   isLoadingMore = false,
   onLoadMore,
@@ -126,6 +130,8 @@ export function FileBrowser({
               view={view}
               selection={selection}
               onOpen={onOpen}
+
+              dimmedIds={dimmedIds}
               hasNextPage={hasNextPage}
               isLoadingMore={isLoadingMore}
               onLoadMore={onLoadMore}
@@ -144,6 +150,8 @@ function FileCollection({
   view,
   selection,
   onOpen,
+
+  dimmedIds,
   hasNextPage,
   isLoadingMore,
   onLoadMore,
@@ -153,6 +161,8 @@ function FileCollection({
   view: FileBrowserView;
   selection?: FileBrowserProps["selection"];
   onOpen: (file: FileEntry) => void;
+
+  dimmedIds?: ReadonlySet<string>;
   hasNextPage: boolean;
   isLoadingMore: boolean;
   onLoadMore?: () => void;
@@ -195,7 +205,7 @@ function FileCollection({
             : `h-full min-h-0 overflow-x-hidden overflow-y-auto outline-none ${hasSelection ? "pb-24" : ""}`
         }
       >
-        <Collection items={files}>
+        <Collection items={files} dependencies={[dimmedIds]}>
           {(file) => (
             <GridListItem
               id={file.id}
@@ -206,6 +216,8 @@ function FileCollection({
                       "group flex min-h-36 cursor-default flex-col justify-between rounded-xl border border-border bg-background/35 p-3 outline-none transition",
                       "hover:-translate-y-0.5 hover:border-accent/30 hover:shadow-md",
                       state.isSelected && "border-accent bg-accent/10",
+
+                      dimmedIds?.has(file.id) && "opacity-45",
                       state.isFocusVisible && "ring-2 ring-accent/30",
                     ]
                       .filter(Boolean)
@@ -214,6 +226,8 @@ function FileCollection({
                       "group grid min-h-14 cursor-default grid-cols-[minmax(0,1fr)] items-center gap-2 border-b border-border px-3 outline-none transition last:border-b-0 sm:grid-cols-[minmax(0,1fr)_6rem] sm:px-4 lg:grid-cols-[minmax(0,1fr)_8rem_10rem] lg:gap-4",
                       "hover:bg-default/20",
                       state.isSelected && "bg-accent/10",
+
+                      dimmedIds?.has(file.id) && "opacity-45",
                       state.isFocusVisible && "ring-2 ring-inset ring-accent/30",
                     ]
                       .filter(Boolean)

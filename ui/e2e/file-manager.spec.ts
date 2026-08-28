@@ -47,6 +47,26 @@ async function installFileApi(page: Page) {
       file({ id: betaId, name: "beta.txt", kind: "file", mimeType: "text/plain", size: 20 }),
     ],
   ]);
+  const findNameConflict = (parentId: string | undefined, name: string, excludeId?: string) =>
+    [...files.values()].find(
+      (candidate) =>
+        candidate.id !== excludeId &&
+        candidate.status === "active" &&
+        candidate.parentId === parentId &&
+        candidate.name.toLowerCase() === name.toLowerCase(),
+    );
+  const nextAvailableName = (parentId: string | undefined, name: string, excludeId?: string) => {
+    const dot = name.lastIndexOf(".");
+    const stem = dot > 0 ? name.slice(0, dot) : name;
+    const extension = dot > 0 ? name.slice(dot) : "";
+    let index = 1;
+    let candidate = `${stem} (${index})${extension}`;
+    while (findNameConflict(parentId, candidate, excludeId)) {
+      index += 1;
+      candidate = `${stem} (${index})${extension}`;
+    }
+    return candidate;
+  };
 
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
@@ -201,19 +221,50 @@ async function installFileApi(page: Page) {
         return route.fulfill({ json: renamed });
       }
       if (method === "POST" && operation === "copy") {
-        const body = request.postDataJSON() as { parentId?: string; name?: string };
+        const body = request.postDataJSON() as {
+          parentId?: string;
+          name?: string;
+          conflictPolicy?: "fail" | "rename" | "replace";
+        };
+        let name = body.name ?? entry.name;
+        const conflict = findNameConflict(body.parentId, name);
+        if (conflict) {
+          if (body.conflictPolicy === "rename") name = nextAvailableName(body.parentId, name);
+          else if (body.conflictPolicy === "replace") files.delete(conflict.id);
+          else {
+            return route.fulfill({
+              status: 409,
+              json: { error: { code: "name_conflict", message: "Name already exists" } },
+            });
+          }
+        }
         const copied = file({
           ...entry,
           id: crypto.randomUUID(),
           parentId: body.parentId,
-          name: body.name ?? entry.name,
+          name,
         });
         files.set(copied.id, copied);
         return route.fulfill({ status: 201, json: copied });
       }
       if (method === "POST" && operation === "move") {
-        const body = request.postDataJSON() as { parentId?: string };
-        const moved = { ...entry, parentId: body.parentId, generation: entry.generation + 1 };
+        const body = request.postDataJSON() as {
+          parentId?: string;
+          conflictPolicy?: "fail" | "rename" | "replace";
+        };
+        let name = entry.name;
+        const conflict = findNameConflict(body.parentId, name, id);
+        if (conflict) {
+          if (body.conflictPolicy === "rename") name = nextAvailableName(body.parentId, name, id);
+          else if (body.conflictPolicy === "replace") files.delete(conflict.id);
+          else {
+            return route.fulfill({
+              status: 409,
+              json: { error: { code: "name_conflict", message: "Name already exists" } },
+            });
+          }
+        }
+        const moved = { ...entry, parentId: body.parentId, name, generation: entry.generation + 1 };
         files.set(id, moved);
         return route.fulfill({ json: moved });
       }
@@ -484,7 +535,7 @@ test("file operation shortcuts are guarded and update visible state", async ({
   await expect(page.getByText(/selected$/)).toBeHidden();
 });
 
-test("selected files move through the destination picker without clipboard state", async ({
+test("selected files keep the destination picker alongside clipboard actions", async ({
   page,
   isMobile,
 }) => {
@@ -494,7 +545,8 @@ test("selected files move through the destination picker without clipboard state
   await expect(
     page.getByRole("button", { name: "Move selected items", exact: true }),
   ).toBeVisible();
-  await expect(page.getByRole("button", { name: "Cut selected items" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Cut selected items" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Copy selected items" })).toBeVisible();
   await expect(page.getByRole("button", { name: /^Paste / })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Move selected items", exact: true }).click();
@@ -507,6 +559,83 @@ test("selected files move through the destination picker without clipboard state
 
   await page.getByRole("row", { name: /Destination/ }).dblclick();
   await expect(page.getByText("alpha.txt", { exact: true })).toBeVisible();
+});
+
+
+test("split panes cut and copy items directly between folders", async ({ page, isMobile }) => {
+  test.skip(isMobile, "desktop split view");
+  await page.goto("/files");
+  await page.getByRole("button", { name: "Open split view" }).click();
+
+  const primary = page.getByTestId("file-pane-primary");
+  const secondary = page.getByTestId("file-pane-secondary");
+  await secondary.getByRole("row", { name: /Destination/ }).dblclick();
+  await expect(secondary.getByRole("navigation", { name: "Current folder" })).toContainText(
+    "Destination",
+  );
+
+  await primary.getByRole("row", { name: /alpha\.txt/ }).click();
+  await primary.getByRole("button", { name: "Cut selected items" }).click();
+  await expect(primary.getByRole("button", { name: /^Paste 1 clipboard item$/ })).toHaveCount(0);
+  await expect(secondary.getByText("1 cut", { exact: true })).toBeVisible();
+  await expect(secondary.getByRole("button", { name: "Cancel cut" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Clear selection" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Move selected items", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Move selected items to trash" })).toHaveCount(0);
+
+  await secondary.getByRole("button", { name: "Cancel cut" }).click();
+  await expect(page.getByRole("button", { name: /^Paste / })).toHaveCount(0);
+  await expect(primary.getByText("alpha.txt", { exact: true })).toBeVisible();
+
+  await primary.getByRole("row", { name: /alpha\.txt/ }).click();
+  await primary.getByRole("button", { name: "Cut selected items" }).click();
+  await secondary.getByRole("button", { name: /^Paste 1 clipboard item$/ }).click();
+  await expect(primary.getByText("alpha.txt", { exact: true })).toBeHidden();
+  await expect(secondary.getByText("alpha.txt", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Paste / })).toHaveCount(0);
+
+  await secondary.getByRole("row", { name: /alpha\.txt/ }).click();
+  await secondary.getByRole("button", { name: "Copy selected items" }).click();
+  await expect(secondary.getByRole("button", { name: /^Paste 1 clipboard item$/ })).toHaveCount(0);
+  await expect(primary.getByText("1 copied", { exact: true })).toBeVisible();
+  await primary.getByRole("button", { name: /^Paste 1 clipboard item$/ }).click();
+  await expect(primary.getByText("alpha.txt", { exact: true })).toBeVisible();
+  await expect(secondary.getByText("alpha.txt", { exact: true })).toBeVisible();
+  await primary.getByRole("button", { name: "Clear copied items" }).click();
+  await expect(page.getByRole("button", { name: /^Paste / })).toHaveCount(0);
+});
+
+
+test("cut paste asks before resolving a name conflict", async ({ page, isMobile }) => {
+  test.skip(isMobile, "desktop split view");
+  await page.goto("/files");
+  await page.getByRole("button", { name: "Open split view" }).click();
+
+  const primary = page.getByTestId("file-pane-primary");
+  const secondary = page.getByTestId("file-pane-secondary");
+  await secondary.getByRole("row", { name: /Destination/ }).dblclick();
+
+  await primary.getByRole("row", { name: /alpha\.txt/ }).click();
+  await primary.getByRole("button", { name: "Copy selected items" }).click();
+  await secondary.getByRole("button", { name: /^Paste 1 clipboard item$/ }).click();
+  await expect(secondary.getByText("alpha.txt", { exact: true })).toBeVisible();
+  await secondary.getByRole("button", { name: "Clear copied items" }).click();
+
+  await primary.getByRole("row", { name: /alpha\.txt/ }).click();
+  await primary.getByRole("button", { name: "Cut selected items" }).click();
+  await secondary.getByRole("button", { name: /^Paste 1 clipboard item$/ }).click();
+
+  const conflict = page.getByRole("dialog", { name: "Item already exists" });
+  await expect(conflict).toBeVisible();
+  await expect(conflict.getByRole("button", { name: "Replace" })).toBeVisible();
+  await expect(conflict.getByRole("button", { name: "Keep both" })).toBeVisible();
+  await expect(primary.getByText("alpha.txt", { exact: true })).toBeVisible();
+
+  await conflict.getByRole("button", { name: "Keep both" }).click();
+  await expect(conflict).toBeHidden();
+  await expect(primary.getByText("alpha.txt", { exact: true })).toBeHidden();
+  await expect(secondary.getByText("alpha.txt", { exact: true })).toBeVisible();
+  await expect(secondary.getByText("alpha (1).txt", { exact: true })).toBeVisible();
 });
 
 test("split view keeps pane navigation independent and uses browser history", async ({

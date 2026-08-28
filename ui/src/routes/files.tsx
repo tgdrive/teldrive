@@ -5,6 +5,9 @@ import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { DropZone, FileTrigger, type Selection } from "react-aria-components";
 import { toast } from "sonner";
 import UploadIcon from "~icons/gravity-ui/arrow-up-from-line";
+
+import PasteIcon from "~icons/gravity-ui/arrow-right-to-square";
+import CutIcon from "~icons/gravity-ui/scissors";
 import DownloadIcon from "~icons/gravity-ui/arrow-down-to-line";
 import CopyIcon from "~icons/gravity-ui/copy";
 import CopyLinkIcon from "~icons/gravity-ui/copy-arrow-right";
@@ -18,13 +21,15 @@ import PlusIcon from "~icons/gravity-ui/plus";
 import TrashIcon from "~icons/gravity-ui/trash-bin";
 import CloseIcon from "~icons/gravity-ui/xmark";
 import { currentUserQueryOptions } from "../auth/queries";
-import { userMessage } from "../api/errors";
+import { normalizeApiError, userMessage } from "../api/errors";
 import type { FileEntry } from "../api/types";
 import { AppDialog } from "../components/dialogs/app-dialog";
 import { BackgroundUploadDialog } from "../components/background-upload-dialog";
 import { FilePreviewDialog, isPreviewable } from "../components/file-preview-dialog";
 import { Page, PageContent } from "../components/page";
 import { FileBrowser } from "../features/files/file-browser";
+
+import { useFileClipboardStore } from "../features/files/clipboard-store";
 import { ShareDialog } from "../features/files/share-dialog";
 import { FolderPicker } from "../features/files/folder-picker";
 import { absoluteFileDownloadUrl, copyText, startFileDownload } from "../features/files/download";
@@ -110,12 +115,20 @@ function FilesPage() {
   const [renameName, setRenameName] = useState("");
   const [moveDialogOpen, setMoveDialogOpen] = useState(false);
   const [shareFile, setShareFile] = useState<FileEntry>();
+  const [pasteConflictPane, setPasteConflictPane] = useState<PaneId>();
   const primaryUploadFilesTriggerRef = useRef<HTMLButtonElement>(null);
   const primaryUploadFolderTriggerRef = useRef<HTMLButtonElement>(null);
   const secondaryUploadFilesTriggerRef = useRef<HTMLButtonElement>(null);
   const secondaryUploadFolderTriggerRef = useRef<HTMLButtonElement>(null);
   const enqueue = useUploadStore((state) => state.enqueue);
   const fileActions = useFileActions();
+
+  const clipboardMode = useFileClipboardStore((state) => state.mode);
+  const clipboardItems = useFileClipboardStore((state) => state.items);
+  const clipboardSourceParentId = useFileClipboardStore((state) => state.sourceParentId);
+  const clipboardSourcePane = useFileClipboardStore((state) => state.sourcePane);
+  const setClipboard = useFileClipboardStore((state) => state.set);
+  const clearClipboard = useFileClipboardStore((state) => state.clear);
 
   const primaryFileQuery = useInfiniteFilePages(
     {
@@ -173,6 +186,10 @@ function FilesPage() {
   const activeSelectedCount = activeSelectedFiles.length;
   const activeSingleSelectedFile =
     activeSelectedFiles.length === 1 ? activeSelectedFiles[0] : undefined;
+
+  const cutIds =
+    clipboardMode === "cut" ? new Set(clipboardItems.map((file) => file.id)) : undefined;
+  const hasClipboard = Boolean(clipboardMode && clipboardItems.length > 0);
 
   const paneLocation = (pane: PaneId) =>
     pane === "secondary" && search.split ? secondaryLocation : primaryLocation;
@@ -322,6 +339,53 @@ function FilesPage() {
     }
   };
 
+
+  const stageClipboard = (mode: "copy" | "cut", pane: PaneId) => {
+    const files = paneSelectedFiles(pane);
+    if (files.length === 0) return;
+    const location = paneLocation(pane);
+    setClipboard(mode, files, location.parentId, location.path, pane);
+    setPaneSelectedKeys(pane, new Set());
+  };
+
+  const pasteClipboard = async (
+    pane: PaneId,
+    cutConflictPolicy: "fail" | "rename" | "replace" = "fail",
+  ) => {
+    if (!clipboardMode || clipboardItems.length === 0) return;
+    const location = paneLocation(pane);
+    if (clipboardMode === "cut" && clipboardSourceParentId === location.parentId) {
+      toast.info("Items are already in this folder");
+      return;
+    }
+    try {
+      if (clipboardMode === "copy") {
+        await fileActions.copyMany(clipboardItems, location.parentId, "rename");
+      } else if (clipboardItems.length === 1) {
+        await fileActions.move(clipboardItems[0], location.parentId, cutConflictPolicy);
+      } else {
+        await fileActions.bulkMove(
+          clipboardItems.map((file) => file.id),
+          location.parentId,
+          cutConflictPolicy,
+        );
+      }
+      const count = clipboardItems.length;
+      const action = clipboardMode === "copy" ? "copied" : "moved";
+      setPasteConflictPane(undefined);
+      if (clipboardMode === "cut") clearClipboard();
+      setPaneSelectedKeys(pane, new Set());
+      toast.success(`${count} item${count === 1 ? "" : "s"} ${action}`);
+    } catch (error) {
+      const normalized = normalizeApiError(error);
+      if (clipboardMode === "cut" && cutConflictPolicy === "fail" && normalized.status === 409) {
+        setPasteConflictPane(pane);
+        return;
+      }
+      toast.error("Clipboard items could not be pasted", { description: userMessage(error) });
+    }
+  };
+
   const navigateToParent = (pane: PaneId) => {
     const location = paneLocation(pane);
     if (location.path === "/") return;
@@ -347,6 +411,23 @@ function FilesPage() {
     }
     if (isEditableTarget(event.target)) return;
     const command = event.ctrlKey || event.metaKey;
+
+    const key = event.key.toLowerCase();
+    if (command && key === "c" && selectedFiles.length > 0) {
+      event.preventDefault();
+      stageClipboard("copy", pane);
+      return;
+    }
+    if (command && key === "x" && selectedFiles.length > 0) {
+      event.preventDefault();
+      stageClipboard("cut", pane);
+      return;
+    }
+    if (command && key === "v" && hasClipboard) {
+      event.preventDefault();
+      void pasteClipboard(pane);
+      return;
+    }
     if (event.key === "F2" && singleSelectedFile) {
       event.preventDefault();
       setActivePane(pane);
@@ -510,13 +591,78 @@ function FilesPage() {
     const selectedOnlyFiles =
       selectedFiles.length > 0 && selectedFiles.every((file) => file.kind === "file");
     const singleSelectedFile = selectedFiles.length === 1 ? selectedFiles[0] : undefined;
+    const clipboardTargetPane =
+      search.split && clipboardSourcePane
+        ? clipboardSourcePane === "primary"
+          ? "secondary"
+          : "primary"
+        : "primary";
+    const showClipboard = hasClipboard && (!search.split || pane === clipboardTargetPane);
+    const canPasteHere =
+      showClipboard && !(clipboardMode === "cut" && clipboardSourceParentId === paneLocation(pane).parentId);
+    if (showClipboard) {
+      return (
+        <div className="pointer-events-none absolute inset-x-0 bottom-4 z-30 flex justify-center px-4">
+          <div className="pointer-events-auto flex max-w-full items-center gap-1.5 rounded-full border border-border bg-surface/95 p-1.5 shadow-xl backdrop-blur">
+            <span className="shrink-0 rounded-full bg-default/40 px-3 py-2 text-sm font-medium text-foreground">
+              {clipboardItems.length} {clipboardMode === "cut" ? "cut" : "copied"}
+            </span>
+            <Button
+              isIconOnly
+              size="sm"
+              variant="ghost"
+              aria-label={`Paste ${clipboardItems.length} clipboard item${clipboardItems.length === 1 ? "" : "s"}`}
+              isDisabled={fileActions.pending || !canPasteHere}
+              onPress={() => void pasteClipboard(pane)}
+            >
+              <PasteIcon className="size-4" />
+            </Button>
+            <Button
+              isIconOnly
+              size="sm"
+              variant="ghost"
+              aria-label={clipboardMode === "cut" ? "Cancel cut" : "Clear copied items"}
+              onPress={clearClipboard}
+            >
+              <CloseIcon className="size-4" />
+            </Button>
+          </div>
+        </div>
+      );
+    }
     if (selectedCount === 0) return null;
     return (
       <div className="pointer-events-none absolute inset-x-0 bottom-4 z-30 flex justify-center px-4">
         <div className="pointer-events-auto flex max-w-full items-center gap-1.5 overflow-x-auto rounded-full border border-border bg-surface/95 p-1.5 shadow-xl backdrop-blur">
-          <span className="shrink-0 rounded-full bg-accent/10 px-3 py-2 text-sm font-medium text-accent">
-            {selectedCount} selected
-          </span>
+          {selectedCount > 0 ? (
+            <span className="shrink-0 rounded-full bg-accent/10 px-3 py-2 text-sm font-medium text-accent">
+              {selectedCount} selected
+            </span>
+          ) : null}
+          {selectedCount > 0 ? (
+            <>
+              <Button
+                isIconOnly
+                size="sm"
+                variant="ghost"
+                aria-label="Cut selected items"
+                isDisabled={fileActions.pending}
+                onPress={() => stageClipboard("cut", pane)}
+              >
+                <CutIcon className="size-4" />
+              </Button>
+              <Button
+                isIconOnly
+                size="sm"
+                variant="ghost"
+                aria-label="Copy selected items"
+                isDisabled={fileActions.pending}
+                onPress={() => stageClipboard("copy", pane)}
+              >
+                <CopyIcon className="size-4" />
+              </Button>
+            </>
+          ) : null}
           {singleSelectedFile ? (
             <>
               <Button
@@ -675,6 +821,8 @@ function FilesPage() {
                 }}
                 toolbar={renderToolbar(pane)}
                 selectionOverlay={renderSelectionOverlay(pane)}
+
+                dimmedIds={cutIds}
               />
             </div>
           )}
@@ -782,6 +930,45 @@ function FilesPage() {
         description="Choose the destination folder."
       >
         <FolderPicker initialPath="/" onConfirm={(parentId) => void moveSelected(parentId)} />
+      </AppDialog>
+
+      <AppDialog
+        open={pasteConflictPane !== undefined}
+        onOpenChange={(open) => {
+          if (!open) setPasteConflictPane(undefined);
+        }}
+        title="Item already exists"
+        description="The destination already contains an item with the same name."
+        size="md"
+        footer={
+          <>
+            <Button variant="secondary" onPress={() => setPasteConflictPane(undefined)}>
+              Cancel
+            </Button>
+            <Button
+              variant="secondary"
+              isDisabled={fileActions.pending || pasteConflictPane === undefined}
+              onPress={() => {
+                if (pasteConflictPane) void pasteClipboard(pasteConflictPane, "rename");
+              }}
+            >
+              Keep both
+            </Button>
+            <Button
+              variant="danger"
+              isDisabled={fileActions.pending || pasteConflictPane === undefined}
+              onPress={() => {
+                if (pasteConflictPane) void pasteClipboard(pasteConflictPane, "replace");
+              }}
+            >
+              Replace
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-muted">
+          Replace the existing item, or keep both by giving the moved item a new name.
+        </p>
       </AppDialog>
 
       <ShareDialog

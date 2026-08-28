@@ -218,8 +218,9 @@ func (h *Handler) MoveFile(ctx context.Context, req *gen.FileMoveRequest, params
 	if h.Catalog == nil || req == nil {
 		return nil, mapServiceError(ErrOperationUnavailable)
 	}
-	if policy, ok := req.ConflictPolicy.Get(); ok && string(policy) != "fail" {
-		return nil, mapServiceError(uploads.ErrUnsupportedConflictPolicy)
+	policy := "fail"
+	if value, ok := req.ConflictPolicy.Get(); ok {
+		policy = string(value)
 	}
 	generation, err := parseGenerationETag(params.IfMatch)
 	if err != nil {
@@ -243,7 +244,7 @@ func (h *Handler) MoveFile(ctx context.Context, req *gen.FileMoveRequest, params
 			return nil, mapServiceError(shares.ErrForbidden)
 		}
 	}
-	file, err := h.Catalog.Move(ctx, sourceAccess.OwnerID, googleUUID(params.FileId), parentID, generation)
+	file, err := h.Catalog.MoveWithPolicy(ctx, sourceAccess.OwnerID, googleUUID(params.FileId), parentID, generation, policy)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
