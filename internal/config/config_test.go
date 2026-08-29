@@ -45,6 +45,9 @@ func TestDefaultIncludesLegacyPublicTelegramClientIdentity(t *testing.T) {
 	if !cfg.Uploads.HashingEnabled {
 		t.Fatal("Uploads HashingEnabled = false, want true")
 	}
+	if !cfg.Jobs.RunWorkers {
+		t.Fatal("Jobs RunWorkers = false, want true")
+	}
 	if cfg.Cache.Memory.Size.String() != "5MB" {
 		t.Fatalf("memory cache default = %s, want 5MB", cfg.Cache.Memory.Size)
 	}
@@ -96,6 +99,7 @@ func TestLoadFromAppliesEnvironment(t *testing.T) {
 		"TELDRIVE_ENCRYPTION_KEYS":                 "1:first-secret,2:second-secret",
 		"TELDRIVE_UPLOADS_SESSION_TTL":             "72h",
 		"TELDRIVE_UPLOADS_HASHING_ENABLED":         "false",
+		"TELDRIVE_JOBS_RUN_WORKERS":                "false",
 		"TELDRIVE_CACHE_STREAM_DIR":                "/tmp/teldrive-stream-cache",
 		"TELDRIVE_CACHE_STREAM_MAX_SIZE":           "12GB",
 		"TELDRIVE_CACHE_STREAM_SHARD_DEPTH":        "2",
@@ -126,6 +130,9 @@ func TestLoadFromAppliesEnvironment(t *testing.T) {
 	}
 	if cfg.Uploads.SessionTTL != 72*time.Hour || cfg.Uploads.HashingEnabled {
 		t.Fatalf("upload config = %#v", cfg.Uploads)
+	}
+	if cfg.Jobs.RunWorkers {
+		t.Fatalf("jobs config = %#v", cfg.Jobs)
 	}
 	if cfg.Cache.Stream.Dir != "/tmp/teldrive-stream-cache" || cfg.Cache.Stream.MaxSize.String() != "12GB" || cfg.Cache.Stream.ShardDepth != 2 {
 		t.Fatalf("stream cache config = %#v", cfg.Cache.Stream)
@@ -303,6 +310,7 @@ security:
 	if err := flags.Parse([]string{
 		"--config", path,
 		"--http-address", "127.0.0.1:9000",
+		"--jobs-run-workers=false",
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -315,6 +323,9 @@ security:
 	}
 	if cfg.Telegram.UploadThreads != 5 {
 		t.Fatalf("environment did not override file: %d", cfg.Telegram.UploadThreads)
+	}
+	if cfg.Jobs.RunWorkers {
+		t.Fatal("jobs-run-workers flag was not applied")
 	}
 	if cfg.Database.URL != "postgres://file/teldrive" || cfg.Telegram.AppHash != "from-file" {
 		t.Fatalf("config file values not loaded: %#v", cfg)

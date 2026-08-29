@@ -110,6 +110,10 @@ type Uploads struct {
 	LocalImportRoots []string      `koanf:"local-import-roots" default:"" description:"Absolute server directories allowed as local background-upload sources; empty disables local imports"`
 }
 
+type Jobs struct {
+	RunWorkers bool `koanf:"run-workers" default:"true" description:"Run River background job workers in this process"`
+}
+
 type StreamCache struct {
 	Dir          string        `koanf:"dir" default:"" description:"Sparse stream cache directory; empty disables caching"`
 	MaxAge       time.Duration `koanf:"max-age" default:"168h" validate:"gt=0" description:"Maximum age of cached stream data"`
@@ -140,6 +144,7 @@ type Config struct {
 	Logging    Logging         `koanf:"logging"`
 	Events     Events          `koanf:"events"`
 	Uploads    Uploads         `koanf:"uploads"`
+	Jobs       Jobs            `koanf:"jobs"`
 	Cache      Cache           `koanf:"cache"`
 }
 

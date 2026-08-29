@@ -376,11 +376,13 @@ func (a *App) Serve(ctx context.Context, listener net.Listener) error {
 		_ = listener.Close()
 		return fmt.Errorf("start event service: %w", err)
 	}
-	if err := a.jobs.Start(ctx); err != nil {
-		_ = listener.Close()
-		closeCtx, cancel := context.WithTimeout(context.Background(), a.config.HTTP.ShutdownTimeout)
-		defer cancel()
-		return errors.Join(err, a.events.Close(closeCtx))
+	if a.config.Jobs.RunWorkers {
+		if err := a.jobs.Start(ctx); err != nil {
+			_ = listener.Close()
+			closeCtx, cancel := context.WithTimeout(context.Background(), a.config.HTTP.ShutdownTimeout)
+			defer cancel()
+			return errors.Join(err, a.events.Close(closeCtx))
+		}
 	}
 	a.http.BaseContext = func(net.Listener) context.Context { return ctx }
 	serveErrors := make(chan error, 1)
