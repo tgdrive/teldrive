@@ -25,6 +25,7 @@ var transientTelegramMessages = []string{
 	"memory limit exit",
 	"connection dead",
 	"engine was closed",
+	"broken pipe",
 }
 
 type retryMiddleware struct{ max int }
