@@ -51,9 +51,6 @@ func TestDefaultIncludesLegacyPublicTelegramClientIdentity(t *testing.T) {
 	if cfg.Cache.Memory.Size.String() != "5MB" {
 		t.Fatalf("memory cache default = %s, want 5MB", cfg.Cache.Memory.Size)
 	}
-	if cfg.Cache.Stream.Dir != "" || cfg.Cache.Stream.MaxSize.String() != "50GB" || cfg.Cache.Stream.ShardDepth != 1 || cfg.Cache.Stream.ChunkStreams != 4 {
-		t.Fatalf("stream cache defaults = %#v", cfg.Cache.Stream)
-	}
 }
 
 func TestValidateRejectsInvalidTrustedProxy(t *testing.T) {
@@ -90,9 +87,6 @@ func TestLoadFromAppliesEnvironment(t *testing.T) {
 		"TELDRIVE_UPLOADS_SESSION_TTL":             "72h",
 		"TELDRIVE_UPLOADS_HASHING_ENABLED":         "false",
 		"TELDRIVE_JOBS_RUN_WORKERS":                "false",
-		"TELDRIVE_CACHE_STREAM_DIR":                "/tmp/teldrive-stream-cache",
-		"TELDRIVE_CACHE_STREAM_MAX_SIZE":           "12GB",
-		"TELDRIVE_CACHE_STREAM_SHARD_DEPTH":        "2",
 		"TELDRIVE_LOGGING_LOG_LEVEL":               "debug",
 		"TELDRIVE_LOGGING_LOG_FORMAT":              "text",
 	}
@@ -123,9 +117,6 @@ func TestLoadFromAppliesEnvironment(t *testing.T) {
 	}
 	if cfg.Jobs.RunWorkers {
 		t.Fatalf("jobs config = %#v", cfg.Jobs)
-	}
-	if cfg.Cache.Stream.Dir != "/tmp/teldrive-stream-cache" || cfg.Cache.Stream.MaxSize.String() != "12GB" || cfg.Cache.Stream.ShardDepth != 2 {
-		t.Fatalf("stream cache config = %#v", cfg.Cache.Stream)
 	}
 }
 

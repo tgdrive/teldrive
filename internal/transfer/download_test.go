@@ -11,7 +11,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
-	varccache "github.com/tgdrive/varc/cache"
 
 	"github.com/tgdrive/teldrive/v2/internal/db/sqlcgen"
 	"github.com/tgdrive/teldrive/v2/internal/telegramstore"
@@ -140,60 +139,6 @@ func TestDownloadReaderSeekAndConcurrentReadAt(t *testing.T) {
 		}()
 	}
 	wg.Wait()
-}
-
-func TestDownloaderReusesCachedStreamRanges(t *testing.T) {
-	fileID := uuid.New()
-	catalog := &downloadCatalog{
-		file: &sqlcgen.File{
-			ID: pgtype.UUID{Bytes: fileID, Valid: true}, UserID: 7, Name: "file.bin",
-			Kind: sqlcgen.FileKindFile, Size: pgtype.Int8{Int64: 10, Valid: true}, Status: sqlcgen.FileStatusActive, Generation: 1,
-		},
-		parts: []*sqlcgen.FilePart{
-			{PartNo: 1, ChannelID: 11, MessageID: 101, PlainSize: pgtype.Int8{Int64: 10, Valid: true}, StoredSize: pgtype.Int8{Int64: 10, Valid: true}},
-		},
-	}
-	storage := &downloadStorage{data: map[int64][]byte{101: []byte("abcdefghij")}}
-	options := varccache.DefaultOptions()
-	options.CachePollInterval = 0
-	options.ChunkSize = 4
-	options.ChunkSizeLimit = 4
-	options.BufferSize = 4
-	streamCache, err := varccache.New(context.Background(), t.TempDir(), options)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = streamCache.Close() })
-	downloader := NewDownloader(catalog, storage, nil, streamCache)
-
-	read := func() string {
-		download, err := downloader.Open(context.Background(), DownloadRequest{UserID: 7, FileID: fileID, Offset: 2, Length: 6})
-		if err != nil {
-			t.Fatalf("Open() error = %v", err)
-		}
-		defer download.Reader.Close()
-		body, err := io.ReadAll(download.Reader)
-		if err != nil {
-			t.Fatalf("ReadAll() error = %v", err)
-		}
-		return string(body)
-	}
-	if got := read(); got != "cdefgh" {
-		t.Fatalf("first cached read = %q", got)
-	}
-	firstCalls := storage.rangeCalls.Load()
-	if firstCalls == 0 {
-		t.Fatal("first cached read did not fetch the origin")
-	}
-	if opens, closes := storage.sessionOpens.Load(), storage.sessionCloses.Load(); opens != 1 || closes != 1 {
-		t.Fatalf("cached origin sessions = opens:%d closes:%d, want one shared session", opens, closes)
-	}
-	if got := read(); got != "cdefgh" {
-		t.Fatalf("second cached read = %q", got)
-	}
-	if calls := storage.rangeCalls.Load(); calls != firstCalls {
-		t.Fatalf("origin range calls after cache hit = %d, want %d", calls, firstCalls)
-	}
 }
 
 func TestDownloaderResolvesAndBackfillsMissingPartSizes(t *testing.T) {

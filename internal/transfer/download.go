@@ -6,12 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strconv"
 	"sync"
 
 	"github.com/google/uuid"
-	varccache "github.com/tgdrive/varc/cache"
-	varcsource "github.com/tgdrive/varc/source"
 
 	"github.com/tgdrive/teldrive/v2/internal/contentcrypto"
 	"github.com/tgdrive/teldrive/v2/internal/db/sqlcgen"
@@ -39,15 +36,10 @@ type Downloader struct {
 	catalog FileCatalog
 	storage telegramstore.Storage
 	keys    KeyProvider
-	cache   *varccache.Cache
 }
 
-func NewDownloader(catalog FileCatalog, storage telegramstore.Storage, keys KeyProvider, caches ...*varccache.Cache) *Downloader {
-	var streamCache *varccache.Cache
-	if len(caches) > 0 {
-		streamCache = caches[0]
-	}
-	return &Downloader{catalog: catalog, storage: storage, keys: keys, cache: streamCache}
+func NewDownloader(catalog FileCatalog, storage telegramstore.Storage, keys KeyProvider) *Downloader {
+	return &Downloader{catalog: catalog, storage: storage, keys: keys}
 }
 
 type DownloadRequest struct {
@@ -80,9 +72,6 @@ func (d *Downloader) Open(ctx context.Context, request DownloadRequest) (*Downlo
 	}
 	if request.UserID <= 0 || request.FileID == uuid.Nil || request.Offset < 0 || request.Length < -1 {
 		return nil, ErrInvalidDownload
-	}
-	if d.cache != nil {
-		return d.openCached(ctx, request)
 	}
 	return d.openOrigin(ctx, request)
 }
@@ -152,165 +141,6 @@ func (d *Downloader) openOrigin(ctx context.Context, request DownloadRequest) (*
 		Offset: request.Offset, Length: length, TotalSize: file.Size.Int64,
 		ContentType: contentType, ETag: etag,
 	}, nil
-}
-
-func (d *Downloader) openCached(ctx context.Context, request DownloadRequest) (*Download, error) {
-	file, err := d.catalog.Get(ctx, request.UserID, request.FileID)
-	if err != nil {
-		return nil, err
-	}
-	if file.Kind != sqlcgen.FileKindFile || file.Status != sqlcgen.FileStatusActive || !file.Size.Valid || file.Size.Int64 < 0 {
-		return nil, ErrInvalidDownload
-	}
-	length, err := normalizeDownloadRange(file.Size.Int64, request.Offset, request.Length)
-	if err != nil {
-		return nil, err
-	}
-	contentType := fileContentType(file)
-	etag := fileETag(file)
-	if length == 0 {
-		return &Download{Reader: nopDownloadReader{bytes.NewReader(nil)}, File: file, Offset: request.Offset, Length: 0, TotalSize: file.Size.Int64, ContentType: contentType, ETag: etag}, nil
-	}
-
-	origin := &cachedOriginState{ctx: ctx, downloader: d, userID: request.UserID, fileID: request.FileID, file: file}
-	object := &downloadCacheObject{
-		metadata:  varcsource.Metadata{Size: file.Size.Int64, ETag: strconv.FormatInt(file.Generation, 10), LastModified: file.UpdatedAt.Time, ContentType: contentType},
-		openRange: origin.OpenRange,
-	}
-	reader, err := d.cache.Open(ctx, fmt.Sprintf("%d/%s", request.UserID, request.FileID), object)
-	if err != nil {
-		_ = origin.Close()
-		return nil, fmt.Errorf("open stream cache: %w", err)
-	}
-	section := io.NewSectionReader(reader, request.Offset, length)
-	return &Download{
-		Reader: &cachedDownloadReader{SectionReader: section, closer: reader, origin: origin}, File: file,
-		Offset: request.Offset, Length: length, TotalSize: file.Size.Int64, ContentType: contentType, ETag: etag,
-	}, nil
-}
-
-type downloadCacheObject struct {
-	metadata  varcsource.Metadata
-	openRange func(context.Context, int64, int64) (io.ReadCloser, error)
-}
-
-func (o *downloadCacheObject) Metadata() varcsource.Metadata { return o.metadata }
-func (o *downloadCacheObject) OpenRange(ctx context.Context, start, end int64) (io.ReadCloser, error) {
-	return o.openRange(ctx, start, end)
-}
-
-type cachedDownloadReader struct {
-	*io.SectionReader
-	closer io.Closer
-	origin *cachedOriginState
-}
-
-func (r *cachedDownloadReader) Close() error {
-	return errors.Join(r.closer.Close(), r.origin.Close())
-}
-
-type cachedOriginState struct {
-	ctx        context.Context
-	downloader *Downloader
-	userID     int64
-	fileID     uuid.UUID
-	file       *sqlcgen.File
-
-	once sync.Once
-	mu   sync.Mutex
-
-	closed  bool
-	session telegramstore.DownloadSession
-	parts   []*sqlcgen.FilePart
-	key     string
-	initErr error
-}
-
-func (s *cachedOriginState) initialize() {
-	parts, err := s.downloader.catalog.Parts(s.ctx, s.userID, s.fileID)
-	if err != nil {
-		s.finishInit(nil, nil, "", err)
-		return
-	}
-	session, err := s.downloader.openDownloadSession(s.ctx, s.userID)
-	if err != nil {
-		s.finishInit(nil, nil, "", err)
-		return
-	}
-	if err := s.downloader.resolveMissingPartSizes(s.ctx, session, s.userID, s.fileID, s.file, parts); err != nil {
-		_ = session.Close()
-		s.finishInit(nil, nil, "", err)
-		return
-	}
-
-	var key string
-	if s.file.Encryption {
-		if s.downloader.keys == nil || !s.file.EncryptionKeyVersion.Valid {
-			_ = session.Close()
-			s.finishInit(nil, nil, "", ErrEncryptionKey)
-			return
-		}
-		key, err = s.downloader.keys.Key(s.ctx, s.userID, s.file.EncryptionKeyVersion.Int32)
-		if err != nil || key == "" {
-			_ = session.Close()
-			s.finishInit(nil, nil, "", errors.Join(ErrEncryptionKey, err))
-			return
-		}
-	}
-	s.finishInit(session, parts, key, nil)
-}
-
-func (s *cachedOriginState) finishInit(session telegramstore.DownloadSession, parts []*sqlcgen.FilePart, key string, err error) {
-	s.mu.Lock()
-	if s.closed {
-		s.mu.Unlock()
-		if session != nil {
-			_ = session.Close()
-		}
-		return
-	}
-	s.session = session
-	s.parts = parts
-	s.key = key
-	s.initErr = err
-	s.mu.Unlock()
-}
-
-func (s *cachedOriginState) OpenRange(ctx context.Context, start, end int64) (io.ReadCloser, error) {
-	s.once.Do(s.initialize)
-	s.mu.Lock()
-	if s.closed {
-		s.mu.Unlock()
-		return nil, io.ErrClosedPipe
-	}
-	session, parts, key, err := s.session, s.parts, s.key, s.initErr
-	s.mu.Unlock()
-	if err != nil {
-		return nil, err
-	}
-	segments, length, err := planSegments(parts, s.file.Size.Int64, start, end-start)
-	if err != nil {
-		return nil, err
-	}
-	if length == 0 {
-		return io.NopCloser(bytes.NewReader(nil)), nil
-	}
-	return &downloadReader{
-		ctx: ctx, session: session, userID: s.userID, file: s.file,
-		parts: segments, length: length, key: key,
-	}, nil
-}
-
-func (s *cachedOriginState) Close() error {
-	s.mu.Lock()
-	s.closed = true
-	session := s.session
-	s.session = nil
-	s.mu.Unlock()
-	if session != nil {
-		return session.Close()
-	}
-	return nil
 }
 
 func (d *Downloader) resolveMissingPartSizes(ctx context.Context, session telegramstore.DownloadSession, userID int64, fileID uuid.UUID, file *sqlcgen.File, parts []*sqlcgen.FilePart) error {

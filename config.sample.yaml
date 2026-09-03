@@ -73,20 +73,9 @@ uploads:
   hashing-enabled: true
   local-import-roots: []
 
-# Stream caching is opt-in. Leave dir empty to avoid disk use.
 cache:
   memory:
     size: 5MB
-  stream:
-    dir: ""
-    max-age: 168h
-    max-size: 50GB
-    chunk-size: 32MB
-    chunk-streams: 4
-    read-ahead: 4MB
-    min-free-space: 10GB
-    poll-interval: 5m
-    shard-depth: 1
 
 events:
   batch-size: 100

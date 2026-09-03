@@ -109,24 +109,11 @@ type Jobs struct {
 	RunWorkers bool `koanf:"run-workers" default:"true" description:"Run River background job workers in this process"`
 }
 
-type StreamCache struct {
-	Dir          string        `koanf:"dir" default:"" description:"Sparse stream cache directory; empty disables caching"`
-	MaxAge       time.Duration `koanf:"max-age" default:"168h" validate:"gt=0" description:"Maximum age of cached stream data"`
-	MaxSize      size.Size     `koanf:"max-size" default:"50GB" validate:"gt=0" description:"Maximum stream cache size"`
-	MinFreeSpace size.Size     `koanf:"min-free-space" default:"10GB" validate:"gte=0" description:"Minimum free disk space preserved by cache eviction"`
-	PollInterval time.Duration `koanf:"poll-interval" default:"5m" validate:"gt=0" description:"Stream cache eviction interval"`
-	ShardDepth   int           `koanf:"shard-depth" default:"1" validate:"min=0,max=16" description:"Number of two-character cache directory shard levels"`
-	ChunkSize    size.Size     `koanf:"chunk-size" default:"32MB" validate:"gt=0" description:"Origin range fetch chunk size"`
-	ChunkStreams int           `koanf:"chunk-streams" default:"4" validate:"min=0,max=32" description:"Concurrent origin range streams"`
-	ReadAhead    size.Size     `koanf:"read-ahead" default:"4MB" validate:"gte=0" description:"Bytes fetched ahead of requested stream ranges"`
-}
-
 type MemoryCache struct {
 	Size size.Size `koanf:"size" default:"5MB" validate:"gt=0" description:"Global Ristretto memory cache size (e.g., 5MB, 10MB)"`
 }
 
 type Cache struct {
-	Stream StreamCache `koanf:"stream"`
 	Memory MemoryCache `koanf:"memory"`
 }
 

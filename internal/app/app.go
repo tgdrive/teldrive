@@ -17,7 +17,6 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
-	varccache "github.com/tgdrive/varc/cache"
 
 	api "github.com/tgdrive/teldrive/v2/internal/api"
 	"github.com/tgdrive/teldrive/v2/internal/authn"
@@ -59,7 +58,6 @@ type App struct {
 	jobs              *jobs.Runtime
 	events            *userevents.Service
 	telegramDownloads *telegramstore.DownloadClientPool
-	streamCache       *varccache.Cache
 	globalCache       cache.Cacher
 
 	mu      sync.Mutex
@@ -187,34 +185,7 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 		UploadThreads: cfg.Telegram.UploadThreads, RandomizePartNames: cfg.Telegram.RandomizePartNames,
 		DisableHashing: !cfg.Uploads.HashingEnabled,
 	})
-	var streamCache *varccache.Cache
-	streamCacheDir := strings.TrimSpace(cfg.Cache.Stream.Dir)
-	if streamCacheDir != "" {
-		streamCacheDir, err = expandHomePath(streamCacheDir)
-		if err != nil {
-			return nil, fmt.Errorf("resolve stream cache directory: %w", err)
-		}
-		cacheOptions := varccache.DefaultOptions()
-		cacheOptions.CacheMaxAge = cfg.Cache.Stream.MaxAge
-		cacheOptions.CacheMaxSize = int64(cfg.Cache.Stream.MaxSize)
-		cacheOptions.CacheMinFreeSpace = int64(cfg.Cache.Stream.MinFreeSpace)
-		cacheOptions.CachePollInterval = cfg.Cache.Stream.PollInterval
-		cacheOptions.CacheShardDepth = cfg.Cache.Stream.ShardDepth
-		cacheOptions.ChunkSize = int64(cfg.Cache.Stream.ChunkSize)
-		cacheOptions.ChunkStreams = cfg.Cache.Stream.ChunkStreams
-		cacheOptions.ReadAhead = int64(cfg.Cache.Stream.ReadAhead)
-		streamCache, err = varccache.New(context.Background(), streamCacheDir, cacheOptions)
-		if err != nil {
-			return nil, fmt.Errorf("create stream cache: %w", err)
-		}
-	}
-	cleanupStreamCache := streamCache != nil
-	defer func() {
-		if cleanupStreamCache {
-			_ = streamCache.Close()
-		}
-	}()
-	downloader := transfer.NewDownloader(catalogService, storage, keys, streamCache)
+	downloader := transfer.NewDownloader(catalogService, storage, keys)
 	fileService, err := fileops.NewService(pool, catalogService, channelService, storage)
 	if err != nil {
 		return nil, fmt.Errorf("create file operations service: %w", err)
@@ -260,7 +231,6 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 		jobs:              jobRuntime,
 		events:            eventService,
 		telegramDownloads: telegram.downloadClients,
-		streamCache:       streamCache,
 		globalCache:       globalCache,
 		http: &http.Server{
 			Addr:              cfg.HTTP.Address,
@@ -273,7 +243,6 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 	}
 	cleanupPool = false
 	cleanupTelegramDownloads = false
-	cleanupStreamCache = false
 	cleanupGlobalCache = false
 	return application, nil
 }
@@ -408,7 +377,7 @@ func (a *App) Serve(ctx context.Context, listener net.Listener) error {
 	}
 }
 
-// Shutdown stops long-lived SSE handlers and stream cache reads, closes HTTP and warm Telegram download clients,
+// Shutdown stops long-lived SSE handlers, closes HTTP and warm Telegram download clients,
 // drains RiverPro workers, and finally closes PostgreSQL. It is safe to call repeatedly.
 func (a *App) Shutdown(ctx context.Context) error {
 	if a == nil {
@@ -425,9 +394,6 @@ func (a *App) Shutdown(ctx context.Context) error {
 	var result error
 	if a.events != nil {
 		result = errors.Join(result, a.events.Close(ctx))
-	}
-	if a.streamCache != nil {
-		result = errors.Join(result, a.streamCache.Close())
 	}
 	if a.http != nil {
 		result = errors.Join(result, a.http.Shutdown(ctx))
