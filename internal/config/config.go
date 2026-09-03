@@ -34,40 +34,35 @@ type TelegramMTProxy struct {
 }
 
 type Telegram struct {
-	Backend                      string          `koanf:"backend" default:"remote" validate:"oneof=remote filesystem" description:"Telegram backend: remote or filesystem"`
-	LocalRoot                    string          `koanf:"local-root" default:"./var/local-telegram" validate:"required_if=Backend filesystem" description:"Filesystem root used by the local Telegram emulator"`
-	AppID                        int             `koanf:"app-id" default:"2496" validate:"required_if=Backend remote,omitempty,gt=0" description:"Telegram application ID"`
-	AppHash                      string          `koanf:"app-hash" default:"8da85b0d5bfe62527e5b244c209159c3" validate:"required_if=Backend remote" description:"Telegram application hash"`
-	DeviceModel                  string          `koanf:"device-model" default:"Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/116.0" validate:"required" description:"Telegram client device model"`
-	SystemVersion                string          `koanf:"system-version" default:"Win32" validate:"required" description:"Telegram client system version"`
-	AppVersion                   string          `koanf:"app-version" default:"6.1.4 K" validate:"required" description:"Telegram client application version"`
-	LanguageCode                 string          `koanf:"language-code" default:"en" validate:"required" description:"Telegram client language code"`
-	SystemLanguageCode           string          `koanf:"system-language-code" default:"en-US" validate:"required" description:"Telegram client system language code"`
-	LanguagePack                 string          `koanf:"language-pack" default:"webk" description:"Telegram client language pack"`
-	DialTimeout                  time.Duration   `koanf:"dial-timeout" default:"10s" validate:"gt=0" description:"Telegram connection timeout"`
-	ReconnectTimeout             time.Duration   `koanf:"reconnect-timeout" default:"5m" validate:"gt=0" description:"Maximum Telegram reconnect backoff duration"`
-	MaxRetries                   int             `koanf:"max-retries" default:"10" validate:"gte=0" description:"Maximum Telegram transport retry attempts"`
-	RateLimit                    bool            `koanf:"rate-limit" default:"true" description:"Enable Telegram API request rate limiting"`
-	RateInterval                 time.Duration   `koanf:"rate-interval" default:"50ms" validate:"gt=0" description:"Minimum interval between Telegram API requests"`
-	RateBurst                    int             `koanf:"rate-burst" default:"10" validate:"gt=0" description:"Telegram API request burst allowance"`
-	Proxy                        string          `koanf:"proxy" default:"" description:"HTTP, HTTPS, or SOCKS5 proxy URL"`
-	MTProxy                      TelegramMTProxy `koanf:"mtproxy"`
-	ClientLogging                bool            `koanf:"client-logging" default:"false" description:"Enable verbose gotd Telegram client logs through the application logger"`
-	UploadThreads                int             `koanf:"upload-threads" default:"8" validate:"min=1,max=32" description:"Concurrent Telegram upload workers"`
-	DownloadBots                 int             `koanf:"download-bots" default:"0" validate:"min=0,max=32" description:"Maximum enabled bots used for download rotation; zero uses the authenticated user"`
-	DownloadClientPool           bool            `koanf:"download-client-pool" default:"false" description:"Keep authenticated Telegram download clients warm between HTTP requests"`
-	DownloadClientPoolSize       int             `koanf:"download-client-pool-size" default:"4" validate:"min=1,max=32" description:"Maximum warm Telegram download clients per user"`
-	DownloadClientPoolMax        int             `koanf:"download-client-pool-max" default:"32" validate:"min=1,max=256" description:"Maximum warm Telegram download clients on this instance"`
-	DownloadClientMaxSessions    int             `koanf:"download-client-max-sessions" default:"4" validate:"min=1,max=64" description:"Maximum concurrent download sessions sharing one Telegram client"`
-	DownloadReadBuffers          int             `koanf:"download-read-buffers" default:"32" validate:"min=1,max=256" description:"Number of prefetched Telegram download chunks buffered in memory per stream"`
-	DownloadReadParallel         int             `koanf:"download-read-parallel" default:"4" validate:"min=1,max=32" description:"Concurrent Telegram chunk fetches per download stream"`
-	DownloadClientIdleTimeout    time.Duration   `koanf:"download-client-idle-timeout" default:"5m" validate:"gt=0" description:"Idle time before a warm Telegram download client is closed"`
-	DownloadClientAcquireTimeout time.Duration   `koanf:"download-client-acquire-timeout" default:"10s" validate:"gt=0" description:"Maximum wait for a Telegram download client lease"`
-	RandomizePartNames           bool            `koanf:"randomize-part-names" default:"true" description:"Randomize Telegram document names"`
-	AutoChannelCreate            bool            `koanf:"auto-channel-create" default:"true" description:"Create storage channels automatically"`
-	BotRotationBackend           string          `koanf:"bot-rotation-backend" default:"memory" validate:"oneof=memory database" description:"Bot rotation backend: memory for single-instance speed or database for cluster-wide coordination"`
-	ChannelPartLimit             int64           `koanf:"channel-part-limit" default:"500000" validate:"gt=0" description:"Maximum parts stored in one Telegram channel"`
-	ChannelNamePrefix            string          `koanf:"channel-name-prefix" default:"teldrive" validate:"required" description:"Prefix for automatically created channels"`
+	Backend              string          `koanf:"backend" default:"remote" validate:"oneof=remote filesystem" description:"Telegram backend: remote or filesystem"`
+	LocalRoot            string          `koanf:"local-root" default:"./var/local-telegram" validate:"required_if=Backend filesystem" description:"Filesystem root used by the local Telegram emulator"`
+	AppID                int             `koanf:"app-id" default:"2496" validate:"required_if=Backend remote,omitempty,gt=0" description:"Telegram application ID"`
+	AppHash              string          `koanf:"app-hash" default:"8da85b0d5bfe62527e5b244c209159c3" validate:"required_if=Backend remote" description:"Telegram application hash"`
+	DeviceModel          string          `koanf:"device-model" default:"Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/116.0" validate:"required" description:"Telegram client device model"`
+	SystemVersion        string          `koanf:"system-version" default:"Win32" validate:"required" description:"Telegram client system version"`
+	AppVersion           string          `koanf:"app-version" default:"6.1.4 K" validate:"required" description:"Telegram client application version"`
+	LanguageCode         string          `koanf:"language-code" default:"en" validate:"required" description:"Telegram client language code"`
+	SystemLanguageCode   string          `koanf:"system-language-code" default:"en-US" validate:"required" description:"Telegram client system language code"`
+	LanguagePack         string          `koanf:"language-pack" default:"webk" description:"Telegram client language pack"`
+	DialTimeout          time.Duration   `koanf:"dial-timeout" default:"10s" validate:"gt=0" description:"Telegram connection timeout"`
+	ReconnectTimeout     time.Duration   `koanf:"reconnect-timeout" default:"5m" validate:"gt=0" description:"Maximum Telegram reconnect backoff duration"`
+	MaxRetries           int             `koanf:"max-retries" default:"10" validate:"gte=0" description:"Maximum Telegram transport retry attempts"`
+	RateLimit            bool            `koanf:"rate-limit" default:"true" description:"Enable Telegram API request rate limiting"`
+	RateInterval         time.Duration   `koanf:"rate-interval" default:"50ms" validate:"gt=0" description:"Minimum interval between Telegram API requests"`
+	RateBurst            int             `koanf:"rate-burst" default:"10" validate:"gt=0" description:"Telegram API request burst allowance"`
+	Proxy                string          `koanf:"proxy" default:"" description:"HTTP, HTTPS, or SOCKS5 proxy URL"`
+	MTProxy              TelegramMTProxy `koanf:"mtproxy"`
+	ClientLogging        bool            `koanf:"client-logging" default:"false" description:"Enable verbose gotd Telegram client logs through the application logger"`
+	UploadThreads        int             `koanf:"upload-threads" default:"8" validate:"min=1,max=32" description:"Concurrent Telegram upload workers"`
+	DownloadBots         int             `koanf:"download-bots" default:"0" validate:"min=0,max=32" description:"Maximum enabled bots used for download rotation; zero uses the authenticated user"`
+	DownloadClientPool   bool            `koanf:"download-client-pool" default:"false" description:"Keep authenticated Telegram download clients warm between HTTP requests"`
+	DownloadReadBuffers  int             `koanf:"download-read-buffers" default:"32" validate:"min=1,max=256" description:"Number of prefetched Telegram download chunks buffered in memory per stream"`
+	DownloadReadParallel int             `koanf:"download-read-parallel" default:"4" validate:"min=1,max=32" description:"Concurrent Telegram chunk fetches per download stream"`
+	RandomizePartNames   bool            `koanf:"randomize-part-names" default:"true" description:"Randomize Telegram document names"`
+	AutoChannelCreate    bool            `koanf:"auto-channel-create" default:"true" description:"Create storage channels automatically"`
+	BotRotationBackend   string          `koanf:"bot-rotation-backend" default:"memory" validate:"oneof=memory database" description:"Bot rotation backend: memory for single-instance speed or database for cluster-wide coordination"`
+	ChannelPartLimit     int64           `koanf:"channel-part-limit" default:"500000" validate:"gt=0" description:"Maximum parts stored in one Telegram channel"`
+	ChannelNamePrefix    string          `koanf:"channel-name-prefix" default:"teldrive" validate:"required" description:"Prefix for automatically created channels"`
 }
 
 type Encryption struct {
@@ -181,9 +176,6 @@ func (c Config) Validate() error {
 	}
 	if mtAddress != "" && strings.TrimSpace(c.Telegram.Proxy) != "" {
 		problems = append(problems, "Telegram proxy and MTProxy cannot be used together")
-	}
-	if c.Telegram.DownloadClientPoolSize > c.Telegram.DownloadClientPoolMax {
-		problems = append(problems, "Telegram download client pool size cannot exceed the global maximum")
 	}
 
 	if len(c.Encryption.Keys) > 0 && c.Encryption.ActiveKeyVersion == 0 {

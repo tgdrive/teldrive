@@ -2,7 +2,6 @@ package telegramstore
 
 import (
 	"context"
-	"errors"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -24,12 +23,9 @@ func (r *backgroundRunnerStub) Run(ctx context.Context, _ int64, operation Opera
 	return fn(ctx, new(tg.Client))
 }
 
-func TestDownloadClientPoolReusesClientAfterRequestCancellation(t *testing.T) {
+func TestDownloadClientPoolReusesReleasedClientAfterRequestCancellation(t *testing.T) {
 	runner := &backgroundRunnerStub{}
-	pool := newTestDownloadClientPool(t, runner, DownloadClientPoolConfig{
-		ClientsPerUser: 1, MaxClients: 4, MaxSessions: 4,
-		IdleTimeout: time.Minute, AcquireTimeout: time.Second,
-	})
+	pool := newTestDownloadClientPool(t, runner, DownloadClientPoolConfig{})
 	storage := NewGotdStorage(runner, nil, WithDownloadClientPool(pool))
 
 	requestCtx, cancelRequest := context.WithCancel(context.Background())
@@ -38,18 +34,15 @@ func TestDownloadClientPoolReusesClientAfterRequestCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancelRequest()
+	if err := first.Close(); err != nil {
+		t.Fatal(err)
+	}
 	second, err := storage.OpenDownloadSession(context.Background(), 42)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got := runner.runs.Load(); got != 1 {
 		t.Fatalf("runner starts = %d, want 1", got)
-	}
-	if err := first.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if err := first.Close(); err != nil {
-		t.Fatalf("second lease close: %v", err)
 	}
 	if err := second.Close(); err != nil {
 		t.Fatal(err)
@@ -60,111 +53,152 @@ func TestDownloadClientPoolReusesClientAfterRequestCancellation(t *testing.T) {
 	}
 }
 
-func TestDownloadClientPoolSharesLocationCacheAcrossSessions(t *testing.T) {
+func TestDownloadClientPoolSharesBackgroundClientAcrossConcurrentSessions(t *testing.T) {
 	runner := &backgroundRunnerStub{}
-	pool := newTestDownloadClientPool(t, runner, DownloadClientPoolConfig{
-		ClientsPerUser: 1, MaxClients: 1, MaxSessions: 2,
-		IdleTimeout: time.Minute, AcquireTimeout: time.Second,
-	})
-	first, err := pool.OpenDownloadSession(context.Background(), 42)
-	if err != nil {
-		t.Fatal(err)
-	}
-	second, err := pool.OpenDownloadSession(context.Background(), 42)
-	if err != nil {
-		t.Fatal(err)
-	}
-	firstGotd := first.(*gotdDownloadSession)
-	secondGotd := second.(*gotdDownloadSession)
-	if firstGotd.globalCache != secondGotd.globalCache {
-		t.Fatal("sessions sharing a warm Telegram client do not share document location cache")
-	}
-	_ = first.Close()
-	_ = second.Close()
-	closeDownloadClientPool(t, pool)
-}
+	pool := newTestDownloadClientPool(t, runner, DownloadClientPoolConfig{Clients: 1})
 
-func TestDownloadClientPoolAppliesSessionBackpressure(t *testing.T) {
-	runner := &backgroundRunnerStub{}
-	pool := newTestDownloadClientPool(t, runner, DownloadClientPoolConfig{
-		ClientsPerUser: 1, MaxClients: 1, MaxSessions: 1,
-		IdleTimeout: time.Minute, AcquireTimeout: 20 * time.Millisecond,
-	})
 	first, err := pool.OpenDownloadSession(context.Background(), 7)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := pool.OpenDownloadSession(context.Background(), 7); !errors.Is(err, ErrDownloadClientPoolBusy) {
-		t.Fatalf("second acquire error = %v", err)
-	}
-	if err := first.Close(); err != nil {
-		t.Fatal(err)
-	}
 	second, err := pool.OpenDownloadSession(context.Background(), 7)
 	if err != nil {
-		t.Fatalf("acquire after release: %v", err)
+		t.Fatal(err)
 	}
+	if got := runner.runs.Load(); got != 1 {
+		t.Fatalf("runner starts = %d, want 1 shared background client", got)
+	}
+	firstClient, err := first.(*gotdDownloadSession).client()
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondClient, err := second.(*gotdDownloadSession).client()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if firstClient != secondClient {
+		t.Fatal("concurrent sessions do not share the background Telegram client")
+	}
+	_ = first.Close()
 	_ = second.Close()
 	closeDownloadClientPool(t, pool)
 }
 
-func TestDownloadClientPoolEvictsIdleClient(t *testing.T) {
+func TestDownloadClientPoolRotatesAcrossBackgroundClients(t *testing.T) {
 	runner := &backgroundRunnerStub{}
-	pool := newTestDownloadClientPool(t, runner, DownloadClientPoolConfig{
-		ClientsPerUser: 1, MaxClients: 1, MaxSessions: 1,
-		IdleTimeout: 20 * time.Millisecond, AcquireTimeout: time.Second,
-	})
+	pool := newTestDownloadClientPool(t, runner, DownloadClientPoolConfig{Clients: 2})
+
 	first, err := pool.OpenDownloadSession(context.Background(), 9)
 	if err != nil {
 		t.Fatal(err)
-	}
-	_ = first.Close()
-	deadline := time.Now().Add(time.Second)
-	for runner.exits.Load() == 0 && time.Now().Before(deadline) {
-		time.Sleep(5 * time.Millisecond)
-	}
-	if runner.exits.Load() != 1 {
-		t.Fatal("idle client was not evicted")
 	}
 	second, err := pool.OpenDownloadSession(context.Background(), 9)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := runner.runs.Load(); got != 2 {
-		t.Fatalf("runner starts after eviction = %d, want 2", got)
+	third, err := pool.OpenDownloadSession(context.Background(), 9)
+	if err != nil {
+		t.Fatal(err)
 	}
+	if got := runner.runs.Load(); got != 2 {
+		t.Fatalf("runner starts = %d, want 2 background clients", got)
+	}
+	firstClient, _ := first.(*gotdDownloadSession).client()
+	secondClient, _ := second.(*gotdDownloadSession).client()
+	thirdClient, _ := third.(*gotdDownloadSession).client()
+	if firstClient == secondClient {
+		t.Fatal("adjacent sessions were not rotated across background clients")
+	}
+	if thirdClient != firstClient {
+		t.Fatal("rotation did not wrap back to the first background client")
+	}
+	_ = first.Close()
 	_ = second.Close()
+	_ = third.Close()
 	closeDownloadClientPool(t, pool)
 }
 
-func TestDownloadClientPoolEvictsIdleClientAtGlobalCapacity(t *testing.T) {
+func TestDownloadClientPoolReapsIdleClient(t *testing.T) {
 	runner := &backgroundRunnerStub{}
-	pool := newTestDownloadClientPool(t, runner, DownloadClientPoolConfig{
-		ClientsPerUser: 1, MaxClients: 1, MaxSessions: 1,
-		IdleTimeout: time.Minute, AcquireTimeout: time.Second,
-	})
+	pool := newTestDownloadClientPool(t, runner, DownloadClientPoolConfig{})
 	first, err := pool.OpenDownloadSession(context.Background(), 10)
 	if err != nil {
 		t.Fatal(err)
 	}
 	_ = first.Close()
+
+	pool.mu.Lock()
+	entry := pool.entries[10][0]
+	entry.lastUsed = time.Now().Add(-defaultDownloadClientIdleTimeout)
+	pool.mu.Unlock()
+	pool.reapIdle(time.Now())
+
+	deadline := time.Now().Add(time.Second)
+	for runner.exits.Load() == 0 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if runner.exits.Load() != 1 {
+		t.Fatal("idle client was not reaped")
+	}
+	closeDownloadClientPool(t, pool)
+}
+
+func TestDownloadClientPoolRestartsOnlySelectedStoppedSlot(t *testing.T) {
+	runner := &backgroundRunnerStub{}
+	pool := newTestDownloadClientPool(t, runner, DownloadClientPoolConfig{Clients: 2})
+
+	first, err := pool.OpenDownloadSession(context.Background(), 11)
+	if err != nil {
+		t.Fatal(err)
+	}
 	second, err := pool.OpenDownloadSession(context.Background(), 11)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := runner.runs.Load(); got != 2 {
-		t.Fatalf("runner starts after capacity eviction = %d, want 2", got)
-	}
+	secondClient, _ := second.(*gotdDownloadSession).client()
+	_ = first.Close()
 	_ = second.Close()
+
+	pool.mu.Lock()
+	pool.entries[11][0].lastUsed = time.Now().Add(-defaultDownloadClientIdleTimeout)
+	pool.mu.Unlock()
+	pool.reapIdle(time.Now())
+
+	deadline := time.Now().Add(time.Second)
+	for runner.exits.Load() < 1 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if runner.exits.Load() != 1 {
+		t.Fatalf("runner exits = %d, want only stopped slot to exit", runner.exits.Load())
+	}
+
+	third, err := pool.OpenDownloadSession(context.Background(), 11)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := runner.runs.Load(); got != 3 {
+		t.Fatalf("runner starts = %d, want one lazy slot restart", got)
+	}
+	_ = third.Close()
+
+	fourth, err := pool.OpenDownloadSession(context.Background(), 11)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fourthClient, _ := fourth.(*gotdDownloadSession).client()
+	if fourthClient != secondClient {
+		t.Fatal("healthy background client was restarted instead of reused")
+	}
+	if got := runner.runs.Load(); got != 3 {
+		t.Fatalf("runner starts = %d, healthy slot should not restart", got)
+	}
+	_ = fourth.Close()
 	closeDownloadClientPool(t, pool)
 }
 
 func TestDownloadClientPoolUsesConfiguredConnections(t *testing.T) {
 	runner := &recordingPooledRunner{}
-	pool := newTestDownloadClientPool(t, runner, DownloadClientPoolConfig{
-		ClientsPerUser: 1, MaxClients: 1, MaxSessions: 1, ReadParallel: 8,
-		IdleTimeout: time.Minute, AcquireTimeout: time.Second,
-	})
+	pool := newTestDownloadClientPool(t, runner, DownloadClientPoolConfig{ReadParallel: 8})
 	session, err := pool.OpenDownloadSession(context.Background(), 42)
 	if err != nil {
 		t.Fatal(err)

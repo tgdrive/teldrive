@@ -30,7 +30,7 @@ func TestDefaultIncludesLegacyPublicTelegramClientIdentity(t *testing.T) {
 	if cfg.Telegram.DownloadBots != 0 {
 		t.Fatalf("Telegram DownloadBots = %d, want authenticated-user fallback", cfg.Telegram.DownloadBots)
 	}
-	if cfg.Telegram.DownloadClientPool || cfg.Telegram.DownloadClientPoolSize != 4 || cfg.Telegram.DownloadClientMaxSessions != 4 || cfg.Telegram.DownloadReadBuffers != 32 || cfg.Telegram.DownloadReadParallel != 4 {
+	if cfg.Telegram.DownloadClientPool || cfg.Telegram.DownloadReadBuffers != 32 || cfg.Telegram.DownloadReadParallel != 4 {
 		t.Fatalf("Telegram download defaults = %#v", cfg.Telegram)
 	}
 	if cfg.Telegram.ClientLogging {
@@ -61,16 +61,6 @@ func TestValidateRejectsInvalidTrustedProxy(t *testing.T) {
 	cfg := validTestConfig()
 	cfg.HTTP.TrustedProxies = []string{"not-an-address"}
 	if err := cfg.Validate(); !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "trusted proxy") {
-		t.Fatalf("Validate() error = %v", err)
-	}
-}
-
-func TestValidateRejectsDownloadPoolSizeAboveGlobalMaximum(t *testing.T) {
-	t.Parallel()
-	cfg := validTestConfig()
-	cfg.Telegram.DownloadClientPoolSize = 4
-	cfg.Telegram.DownloadClientPoolMax = 2
-	if err := cfg.Validate(); !errors.Is(err, ErrInvalid) || !strings.Contains(err.Error(), "pool size") {
 		t.Fatalf("Validate() error = %v", err)
 	}
 }

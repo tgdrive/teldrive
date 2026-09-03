@@ -112,13 +112,9 @@ func buildTelegramComponents(cfg config.Config, pool *pgxpool.Pool, cipher *secu
 			}
 			if cfg.Telegram.DownloadClientPool {
 				downloadClients, err = telegramstore.NewDownloadClientPool(uploadRunner, telegramstore.DownloadClientPoolConfig{
-					ClientsPerUser: cfg.Telegram.DownloadClientPoolSize,
-					MaxClients:     cfg.Telegram.DownloadClientPoolMax,
-					MaxSessions:    cfg.Telegram.DownloadClientMaxSessions,
-					ReadBuffers:    cfg.Telegram.DownloadReadBuffers,
-					ReadParallel:   cfg.Telegram.DownloadReadParallel,
-					IdleTimeout:    cfg.Telegram.DownloadClientIdleTimeout,
-					AcquireTimeout: cfg.Telegram.DownloadClientAcquireTimeout,
+					Clients:      max(1, cfg.Telegram.DownloadBots),
+					ReadBuffers:  cfg.Telegram.DownloadReadBuffers,
+					ReadParallel: cfg.Telegram.DownloadReadParallel,
 				}, globalCache)
 				if err != nil {
 					return telegramComponents{}, fmt.Errorf("create Telegram download client pool: %w", err)

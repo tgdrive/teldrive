@@ -43,13 +43,8 @@ upload-threads = 8
 download-bots = 0
 # Keep this disabled to preserve request-scoped Telegram clients.
 download-client-pool = false
-download-client-pool-size = 4
-download-client-pool-max = 32
-download-client-max-sessions = 4
 download-read-buffers = 32
 download-read-parallel = 4
-download-client-idle-timeout = "5m"
-download-client-acquire-timeout = "10s"
 randomize-part-names = true
 auto-channel-create = true
 bot-rotation-backend = "memory"
