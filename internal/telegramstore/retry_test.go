@@ -2,6 +2,7 @@ package telegramstore
 
 import (
 	"context"
+	"errors"
 	"sync/atomic"
 	"testing"
 
@@ -23,6 +24,24 @@ func TestRetryMiddlewareRetriesRPCTimeout(t *testing.T) {
 	invoke := middleware.Handle(telegram.InvokeFunc(func(_ context.Context, _ bin.Encoder, _ bin.Decoder) error {
 		if calls.Add(1) == 1 {
 			return tgerr.New(-503, "Timeout")
+		}
+		return nil
+	}))
+
+	if err := invoke(context.Background(), nil, nil); err != nil {
+		t.Fatalf("invoke() error = %v", err)
+	}
+	if got := calls.Load(); got != 2 {
+		t.Fatalf("calls = %d, want 2", got)
+	}
+}
+
+func TestRetryMiddlewareRetriesConnectionResetByPeer(t *testing.T) {
+	var calls atomic.Int32
+	middleware := retryMiddleware{max: 2}
+	invoke := middleware.Handle(telegram.InvokeFunc(func(_ context.Context, _ bin.Encoder, _ bin.Decoder) error {
+		if calls.Add(1) == 1 {
+			return errors.New("send: write: write padded intermediate: write tcp 10.89.0.13:33760->10.89.0.3:443: write: connection reset by peer")
 		}
 		return nil
 	}))
