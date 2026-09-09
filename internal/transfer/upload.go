@@ -8,8 +8,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"log/slog"
 	"io"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -187,7 +187,7 @@ func (p *Pipeline) UploadPart(ctx context.Context, request UploadPartRequest) (*
 	stored, err := p.storage.Upload(uploadCtx, telegramstore.UploadRequest{
 		UserID:    request.UserID,
 		ChannelID: channelID,
-		Name:      p.partName(request.UploadID, request.PartNo),
+		Name:      p.partName(session.Name, request.PartNo),
 		Reader:    storedReader,
 		Size:      storedSize,
 		Threads:   p.config.UploadThreads,
@@ -314,14 +314,11 @@ func (p *Pipeline) deleteUploaded(ctx context.Context, userID int64, part telegr
 	return nil
 }
 
-func (p *Pipeline) partName(uploadID uuid.UUID, partNo int32) string {
-	var material string
-	if p.config.RandomizePartNames {
-		material = uuid.NewString()
-	} else {
-		material = fmt.Sprintf("%s:%d", uploadID, partNo)
+func (p *Pipeline) partName(fileName string, partNo int32) string {
+	if !p.config.RandomizePartNames {
+		return fmt.Sprintf("%s.%03d", fileName, partNo)
 	}
-	digest := sha256.Sum256([]byte(material))
+	digest := sha256.Sum256([]byte(uuid.NewString()))
 	return hex.EncodeToString(digest[:])
 }
 func valueOrEmpty(value *string) string {
