@@ -37,7 +37,6 @@ import {
 } from "react";
 
 import type { FileEntry } from "@/api/types";
-import type { ViewState } from "@/features/files/view-state";
 import DownloadIcon from "~icons/gravity-ui/arrow-down-to-line";
 import RotateIcon from "~icons/gravity-ui/arrow-rotate-right";
 import MenuIcon from "~icons/gravity-ui/bars";
@@ -60,8 +59,6 @@ GlobalWorkerOptions.workerSrc = workerSrc;
 type PdfReaderProps = {
   file: FileEntry;
   url: string;
-  state?: ViewState;
-  onPosition: (position: Record<string, unknown>, preferences?: Record<string, unknown>) => void;
   onClose: () => void;
 };
 
@@ -91,28 +88,18 @@ type PasswordChallenge = {
 const HIGHLIGHT_COLORS = ["#facc15", "#4ade80", "#60a5fa", "#f472b6"] as const;
 const PDFJS_HIGHLIGHT_COLORS = "yellow=#facc15,green=#4ade80,blue=#60a5fa,pink=#f472b6";
 
-export function PdfReader({ file, url, state, onPosition, onClose }: PdfReaderProps) {
+export function PdfReader({ file, url, onClose }: PdfReaderProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
   const runtimeRef = useRef<PdfRuntime | null>(null);
-  const onPositionRef = useRef(onPosition);
   const closeRef = useRef(onClose);
   const drawerState = useOverlayState();
 
-  const initialViewStateRef = useRef({
-    page: positiveInt(state?.position.pageNumber, 1),
-    scaleValue: stringValue(state?.preferences.scaleValue, "page-width"),
-    scale: positiveNumber(state?.preferences.scale, 1),
-    rotation: normalizedRotation(numberValue(state?.preferences.rotation)),
-    sidebarOpen: booleanValue(state?.preferences.sidebarOpen, true),
-    sidebarTab: sidebarTabValue(state?.preferences.sidebarTab),
-  });
-  const initialPage = initialViewStateRef.current.page;
-  const initialScaleValue = initialViewStateRef.current.scaleValue;
-  const initialScale = initialViewStateRef.current.scale;
-  const initialRotation = initialViewStateRef.current.rotation;
-  const initialSidebarOpen = initialViewStateRef.current.sidebarOpen;
-  const initialSidebarTab = initialViewStateRef.current.sidebarTab;
+  const initialPage = 1;
+  const initialScaleValue = "page-width";
+  const initialRotation = 0;
+  const initialSidebarOpen = true;
+  const initialSidebarTab: SidebarTab = "thumbnails";
 
   const [document, setDocument] = useState<PDFDocumentProxy>();
   const [outline, setOutline] = useState<OutlineItem[]>([]);
@@ -122,7 +109,7 @@ export function PdfReader({ file, url, state, onPosition, onClose }: PdfReaderPr
   const [pageNumber, setPageNumber] = useState(initialPage);
   const [pageDraft, setPageDraft] = useState(String(initialPage));
   const [numPages, setNumPages] = useState(0);
-  const [scale, setScale] = useState(initialScale);
+  const [scale, setScale] = useState(1);
   const [scaleValue, setScaleValue] = useState(initialScaleValue);
   const [_rotation, setRotation] = useState(initialRotation);
   const [sidebarOpen, setSidebarOpen] = useState(initialSidebarOpen);
@@ -141,25 +128,7 @@ export function PdfReader({ file, url, state, onPosition, onClose }: PdfReaderPr
   const [passwordChallenge, setPasswordChallenge] = useState<PasswordChallenge>();
   const [passwordDraft, setPasswordDraft] = useState("");
 
-  const readerPreferencesRef = useRef({ sidebarOpen, sidebarTab });
-  readerPreferencesRef.current = { sidebarOpen, sidebarTab };
-  onPositionRef.current = onPosition;
   closeRef.current = onClose;
-
-  const persistViewerState = useCallback(() => {
-    const viewer = runtimeRef.current?.viewer;
-    if (!viewer) return;
-    onPositionRef.current(
-      { pageNumber: viewer.currentPageNumber },
-      {
-        scale: viewer.currentScale,
-        scaleValue: viewer.currentScaleValue || "custom",
-        rotation: viewer.pagesRotation,
-        sidebarOpen: readerPreferencesRef.current.sidebarOpen,
-        sidebarTab: readerPreferencesRef.current.sidebarTab,
-      },
-    );
-  }, []);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -189,16 +158,13 @@ export function PdfReader({ file, url, state, onPosition, onClose }: PdfReaderPr
       const next = positiveInt(event.pageNumber, viewer.currentPageNumber || 1);
       setPageNumber(next);
       setPageDraft(String(next));
-      persistViewerState();
     };
     const onScaleChanging = (event: { scale?: number; presetValue?: string }) => {
       setScale(positiveNumber(event.scale, viewer.currentScale || 1));
       setScaleValue(event.presetValue || viewer.currentScaleValue || "custom");
-      persistViewerState();
     };
     const onRotationChanging = (event: { pagesRotation?: number }) => {
       setRotation(normalizedRotation(event.pagesRotation));
-      persistViewerState();
     };
     const onFindCount = (event: { matchesCount?: FindCount }) =>
       setFindCount(event.matchesCount || { current: 0, total: 0 });
@@ -259,8 +225,7 @@ export function PdfReader({ file, url, state, onPosition, onClose }: PdfReaderPr
       if (!active) return;
 
       viewer.pagesRotation = initialRotation;
-      if (initialScaleValue === "custom") viewer.currentScale = initialScale;
-      else viewer.currentScaleValue = initialScaleValue;
+      viewer.currentScaleValue = initialScaleValue;
       viewer.currentPageNumber = Math.min(Math.max(initialPage, 1), pdf.numPages);
       setPageNumber(viewer.currentPageNumber);
       setPageDraft(String(viewer.currentPageNumber));
@@ -289,12 +254,7 @@ export function PdfReader({ file, url, state, onPosition, onClose }: PdfReaderPr
       setDocument(undefined);
       if (loadingTask) void loadingTask.destroy();
     };
-  }, [file.id, persistViewerState, url]);
-
-  useEffect(() => {
-    if (!ready) return;
-    persistViewerState();
-  }, [persistViewerState, ready, sidebarOpen, sidebarTab]);
+  }, [file.id, url]);
 
   const dispatchFind = useCallback(
     (type: "" | "again" | "highlightallchange" = "", previous = false) => {
@@ -1319,22 +1279,6 @@ function positiveInt(value: unknown, fallback: number) {
 
 function positiveNumber(value: unknown, fallback: number) {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : fallback;
-}
-
-function numberValue(value: unknown) {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
-}
-
-function stringValue(value: unknown, fallback: string) {
-  return typeof value === "string" && value ? value : fallback;
-}
-
-function booleanValue(value: unknown, fallback: boolean) {
-  return typeof value === "boolean" ? value : fallback;
-}
-
-function sidebarTabValue(value: unknown): SidebarTab {
-  return value === "outline" ? "outline" : "thumbnails";
 }
 
 function outlineDestinationKey(item: OutlineItem) {

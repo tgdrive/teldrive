@@ -4,12 +4,7 @@ import type { FileEntry } from "@/api/types";
 import { fileContentUrl, startFileDownload } from "@/features/files/download";
 import { previewMedia, supportsCodePreview } from "@/features/files/preview-support";
 import { readerKind } from "@/features/files/reader-support";
-import {
-  getViewState,
-  putViewState,
-  type ViewerKind,
-  type ViewState,
-} from "@/features/files/view-state";
+type ViewerKind = "image" | "video" | "audio" | "pdf" | "ebook" | "text";
 import DownloadIcon from "~icons/gravity-ui/arrow-down-to-line";
 import RotateIcon from "~icons/gravity-ui/arrow-rotate-left";
 import ZoomOutIcon from "~icons/gravity-ui/magnifier-minus";
@@ -33,35 +28,10 @@ export function FilePreviewDialog({
   file?: FileEntry;
   onOpenChange: (open: boolean) => void;
 }) {
-  const [state, setState] = useState<ViewState>();
-  const [loadingState, setLoadingState] = useState(false);
-  const [stateLoadedFor, setStateLoadedFor] = useState<string>();
-  const saveTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const closeFrame = useRef<number>(undefined);
   const contentUrl = file ? fileContentUrl(file) : "";
   const kind = file ? viewerKind(file) : undefined;
   const isReader = kind === "pdf" || kind === "ebook";
-
-  useEffect(() => {
-    if (!file) return;
-    const controller = new AbortController();
-    setLoadingState(true);
-    setStateLoadedFor(undefined);
-    setState(undefined);
-    void getViewState(file.id, controller.signal)
-      .then(setState)
-      .catch(() => setState(undefined))
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          setLoadingState(false);
-          setStateLoadedFor(file.id);
-        }
-      });
-    return () => {
-      controller.abort();
-      clearTimeout(saveTimer.current);
-    };
-  }, [file, kind]);
 
   if (!file || !kind) return null;
 
@@ -74,26 +44,6 @@ export function FilePreviewDialog({
     closeFrame.current = requestAnimationFrame(() => {
       closeFrame.current = requestAnimationFrame(() => onOpenChange(false));
     });
-  };
-
-  const savePosition = (
-    position: Record<string, unknown>,
-    preferences: Record<string, unknown> = {},
-  ) => {
-    setState((current) => ({
-      fileId: file.id,
-      kind,
-      position,
-      preferences,
-      bookmarks: current?.bookmarks || [],
-      updatedAt: new Date().toISOString(),
-    }));
-    clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      void putViewState(file.id, kind, position, preferences, state?.bookmarks).catch(
-        () => undefined,
-      );
-    }, 800);
   };
 
   if (kind === "pdf") {
@@ -109,20 +59,14 @@ export function FilePreviewDialog({
         <Modal.Container size="full" scroll="inside" className="h-dvh max-h-dvh p-0">
           <Modal.Dialog className="h-dvh max-h-dvh w-screen max-w-none overflow-hidden rounded-none bg-background p-0 text-foreground">
             <Modal.Heading className="sr-only">{file.name}</Modal.Heading>
-            {stateLoadedFor === file.id ? (
-              <Suspense fallback={<ViewerLoading label="Loading PDF engine" />}>
-                <PdfReader
-                  key={file.id}
-                  file={file}
-                  url={contentUrl}
-                  state={state}
-                  onPosition={savePosition}
-                  onClose={() => changeOpen(false)}
-                />
-              </Suspense>
-            ) : (
-              <ViewerLoading label="Preparing PDF reader" />
-            )}
+            <Suspense fallback={<ViewerLoading label="Loading PDF engine" />}>
+              <PdfReader
+                key={file.id}
+                file={file}
+                url={contentUrl}
+                onClose={() => changeOpen(false)}
+              />
+            </Suspense>
           </Modal.Dialog>
         </Modal.Container>
       </Modal.Backdrop>
@@ -141,20 +85,14 @@ export function FilePreviewDialog({
         <Modal.Container size="full" scroll="inside" className="h-dvh max-h-dvh p-0">
           <Modal.Dialog className="h-dvh max-h-dvh w-screen max-w-none overflow-hidden rounded-none bg-background p-0 text-foreground">
             <Modal.Heading className="sr-only">{file.name}</Modal.Heading>
-            {stateLoadedFor === file.id ? (
-              <Suspense fallback={<ViewerLoading label="Loading EPUB reader" />}>
-                <EpubReader
-                  key={file.id}
-                  file={file}
-                  url={contentUrl}
-                  state={state}
-                  onPosition={savePosition}
-                  onClose={() => changeOpen(false)}
-                />
-              </Suspense>
-            ) : (
-              <ViewerLoading label="Preparing EPUB reader" />
-            )}
+            <Suspense fallback={<ViewerLoading label="Loading EPUB reader" />}>
+              <EpubReader
+                key={file.id}
+                file={file}
+                url={contentUrl}
+                onClose={() => changeOpen(false)}
+              />
+            </Suspense>
           </Modal.Dialog>
         </Modal.Container>
       </Modal.Backdrop>
@@ -196,7 +134,6 @@ export function FilePreviewDialog({
                 {formatLabel(kind)} · {formatBytes(file.size || 0)}
               </p>
             </div>
-            {loadingState ? <Spinner size="sm" aria-label="Loading saved position" /> : null}
             <Button
               variant={isReader ? "ghost" : "secondary"}
               size="sm"
@@ -214,24 +151,14 @@ export function FilePreviewDialog({
                 : "bg-[radial-gradient(circle_at_50%_20%,color-mix(in_oklch,var(--muted-background)_70%,transparent),var(--background)_65%)]",
             )}
           >
-            {stateLoadedFor !== file.id ? <ViewerLoading label="Preparing viewer" /> : null}
-            {stateLoadedFor === file.id && kind === "image" ? (
-              <ImageViewer file={file} url={contentUrl} />
-            ) : null}
-            {stateLoadedFor === file.id && kind === "video" ? (
+            {kind === "image" ? <ImageViewer file={file} url={contentUrl} /> : null}
+            {kind === "video" ? (
               <Suspense fallback={<ViewerLoading label="Loading video player" />}>
                 <VideoViewer file={file} url={contentUrl} />
               </Suspense>
             ) : null}
-            {stateLoadedFor === file.id && kind === "audio" ? (
-              <AudioViewer
-                file={file}
-                url={contentUrl}
-                initialTime={numberValue(state?.position.seconds)}
-                onProgress={(seconds) => savePosition({ seconds })}
-              />
-            ) : null}
-            {stateLoadedFor === file.id && kind === "text" ? <TextViewer url={contentUrl} /> : null}
+            {kind === "audio" ? <AudioViewer file={file} url={contentUrl} /> : null}
+            {kind === "text" ? <TextViewer url={contentUrl} /> : null}
           </Modal.Body>
         </Modal.Dialog>
       </Modal.Container>
@@ -287,17 +214,7 @@ function ImageViewer({ file, url }: { file: FileEntry; url: string }) {
   );
 }
 
-function AudioViewer({
-  file,
-  url,
-  initialTime,
-  onProgress,
-}: {
-  file: FileEntry;
-  url: string;
-  initialTime: number;
-  onProgress: (seconds: number) => void;
-}) {
+function AudioViewer({ file, url }: { file: FileEntry; url: string }) {
   return (
     <div className="flex h-full items-center justify-center p-6">
       <div className="glass-panel w-full max-w-xl rounded-3xl p-8 text-center">
@@ -306,15 +223,7 @@ function AudioViewer({
         </div>
         <h3 className="truncate text-lg font-semibold">{file.name}</h3>
         {/* biome-ignore lint/a11y/useMediaCaption: user-provided audio does not have a separate caption resource */}
-        <audio
-          className="mt-7 w-full"
-          src={url}
-          controls
-          onLoadedMetadata={(event) => {
-            if (initialTime > 0) event.currentTarget.currentTime = initialTime;
-          }}
-          onTimeUpdate={(event) => onProgress(event.currentTarget.currentTime)}
-        />
+        <audio className="mt-7 w-full" src={url} controls />
       </div>
     </div>
   );
@@ -380,9 +289,6 @@ function formatLabel(kind: ViewerKind) {
     ebook: "Ebook",
     text: "Text document",
   }[kind];
-}
-function numberValue(value: unknown) {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 function formatBytes(value: number) {
   if (!value) return "0 B";

@@ -19,7 +19,6 @@ import {
   openPublication,
   type ReaderPreferences,
 } from "@/features/files/foliate-reader";
-import type { ViewState } from "@/features/files/view-state";
 import DownloadIcon from "~icons/gravity-ui/arrow-down-to-line";
 import MenuIcon from "~icons/gravity-ui/bars";
 import LeftIcon from "~icons/gravity-ui/chevron-left";
@@ -29,8 +28,6 @@ import CloseIcon from "~icons/gravity-ui/xmark";
 export type EpubReaderProps = {
   file: FileEntry;
   url: string;
-  state?: ViewState;
-  onPosition: (position: Record<string, unknown>, preferences?: Record<string, unknown>) => void;
   onClose: () => void;
 };
 
@@ -43,23 +40,17 @@ type TocItem = {
 
 type Location = { current?: number; total?: number };
 
-export function EpubReader({ file, url, state, onPosition, onClose }: EpubReaderProps) {
+export function EpubReader({ file, url, onClose }: EpubReaderProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<FoliateViewElement | undefined>(undefined);
   const activeRef = useRef(true);
   const navigationTasksRef = useRef(new Set<Promise<unknown>>());
   const preferencesRef = useRef<ReaderPreferences | undefined>(undefined);
-  const onPositionRef = useRef(onPosition);
   const onCloseRef = useRef(onClose);
   const openingRef = useRef<Promise<void> | undefined>(undefined);
   const loadedDocumentsRef = useRef(new Set<Document>());
   const closingRef = useRef(false);
   const closedRef = useRef(false);
-  const positionRef = useRef<Record<string, unknown>>({
-    cfi: typeof state?.position.cfi === "string" ? state.position.cfi : undefined,
-    fraction: numberValue(state?.position.fraction),
-  });
-  onPositionRef.current = onPosition;
   onCloseRef.current = onClose;
   const isDesktop = useMediaQuery("(min-width: 1024px)");
   const drawerState = useOverlayState();
@@ -72,15 +63,15 @@ export function EpubReader({ file, url, state, onPosition, onClose }: EpubReader
   const [toc, setToc] = useState<TocItem[]>([]);
   const [title, setTitle] = useState(file.name);
   const [chapter, setChapter] = useState<string>();
-  const [progress, setProgress] = useState(numberValue(state?.position.fraction));
+  const [progress, setProgress] = useState(0);
   const [location, setLocation] = useState<Location>({});
-  const [theme, setTheme] = useState(String(state?.preferences.theme || "paper"));
-  const [flow, setFlow] = useState(String(state?.preferences.flow || "paginated"));
-  const [font, setFont] = useState(String(state?.preferences.font || "publisher"));
-  const [fontSize, setFontSize] = useState(numberValue(state?.preferences.fontSize) || 100);
-  const [lineHeight, setLineHeight] = useState(numberValue(state?.preferences.lineHeight) || 1.55);
-  const [margin, setMargin] = useState(numberValue(state?.preferences.margin) || 48);
-  const [columns, setColumns] = useState(numberValue(state?.preferences.columns) || 2);
+  const [theme, setTheme] = useState("paper");
+  const [flow, setFlow] = useState("paginated");
+  const [font, setFont] = useState("publisher");
+  const [fontSize, setFontSize] = useState(100);
+  const [lineHeight, setLineHeight] = useState(1.55);
+  const [margin, setMargin] = useState(48);
+  const [columns, setColumns] = useState(2);
 
   const preferences: ReaderPreferences = {
     theme,
@@ -92,16 +83,6 @@ export function EpubReader({ file, url, state, onPosition, onClose }: EpubReader
     columns,
   };
   preferencesRef.current = preferences;
-
-  const persist = useCallback(
-    (
-      position: Record<string, unknown>,
-      nextPreferences: ReaderPreferences = preferencesRef.current!,
-    ) => {
-      onPositionRef.current(position, { ...nextPreferences });
-    },
-    [],
-  );
 
   const trackNavigation = useCallback((task: Promise<unknown>) => {
     const tracked = Promise.resolve(task).catch(() => undefined);
@@ -179,8 +160,6 @@ export function EpubReader({ file, url, state, onPosition, onClose }: EpubReader
       setProgress(fraction);
       setChapter(event.detail.tocItem?.label);
       setLocation(event.detail.location || {});
-      positionRef.current = { cfi: event.detail.cfi, fraction };
-      persist(positionRef.current, preferencesRef.current);
     };
 
     const open = async () => {
@@ -199,13 +178,10 @@ export function EpubReader({ file, url, state, onPosition, onClose }: EpubReader
       const bookFile = new File([await response.blob()], file.name, { type: file.mimeType });
       if (!activeRef.current) return;
 
-      const cfi = typeof state?.position.cfi === "string" ? state.position.cfi : undefined;
-      const lastLocation = cfi || (progress > 0 ? { fraction: progress } : undefined);
       await openPublication({
         element,
         file: bookFile,
         preferences: preferencesRef.current!,
-        lastLocation,
         onLoad,
         onRelocate,
       });
@@ -234,7 +210,7 @@ export function EpubReader({ file, url, state, onPosition, onClose }: EpubReader
       current?.removeEventListener("relocate", onRelocate as EventListener);
       if (closedRef.current) current?.remove();
     };
-  }, [file.id, file.mimeType, file.name, persist, trackNavigation, url]);
+  }, [file.id, file.mimeType, file.name, trackNavigation, url]);
 
   const requestClose = useCallback(() => {
     if (closingRef.current) return;
@@ -290,11 +266,6 @@ export function EpubReader({ file, url, state, onPosition, onClose }: EpubReader
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [drawerState, navigate, requestClose, settingsOpen]);
 
-  const commitPreferences = (next: Partial<ReaderPreferences>) => {
-    const merged = { ...preferencesRef.current!, ...next };
-    persist(positionRef.current, merged);
-  };
-
   const navigation = (
     <EpubNavigation file={file} toc={toc} activeChapter={chapter} onNavigate={goTo} />
   );
@@ -338,28 +309,13 @@ export function EpubReader({ file, url, state, onPosition, onClose }: EpubReader
           lineHeight={lineHeight}
           margin={margin}
           columns={columns}
-          onTheme={(value) => {
-            setTheme(value);
-            commitPreferences({ theme: value });
-          }}
-          onFlow={(value) => {
-            setFlow(value);
-            commitPreferences({ flow: value });
-          }}
-          onFont={(value) => {
-            setFont(value);
-            commitPreferences({ font: value });
-          }}
-          onFontSize={(value) => setFontSize(value)}
-          onFontSizeCommit={(value) => commitPreferences({ fontSize: value })}
-          onLineHeight={(value) => setLineHeight(value)}
-          onLineHeightCommit={(value) => commitPreferences({ lineHeight: value })}
-          onMargin={(value) => setMargin(value)}
-          onMarginCommit={(value) => commitPreferences({ margin: value })}
-          onColumns={(value) => {
-            setColumns(value);
-            commitPreferences({ columns: value });
-          }}
+          onTheme={setTheme}
+          onFlow={setFlow}
+          onFont={setFont}
+          onFontSize={setFontSize}
+          onLineHeight={setLineHeight}
+          onMargin={setMargin}
+          onColumns={setColumns}
         />
 
         <Button
@@ -567,11 +523,8 @@ function EpubSettings({
   onFlow,
   onFont,
   onFontSize,
-  onFontSizeCommit,
   onLineHeight,
-  onLineHeightCommit,
   onMargin,
-  onMarginCommit,
   onColumns,
 }: ReaderPreferences & {
   isOpen: boolean;
@@ -580,11 +533,8 @@ function EpubSettings({
   onFlow: (value: string) => void;
   onFont: (value: string) => void;
   onFontSize: (value: number) => void;
-  onFontSizeCommit: (value: number) => void;
   onLineHeight: (value: number) => void;
-  onLineHeightCommit: (value: number) => void;
   onMargin: (value: number) => void;
-  onMarginCommit: (value: number) => void;
   onColumns: (value: number) => void;
 }) {
   return (
@@ -640,7 +590,6 @@ function EpubSettings({
               step={5}
               output={`${fontSize}%`}
               onChange={onFontSize}
-              onCommit={onFontSizeCommit}
             />
             <SettingSlider
               label="Line spacing"
@@ -650,7 +599,6 @@ function EpubSettings({
               step={0.05}
               output={lineHeight.toFixed(2)}
               onChange={onLineHeight}
-              onCommit={onLineHeightCommit}
             />
             <SettingSlider
               label="Page margins"
@@ -660,7 +608,6 @@ function EpubSettings({
               step={4}
               output={`${margin}px`}
               onChange={onMargin}
-              onCommit={onMarginCommit}
             />
             <SettingButtons
               label="Layout"
@@ -725,7 +672,6 @@ function SettingSlider({
   step,
   output,
   onChange,
-  onCommit,
 }: {
   label: string;
   value: number;
@@ -734,7 +680,6 @@ function SettingSlider({
   step: number;
   output: string;
   onChange: (value: number) => void;
-  onCommit: (value: number) => void;
 }) {
   return (
     <Slider
@@ -744,7 +689,6 @@ function SettingSlider({
       maxValue={max}
       step={step}
       onChange={(next) => onChange(Number(next))}
-      onChangeEnd={(next) => onCommit(Number(next))}
     >
       <div className="mb-2 flex justify-between text-xs">
         <span>{label}</span>
@@ -780,10 +724,6 @@ function locationLabel(location: Location, progress: number) {
   if (location.current !== undefined && location.total)
     return `Page ${location.current + 1} of ${location.total}`;
   return `${Math.round(progress * 100)}%`;
-}
-
-function numberValue(value: unknown) {
-  return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
 function formatBytes(value: number) {
