@@ -72,7 +72,11 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 		return nil, err
 	}
 	if cfg.Database.AutoMigrateLegacy {
-		report, migrated, err := legacymigrate.MigrateIfNeeded(ctx, cfg.Database, cfg.Security.DataKey)
+		migrationVerifier, err := buildLegacyBotVerifier(cfg, dependencies.Logger)
+		if err != nil {
+			return nil, fmt.Errorf("create legacy bot verifier: %w", err)
+		}
+		report, migrated, err := legacymigrate.MigrateIfNeeded(ctx, cfg.Database, cfg.Security.DataKey, migrationVerifier)
 		if err != nil {
 			return nil, fmt.Errorf("migrate legacy database: %w", err)
 		}

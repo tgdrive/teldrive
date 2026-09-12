@@ -10,8 +10,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/tgdrive/teldrive/v2/internal/bots"
 	"github.com/tgdrive/teldrive/v2/internal/database"
 	"github.com/tgdrive/teldrive/v2/internal/legacymigrate"
+	"github.com/tgdrive/teldrive/v2/internal/secureblob"
 	testpostgres "github.com/tgdrive/teldrive/v2/internal/testutil/postgres"
 )
 
@@ -45,7 +47,9 @@ INSERT INTO teldrive.users VALUES
     (101, 'Owner', 'owner', true, now() - interval '1 hour', now() - interval '1 hour'),
     (102, 'User', 'user', false, now(), now());
 INSERT INTO teldrive.channels VALUES (201, 'Channel', 101, true, now());
-INSERT INTO teldrive.bots VALUES (101, '123:token', 301);
+INSERT INTO teldrive.bots VALUES
+    (101, '301:a-invalid', 301),
+    (101, '301:b-valid', 301);
 `); err != nil {
 		t.Fatalf("seed legacy schema: %v", err)
 	}
@@ -61,13 +65,20 @@ VALUES
 		t.Fatalf("seed legacy files: %v", err)
 	}
 
-	if _, _, err := legacymigrate.MigrateIfNeeded(ctx, database.Config{URL: source.URL}, ""); err == nil || !strings.Contains(err.Error(), "security.data-key") {
+	verifier := verifierFunc(func(_ context.Context, token string) (bots.Identity, error) {
+		if token == "301:b-valid" {
+			return bots.Identity{ID: 301, Username: "storage_bot"}, nil
+		}
+		return bots.Identity{}, bots.ErrNotBot
+	})
+	if _, _, err := legacymigrate.MigrateIfNeeded(ctx, database.Config{URL: source.URL}, "", verifier); err == nil || !strings.Contains(err.Error(), "security.data-key") {
 		t.Fatalf("empty data-key error = %v", err)
 	}
 	report, migrated, err := legacymigrate.MigrateIfNeeded(
 		ctx,
 		database.Config{URL: source.URL},
 		"AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+		verifier,
 	)
 	if err != nil {
 		t.Fatalf("MigrateIfNeeded() error = %v", err)
@@ -91,6 +102,22 @@ VALUES
 	if users != 2 || channels != 1 || bots != 1 || files != 3 || parts != 1 {
 		t.Fatalf("target counts = %d,%d,%d,%d,%d", users, channels, bots, files, parts)
 	}
+	var tokenCiphertext []byte
+	if err := source.Pool.QueryRow(ctx, `SELECT token_ciphertext FROM teldrive.bots WHERE user_id=101 AND bot_id=301`).Scan(&tokenCiphertext); err != nil {
+		t.Fatalf("load migrated bot token: %v", err)
+	}
+	cipher, err := secureblob.New("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
+	if err != nil {
+		t.Fatalf("create data-key cipher: %v", err)
+	}
+	plainToken, err := cipher.Open("bot-token", tokenCiphertext)
+	if err != nil {
+		t.Fatalf("decrypt migrated bot token: %v", err)
+	}
+	if string(plainToken) != "301:b-valid" {
+		t.Fatalf("migrated bot token = %q, want valid duplicate", plainToken)
+	}
+
 	var ownerRole, userRole string
 	if err := source.Pool.QueryRow(ctx, `SELECT
 (SELECT role::text FROM teldrive.users WHERE user_id=101),
@@ -114,12 +141,14 @@ VALUES
 	if !unresolved {
 		t.Fatal("legacy part sizes were unexpectedly populated")
 	}
-	var backupUserCount int
-	if err := source.Pool.QueryRow(ctx, `SELECT count(*) FROM `+pgx.Identifier{report.BackupSchema}.Sanitize()+`.users`).Scan(&backupUserCount); err != nil {
+	var backupUserCount, backupBotCount int
+	if err := source.Pool.QueryRow(ctx, `SELECT
+(SELECT count(*) FROM `+pgx.Identifier{report.BackupSchema}.Sanitize()+`.users),
+(SELECT count(*) FROM `+pgx.Identifier{report.BackupSchema}.Sanitize()+`.bots)`).Scan(&backupUserCount, &backupBotCount); err != nil {
 		t.Fatalf("inspect backup schema: %v", err)
 	}
-	if backupUserCount != 2 {
-		t.Fatalf("backup user count = %d, want 2", backupUserCount)
+	if backupUserCount != 2 || backupBotCount != 2 {
+		t.Fatalf("backup counts = users %d, bots %d; want 2, 2", backupUserCount, backupBotCount)
 	}
 	var gooseMoved bool
 	if err := source.Pool.QueryRow(ctx, `SELECT to_regclass($1) IS NOT NULL AND to_regclass('public.goose_db_version') IS NULL`, report.BackupSchema+".goose_db_version").Scan(&gooseMoved); err != nil {
@@ -128,7 +157,13 @@ VALUES
 	if !gooseMoved {
 		t.Fatal("legacy goose table was not moved into the backup schema")
 	}
-	if _, migrated, err := legacymigrate.MigrateIfNeeded(ctx, database.Config{URL: source.URL}, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"); err != nil || migrated {
+	if _, migrated, err := legacymigrate.MigrateIfNeeded(ctx, database.Config{URL: source.URL}, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", verifier); err != nil || migrated {
 		t.Fatalf("second migration = migrated %v, error %v", migrated, err)
 	}
+}
+
+type verifierFunc func(context.Context, string) (bots.Identity, error)
+
+func (f verifierFunc) Verify(ctx context.Context, token string) (bots.Identity, error) {
+	return f(ctx, token)
 }

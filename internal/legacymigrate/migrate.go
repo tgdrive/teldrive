@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/tgdrive/teldrive/v2/internal/bots"
 	"github.com/tgdrive/teldrive/v2/internal/catalog"
 	"github.com/tgdrive/teldrive/v2/internal/database"
 	"github.com/tgdrive/teldrive/v2/internal/secureblob"
@@ -25,6 +26,7 @@ type Config struct {
 	DataKey              string
 	EncryptionKeyVersion int
 	Apply                bool
+	BotVerifier          bots.Verifier
 }
 
 type Report struct {
@@ -41,7 +43,7 @@ type Report struct {
 
 const migrationLockID int64 = 0x54454c4452495645
 
-func MigrateIfNeeded(ctx context.Context, cfg database.Config, dataKey string) (Report, bool, error) {
+func MigrateIfNeeded(ctx context.Context, cfg database.Config, dataKey string, verifier bots.Verifier) (Report, bool, error) {
 	if strings.TrimSpace(cfg.URL) == "" {
 		return Report{}, false, errors.New("database URL is required")
 	}
@@ -82,6 +84,7 @@ func MigrateIfNeeded(ctx context.Context, cfg database.Config, dataKey string) (
 		BackupSchema:         database.DefaultSchema + "_legacy_backup_" + suffix,
 		DataKey:              dataKey,
 		EncryptionKeyVersion: 1,
+		BotVerifier:          verifier,
 		Apply:                true,
 	})
 	if err != nil {
@@ -111,6 +114,12 @@ type legacyFile struct {
 	Hash      *string
 	CreatedAt time.Time
 	UpdatedAt time.Time
+}
+
+type legacyBot struct {
+	UserID int64
+	Token  string
+	BotID  int64
 }
 
 type legacyReader interface {
@@ -215,7 +224,7 @@ IN ACCESS EXCLUSIVE MODE`); err != nil {
 	if err := migrateChannels(ctx, sourceTx, tx, cfg.Target.Schema); err != nil {
 		return Report{}, err
 	}
-	if err := migrateBots(ctx, sourceTx, tx, cipher, cfg.Target.Schema); err != nil {
+	if err := migrateBots(ctx, sourceTx, tx, cipher, cfg.BotVerifier, cfg.Target.Schema); err != nil {
 		return Report{}, err
 	}
 	if err := migrateFiles(ctx, tx, files, cfg); err != nil {
@@ -298,7 +307,7 @@ func inspect(ctx context.Context, source legacyReader) (Report, []legacyFile, er
 	if err := source.QueryRow(ctx, `SELECT
 (SELECT count(*) FROM teldrive.users),
 (SELECT count(*) FROM teldrive.channels),
-(SELECT count(*) FROM teldrive.bots)`).Scan(&report.Users, &report.Channels, &report.Bots); err != nil {
+(SELECT count(DISTINCT (user_id, bot_id)) FROM teldrive.bots)`).Scan(&report.Users, &report.Channels, &report.Bots); err != nil {
 		return Report{}, nil, fmt.Errorf("count legacy rows: %w", err)
 	}
 
@@ -476,26 +485,72 @@ func migrateChannels(ctx context.Context, source legacyReader, tx pgx.Tx, schema
 	return nil
 }
 
-func migrateBots(ctx context.Context, source legacyReader, tx pgx.Tx, cipher *secureblob.Cipher, schema string) error {
-	rows, err := source.Query(ctx, `SELECT user_id,token,bot_id FROM teldrive.bots ORDER BY user_id,bot_id`)
+func migrateBots(ctx context.Context, source legacyReader, tx pgx.Tx, cipher *secureblob.Cipher, verifier bots.Verifier, schema string) error {
+	rows, err := source.Query(ctx, `SELECT user_id,token,bot_id FROM teldrive.bots ORDER BY user_id,bot_id,token`)
 	if err != nil {
 		return fmt.Errorf("read bots: %w", err)
 	}
-	defer rows.Close()
-	_, err = tx.CopyFrom(ctx, pgx.Identifier{schema, "bots"}, []string{"bot_id", "user_id", "token_ciphertext", "enabled"}, pgx.CopyFromFunc(func() ([]any, error) {
-		if !rows.Next() {
-			return nil, rows.Err()
+
+	legacyBots := make([]legacyBot, 0)
+	for rows.Next() {
+		var bot legacyBot
+		if err := rows.Scan(&bot.UserID, &bot.Token, &bot.BotID); err != nil {
+			rows.Close()
+			return fmt.Errorf("scan bot: %w", err)
 		}
-		var userID, botID int64
-		var token string
-		if err := rows.Scan(&userID, &token, &botID); err != nil {
-			return nil, err
+		legacyBots = append(legacyBots, bot)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return fmt.Errorf("read bots: %w", err)
+	}
+	rows.Close()
+
+	selected := make([]legacyBot, 0, len(legacyBots))
+	for start := 0; start < len(legacyBots); {
+		end := start + 1
+		for end < len(legacyBots) && legacyBots[end].UserID == legacyBots[start].UserID && legacyBots[end].BotID == legacyBots[start].BotID {
+			end++
 		}
-		sealed, err := cipher.Seal("bot-token", []byte(token))
+
+		chosen := legacyBots[start]
+		if end-start > 1 {
+			if verifier == nil {
+				return fmt.Errorf("resolve duplicate tokens for user %d bot %d: Telegram bot verifier is unavailable", chosen.UserID, chosen.BotID)
+			}
+			found := false
+			var lastVerifyErr error
+			for _, candidate := range legacyBots[start:end] {
+				identity, verifyErr := verifier.Verify(ctx, candidate.Token)
+				if verifyErr != nil {
+					lastVerifyErr = verifyErr
+					continue
+				}
+				if identity.ID != candidate.BotID {
+					continue
+				}
+				chosen = candidate
+				found = true
+				break
+			}
+			if !found {
+				if lastVerifyErr != nil {
+					return fmt.Errorf("resolve duplicate tokens for user %d bot %d: no candidate token was accepted by Telegram: %w", chosen.UserID, chosen.BotID, lastVerifyErr)
+				}
+				return fmt.Errorf("resolve duplicate tokens for user %d bot %d: no candidate token matches the Telegram bot identity", chosen.UserID, chosen.BotID)
+			}
+		}
+		selected = append(selected, chosen)
+		start = end
+	}
+
+	_, err = tx.CopyFrom(ctx, pgx.Identifier{schema, "bots"}, []string{"bot_id", "user_id", "token_ciphertext", "enabled"}, pgx.CopyFromSlice(len(selected), func(i int) ([]any, error) {
+		bot := selected[i]
+		sealed, err := cipher.Seal("bot-token", []byte(bot.Token))
 		if err != nil {
-			return nil, fmt.Errorf("encrypt bot %d: %w", botID, err)
+			return nil, fmt.Errorf("encrypt bot %d: %w", bot.BotID, err)
 		}
-		return []any{botID, userID, sealed, true}, nil
+		return []any{bot.BotID, bot.UserID, sealed, true}, nil
 	}))
 	if err != nil {
 		return fmt.Errorf("copy bots: %w", err)

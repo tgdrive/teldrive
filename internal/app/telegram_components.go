@@ -28,6 +28,50 @@ type telegramComponents struct {
 	downloadClients *telegramstore.DownloadClientPool
 }
 
+func buildLegacyBotVerifier(cfg config.Config, logger *slog.Logger) (bots.Verifier, error) {
+	switch strings.ToLower(strings.TrimSpace(cfg.Telegram.Backend)) {
+	case "filesystem":
+		return localBotVerifier{}, nil
+	case "remote":
+		factory, err := newRemoteTelegramFactory(cfg, logger)
+		if err != nil {
+			return nil, err
+		}
+		verifier, err := botgateway.NewGotdVerifier(factory)
+		if err != nil {
+			return nil, fmt.Errorf("create bot verifier: %w", err)
+		}
+		return verifier, nil
+	default:
+		return nil, fmt.Errorf("unsupported Telegram backend %q", cfg.Telegram.Backend)
+	}
+}
+
+func newRemoteTelegramFactory(cfg config.Config, logger *slog.Logger) (*telegramstore.Factory, error) {
+	gotdLogger := logslog.New(logger)
+	if !cfg.Telegram.ClientLogging {
+		gotdLogger = nil
+	}
+	factory, err := telegramstore.NewFactory(telegramstore.FactoryConfig{
+		AppID: cfg.Telegram.AppID, AppHash: cfg.Telegram.AppHash,
+		Device: telegram.DeviceConfig{
+			DeviceModel: cfg.Telegram.DeviceModel, SystemVersion: cfg.Telegram.SystemVersion,
+			AppVersion: cfg.Telegram.AppVersion, LangCode: cfg.Telegram.LanguageCode,
+			SystemLangCode: cfg.Telegram.SystemLanguageCode, LangPack: cfg.Telegram.LanguagePack,
+		},
+		DialTimeout: cfg.Telegram.DialTimeout, ReconnectTimeout: cfg.Telegram.ReconnectTimeout,
+		MaxRetries: cfg.Telegram.MaxRetries, RateLimit: cfg.Telegram.RateLimit,
+		RateInterval: cfg.Telegram.RateInterval, RateBurst: cfg.Telegram.RateBurst,
+		Proxy: cfg.Telegram.Proxy, MTProxyAddress: cfg.Telegram.MTProxy.Address,
+		MTProxySecret: cfg.Telegram.MTProxy.Secret,
+		Logger:        gotdLogger,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create Telegram client factory: %w", err)
+	}
+	return factory, nil
+}
+
 func buildTelegramComponents(cfg config.Config, pool *pgxpool.Pool, cipher *secureblob.Cipher, logger *slog.Logger, injected telegramstore.Storage, globalCache cache.Cacher) (telegramComponents, error) {
 	switch strings.ToLower(strings.TrimSpace(cfg.Telegram.Backend)) {
 	case "filesystem":
@@ -56,26 +100,9 @@ func buildTelegramComponents(cfg config.Config, pool *pgxpool.Pool, cipher *secu
 		}, nil
 
 	case "remote":
-		gotdLogger := logslog.New(logger)
-		if !cfg.Telegram.ClientLogging {
-			gotdLogger = nil
-		}
-		factory, err := telegramstore.NewFactory(telegramstore.FactoryConfig{
-			AppID: cfg.Telegram.AppID, AppHash: cfg.Telegram.AppHash,
-			Device: telegram.DeviceConfig{
-				DeviceModel: cfg.Telegram.DeviceModel, SystemVersion: cfg.Telegram.SystemVersion,
-				AppVersion: cfg.Telegram.AppVersion, LangCode: cfg.Telegram.LanguageCode,
-				SystemLangCode: cfg.Telegram.SystemLanguageCode, LangPack: cfg.Telegram.LanguagePack,
-			},
-			DialTimeout: cfg.Telegram.DialTimeout, ReconnectTimeout: cfg.Telegram.ReconnectTimeout,
-			MaxRetries: cfg.Telegram.MaxRetries, RateLimit: cfg.Telegram.RateLimit,
-			RateInterval: cfg.Telegram.RateInterval, RateBurst: cfg.Telegram.RateBurst,
-			Proxy: cfg.Telegram.Proxy, MTProxyAddress: cfg.Telegram.MTProxy.Address,
-			MTProxySecret: cfg.Telegram.MTProxy.Secret,
-			Logger:        gotdLogger,
-		})
+		factory, err := newRemoteTelegramFactory(cfg, logger)
 		if err != nil {
-			return telegramComponents{}, fmt.Errorf("create Telegram client factory: %w", err)
+			return telegramComponents{}, err
 		}
 		login, err := logingateway.New(factory)
 		if err != nil {
