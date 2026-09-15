@@ -235,10 +235,23 @@ func (r *Runtime) Cancel(ctx context.Context, id int64) (Job, error) {
 }
 
 func (r *Runtime) Retry(ctx context.Context, id int64) (Job, error) {
-	if r == nil || r.client == nil {
+	if r == nil || r.client == nil || r.pool == nil {
 		return Job{}, ErrRuntimeNotConfigured
 	}
-	row, err := r.client.JobRetry(ctx, id)
+	var row *rivertype.JobRow
+	err := pgx.BeginFunc(ctx, r.pool, func(tx pgx.Tx) error {
+		var err error
+		row, err = r.client.JobRetryTx(ctx, tx, id)
+		if err != nil || row.State == rivertype.JobStateRunning {
+			return err
+		}
+
+		jobTable := pgx.Identifier{r.schema, "river_job"}.Sanitize()
+		return tx.QueryRow(ctx,
+			"UPDATE "+jobTable+" SET metadata = metadata - 'cancel_attempted_at' WHERE id = $1 RETURNING metadata",
+			id,
+		).Scan(&row.Metadata)
+	})
 	if err != nil {
 		return Job{}, err
 	}
