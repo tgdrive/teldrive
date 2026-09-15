@@ -1,0 +1,179 @@
+---
+title: Configuration overview
+description: Learn how Teldrive loads config files, environment variables, and flags, and how to translate a setting between them.
+---
+
+Teldrive exposes the same configuration through files, environment variables, and command-line flags.
+
+## Precedence
+
+From lowest to highest priority:
+
+```text
+built-in defaults
+  ↓
+config file
+  ↓
+TELDRIVE_* environment variables
+  ↓
+explicit command-line flags
+```
+
+Only flags you explicitly pass override other sources.
+
+## Config file discovery
+
+Without `--config`, Teldrive checks these locations in order:
+
+```text
+~/.teldrive/config.toml
+~/.teldrive/config.yaml
+~/.teldrive/config.yml
+./config.toml
+./config.yaml
+./config.yml
+```
+
+Use an explicit path when you want zero ambiguity:
+
+```bash
+teldrive run --config /etc/teldrive/config.toml
+```
+
+Supported file formats are TOML, YAML, and YML.
+
+## Translating setting names
+
+A config path such as:
+
+```text
+telegram.upload-threads
+```
+
+maps to:
+
+```yaml
+telegram:
+  upload-threads: 8
+```
+
+and:
+
+```bash
+TELDRIVE_TELEGRAM_UPLOAD_THREADS=8
+```
+
+and:
+
+```bash
+--telegram-upload-threads=8
+```
+
+The rule is consistent: environment variables use the `TELDRIVE_` prefix, uppercase letters, and underscores; flags flatten nested keys with hyphens.
+
+## Required settings
+
+For a normal remote-Telegram deployment, configure at least:
+
+```yaml
+database:
+  url: postgres://...
+
+telegram:
+  backend: remote
+  app-id: 12345678
+  app-hash: YOUR_APP_HASH
+
+security:
+  signing-key: YOUR_SIGNING_KEY
+  data-key: YOUR_DATA_KEY
+```
+
+`security.signing-key` must be at least 32 characters. `security.data-key` must be a Base64 value that decodes to exactly 32 bytes.
+
+Generate safe values with:
+
+```bash
+openssl rand -hex 32
+openssl rand -base64 32
+```
+
+## HTTP defaults
+
+```yaml
+http:
+  address: 127.0.0.1:8080
+  read-header-timeout: 10s
+  read-timeout: 1h
+  write-timeout: 1h
+  idle-timeout: 2m
+  shutdown-timeout: 10s
+  trusted-proxies: []
+```
+
+For containers, set `address` to `0.0.0.0:8080` inside the container. For a host install with a local reverse proxy, the default loopback address is safer.
+
+The one-hour read and write timeouts are intentionally large enough for file transfers. Setting either to `0` disables that timeout for streaming, which may be appropriate only when the surrounding proxy and network policies are carefully controlled.
+
+## Logging
+
+```yaml
+logging:
+  log-level: info
+  log-format: json
+```
+
+Supported levels:
+
+```text
+debug
+info
+warn
+error
+```
+
+Supported formats:
+
+```text
+json
+text
+```
+
+Use JSON in containers and centralized logging systems. `text` is easier to read interactively during local development.
+
+## Memory cache
+
+```yaml
+cache:
+  memory:
+    size: 5MB
+```
+
+This is Teldrive's in-process Ristretto cache budget. It is not a file-content disk cache. Increase it only when you have measured a reason and enough memory headroom.
+
+## Validate the effective setup
+
+Run:
+
+```bash
+teldrive check --config /etc/teldrive/config.toml
+```
+
+or in Compose:
+
+```bash
+docker compose run --rm teldrive check
+```
+
+The command validates configuration and initializes dependencies before exiting. Use it after editing secrets, database URLs, schema names, proxy settings, encryption keys, or worker settings.
+
+## Sample files
+
+The repository contains both:
+
+```text
+config.sample.toml
+config.sample.yaml
+```
+
+They are useful starting points, but do not copy sample credentials into a public deployment unchanged. Replace all private values and review network-facing defaults.

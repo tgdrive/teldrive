@@ -1,0 +1,93 @@
+---
+title: Content encryption and key rotation
+description: Configure versioned file-content encryption without losing access to existing uploads.
+---
+
+Teldrive can encrypt uploaded content with a server-managed key before it is stored through Telegram. This is separate from `security.data-key`, which protects sensitive database fields.
+
+## Enable encryption
+
+Choose a strong secret and assign it a positive version number:
+
+```yaml
+encryption:
+  active-key-version: 1
+  keys:
+    1: "YOUR_LONG_RANDOM_SECRET"
+```
+
+A convenient way to generate a secret is:
+
+```bash
+openssl rand -base64 32
+```
+
+Environment variable form uses comma-separated `version:key` entries:
+
+```bash
+TELDRIVE_ENCRYPTION_ACTIVE_KEY_VERSION=1
+TELDRIVE_ENCRYPTION_KEYS='1:YOUR_LONG_RANDOM_SECRET'
+```
+
+## How it works
+
+For encrypted uploads, Teldrive records the key version with the stored file/part metadata. The encryption implementation derives per-part cryptographic material from the configured secret and a generated salt.
+
+That means the configured string is a long-lived master secret for that key version. Protect it like any other encryption key.
+
+## Rotate to a new key
+
+Add a new version while keeping the old one:
+
+```yaml
+encryption:
+  active-key-version: 2
+  keys:
+    1: "OLD_SECRET_KEEP_THIS"
+    2: "NEW_SECRET"
+```
+
+New uploads use version `2`. Existing encrypted files still need version `1` to decrypt.
+
+Do **not** delete the old key merely because it is no longer active.
+
+## Safe rotation procedure
+
+1. Back up the current config/secrets.
+2. Generate a new random secret.
+3. Add it under a new integer version.
+4. Change `active-key-version` to the new version.
+5. Run `teldrive check`.
+6. Restart Teldrive.
+7. Upload a small file and verify it downloads.
+8. Verify an older encrypted file still downloads.
+
+## Validation rules
+
+Teldrive rejects configurations where:
+
+- encryption keys exist but `active-key-version` is `0`;
+- the active version is missing from `keys`;
+- a key version is zero/negative;
+- a configured key value is empty.
+
+## Backup requirements
+
+Back up **every key version still referenced by stored data**.
+
+A disaster-recovery bundle for an encrypted installation needs:
+
+```text
+PostgreSQL backup
+security.data-key
+encryption key versions still in use
+Telegram account/session recovery capability
+```
+
+Losing a content-encryption key can make the associated stored content permanently unreadable even if Telegram still has the encrypted payload.
+
+## Disable encryption for future uploads
+
+Setting no active version and no keys returns future uploads to the unencrypted content path, but do not remove old keys until all data that depends on them has been removed or migrated.
+
+Treat changing encryption policy as a data-lifecycle operation, not merely a cosmetic configuration change.

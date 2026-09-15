@@ -1,0 +1,126 @@
+---
+title: Architecture
+description: Understand how Teldrive splits responsibilities between the browser, Go API, PostgreSQL, background jobs, and Telegram.
+---
+
+Teldrive is not a filesystem mounted directly on top of Telegram. It is an application layer that maintains its own metadata and workflows while using Telegram as the remote payload store.
+
+## High-level request path
+
+```text
+┌─────────────┐
+│ Browser /   │
+│ API client  │
+└──────┬──────┘
+       │ HTTP/S
+       ▼
+┌─────────────┐
+│ Teldrive    │
+│ Go server   │
+└───┬─────┬───┘
+    │     │
+    │     └──────────────► Telegram
+    │                      file payloads
+    ▼
+PostgreSQL
+metadata, auth,
+jobs, events
+```
+
+The web UI is built with Vite/React and embedded into the Go binary for release builds. There is no separate production frontend service required.
+
+## PostgreSQL responsibilities
+
+PostgreSQL stores the durable application model, including data needed for:
+
+- users and authentication state;
+- encrypted Telegram sessions/credentials;
+- file and folder metadata;
+- channel/bot metadata;
+- shares;
+- resumable uploads;
+- background jobs;
+- replayable application events.
+
+This is why a Telegram account alone is not enough to restore a Teldrive installation. You also need the database and the keys needed to decrypt protected records.
+
+## Telegram responsibilities
+
+With `telegram.backend=remote`, Telegram is the external storage boundary used for file payloads.
+
+Teldrive can split file operations into Telegram document parts, manage storage channels, and stream data back through the HTTP API.
+
+The exact storage mechanics are intentionally hidden from normal users. The browser works with Teldrive files and folders rather than Telegram messages directly.
+
+## Authentication model
+
+The browser first completes a Telegram login flow. Teldrive then stores the resulting Telegram session encrypted in PostgreSQL.
+
+Teldrive's own web/API session uses access and refresh tokens signed by `security.signing-key`.
+
+So there are two distinct trust relationships:
+
+```text
+Browser ⇄ Teldrive
+       Teldrive ⇄ Telegram
+```
+
+Changing the Teldrive signing key affects browser sessions. Changing the data key affects Teldrive's ability to decrypt stored Telegram credentials.
+
+## Background jobs
+
+Teldrive uses River/RiverPro for asynchronous work. By default the same process that serves HTTP also runs workers:
+
+```yaml
+jobs:
+  run-workers: true
+```
+
+The job tables live in PostgreSQL, which allows advanced deployments to separate API processes from worker processes without introducing another queue service.
+
+## Live UI events
+
+Teldrive stores replayable events in PostgreSQL and streams updates to browsers with Server-Sent Events.
+
+That design lets the UI recover from short disconnects, but it also means the reverse proxy must support long-lived streaming responses.
+
+## Content hashing
+
+When upload hashing is enabled, Teldrive computes BLAKE3 hashes during uploads. Hashing is application work performed in addition to the network transfer; it can become noticeable on very fast links or CPU-constrained hosts.
+
+## Storage encryption layers
+
+There are two independent encryption concerns:
+
+```text
+security.data-key
+    └─ encrypts sensitive database blobs
+
+encryption.keys
+    └─ versioned server-managed content encryption
+```
+
+They solve different problems and should be backed up independently.
+
+## Why the default architecture is one process
+
+For most users:
+
+```text
+1 Teldrive process
+1 PostgreSQL database
+Telegram
+```
+
+is the right deployment.
+
+It minimizes:
+
+- connection-pool multiplication;
+- shared-rate-limit complexity;
+- bot-rotation coordination;
+- proxy/load-balancer behavior;
+- worker topology;
+- operational failure modes.
+
+Scale horizontally only after a single well-sized instance has a measured bottleneck.

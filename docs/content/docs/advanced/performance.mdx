@@ -1,0 +1,153 @@
+---
+title: Performance tuning
+description: Tune Teldrive methodically across Telegram concurrency, hashing, PostgreSQL, HTTP streaming, and memory usage.
+---
+
+Do not start performance tuning by maximizing every concurrency value. Teldrive spans several independent systems, and the slowest one may be your network, Telegram, CPU hashing, PostgreSQL, proxy, or client.
+
+## Establish a baseline
+
+Before changing settings, record:
+
+- upload throughput for one large file;
+- download throughput for one large file;
+- CPU usage;
+- memory usage;
+- PostgreSQL connections;
+- Telegram retry/rate-limit errors;
+- reverse-proxy errors/timeouts.
+
+Then change one group of settings at a time.
+
+## Upload throughput
+
+Primary setting:
+
+```yaml
+telegram:
+  upload-threads: 8
+```
+
+Valid range: `1`–`32`.
+
+Increase gradually. If throughput stops improving while errors, CPU, or memory rise, back down.
+
+Upload hashing is another cost:
+
+```yaml
+uploads:
+  hashing-enabled: true
+```
+
+BLAKE3 is fast, but on a fast local disk/network the CPU cost can still become visible. Disable automatic hashing only if measurements show it is materially limiting your workload and you accept the trade-off.
+
+## Download throughput
+
+Relevant settings:
+
+```yaml
+telegram:
+  download-read-buffers: 32
+  download-read-parallel: 4
+  download-bots: 0
+```
+
+`download-read-parallel` increases concurrent Telegram chunk reads for one stream. `download-read-buffers` controls prefetched chunks held in memory.
+
+With many simultaneous clients, the effective work scales roughly with:
+
+```text
+number of streams × per-stream parallelism/buffering
+```
+
+so settings that are comfortable for one download may become expensive under concurrency.
+
+## Download bots
+
+`download-bots` can enable bot-based rotation when bots are configured. Treat this as an advanced throughput feature after normal user-client downloads work correctly.
+
+Single instance:
+
+```yaml
+telegram:
+  bot-rotation-backend: memory
+```
+
+Multiple coordinated instances:
+
+```yaml
+telegram:
+  bot-rotation-backend: database
+```
+
+## PostgreSQL pool
+
+Defaults:
+
+```yaml
+database:
+  max-connections: 25
+  min-connections: 2
+```
+
+A larger pool helps only when work is actually waiting for database connections and PostgreSQL has capacity for more. Too many connections can make PostgreSQL slower rather than faster.
+
+When scaling to `N` Teldrive instances, budget approximately `N × max-connections` as the worst-case application pool footprint.
+
+## Memory cache
+
+```yaml
+cache:
+  memory:
+    size: 5MB
+```
+
+This is an in-process metadata/cache budget, not a file download cache. Increase it only when cache hit behavior and memory headroom justify it.
+
+## HTTP and proxy timeouts
+
+Defaults:
+
+```yaml
+http:
+  read-timeout: 1h
+  write-timeout: 1h
+```
+
+A transfer that dies at a fixed duration is often a timeout problem, not a Telegram speed problem. Check:
+
+```text
+client
+→ CDN/load balancer
+→ reverse proxy
+→ Teldrive HTTP timeout
+→ Telegram connection
+```
+
+The shortest timeout can terminate the request.
+
+## Telegram rate limiting
+
+Leave this enabled:
+
+```yaml
+telegram:
+  rate-limit: true
+  rate-interval: 50ms
+  rate-burst: 10
+```
+
+If you increase concurrency, watch Telegram responses carefully. Faster request generation does not increase server-side limits.
+
+## A practical tuning order
+
+1. Verify there are no proxy/time-out errors.
+2. Measure one upload and one download.
+3. Check host CPU/memory/network saturation.
+4. Increase upload threads modestly if upload is the bottleneck.
+5. Increase download parallelism modestly if download is the bottleneck.
+6. Re-test under realistic simultaneous-user load.
+7. Check PostgreSQL pool pressure.
+8. Consider bots or horizontal scaling only after simpler bottlenecks are exhausted.
+
+This sequence keeps tuning reversible and makes it possible to identify which change actually helped.

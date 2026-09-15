@@ -1,0 +1,17 @@
+{
+  "title": "Teldrive Docs",
+  "pages": [
+    "index",
+    "---Getting Started---",
+    "getting-started",
+    "---Install---",
+    "installation",
+    "---Configure---",
+    "configuration",
+    "---Deploy---",
+    "deployment",
+    "---Advanced---",
+    "advanced",
+    "troubleshooting"
+  ]
+}

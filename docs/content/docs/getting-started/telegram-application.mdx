@@ -1,0 +1,103 @@
+---
+title: Telegram application
+description: Create the Telegram API credentials Teldrive uses to connect as your account.
+---
+
+Teldrive talks to Telegram through Telegram's MTProto API. That requires an **application ID** (`api_id`) and **application hash** (`api_hash`). These identify the client application; they are separate from your phone number, login code, and Teldrive session.
+
+## Before you start
+
+You need a Telegram account that can sign in to Telegram's developer portal.
+
+> Keep the API hash private. It is not the same thing as a bot token and you should not publish it in screenshots, Git repositories, or public Compose files.
+
+## Create the application
+
+1. Open Telegram's API development portal at `https://my.telegram.org`.
+2. Sign in with the phone number attached to the Telegram account.
+3. Open **API development tools**.
+4. Create an application if the account does not already have one.
+5. Copy the numeric **App api_id**.
+6. Copy the **App api_hash**.
+
+For a self-hosted installation, the application title and short name are primarily for identifying your application in Telegram's portal. They do not become your Teldrive server name.
+
+## Configure Teldrive
+
+With environment variables:
+
+```bash
+TELDRIVE_TELEGRAM_APP_ID=12345678
+TELDRIVE_TELEGRAM_APP_HASH=0123456789abcdef0123456789abcdef
+```
+
+With YAML:
+
+```yaml
+telegram:
+  backend: remote
+  app-id: 12345678
+  app-hash: 0123456789abcdef0123456789abcdef
+```
+
+With TOML:
+
+```toml
+[telegram]
+backend = "remote"
+app-id = 12345678
+app-hash = "0123456789abcdef0123456789abcdef"
+```
+
+## Remote vs filesystem backend
+
+Teldrive has two Telegram backends:
+
+| Backend | Purpose |
+| --- | --- |
+| `remote` | Real Telegram storage. This is what normal self-hosted installations use. |
+| `filesystem` | Local/offline Telegram emulator used for development and tests. |
+
+Do not use `filesystem` expecting it to synchronize to Telegram. It intentionally stores data under the configured local root instead.
+
+## Connection controls
+
+A normal installation can keep the defaults:
+
+```yaml
+telegram:
+  dial-timeout: 10s
+  reconnect-timeout: 5m
+  max-retries: 10
+  rate-limit: true
+  rate-interval: 50ms
+  rate-burst: 10
+```
+
+The built-in rate limiter is enabled by default. Increasing concurrency or burst settings can make a fast server issue Telegram requests more aggressively, but it does not change Telegram's limits. Tune those settings conservatively.
+
+## Proxies
+
+For networks that cannot connect to Telegram directly, Teldrive supports either a normal proxy URL or an MTProxy.
+
+Normal proxy:
+
+```yaml
+telegram:
+  proxy: "socks5://user:password@proxy.example.com:1080"
+```
+
+MTProxy:
+
+```yaml
+telegram:
+  mtproxy:
+    address: "proxy.example.com:443"
+    secret: "YOUR_MT_PROXY_SECRET"
+```
+
+Configure **one or the other**, not both. Teldrive rejects a configuration that enables both proxy modes at the same time.
+
+## Next
+
+Continue to [Quick start](/getting-started/quick-start) if your server is not running yet, or [First login](/getting-started/first-login) if Teldrive is already online.

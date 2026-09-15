@@ -1,0 +1,4 @@
+{
+  "title": "Configuration",
+  "pages": ["overview", "security", "telegram", "database", "uploads-and-events"]
+}

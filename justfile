@@ -2,6 +2,7 @@ set dotenv-load := true
 
 openapi_spec := "openapi/teldrive.openapi.yaml"
 ui_dir := "ui"
+docs_dir := "docs"
 binary := "bin/teldrive"
 version := env_var_or_default("VERSION", "dev")
 default_commit := `git rev-parse --short HEAD 2>/dev/null || echo unknown`
@@ -16,6 +17,7 @@ _default:
 install-tools:
     bun ci --cwd typespec
     bun ci --cwd {{ui_dir}}
+    bun ci --cwd {{docs_dir}}
 
 format:
     bun run --cwd typespec format
@@ -61,6 +63,13 @@ ui-check: generate-ui
     bun run --cwd {{ui_dir}} typecheck
     bun run --cwd {{ui_dir}} test
     bun run --cwd {{ui_dir}} build
+
+# Run the fully static Astro + Fumadocs documentation site.
+docs-dev:
+    bun run --cwd {{docs_dir}} dev
+
+docs-build:
+    bun run --cwd {{docs_dir}} build
 
 build: generate-ui
     bun run --cwd {{ui_dir}} build
@@ -128,6 +137,7 @@ check: generate lint test-unit coverage
     bun run --cwd {{ui_dir}} typecheck
     bun run --cwd {{ui_dir}} test
     bun run --cwd {{ui_dir}} build
+    bun run --cwd {{docs_dir}} build
 
 clean-generated:
     rm -rf openapi internal/api/gen internal/db/sqlcgen ui/src/api/schema.ts ui/dist coverage.out

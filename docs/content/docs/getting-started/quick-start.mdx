@@ -1,0 +1,173 @@
+---
+title: Quick start
+description: Run Teldrive with PostgreSQL and the official container image, with every required setting explained.
+---
+
+This guide is the shortest safe path to a working Teldrive installation. It assumes a Linux server with Docker or Podman and a Telegram account.
+
+## 1. Create a working directory
+
+```bash
+mkdir -p ~/teldrive
+cd ~/teldrive
+```
+
+You will keep the deployment file and PostgreSQL data here.
+
+## 2. Create the two Teldrive secrets
+
+Teldrive needs two different secrets:
+
+- **signing key** — signs access and refresh tokens;
+- **data key** — encrypts sensitive database values such as Telegram sessions and credentials.
+
+Generate them once:
+
+```bash
+openssl rand -hex 32
+openssl rand -base64 32
+```
+
+Save both values somewhere secure. Do not regenerate the data key after users have logged in; existing encrypted credentials depend on it.
+
+The data key must decode to exactly **32 bytes**. `openssl rand -base64 32` produces the correct format.
+
+## 3. Get your Telegram application credentials
+
+Create a Telegram API application and copy its `api_id` and `api_hash`. See [Telegram application](/getting-started/telegram-application) for the complete walkthrough.
+
+You will have four private values before continuing:
+
+```text
+TELEGRAM_APP_ID
+TELEGRAM_APP_HASH
+TELDRIVE_SIGNING_KEY
+TELDRIVE_DATA_KEY
+```
+
+## 4. Create `compose.yaml`
+
+```yaml
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: teldrive
+      POSTGRES_USER: teldrive
+      POSTGRES_PASSWORD: change-this-database-password
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U teldrive -d teldrive"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  teldrive:
+    image: ghcr.io/tgdrive/teldrive:latest
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      TELDRIVE_HTTP_ADDRESS: "0.0.0.0:8080"
+      TELDRIVE_DATABASE_URL: "postgres://teldrive:change-this-database-password@postgres:5432/teldrive?sslmode=disable"
+      TELDRIVE_TELEGRAM_APP_ID: "YOUR_API_ID"
+      TELDRIVE_TELEGRAM_APP_HASH: "YOUR_API_HASH"
+      TELDRIVE_SECURITY_SIGNING_KEY: "YOUR_SIGNING_KEY"
+      TELDRIVE_SECURITY_DATA_KEY: "YOUR_DATA_KEY"
+```
+
+### Why `0.0.0.0:8080`?
+
+Teldrive defaults to `127.0.0.1:8080`. Inside a container that would only listen on the container's own loopback interface. Setting `TELDRIVE_HTTP_ADDRESS=0.0.0.0:8080` makes the process reachable through the container port.
+
+### Why publish only to `127.0.0.1`?
+
+```yaml
+ports:
+  - "127.0.0.1:8080:8080"
+```
+
+This keeps Teldrive private to the host. A reverse proxy such as Caddy, nginx, or Traefik can expose it with HTTPS later.
+
+For a quick LAN-only test you can temporarily publish `8080:8080`, but do not expose an unencrypted login service directly to the public internet.
+
+## 5. Start PostgreSQL and Teldrive
+
+Docker:
+
+```bash
+docker compose up -d
+```
+
+Podman:
+
+```bash
+podman compose up -d
+```
+
+Teldrive runs its application, River, and RiverPro database migrations during startup. You do not need to apply SQL migrations manually for a normal deployment.
+
+## 6. Watch the first startup
+
+Docker:
+
+```bash
+docker compose logs -f teldrive
+```
+
+Podman:
+
+```bash
+podman compose logs -f teldrive
+```
+
+A healthy startup should eventually show that the application is starting on `0.0.0.0:8080`.
+
+If it exits immediately, check [Troubleshooting](/troubleshooting). The most common first-start problems are an invalid data key, a PostgreSQL connection error, or a malformed Telegram application credential.
+
+## 7. Open Teldrive
+
+On the server itself:
+
+```text
+http://127.0.0.1:8080
+```
+
+If you are connecting from another machine, configure a reverse proxy and HTTPS first. See [Reverse proxy & HTTPS](/deployment/reverse-proxy).
+
+## 8. Sign in with Telegram
+
+The web interface starts a Telegram login flow. Complete it with the account you intend to use for Teldrive storage.
+
+After login, Teldrive encrypts the stored Telegram session using your `security.data-key`. Your normal browser session uses signed access and refresh tokens.
+
+Continue with [First login](/getting-started/first-login) to verify the installation and upload a small test file.
+
+## 9. Validate configuration without keeping the server running
+
+The container exposes the normal Teldrive CLI. You can run:
+
+```bash
+docker compose run --rm teldrive check
+```
+
+`check` loads and validates configuration, initializes dependencies, runs required migrations, then exits. This is useful after changing production configuration.
+
+## Next steps
+
+<Cards>
+  <Card title="First login" href="/getting-started/first-login">
+    Verify storage, create the first files, and learn what Teldrive creates automatically.
+  </Card>
+  <Card title="Production deployment" href="/deployment/production">
+    Add HTTPS, backups, restricted access, health checks, and a safer update workflow.
+  </Card>
+  <Card title="Configuration reference" href="/configuration/overview">
+    Understand files, environment variables, flags, precedence, and all major settings.
+  </Card>
+</Cards>

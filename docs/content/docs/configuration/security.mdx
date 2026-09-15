@@ -1,0 +1,120 @@
+---
+title: Security
+description: Configure Teldrive signing, encrypted credentials, allowed users, token lifetimes, and server-managed content encryption.
+---
+
+Teldrive has two separate security-key systems. Do not confuse them.
+
+## Authentication secrets
+
+```yaml
+security:
+  signing-key: "..."
+  data-key: "..."
+  issuer: teldrive-v2
+  allowed-users: []
+  access-token-ttl: 15m
+  refresh-token-ttl: 720h
+  login-flow-ttl: 10m
+```
+
+### `signing-key`
+
+Used to sign Teldrive authentication tokens. It must be at least 32 characters.
+
+Generate one with:
+
+```bash
+openssl rand -hex 32
+```
+
+Changing it invalidates existing signed sessions, so users will need to authenticate again.
+
+### `data-key`
+
+Used to encrypt sensitive values stored in PostgreSQL, including Telegram sessions and credentials. Internally Teldrive uses XChaCha20-Poly1305 for these secure blobs.
+
+The value must be Base64 that decodes to exactly 32 bytes:
+
+```bash
+openssl rand -base64 32
+```
+
+**Back this key up.** Replacing it prevents Teldrive from decrypting sensitive values that were encrypted with the previous key.
+
+### `allowed-users`
+
+An empty list allows any Telegram username that can complete authentication:
+
+```yaml
+security:
+  allowed-users: []
+```
+
+For a private server, restrict it:
+
+```yaml
+security:
+  allowed-users:
+    - alice
+    - bob
+```
+
+Usernames are case-insensitive and may be written with or without `@`.
+
+Environment variable form:
+
+```bash
+TELDRIVE_SECURITY_ALLOWED_USERS=alice,bob
+```
+
+## Token lifetimes
+
+Defaults:
+
+| Setting | Default | Meaning |
+| --- | ---: | --- |
+| `access-token-ttl` | `15m` | Short-lived authenticated access token |
+| `refresh-token-ttl` | `720h` | Refresh session lifetime, 30 days |
+| `login-flow-ttl` | `10m` | Maximum time for an in-progress Telegram login |
+
+Shorter lifetimes reduce the usefulness of stolen tokens but increase refresh/login activity. The defaults are appropriate for most self-hosted deployments.
+
+## Server-managed file encryption
+
+This is separate from `security.data-key`.
+
+```yaml
+encryption:
+  active-key-version: 1
+  keys:
+    1: "YOUR_CONTENT_KEY"
+```
+
+The `encryption` section controls versioned server-managed encryption for uploaded content. If keys are configured, an active key version must be selected and that version must exist in the key map.
+
+The versioning exists so new uploads can move to a new key without pretending old encrypted data used the same key.
+
+Do not delete old key versions while files encrypted with them still exist.
+
+## Secret-management recommendations
+
+For a single server, a root-owned config file with mode `0640` and a dedicated `teldrive` group is reasonable.
+
+For containers or orchestration systems, prefer a secret mechanism over committing values into `compose.yaml` or Git.
+
+At minimum, protect:
+
+- PostgreSQL password;
+- Telegram API hash;
+- Teldrive signing key;
+- Teldrive data key;
+- content-encryption keys;
+- proxy credentials;
+- Telegram bot credentials, if configured through the application.
+
+## Backup rule
+
+A PostgreSQL backup **without the data key** is not a complete recoverable Teldrive backup once encrypted credentials exist.
+
+Keep database backups and key backups in separate protected locations, and periodically test restoration on an isolated instance.

@@ -1,0 +1,143 @@
+---
+title: Telegram settings
+description: Tune Telegram connectivity, upload/download concurrency, channels, proxies, and download clients.
+---
+
+The defaults are intentionally conservative. Start with them, confirm a stable installation, and tune only after observing actual upload/download behavior.
+
+## Core connection settings
+
+```yaml
+telegram:
+  backend: remote
+  app-id: 12345678
+  app-hash: YOUR_APP_HASH
+  dial-timeout: 10s
+  reconnect-timeout: 5m
+  max-retries: 10
+  rate-limit: true
+  rate-interval: 50ms
+  rate-burst: 10
+```
+
+Keep `rate-limit: true` unless you have a very specific reason to disable client-side throttling. Teldrive cannot bypass Telegram's server-side limits.
+
+## Upload concurrency
+
+```yaml
+telegram:
+  upload-threads: 8
+```
+
+Valid range: `1` to `32`.
+
+More workers can improve throughput on a fast network, but they also increase simultaneous Telegram work and memory/CPU pressure. Raising this value does not guarantee a proportional speedup.
+
+Tune gradually:
+
+```text
+8 → 12 → 16
+```
+
+and watch errors, rate limiting, CPU, memory, and actual throughput between changes.
+
+## Download behavior
+
+```yaml
+telegram:
+  download-bots: 0
+  download-client-pool: false
+  download-read-buffers: 32
+  download-read-parallel: 4
+```
+
+### `download-bots`
+
+Default `0` means downloads use the authenticated Telegram user. Values up to `32` allow configured bots to participate in download rotation.
+
+Bots are an optimization, not a requirement for basic operation.
+
+### `download-client-pool`
+
+The default is `false`, preserving request-scoped Telegram download clients. Leave it disabled unless you understand the lifecycle and resource trade-offs of keeping authenticated clients warm.
+
+### `download-read-buffers`
+
+Number of prefetched Telegram chunks buffered per stream. Valid range: `1` to `256`.
+
+### `download-read-parallel`
+
+Concurrent Telegram chunk fetches for one download stream. Valid range: `1` to `32`.
+
+These two settings interact. Increasing both can raise memory usage substantially when many clients download at the same time.
+
+## Storage channels
+
+```yaml
+telegram:
+  randomize-part-names: true
+  auto-channel-create: true
+  channel-part-limit: 500000
+  channel-name-prefix: teldrive
+```
+
+With automatic channel creation enabled, Teldrive creates storage channels as necessary. `channel-part-limit` controls when a channel is considered full for new parts.
+
+`randomize-part-names` avoids meaningful original names being used directly for Telegram document parts.
+
+## Bot rotation backend
+
+```yaml
+telegram:
+  bot-rotation-backend: memory
+```
+
+Supported values:
+
+- `memory` — lowest coordination overhead for a single Teldrive instance;
+- `database` — coordinates bot rotation through PostgreSQL and is appropriate when multiple API instances need shared state.
+
+For one server, use `memory`. For a horizontally scaled deployment, evaluate `database`.
+
+## Standard proxy
+
+```yaml
+telegram:
+  proxy: "socks5://user:password@proxy.example.com:1080"
+```
+
+The value may be an HTTP, HTTPS, or SOCKS5 proxy URL.
+
+## MTProxy
+
+```yaml
+telegram:
+  mtproxy:
+    address: "proxy.example.com:443"
+    secret: "YOUR_SECRET"
+```
+
+Both MTProxy fields must be set together. Teldrive rejects configurations where only one is present.
+
+A normal proxy and MTProxy are mutually exclusive.
+
+## Client logging
+
+```yaml
+telegram:
+  client-logging: false
+```
+
+Enable this temporarily when diagnosing low-level gotd/Telegram problems. It can produce verbose logs; do not leave it on solely for routine operation.
+
+## Development filesystem backend
+
+For offline/local development:
+
+```yaml
+telegram:
+  backend: filesystem
+  local-root: ./var/local-telegram
+```
+
+This is a local Telegram emulator. It is useful for tests and UI development but does not store payloads in Telegram.

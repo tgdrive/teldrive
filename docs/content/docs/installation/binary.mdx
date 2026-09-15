@@ -1,0 +1,123 @@
+---
+title: Release binary
+description: Install a Teldrive release archive without Docker or Podman.
+---
+
+Teldrive releases include standalone binaries for Linux, macOS, and Windows. The release build uses `CGO_ENABLED=0`, so Linux installations do not need a matching system libc.
+
+## Supported release targets
+
+The current release configuration builds:
+
+- Linux: `amd64`, `arm`, `arm64`
+- macOS: `amd64`, `arm64`
+- Windows: `amd64`, `arm64`
+
+Release archives use names similar to:
+
+```text
+teldrive-vX.Y.Z-linux-amd64.tar.gz
+teldrive-vX.Y.Z-linux-arm64.tar.gz
+teldrive-vX.Y.Z-darwin-arm64.tar.gz
+teldrive-vX.Y.Z-windows-amd64.zip
+```
+
+## Linux example
+
+Download the archive for your architecture from the project's GitHub Releases page, then extract it:
+
+```bash
+tar -xzf teldrive-vX.Y.Z-linux-amd64.tar.gz
+sudo install -m 0755 teldrive /usr/local/bin/teldrive
+```
+
+Verify the binary:
+
+```bash
+teldrive version
+```
+
+## Create the config directory
+
+Teldrive searches these locations automatically:
+
+```text
+~/.teldrive/config.toml
+~/.teldrive/config.yaml
+~/.teldrive/config.yml
+./config.toml
+./config.yaml
+./config.yml
+```
+
+Create the default directory:
+
+```bash
+mkdir -p ~/.teldrive
+```
+
+Then copy either `config.sample.toml` or `config.sample.yaml` from the repository and fill in the required database, Telegram, and security values.
+
+You can also point to an explicit config file:
+
+```bash
+teldrive run --config /etc/teldrive/config.toml
+```
+
+## Validate before starting
+
+```bash
+teldrive check --config /etc/teldrive/config.toml
+```
+
+If validation succeeds:
+
+```bash
+teldrive run --config /etc/teldrive/config.toml
+```
+
+## systemd example
+
+A simple service unit can run the release binary directly:
+
+```ini
+[Unit]
+Description=Teldrive
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=teldrive
+Group=teldrive
+ExecStart=/usr/local/bin/teldrive run --config /etc/teldrive/config.toml
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Create a dedicated service user and make sure it can read the configuration file but unprivileged users cannot:
+
+```bash
+sudo chown root:teldrive /etc/teldrive/config.toml
+sudo chmod 0640 /etc/teldrive/config.toml
+```
+
+The configuration can contain database passwords, Telegram API credentials, signing keys, encryption keys, and proxy credentials. Treat it as a secret.
+
+## Listening address
+
+On a host installation, the default `127.0.0.1:8080` is usually a good choice when a reverse proxy runs on the same machine.
+
+To listen on all interfaces explicitly:
+
+```toml
+[http]
+address = "0.0.0.0:8080"
+```
+
+Do that only when the surrounding network policy is intentional. For internet-facing deployments, terminate TLS at a reverse proxy instead of exposing plain HTTP directly.

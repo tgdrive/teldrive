@@ -1,0 +1,136 @@
+---
+title: Reverse proxy and HTTPS
+description: Put Teldrive behind Caddy, nginx, or another TLS-terminating proxy without breaking secure cookies or live events.
+---
+
+For an internet-facing server, keep Teldrive on a private HTTP listener and terminate HTTPS at a reverse proxy.
+
+A typical layout is:
+
+```text
+browser
+  │ HTTPS
+  ▼
+reverse proxy :443
+  │ HTTP on private host/container network
+  ▼
+Teldrive :8080
+```
+
+## The important Teldrive setting
+
+When TLS terminates at a reverse proxy, configure that proxy's IP address or CIDR as trusted:
+
+```yaml
+http:
+  trusted-proxies:
+    - 127.0.0.1
+```
+
+For a container network, use the actual network/CIDR from which the reverse proxy connects to Teldrive rather than blindly trusting every address.
+
+Teldrive considers a proxied request secure only when both conditions are true:
+
+1. the direct peer is in `http.trusted-proxies`;
+2. the proxy sends `X-Forwarded-Proto: https`.
+
+This matters because Teldrive uses that security state when issuing browser cookies.
+
+> Do not use `0.0.0.0/0` or `::/0` merely to make the problem disappear. Forwarded headers are security-sensitive because an untrusted client must not be able to pretend a plain HTTP request arrived over HTTPS.
+
+## Caddy
+
+If Caddy and Teldrive run on the same host:
+
+```text
+drive.example.com {
+    reverse_proxy 127.0.0.1:8080
+}
+```
+
+Caddy handles certificate issuance and forwards the original scheme. In Teldrive:
+
+```yaml
+http:
+  address: 127.0.0.1:8080
+  trusted-proxies:
+    - 127.0.0.1
+```
+
+If Caddy is in another container, configure the container-network source address/CIDR instead.
+
+## nginx
+
+A minimal nginx server block:
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name drive.example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/drive.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/drive.example.com/privkey.pem;
+
+    client_max_body_size 0;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+
+        proxy_request_buffering off;
+        proxy_buffering off;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+}
+```
+
+The large timeouts and disabled buffering are useful for long file transfers and Server-Sent Events. Adapt them to your infrastructure rather than copying them as universal limits.
+
+## Server-Sent Events
+
+Teldrive uses SSE for live application updates. A proxy can successfully serve the UI and ordinary API requests while still breaking SSE through response buffering or short idle timeouts.
+
+Symptoms include:
+
+- task progress updates only after a page refresh;
+- live file changes do not appear;
+- the event connection reconnects continuously.
+
+Make sure the event stream can stay open and is not buffered into large chunks.
+
+## Container example
+
+A common safe layout publishes Teldrive only on host loopback:
+
+```yaml
+services:
+  teldrive:
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      TELDRIVE_HTTP_ADDRESS: 0.0.0.0:8080
+      TELDRIVE_HTTP_TRUSTED_PROXIES: 172.18.0.0/16
+```
+
+The correct trusted CIDR depends on the network through which the reverse proxy actually reaches Teldrive. Verify it rather than assuming the example subnet.
+
+## CDN or multiple proxy hops
+
+If a CDN/load balancer talks to a reverse proxy which then talks to Teldrive, Teldrive's direct peer is still the last proxy hop. Trust the direct peer and configure that proxy to sanitize and set forwarding headers correctly.
+
+Do not allow arbitrary clients to reach Teldrive directly while also accepting their forwarding headers.
+
+## Verify
+
+After enabling HTTPS:
+
+1. open only the `https://` URL in a fresh browser session;
+2. log in;
+3. refresh the page and confirm the session persists;
+4. upload and download a small file;
+5. confirm live task/progress updates continue without manual refresh;
+6. inspect browser developer tools for repeated event-stream reconnects or cookie errors.

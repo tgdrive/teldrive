@@ -1,0 +1,129 @@
+---
+title: Build from source
+description: Build the embedded web UI and Go server from the Teldrive repository.
+---
+
+Building from source is useful for contributors, custom patches, and users tracking development branches.
+
+## Requirements
+
+The repository currently expects:
+
+- **Go 1.26**;
+- **Bun** for the TypeSpec and web UI toolchains;
+- **Just** for supported project workflows;
+- PostgreSQL when running the server;
+- Git.
+
+Some integration and end-to-end tests also require Podman.
+
+## Clone the repository
+
+```bash
+git clone https://github.com/tgdrive/teldrive.git
+cd teldrive
+```
+
+## Install JavaScript tooling
+
+```bash
+just install-tools
+```
+
+This installs the pinned dependencies for both `typespec/` and `ui/` using Bun.
+
+## Build Teldrive
+
+```bash
+just build
+```
+
+The build performs two important steps:
+
+1. generates the current typed UI API client from the TypeSpec/OpenAPI contract;
+2. builds the Vite/React UI and embeds `ui/dist` into the Go binary.
+
+The resulting executable is:
+
+```text
+bin/teldrive
+```
+
+Run:
+
+```bash
+./bin/teldrive version
+```
+
+## Development mode
+
+The repository includes a development workflow that starts the Go backend and Vite UI together:
+
+```bash
+just dev
+```
+
+The backend is started with:
+
+```bash
+go run ./cmd/teldrive run
+```
+
+and the UI is started through Bun/Vite.
+
+The root `justfile` automatically loads the repository `.env`, so local development values can live there. Do not commit real production secrets.
+
+## Validate changes
+
+Fast backend unit tests:
+
+```bash
+just test-unit
+```
+
+UI checks:
+
+```bash
+just ui-check
+```
+
+Full validation:
+
+```bash
+just check
+```
+
+`just check` is intentionally expensive. It regenerates artifacts, lints, runs tests, builds the UI, and runs the project's coverage gate.
+
+## Generated code rules
+
+The API contract is owned by TypeSpec under `typespec/`. Do not manually edit generated OpenAPI or generated API clients/servers.
+
+After API changes, use:
+
+```bash
+just generate-api
+just generate-ui
+```
+
+or regenerate everything:
+
+```bash
+just generate
+```
+
+Database queries and migrations live under `db/`. After SQL query changes, use:
+
+```bash
+just generate-db
+```
+
+The project adds a schema-rewriting patch after `sqlc generate`, so using the repository target is important.
+
+## Build the container locally
+
+```bash
+just image
+```
+
+The default local image is tagged with the configured project version, for example `teldrive-backend:dev` during local development.
