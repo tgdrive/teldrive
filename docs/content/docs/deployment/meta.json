@@ -1,4 +1,4 @@
 {
   "title": "Deployment",
-  "pages": ["reverse-proxy", "production"]
+  "pages": ["reverse-proxy", "production", "backup-and-restore", "upgrading", "v1-migration"]
 }

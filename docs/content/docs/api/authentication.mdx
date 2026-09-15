@@ -1,0 +1,99 @@
+---
+title: Authentication
+description: Choose between browser cookies, bearer tokens, external API keys, event-stream tickets, and unauthenticated public-share access.
+---
+
+Teldrive has several authentication mechanisms because browser sessions and machine clients have different needs.
+
+## External API key — recommended for automation
+
+For rclone, scripts, services, and other long-running non-browser clients, create a dedicated key in **Settings → API keys** and send:
+
+```http
+X-Api-Key: YOUR_SECRET
+```
+
+Example:
+
+```bash
+curl https://drive.example.com/v1/me \
+  -H 'X-Api-Key: YOUR_SECRET'
+```
+
+API keys can be revoked independently and are not used to log into the browser UI.
+
+## Bearer token
+
+Authenticated API calls can also use:
+
+```http
+Authorization: Bearer ACCESS_TOKEN
+```
+
+Bearer tokens are appropriate for clients participating in the normal login/token flow. They expire according to `security.access-token-ttl`.
+
+For persistent automation, an API key is usually easier to operate than extracting/refreshing browser tokens.
+
+## Browser cookie
+
+The web application uses an HTTP cookie named:
+
+```text
+teldrive_access
+```
+
+Cookie-oriented authentication is designed for the browser UI. Do not copy cookies into rclone configuration or shell scripts when API keys are available.
+
+## Telegram login flow
+
+The authentication API supports Telegram login by code/password and QR flows. The browser UI drives these endpoints and stores the resulting Telegram credential in encrypted server-side storage.
+
+The lifetime of an unfinished Telegram login flow is controlled by:
+
+```yaml
+security:
+  login-flow-ttl: 10m
+```
+
+## Event-stream tickets
+
+The live-events API can use a short-lived event ticket passed as the `ticket` query parameter. This is useful for browser EventSource connections where setting arbitrary request headers is inconvenient.
+
+Event tickets are deliberately short-lived:
+
+```yaml
+events:
+  ticket-ttl: 2m
+```
+
+A ticket is not a general replacement for an API key.
+
+## Public share access
+
+Endpoints under:
+
+```text
+/v1/public/shares/{token}
+```
+
+are accessed through the opaque share token rather than normal Teldrive account authentication. A password-protected share additionally expects:
+
+```http
+X-Share-Password: SHARE_PASSWORD
+```
+
+The share's expiration, permission, revocation state, and download limit still apply.
+
+## Protect credentials
+
+Treat all of these as secrets:
+
+- API key secrets;
+- access/refresh tokens;
+- browser cookies;
+- public share URLs when no password is set;
+- share passwords.
+
+Never put real credentials into bug reports, public Git repositories, screenshots, or example configuration committed to source control.
+
+See [API keys](/api/api-keys) for lifecycle management and [Security configuration](/configuration/security) for token lifetimes and server keys.

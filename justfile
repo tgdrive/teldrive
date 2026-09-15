@@ -52,7 +52,11 @@ generate-db:
 generate-ui: generate-openapi
     bun run --cwd {{ui_dir}} generate:api
 
-generate: generate-api generate-db generate-ui
+# Generate documentation derived from server configuration and the API contract.
+docs-generate: generate-openapi
+    go run ./internal/tools/docsconfig
+
+generate: generate-api generate-db generate-ui docs-generate
     go mod tidy
 
 ui-e2e:
@@ -65,10 +69,10 @@ ui-check: generate-ui
     bun run --cwd {{ui_dir}} build
 
 # Run the fully static Astro + Fumadocs documentation site.
-docs-dev:
+docs-dev: docs-generate
     bun run --cwd {{docs_dir}} dev
 
-docs-build:
+docs-build: docs-generate
     bun run --cwd {{docs_dir}} build
 
 build: generate-ui

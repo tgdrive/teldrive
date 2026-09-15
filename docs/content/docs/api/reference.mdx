@@ -1,0 +1,33 @@
+---
+title: API reference
+description: Open the interactive Scalar reference generated from Teldrive's current OpenAPI document.
+---
+
+The interactive API reference is rendered directly from the generated Teldrive OpenAPI document. It contains the current endpoints, parameters, request/response schemas, authentication methods, and status codes from the TypeSpec contract.
+
+<Cards>
+  <Card title="Open interactive API reference" href="/openapi-reference/">
+    Browse and search the complete OpenAPI contract in Scalar.
+  </Card>
+  <Card title="Authentication" href="/api/authentication">
+    Understand bearer tokens, browser cookies, external API keys, and public-share access.
+  </Card>
+</Cards>
+
+## Raw OpenAPI document
+
+The same build publishes the raw generated specification at:
+
+```text
+/openapi/teldrive.openapi.yaml
+```
+
+On GitHub Pages that becomes `/teldrive/openapi/teldrive.openapi.yaml` automatically through the configured site base path.
+
+The source of truth remains TypeSpec in the repository. The docs build copies the generated `openapi/teldrive.openapi.yaml` into the static site before Astro builds.
+
+## Client generation
+
+Because the contract is OpenAPI, you can use an OpenAPI generator appropriate for your language. Keep generated clients tied to a specific Teldrive release/commit so a later API change does not silently alter production behavior.
+
+For simple scripts, an API key plus `curl` is often easier than generating a full client. See [API keys](/api/api-keys).

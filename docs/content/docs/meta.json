@@ -6,12 +6,18 @@
     "getting-started",
     "---Install---",
     "installation",
+    "---Use Teldrive---",
+    "using",
+    "rclone",
     "---Configure---",
     "configuration",
     "---Deploy---",
     "deployment",
+    "---API---",
+    "api",
+    "---Operations---",
+    "operations",
     "---Advanced---",
-    "advanced",
-    "troubleshooting"
+    "advanced"
   ]
 }

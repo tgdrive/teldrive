@@ -1,0 +1,121 @@
+---
+title: Backup and restore
+description: Build a complete Teldrive recovery set and restore PostgreSQL, secrets, configuration, and access to Telegram-backed content.
+---
+
+A Teldrive backup is more than a PostgreSQL dump. The database tells Teldrive **what** exists and where its Telegram parts are; private keys let the server recover encrypted credentials and, if enabled, file content.
+
+## What to back up
+
+Keep all of these:
+
+1. **PostgreSQL** — file/folder metadata, Telegram part references, users, sessions, shares, jobs, channels, bots, and application state.
+2. **`security.data-key`** — required to decrypt stored Telegram credentials and other protected secrets.
+3. **`security.signing-key`** — keep it stable if you want existing signed sessions/tokens to remain valid after restore.
+4. **`encryption.keys`** — mandatory for reading content uploaded with server-managed encryption.
+5. **Deployment configuration** — Compose/systemd/Kubernetes manifests, domain/proxy settings, and any local import path configuration.
+
+Store secret backups separately from the database backup so a single database leak does not automatically include its decryption keys.
+
+## PostgreSQL logical backup
+
+A simple logical backup is:
+
+```bash
+pg_dump \
+  --format=custom \
+  --file=teldrive-$(date +%F).dump \
+  'postgres://teldrive:password@127.0.0.1:5432/teldrive'
+```
+
+For larger or business-critical PostgreSQL deployments, use the provider's normal physical backup / WAL / point-in-time-recovery strategy instead of relying only on occasional `pg_dump` files.
+
+## Test your backups
+
+A backup that has never been restored is unverified. Periodically restore into an isolated PostgreSQL instance and start a disposable Teldrive process against it.
+
+Verify at least:
+
+- login/session recovery;
+- file and folder listings;
+- a small download;
+- storage channels;
+- configured bots;
+- shares/grants if used;
+- encrypted content if enabled.
+
+## Restore procedure
+
+### 1. Provision PostgreSQL
+
+Create an empty database and restore the dump:
+
+```bash
+createdb teldrive
+pg_restore \
+  --clean \
+  --if-exists \
+  --no-owner \
+  --dbname='postgres://teldrive:password@127.0.0.1:5432/teldrive' \
+  teldrive-2026-09-15.dump
+```
+
+Adapt ownership/TLS options to your PostgreSQL environment.
+
+### 2. Restore the same keys
+
+Configure the same `security.data-key` and any content-encryption keys that existed when the backup was taken.
+
+Do **not** replace the data key with a newly generated value and expect stored Telegram sessions/bot credentials to decrypt.
+
+### 3. Restore configuration
+
+Restore the server address, database URL, Telegram application credentials, reverse-proxy settings, and other deployment-specific values.
+
+### 4. Validate before serving traffic
+
+Run:
+
+```bash
+teldrive check
+```
+
+or in Compose:
+
+```bash
+docker compose run --rm teldrive check
+```
+
+`check` loads configuration, connects to dependencies, and applies required migrations before exiting.
+
+### 5. Start Teldrive
+
+Start the server and verify:
+
+```bash
+curl -f http://127.0.0.1:8080/health/ready
+```
+
+Then test a known file download from the UI.
+
+## What PostgreSQL does not contain
+
+The file payload itself is stored through Telegram, so a PostgreSQL dump does not duplicate all uploaded bytes. The database contains the metadata needed to locate/reconstruct those parts.
+
+That means database recovery cannot recover Telegram content that was independently deleted or made inaccessible in Telegram.
+
+## Disaster-recovery checklist
+
+Keep a written record of:
+
+```text
+PostgreSQL backup location
+security.data-key backup location
+security.signing-key backup location
+encryption key versions and backups
+Telegram API app credentials
+deployment configuration
+restore test date
+```
+
+See [Content encryption](/advanced/encryption) for key rotation rules and [Health checks](/operations/health-checks) for restore validation.

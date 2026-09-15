@@ -1,0 +1,93 @@
+---
+title: API keys
+description: Create one-time Teldrive API key secrets for rclone and external clients, use them with X-Api-Key, and revoke them safely.
+---
+
+API keys are Teldrive credentials for **rclone and external API clients**. They are separate from browser login sessions.
+
+## Create a key in the UI
+
+Open **Settings → API keys**.
+
+1. Enter a name that identifies the client or machine, for example `rclone laptop` or `backup-server-01`.
+2. Choose **Create**.
+3. Copy the generated secret immediately.
+4. Store it in the client's secret store/password manager.
+
+The secret is shown **once**. Teldrive stores enough information to authenticate it, but the UI does not reveal the secret again later.
+
+## Use the key
+
+Send it as:
+
+```http
+X-Api-Key: YOUR_SECRET
+```
+
+Example:
+
+```bash
+curl https://drive.example.com/v1/me \
+  -H 'X-Api-Key: YOUR_SECRET'
+```
+
+For rclone, put the same value in the native Teldrive backend's `api_key` setting. See [Rclone setup](/rclone/setup).
+
+## One key per client
+
+Prefer:
+
+```text
+rclone-laptop
+media-server
+backup-vps
+integration-test
+```
+
+instead of reusing one key everywhere.
+
+That gives you:
+
+- a useful `last used` timestamp per client;
+- targeted revocation when one machine is retired or compromised;
+- simpler incident response;
+- fewer places where one shared secret must be rotated simultaneously.
+
+## Revoke a key
+
+In **Settings → API keys**, revoke the key you no longer need. Applications using it lose access immediately.
+
+Create the replacement key first if you need a zero-downtime rotation:
+
+```text
+create new key
+    ↓
+update client
+    ↓
+verify client works
+    ↓
+revoke old key
+```
+
+## API management endpoints
+
+Authenticated browser/bearer sessions can manage keys through:
+
+```text
+GET    /v1/api-keys
+POST   /v1/api-keys
+DELETE /v1/api-keys/{apiKeyId}
+```
+
+Key creation is an idempotent operation and accepts `Idempotency-Key`.
+
+## Security guidance
+
+Do not:
+
+- commit a key into `rclone.conf` stored in a public repository;
+- paste it into issue trackers;
+- put it into shell history on a shared machine when avoidable;
+- expose it to browser JavaScript on a public website.
+
+For unattended services, use your platform's normal secret-management mechanism and restrict file permissions on any local rclone configuration.

@@ -1,0 +1,75 @@
+---
+title: Telegram bots
+description: Add BotFather tokens, understand bot verification and channel membership, and tune download rotation safely.
+---
+
+Teldrive can use Telegram bot accounts alongside the authenticated user session. Bots are optional; a normal single-user server works without them.
+
+## Why add bots?
+
+Bots can provide additional Telegram API clients for parallel throughput. In the current server, enabled healthy bots are used automatically by the storage runtime, including download rotation when configured.
+
+Do not add bots just because the option exists. Start with the authenticated user and measure a real throughput bottleneck first.
+
+## Add bots
+
+1. Create bot accounts with **@BotFather** in Telegram.
+2. Open **Settings → Telegram bots** in Teldrive.
+3. Paste one bot token per line.
+4. Choose **Add bots**.
+
+Tokens are accepted by your Teldrive server, stored securely, and are not displayed again in the UI.
+
+Teldrive queues verification/channel work after the tokens are accepted. The UI may initially show a bot as disabled until that background work completes.
+
+## Channel membership
+
+Existing storage channels are updated in the background when bots are added. If a bot is not usable, check the related jobs and Telegram permissions rather than repeatedly deleting and recreating it.
+
+## Download rotation
+
+The maximum number of bots used for download rotation is controlled by:
+
+```yaml
+telegram:
+  download-bots: 0
+```
+
+`0` means use the authenticated user rather than bot rotation. Increase the value only after bots are configured and healthy.
+
+For a single Teldrive instance, the default in-memory rotation state is the simplest option:
+
+```yaml
+telegram:
+  bot-rotation-backend: memory
+```
+
+For multiple API instances sharing one database, use database coordination:
+
+```yaml
+telegram:
+  bot-rotation-backend: database
+```
+
+That prevents each process from independently making rotation decisions.
+
+## Warm download clients
+
+For workloads with many repeated downloads you can keep authenticated clients warm:
+
+```yaml
+telegram:
+  download-client-pool: true
+```
+
+This trades memory/connections for lower setup overhead. Benchmark it before enabling on a small server.
+
+## Remove a bot
+
+Deleting a configured bot removes it from Teldrive's active bot set. Other bots and the authenticated user session can continue serving transfers.
+
+## Security
+
+A BotFather token is a credential. Do not publish it in issue reports, screenshots, Compose files committed to Git, or shell history where other users can read it.
+
+See [Performance tuning](/advanced/performance) before increasing bot counts or Telegram download concurrency.

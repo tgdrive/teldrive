@@ -1,0 +1,116 @@
+---
+title: Rclone setup
+description: Connect current rclone releases to Teldrive with a dedicated API key and verify the remote safely.
+---
+
+Current rclone releases include a native **teldrive** backend. Use a dedicated Teldrive API key instead of copying a short-lived browser access token.
+
+## 1. Create a Teldrive API key
+
+Open **Settings → API keys** in Teldrive.
+
+1. Enter a descriptive name such as `rclone laptop`.
+2. Choose **Create**.
+3. Copy the secret immediately.
+
+The secret is shown only once. Store it in a password manager or other secret store.
+
+## 2. Configure the remote
+
+Interactive setup:
+
+```bash
+rclone config
+```
+
+Create a new remote, choose the **Tel Drive** / `teldrive` backend, then provide:
+
+- your Teldrive server URL as `api_host`;
+- the API key secret as `api_key`.
+
+A minimal `rclone.conf` looks like:
+
+```ini
+[teldrive]
+type = teldrive
+api_host = https://drive.example.com
+api_key = YOUR_TELDRIVE_API_KEY
+```
+
+You can also create it non-interactively:
+
+```bash
+rclone config create teldrive teldrive \
+  api_host=https://drive.example.com \
+  api_key=YOUR_TELDRIVE_API_KEY
+```
+
+## 3. Test the remote
+
+List the root:
+
+```bash
+rclone lsf teldrive:
+```
+
+Create a directory:
+
+```bash
+rclone mkdir teldrive:/rclone-test
+```
+
+Upload a small file:
+
+```bash
+rclone copy ./example.txt teldrive:/rclone-test/
+```
+
+Download it again:
+
+```bash
+rclone copy teldrive:/rclone-test/example.txt ./download-test/
+```
+
+Do these small tests before mounting the remote or starting a large migration.
+
+## Authentication
+
+The native backend sends the key through Teldrive's external-client authentication header. API keys are intended for rclone and other non-browser clients and do not sign in to the browser UI.
+
+Revoke a key from **Settings → API keys** if a machine is retired or a secret is exposed. Clients using that key lose access immediately.
+
+## Useful backend settings
+
+Current rclone exposes these Teldrive-specific options:
+
+| Option | Config key | Environment variable | Default |
+| --- | --- | --- | --- |
+| API key | `api_key` | `RCLONE_TELDRIVE_API_KEY` | — |
+| API server | `api_host` | `RCLONE_TELDRIVE_API_HOST` | — |
+| Upload host override | `upload_host` | `RCLONE_TELDRIVE_UPLOAD_HOST` | — |
+| Chunk size | `chunk_size` | `RCLONE_TELDRIVE_CHUNK_SIZE` | `512Mi` |
+| Upload concurrency | `upload_concurrency` | `RCLONE_TELDRIVE_UPLOAD_CONCURRENCY` | `4` |
+| Native Teldrive encryption | `encrypt_files` | `RCLONE_TELDRIVE_ENCRYPT_FILES` | `false` |
+| BLAKE3 tree hashing | `hash_enabled` | `RCLONE_TELDRIVE_HASH_ENABLED` | `true` |
+| Listing page size | `page_size` | `RCLONE_TELDRIVE_PAGE_SIZE` | `200` |
+| Public-link password | `link_password` | `RCLONE_TELDRIVE_LINK_PASSWORD` | — |
+
+To see the options supported by your installed rclone version:
+
+```bash
+rclone help backend teldrive
+```
+
+## Trash backend commands
+
+The backend also exposes Teldrive-specific trash operations:
+
+```bash
+rclone backend trash-list teldrive:
+rclone backend restore teldrive: FILE_ID
+rclone backend purge teldrive: FILE_ID
+```
+
+`purge` permanently deletes the trashed item/subtree, so inspect `trash-list` carefully first.
+
+Continue with [Mounting and performance](/rclone/mounting-and-performance) before using Teldrive as a mounted filesystem.

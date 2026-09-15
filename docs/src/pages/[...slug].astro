@@ -7,6 +7,7 @@ import { source } from "@/lib/source";
 import { getPageImageUrl } from "@/lib/shared";
 import Layout from "@/components/layout.astro";
 import type { TOCItemType } from "fumadocs-core/toc";
+import { findNeighbour } from "fumadocs-core/page-tree";
 
 interface Props {
   page: CollectionEntry<"docs">;
@@ -24,6 +25,10 @@ const { Content, headings } = await render(page);
 const slugs = typeof Astro.params.slug === "string" ? Astro.params.slug.split("/") : [];
 const docsPage = source.getPage(slugs)!;
 const image = getPageImageUrl(docsPage).url;
+const tree = source.getPageTree();
+const neighbours = findNeighbour(tree, docsPage.url);
+const sourceFile = slugs.length > 0 ? `${slugs.join("/")}.mdx` : "index.mdx";
+const editUrl = `https://github.com/tgdrive/teldrive/edit/v2/docs/content/docs/${sourceFile}`;
 
 const toc: TOCItemType[] = headings.map((heading) => ({
   depth: heading.depth,
@@ -38,16 +43,19 @@ const toc: TOCItemType[] = headings.map((heading) => ({
   <meta name="description" content={page.data.description} />
   <meta property="og:image" content={image} />
   <Docs
-    tree={source.getPageTree()}
+    tree={tree}
     pathname={Astro.url.pathname}
     params={Astro.params}
-    page={{ toc }}
+    page={{ toc, footer: { items: neighbours } }}
     client:load
   >
     <h1 class="font-semibold text-3xl">{page.data.title}</h1>
     <p class="text-lg text-fd-muted-foreground mb-8">{page.data.description}</p>
     <div class="prose flex-1">
       <Content components={mdxComponents} />
+    </div>
+    <div class="mt-10 border-t pt-6 text-sm text-fd-muted-foreground">
+      <a class="hover:text-fd-foreground hover:underline" href={editUrl}>Edit this page on GitHub</a>
     </div>
   </Docs>
 </Layout>

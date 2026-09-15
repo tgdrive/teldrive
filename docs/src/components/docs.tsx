@@ -25,13 +25,13 @@ export function Docs({
       pathname={pathname}
       params={params}
       navigate={navigate}
-      theme={{ enabled: false }}
+      theme={{ enabled: true, attribute: 'class', defaultTheme: 'system', enableSystem: true }}
       search={{ SearchDialog }}
     >
       <DocsLayout
         tree={tree}
         githubUrl="https://github.com/tgdrive/teldrive"
-        themeSwitch={{ enabled: false }}
+        themeSwitch={{ enabled: true }}
         nav={{
           title: 'Teldrive',
           url: import.meta.env.BASE_URL,

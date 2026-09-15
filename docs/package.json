@@ -4,8 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "sync:openapi": "bun ./scripts/sync-openapi.ts",
+    "predev": "bun run sync:openapi",
     "dev": "astro dev",
     "start": "astro dev",
+    "prebuild": "bun run sync:openapi",
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro"
@@ -14,6 +17,7 @@
     "@astrojs/markdown-remark": "^7.3.0",
     "@astrojs/mdx": "^8.0.0",
     "@astrojs/react": "^6.0.5",
+    "@scalar/api-reference": "^1.68.0",
     "astro": "^7.3.1",
     "fumadocs-core": "16.15.11",
     "fumadocs-ui": "npm:@fumadocs/base-ui@16.15.11",

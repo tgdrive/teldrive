@@ -1,0 +1,109 @@
+---
+title: Jobs and queues
+description: Operate River/RiverPro background jobs, inspect statistics, pause queues, retry or cancel jobs, purge history, and manage periodic jobs.
+---
+
+Teldrive uses River and RiverPro for background work. The web UI exposes common task controls, while the HTTP API provides lower-level queue and periodic-job operations for administrators and automation.
+
+## Job workers
+
+A normal Teldrive process serves the API and runs workers:
+
+```yaml
+jobs:
+  run-workers: true
+```
+
+For an API-only instance:
+
+```yaml
+jobs:
+  run-workers: false
+```
+
+If every process sharing the database has workers disabled, queued jobs will never execute. Keep at least one worker-enabled instance online.
+
+## Tasks UI
+
+Use the **Tasks** page for day-to-day operations:
+
+- inspect queued/running/completed/failed work;
+- open one job to see its details;
+- retry a failed job after fixing the underlying cause;
+- cancel work when the job state allows it.
+
+See [Tasks](/using/tasks) for the user-facing workflow.
+
+## Job API
+
+Authenticated clients can use:
+
+```text
+GET    /v1/jobs
+POST   /v1/jobs
+GET    /v1/jobs/statistics
+GET    /v1/jobs/queues
+POST   /v1/jobs/queues/{queue}/pause
+POST   /v1/jobs/queues/{queue}/resume
+DELETE /v1/jobs/purge
+GET    /v1/jobs/{jobId}
+POST   /v1/jobs/{jobId}/cancel
+POST   /v1/jobs/{jobId}/retry
+DELETE /v1/jobs/{jobId}
+```
+
+Use an [API key](/api/api-keys) for automation rather than browser cookies.
+
+## Queue pause and resume
+
+Pausing a queue is useful during maintenance or when one class of work is causing downstream pressure. It prevents that queue from continuing normally until resumed; it does not replace stopping the whole Teldrive server.
+
+Before pausing a queue, record why it was paused and who will resume it. Forgotten pauses can look like a broken worker system because new jobs remain queued indefinitely.
+
+## Retry versus cancel
+
+**Retry** is appropriate when the cause was transient, for example temporary Telegram/network unavailability.
+
+**Cancel** is appropriate when the operation is no longer wanted or must stop before additional work is performed.
+
+A retry does not fix invalid configuration, inaccessible local paths, revoked credentials, or missing Telegram permissions. Correct the root cause first.
+
+## Purging job records
+
+`DELETE /v1/jobs/purge` removes jobs that match the supplied purge filters. This is an operational cleanup action, not a way to repair failed work.
+
+Keep enough history for troubleshooting and audit needs before purging old records.
+
+## Periodic jobs
+
+Teldrive exposes scheduled work separately:
+
+```text
+GET    /v1/periodic-jobs
+POST   /v1/periodic-jobs
+GET    /v1/periodic-jobs/catalog
+POST   /v1/periodic-jobs/reset
+PUT    /v1/periodic-jobs/{periodicJobId}
+DELETE /v1/periodic-jobs/{periodicJobId}
+POST   /v1/periodic-jobs/{periodicJobId}/pause
+POST   /v1/periodic-jobs/{periodicJobId}/resume
+```
+
+The **Settings → Periodic jobs** UI provides the normal management experience. The catalog describes available built-in periodic job types.
+
+## Resetting periodic jobs
+
+The reset endpoint rebuilds the configured periodic-job set from the server's catalog/defaults. Treat it as a deliberate administrative action: review custom schedules/pauses first so you know what state will be replaced.
+
+## Multi-instance deployments
+
+All instances share job state through PostgreSQL, but worker capacity is the sum of worker-enabled processes. When scaling workers, watch:
+
+- PostgreSQL connection use;
+- Telegram request/rate-limit errors;
+- CPU/memory used by concurrent transfers;
+- queue depth and retry frequency.
+
+Do not scale workers independently of Telegram and database capacity.
+
+See [Multi-instance deployments](/advanced/multi-instance), [Performance tuning](/advanced/performance), and the [API reference](/api/reference).

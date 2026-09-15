@@ -1,0 +1,88 @@
+---
+title: Uploads
+description: Upload files and folders, resume interrupted transfers, use background imports, and understand hashing and upload jobs.
+---
+
+Teldrive supports normal browser uploads, folder uploads, resumable upload sessions, and server-side background imports.
+
+## Upload from the browser
+
+On the **Files** page, open **Upload** and choose either:
+
+- **Upload files** for one or more files;
+- **Upload folder** to preserve a local directory hierarchy;
+- **Background upload** for a server-side import job.
+
+You can also drag files onto the file browser. The destination is the folder currently open in that pane.
+
+## Resumable uploads
+
+Large transfers use upload sessions rather than relying on one uninterrupted request. The default session lifetime is seven days:
+
+```yaml
+uploads:
+  session-ttl: 168h
+```
+
+If a client is interrupted, it can continue while the upload session is still valid instead of starting the entire file again.
+
+## Hashing
+
+By default Teldrive computes a BLAKE3 hash for uploaded files:
+
+```yaml
+uploads:
+  hashing-enabled: true
+```
+
+The hash is useful for integrity checks and client tooling. Disable it only after measuring the CPU/I/O trade-off for your workload.
+
+## Background imports
+
+A background import reads a file that already exists on the Teldrive server and uploads it through the job system. It is disabled until you explicitly allow one or more absolute paths:
+
+```yaml
+uploads:
+  local-import-roots:
+    - /srv/imports
+```
+
+For a container deployment, mount the same path into the container:
+
+```yaml
+volumes:
+  - /srv/imports:/srv/imports:ro
+```
+
+Only expose directories that Teldrive is intended to read. `local-import-roots` is a security boundary for server-side imports.
+
+## Upload concurrency
+
+Telegram upload concurrency is controlled separately:
+
+```yaml
+telegram:
+  upload-threads: 8
+```
+
+More workers can improve throughput on a capable connection, but they also increase Telegram request pressure. Keep rate limiting enabled and tune with measurement rather than simply setting the maximum.
+
+## Follow progress
+
+Foreground browser uploads appear in the upload UI. Background work appears on the **Tasks** page because it is executed through River/RiverPro jobs.
+
+If a background job fails, inspect its task details before retrying. Repeated retries of a permanent configuration error only create more load.
+
+## Common causes of failed uploads
+
+Check these first:
+
+- Telegram login/session is still valid;
+- PostgreSQL is reachable;
+- the selected storage channel is available;
+- reverse-proxy request timeouts are long enough;
+- local background-import paths are mounted and allowed;
+- the upload session has not expired;
+- Telegram concurrency is not tuned too aggressively.
+
+See [Uploads and events configuration](/configuration/uploads-and-events) for the server-side controls and [Tasks](/using/tasks) for background job handling.

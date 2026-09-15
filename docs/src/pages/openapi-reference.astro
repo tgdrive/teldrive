@@ -1,0 +1,30 @@
+---
+const base = import.meta.env.BASE_URL.replace(/\/$/, '');
+const openapiUrl = `${base}/openapi.yaml`;
+---
+
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="description" content="Interactive OpenAPI reference for the Teldrive HTTP API." />
+    <title>Teldrive API Reference</title>
+  </head>
+  <body>
+    <div id="api-reference" data-spec-url={openapiUrl}></div>
+    <script>
+      import { createApiReference } from '@scalar/api-reference';
+
+      const root = document.querySelector<HTMLElement>('#api-reference');
+      const url = root?.dataset.specUrl;
+
+      if (root && url) {
+        createApiReference('#api-reference', {
+          url,
+          pageTitle: 'Teldrive API Reference',
+          hideClientButton: false,
+        });
+      }
+    </script>
+  </body>
+</html>

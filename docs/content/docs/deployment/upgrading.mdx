@@ -1,0 +1,95 @@
+---
+title: Upgrading
+description: Upgrade Teldrive safely with pinned versions, pre-upgrade backups, configuration validation, smoke tests, and a real rollback point.
+---
+
+Treat a Teldrive upgrade as an application **and database** change. Startup automatically applies the current Teldrive, River, and RiverPro migrations, so the safest rollback point is a database backup taken before the new version starts.
+
+## Before upgrading
+
+1. Read the release notes/changelog for the target version.
+2. Record the currently running image/binary version.
+3. Back up PostgreSQL.
+4. Confirm you still have `security.data-key` and any content-encryption keys.
+5. Keep the old image/binary available until the upgrade is verified.
+
+For production, use a version tag rather than `latest`:
+
+```yaml
+image: ghcr.io/tgdrive/teldrive:vX.Y.Z
+```
+
+## Container upgrade
+
+A conservative Compose flow is:
+
+```bash
+# 1. Create/verify a database backup first.
+
+docker compose pull teldrive
+
+# 2. Validate the new image against current configuration/dependencies.
+docker compose run --rm teldrive check
+
+# 3. Start the new version.
+docker compose up -d teldrive
+
+# 4. Inspect startup/migration logs.
+docker compose logs --tail=250 teldrive
+```
+
+`check` can itself initialize dependencies and run required migrations, so the database backup must already exist before this step.
+
+## Binary upgrade
+
+Download the new binary beside the old one rather than overwriting your only copy immediately:
+
+```text
+/usr/local/lib/teldrive/teldrive-vX.Y.Z
+/usr/local/lib/teldrive/teldrive-vOLD
+```
+
+Validate the new binary:
+
+```bash
+/usr/local/lib/teldrive/teldrive-vX.Y.Z check --config /etc/teldrive/config.toml
+```
+
+Then stop the service, switch the executable, and start it again.
+
+## Post-upgrade smoke test
+
+Do more than load the homepage. Verify:
+
+- `/health/live` and `/health/ready`;
+- login/session refresh;
+- file listing;
+- one small upload;
+- one known download/stream;
+- rename/move/trash/restore;
+- background Tasks;
+- shares if used;
+- rclone access if used;
+- bot-assisted downloads if configured.
+
+## Rollback
+
+Do not assume an older Teldrive binary can safely use a database already migrated by a newer release.
+
+A complete rollback may require:
+
+1. stopping the new version;
+2. restoring the pre-upgrade PostgreSQL backup;
+3. restoring the previous application image/binary;
+4. restoring the matching configuration/secrets;
+5. validating with `teldrive check` before reopening traffic.
+
+This is why the pre-upgrade database backup is part of the upgrade procedure rather than an optional extra.
+
+## Multi-instance deployments
+
+When several Teldrive instances share one database, upgrade them as a coordinated deployment. Avoid leaving incompatible application versions concurrently serving the same schema for longer than the documented compatibility window of a release.
+
+Drain/stop API instances, apply the new version and migrations in a controlled way, then roll the remaining instances forward.
+
+See [Backup and restore](/deployment/backup-and-restore), [Production checklist](/deployment/production), and [Multi-instance deployments](/advanced/multi-instance).
