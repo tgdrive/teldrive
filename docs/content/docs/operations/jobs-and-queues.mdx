@@ -34,25 +34,9 @@ Use the **Tasks** page for day-to-day operations:
 
 See [Tasks](/using/tasks) for the user-facing workflow.
 
-## Job API
+## API operations
 
-Authenticated clients can use:
-
-```text
-GET    /v1/jobs
-POST   /v1/jobs
-GET    /v1/jobs/statistics
-GET    /v1/jobs/queues
-POST   /v1/jobs/queues/{queue}/pause
-POST   /v1/jobs/queues/{queue}/resume
-DELETE /v1/jobs/purge
-GET    /v1/jobs/{jobId}
-POST   /v1/jobs/{jobId}/cancel
-POST   /v1/jobs/{jobId}/retry
-DELETE /v1/jobs/{jobId}
-```
-
-Use an [API key](/api/api-keys) for automation rather than browser cookies.
+The API contract is not duplicated in this guide. Use the [API Reference](/api/) for the exact job operations, parameters, request bodies, responses, and authentication defined by the generated OpenAPI schema.
 
 ## Queue pause and resume
 
@@ -70,30 +54,13 @@ A retry does not fix invalid configuration, inaccessible local paths, revoked cr
 
 ## Purging job records
 
-`DELETE /v1/jobs/purge` removes jobs that match the supplied purge filters. This is an operational cleanup action, not a way to repair failed work.
-
-Keep enough history for troubleshooting and audit needs before purging old records.
+Purging removes matching job history. Treat it as operational cleanup, not a way to repair failed work. Keep enough history for troubleshooting and audit needs.
 
 ## Periodic jobs
 
-Teldrive exposes scheduled work separately:
+Use **Settings → Periodic jobs** for normal management. You can create, pause, resume, update, delete, or reset scheduled work from there.
 
-```text
-GET    /v1/periodic-jobs
-POST   /v1/periodic-jobs
-GET    /v1/periodic-jobs/catalog
-POST   /v1/periodic-jobs/reset
-PUT    /v1/periodic-jobs/{periodicJobId}
-DELETE /v1/periodic-jobs/{periodicJobId}
-POST   /v1/periodic-jobs/{periodicJobId}/pause
-POST   /v1/periodic-jobs/{periodicJobId}/resume
-```
-
-The **Settings → Periodic jobs** UI provides the normal management experience. The catalog describes available built-in periodic job types.
-
-## Resetting periodic jobs
-
-The reset endpoint rebuilds the configured periodic-job set from the server's catalog/defaults. Treat it as a deliberate administrative action: review custom schedules/pauses first so you know what state will be replaced.
+For automation, use the [API Reference](/api/) rather than copying endpoint details from this guide.
 
 ## Multi-instance deployments
 
@@ -106,4 +73,4 @@ All instances share job state through PostgreSQL, but worker capacity is the sum
 
 Do not scale workers independently of Telegram and database capacity.
 
-See [Multi-instance deployments](/advanced/multi-instance), [Performance tuning](/advanced/performance), and the [API reference](/api/reference).
+See [Multi-instance deployments](/advanced/multi-instance), [Performance tuning](/advanced/performance), and the [API Reference](/api/).
