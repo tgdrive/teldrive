@@ -21,12 +21,14 @@ function base64Url(bytes: Uint8Array) {
   return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
 }
 
+const SECRET_BYTES = 32;
+
 function generateSecrets(): Secrets {
   return {
-    databasePassword: base64Url(randomBytes(24)),
-    signingKey: base64Url(randomBytes(32)),
-    dataKey: base64Url(randomBytes(32)),
-    encryptionKey: base64Url(randomBytes(32)),
+    databasePassword: base64Url(randomBytes(SECRET_BYTES)),
+    signingKey: base64Url(randomBytes(SECRET_BYTES)),
+    dataKey: base64Url(randomBytes(SECRET_BYTES)),
+    encryptionKey: base64Url(randomBytes(SECRET_BYTES)),
   };
 }
 
@@ -184,7 +186,7 @@ export default function SetupGenerator() {
           <div>
             <h3 className="m-0 text-lg font-semibold">Teldrive setup generator</h3>
             <p className="mt-1 max-w-2xl text-sm text-fd-muted-foreground">
-              Generates deployment secrets locally in your browser. Teldrive already ships with public Telegram application credentials, so there is nothing to enter here.
+              Generates independent 256-bit secrets with the browser Web Crypto CSPRNG and encodes them as URL-safe Base64. Nothing is sent to a server.
             </p>
           </div>
           <button
@@ -200,10 +202,10 @@ export default function SetupGenerator() {
 
       <div className="p-5">
         <div className="rounded-lg border border-fd-border px-4">
-          <SecretRow label="Database password" value={secrets?.databasePassword ?? ''} />
-          <SecretRow label="Signing key" value={secrets?.signingKey ?? ''} />
-          <SecretRow label="Data key" value={secrets?.dataKey ?? ''} />
-          {encryptionEnabled ? <SecretRow label="File encryption key" value={secrets?.encryptionKey ?? ''} /> : null}
+          <SecretRow label="Database password · 256-bit" value={secrets?.databasePassword ?? ''} />
+          <SecretRow label="Signing key · 256-bit" value={secrets?.signingKey ?? ''} />
+          <SecretRow label="Data key · 256-bit" value={secrets?.dataKey ?? ''} />
+          {encryptionEnabled ? <SecretRow label="File encryption key · 256-bit" value={secrets?.encryptionKey ?? ''} /> : null}
         </div>
 
         <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-lg border border-fd-border p-4">
