@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "generate:api": "openapi-typescript ../openapi/teldrive.openapi.yaml -o ./src/api/schema.ts",
+    "generate:api": "bunx openapi-typescript@7.13.0 ../openapi/teldrive.openapi.yaml -o ./src/api/schema.ts",
     "lint": "biome lint --write --unsafe src",
     "format": "biome format --write src",
     "typecheck": "tsgo",

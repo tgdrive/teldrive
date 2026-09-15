@@ -103,6 +103,9 @@ FROM generate_series(1, 1001) AS value
 	if calls := service.callsSnapshot(); len(calls) != 1001 {
 		t.Fatalf("purge calls = %d, want 1001", len(calls))
 	}
+	if batches := service.batchesSnapshot(); len(batches) != 2 || batches[0] != 1000 || batches[1] != 1 {
+		t.Fatalf("purge batches = %v, want [1000 1]", batches)
+	}
 }
 
 func TestRuntimePersistsTrashCleanupPeriodicJob(t *testing.T) {

@@ -226,6 +226,16 @@ func TestAdvancedListingBulkOperationsAndStatistics(t *testing.T) {
 			t.Fatalf("trashed subtree file %s = %#v, %v", id, file, err)
 		}
 	}
+	restored, err := svc.Restore(ctx, 1001, docsID)
+	if err != nil || mustUUID(t, restored.ID) != docsID {
+		t.Fatalf("Restore(folder) = %#v, %v", restored, err)
+	}
+	for _, id := range []uuid.UUID{docsID, reportsID, imageID} {
+		file, err := svc.Get(ctx, 1001, id)
+		if err != nil || file.Status != sqlcgen.FileStatusActive || file.DeletedAt.Valid {
+			t.Fatalf("restored subtree file %s = %#v, %v", id, file, err)
+		}
+	}
 }
 
 func TestCatalogRejectsInvalidParent(t *testing.T) {

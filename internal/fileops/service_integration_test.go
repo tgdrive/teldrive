@@ -7,10 +7,13 @@ import (
 	"context"
 	"errors"
 	"io"
+	"strings"
 	"sync"
 	"testing"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/tgdrive/teldrive/v2/internal/catalog"
 	"github.com/tgdrive/teldrive/v2/internal/channels"
@@ -68,6 +71,50 @@ VALUES
 		if status != tc.want {
 			t.Fatalf("file %s status = %s, want %s", tc.id, status, tc.want)
 		}
+	}
+}
+
+func TestQueuePurgeMarksSubtreeWithoutDeletingTelegramMessages(t *testing.T) {
+	db := testpostgres.New(t)
+	ctx := context.Background()
+	if _, err := db.Pool.Exec(ctx, "INSERT INTO users (user_id) VALUES (1001)"); err != nil {
+		t.Fatal(err)
+	}
+	rootID, childID := uuid.New(), uuid.New()
+	if _, err := db.Pool.Exec(ctx, `
+INSERT INTO files (id,user_id,parent_id,name,normalized_name,kind,size,encryption,status,mod_time,deleted_at)
+VALUES
+($1,1001,NULL,'folder','folder','folder',NULL,false,'trashed',now(),now()),
+($2,1001,$1,'child','child','file',1,false,'trashed',now(),now())`, rootID, childID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Pool.Exec(ctx, `
+INSERT INTO file_parts (file_id,part_no,channel_id,message_id,plain_size,stored_size,checksum,block_hashes)
+VALUES ($1,1,9001,10,1,1,repeat('a',64),decode(repeat('ab',32),'hex'))`, childID); err != nil {
+		t.Fatal(err)
+	}
+	storage := &fileStorage{messages: map[int64][]byte{10: []byte("data")}}
+	service, err := NewService(db.Pool, catalog.NewService(db.Pool, nil), channels.NewService(db.Pool, nil, channels.Config{PartLimit: 100}), storage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.QueuePurge(ctx, 1001, rootID); err != nil {
+		t.Fatalf("QueuePurge() error = %v", err)
+	}
+	for _, id := range []uuid.UUID{rootID, childID} {
+		var status sqlcgen.FileStatus
+		if err := db.Pool.QueryRow(ctx, "SELECT status FROM files WHERE id = $1", id).Scan(&status); err != nil {
+			t.Fatal(err)
+		}
+		if status != sqlcgen.FileStatusDeletionPending {
+			t.Fatalf("file %s status = %s", id, status)
+		}
+	}
+	if calls := storage.deleteCallsSnapshot(); len(calls) != 0 {
+		t.Fatalf("DeleteMessages() calls = %d, want 0", len(calls))
+	}
+	if got := storage.message(10); !bytes.Equal(got, []byte("data")) {
+		t.Fatalf("queued Telegram message = %q", got)
 	}
 }
 
@@ -247,6 +294,63 @@ FROM files
 	}
 	if remaining != 0 {
 		t.Fatalf("remaining files = %d, want 0", remaining)
+	}
+}
+
+func TestPurgeWideFolderUsesDepthBatchedQueries(t *testing.T) {
+	db := testpostgres.New(t)
+	ctx := context.Background()
+	if _, err := db.Pool.Exec(ctx, "INSERT INTO users (user_id) VALUES (1001)"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Pool.Exec(ctx, "INSERT INTO channels (channel_id,user_id,name,selected) VALUES (9001,1001,'storage',true)"); err != nil {
+		t.Fatal(err)
+	}
+	rootID := uuid.New()
+	if _, err := db.Pool.Exec(ctx, `
+INSERT INTO files (id,user_id,name,normalized_name,kind,encryption,status,mod_time,deleted_at)
+VALUES ($1,1001,'folder','folder','folder',false,'trashed',now(),now())`, rootID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Pool.Exec(ctx, `
+WITH children AS (
+    INSERT INTO files (user_id,parent_id,name,normalized_name,kind,size,encryption,status,mod_time,deleted_at)
+    SELECT 1001, $1, 'child-' || value, 'child-' || value, 'file', 1, false, 'trashed', now(), now()
+    FROM generate_series(1, 1000) AS value
+    RETURNING id
+)
+INSERT INTO file_parts (file_id,part_no,channel_id,message_id,plain_size,stored_size,checksum,block_hashes)
+SELECT id, 1, 9001, row_number() OVER ()::bigint, 1, 1, repeat('b',64), decode(repeat('ab',32),'hex')
+FROM children`, rootID); err != nil {
+		t.Fatal(err)
+	}
+
+	tracer := &purgeQueryTracer{}
+	config, err := pgxpool.ParseConfig(db.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	config.ConnConfig.Tracer = tracer
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	service, err := NewService(pool, catalog.NewService(pool, nil), channels.NewService(pool, nil, channels.Config{PartLimit: 100}), &fileStorage{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.Purge(ctx, 1001, rootID); err != nil {
+		t.Fatalf("Purge() error = %v", err)
+	}
+	if got := tracer.count("TryAdvisoryLocks"); got != 1 {
+		t.Fatalf("TryAdvisoryLocks queries = %d, want 1", got)
+	}
+	if got := tracer.count("LoadFileSubtrees"); got != 1 {
+		t.Fatalf("LoadFileSubtrees queries = %d, want 1", got)
+	}
+	if got := tracer.count("DeleteFileCatalogRowsByIDs"); got != 2 {
+		t.Fatalf("DeleteFileCatalogRowsByIDs queries = %d, want 2", got)
 	}
 }
 
@@ -431,4 +535,31 @@ func sliceLengths(values [][]int64) []int {
 		lengths[i] = len(value)
 	}
 	return lengths
+}
+
+type purgeQueryTracer struct {
+	mu     sync.Mutex
+	counts map[string]int
+}
+
+func (t *purgeQueryTracer) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
+	for _, name := range []string{"TryAdvisoryLocks", "LoadFileSubtrees", "DeleteFileCatalogRowsByIDs"} {
+		if strings.Contains(data.SQL, "-- name: "+name) {
+			t.mu.Lock()
+			if t.counts == nil {
+				t.counts = make(map[string]int)
+			}
+			t.counts[name]++
+			t.mu.Unlock()
+		}
+	}
+	return ctx
+}
+
+func (*purgeQueryTracer) TraceQueryEnd(context.Context, *pgx.Conn, pgx.TraceQueryEndData) {}
+
+func (t *purgeQueryTracer) count(name string) int {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return t.counts[name]
 }

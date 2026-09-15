@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"strings"
 	"time"
@@ -553,8 +554,13 @@ func (h *Handler) PurgeFile(ctx context.Context, params gen.PurgeFileParams) (ge
 	if h.FileOps == nil {
 		return nil, mapServiceError(ErrOperationUnavailable)
 	}
-	if err := h.FileOps.Purge(ctx, userID, googleUUID(params.FileId)); err != nil {
+	if err := h.FileOps.QueuePurge(ctx, userID, googleUUID(params.FileId)); err != nil {
 		return nil, mapServiceError(err)
+	}
+	if h.Jobs != nil {
+		if err := h.Jobs.InsertPurge(ctx); err != nil {
+			slog.WarnContext(ctx, "queue immediate purge sweep", "error", err)
+		}
 	}
 	return &gen.PurgeFileNoContent{}, nil
 }

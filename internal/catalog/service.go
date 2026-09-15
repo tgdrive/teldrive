@@ -350,15 +350,39 @@ func (s *Service) Restore(ctx context.Context, userID int64, fileID uuid.UUID) (
 	if userID <= 0 {
 		return nil, ErrInvalidOwner
 	}
-	file, err := s.queries.RestoreFile(ctx, sqlcgen.RestoreFileParams{FileID: dbtypes.UUID(fileID), UserID: userID})
-	if errors.Is(err, pgx.ErrNoRows) {
+	files, err := s.queries.RestoreFileSubtree(ctx, sqlcgen.RestoreFileSubtreeParams{FileID: dbtypes.UUID(fileID), UserID: userID})
+	if err != nil {
+		return nil, classifyWriteError("restore file subtree", err)
+	}
+	if len(files) == 0 {
+		file, err := s.queries.GetFileForUser(ctx, sqlcgen.GetFileForUserParams{
+			FileID: dbtypes.UUID(fileID), UserID: userID,
+		})
+		if err == nil && file.Status == sqlcgen.FileStatusTrashed {
+			return nil, ErrConflict
+		}
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("load restore root: %w", err)
+		}
 		return nil, ErrNotFound
 	}
-	if err != nil {
-		return nil, classifyWriteError("restore file", err)
+	var root *sqlcgen.File
+	ids := make([]uuid.UUID, 0, len(files))
+	for _, file := range files {
+		id, ok := fileUUID(file)
+		if !ok {
+			return nil, ErrNotFound
+		}
+		ids = append(ids, id)
+		if id == fileID {
+			root = file
+		}
 	}
-	s.invalidateFile(ctx, userID, fileID)
-	return file, nil
+	if root == nil {
+		return nil, ErrNotFound
+	}
+	s.InvalidateFiles(ctx, userID, ids...)
+	return root, nil
 }
 
 func (s *Service) InvalidateFiles(ctx context.Context, userID int64, fileIDs ...uuid.UUID) {

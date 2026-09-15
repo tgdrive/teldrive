@@ -48,3 +48,33 @@ func (q *Queries) TryAdvisoryLock(ctx context.Context, lockID int64) (bool, erro
 	err := row.Scan(&pg_try_advisory_lock)
 	return pg_try_advisory_lock, err
 }
+
+const tryAdvisoryLocks = `-- name: TryAdvisoryLocks :many
+SELECT candidate.lock_id::bigint AS lock_id, pg_try_advisory_lock(candidate.lock_id) AS locked
+FROM unnest($1::bigint[]) AS candidate(lock_id)
+`
+
+type TryAdvisoryLocksRow struct {
+	LockID int64 `json:"lock_id"`
+	Locked bool  `json:"locked"`
+}
+
+func (q *Queries) TryAdvisoryLocks(ctx context.Context, lockIds []int64) ([]*TryAdvisoryLocksRow, error) {
+	rows, err := q.db.Query(ctx, tryAdvisoryLocks, lockIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*TryAdvisoryLocksRow{}
+	for rows.Next() {
+		var i TryAdvisoryLocksRow
+		if err := rows.Scan(&i.LockID, &i.Locked); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}

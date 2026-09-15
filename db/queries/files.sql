@@ -114,16 +114,38 @@ WHERE id = sqlc.arg(file_id)
   AND status = 'active'
 RETURNING *;
 
--- name: RestoreFile :one
-UPDATE /* TEMPLATE: schema */files
+-- name: RestoreFileSubtree :many
+WITH RECURSIVE target AS (
+  SELECT root.id
+  FROM /* TEMPLATE: schema */files root
+  WHERE root.id = sqlc.arg(file_id)
+    AND root.user_id = sqlc.arg(user_id)
+    AND root.status = 'trashed'
+    AND (
+      root.parent_id IS NULL
+      OR EXISTS (
+        SELECT 1
+        FROM /* TEMPLATE: schema */files parent
+        WHERE parent.id = root.parent_id
+          AND parent.user_id = root.user_id
+          AND parent.status = 'active'
+      )
+    )
+  UNION ALL
+  SELECT child.id
+  FROM /* TEMPLATE: schema */files child
+  JOIN target parent ON child.parent_id = parent.id
+  WHERE child.user_id = sqlc.arg(user_id)
+    AND child.status = 'trashed'
+)
+UPDATE /* TEMPLATE: schema */files AS target_file
 SET status = 'active',
     deleted_at = NULL,
-    generation = generation + 1,
+    generation = target_file.generation + 1,
     updated_at = now()
-WHERE id = sqlc.arg(file_id)
-  AND user_id = sqlc.arg(user_id)
-  AND status = 'trashed'
-RETURNING *;
+WHERE target_file.user_id = sqlc.arg(user_id)
+  AND target_file.id IN (SELECT target.id FROM target)
+RETURNING target_file.*;
 
 -- name: MarkFileDeletionPending :one
 UPDATE /* TEMPLATE: schema */files
@@ -136,9 +158,9 @@ WHERE id = sqlc.arg(file_id)
   AND status = 'trashed'
 RETURNING *;
 
--- name: DeleteFileCatalogRow :execrows
+-- name: DeleteFileCatalogRowsByIDs :execrows
 DELETE FROM /* TEMPLATE: schema */files
-WHERE id = sqlc.arg(file_id)
+WHERE id = ANY(sqlc.arg(file_ids)::uuid[])
   AND user_id = sqlc.arg(user_id)
   AND status = 'deletion_pending';
 
@@ -453,6 +475,24 @@ SELECT id, user_id, parent_id, name, normalized_name, kind, mime_type, size,
 FROM tree
 ORDER BY depth, id;
 
+-- name: LoadFileSubtrees :many
+WITH RECURSIVE tree AS (
+    SELECT f.*, 0::integer AS depth
+    FROM /* TEMPLATE: schema */files f
+    WHERE f.id = ANY(sqlc.arg(root_ids)::uuid[])
+      AND f.user_id = sqlc.arg(user_id)
+    UNION ALL
+    SELECT child.*, tree.depth + 1
+    FROM /* TEMPLATE: schema */files child
+    JOIN tree ON child.parent_id = tree.id
+    WHERE child.user_id = sqlc.arg(user_id)
+)
+SELECT id, user_id, parent_id, name, normalized_name, kind, mime_type, size,
+       hash_algorithm, hash_value, encryption, encryption_key_version, status,
+       mod_time, generation, created_at, updated_at, deleted_at, depth
+FROM tree
+ORDER BY depth, id;
+
 -- name: InsertCopiedFile :exec
 INSERT INTO /* TEMPLATE: schema */files (
     id, user_id, parent_id, name, normalized_name, kind, mime_type, size,
@@ -483,6 +523,27 @@ SET status = 'deletion_pending',
     updated_at = now()
 WHERE user_id = sqlc.arg(user_id)
   AND id = ANY(sqlc.arg(file_ids)::uuid[]);
+
+-- name: QueueFileSubtreePurge :many
+WITH RECURSIVE target AS (
+  SELECT root.id
+  FROM /* TEMPLATE: schema */files root
+  WHERE root.id = sqlc.arg(file_id)
+    AND root.user_id = sqlc.arg(user_id)
+    AND root.status = 'trashed'
+  UNION ALL
+  SELECT child.id
+  FROM /* TEMPLATE: schema */files child
+  JOIN target parent ON child.parent_id = parent.id
+  WHERE child.user_id = sqlc.arg(user_id)
+)
+UPDATE /* TEMPLATE: schema */files AS target_file
+SET status = 'deletion_pending',
+    deleted_at = COALESCE(target_file.deleted_at, now()),
+    updated_at = now()
+WHERE target_file.user_id = sqlc.arg(user_id)
+  AND target_file.id IN (SELECT target.id FROM target)
+RETURNING target_file.*;
 
 
 -- name: MarkAllTrashedDeletionPending :execrows

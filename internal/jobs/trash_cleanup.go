@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 
@@ -64,13 +66,22 @@ func (w *TrashCleanupWorker) Work(ctx context.Context, job *river.Job[TrashClean
 		if len(rows) == 0 {
 			return nil
 		}
+		byUser := make(map[int64][]uuid.UUID)
 		for _, item := range rows {
 			fileID, ok := dbtypes.GoogleUUID(item.FileID)
 			if !ok {
 				return errors.New("expired trash root has invalid file ID")
 			}
-			if err := w.service.Purge(ctx, item.UserID, fileID); err != nil {
-				return fmt.Errorf("purge expired trash file %s for user %d: %w", fileID, item.UserID, err)
+			byUser[item.UserID] = append(byUser[item.UserID], fileID)
+		}
+		userIDs := make([]int64, 0, len(byUser))
+		for userID := range byUser {
+			userIDs = append(userIDs, userID)
+		}
+		sort.Slice(userIDs, func(i, j int) bool { return userIDs[i] < userIDs[j] })
+		for _, userID := range userIDs {
+			if err := w.service.PurgeMany(ctx, userID, byUser[userID]); err != nil {
+				return fmt.Errorf("purge expired trash files for user %d: %w", userID, err)
 			}
 		}
 	}

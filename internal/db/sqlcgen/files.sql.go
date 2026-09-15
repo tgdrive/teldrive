@@ -100,20 +100,20 @@ func (q *Queries) CreateFolder(ctx context.Context, arg CreateFolderParams) (*Fi
 	return &i, err
 }
 
-const deleteFileCatalogRow = `-- name: DeleteFileCatalogRow :execrows
+const deleteFileCatalogRowsByIDs = `-- name: DeleteFileCatalogRowsByIDs :execrows
 DELETE FROM /* TEMPLATE: schema */files
-WHERE id = $1
+WHERE id = ANY($1::uuid[])
   AND user_id = $2
   AND status = 'deletion_pending'
 `
 
-type DeleteFileCatalogRowParams struct {
-	FileID pgtype.UUID `json:"file_id"`
-	UserID int64       `json:"user_id"`
+type DeleteFileCatalogRowsByIDsParams struct {
+	FileIds []pgtype.UUID `json:"file_ids"`
+	UserID  int64         `json:"user_id"`
 }
 
-func (q *Queries) DeleteFileCatalogRow(ctx context.Context, arg DeleteFileCatalogRowParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteFileCatalogRow, arg.FileID, arg.UserID)
+func (q *Queries) DeleteFileCatalogRowsByIDs(ctx context.Context, arg DeleteFileCatalogRowsByIDsParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteFileCatalogRowsByIDs, arg.FileIds, arg.UserID)
 	if err != nil {
 		return 0, err
 	}
@@ -886,6 +886,92 @@ func (q *Queries) LoadFileSubtree(ctx context.Context, arg LoadFileSubtreeParams
 	return items, nil
 }
 
+const loadFileSubtrees = `-- name: LoadFileSubtrees :many
+WITH RECURSIVE tree AS (
+    SELECT f.id, f.user_id, f.parent_id, f.name, f.normalized_name, f.kind, f.mime_type, f.size, f.hash_algorithm, f.hash_value, f.encryption, f.encryption_key_version, f.status, f.mod_time, f.generation, f.created_at, f.updated_at, f.deleted_at, 0::integer AS depth
+    FROM /* TEMPLATE: schema */files f
+    WHERE f.id = ANY($1::uuid[])
+      AND f.user_id = $2
+    UNION ALL
+    SELECT child.id, child.user_id, child.parent_id, child.name, child.normalized_name, child.kind, child.mime_type, child.size, child.hash_algorithm, child.hash_value, child.encryption, child.encryption_key_version, child.status, child.mod_time, child.generation, child.created_at, child.updated_at, child.deleted_at, tree.depth + 1
+    FROM /* TEMPLATE: schema */files child
+    JOIN tree ON child.parent_id = tree.id
+    WHERE child.user_id = $2
+)
+SELECT id, user_id, parent_id, name, normalized_name, kind, mime_type, size,
+       hash_algorithm, hash_value, encryption, encryption_key_version, status,
+       mod_time, generation, created_at, updated_at, deleted_at, depth
+FROM tree
+ORDER BY depth, id
+`
+
+type LoadFileSubtreesParams struct {
+	RootIds []pgtype.UUID `json:"root_ids"`
+	UserID  int64         `json:"user_id"`
+}
+
+type LoadFileSubtreesRow struct {
+	ID                   pgtype.UUID        `json:"id"`
+	UserID               int64              `json:"user_id"`
+	ParentID             pgtype.UUID        `json:"parent_id"`
+	Name                 string             `json:"name"`
+	NormalizedName       string             `json:"normalized_name"`
+	Kind                 FileKind           `json:"kind"`
+	MimeType             pgtype.Text        `json:"mime_type"`
+	Size                 pgtype.Int8        `json:"size"`
+	HashAlgorithm        pgtype.Text        `json:"hash_algorithm"`
+	HashValue            pgtype.Text        `json:"hash_value"`
+	Encryption           bool               `json:"encryption"`
+	EncryptionKeyVersion pgtype.Int4        `json:"encryption_key_version"`
+	Status               FileStatus         `json:"status"`
+	ModTime              pgtype.Timestamptz `json:"mod_time"`
+	Generation           int64              `json:"generation"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt            pgtype.Timestamptz `json:"updated_at"`
+	DeletedAt            pgtype.Timestamptz `json:"deleted_at"`
+	Depth                int32              `json:"depth"`
+}
+
+func (q *Queries) LoadFileSubtrees(ctx context.Context, arg LoadFileSubtreesParams) ([]*LoadFileSubtreesRow, error) {
+	rows, err := q.db.Query(ctx, loadFileSubtrees, arg.RootIds, arg.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*LoadFileSubtreesRow{}
+	for rows.Next() {
+		var i LoadFileSubtreesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.ParentID,
+			&i.Name,
+			&i.NormalizedName,
+			&i.Kind,
+			&i.MimeType,
+			&i.Size,
+			&i.HashAlgorithm,
+			&i.HashValue,
+			&i.Encryption,
+			&i.EncryptionKeyVersion,
+			&i.Status,
+			&i.ModTime,
+			&i.Generation,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.Depth,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockActiveFiles = `-- name: LockActiveFiles :many
 SELECT id, user_id, parent_id, name, normalized_name, kind, mime_type, size, hash_algorithm, hash_value, encryption, encryption_key_version, status, mod_time, generation, created_at, updated_at, deleted_at
 FROM /* TEMPLATE: schema */files
@@ -1241,6 +1327,72 @@ func (q *Queries) MoveFileWithName(ctx context.Context, arg MoveFileWithNamePara
 	return &i, err
 }
 
+const queueFileSubtreePurge = `-- name: QueueFileSubtreePurge :many
+WITH RECURSIVE target AS (
+  SELECT root.id
+  FROM /* TEMPLATE: schema */files root
+  WHERE root.id = $2
+    AND root.user_id = $1
+    AND root.status = 'trashed'
+  UNION ALL
+  SELECT child.id
+  FROM /* TEMPLATE: schema */files child
+  JOIN target parent ON child.parent_id = parent.id
+  WHERE child.user_id = $1
+)
+UPDATE /* TEMPLATE: schema */files AS target_file
+SET status = 'deletion_pending',
+    deleted_at = COALESCE(target_file.deleted_at, now()),
+    updated_at = now()
+WHERE target_file.user_id = $1
+  AND target_file.id IN (SELECT target.id FROM target)
+RETURNING target_file.id, target_file.user_id, target_file.parent_id, target_file.name, target_file.normalized_name, target_file.kind, target_file.mime_type, target_file.size, target_file.hash_algorithm, target_file.hash_value, target_file.encryption, target_file.encryption_key_version, target_file.status, target_file.mod_time, target_file.generation, target_file.created_at, target_file.updated_at, target_file.deleted_at
+`
+
+type QueueFileSubtreePurgeParams struct {
+	UserID int64       `json:"user_id"`
+	FileID pgtype.UUID `json:"file_id"`
+}
+
+func (q *Queries) QueueFileSubtreePurge(ctx context.Context, arg QueueFileSubtreePurgeParams) ([]*File, error) {
+	rows, err := q.db.Query(ctx, queueFileSubtreePurge, arg.UserID, arg.FileID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*File{}
+	for rows.Next() {
+		var i File
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.ParentID,
+			&i.Name,
+			&i.NormalizedName,
+			&i.Kind,
+			&i.MimeType,
+			&i.Size,
+			&i.HashAlgorithm,
+			&i.HashValue,
+			&i.Encryption,
+			&i.EncryptionKeyVersion,
+			&i.Status,
+			&i.ModTime,
+			&i.Generation,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const resolveActiveChild = `-- name: ResolveActiveChild :one
 SELECT id, user_id, parent_id, name, normalized_name, kind, mime_type, size, hash_algorithm, hash_value, encryption, encryption_key_version, status, mod_time, generation, created_at, updated_at, deleted_at
 FROM /* TEMPLATE: schema */files
@@ -1305,47 +1457,82 @@ func (q *Queries) ResolveActiveChildFolder(ctx context.Context, arg ResolveActiv
 	return id, err
 }
 
-const restoreFile = `-- name: RestoreFile :one
-UPDATE /* TEMPLATE: schema */files
+const restoreFileSubtree = `-- name: RestoreFileSubtree :many
+WITH RECURSIVE target AS (
+  SELECT root.id
+  FROM /* TEMPLATE: schema */files root
+  WHERE root.id = $2
+    AND root.user_id = $1
+    AND root.status = 'trashed'
+    AND (
+      root.parent_id IS NULL
+      OR EXISTS (
+        SELECT 1
+        FROM /* TEMPLATE: schema */files parent
+        WHERE parent.id = root.parent_id
+          AND parent.user_id = root.user_id
+          AND parent.status = 'active'
+      )
+    )
+  UNION ALL
+  SELECT child.id
+  FROM /* TEMPLATE: schema */files child
+  JOIN target parent ON child.parent_id = parent.id
+  WHERE child.user_id = $1
+    AND child.status = 'trashed'
+)
+UPDATE /* TEMPLATE: schema */files AS target_file
 SET status = 'active',
     deleted_at = NULL,
-    generation = generation + 1,
+    generation = target_file.generation + 1,
     updated_at = now()
-WHERE id = $1
-  AND user_id = $2
-  AND status = 'trashed'
-RETURNING id, user_id, parent_id, name, normalized_name, kind, mime_type, size, hash_algorithm, hash_value, encryption, encryption_key_version, status, mod_time, generation, created_at, updated_at, deleted_at
+WHERE target_file.user_id = $1
+  AND target_file.id IN (SELECT target.id FROM target)
+RETURNING target_file.id, target_file.user_id, target_file.parent_id, target_file.name, target_file.normalized_name, target_file.kind, target_file.mime_type, target_file.size, target_file.hash_algorithm, target_file.hash_value, target_file.encryption, target_file.encryption_key_version, target_file.status, target_file.mod_time, target_file.generation, target_file.created_at, target_file.updated_at, target_file.deleted_at
 `
 
-type RestoreFileParams struct {
-	FileID pgtype.UUID `json:"file_id"`
+type RestoreFileSubtreeParams struct {
 	UserID int64       `json:"user_id"`
+	FileID pgtype.UUID `json:"file_id"`
 }
 
-func (q *Queries) RestoreFile(ctx context.Context, arg RestoreFileParams) (*File, error) {
-	row := q.db.QueryRow(ctx, restoreFile, arg.FileID, arg.UserID)
-	var i File
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.ParentID,
-		&i.Name,
-		&i.NormalizedName,
-		&i.Kind,
-		&i.MimeType,
-		&i.Size,
-		&i.HashAlgorithm,
-		&i.HashValue,
-		&i.Encryption,
-		&i.EncryptionKeyVersion,
-		&i.Status,
-		&i.ModTime,
-		&i.Generation,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-	)
-	return &i, err
+func (q *Queries) RestoreFileSubtree(ctx context.Context, arg RestoreFileSubtreeParams) ([]*File, error) {
+	rows, err := q.db.Query(ctx, restoreFileSubtree, arg.UserID, arg.FileID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*File{}
+	for rows.Next() {
+		var i File
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.ParentID,
+			&i.Name,
+			&i.NormalizedName,
+			&i.Kind,
+			&i.MimeType,
+			&i.Size,
+			&i.HashAlgorithm,
+			&i.HashValue,
+			&i.Encryption,
+			&i.EncryptionKeyVersion,
+			&i.Status,
+			&i.ModTime,
+			&i.Generation,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const revokeSharesForFileSubtree = `-- name: RevokeSharesForFileSubtree :exec

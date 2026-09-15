@@ -333,6 +333,38 @@ func (s *Service) CleanTrash(ctx context.Context, userID int64) (int64, error) {
 	return count, nil
 }
 
+func (s *Service) QueuePurge(ctx context.Context, userID int64, fileID uuid.UUID) error {
+	if userID <= 0 || fileID == uuid.Nil {
+		return ErrInvalidInput
+	}
+	files, err := s.queries.QueueFileSubtreePurge(ctx, sqlcgen.QueueFileSubtreePurgeParams{
+		UserID: userID, FileID: dbtypes.UUID(fileID),
+	})
+	if err != nil {
+		return fmt.Errorf("queue file subtree purge: %w", err)
+	}
+	if len(files) == 0 {
+		if _, err := s.queries.GetFileForUser(ctx, sqlcgen.GetFileForUserParams{
+			FileID: dbtypes.UUID(fileID), UserID: userID,
+		}); errors.Is(err, pgx.ErrNoRows) {
+			return ErrNotFound
+		} else if err != nil {
+			return fmt.Errorf("load purge root: %w", err)
+		}
+		return ErrNotTrashed
+	}
+	ids := make([]uuid.UUID, 0, len(files))
+	for _, file := range files {
+		id, ok := dbtypes.GoogleUUID(file.ID)
+		if !ok {
+			return ErrNotFound
+		}
+		ids = append(ids, id)
+	}
+	s.catalog.InvalidateFiles(ctx, userID, ids...)
+	return nil
+}
+
 func (s *Service) Purge(ctx context.Context, userID int64, fileID uuid.UUID) error {
 	return s.PurgeMany(ctx, userID, []uuid.UUID{fileID})
 }
@@ -365,13 +397,20 @@ func (s *Service) PurgeMany(ctx context.Context, userID int64, rootIDs []uuid.UU
 		defer cancel()
 		_, _ = conn.Exec(unlockCtx, "SELECT pg_advisory_unlock_all()")
 	}()
+	rootByLockID := make(map[int64]uuid.UUID, len(uniqueRoots))
+	lockIDs := make([]int64, 0, len(uniqueRoots))
 	for _, rootID := range uniqueRoots {
-		locked, err := lockQueries.TryAdvisoryLock(ctx, purgeAdvisoryLockID(userID, rootID))
-		if err != nil {
-			return fmt.Errorf("acquire purge advisory lock: %w", err)
-		}
-		if locked {
-			lockedRoots = append(lockedRoots, rootID)
+		lockID := purgeAdvisoryLockID(userID, rootID)
+		rootByLockID[lockID] = rootID
+		lockIDs = append(lockIDs, lockID)
+	}
+	locks, err := lockQueries.TryAdvisoryLocks(ctx, lockIDs)
+	if err != nil {
+		return fmt.Errorf("acquire purge advisory locks: %w", err)
+	}
+	for _, lock := range locks {
+		if lock.Locked {
+			lockedRoots = append(lockedRoots, rootByLockID[lock.LockID])
 		}
 	}
 	if len(lockedRoots) == 0 {
@@ -379,22 +418,44 @@ func (s *Service) PurgeMany(ctx context.Context, userID int64, rootIDs []uuid.UU
 	}
 
 	nodesByID := make(map[uuid.UUID]treeNode)
+	rows, err := s.queries.LoadFileSubtrees(ctx, sqlcgen.LoadFileSubtreesParams{
+		RootIds: pgUUIDs(lockedRoots), UserID: userID,
+	})
+	if err != nil {
+		return fmt.Errorf("load file subtrees: %w", err)
+	}
+	foundRoots := make(map[uuid.UUID]sqlcgen.FileStatus, len(lockedRoots))
+	rootSet := make(map[uuid.UUID]struct{}, len(lockedRoots))
 	for _, rootID := range lockedRoots {
-		tree, err := s.loadTree(ctx, userID, rootID)
-		if err != nil {
-			return err
+		rootSet[rootID] = struct{}{}
+	}
+	for _, row := range rows {
+		id, ok := dbtypes.GoogleUUID(row.ID)
+		if !ok {
+			return ErrNotFound
 		}
-		if len(tree) == 0 || (tree[0].File.Status != sqlcgen.FileStatusTrashed && tree[0].File.Status != sqlcgen.FileStatusDeletionPending) {
+		node := treeNode{File: sqlcgen.File{
+			ID: row.ID, UserID: row.UserID, ParentID: row.ParentID, Name: row.Name,
+			NormalizedName: row.NormalizedName, Kind: row.Kind, MimeType: row.MimeType,
+			Size: row.Size, HashAlgorithm: row.HashAlgorithm, HashValue: row.HashValue,
+			Encryption: row.Encryption, EncryptionKeyVersion: row.EncryptionKeyVersion,
+			Status: row.Status, ModTime: row.ModTime, Generation: row.Generation,
+			CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, DeletedAt: row.DeletedAt,
+		}, Depth: row.Depth}
+		if _, isRoot := rootSet[id]; isRoot {
+			foundRoots[id] = row.Status
+		}
+		if existing, exists := nodesByID[id]; !exists || node.Depth > existing.Depth {
+			nodesByID[id] = node
+		}
+	}
+	for _, rootID := range lockedRoots {
+		status, ok := foundRoots[rootID]
+		if !ok {
+			return ErrNotFound
+		}
+		if status != sqlcgen.FileStatusTrashed && status != sqlcgen.FileStatusDeletionPending {
 			return ErrNotTrashed
-		}
-		for _, node := range tree {
-			id, ok := dbtypes.GoogleUUID(node.File.ID)
-			if !ok {
-				return ErrNotFound
-			}
-			if existing, ok := nodesByID[id]; !ok || node.Depth > existing.Depth {
-				nodesByID[id] = node
-			}
 		}
 	}
 	nodes := make([]treeNode, 0, len(nodesByID))
@@ -444,16 +505,25 @@ func (s *Service) PurgeMany(ctx context.Context, userID int64, rootIDs []uuid.UU
 	}); err != nil {
 		return fmt.Errorf("clear purge upload session parents: %w", err)
 	}
-	sort.Slice(nodes, func(i, j int) bool { return nodes[i].Depth > nodes[j].Depth })
+	byDepth := make(map[int32][]uuid.UUID)
+	depths := make([]int32, 0)
 	for _, node := range nodes {
 		id, _ := dbtypes.GoogleUUID(node.File.ID)
-		count, err := queries.DeleteFileCatalogRow(ctx, sqlcgen.DeleteFileCatalogRowParams{
-			FileID: dbtypes.UUID(id), UserID: userID,
+		if _, ok := byDepth[node.Depth]; !ok {
+			depths = append(depths, node.Depth)
+		}
+		byDepth[node.Depth] = append(byDepth[node.Depth], id)
+	}
+	sort.Slice(depths, func(i, j int) bool { return depths[i] > depths[j] })
+	for _, depth := range depths {
+		depthIDs := byDepth[depth]
+		count, err := queries.DeleteFileCatalogRowsByIDs(ctx, sqlcgen.DeleteFileCatalogRowsByIDsParams{
+			FileIds: pgUUIDs(depthIDs), UserID: userID,
 		})
 		if err != nil {
-			return fmt.Errorf("delete purge catalog row: %w", err)
+			return fmt.Errorf("delete purge catalog rows at depth %d: %w", depth, err)
 		}
-		if count != 1 {
+		if count != int64(len(depthIDs)) {
 			return ErrNotFound
 		}
 	}
