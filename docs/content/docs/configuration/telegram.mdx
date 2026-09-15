@@ -3,15 +3,13 @@ title: Telegram settings
 description: Tune Telegram connectivity, upload/download concurrency, channels, proxies, and download clients.
 ---
 
-The defaults are intentionally conservative. Start with them, confirm a stable installation, and tune only after observing actual upload/download behavior.
+The defaults are intentionally conservative. Teldrive also ships with public Telegram application credentials, so most installations can start without configuring `app-id` or `app-hash`. Tune or override settings only after confirming a stable installation.
 
 ## Core connection settings
 
 ```yaml
 telegram:
   backend: remote
-  app-id: 12345678
-  app-hash: YOUR_APP_HASH
   dial-timeout: 10s
   reconnect-timeout: 5m
   max-retries: 10
@@ -19,6 +17,8 @@ telegram:
   rate-interval: 50ms
   rate-burst: 10
 ```
+
+If you intentionally want to use your own Telegram application identity, override `telegram.app-id` and `telegram.app-hash`; they are not required for normal onboarding.
 
 Keep `rate-limit: true` unless you have a very specific reason to disable client-side throttling. Teldrive cannot bypass Telegram's server-side limits.
 

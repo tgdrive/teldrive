@@ -30,7 +30,7 @@ Nested config dots become hyphens in CLI flags and underscores in environment va
 
 Run `teldrive run --help` or `teldrive check --help` to inspect the flags supported by the exact binary you are running.
 
-The **Default** column is the literal runtime default from the code, not a production recommendation. Follow the focused configuration guides for security-sensitive choices; in particular, self-hosters should configure their own Telegram application credentials.
+The **Default** column is the literal runtime default from the code, not a production recommendation. Follow the focused configuration guides for security-sensitive choices. Teldrive ships with public Telegram application credentials, so most installations do not need to override `telegram.app-id` or `telegram.app-hash`.
 
 > Generated file: edit the configuration structs, then run `just docs-generate` instead of editing the tables below by hand.
 

@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - v2
+    paths-ignore:
+      - "docs/**"
 
 concurrency:
   group: publish-v2-image

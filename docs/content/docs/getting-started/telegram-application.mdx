@@ -1,17 +1,15 @@
 ---
-title: Telegram application
-description: Create the Telegram API credentials Teldrive uses to connect as your account.
+title: Custom Telegram application
+description: Optionally override Teldrive's built-in public Telegram application credentials with your own api_id and api_hash.
 ---
 
-Teldrive talks to Telegram through Telegram's MTProto API. That requires an **application ID** (`api_id`) and **application hash** (`api_hash`). These identify the client application; they are separate from your phone number, login code, and Teldrive session.
+Teldrive ships with public Telegram application credentials and normal installations can use them as-is. You do **not** need to create an `api_id` or `api_hash` to get started.
 
-## Before you start
+This page is only for operators who intentionally want to override those defaults with their own Telegram application credentials.
 
-You need a Telegram account that can sign in to Telegram's developer portal.
+> If you configure a custom API hash, keep it private. It is not the same thing as a bot token and should not be published in screenshots, Git repositories, or public Compose files.
 
-> Keep the API hash private. It is not the same thing as a bot token and you should not publish it in screenshots, Git repositories, or public Compose files.
-
-## Create the application
+## Create a custom application
 
 1. Open Telegram's API development portal at `https://my.telegram.org`.
 2. Sign in with the phone number attached to the Telegram account.

@@ -9,7 +9,7 @@ Teldrive turns your Telegram account into a managed file store. It keeps file me
 
 <Cards>
   <Card title="Set up Teldrive" href="/getting-started/quick-start">
-    New here? Start with PostgreSQL, your Telegram application, two secrets, and one Teldrive container.
+    New here? Start with PostgreSQL, browser-generated deployment secrets, and one Teldrive container.
   </Card>
   <Card title="Understand configuration" href="/configuration/overview">
     Learn exactly where settings come from and which values you should change for production.
@@ -41,7 +41,7 @@ You do **not** need to understand Go, Telegram MTProto, River jobs, or the inter
 
 ### I want to understand what I am deploying
 
-Read **How Teldrive works** after the quick start. It explains which data is stored in PostgreSQL, which data is stored in Telegram, why Teldrive needs a Telegram API application, and what the security keys protect.
+Read **How Teldrive works** after the quick start. It explains which data is stored in PostgreSQL, which data is stored in Telegram, how the Telegram storage connection works, and what the security keys protect.
 
 ### I run production infrastructure
 
@@ -55,7 +55,7 @@ A normal deployment needs:
 - PostgreSQL;
 - outbound internet access to Telegram;
 - a Telegram account;
-- a Telegram API application ID and hash;
+- the built-in public Telegram application credentials, which require no setup;
 - persistent PostgreSQL storage;
 - two private Teldrive secrets: a signing key and a data key.
 
