@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
@@ -23,6 +24,7 @@ var ErrPurgeNotConfigured = errors.New("pending-file purge worker is not configu
 
 type PurgeService interface {
 	Purge(context.Context, int64, uuid.UUID) error
+	PurgeMany(context.Context, int64, []uuid.UUID) error
 }
 
 type PurgeSweepArgs struct{}
@@ -60,21 +62,23 @@ func (w *PendingFilePurgeWorker) Work(ctx context.Context, job *river.Job[PurgeS
 		if len(rows) == 0 {
 			return nil
 		}
+		byUser := make(map[int64][]uuid.UUID)
 		for _, item := range rows {
 			fileID, ok := dbtypes.GoogleUUID(item.FileID)
 			if !ok {
 				return fmt.Errorf("list deletion-pending roots: invalid file ID")
 			}
-			if err := w.purgeOne(ctx, item.UserID, fileID); err != nil {
-				return err
+			byUser[item.UserID] = append(byUser[item.UserID], fileID)
+		}
+		userIDs := make([]int64, 0, len(byUser))
+		for userID := range byUser {
+			userIDs = append(userIDs, userID)
+		}
+		sort.Slice(userIDs, func(i, j int) bool { return userIDs[i] < userIDs[j] })
+		for _, userID := range userIDs {
+			if err := w.service.PurgeMany(ctx, userID, byUser[userID]); err != nil {
+				return fmt.Errorf("retry deletion-pending files for user %d: %w", userID, err)
 			}
 		}
 	}
-}
-
-func (w *PendingFilePurgeWorker) purgeOne(ctx context.Context, userID int64, fileID uuid.UUID) error {
-	if err := w.service.Purge(ctx, userID, fileID); err != nil {
-		return fmt.Errorf("retry deletion-pending file %s for user %d: %w", fileID, userID, err)
-	}
-	return nil
 }

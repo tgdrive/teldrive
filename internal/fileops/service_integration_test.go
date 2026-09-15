@@ -189,6 +189,67 @@ VALUES ($1,1,9001,30,4,4,repeat('c',64),decode(repeat('cd',32),'hex'))`, childID
 	}
 }
 
+func TestPurgeManyGroupsTelegramMessagesByChannel(t *testing.T) {
+	db := testpostgres.New(t)
+	ctx := context.Background()
+	if _, err := db.Pool.Exec(ctx, "INSERT INTO users (user_id) VALUES (1001)"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Pool.Exec(ctx, "INSERT INTO channels (channel_id,user_id,name,selected) VALUES (9001,1001,'storage',true)"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Pool.Exec(ctx, `
+WITH files AS (
+    INSERT INTO files (user_id,name,normalized_name,kind,size,encryption,status,mod_time,deleted_at)
+    SELECT 1001, 'pending-' || value, 'pending-' || value, 'file', 1, false, 'deletion_pending', now(), now()
+    FROM generate_series(1, 1000) AS value
+    RETURNING id
+)
+INSERT INTO file_parts (file_id,part_no,channel_id,message_id,plain_size,stored_size,checksum,block_hashes)
+SELECT id, 1, 9001, row_number() OVER ()::bigint, 1, 1, repeat('b',64), decode(repeat('ab',32),'hex')
+FROM files
+`); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := db.Pool.Query(ctx, "SELECT id FROM files WHERE user_id = 1001 AND status = 'deletion_pending'")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fileIDs []uuid.UUID
+	for rows.Next() {
+		var fileID uuid.UUID
+		if err := rows.Scan(&fileID); err != nil {
+			rows.Close()
+			t.Fatal(err)
+		}
+		fileIDs = append(fileIDs, fileID)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+
+	storage := &fileStorage{}
+	service, err := NewService(db.Pool, catalog.NewService(db.Pool, nil), channels.NewService(db.Pool, nil, channels.Config{PartLimit: 100}), storage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := service.PurgeMany(ctx, 1001, fileIDs); err != nil {
+		t.Fatalf("PurgeMany() error = %v", err)
+	}
+	deleteCalls := storage.deleteCallsSnapshot()
+	if len(deleteCalls) != 1 || len(deleteCalls[0]) != 1000 {
+		t.Fatalf("DeleteMessages() calls = %d with sizes %v, want one call of 1000", len(deleteCalls), sliceLengths(deleteCalls))
+	}
+	var remaining int
+	if err := db.Pool.QueryRow(ctx, "SELECT count(*) FROM files WHERE user_id = 1001").Scan(&remaining); err != nil {
+		t.Fatal(err)
+	}
+	if remaining != 0 {
+		t.Fatalf("remaining files = %d, want 0", remaining)
+	}
+}
+
 func TestCopyCompensatesPartialTelegramSuccess(t *testing.T) {
 	db := testpostgres.New(t)
 	ctx := context.Background()
@@ -296,12 +357,13 @@ VALUES ($1,1,9001,$2,4,4,repeat('b',64),decode(repeat('ab',32),'hex'))`, id, mes
 }
 
 type fileStorage struct {
-	mu         sync.Mutex
-	messages   map[int64][]byte
-	nextID     int64
-	deleteErr  error
-	copyCalls  int
-	failCopyAt int
+	mu          sync.Mutex
+	messages    map[int64][]byte
+	nextID      int64
+	deleteErr   error
+	copyCalls   int
+	failCopyAt  int
+	deleteCalls [][]int64
 }
 
 func (*fileStorage) Upload(context.Context, telegramstore.UploadRequest) (telegramstore.StoredPart, error) {
@@ -322,6 +384,7 @@ func (s *fileStorage) DeleteMessages(_ context.Context, _ int64, _ int64, ids []
 	if s.deleteErr != nil {
 		return s.deleteErr
 	}
+	s.deleteCalls = append(s.deleteCalls, append([]int64(nil), ids...))
 	for _, id := range ids {
 		delete(s.messages, id)
 	}
@@ -350,4 +413,22 @@ func (s *fileStorage) message(id int64) []byte {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return append([]byte(nil), s.messages[id]...)
+}
+
+func (s *fileStorage) deleteCallsSnapshot() [][]int64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	result := make([][]int64, len(s.deleteCalls))
+	for i, ids := range s.deleteCalls {
+		result[i] = append([]int64(nil), ids...)
+	}
+	return result
+}
+
+func sliceLengths(values [][]int64) []int {
+	lengths := make([]int, len(values))
+	for i, value := range values {
+		lengths[i] = len(value)
+	}
+	return lengths
 }

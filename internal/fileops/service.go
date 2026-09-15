@@ -334,8 +334,24 @@ func (s *Service) CleanTrash(ctx context.Context, userID int64) (int64, error) {
 }
 
 func (s *Service) Purge(ctx context.Context, userID int64, fileID uuid.UUID) error {
-	if userID <= 0 || fileID == uuid.Nil {
+	return s.PurgeMany(ctx, userID, []uuid.UUID{fileID})
+}
+
+func (s *Service) PurgeMany(ctx context.Context, userID int64, rootIDs []uuid.UUID) error {
+	if userID <= 0 || len(rootIDs) == 0 {
 		return ErrInvalidInput
+	}
+	uniqueRoots := make([]uuid.UUID, 0, len(rootIDs))
+	seenRoots := make(map[uuid.UUID]struct{}, len(rootIDs))
+	for _, rootID := range rootIDs {
+		if rootID == uuid.Nil {
+			return ErrInvalidInput
+		}
+		if _, ok := seenRoots[rootID]; ok {
+			continue
+		}
+		seenRoots[rootID] = struct{}{}
+		uniqueRoots = append(uniqueRoots, rootID)
 	}
 	conn, err := s.pool.Acquire(ctx)
 	if err != nil {
@@ -343,33 +359,48 @@ func (s *Service) Purge(ctx context.Context, userID int64, fileID uuid.UUID) err
 	}
 	defer conn.Release()
 	lockQueries := sqlcgen.New(conn)
-	lockID := purgeAdvisoryLockID(userID, fileID)
-	locked, err := lockQueries.TryAdvisoryLock(ctx, lockID)
-	if err != nil {
-		return fmt.Errorf("acquire purge advisory lock: %w", err)
-	}
-	if !locked {
-		// Another worker or explicit request is already purging this subtree.
-		return nil
-	}
+	lockedRoots := make([]uuid.UUID, 0, len(uniqueRoots))
 	defer func() {
 		unlockCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		_, _ = lockQueries.ReleaseAdvisoryLock(unlockCtx, lockID)
+		_, _ = conn.Exec(unlockCtx, "SELECT pg_advisory_unlock_all()")
 	}()
-	nodes, err := s.loadTree(ctx, userID, fileID)
-	if err != nil {
-		return err
-	}
-	if len(nodes) == 0 || (nodes[0].File.Status != sqlcgen.FileStatusTrashed && nodes[0].File.Status != sqlcgen.FileStatusDeletionPending) {
-		return ErrNotTrashed
-	}
-	ids := make([]uuid.UUID, 0, len(nodes))
-	for _, node := range nodes {
-		id, ok := dbtypes.GoogleUUID(node.File.ID)
-		if !ok {
-			return ErrNotFound
+	for _, rootID := range uniqueRoots {
+		locked, err := lockQueries.TryAdvisoryLock(ctx, purgeAdvisoryLockID(userID, rootID))
+		if err != nil {
+			return fmt.Errorf("acquire purge advisory lock: %w", err)
 		}
+		if locked {
+			lockedRoots = append(lockedRoots, rootID)
+		}
+	}
+	if len(lockedRoots) == 0 {
+		return nil
+	}
+
+	nodesByID := make(map[uuid.UUID]treeNode)
+	for _, rootID := range lockedRoots {
+		tree, err := s.loadTree(ctx, userID, rootID)
+		if err != nil {
+			return err
+		}
+		if len(tree) == 0 || (tree[0].File.Status != sqlcgen.FileStatusTrashed && tree[0].File.Status != sqlcgen.FileStatusDeletionPending) {
+			return ErrNotTrashed
+		}
+		for _, node := range tree {
+			id, ok := dbtypes.GoogleUUID(node.File.ID)
+			if !ok {
+				return ErrNotFound
+			}
+			if existing, ok := nodesByID[id]; !ok || node.Depth > existing.Depth {
+				nodesByID[id] = node
+			}
+		}
+	}
+	nodes := make([]treeNode, 0, len(nodesByID))
+	ids := make([]uuid.UUID, 0, len(nodesByID))
+	for id, node := range nodesByID {
+		nodes = append(nodes, node)
 		ids = append(ids, id)
 	}
 	fileIDs := pgUUIDs(ids)

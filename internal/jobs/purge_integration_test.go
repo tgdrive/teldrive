@@ -57,6 +57,9 @@ VALUES
 	if !calledIDs[rootID] || !calledIDs[secondRootID] {
 		t.Fatalf("purge calls = %#v", calls)
 	}
+	if batches := service.batchesSnapshot(); len(batches) != 1 || batches[0] != 2 {
+		t.Fatalf("purge batches = %v, want [2]", batches)
+	}
 
 	if got := (jobs.PurgeSweepArgs{}).Kind(); got != jobs.PurgeSweepKind {
 		t.Fatalf("Kind() = %q", got)
@@ -102,6 +105,9 @@ FROM generate_series(1, 1001) AS value
 	if calls := service.callsSnapshot(); len(calls) != 1001 {
 		t.Fatalf("purge calls = %d, want 1001", len(calls))
 	}
+	if batches := service.batchesSnapshot(); len(batches) != 2 || batches[0] != 1000 || batches[1] != 1 {
+		t.Fatalf("purge batches = %v, want [1000 1]", batches)
+	}
 	var remaining int
 	if err := db.Pool.QueryRow(ctx, "SELECT count(*) FROM files WHERE status = 'deletion_pending'").Scan(&remaining); err != nil {
 		t.Fatal(err)
@@ -137,10 +143,23 @@ type purgeCall struct {
 }
 
 type recordingPurgeService struct {
-	mu    sync.Mutex
-	calls []purgeCall
-	err   error
-	after func(context.Context, int64, uuid.UUID) error
+	mu      sync.Mutex
+	calls   []purgeCall
+	batches []int
+	err     error
+	after   func(context.Context, int64, uuid.UUID) error
+}
+
+func (s *recordingPurgeService) PurgeMany(ctx context.Context, userID int64, fileIDs []uuid.UUID) error {
+	s.mu.Lock()
+	s.batches = append(s.batches, len(fileIDs))
+	s.mu.Unlock()
+	for _, fileID := range fileIDs {
+		if err := s.Purge(ctx, userID, fileID); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *recordingPurgeService) Purge(ctx context.Context, userID int64, fileID uuid.UUID) error {
@@ -158,4 +177,10 @@ func (s *recordingPurgeService) callsSnapshot() []purgeCall {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return append([]purgeCall(nil), s.calls...)
+}
+
+func (s *recordingPurgeService) batchesSnapshot() []int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]int(nil), s.batches...)
 }
