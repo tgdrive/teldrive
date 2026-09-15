@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 type Secrets = {
+  databasePassword: string;
   signingKey: string;
   dataKey: string;
   encryptionKey: string;
@@ -22,13 +23,13 @@ function base64Url(bytes: Uint8Array) {
 
 function generateSecrets(): Secrets {
   return {
+    databasePassword: base64Url(randomBytes(24)),
     signingKey: base64Url(randomBytes(32)),
     dataKey: base64Url(randomBytes(32)),
     encryptionKey: base64Url(randomBytes(32)),
   };
 }
 
-const databasePassword = 'teldrive';
 
 function buildCompose(secrets: Secrets, encryptionEnabled: boolean) {
   const encryption = encryptionEnabled
@@ -42,7 +43,7 @@ function buildCompose(secrets: Secrets, encryptionEnabled: boolean) {
     environment:
       POSTGRES_DB: teldrive
       POSTGRES_USER: teldrive
-      POSTGRES_PASSWORD: ${databasePassword}
+      POSTGRES_PASSWORD: ${secrets.databasePassword}
     volumes:
       - ./postgres-data:/var/lib/postgresql
     healthcheck:
@@ -61,7 +62,7 @@ function buildCompose(secrets: Secrets, encryptionEnabled: boolean) {
       - "127.0.0.1:8080:8080"
     environment:
       TELDRIVE_HTTP_ADDRESS: "0.0.0.0:8080"
-      TELDRIVE_DATABASE_URL: "postgres://teldrive:${databasePassword}@postgres:5432/teldrive?sslmode=disable"
+      TELDRIVE_DATABASE_URL: "postgres://teldrive:${secrets.databasePassword}@postgres:5432/teldrive?sslmode=disable"
       TELDRIVE_SECURITY_SIGNING_KEY: "${secrets.signingKey}"
       TELDRIVE_SECURITY_DATA_KEY: "${secrets.dataKey}"${encryption}
 `;
@@ -72,9 +73,9 @@ function buildEnv(secrets: Secrets, encryptionEnabled: boolean) {
     ? `\nTELDRIVE_ENCRYPTION_ACTIVE_KEY_VERSION=1\nTELDRIVE_ENCRYPTION_KEYS=1:${secrets.encryptionKey}`
     : '';
 
-  return `POSTGRES_PASSWORD=${databasePassword}
+  return `POSTGRES_PASSWORD=${secrets.databasePassword}
 TELDRIVE_HTTP_ADDRESS=0.0.0.0:8080
-TELDRIVE_DATABASE_URL=postgres://teldrive:${databasePassword}@postgres:5432/teldrive?sslmode=disable
+TELDRIVE_DATABASE_URL=postgres://teldrive:${secrets.databasePassword}@postgres:5432/teldrive?sslmode=disable
 TELDRIVE_SECURITY_SIGNING_KEY=${secrets.signingKey}
 TELDRIVE_SECURITY_DATA_KEY=${secrets.dataKey}${encryption}
 `;
@@ -89,7 +90,7 @@ function buildYaml(secrets: Secrets, encryptionEnabled: boolean) {
   address: 0.0.0.0:8080
 
 database:
-  url: "postgres://teldrive:${databasePassword}@127.0.0.1:5432/teldrive?sslmode=disable"
+  url: "postgres://teldrive:${secrets.databasePassword}@127.0.0.1:5432/teldrive?sslmode=disable"
 
 security:
   signing-key: "${secrets.signingKey}"
@@ -104,7 +105,7 @@ function buildCli(secrets: Secrets, encryptionEnabled: boolean) {
 
   return `teldrive run \\
   --http-address 0.0.0.0:8080 \\
-  --database-url 'postgres://teldrive:${databasePassword}@127.0.0.1:5432/teldrive?sslmode=disable' \\
+  --database-url 'postgres://teldrive:${secrets.databasePassword}@127.0.0.1:5432/teldrive?sslmode=disable' \
   --security-signing-key '${secrets.signingKey}' \\
   --security-data-key '${secrets.dataKey}'${encryption}
 `;
@@ -183,7 +184,7 @@ export default function SetupGenerator() {
           <div>
             <h3 className="m-0 text-lg font-semibold">Teldrive setup generator</h3>
             <p className="mt-1 max-w-2xl text-sm text-fd-muted-foreground">
-              Generates Teldrive cryptographic secrets locally in your browser. Teldrive already ships with public Telegram application credentials, so there is nothing to enter here.
+              Generates deployment secrets locally in your browser. Teldrive already ships with public Telegram application credentials, so there is nothing to enter here.
             </p>
           </div>
           <button
@@ -192,13 +193,14 @@ export default function SetupGenerator() {
             disabled={!secrets}
             className="shrink-0 rounded-md border border-fd-border px-3 py-2 text-sm font-medium hover:bg-fd-accent disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Regenerate keys
+            Regenerate all
           </button>
         </div>
       </div>
 
       <div className="p-5">
         <div className="rounded-lg border border-fd-border px-4">
+          <SecretRow label="Database password" value={secrets?.databasePassword ?? ''} />
           <SecretRow label="Signing key" value={secrets?.signingKey ?? ''} />
           <SecretRow label="Data key" value={secrets?.dataKey ?? ''} />
           {encryptionEnabled ? <SecretRow label="File encryption key" value={secrets?.encryptionKey ?? ''} /> : null}
