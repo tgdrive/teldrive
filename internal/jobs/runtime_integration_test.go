@@ -18,7 +18,7 @@ func TestRuntimeInsertStartAndStopAgainstRealPostgres(t *testing.T) {
 		t.Fatalf("NewRuntime() error = %v", err)
 	}
 	ctx := context.Background()
-	if err := runtime.InsertCleanup(ctx, 7); err != nil {
+	if err := runtime.InsertCleanup(ctx); err != nil {
 		t.Fatalf("InsertCleanup() error = %v", err)
 	}
 	var count int

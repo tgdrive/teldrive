@@ -19,7 +19,6 @@ var ErrTrashCleanupNotConfigured = errors.New("trash cleanup worker is not confi
 
 type TrashCleanupSweepArgs struct {
 	Retention string `json:"retention,omitempty"`
-	BatchSize int32  `json:"batch_size,omitempty"`
 }
 
 func (TrashCleanupSweepArgs) Kind() string { return TrashCleanupSweepKind }
@@ -41,7 +40,7 @@ func NewTrashCleanupWorker(pool *pgxpool.Pool, service PurgeService) *TrashClean
 }
 
 func (w *TrashCleanupWorker) Timeout(*river.Job[TrashCleanupSweepArgs]) time.Duration {
-	return 30 * time.Minute
+	return 2 * time.Hour
 }
 
 func (w *TrashCleanupWorker) Work(ctx context.Context, job *river.Job[TrashCleanupSweepArgs]) error {
@@ -56,25 +55,23 @@ func (w *TrashCleanupWorker) Work(ctx context.Context, job *river.Job[TrashClean
 	if err != nil || retention <= 0 {
 		return fmt.Errorf("invalid trash retention %q", retentionText)
 	}
-	batchSize := job.Args.BatchSize
-	if batchSize <= 0 {
-		batchSize = defaultBatchSize
-	}
-	rows, err := w.queries.ListTrashedRootsBefore(ctx, sqlcgen.ListTrashedRootsBeforeParams{
-		DeletedBefore: dbtypes.Time(w.now().Add(-retention)),
-		BatchSize:     batchSize,
-	})
-	if err != nil {
-		return fmt.Errorf("list expired trash roots: %w", err)
-	}
-	for _, item := range rows {
-		fileID, ok := dbtypes.GoogleUUID(item.FileID)
-		if !ok {
-			return errors.New("expired trash root has invalid file ID")
+	deletedBefore := dbtypes.Time(w.now().Add(-retention))
+	for {
+		rows, err := w.queries.ListTrashedRootsBefore(ctx, deletedBefore)
+		if err != nil {
+			return fmt.Errorf("list expired trash roots: %w", err)
 		}
-		if err := w.service.Purge(ctx, item.UserID, fileID); err != nil {
-			return fmt.Errorf("purge expired trash file %s for user %d: %w", fileID, item.UserID, err)
+		if len(rows) == 0 {
+			return nil
+		}
+		for _, item := range rows {
+			fileID, ok := dbtypes.GoogleUUID(item.FileID)
+			if !ok {
+				return errors.New("expired trash root has invalid file ID")
+			}
+			if err := w.service.Purge(ctx, item.UserID, fileID); err != nil {
+				return fmt.Errorf("purge expired trash file %s for user %d: %w", fileID, item.UserID, err)
+			}
 		}
 	}
-	return nil
 }

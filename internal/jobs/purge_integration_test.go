@@ -24,25 +24,37 @@ func TestPendingFilePurgeWorkerProcessesDeletionPendingRoots(t *testing.T) {
 	}
 	rootID := uuid.New()
 	childID := uuid.New()
+	secondRootID := uuid.New()
 	activeID := uuid.New()
 	if _, err := db.Pool.Exec(ctx, `
 INSERT INTO files (id, user_id, parent_id, name, normalized_name, kind, size, status, mod_time, deleted_at)
 VALUES
     ($1, 1001, NULL, 'root', 'root', 'folder', NULL, 'deletion_pending', now(), now()),
     ($2, 1001, $1, 'child', 'child', 'file', 0, 'deletion_pending', now(), now()),
-    ($3, 1001, NULL, 'active', 'active', 'file', 0, 'active', now(), NULL)
-`, rootID, childID, activeID); err != nil {
+    ($3, 1001, NULL, 'second-root', 'second-root', 'file', 0, 'deletion_pending', now(), now()),
+    ($4, 1001, NULL, 'active', 'active', 'file', 0, 'active', now(), NULL)
+`, rootID, childID, secondRootID, activeID); err != nil {
 		t.Fatal(err)
 	}
 
-	service := &recordingPurgeService{}
+	service := &recordingPurgeService{after: func(ctx context.Context, userID int64, fileID uuid.UUID) error {
+		if _, err := db.Pool.Exec(ctx, "DELETE FROM files WHERE user_id = $1 AND parent_id = $2", userID, fileID); err != nil {
+			return err
+		}
+		_, err := db.Pool.Exec(ctx, "DELETE FROM files WHERE user_id = $1 AND id = $2", userID, fileID)
+		return err
+	}}
 	worker := jobs.NewPendingFilePurgeWorker(db.Pool, service)
 	job := &river.Job[jobs.PurgeSweepArgs]{Args: jobs.PurgeSweepArgs{}}
 	if err := worker.Work(ctx, job); err != nil {
 		t.Fatalf("Work() error = %v", err)
 	}
 	calls := service.callsSnapshot()
-	if len(calls) != 1 || calls[0].userID != 1001 || calls[0].fileID != rootID {
+	if len(calls) != 2 || calls[0].userID != 1001 || calls[1].userID != 1001 {
+		t.Fatalf("purge calls = %#v", calls)
+	}
+	calledIDs := map[uuid.UUID]bool{calls[0].fileID: true, calls[1].fileID: true}
+	if !calledIDs[rootID] || !calledIDs[secondRootID] {
 		t.Fatalf("purge calls = %#v", calls)
 	}
 
@@ -53,7 +65,7 @@ VALUES
 	if opts.Queue != jobs.PurgeQueue || opts.MaxAttempts != 3 || opts.Priority != 1 {
 		t.Fatalf("InsertOpts() = %#v", opts)
 	}
-	if got := worker.Timeout(job); got != 30*time.Minute {
+	if got := worker.Timeout(job); got != 2*time.Hour {
 		t.Fatalf("Timeout() = %s", got)
 	}
 
@@ -62,6 +74,40 @@ VALUES
 	}
 	if err := jobs.NewPendingFilePurgeWorker(db.Pool, nil).Work(ctx, job); !errors.Is(err, jobs.ErrPurgeNotConfigured) {
 		t.Fatalf("nil service error = %v", err)
+	}
+}
+
+func TestPendingFilePurgeWorkerDrainsMultiplePages(t *testing.T) {
+	db := testpostgres.New(t)
+	ctx := context.Background()
+	if _, err := db.Pool.Exec(ctx, "INSERT INTO users (user_id) VALUES (1001)"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Pool.Exec(ctx, `
+INSERT INTO files (user_id, name, normalized_name, kind, size, status, mod_time, deleted_at)
+SELECT 1001, 'pending-' || value, 'pending-' || value, 'file', 0, 'deletion_pending', now(), now()
+FROM generate_series(1, 1001) AS value
+`); err != nil {
+		t.Fatal(err)
+	}
+
+	service := &recordingPurgeService{after: func(ctx context.Context, userID int64, fileID uuid.UUID) error {
+		_, err := db.Pool.Exec(ctx, "DELETE FROM files WHERE user_id = $1 AND id = $2", userID, fileID)
+		return err
+	}}
+	worker := jobs.NewPendingFilePurgeWorker(db.Pool, service)
+	if err := worker.Work(ctx, &river.Job[jobs.PurgeSweepArgs]{Args: jobs.PurgeSweepArgs{}}); err != nil {
+		t.Fatalf("Work() error = %v", err)
+	}
+	if calls := service.callsSnapshot(); len(calls) != 1001 {
+		t.Fatalf("purge calls = %d, want 1001", len(calls))
+	}
+	var remaining int
+	if err := db.Pool.QueryRow(ctx, "SELECT count(*) FROM files WHERE status = 'deletion_pending'").Scan(&remaining); err != nil {
+		t.Fatal(err)
+	}
+	if remaining != 0 {
+		t.Fatalf("deletion-pending files = %d, want 0", remaining)
 	}
 }
 
@@ -80,7 +126,7 @@ VALUES ($1, 1001, 'pending', 'pending', 'file', 0, 'deletion_pending', now(), no
 	}
 	serviceErr := errors.New("purge failed")
 	worker := jobs.NewPendingFilePurgeWorker(db.Pool, &recordingPurgeService{err: serviceErr})
-	if err := worker.Work(ctx, &river.Job[jobs.PurgeSweepArgs]{Args: jobs.PurgeSweepArgs{BatchSize: 1}}); !errors.Is(err, serviceErr) {
+	if err := worker.Work(ctx, &river.Job[jobs.PurgeSweepArgs]{Args: jobs.PurgeSweepArgs{}}); !errors.Is(err, serviceErr) {
 		t.Fatalf("Work() error = %v", err)
 	}
 }
@@ -94,13 +140,18 @@ type recordingPurgeService struct {
 	mu    sync.Mutex
 	calls []purgeCall
 	err   error
+	after func(context.Context, int64, uuid.UUID) error
 }
 
-func (s *recordingPurgeService) Purge(_ context.Context, userID int64, fileID uuid.UUID) error {
+func (s *recordingPurgeService) Purge(ctx context.Context, userID int64, fileID uuid.UUID) error {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.calls = append(s.calls, purgeCall{userID: userID, fileID: fileID})
-	return s.err
+	err, after := s.err, s.after
+	s.mu.Unlock()
+	if err != nil || after == nil {
+		return err
+	}
+	return after(ctx, userID, fileID)
 }
 
 func (s *recordingPurgeService) callsSnapshot() []purgeCall {

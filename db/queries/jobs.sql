@@ -13,7 +13,7 @@ WHERE f.status = 'deletion_pending'
     )
   )
 ORDER BY f.updated_at, f.id
-LIMIT sqlc.arg(batch_size);
+LIMIT 1000;
 
 -- name: ListTrashedRootsBefore :many
 SELECT f.user_id, f.id AS file_id
@@ -32,4 +32,4 @@ WHERE f.status = 'trashed'
     )
   )
 ORDER BY f.deleted_at, f.id
-LIMIT sqlc.arg(batch_size);
+LIMIT 1000;

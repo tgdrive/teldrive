@@ -31,7 +31,7 @@ const (
 	purgePeriodicID                   = "teldrive-pending-file-purge"
 	orphanCleanupPeriodicID           = "teldrive-orphaned-telegram-part-cleanup"
 	uploadCleanupDefaultCron          = "@every 12h"
-	trashCleanupDefaultCron           = "@every 1h"
+	trashCleanupDefaultCron           = "@every 12h"
 	pendingDeletionCleanupDefaultCron = "@every 12h"
 	orphanCleanupDefaultCron          = "@every 336h"
 	maintenanceTimezone               = "UTC"
@@ -167,7 +167,7 @@ func (r *Runtime) Start(ctx context.Context) error {
 	if r.started {
 		return nil
 	}
-	uploadCleanupArgs, err := json.Marshal(UploadCleanupSweepArgs{BatchSize: defaultBatchSize})
+	uploadCleanupArgs, err := json.Marshal(UploadCleanupSweepArgs{})
 	if err != nil {
 		return fmt.Errorf("marshal upload cleanup periodic args: %w", err)
 	}
@@ -186,7 +186,7 @@ func (r *Runtime) Start(ctx context.Context) error {
 		return fmt.Errorf("upsert upload cleanup periodic job: %w", err)
 	}
 	if r.purgeEnabled {
-		trashCleanupArgs, err := json.Marshal(TrashCleanupSweepArgs{Retention: "720h", BatchSize: defaultBatchSize})
+		trashCleanupArgs, err := json.Marshal(TrashCleanupSweepArgs{Retention: "720h"})
 		if err != nil {
 			return fmt.Errorf("marshal trash cleanup periodic args: %w", err)
 		}
@@ -205,7 +205,7 @@ func (r *Runtime) Start(ctx context.Context) error {
 			return fmt.Errorf("upsert trash cleanup periodic job: %w", err)
 		}
 
-		purgeArgs, err := json.Marshal(PurgeSweepArgs{BatchSize: defaultBatchSize})
+		purgeArgs, err := json.Marshal(PurgeSweepArgs{})
 		if err != nil {
 			return fmt.Errorf("marshal purge periodic args: %w", err)
 		}
@@ -225,7 +225,7 @@ func (r *Runtime) Start(ctx context.Context) error {
 		}
 	}
 	if r.orphanCleanupEnabled {
-		orphanCleanupArgs, err := json.Marshal(OrphanCleanupArgs{PageSize: 100})
+		orphanCleanupArgs, err := json.Marshal(OrphanCleanupArgs{})
 		if err != nil {
 			return fmt.Errorf("marshal orphan cleanup periodic args: %w", err)
 		}
@@ -267,32 +267,26 @@ func (r *Runtime) Stop(ctx context.Context) error {
 	return nil
 }
 
-func (r *Runtime) InsertUploadCleanup(ctx context.Context, batchSize int32) error {
+func (r *Runtime) InsertUploadCleanup(ctx context.Context) error {
 	if r == nil || r.client == nil {
 		return ErrRuntimeNotConfigured
 	}
-	if batchSize <= 0 {
-		batchSize = defaultBatchSize
-	}
-	if _, err := r.client.Insert(ctx, UploadCleanupSweepArgs{BatchSize: batchSize}, nil); err != nil {
+	if _, err := r.client.Insert(ctx, UploadCleanupSweepArgs{}, nil); err != nil {
 		return fmt.Errorf("insert upload cleanup sweep: %w", err)
 	}
 	return nil
 }
 
 // InsertCleanup is kept for callers using the previous generic name.
-func (r *Runtime) InsertCleanup(ctx context.Context, batchSize int32) error {
-	return r.InsertUploadCleanup(ctx, batchSize)
+func (r *Runtime) InsertCleanup(ctx context.Context) error {
+	return r.InsertUploadCleanup(ctx)
 }
 
-func (r *Runtime) InsertPurge(ctx context.Context, batchSize int32) error {
+func (r *Runtime) InsertPurge(ctx context.Context) error {
 	if r == nil || r.client == nil || !r.purgeEnabled {
 		return ErrRuntimeNotConfigured
 	}
-	if batchSize <= 0 {
-		batchSize = defaultBatchSize
-	}
-	if _, err := r.client.Insert(ctx, PurgeSweepArgs{BatchSize: batchSize}, nil); err != nil {
+	if _, err := r.client.Insert(ctx, PurgeSweepArgs{}, nil); err != nil {
 		return fmt.Errorf("insert purge sweep: %w", err)
 	}
 	return nil

@@ -26,7 +26,7 @@ WHERE f.status = 'deletion_pending'
     )
   )
 ORDER BY f.updated_at, f.id
-LIMIT $1
+LIMIT 1000
 `
 
 type ListDeletionPendingRootsRow struct {
@@ -34,8 +34,8 @@ type ListDeletionPendingRootsRow struct {
 	FileID pgtype.UUID `json:"file_id"`
 }
 
-func (q *Queries) ListDeletionPendingRoots(ctx context.Context, batchSize int32) ([]*ListDeletionPendingRootsRow, error) {
-	rows, err := q.db.Query(ctx, listDeletionPendingRoots, batchSize)
+func (q *Queries) ListDeletionPendingRoots(ctx context.Context) ([]*ListDeletionPendingRootsRow, error) {
+	rows, err := q.db.Query(ctx, listDeletionPendingRoots)
 	if err != nil {
 		return nil, err
 	}
@@ -71,21 +71,16 @@ WHERE f.status = 'trashed'
     )
   )
 ORDER BY f.deleted_at, f.id
-LIMIT $2
+LIMIT 1000
 `
-
-type ListTrashedRootsBeforeParams struct {
-	DeletedBefore pgtype.Timestamptz `json:"deleted_before"`
-	BatchSize     int32              `json:"batch_size"`
-}
 
 type ListTrashedRootsBeforeRow struct {
 	UserID int64       `json:"user_id"`
 	FileID pgtype.UUID `json:"file_id"`
 }
 
-func (q *Queries) ListTrashedRootsBefore(ctx context.Context, arg ListTrashedRootsBeforeParams) ([]*ListTrashedRootsBeforeRow, error) {
-	rows, err := q.db.Query(ctx, listTrashedRootsBefore, arg.DeletedBefore, arg.BatchSize)
+func (q *Queries) ListTrashedRootsBefore(ctx context.Context, deletedBefore pgtype.Timestamptz) ([]*ListTrashedRootsBeforeRow, error) {
+	rows, err := q.db.Query(ctx, listTrashedRootsBefore, deletedBefore)
 	if err != nil {
 		return nil, err
 	}

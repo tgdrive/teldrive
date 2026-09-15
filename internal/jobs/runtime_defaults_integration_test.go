@@ -41,7 +41,7 @@ func TestRuntimePreservesPeriodicJobConfigurationOnRestart(t *testing.T) {
 	customCron := "15 3 * * *"
 	job, err := runtime.UpdatePeriodicJob(ctx, cleanupPeriodicID, PeriodicJobInput{
 		ID: cleanupPeriodicID, Kind: CleanupSweepKind,
-		Args:  rawArgs(CleanupSweepArgs{BatchSize: 25}),
+		Args:  rawArgs(CleanupSweepArgs{}),
 		Queue: CleanupQueue, Priority: 2, MaxAttempts: 3,
 		Schedule: PeriodicSchedule{CronExpression: customCron, CronTimezone: maintenanceTimezone},
 	})
@@ -93,7 +93,7 @@ func TestRuntimeResetPeriodicJobsRestoresDefaults(t *testing.T) {
 
 	if _, err := runtime.UpdatePeriodicJob(ctx, cleanupPeriodicID, PeriodicJobInput{
 		ID: cleanupPeriodicID, Kind: CleanupSweepKind,
-		Args:  rawArgs(CleanupSweepArgs{BatchSize: 25}),
+		Args:  rawArgs(CleanupSweepArgs{}),
 		Queue: CleanupQueue, Priority: 2, MaxAttempts: 3,
 		Schedule: PeriodicSchedule{CronExpression: "15 3 * * *", CronTimezone: maintenanceTimezone},
 	}); err != nil {
@@ -101,7 +101,7 @@ func TestRuntimeResetPeriodicJobsRestoresDefaults(t *testing.T) {
 	}
 	if _, err := runtime.CreatePeriodicJob(ctx, PeriodicJobInput{
 		ID: "custom-upload-cleanup", Kind: UploadCleanupSweepKind,
-		Args: rawArgs(UploadCleanupSweepArgs{BatchSize: 7}), Queue: CleanupQueue,
+		Args: rawArgs(UploadCleanupSweepArgs{}), Queue: CleanupQueue,
 		Priority: 2, MaxAttempts: 3,
 		Schedule: PeriodicSchedule{CronExpression: "30 4 * * *", CronTimezone: maintenanceTimezone},
 	}); err != nil {
@@ -118,8 +118,8 @@ func TestRuntimeResetPeriodicJobsRestoresDefaults(t *testing.T) {
 	if reset[0].ID != uploadCleanupPeriodicID || reset[0].Schedule.CronExpression != uploadCleanupDefaultCron {
 		t.Fatalf("reset periodic job = %#v", reset[0])
 	}
-	if got := string(reset[0].Args["batch_size"]); got != "100" {
-		t.Fatalf("reset batch size = %s, want 100", got)
+	if len(reset[0].Args) != 0 {
+		t.Fatalf("reset args = %#v, want none", reset[0].Args)
 	}
 
 	persisted, err := runtime.ListPeriodicJobs(ctx)

@@ -66,26 +66,37 @@ SELECT id, 1, 9001, 12, 1, 1, 'stored' FROM session`); err != nil {
 			if periodicJob.Schedule.CronExpression != "@every 336h" {
 				t.Fatalf("orphan cleanup schedule = %q", periodicJob.Schedule.CronExpression)
 			}
+			if len(periodicJob.Args) != 0 {
+				t.Fatalf("orphan cleanup args = %#v", periodicJob.Args)
+			}
 		}
 	}
 	if !found {
 		t.Fatal("orphan cleanup periodic job not persisted")
 	}
 	worker := jobs.NewOrphanedTelegramPartsCleanupWorker(db.Pool, storage, storage, 7*24*time.Hour)
-	if err := worker.Work(ctx, &river.Job[jobs.OrphanCleanupArgs]{Args: jobs.OrphanCleanupArgs{PageSize: 100}}); err != nil {
+	if got := worker.Timeout(nil); got != 4*time.Hour {
+		t.Fatalf("Timeout() = %s", got)
+	}
+	if err := worker.Work(ctx, &river.Job[jobs.OrphanCleanupArgs]{Args: jobs.OrphanCleanupArgs{}}); err != nil {
 		t.Fatal(err)
 	}
 	if len(storage.deleted) != 1 || storage.deleted[0] != 10 {
 		t.Fatalf("deleted messages = %v, want [10]", storage.deleted)
+	}
+	if len(storage.limits) != 1 || storage.limits[0] != 100 {
+		t.Fatalf("Telegram page limits = %v, want [100]", storage.limits)
 	}
 }
 
 type orphanStorage struct {
 	messages []telegramstore.DocumentMessage
 	deleted  []int64
+	limits   []int
 }
 
-func (s *orphanStorage) ListDocumentMessages(context.Context, telegramstore.ListDocumentMessagesRequest) (telegramstore.DocumentMessagePage, error) {
+func (s *orphanStorage) ListDocumentMessages(_ context.Context, request telegramstore.ListDocumentMessagesRequest) (telegramstore.DocumentMessagePage, error) {
+	s.limits = append(s.limits, request.Limit)
 	return telegramstore.DocumentMessagePage{Messages: s.messages, Exhausted: true}, nil
 }
 func (*orphanStorage) Upload(context.Context, telegramstore.UploadRequest) (telegramstore.StoredPart, error) {

@@ -8,7 +8,7 @@ import (
 
 func TestUploadCleanupSweepMetadata(t *testing.T) {
 	t.Parallel()
-	args := UploadCleanupSweepArgs{BatchSize: 25}
+	args := UploadCleanupSweepArgs{}
 	if args.Kind() != UploadCleanupSweepKind {
 		t.Fatalf("Kind() = %q", args.Kind())
 	}
@@ -17,7 +17,7 @@ func TestUploadCleanupSweepMetadata(t *testing.T) {
 		t.Fatalf("InsertOpts() = %#v", opts)
 	}
 	worker := &UploadCleanupWorker{}
-	if got := worker.Timeout(nil); got != 10*time.Minute {
+	if got := worker.Timeout(nil); got != 2*time.Hour {
 		t.Fatalf("Timeout() = %v", got)
 	}
 }
@@ -35,8 +35,8 @@ func TestTrashCleanupPeriodicTemplate(t *testing.T) {
 		if got := string(template.DefaultArgs["retention"]); got != `"720h"` {
 			t.Fatalf("trash retention arg = %s", got)
 		}
-		if got := string(template.DefaultArgs["batch_size"]); got != "100" {
-			t.Fatalf("trash batch arg = %s", got)
+		if len(template.DefaultArgs) != 1 {
+			t.Fatalf("trash args = %#v", template.DefaultArgs)
 		}
 		return
 	}
@@ -56,6 +56,9 @@ func TestPendingDeletionCleanupPeriodicTemplate(t *testing.T) {
 		if template.DefaultCronExpression != "@every 12h" {
 			t.Fatalf("pending deletion schedule = %q", template.DefaultCronExpression)
 		}
+		if len(template.DefaultArgs) != 0 {
+			t.Fatalf("pending deletion args = %#v", template.DefaultArgs)
+		}
 		return
 	}
 	t.Fatal("pending deletion cleanup periodic template not found")
@@ -73,7 +76,7 @@ func TestRuntimeRejectsMissingDependencies(t *testing.T) {
 	if err := runtime.Stop(nil); !errors.Is(err, ErrRuntimeNotConfigured) {
 		t.Fatalf("Stop() error = %v", err)
 	}
-	if err := runtime.InsertCleanup(nil, 1); !errors.Is(err, ErrRuntimeNotConfigured) {
+	if err := runtime.InsertCleanup(nil); !errors.Is(err, ErrRuntimeNotConfigured) {
 		t.Fatalf("InsertCleanup() error = %v", err)
 	}
 }

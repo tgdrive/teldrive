@@ -15,9 +15,7 @@ import (
 
 const OrphanCleanupKind = "teldrive_cleanup_orphaned_telegram_parts"
 
-type OrphanCleanupArgs struct {
-	PageSize int32 `json:"page_size,omitempty"`
-}
+type OrphanCleanupArgs struct{}
 
 func (OrphanCleanupArgs) Kind() string { return OrphanCleanupKind }
 
@@ -38,14 +36,10 @@ func NewOrphanedTelegramPartsCleanupWorker(pool *pgxpool.Pool, storage telegrams
 }
 
 func (w *OrphanedTelegramPartsCleanupWorker) Timeout(*river.Job[OrphanCleanupArgs]) time.Duration {
-	return 2 * time.Hour
+	return 4 * time.Hour
 }
 
 func (w *OrphanedTelegramPartsCleanupWorker) Work(ctx context.Context, job *river.Job[OrphanCleanupArgs]) error {
-	pageSize := int(job.Args.PageSize)
-	if pageSize <= 0 || pageSize > 100 {
-		pageSize = 100
-	}
 	channels, err := w.queries.ListChannelsForOrphanCleanup(ctx)
 	if err != nil {
 		return fmt.Errorf("list channels for orphan cleanup: %w", err)
@@ -56,7 +50,7 @@ func (w *OrphanedTelegramPartsCleanupWorker) Work(ctx context.Context, job *rive
 		beforeID := int64(0)
 		for {
 			page, err := w.lister.ListDocumentMessages(ctx, telegramstore.ListDocumentMessagesRequest{
-				UserID: channel.UserID, ChannelID: channel.ChannelID, BeforeID: beforeID, Limit: pageSize,
+				UserID: channel.UserID, ChannelID: channel.ChannelID, BeforeID: beforeID, Limit: 100,
 			})
 			if err != nil {
 				return fmt.Errorf("list Telegram documents for channel %d: %w", channel.ChannelID, err)

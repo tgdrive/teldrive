@@ -49,7 +49,7 @@ func TestCleanupSweepExpiresAndDeletesTelegramParts(t *testing.T) {
 
 	storage := &cleanupStorage{}
 	worker := jobs.NewUploadCleanupWorker(db.Pool, storage)
-	if err := worker.Work(ctx, &river.Job[jobs.CleanupSweepArgs]{Args: jobs.CleanupSweepArgs{BatchSize: 10}}); err != nil {
+	if err := worker.Work(ctx, &river.Job[jobs.CleanupSweepArgs]{Args: jobs.CleanupSweepArgs{}}); err != nil {
 		t.Fatalf("Work() error = %v", err)
 	}
 	updated, err := catalog.Get(ctx, 1001, uploadID)
@@ -98,7 +98,7 @@ func TestCleanupSweepRetainsReferencesWhenTelegramFails(t *testing.T) {
 
 	storage := &cleanupStorage{deleteErr: errors.New("Telegram unavailable")}
 	worker := jobs.NewUploadCleanupWorker(db.Pool, storage)
-	if err := worker.Work(ctx, &river.Job[jobs.CleanupSweepArgs]{Args: jobs.CleanupSweepArgs{BatchSize: 10}}); err == nil {
+	if err := worker.Work(ctx, &river.Job[jobs.CleanupSweepArgs]{Args: jobs.CleanupSweepArgs{}}); err == nil {
 		t.Fatal("expected Telegram cleanup failure")
 	}
 	var count int
@@ -112,7 +112,7 @@ func TestCleanupSweepRetainsReferencesWhenTelegramFails(t *testing.T) {
 	storage.mu.Lock()
 	storage.deleteErr = nil
 	storage.mu.Unlock()
-	if err := worker.Work(ctx, &river.Job[jobs.CleanupSweepArgs]{Args: jobs.CleanupSweepArgs{BatchSize: 10}}); err != nil {
+	if err := worker.Work(ctx, &river.Job[jobs.CleanupSweepArgs]{Args: jobs.CleanupSweepArgs{}}); err != nil {
 		t.Fatalf("retry Work() error = %v", err)
 	}
 	if err := db.Pool.QueryRow(ctx, "SELECT count(*) FROM upload_parts WHERE upload_id = $1", uploadID).Scan(&count); err != nil {
@@ -120,6 +120,41 @@ func TestCleanupSweepRetainsReferencesWhenTelegramFails(t *testing.T) {
 	}
 	if count != 0 {
 		t.Fatalf("part count after retry = %d", count)
+	}
+}
+
+func TestCleanupSweepDrainsMultiplePages(t *testing.T) {
+	db := testpostgres.New(t)
+	ctx := context.Background()
+	seedCleanupOwner(t, db.Pool)
+	if _, err := db.Pool.Exec(ctx, `
+WITH sessions AS (
+    INSERT INTO upload_sessions (user_id, name, normalized_name, expected_size, mod_time, part_size, expires_at)
+    SELECT 1001, 'expired-' || value, 'expired-' || value, 1, now(), 1, now() - interval '1 minute'
+    FROM generate_series(1, 1001) AS value
+    RETURNING id
+)
+INSERT INTO upload_parts (upload_id, part_no, channel_id, message_id, plain_size, stored_size, state)
+SELECT id, 1, 9001, row_number() OVER ()::bigint, 1, 1, 'stored'
+FROM sessions
+`); err != nil {
+		t.Fatal(err)
+	}
+
+	storage := &cleanupStorage{}
+	worker := jobs.NewUploadCleanupWorker(db.Pool, storage)
+	if err := worker.Work(ctx, &river.Job[jobs.CleanupSweepArgs]{Args: jobs.CleanupSweepArgs{}}); err != nil {
+		t.Fatalf("Work() error = %v", err)
+	}
+	if got := len(storage.deletedMessages()); got != 1001 {
+		t.Fatalf("deleted messages = %d, want 1001", got)
+	}
+	var remaining int
+	if err := db.Pool.QueryRow(ctx, "SELECT count(*) FROM upload_parts").Scan(&remaining); err != nil {
+		t.Fatal(err)
+	}
+	if remaining != 0 {
+		t.Fatalf("remaining upload parts = %d, want 0", remaining)
 	}
 }
 

@@ -293,7 +293,7 @@ func (r *Runtime) PeriodicJobCatalog() []PeriodicTemplate {
 	templates := []PeriodicTemplate{
 		{
 			ID: uploadCleanupPeriodicID, Label: "Upload cleanup", Description: "Remove abandoned upload sessions and temporary parts.",
-			Kind: UploadCleanupSweepKind, DefaultArgs: rawArgs(UploadCleanupSweepArgs{BatchSize: defaultBatchSize}),
+			Kind: UploadCleanupSweepKind, DefaultArgs: rawArgs(UploadCleanupSweepArgs{}),
 			DefaultQueue: CleanupQueue, DefaultPriority: 2, DefaultMaxAttempts: 3,
 			DefaultCronExpression: uploadCleanupDefaultCron, DefaultCronTimezone: maintenanceTimezone,
 		},
@@ -302,13 +302,13 @@ func (r *Runtime) PeriodicJobCatalog() []PeriodicTemplate {
 		templates = append(templates,
 			PeriodicTemplate{
 				ID: trashCleanupPeriodicID, Label: "Trash cleanup", Description: "Permanently remove trashed files after their retention period.",
-				Kind: TrashCleanupSweepKind, DefaultArgs: rawArgs(TrashCleanupSweepArgs{Retention: "720h", BatchSize: defaultBatchSize}),
+				Kind: TrashCleanupSweepKind, DefaultArgs: rawArgs(TrashCleanupSweepArgs{Retention: "720h"}),
 				DefaultQueue: CleanupQueue, DefaultPriority: 1, DefaultMaxAttempts: 3,
 				DefaultCronExpression: trashCleanupDefaultCron, DefaultCronTimezone: maintenanceTimezone,
 			},
 			PeriodicTemplate{
 				ID: purgePeriodicID, Label: "Pending deletion cleanup", Description: "Finish permanent deletion for files already marked deletion-pending.",
-				Kind: PurgeSweepKind, DefaultArgs: rawArgs(PurgeSweepArgs{BatchSize: defaultBatchSize}),
+				Kind: PurgeSweepKind, DefaultArgs: rawArgs(PurgeSweepArgs{}),
 				DefaultQueue: PurgeQueue, DefaultPriority: 1, DefaultMaxAttempts: 3,
 				DefaultCronExpression: pendingDeletionCleanupDefaultCron, DefaultCronTimezone: maintenanceTimezone,
 			},
@@ -318,7 +318,7 @@ func (r *Runtime) PeriodicJobCatalog() []PeriodicTemplate {
 		templates = append(templates, PeriodicTemplate{
 			ID: orphanCleanupPeriodicID, Label: "Orphaned Telegram-part cleanup",
 			Description: "Delete old Telegram documents that are not referenced by file or upload parts.",
-			Kind:        OrphanCleanupKind, DefaultArgs: rawArgs(OrphanCleanupArgs{PageSize: 100}),
+			Kind:        OrphanCleanupKind, DefaultArgs: rawArgs(OrphanCleanupArgs{}),
 			DefaultQueue: CleanupQueue, DefaultPriority: 3, DefaultMaxAttempts: 3,
 			DefaultCronExpression: orphanCleanupDefaultCron, DefaultCronTimezone: maintenanceTimezone,
 		})

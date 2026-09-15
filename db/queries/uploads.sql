@@ -295,7 +295,7 @@ WHERE id IN (
       AND expires_at <= now()
     ORDER BY expires_at
     FOR UPDATE SKIP LOCKED
-    LIMIT sqlc.arg(batch_size)
+    LIMIT 1000
 )
 RETURNING *;
 
@@ -315,7 +315,7 @@ JOIN /* TEMPLATE: schema */upload_parts up ON up.upload_id = us.id
 WHERE us.state IN ('aborted', 'expired')
   AND up.message_id IS NOT NULL
 ORDER BY us.updated_at, us.id
-LIMIT sqlc.arg(batch_size);
+LIMIT 1000;
 
 -- name: DeleteUploadPartForCleanup :execrows
 DELETE FROM /* TEMPLATE: schema */upload_parts up

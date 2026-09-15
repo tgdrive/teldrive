@@ -342,13 +342,13 @@ WHERE id IN (
       AND expires_at <= now()
     ORDER BY expires_at
     FOR UPDATE SKIP LOCKED
-    LIMIT $1
+    LIMIT 1000
 )
 RETURNING id, user_id, parent_id, name, normalized_name, expected_size, expected_hash_algorithm, expected_hash_value, mime_type, mod_time, encryption, encryption_key_version, conflict_policy, part_size, state, file_id, expires_at, created_at, updated_at, completed_at
 `
 
-func (q *Queries) ExpireUploadSessions(ctx context.Context, batchSize int32) ([]*UploadSession, error) {
-	rows, err := q.db.Query(ctx, expireUploadSessions, batchSize)
+func (q *Queries) ExpireUploadSessions(ctx context.Context) ([]*UploadSession, error) {
+	rows, err := q.db.Query(ctx, expireUploadSessions)
 	if err != nil {
 		return nil, err
 	}
@@ -988,11 +988,11 @@ JOIN /* TEMPLATE: schema */upload_parts up ON up.upload_id = us.id
 WHERE us.state IN ('aborted', 'expired')
   AND up.message_id IS NOT NULL
 ORDER BY us.updated_at, us.id
-LIMIT $1
+LIMIT 1000
 `
 
-func (q *Queries) ListUploadSessionsPendingCleanup(ctx context.Context, batchSize int32) ([]*UploadSession, error) {
-	rows, err := q.db.Query(ctx, listUploadSessionsPendingCleanup, batchSize)
+func (q *Queries) ListUploadSessionsPendingCleanup(ctx context.Context) ([]*UploadSession, error) {
+	rows, err := q.db.Query(ctx, listUploadSessionsPendingCleanup)
 	if err != nil {
 		return nil, err
 	}

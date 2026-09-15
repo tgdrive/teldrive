@@ -19,7 +19,6 @@ import (
 const (
 	UploadCleanupSweepKind = "teldrive_cleanup_uploads"
 	CleanupQueue           = "maintenance"
-	defaultBatchSize       = 100
 )
 
 var ErrUploadCleanupNotConfigured = errors.New("upload cleanup worker is not configured")
@@ -29,9 +28,7 @@ const CleanupSweepKind = UploadCleanupSweepKind
 
 var ErrCleanupNotConfigured = ErrUploadCleanupNotConfigured
 
-type UploadCleanupSweepArgs struct {
-	BatchSize int32 `json:"batch_size,omitempty"`
-}
+type UploadCleanupSweepArgs struct{}
 
 type CleanupSweepArgs = UploadCleanupSweepArgs
 
@@ -57,34 +54,35 @@ func NewUploadCleanupWorker(pool *pgxpool.Pool, storage telegramstore.Storage) *
 }
 
 func (w *UploadCleanupWorker) Timeout(*river.Job[UploadCleanupSweepArgs]) time.Duration {
-	return 10 * time.Minute
+	return 2 * time.Hour
 }
 
 func (w *UploadCleanupWorker) Work(ctx context.Context, job *river.Job[UploadCleanupSweepArgs]) error {
 	if w.pool == nil || w.storage == nil {
 		return ErrUploadCleanupNotConfigured
 	}
-	batchSize := job.Args.BatchSize
-	if batchSize <= 0 {
-		batchSize = defaultBatchSize
-	}
-	if _, err := w.queries.ExpireUploadSessions(ctx, batchSize); err != nil {
-		return fmt.Errorf("expire upload sessions: %w", err)
-	}
-	sessions, err := w.queries.ListUploadSessionsPendingCleanup(ctx, batchSize)
-	if err != nil {
-		return fmt.Errorf("list upload cleanup sessions: %w", err)
-	}
-	for _, session := range sessions {
-		uploadID, ok := dbtypes.GoogleUUID(session.ID)
-		if !ok {
-			return errors.New("cleanup session has invalid upload id")
+	for {
+		expired, err := w.queries.ExpireUploadSessions(ctx)
+		if err != nil {
+			return fmt.Errorf("expire upload sessions: %w", err)
 		}
-		if err := w.cleanupUpload(ctx, session.UserID, uploadID); err != nil {
-			return err
+		sessions, err := w.queries.ListUploadSessionsPendingCleanup(ctx)
+		if err != nil {
+			return fmt.Errorf("list upload cleanup sessions: %w", err)
+		}
+		for _, session := range sessions {
+			uploadID, ok := dbtypes.GoogleUUID(session.ID)
+			if !ok {
+				return errors.New("cleanup session has invalid upload id")
+			}
+			if err := w.cleanupUpload(ctx, session.UserID, uploadID); err != nil {
+				return err
+			}
+		}
+		if len(expired) == 0 && len(sessions) == 0 {
+			return nil
 		}
 	}
-	return nil
 }
 
 func (w *UploadCleanupWorker) cleanupUpload(ctx context.Context, userID int64, uploadID uuid.UUID) error {

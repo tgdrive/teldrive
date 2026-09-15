@@ -35,9 +35,15 @@ VALUES
 		t.Fatal(err)
 	}
 
-	service := &recordingPurgeService{}
+	service := &recordingPurgeService{after: func(ctx context.Context, userID int64, fileID uuid.UUID) error {
+		if _, err := db.Pool.Exec(ctx, "DELETE FROM files WHERE user_id = $1 AND parent_id = $2", userID, fileID); err != nil {
+			return err
+		}
+		_, err := db.Pool.Exec(ctx, "DELETE FROM files WHERE user_id = $1 AND id = $2", userID, fileID)
+		return err
+	}}
 	worker := jobs.NewTrashCleanupWorker(db.Pool, service)
-	job := &river.Job[jobs.TrashCleanupSweepArgs]{Args: jobs.TrashCleanupSweepArgs{Retention: "720h", BatchSize: 10}}
+	job := &river.Job[jobs.TrashCleanupSweepArgs]{Args: jobs.TrashCleanupSweepArgs{Retention: "720h"}}
 	if err := worker.Work(ctx, job); err != nil {
 		t.Fatalf("Work() error = %v", err)
 	}
@@ -53,7 +59,7 @@ VALUES
 	if opts.Queue != jobs.CleanupQueue || opts.MaxAttempts != 3 || opts.Priority != 1 {
 		t.Fatalf("InsertOpts() = %#v", opts)
 	}
-	if got := worker.Timeout(job); got != 30*time.Minute {
+	if got := worker.Timeout(job); got != 2*time.Hour {
 		t.Fatalf("Timeout() = %s", got)
 	}
 }
@@ -68,6 +74,34 @@ func TestTrashCleanupWorkerRejectsInvalidRetention(t *testing.T) {
 	}
 	if err := jobs.NewTrashCleanupWorker(db.Pool, nil).Work(ctx, job); !errors.Is(err, jobs.ErrTrashCleanupNotConfigured) {
 		t.Fatalf("nil service error = %v", err)
+	}
+}
+
+func TestTrashCleanupWorkerDrainsMultiplePages(t *testing.T) {
+	db := testpostgres.New(t)
+	ctx := context.Background()
+	if _, err := db.Pool.Exec(ctx, "INSERT INTO users (user_id) VALUES (1001)"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Pool.Exec(ctx, `
+INSERT INTO files (user_id, name, normalized_name, kind, size, status, mod_time, deleted_at)
+SELECT 1001, 'trashed-' || value, 'trashed-' || value, 'file', 0, 'trashed', now(), now() - interval '40 days'
+FROM generate_series(1, 1001) AS value
+`); err != nil {
+		t.Fatal(err)
+	}
+
+	service := &recordingPurgeService{after: func(ctx context.Context, userID int64, fileID uuid.UUID) error {
+		_, err := db.Pool.Exec(ctx, "DELETE FROM files WHERE user_id = $1 AND id = $2", userID, fileID)
+		return err
+	}}
+	worker := jobs.NewTrashCleanupWorker(db.Pool, service)
+	job := &river.Job[jobs.TrashCleanupSweepArgs]{Args: jobs.TrashCleanupSweepArgs{Retention: "720h"}}
+	if err := worker.Work(ctx, job); err != nil {
+		t.Fatalf("Work() error = %v", err)
+	}
+	if calls := service.callsSnapshot(); len(calls) != 1001 {
+		t.Fatalf("purge calls = %d, want 1001", len(calls))
 	}
 }
 
@@ -95,14 +129,14 @@ func TestRuntimePersistsTrashCleanupPeriodicJob(t *testing.T) {
 		if job.Kind != jobs.TrashCleanupSweepKind {
 			continue
 		}
-		if job.Schedule.CronExpression != "@every 1h" {
+		if job.Schedule.CronExpression != "@every 12h" {
 			t.Fatalf("trash cleanup schedule = %q", job.Schedule.CronExpression)
 		}
 		if got := string(job.Args["retention"]); got != `"720h"` {
 			t.Fatalf("trash cleanup retention = %s", got)
 		}
-		if got := string(job.Args["batch_size"]); got != "100" {
-			t.Fatalf("trash cleanup batch size = %s", got)
+		if len(job.Args) != 1 {
+			t.Fatalf("trash cleanup args = %#v", job.Args)
 		}
 		return
 	}
