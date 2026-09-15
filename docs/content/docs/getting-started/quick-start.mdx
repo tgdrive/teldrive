@@ -50,14 +50,14 @@ TELDRIVE_DATA_KEY
 ```yaml
 services:
   postgres:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     restart: unless-stopped
     environment:
       POSTGRES_DB: teldrive
       POSTGRES_USER: teldrive
       POSTGRES_PASSWORD: change-this-database-password
     volumes:
-      - ./postgres-data:/var/lib/postgresql/data
+      - ./postgres-data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U teldrive -d teldrive"]
       interval: 5s
@@ -65,7 +65,7 @@ services:
       retries: 10
 
   teldrive:
-    image: ghcr.io/tgdrive/teldrive:latest
+    image: ghcr.io/tgdrive/teldrive:v2
     restart: unless-stopped
     depends_on:
       postgres:
