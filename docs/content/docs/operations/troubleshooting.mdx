@@ -1,13 +1,9 @@
 ---
 title: Troubleshooting
-description: Diagnose startup, database, login, proxy, upload, download, and live-update problems systematically.
+description: Fix common startup, database, login, proxy, upload, download, and SSE problems.
 ---
 
-Start with the layer that is failing. Changing Telegram concurrency rarely fixes a database or reverse-proxy problem.
-
-## First diagnostic commands
-
-Check the configuration and dependencies:
+## Start here
 
 ```bash
 teldrive check --config /etc/teldrive/config.toml
@@ -17,15 +13,10 @@ Compose:
 
 ```bash
 docker compose run --rm teldrive check
-```
-
-Inspect logs:
-
-```bash
 docker compose logs --tail=300 teldrive
 ```
 
-If needed, temporarily switch to readable debug logs:
+Temporary debug logging:
 
 ```yaml
 logging:
@@ -33,43 +24,33 @@ logging:
   log-format: text
 ```
 
-Return to `info` after diagnosing the problem.
-
 ## Teldrive exits immediately
 
-Check the first error in the log rather than the final container restart message.
+Check the first error. Common causes:
 
-Common causes:
-
-- missing PostgreSQL URL;
-- PostgreSQL not reachable;
-- `security.signing-key` shorter than 32 characters;
-- missing/invalid `security.data-key`;
-- invalid Telegram app ID/hash;
+- missing/unreachable PostgreSQL;
+- signing key shorter than 32 characters;
+- invalid `security.data-key`;
 - invalid proxy/MTProxy combination;
-- invalid encryption key-version configuration.
+- invalid encryption key/version configuration.
 
-### Data key error
-
-The data key must decode to exactly 32 bytes. Generate a valid one with:
+Generate a compatible data key only for a new installation:
 
 ```bash
 openssl rand -base64 32
 ```
 
-Do not replace a working production key just to make startup pass; old encrypted database values depend on the original key.
+Do not replace a production data key; existing encrypted values depend on it.
 
-## Browser cannot connect to a container
+## Container is unreachable
 
-Teldrive defaults to `127.0.0.1:8080`. Inside a container that listener is not reachable through the container's external interface.
-
-Set:
+Inside a container, listen on all container interfaces:
 
 ```bash
 TELDRIVE_HTTP_ADDRESS=0.0.0.0:8080
 ```
 
-and publish the port intentionally:
+Publish intentionally, for example host loopback only:
 
 ```yaml
 ports:
@@ -78,93 +59,61 @@ ports:
 
 ## PostgreSQL connection failure
 
-Verify PostgreSQL independently:
-
 ```bash
 pg_isready -h postgres -p 5432 -U teldrive -d teldrive
 ```
 
-Check:
+Check host/service name, port, credentials, database, `sslmode`, networking, readiness, and connection limits. In Compose, use the PostgreSQL service name, not `localhost`.
 
-- correct hostname from **inside** the Teldrive container;
-- port `5432` or your custom port;
-- username/password;
-- database name;
-- `sslmode`;
-- container network or firewall;
-- PostgreSQL connection limits.
+## Login fails behind HTTPS
 
-In Compose, `localhost` from the Teldrive container means the Teldrive container itself. Use the PostgreSQL service name, for example `postgres`.
+Verify:
 
-## Login works over HTTP but fails behind HTTPS
+- proxy sends `X-Forwarded-Proto: https`;
+- proxy source is listed in `http.trusted-proxies`;
+- users access one canonical HTTPS origin.
 
-If TLS terminates at a reverse proxy, make sure:
-
-1. the proxy sends `X-Forwarded-Proto: https`;
-2. the proxy's direct source address is listed under `http.trusted-proxies`;
-3. users consistently access one canonical HTTPS origin.
-
-Teldrive deliberately ignores forwarded-protocol claims from untrusted peers.
+See [Reverse proxy and HTTPS](/deployment/reverse-proxy).
 
 ## Login disappears after restart
 
-Check whether either key changed:
+Check that these did not change:
 
 ```text
 security.signing-key
 security.data-key
 ```
 
-Changing the signing key invalidates Teldrive's signed browser sessions. Changing the data key is more serious because encrypted stored Telegram credentials may no longer be decryptable.
+Also verify PostgreSQL data is persistent.
 
-Also verify PostgreSQL is using persistent storage rather than an ephemeral container filesystem.
+## Live progress updates only after refresh
 
-## UI loads but live progress does not update
+SSE is being interrupted or buffered. Check proxy response buffering, read/idle timeouts, CDN/load-balancer timeouts, and repeated EventSource reconnects in browser developer tools.
 
-Teldrive uses Server-Sent Events for live updates. The usual culprit is a reverse proxy that buffers the response or closes idle streams.
+## Upload fails at a fixed duration
 
-Check:
-
-- proxy response buffering;
-- proxy read timeout;
-- CDN/load-balancer idle timeout;
-- repeated event-stream reconnects in browser developer tools;
-- `events.heartbeat` and related timeouts.
-
-If refreshing the page suddenly shows the correct state, the underlying job may be fine while the event stream is broken.
-
-## Upload stops at a repeatable time
-
-A transfer that always fails around 60 seconds, 5 minutes, or another consistent duration usually points to a timeout.
-
-Inspect every layer:
+Compare timeout limits across:
 
 ```text
-browser/client timeout
-CDN timeout
-load balancer timeout
-reverse proxy timeout
-Teldrive http.read-timeout
-Telegram connectivity
+client → CDN/load balancer → reverse proxy → Teldrive
 ```
 
-Teldrive defaults to one-hour read and write timeouts.
+Teldrive defaults to one-hour HTTP read/write timeouts.
 
-## Upload is slow
+## Slow uploads
 
-Before increasing threads:
+Check CPU, network, Telegram retry/rate-limit errors, proxy overhead, and BLAKE3 hashing before increasing:
 
-1. test without a remote CDN/proxy if possible;
-2. measure server CPU and network;
-3. check Telegram retry/rate-limit messages;
-4. compare with a small and a large file;
-5. check whether BLAKE3 hashing is consuming meaningful CPU.
+```yaml
+telegram:
+  upload-threads: 8
+```
 
-Then raise `telegram.upload-threads` gradually from the default `8`.
+Increase gradually.
 
-## Download is slow
+## Slow downloads
 
-Start with defaults:
+Start from defaults:
 
 ```yaml
 telegram:
@@ -173,38 +122,33 @@ telegram:
   download-bots: 0
 ```
 
-Increase parallel reads gradually only after confirming the host, proxy, and client are not the bottleneck.
+Tune parallelism only after ruling out client/proxy/host bottlenecks. Add bots only after normal downloads work.
 
-Bot-assisted downloads are not required for correct operation; keep them out of the debugging path until user-client downloads work.
+## Proxy/MTProxy config rejected
 
-## Telegram proxy configuration is rejected
+Use one proxy mode only.
 
-A normal proxy and MTProxy cannot be enabled simultaneously.
-
-Valid normal proxy:
+Standard proxy:
 
 ```yaml
 telegram:
   proxy: socks5://proxy.example.com:1080
 ```
 
-Valid MTProxy:
+MTProxy:
 
 ```yaml
 telegram:
-  proxy: ""
   mtproxy:
     address: proxy.example.com:443
     secret: YOUR_SECRET
 ```
 
-For MTProxy, address and secret must both be present.
+MTProxy address and secret must both be present.
 
-## Encryption errors after changing config
+## Encryption errors after rotation
 
-If content encryption is enabled, do not remove an old key version that existing files still reference.
-
-A valid rotation keeps old versions:
+Keep old key versions referenced by existing files:
 
 ```yaml
 encryption:
@@ -214,32 +158,19 @@ encryption:
     2: NEW_KEY
 ```
 
-Test both a new upload and an old encrypted download after rotation.
+Test both a new upload and an old download.
 
-## Problems only after scaling to multiple instances
+## Problems only with multiple instances
 
-Verify every instance shares identical security/content keys and the same database/schema.
+Verify every process shares the same database/schema and security/encryption keys. Also check aggregate PostgreSQL connections, worker roles, SSE load-balancing, bot rotation backend, and version skew.
 
-Also check:
+## Report useful diagnostics
 
-- aggregate PostgreSQL connection count;
-- `telegram.bot-rotation-backend=database` if bot coordination is shared;
-- API vs worker `jobs.run-workers` roles;
-- load-balancer handling of SSE;
-- version skew between instances.
+Include:
 
-Reduce to one instance temporarily. If the problem disappears, investigate shared-state and coordination assumptions before increasing concurrency further.
-
-## Still stuck?
-
-Capture:
-
-- Teldrive version (`teldrive version`);
+- `teldrive version`;
 - deployment method;
-- relevant config with secrets redacted;
-- first meaningful error in logs;
-- whether `teldrive check` succeeds;
-- whether the problem occurs without the reverse proxy;
+- redacted relevant config;
+- first meaningful log error;
+- result of `teldrive check`;
 - exact reproduction steps.
-
-That information is far more useful than a screenshot of the final generic error page.

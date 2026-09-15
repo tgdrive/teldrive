@@ -1,11 +1,9 @@
 ---
 title: Uploads and events
-description: Configure resumable upload sessions, hashing, local imports, background workers, and live UI events.
+description: Configure upload sessions, hashing, local imports, workers, and SSE events.
 ---
 
-These settings mostly affect large-file workflows and the live web interface. The defaults are suitable for a single normal server.
-
-## Upload sessions
+## Uploads
 
 ```yaml
 uploads:
@@ -14,81 +12,32 @@ uploads:
   local-import-roots: []
 ```
 
-### `session-ttl`
+- `session-ttl`: resumable upload lifetime; default seven days.
+- `hashing-enabled`: computes BLAKE3 hashes during uploads.
+- `local-import-roots`: absolute server paths allowed for background imports; empty disables imports.
 
-Default `168h` means resumable upload sessions live for seven days. This gives interrupted large uploads time to resume without keeping abandoned sessions indefinitely.
-
-### `hashing-enabled`
-
-When enabled, Teldrive computes and stores BLAKE3 hashes during uploads.
-
-```yaml
-uploads:
-  hashing-enabled: true
-```
-
-Disable automatic hashing only when you have measured the CPU/I/O cost and do not need server-computed hashes:
-
-```yaml
-uploads:
-  hashing-enabled: false
-```
-
-Client-supplied checksums still require verification when provided.
-
-## Local background imports
-
-By default:
-
-```yaml
-uploads:
-  local-import-roots: []
-```
-
-An empty list disables local server-side imports. To allow imports from a server directory:
-
-```yaml
-uploads:
-  local-import-roots:
-    - /srv/imports
-    - /mnt/media
-```
-
-Every configured root must be an **absolute path**.
-
-For containers, mount the path into the Teldrive container at the same path you configure, preferably read-only if Teldrive only needs to ingest it.
+Container example:
 
 ```yaml
 volumes:
   - /srv/imports:/srv/imports:ro
+
+environment:
+  TELDRIVE_UPLOADS_LOCAL_IMPORT_ROOTS: /srv/imports
 ```
 
-Do not expose arbitrary host directories as import roots. This setting defines which server-side files Teldrive is allowed to read for import jobs.
+Only expose directories Teldrive is allowed to read.
 
-## Background jobs
-
-Teldrive uses River/RiverPro for background work.
+## Workers
 
 ```yaml
 jobs:
   run-workers: true
 ```
 
-The default is `true`, so a normal all-in-one Teldrive process serves the API and executes background jobs.
-
-For advanced multi-instance deployments you can separate API and worker roles by running instances with different values. See [Multi-instance deployments](/advanced/multi-instance).
-
-Environment variable:
-
-```bash
-TELDRIVE_JOBS_RUN_WORKERS=false
-```
+Set `false` only when another Teldrive process sharing the database runs workers. See [Multi-instance deployments](/advanced/multi-instance).
 
 ## Live events
-
-The web UI receives replayable application events over Server-Sent Events (SSE).
-
-Defaults:
 
 ```yaml
 events:
@@ -105,23 +54,11 @@ events:
   reconnect-max: 30s
 ```
 
-### Reverse proxy requirements
+The UI uses Server-Sent Events. Reverse proxies must allow long-lived, unbuffered responses.
 
-Your reverse proxy must allow long-lived HTTP responses for SSE. Avoid buffering the event stream and make proxy timeouts comfortably longer than the heartbeat interval.
+`max-connections-per-user` is per API instance. `retention` controls how long replayable events remain in PostgreSQL.
 
-If ordinary pages load but upload/task status never updates until refresh, investigate the SSE path and proxy buffering first.
-
-### Connection limits
-
-`max-connections-per-user` is enforced per API instance. In a horizontally scaled deployment, the effective system-wide number can be higher because each instance has its own limit.
-
-### Event retention
-
-The default `168h` retains replayable events for seven days. Longer retention increases the amount of event history PostgreSQL must keep. Change it only when you have a concrete replay/recovery requirement.
-
-## HTTP transfer timeouts
-
-Large uploads and downloads are also affected by:
+## Transfer timeouts
 
 ```yaml
 http:
@@ -129,6 +66,4 @@ http:
   write-timeout: 1h
 ```
 
-and by any timeout imposed by your reverse proxy, CDN, load balancer, or client.
-
-When a transfer consistently dies at the same wall-clock duration, compare every layer's timeout before changing Telegram concurrency settings.
+If transfers fail at a fixed duration, compare Teldrive, proxy, load-balancer/CDN, and client timeouts before changing Telegram concurrency.

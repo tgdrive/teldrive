@@ -1,71 +1,41 @@
 ---
 title: Containers
-description: Run Teldrive with Docker or Podman and understand the networking and persistence requirements.
+description: Run Teldrive with Docker or Podman.
 ---
 
-Containers are the recommended installation method for most self-hosted servers. Official release images are published as:
+Official images:
 
 ```text
 ghcr.io/tgdrive/teldrive:<tag>
 ```
 
-The release workflow also publishes `latest`.
+Use [Quick start](/getting-started/quick-start) for PostgreSQL + Teldrive Compose.
 
 ## Minimal container
 
-Assuming PostgreSQL is already available:
+With PostgreSQL already available:
 
 ```bash
 docker run --rm \
   -p 127.0.0.1:8080:8080 \
   -e TELDRIVE_HTTP_ADDRESS=0.0.0.0:8080 \
   -e TELDRIVE_DATABASE_URL='postgres://teldrive:password@db.example:5432/teldrive?sslmode=require' \
-  -e TELDRIVE_TELEGRAM_APP_ID='12345678' \
-  -e TELDRIVE_TELEGRAM_APP_HASH='YOUR_APP_HASH' \
   -e TELDRIVE_SECURITY_SIGNING_KEY='YOUR_SIGNING_KEY' \
   -e TELDRIVE_SECURITY_DATA_KEY='YOUR_DATA_KEY' \
   ghcr.io/tgdrive/teldrive:v2
 ```
 
-Podman uses the same environment variables:
+Podman uses the same settings with `podman run`.
 
-```bash
-podman run --rm \
-  -p 127.0.0.1:8080:8080 \
-  -e TELDRIVE_HTTP_ADDRESS=0.0.0.0:8080 \
-  ... \
-  ghcr.io/tgdrive/teldrive:v2
-```
-
-## Use Compose for a real server
-
-The [Quick start](/getting-started/quick-start) includes a complete Compose example with PostgreSQL and persistent database storage.
-
-For long-running deployments, Compose is easier to audit because the effective settings are stored in one file rather than a shell history.
-
-## Pin a version
-
-For production, prefer a release tag:
+## Pin releases
 
 ```yaml
 image: ghcr.io/tgdrive/teldrive:vX.Y.Z
 ```
 
-instead of:
+Avoid `latest` for controlled upgrades/rollbacks.
 
-```yaml
-image: ghcr.io/tgdrive/teldrive:latest
-```
-
-A pinned tag makes upgrades deliberate and rollbacks predictable.
-
-## Container filesystem
-
-The Teldrive application itself is designed to be stateless enough that PostgreSQL is the critical persistent service. The production image runs as a non-root user.
-
-If you enable features that use server-side local paths, such as local background imports, mount only the required directories and configure those paths explicitly under `uploads.local-import-roots`.
-
-Example:
+## Local imports
 
 ```yaml
 services:
@@ -76,33 +46,13 @@ services:
       TELDRIVE_UPLOADS_LOCAL_IMPORT_ROOTS: /imports
 ```
 
-Teldrive requires local import roots to be absolute paths.
+Import roots must be absolute paths.
 
-## Health and validation
-
-Before switching traffic to a changed configuration, run:
+## Validate
 
 ```bash
 docker compose run --rm teldrive check
-```
-
-Then inspect startup logs:
-
-```bash
 docker compose logs --tail=200 teldrive
 ```
 
-`check` is stronger than a syntax-only parser: it validates configuration and initializes dependencies, including database migration/setup work, before exiting.
-
-## Updating
-
-A safe manual update flow is:
-
-```bash
-docker compose pull teldrive
-docker compose run --rm teldrive check
-docker compose up -d teldrive
-docker compose logs --tail=200 teldrive
-```
-
-Back up PostgreSQL before major upgrades. If you use encryption or have logged-in users, back up the Teldrive data key separately from the database as well.
+See [Upgrading](/deployment/upgrading).

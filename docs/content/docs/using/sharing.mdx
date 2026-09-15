@@ -1,53 +1,29 @@
 ---
 title: Sharing
-description: Create public links, protect them with passwords and limits, share directly with Teldrive users, and allow editable shared folders.
+description: Create public links or grant access to another Teldrive user.
 ---
 
-Teldrive supports two different sharing models: **public links** and **direct grants to another Teldrive user**.
+Teldrive supports **public links** and **user grants**.
 
-## Public share links
+## Public links
 
-Select a file or folder and open **Share**. A public share can be configured with:
+A share can set:
 
 - `read` or `edit` permission;
-- an optional password;
-- an optional expiration time;
-- an optional maximum download count.
+- password;
+- expiration;
+- maximum download count.
 
-The public token is opaque. Treat the generated URL as a credential when the share has no password.
+The share URL/token is a credential. `edit` shares allow writes under the shared root; use them only when intended.
 
-### Read shares
+Password-protected shares use `X-Share-Password` for API clients.
 
-A read-only public share allows the recipient to browse a shared folder and download content. HTTP range requests are supported for media playback and resumable clients.
+## User grants
 
-### Edit shares
+For another account on the same Teldrive server, grant `read` or `edit` access instead of creating a public link. Recipients see grants under **Shared with me**.
 
-An `edit` share can also modify content beneath the shared root. The public API supports folder creation, file updates, trashing files, and resumable uploads when the share permission allows it.
+## Revoke
 
-Use edit shares only when the recipient is intended to write into the shared area.
+Revoking a share/grant removes access without deleting the underlying file.
 
-## Password-protected shares
-
-When a password is configured, Teldrive stores a password hash rather than the clear-text password. API clients send the share password through the `X-Share-Password` header.
-
-If you rotate or clear a share password, update any automation using that share URL.
-
-## Expiration and download limits
-
-An expired or revoked share stops working. A share can also be configured with a maximum number of downloads. These controls are useful for temporary transfers where a permanent public URL is not desirable.
-
-## Share directly with another Teldrive user
-
-For users who already have accounts on the same Teldrive server, create a **file access grant** instead of a public token. Grants use the same `read` / `edit` permission model and can optionally expire.
-
-Recipients can see granted items in **Shared with me**.
-
-This is preferable to a public URL when both people already authenticate to the same server because access is tied to the recipient's Teldrive identity.
-
-## Revoke access
-
-Public shares and user grants can both be revoked. Revocation takes effect independently of the underlying file: the file remains in the owner's drive unless it is separately deleted.
-
-## API
-
-For exact share and grant operations, parameters, authentication, and response schemas, use the [API Reference](/api/). The generated OpenAPI document is the contract.
+For exact request/response schemas, use the [API Reference](/api/).

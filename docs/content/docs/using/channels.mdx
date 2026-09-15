@@ -1,13 +1,11 @@
 ---
 title: Storage channels
-description: Understand Telegram storage channels, create or discover them, select the active target, and configure automatic channel rollover.
+description: Manage Telegram channels used for Teldrive file parts.
 ---
 
-Teldrive stores file parts inside Telegram channels. PostgreSQL keeps the catalog and the mapping from each file to its Telegram-backed parts; the channels hold the actual payload.
+Teldrive stores file payload parts in Telegram channels and keeps their mapping in PostgreSQL.
 
-## Automatic channel creation
-
-For most installations, leave automatic channel creation enabled:
+## Automatic channels
 
 ```yaml
 telegram:
@@ -16,39 +14,21 @@ telegram:
   channel-part-limit: 500000
 ```
 
-When the current storage channel reaches the configured part limit, Teldrive can create another channel using the configured prefix.
+Teldrive creates another channel when the active channel reaches the configured part limit.
 
-## Manage channels in the UI
+## UI
 
-Open **Settings → Storage channels**. From there you can:
+Open **Settings → Storage channels** to:
 
-- create a new Telegram storage channel;
-- **Discover and sync** channels associated with the current Telegram account;
-- select which configured channel is active;
-- remove an unused channel from Teldrive.
+- create a channel;
+- discover/sync channels;
+- select the active channel;
+- remove an unused channel.
 
-Teldrive refuses to delete a configured channel while files still reference it. Move or remove the dependent content first.
+A channel cannot be removed while files still reference it.
 
-## Selected channel
+Changing the active channel affects new parts only; existing files stay mapped to their current channels.
 
-One configured channel is the active destination for new file parts. Existing files continue to reference the channels where their parts already live; selecting another channel does not migrate old data.
+`channel-part-limit` counts parts, not logical files.
 
-## Discover and sync
-
-Use **Discover and sync** when:
-
-- you restored a Teldrive database and need to reconcile Telegram channels;
-- channels were created or modified outside the current UI session;
-- you are bringing an existing Telegram storage layout into the current account.
-
-## Channel sizing
-
-`telegram.channel-part-limit` counts file parts rather than logical files. A single large file can use multiple parts, so do not interpret the value as a file-count limit.
-
-The default is deliberately high. Change it only when you have a specific channel-management reason.
-
-## Bots and channels
-
-When Telegram bots are configured, Teldrive updates channel membership in the background so healthy enabled bots can participate in storage operations. Bot verification/channel updates are job-backed operations rather than an instantaneous UI-only change.
-
-See [Telegram bots](/using/bots), [Telegram configuration](/configuration/telegram), and [Jobs and queues](/operations/jobs-and-queues).
+Bots are added to storage channels through background jobs. See [Telegram bots](/using/bots).

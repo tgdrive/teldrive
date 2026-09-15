@@ -1,84 +1,52 @@
 ---
 title: Migrate from Teldrive v1
-description: Understand automatic v1 database detection, prerequisites, staging/backup schemas, verification, and rollback safety.
+description: Migrate a legacy v1 PostgreSQL database to the v2 schema.
 ---
 
-Teldrive v2 contains an automatic migration path for a legacy production database. The server detects v1 by checking for the legacy `public.goose_db_version` table.
+Teldrive v2 detects v1 by the legacy `public.goose_db_version` table.
 
-## Before you migrate
+## Before migration
 
-Do **not** point v2 at your only unbacked v1 database.
+1. stop v1 writes;
+2. back up PostgreSQL;
+3. keep the old binary/image and configuration;
+4. configure a stable v2 `security.data-key`.
 
-Before starting:
+## Enable migration
 
-1. stop writes to the v1 server;
-2. take a PostgreSQL backup;
-3. record the old application version/configuration;
-4. configure a stable v2 `security.data-key`;
-5. keep the backup until the migrated installation has been fully verified.
-
-See [Backup and restore](/deployment/backup-and-restore) first.
-
-## Automatic migration
-
-Automatic legacy migration is enabled by default:
+Default:
 
 ```yaml
 database:
   auto-migrate-legacy: true
 ```
 
-Equivalent forms are:
+Both `teldrive run` and `teldrive check` can trigger migration during initialization.
 
-```bash
---database-auto-migrate-legacy=true
-```
+Requirements:
 
-```bash
-TELDRIVE_DATABASE_AUTO_MIGRATE_LEGACY=true
-```
+- v1 and v2 use the same PostgreSQL database;
+- final v2 schema is `teldrive`;
+- `security.data-key` is configured;
+- the database user can create/rename schemas and migrate data.
 
-Both `teldrive run` and `teldrive check` construct the application and can therefore trigger the migration when a legacy database is detected.
+## What it creates
 
-## Requirements
-
-Legacy migration requires:
-
-- the v1 and v2 data to live in the same PostgreSQL database;
-- the final v2 schema name to be the default `teldrive` schema;
-- a non-empty `security.data-key`;
-- database permissions to create/rename schemas and migrate data.
-
-If a legacy database is detected and `security.data-key` is empty, startup stops rather than migrating secrets without encryption.
-
-## What happens internally
-
-The migrator takes a PostgreSQL advisory lock so two Teldrive processes do not attempt the same migration concurrently.
-
-It then uses distinct schemas:
+The migrator takes an advisory lock and stages the conversion in separate schemas:
 
 ```text
 legacy source
-    ↓
-teldrive
-    ↓ copy/transform into
-
+  ↓
 teldrive_v2_staging_<timestamp>
-    ↓ validate/swap
-
-teldrive                    ← final v2 schema
+  ↓ validate/swap
+teldrive
 
 teldrive_legacy_backup_<timestamp>
-                            ← preserved legacy schema
 ```
 
-The migration report tracks users, channels, bots, files, folders, file parts, encrypted items, and skipped zero-size entries.
+The legacy schema is preserved under `teldrive_legacy_backup_*` after a successful swap.
 
-The old schema is preserved under a timestamped `teldrive_legacy_backup_*` name rather than immediately destroyed.
-
-## Validate with `check`
-
-A controlled first step is:
+## Run migration
 
 ```bash
 teldrive check --config /etc/teldrive/config.toml
@@ -90,33 +58,21 @@ or:
 docker compose run --rm teldrive check
 ```
 
-Watch the logs for `database.legacy_migration.completed` and review the reported row counts.
+Check logs for `database.legacy_migration.completed` and the reported row counts.
 
-## After migration
+## Verify
 
-Start v2 and verify:
-
-- users can authenticate;
-- storage channels are present;
-- bots appear and verify correctly;
-- top-level folders/files match the old server;
-- nested folder structure is correct;
-- known files download successfully;
-- shares/other v2 features work as expected after recreation where applicable.
-
-Do not drop the `teldrive_legacy_backup_*` schema just because startup succeeded. Keep it until you have a separate database backup and have tested the migrated data.
+After starting v2, verify users, channels, bots, folder structure, files, and known downloads. Keep the legacy backup schema until you also have a separate tested PostgreSQL backup.
 
 ## Disable automatic migration
-
-To require an operator decision instead of automatic migration:
 
 ```yaml
 database:
   auto-migrate-legacy: false
 ```
 
-If v1 is detected with this setting, initialization fails with an explicit legacy-schema error instead of silently starting against the old schema.
+With this setting, detecting v1 fails initialization instead of migrating it.
 
 ## Rollback
 
-The safest rollback is the PostgreSQL backup taken immediately before migration plus the old Teldrive binary/image and configuration. Do not assume a partially migrated database can simply be reused by the old server.
+Restore the pre-migration PostgreSQL backup and old application version/configuration. Do not reuse a partially migrated database as a rollback plan.

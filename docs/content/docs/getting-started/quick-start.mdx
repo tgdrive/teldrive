@@ -1,127 +1,75 @@
 ---
 title: Quick start
-description: Run Teldrive with PostgreSQL and the official container image, with every required setting explained.
+description: Run Teldrive with PostgreSQL and the official container image.
 ---
 
 import SetupGenerator from '../../../src/components/setup-generator';
 
-This guide is the shortest safe path to a working Teldrive installation. It assumes a Linux server with Docker or Podman and a Telegram account.
+Requires Docker or Podman and a Telegram account.
 
-## 1. Create a working directory
+## 1. Create a directory
 
 ```bash
 mkdir -p ~/teldrive
 cd ~/teldrive
 ```
 
-You will keep the deployment file and PostgreSQL data here.
+## 2. Generate `compose.yaml`
 
-## 2. Generate your deployment configuration
-
-Teldrive already includes public Telegram application credentials, so a normal installation does not need an `api_id` or `api_hash`.
-
-Use the generator below to create the secrets required by Teldrive and PostgreSQL. Everything is generated with the browser's cryptographically secure random source and stays on your device.
+Teldrive includes public Telegram application credentials; no `api_id` or `api_hash` is required.
 
 <SetupGenerator client:load />
 
-Copy the generated **Compose** output into `compose.yaml` in the working directory you created above.
+Copy the **Compose** output to `compose.yaml`.
 
-The generated configuration includes:
+Back up `security.data-key` and every content-encryption key. Losing them can make protected data unrecoverable.
 
-- a random PostgreSQL password;
-- a signing key for access and refresh tokens;
-- a 32-byte data key for encrypting sensitive stored credentials;
-- an optional server-managed file-encryption key, enabled by default.
-
-Keep the data key and every content-encryption key backed up independently from PostgreSQL. These keys are required to decrypt the data they protect.
-
-### Why `0.0.0.0:8080`?
-
-Teldrive defaults to `127.0.0.1:8080`. Inside a container that would only listen on the container's own loopback interface. Setting `TELDRIVE_HTTP_ADDRESS=0.0.0.0:8080` makes the process reachable through the container port.
-
-### Why publish only to `127.0.0.1`?
-
-```yaml
-ports:
-  - "127.0.0.1:8080:8080"
-```
-
-This keeps Teldrive private to the host. A reverse proxy such as Caddy, nginx, or Traefik can expose it with HTTPS later.
-
-For a quick LAN-only test you can temporarily publish `8080:8080`, but do not expose an unencrypted login service directly to the public internet.
-
-## 3. Start PostgreSQL and Teldrive
+## 3. Start Teldrive
 
 Docker:
 
 ```bash
 docker compose up -d
-```
-
-Podman:
-
-```bash
-podman compose up -d
-```
-
-Teldrive runs its application, River, and RiverPro database migrations during startup. You do not need to apply SQL migrations manually for a normal deployment.
-
-## 4. Watch the first startup
-
-Docker:
-
-```bash
 docker compose logs -f teldrive
 ```
 
 Podman:
 
 ```bash
+podman compose up -d
 podman compose logs -f teldrive
 ```
 
-A healthy startup should eventually show that the application is starting on `0.0.0.0:8080`.
+Teldrive applies required database migrations during startup.
 
-If it exits immediately, check [Troubleshooting](/operations/troubleshooting). The most common first-start problems are an invalid data key or a PostgreSQL connection error.
-
-## 5. Open Teldrive
-
-On the server itself:
+## 4. Open the UI
 
 ```text
 http://127.0.0.1:8080
 ```
 
-If you are connecting from another machine, configure a reverse proxy and HTTPS first. See [Reverse proxy & HTTPS](/deployment/reverse-proxy).
+The generated Compose file only publishes Teldrive on host loopback. Use a reverse proxy with HTTPS for remote access.
 
-## 6. Sign in with Telegram
+Sign in with Telegram, then upload and download a small test file.
 
-The web interface starts a Telegram login flow. Complete it with the account you intend to use for Teldrive storage.
-
-After login, Teldrive encrypts the stored Telegram session using your `security.data-key`. Your normal browser session uses signed access and refresh tokens.
-
-Continue with [First login](/getting-started/first-login) to verify the installation and upload a small test file.
-
-## 7. Validate configuration without keeping the server running
-
-The container exposes the normal Teldrive CLI. You can run:
+## 5. Validate configuration
 
 ```bash
 docker compose run --rm teldrive check
 ```
 
-`check` loads and validates configuration, initializes dependencies, runs required migrations, then exits. This is useful after changing production configuration.
+`check` validates configuration, database access, and required initialization without keeping the server running.
 
-## Next steps
+## Next
 
 <Cards>
+  <Card title="Production" href="/deployment/production">
+    HTTPS, backups, access control, and upgrades.
+  </Card>
+  <Card title="Configuration" href="/configuration/overview">
+    Config files, environment variables, flags, and all settings.
+  </Card>
   <Card title="First login" href="/getting-started/first-login">
-    Verify storage, create the first files, and learn what Teldrive creates automatically.
-  </Card>
-  <Card title="Production deployment" href="/deployment/production">
-    Add HTTPS, backups, restricted access, health checks, and a safer update workflow.
-  </Card>
-  <Card title="Configuration reference" href="/configuration/overview">
-    Understand files, environment variables, flags, precedence, and all major settings.
+    Verify storage and the initial user workflow.
   </Card>
 </Cards>

@@ -1,11 +1,9 @@
 ---
 title: Security
-description: Configure Teldrive signing, encrypted credentials, allowed users, token lifetimes, and server-managed content encryption.
+description: Configure authentication keys, allowed users, token lifetimes, and content encryption.
 ---
 
-Teldrive has two separate security-key systems. Do not confuse them.
-
-## Authentication secrets
+## Authentication keys
 
 ```yaml
 security:
@@ -20,38 +18,34 @@ security:
 
 ### `signing-key`
 
-Used to sign Teldrive authentication tokens. It must be at least 32 characters.
-
-Generate one with:
+Signs Teldrive authentication tokens. Minimum 32 characters.
 
 ```bash
 openssl rand -hex 32
 ```
 
-Changing it invalidates existing signed sessions, so users will need to authenticate again.
+Changing it invalidates existing signed sessions.
 
 ### `data-key`
 
-Used to encrypt sensitive values stored in PostgreSQL, including Telegram sessions and credentials. Internally Teldrive uses XChaCha20-Poly1305 for these secure blobs.
-
-The value must be Base64 that decodes to exactly 32 bytes:
+Encrypts sensitive PostgreSQL values such as Telegram credentials. It must be Base64 that decodes to exactly 32 bytes.
 
 ```bash
 openssl rand -base64 32
 ```
 
-**Back this key up.** Replacing it prevents Teldrive from decrypting sensitive values that were encrypted with the previous key.
+Back it up. Data encrypted with an old key cannot be decrypted with a replacement.
 
-### `allowed-users`
+## Allowed users
 
-An empty list allows any Telegram username that can complete authentication:
+Empty allows any Telegram user who completes login:
 
 ```yaml
 security:
   allowed-users: []
 ```
 
-For a private server, restrict it:
+Restrict a private server:
 
 ```yaml
 security:
@@ -60,29 +54,25 @@ security:
     - bob
 ```
 
-Usernames are case-insensitive and may be written with or without `@`.
-
-Environment variable form:
+Environment form:
 
 ```bash
 TELDRIVE_SECURITY_ALLOWED_USERS=alice,bob
 ```
 
+Usernames are case-insensitive and may include or omit `@`.
+
 ## Token lifetimes
 
-Defaults:
+| Setting | Default |
+| --- | ---: |
+| `access-token-ttl` | `15m` |
+| `refresh-token-ttl` | `720h` |
+| `login-flow-ttl` | `10m` |
 
-| Setting | Default | Meaning |
-| --- | ---: | --- |
-| `access-token-ttl` | `15m` | Short-lived authenticated access token |
-| `refresh-token-ttl` | `720h` | Refresh session lifetime, 30 days |
-| `login-flow-ttl` | `10m` | Maximum time for an in-progress Telegram login |
+## File-content encryption
 
-Shorter lifetimes reduce the usefulness of stolen tokens but increase refresh/login activity. The defaults are appropriate for most self-hosted deployments.
-
-## Server-managed file encryption
-
-This is separate from `security.data-key`.
+`encryption.keys` is separate from `security.data-key`:
 
 ```yaml
 encryption:
@@ -91,30 +81,16 @@ encryption:
     1: "YOUR_CONTENT_KEY"
 ```
 
-The `encryption` section controls versioned server-managed encryption for uploaded content. If keys are configured, an active key version must be selected and that version must exist in the key map.
+See [Content encryption and key rotation](/advanced/encryption).
 
-The versioning exists so new uploads can move to a new key without pretending old encrypted data used the same key.
+## Secret handling
 
-Do not delete old key versions while files encrypted with them still exist.
-
-## Secret-management recommendations
-
-For a single server, a root-owned config file with mode `0640` and a dedicated `teldrive` group is reasonable.
-
-For containers or orchestration systems, prefer a secret mechanism over committing values into `compose.yaml` or Git.
-
-At minimum, protect:
+Protect at least:
 
 - PostgreSQL password;
-- Telegram API hash;
-- Teldrive signing key;
-- Teldrive data key;
+- signing/data keys;
 - content-encryption keys;
-- proxy credentials;
-- Telegram bot credentials, if configured through the application.
+- custom Telegram API hash, if configured;
+- proxy and bot credentials.
 
-## Backup rule
-
-A PostgreSQL backup **without the data key** is not a complete recoverable Teldrive backup once encrypted credentials exist.
-
-Keep database backups and key backups in separate protected locations, and periodically test restoration on an isolated instance.
+Do not commit secrets to Git. See [Backup and restore](/deployment/backup-and-restore) for recovery requirements.

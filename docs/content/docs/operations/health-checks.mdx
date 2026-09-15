@@ -1,26 +1,16 @@
 ---
 title: Health checks
-description: Use Teldrive liveness and readiness endpoints correctly with hosts, reverse proxies, containers, and Kubernetes.
+description: Use Teldrive liveness and readiness endpoints.
 ---
-
-Teldrive exposes two unauthenticated health endpoints:
 
 ```text
 GET /health/live
 GET /health/ready
 ```
 
-They intentionally answer different questions.
-
 ## Liveness
 
-```text
-/health/live
-```
-
-checks whether the Teldrive process is alive and able to answer HTTP requests.
-
-A successful response is `200` with a body like:
+`/health/live` returns `200` when the process can serve HTTP:
 
 ```json
 {
@@ -29,73 +19,45 @@ A successful response is `200` with a body like:
 }
 ```
 
-Use liveness to decide whether the process itself should be restarted.
+Use it for process restart decisions.
 
 ## Readiness
 
-```text
-/health/ready
-```
+`/health/ready` returns `200` when Teldrive is ready for application traffic and `503` when required runtime/database state is unavailable.
 
-checks whether Teldrive is ready to serve application traffic, including required PostgreSQL/runtime state and migrations.
+Use it for load-balancer routing.
 
-It returns `200` when ready and can return `503` while required dependencies/state are unavailable.
-
-Use readiness to decide whether a load balancer should send traffic to the instance.
-
-## Check from the host
+## Test
 
 ```bash
 curl -fsS http://127.0.0.1:8080/health/live
 curl -fsS http://127.0.0.1:8080/health/ready
 ```
 
-For a public HTTPS deployment, also check through the reverse proxy occasionally so you test the complete path:
+For public deployments, also test the HTTPS path:
 
 ```bash
 curl -fsS https://drive.example.com/health/ready
 ```
 
-## Kubernetes probes
+## Kubernetes
 
 ```yaml
 livenessProbe:
   httpGet:
     path: /health/live
     port: 8080
-  initialDelaySeconds: 5
   periodSeconds: 20
 
 readinessProbe:
   httpGet:
     path: /health/ready
     port: 8080
-  initialDelaySeconds: 5
   periodSeconds: 10
 ```
 
-Tune timings to your environment, especially if startup migrations can take longer on a large database.
-
 ## Container note
 
-The official Teldrive runtime image is based on **distroless** and does not include a shell, `curl`, or `wget`. Do not create a Docker healthcheck that assumes those binaries exist inside the Teldrive container.
+The official runtime image is distroless and has no shell, `curl`, or `wget`. Use orchestrator-native HTTP probes or an external monitor.
 
-Prefer an orchestrator-native HTTP probe, an external health monitor, or a dedicated probe binary/tool outside the distroless container.
-
-## Reverse proxies and load balancers
-
-Health routes do not require Teldrive account authentication. A reverse proxy can use `/health/ready` as an upstream availability check.
-
-Do not treat liveness as readiness: a process can be alive while PostgreSQL is unavailable, and sending user traffic to it would still fail.
-
-## What to alert on
-
-Useful signals include:
-
-- readiness failures lasting longer than a deployment/startup window;
-- repeated process restarts after liveness failures;
-- PostgreSQL connection errors in logs accompanying readiness failures;
-- migrations repeatedly failing during startup;
-- a healthy local probe but failed public HTTPS probe, which usually points to proxy/DNS/TLS rather than Teldrive itself.
-
-See [Troubleshooting](/operations/troubleshooting) and [Production checklist](/deployment/production).
+Alert on sustained readiness failures, restart loops, or disagreement between local and public HTTPS checks.

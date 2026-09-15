@@ -1,93 +1,42 @@
 ---
 title: First login and verification
-description: Confirm authentication, storage, uploads, downloads, and persistence before moving to production.
+description: Verify login, persistence, uploads, and downloads before production use.
 ---
-
-Once Teldrive is reachable in your browser, perform a small end-to-end test before adding a reverse proxy, bots, encryption keys, or performance tuning.
 
 ## 1. Sign in
 
-Open the Teldrive web interface and start the Telegram login flow. Follow the prompts from Telegram until Teldrive reports that the account is authenticated.
+Open the UI and complete Telegram login.
 
-Teldrive stores the resulting Telegram session in PostgreSQL in encrypted form. The encryption key is `security.data-key`, so keep that key stable and backed up.
+Keep `security.data-key` stable; it encrypts the stored Telegram session.
 
-## 2. Confirm the file browser loads
+## 2. Test storage
 
-After login, the file browser should open without repeated authentication prompts or API errors.
+Create a folder, upload a small file, then download it again. This verifies the API, Telegram storage path, and PostgreSQL metadata.
 
-If the UI immediately logs you out, first verify:
-
-- your `security.signing-key` did not change between restarts;
-- your `security.data-key` did not change;
-- the browser is reaching the same Teldrive origin consistently;
-- a reverse proxy is not rewriting headers incorrectly.
-
-## 3. Upload a small test file
-
-Start with a small text or image file rather than a multi-gigabyte object. This tests the complete path with minimal waiting:
-
-```text
-browser → Teldrive API → upload worker → Telegram → PostgreSQL metadata
-```
-
-When the upload finishes, refresh the file browser and verify the item remains present.
-
-## 4. Download the same file
-
-Download or preview the file again. This verifies the reverse path:
-
-```text
-browser ← Teldrive streaming API ← Telegram
-```
-
-For the first test, use the authenticated user as the download client. Bot-assisted download rotation is an advanced optimization and is not required for a working installation.
-
-## 5. Restart Teldrive
-
-Restart only the Teldrive service:
+## 3. Restart Teldrive
 
 ```bash
 docker compose restart teldrive
 ```
 
-Then reload the UI and confirm:
+Reload the UI and verify the account, file listing, and download still work.
 
-- the account is still usable;
-- the uploaded file is still listed;
-- the file still downloads.
-
-This catches accidental ephemeral database setups and changed security keys early.
-
-## 6. Restart PostgreSQL too
+## 4. Restart PostgreSQL
 
 ```bash
 docker compose restart postgres
 ```
 
-After PostgreSQL returns healthy, Teldrive should reconnect. Your file metadata and encrypted Telegram session should still be present because the database directory is persistent.
+After PostgreSQL is healthy, verify the same data again. Failure here usually means database storage was not persisted or secrets changed.
 
-## 7. Check the logs
+## 5. Check logs
 
 ```bash
 docker compose logs --tail=200 teldrive
 ```
 
-For production, a normal successful startup should not contain repeating database migration, authentication, or Telegram reconnect failures.
+Investigate repeated database, migration, authentication, or Telegram reconnect errors.
 
-## What Teldrive creates automatically
+## Before public access
 
-With `telegram.auto-channel-create=true` (the default), Teldrive can automatically create storage channels as required. The default channel name prefix is `teldrive`.
-
-The default channel part limit is `500000`. Most users should leave this alone until they understand their Telegram storage layout and have a specific reason to change it.
-
-## Before exposing the server publicly
-
-Do these next:
-
-1. configure HTTPS;
-2. restrict allowed Telegram users if this is a private server;
-3. back up PostgreSQL and your Teldrive keys;
-4. verify trusted-proxy configuration;
-5. use a pinned Teldrive version instead of blindly tracking `latest`.
-
-See [Production deployment](/deployment/production).
+Complete the [Production checklist](/deployment/production): HTTPS, access restrictions, backups, trusted proxies, and pinned releases.

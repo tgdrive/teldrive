@@ -1,98 +1,38 @@
 ---
 title: Teldrive
-description: Self-hosted, Telegram-backed cloud storage with a fast web interface and an API designed for large files.
+description: Self-hosted Telegram-backed cloud storage with a web UI, API, and rclone support.
 ---
 
-Teldrive turns your Telegram account into a managed file store. It keeps file metadata, sessions, jobs, and sharing state in PostgreSQL while the file payload is stored through Telegram.
+Teldrive stores metadata in PostgreSQL and file payloads in Telegram.
 
-<ButtonLink href="/getting-started/quick-start">Start the quick setup →</ButtonLink>
+<ButtonLink href="/getting-started/quick-start">Quick start →</ButtonLink>
 
 <Cards>
-  <Card title="Set up Teldrive" href="/getting-started/quick-start">
-    New here? Start with PostgreSQL, browser-generated deployment secrets, and one Teldrive container.
+  <Card title="Quick start" href="/getting-started/quick-start">
+    Run Teldrive with PostgreSQL and the official container image.
   </Card>
-  <Card title="Understand configuration" href="/configuration/overview">
-    Learn exactly where settings come from and which values you should change for production.
+  <Card title="Production" href="/deployment/production">
+    HTTPS, access control, backups, and upgrades.
   </Card>
-  <Card title="Production deployment" href="/deployment/production">
-    Reverse proxy, TLS, trusted proxies, database durability, updates, health checks, and backups.
+  <Card title="Configuration" href="/configuration/overview">
+    Files, environment variables, flags, and settings.
   </Card>
-  <Card title="Advanced setup" href="/advanced/architecture">
-    Storage architecture, encryption, performance tuning, workers, and multi-instance deployments.
+  <Card title="Using Teldrive" href="/using/files-and-folders">
+    Files, uploads, sharing, channels, bots, and tasks.
   </Card>
-  <Card title="Use Teldrive" href="/using/files-and-folders">
-    Learn uploads, file operations, sharing, channels, bots, tasks, and everyday workflows.
-  </Card>
-  <Card title="Connect Rclone" href="/rclone/setup">
-    Create a dedicated API key and configure the native Teldrive rclone backend.
+  <Card title="Rclone" href="/rclone/setup">
+    Configure the native rclone backend.
   </Card>
   <Card title="API Reference" href="/api/">
-    Browse the interactive Scalar reference generated directly from OpenAPI.
+    OpenAPI-backed Scalar reference.
   </Card>
 </Cards>
 
-## Choose your path
+## Requirements
 
-### I just want it running
+- PostgreSQL with persistent storage
+- Telegram account and outbound Telegram access
+- `security.signing-key`
+- `security.data-key`
 
-Follow the **Quick start**. It uses the published container image and PostgreSQL and explains every required value before you start Teldrive.
-
-You do **not** need to understand Go, Telegram MTProto, River jobs, or the internal database schema to operate a normal installation.
-
-### I want to understand what I am deploying
-
-Read **How Teldrive works** after the quick start. It explains which data is stored in PostgreSQL, which data is stored in Telegram, how the Telegram storage connection works, and what the security keys protect.
-
-### I run production infrastructure
-
-Go directly to **Production deployment**, **Security**, and **Database** after the quick start. Those pages cover the settings that matter when Teldrive is exposed to the internet.
-
-## What you need
-
-A normal deployment needs:
-
-- a machine or VM capable of running Teldrive;
-- PostgreSQL;
-- outbound internet access to Telegram;
-- a Telegram account;
-- the built-in public Telegram application credentials, which require no setup;
-- persistent PostgreSQL storage;
-- two private Teldrive secrets: a signing key and a data key.
-
-For public deployments, you should also use a domain name, HTTPS, and a reverse proxy.
-
-> **Important:** Telegram applies API limits and anti-abuse controls. Teldrive does not remove those limits. Treat Telegram as a remote storage backend with its own rules and rate limits, not as an unlimited anonymous object store.
-
-## Configuration model
-
-Teldrive accepts the same settings from three places. Later sources override earlier ones:
-
-```text
-defaults
-  ↓
-config.toml / config.yaml
-  ↓
-TELDRIVE_* environment variables
-  ↓
-explicit command-line flags
-```
-
-This means beginners can use a single configuration file, while container and orchestration users can use environment variables without maintaining a generated config file.
-
-## Useful server commands
-
-```bash
-# Start the server
-teldrive run
-
-# "serve" is an alias for "run"
-teldrive serve
-
-# Validate configuration and initialize dependencies, then exit
-teldrive check
-
-# Show build information
-teldrive version
-```
-
-The rest of this documentation uses `teldrive run` consistently.
+For internet-facing deployments, use HTTPS and keep PostgreSQL private.

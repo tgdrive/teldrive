@@ -1,42 +1,21 @@
 ---
 title: Production checklist
-description: Harden a Teldrive deployment with HTTPS, restricted access, backups, pinned versions, observability, and safe upgrades.
+description: Minimum production hardening for Teldrive.
 ---
 
-Use this page after the quick start works end-to-end. Production hardening is easier when you already know the basic upload/download path is healthy.
-
-## 1. Pin the Teldrive version
-
-Prefer a release tag:
+## Pin the image
 
 ```yaml
 image: ghcr.io/tgdrive/teldrive:vX.Y.Z
 ```
 
-Avoid automatic unattended replacement of a working server with a newly published `latest` image.
+## HTTPS and proxy
 
-## 2. Put HTTPS in front of Teldrive
+Keep Teldrive private, terminate TLS at a reverse proxy, and configure `http.trusted-proxies` for that proxy.
 
-Keep the Teldrive listener private where possible:
+See [Reverse proxy & HTTPS](/deployment/reverse-proxy).
 
-```yaml
-http:
-  address: 127.0.0.1:8080
-```
-
-or inside a container:
-
-```yaml
-TELDRIVE_HTTP_ADDRESS: 0.0.0.0:8080
-```
-
-while publishing the container only to a private interface/network.
-
-Configure `http.trusted-proxies` for the actual TLS-terminating proxy. See [Reverse proxy and HTTPS](/deployment/reverse-proxy).
-
-## 3. Restrict who can sign in
-
-For a personal or family server:
+## Restrict login
 
 ```yaml
 security:
@@ -44,72 +23,40 @@ security:
     - your_telegram_username
 ```
 
-An empty list permits any Telegram username that can complete the login flow.
+An empty list allows any Telegram user who completes login.
 
-## 4. Protect and back up keys
+## Protect keys
 
-Keep copies of:
+Back up:
 
 ```text
 security.signing-key
 security.data-key
-encryption.keys (when content encryption is enabled)
+encryption.keys
 ```
 
-The data key is especially important because it decrypts stored Telegram credentials/sessions. Store key backups separately from PostgreSQL backups.
+Keep recovery keys separate from PostgreSQL backups.
 
-## 5. Back up PostgreSQL
+## Protect PostgreSQL
 
-At minimum, schedule regular PostgreSQL backups and retain multiple generations.
-
-Example logical backup:
-
-```bash
-pg_dump --format=custom --file=/backups/teldrive-$(date +%F).dump \
-  'postgres://teldrive:password@127.0.0.1:5432/teldrive'
-```
-
-For larger installations, use the backup and point-in-time recovery strategy appropriate to your PostgreSQL deployment rather than relying only on ad-hoc `pg_dump` files.
-
-Test restore procedures on an isolated instance.
-
-## 6. Protect PostgreSQL
-
-Do not expose PostgreSQL publicly just because Teldrive needs it.
-
-For remote/managed PostgreSQL:
-
-- require TLS according to the provider's instructions;
-- restrict network access to Teldrive hosts;
+- do not expose port `5432` publicly;
 - use a dedicated database/user;
-- set a strong password;
+- require TLS for remote databases;
+- restrict network access;
 - monitor connection limits.
 
-## 7. Keep Telegram rate limiting enabled
+See [Backup and restore](/deployment/backup-and-restore).
+
+## Telegram rate limiting
 
 ```yaml
 telegram:
   rate-limit: true
 ```
 
-Performance tuning should start with measurement, not with disabling safeguards. Telegram has its own limits regardless of how fast your host is.
+Tune concurrency only after measuring throughput and Telegram errors.
 
-## 8. Set reasonable resource limits
-
-Watch:
-
-- memory usage during concurrent downloads;
-- CPU use from upload hashing;
-- PostgreSQL connection count;
-- open connections/SSE clients;
-- upload/download throughput;
-- Telegram errors and retry patterns.
-
-The biggest concurrency knobs are documented under [Telegram settings](/configuration/telegram).
-
-## 9. Use structured logs
-
-For a containerized server:
+## Logs and monitoring
 
 ```yaml
 logging:
@@ -117,65 +64,31 @@ logging:
   log-format: json
 ```
 
-Raise the level to `debug` only while investigating an issue. Low-level Telegram client logging is separately controlled by `telegram.client-logging`.
+Monitor CPU, memory, PostgreSQL connections, transfer throughput, Telegram errors, and failed jobs.
 
-## 10. Validate before upgrades
-
-A conservative update sequence:
+## Upgrade
 
 ```bash
-# Back up PostgreSQL first
 docker compose pull teldrive
-
 docker compose run --rm teldrive check
-
 docker compose up -d teldrive
-
 docker compose logs --tail=200 teldrive
 ```
 
-The application automatically applies its current database migrations during initialization, so the pre-upgrade backup is your recovery point.
+Back up PostgreSQL first. After upgrading, test login, listing, upload/download, file operations, shares, and tasks.
 
-## 11. Verify after upgrades
+Do not assume an older binary can use a schema migrated by a newer version.
 
-Test all of these, not just the home page:
-
-- login/session refresh;
-- directory listing;
-- small upload;
-- resumable/large upload if you use it;
-- download/stream;
-- rename/move/delete;
-- shares if used;
-- background tasks;
-- live event updates;
-- bot-assisted downloads if configured.
-
-## 12. Have a rollback plan
-
-A rollback may require both:
-
-1. the previous Teldrive binary/image;
-2. a database backup compatible with that previous version.
-
-Do not assume an older binary can always run safely against a schema that a newer version has already migrated.
-
-## Recommended production shape
+## Topology
 
 ```text
 Internet
    │
-   ▼
 TLS reverse proxy
-   │ private HTTP
-   ▼
-Teldrive API + workers
-   │                 │
-   │                 └── Telegram
-   ▼
+   │
+Teldrive ───── Telegram
+   │
 PostgreSQL
    │
-   └── scheduled backups
+Backups
 ```
-
-For most self-hosted users, one Teldrive process plus one PostgreSQL instance is simpler and safer than premature horizontal scaling.

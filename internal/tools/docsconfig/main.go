@@ -30,12 +30,9 @@ func main() {
 
 	var b strings.Builder
 	b.WriteString("---\ntitle: \"CLI, environment & config reference\"\ndescription: Complete generated mapping of Teldrive config keys to command-line flags and TELDRIVE_ environment variables.\n---\n\n")
-	b.WriteString("This page is generated from the same Go configuration structs used by the server. Every leaf setting can be supplied as a config-file key, a `TELDRIVE_` environment variable, or a CLI flag on `teldrive run` and `teldrive check`.\n\n")
-	b.WriteString("The precedence order is **defaults < config file < environment variables < explicitly supplied CLI flags**. Only flags you actually pass override lower-precedence sources.\n\n")
-	b.WriteString("The config file can be selected explicitly with `--config PATH` / `-c PATH`. Without it, Teldrive searches `$HOME/.teldrive/config.toml`, `.yaml`, `.yml`, then the same filenames in the current directory.\n\n")
-	b.WriteString("## How the names map\n\nThe mapping is mechanical. For example, all three of these set the same value:\n\n```yaml\nhttp:\n  address: 0.0.0.0:8080\n```\n\n```bash\nTELDRIVE_HTTP_ADDRESS=0.0.0.0:8080\n```\n\n```bash\nteldrive run --http-address 0.0.0.0:8080\n```\n\nNested config dots become hyphens in CLI flags and underscores in environment variables. Slice values supplied through environment variables or flags are comma-separated. Durations use values such as `10s`, `5m`, or `1h`; size values accept forms such as `5MB`. Encryption key maps use comma-separated `version:key` entries.\n\nRun `teldrive run --help` or `teldrive check --help` to inspect the flags supported by the exact binary you are running.\n\n")
-	b.WriteString("The **Default** column is the literal runtime default from the code, not a production recommendation. Follow the focused configuration guides for security-sensitive choices. Teldrive ships with public Telegram application credentials, so most installations do not need to override `telegram.app-id` or `telegram.app-hash`.\n\n")
-	b.WriteString("> Generated file: edit the configuration structs, then run `just docs-generate` instead of editing the tables below by hand.\n\n")
+	b.WriteString("Generated from the server configuration structs. Precedence: **defaults < config file < environment < explicit CLI flags**.\n\n")
+	b.WriteString("Name mapping example: `http.address` → `TELDRIVE_HTTP_ADDRESS` → `--http-address`. Slices use comma-separated values; encryption maps use `version:key` entries.\n\n")
+	b.WriteString("The **Default** column is the runtime default, not a production recommendation.\n\n")
 
 	current := ""
 	for _, r := range rows {

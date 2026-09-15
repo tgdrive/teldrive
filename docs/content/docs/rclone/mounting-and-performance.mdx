@@ -1,22 +1,16 @@
 ---
 title: Mounting and performance
-description: Mount Teldrive with rclone, choose VFS caching deliberately, and tune chunking/concurrency without overwhelming the server or Telegram.
+description: Mount Teldrive with rclone and tune VFS/chunk concurrency.
 ---
 
-After [verifying the remote](/rclone/setup), you can mount it through rclone's VFS layer.
-
-## Basic mount
+## Mount
 
 ```bash
 mkdir -p ~/mnt/teldrive
 rclone mount teldrive: ~/mnt/teldrive
 ```
 
-Keep the process in the foreground while testing. Once file creation, reads, renames, and deletes work as expected, move it into your service manager.
-
-## Applications that expect a normal writable filesystem
-
-Many desktop/media applications perform seek-heavy or temporary-file writes that object-storage semantics do not naturally provide. For those applications, start with VFS write caching:
+For applications that need seek-heavy writes, use VFS caching:
 
 ```bash
 rclone mount teldrive: ~/mnt/teldrive \
@@ -25,19 +19,17 @@ rclone mount teldrive: ~/mnt/teldrive \
   --vfs-cache-max-age 24h
 ```
 
-`full` caching uses local disk. Size the cache for your workload and monitor it; do not blindly copy these limits onto a machine with less free space.
+Size the cache to available local disk.
 
-## Upload chunk size
+## Chunk size
 
-The native backend defaults to:
+Default:
 
 ```text
 chunk_size = 512Mi
 ```
 
-The backend accepts 64 MiB to 2000 MiB and aligns upload chunks to 16 MiB boundaries for BLAKE3 tree hashing.
-
-Larger chunks mean fewer API calls but more memory per concurrent upload. Smaller chunks lower peak per-stream memory but increase request count.
+Accepted range: 64 MiB–2000 MiB. Larger chunks reduce API calls but use more memory per concurrent upload.
 
 Example:
 
@@ -50,17 +42,15 @@ chunk_size = 256Mi
 upload_concurrency = 2
 ```
 
-## Upload concurrency
+## Concurrency
 
-`upload_concurrency` controls parallel chunks **inside one rclone file upload**. It is separate from:
+These controls multiply:
 
-- rclone's global transfer concurrency (`--transfers`);
-- Teldrive's `telegram.upload-threads`;
-- Telegram's own rate limits.
+- rclone `--transfers`;
+- backend `upload_concurrency`;
+- Teldrive `telegram.upload-threads`.
 
-All three layers multiply the amount of concurrent work. Increase one variable at a time and measure server memory, CPU, network use, Telegram errors, and PostgreSQL load.
-
-A conservative migration might begin with:
+Start conservatively:
 
 ```bash
 rclone copy /srv/data teldrive:/archive \
@@ -69,47 +59,32 @@ rclone copy /srv/data teldrive:/archive \
   --progress
 ```
 
-Then raise concurrency only if the system remains healthy.
+Raise one setting at a time while monitoring memory, CPU, Telegram errors, and PostgreSQL load.
 
 ## Hashing
-
-The backend enables BLAKE3 tree hashing by default:
 
 ```text
 hash_enabled = true
 ```
 
-Keep this enabled when the server supports it. It gives rclone and Teldrive an integrity signal instead of relying only on file size.
+Keep BLAKE3 hashing enabled unless you have a measured reason to disable it.
 
-## Separate upload endpoint
+## Upload host
 
-For an advanced deployment with dedicated upload traffic, the backend supports `upload_host`:
+Optional dedicated upload endpoint:
 
 ```ini
 upload_host = https://uploads.example.com
 ```
 
-Use this only when that hostname routes to a compatible Teldrive API. Authentication and request semantics must remain the same.
+It must expose the same compatible Teldrive API/authentication.
 
-## Native Teldrive encryption
-
-The rclone backend can request server-managed Teldrive encryption with:
+## Teldrive encryption
 
 ```ini
 encrypt_files = true
 ```
 
-The server must already have content-encryption keys configured. Do not enable it before reading [Content encryption](/advanced/encryption) and confirming that key backup/recovery is in place.
+Requires server-side content-encryption keys. See [Content encryption](/advanced/encryption).
 
-## Service-manager checklist
-
-Before turning a mount into a long-running service:
-
-1. use a dedicated API key for that machine;
-2. verify the Teldrive HTTPS certificate normally;
-3. keep the rclone config/secret readable only by the service user;
-4. choose a persistent VFS cache directory if using write caching;
-5. ensure clean unmount/restart behavior;
-6. monitor both rclone logs and Teldrive tasks/logs during large transfers.
-
-If basic `rclone lsf teldrive:` fails, fix authentication/connectivity before debugging mount options.
+If `rclone lsf teldrive:` fails, fix authentication/connectivity before debugging mount settings.

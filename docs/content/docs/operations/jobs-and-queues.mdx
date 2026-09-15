@@ -1,76 +1,46 @@
 ---
 title: Jobs and queues
-description: Operate River/RiverPro background jobs, inspect statistics, pause queues, retry or cancel jobs, purge history, and manage periodic jobs.
+description: Operate River/RiverPro jobs, queues, retries, cancellation, and schedules.
 ---
 
-Teldrive uses River and RiverPro for background work. The web UI exposes common task controls, while the HTTP API provides lower-level queue and periodic-job operations for administrators and automation.
+## Workers
 
-## Job workers
-
-A normal Teldrive process serves the API and runs workers:
+Default:
 
 ```yaml
 jobs:
   run-workers: true
 ```
 
-For an API-only instance:
+API-only instance:
 
 ```yaml
 jobs:
   run-workers: false
 ```
 
-If every process sharing the database has workers disabled, queued jobs will never execute. Keep at least one worker-enabled instance online.
+At least one process sharing the database must run workers.
 
 ## Tasks UI
 
-Use the **Tasks** page for day-to-day operations:
+Use **Tasks** to inspect queued/running/completed/failed jobs, view details, retry failures, and cancel supported work.
 
-- inspect queued/running/completed/failed work;
-- open one job to see its details;
-- retry a failed job after fixing the underlying cause;
-- cancel work when the job state allows it.
+Retry transient failures only after checking the cause. Cancel work that is no longer wanted.
 
-See [Tasks](/using/tasks) for the user-facing workflow.
+## Queue controls
 
-## API operations
-
-The API contract is not duplicated in this guide. Use the [API Reference](/api/) for the exact job operations, parameters, request bodies, responses, and authentication defined by the generated OpenAPI schema.
-
-## Queue pause and resume
-
-Pausing a queue is useful during maintenance or when one class of work is causing downstream pressure. It prevents that queue from continuing normally until resumed; it does not replace stopping the whole Teldrive server.
-
-Before pausing a queue, record why it was paused and who will resume it. Forgotten pauses can look like a broken worker system because new jobs remain queued indefinitely.
-
-## Retry versus cancel
-
-**Retry** is appropriate when the cause was transient, for example temporary Telegram/network unavailability.
-
-**Cancel** is appropriate when the operation is no longer wanted or must stop before additional work is performed.
-
-A retry does not fix invalid configuration, inaccessible local paths, revoked credentials, or missing Telegram permissions. Correct the root cause first.
-
-## Purging job records
-
-Purging removes matching job history. Treat it as operational cleanup, not a way to repair failed work. Keep enough history for troubleshooting and audit needs.
+Queues can be paused/resumed for maintenance. A paused queue remains queued until resumed.
 
 ## Periodic jobs
 
-Use **Settings → Periodic jobs** for normal management. You can create, pause, resume, update, delete, or reset scheduled work from there.
+Use **Settings → Periodic jobs** to create, update, pause, resume, reset, or delete scheduled jobs.
 
-For automation, use the [API Reference](/api/) rather than copying endpoint details from this guide.
+## API
 
-## Multi-instance deployments
+Use the [API Reference](/api/) for exact queue/job/periodic-job operations and request schemas.
 
-All instances share job state through PostgreSQL, but worker capacity is the sum of worker-enabled processes. When scaling workers, watch:
+## Multi-instance
 
-- PostgreSQL connection use;
-- Telegram request/rate-limit errors;
-- CPU/memory used by concurrent transfers;
-- queue depth and retry frequency.
+Worker capacity is the sum of worker-enabled processes. When adding workers, monitor PostgreSQL connections, Telegram errors, resource use, queue depth, and retries.
 
-Do not scale workers independently of Telegram and database capacity.
-
-See [Multi-instance deployments](/advanced/multi-instance), [Performance tuning](/advanced/performance), and the [API Reference](/api/).
+See [Multi-instance deployments](/advanced/multi-instance).

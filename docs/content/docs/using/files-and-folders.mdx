@@ -1,63 +1,32 @@
 ---
 title: Files and folders
-description: Browse, select, move, copy, rename, download, trash, restore, and organize files in the Teldrive web UI.
+description: Manage files and folders in the Teldrive web UI.
 ---
 
-The **Files** page is the main workspace for everyday Teldrive use. It supports list and grid views, multi-selection, drag-and-drop uploads, copy/move operations, sharing, direct downloads, and a separate trash view.
+The **Files** page supports list/grid views, multi-selection, uploads, copy/move, rename, sharing, downloads, and Trash.
 
-## Navigation and selection
+## Selection
 
-Single-click an item to select it. Open a folder explicitly or by double-clicking it. This prevents accidental navigation while you are building a multi-selection.
+Single-click selects. Open folders explicitly or by double-clicking so selection does not trigger navigation.
 
-Use the selection action bar for file operations. When several items are selected, Teldrive can move, copy, or trash them together. Rename and share are single-item operations.
+Bulk actions support copy, move, and trash. Rename/share are single-item actions.
 
-## Create folders
+## Copy, move, rename
 
-Create folders from the file browser and use them just like a normal drive hierarchy. Folders are represented in PostgreSQL metadata; their payload does not consume Telegram storage by itself.
-
-## Copy and move
-
-For a selected file or folder you can:
-
-- **Copy** it into another folder. Teldrive handles name conflicts using its configured operation policy.
-- **Move** it into another folder.
-- Use copy/cut-style clipboard actions and paste into the destination pane.
-
-Bulk move is available for multiple selected items.
-
-## Rename
-
-Select one item and choose **Rename**. Teldrive updates the catalog metadata; the Telegram-backed content does not need to be uploaded again just because the display name changed.
+Use the selection action bar or clipboard-style copy/cut/paste controls. Renaming changes catalog metadata; file payloads are not re-uploaded.
 
 ## Download
 
-Select one or more files and use the download action. You can also copy direct authenticated download links from the file browser.
+Download selected files or copy authenticated download links. Large files support HTTP range requests for seeking/streaming.
 
-For large media files, Teldrive serves ranged HTTP content so compatible clients can seek while streaming.
+## Trash
 
-## Trash and restore
+Delete moves items to **Trash**. From Trash, restore or permanently purge them.
 
-Deleting from the Files page first moves items to **Trash** rather than permanently removing their catalog entry.
+Purge is destructive.
 
-Open **Trash** to restore an item or permanently purge it. Treat purge as destructive: once metadata is permanently removed, normal restore is no longer available.
-
-## Recommended workflow
-
-For new installations, verify the basics in this order:
-
-1. create a folder;
-2. upload a small file;
-3. rename it;
-4. move it into another folder;
-5. download it again;
-6. move it to Trash;
-7. restore it.
-
-That validates the catalog, upload path, download path, and file-operation APIs before you start moving large datasets.
-
-## Related pages
+## Related
 
 - [Uploads](/using/uploads)
 - [Sharing](/using/sharing)
 - [Tasks](/using/tasks)
-- [Troubleshooting](/operations/troubleshooting)

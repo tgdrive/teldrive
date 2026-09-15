@@ -1,69 +1,33 @@
 ---
 title: Tasks
-description: Follow background jobs, inspect failures, retry or cancel work, and understand periodic jobs.
+description: Inspect, retry, and cancel background jobs.
 ---
 
-Teldrive uses River and RiverPro for background work. The **Tasks** page is the user-facing view of those jobs.
+The **Tasks** page shows River/RiverPro background jobs such as server-side imports and bot/channel maintenance.
 
-## What becomes a task?
+## States
 
-Background work includes operations such as server-side imports, bot/channel maintenance, and other jobs that should survive beyond one browser request.
+Jobs may be queued, running, completed, failed, cancelled, or scheduled for retry.
 
-A normal browser upload has its own upload-session lifecycle, but related server-side processing can still produce background jobs.
+Open a failed task before retrying. Retry transient failures only after fixing permanent causes such as invalid paths, revoked credentials, missing permissions, or bad configuration.
 
-## Job states
+## Cancel
 
-Use the task list to distinguish work that is:
-
-- queued and waiting for a worker;
-- running;
-- completed;
-- failed;
-- cancelled;
-- scheduled for retry.
-
-Open a task to see its details before taking action on a failure.
-
-## Retry a failed job
-
-Retry is useful for transient failures such as a temporary Telegram or network problem. Before retrying repeatedly, fix permanent causes such as:
-
-- an invalid local import path;
-- missing Telegram permissions;
-- a revoked credential;
-- invalid configuration;
-- an unavailable database dependency.
-
-## Cancel work
-
-Jobs that support cancellation can be cancelled from the task controls. Cancellation stops future processing where supported; it does not imply that already completed external side effects are rolled back.
-
-## Queues
-
-The server API exposes job queues and supports pausing and resuming individual queues. Queue controls are operational tools, not normal end-user workflow.
-
-Use them when you intentionally need to stop a class of background work while keeping the API online.
+Cancellation stops future processing where supported; it does not undo external side effects already completed.
 
 ## Periodic jobs
 
-Open **Settings → Periodic jobs** to inspect or manage scheduled maintenance jobs. Teldrive exposes a catalog of periodic jobs and supports pausing, resuming, editing, and resetting their schedules through the API/UI.
+Use **Settings → Periodic jobs** to manage scheduled jobs.
 
-## API-only worker instances
+## Worker configuration
 
-A normal Teldrive process runs API traffic and job workers together:
+Default:
 
 ```yaml
 jobs:
   run-workers: true
 ```
 
-In an advanced deployment, API-only processes can use:
+Set `false` only for API-only instances when another process runs workers.
 
-```yaml
-jobs:
-  run-workers: false
-```
-
-At least one process sharing the database must still run workers or background jobs will remain queued.
-
-See [Jobs and queues](/operations/jobs-and-queues) for operational controls and [Multi-instance deployments](/advanced/multi-instance) before splitting workers from API servers.
+See [Jobs and queues](/operations/jobs-and-queues) and [Multi-instance deployments](/advanced/multi-instance).

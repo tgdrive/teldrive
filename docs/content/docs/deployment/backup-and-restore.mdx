@@ -1,62 +1,48 @@
 ---
 title: Backup and restore
-description: Back up Teldrive with pg_dumpall, restic, and any rclone-supported remote, then restore PostgreSQL, keys, and configuration safely.
+description: Back up PostgreSQL with pg_dumpall and restic over any rclone remote.
 ---
 
-A Teldrive recovery set is more than a PostgreSQL dump. PostgreSQL contains the metadata that tells Teldrive what exists and where its Telegram parts are; private keys are needed to recover protected credentials and, if enabled, encrypted file content.
+Back up PostgreSQL plus the Teldrive keys required to decrypt protected data.
 
-## What to back up
+## Recovery set
 
-Keep all of these:
+Keep:
 
-1. **PostgreSQL** — file/folder metadata, Telegram part references, users, sessions, shares, jobs, channels, bots, and application state.
-2. **`security.data-key`** — required to decrypt stored Telegram credentials and other protected secrets.
-3. **`security.signing-key`** — keep it stable if you want existing signed sessions/tokens to remain valid after restore.
-4. **`encryption.keys`** — mandatory for reading content uploaded with server-managed encryption.
-5. **Deployment configuration** — Compose/systemd/Kubernetes manifests, domain/proxy settings, and any local import path configuration.
+- PostgreSQL backup
+- `security.data-key`
+- `security.signing-key`
+- every `encryption.keys` version still in use
+- deployment configuration
+- restic repository password and rclone credentials
 
-Keep secret-key backups separately from the PostgreSQL backup, or use a separate encrypted backup repository/password for them. A compromise of one backup should not automatically expose both the encrypted database values and the keys that decrypt them.
+Keep Teldrive decryption keys separate from the database backup.
 
-## Recommended PostgreSQL backup: `pg_dumpall` + restic + rclone
+## Recommended backup
 
-For a normal Teldrive installation, use `pg_dumpall` for logical backups. Unlike `pg_dump`, `pg_dumpall` backs up every database in the PostgreSQL cluster plus cluster-wide objects such as roles, tablespaces, and privilege grants.
-
-Use restic as the encrypted backup repository and its rclone backend as the transport. The repository form is:
+Use `pg_dumpall` piped directly into restic. Restic can store the encrypted repository through any rclone remote:
 
 ```text
 rclone:<remote>:<path>
 ```
 
-For example, if rclone has a remote named `backup`:
+Example:
 
 ```text
 rclone:backup:teldrive/postgres
 ```
 
-The `backup` remote can be any backend supported by rclone. Restic starts rclone itself and stores its normal encrypted repository through that remote.
+`pg_dumpall` includes all databases plus cluster-wide objects such as roles and grants.
 
-### Install and configure restic and rclone
+## Configure restic
 
-Install `restic` and `rclone` using your distribution packages or their official installation methods.
-
-Create a root-only backup configuration directory:
+Create root-only files:
 
 ```bash
 sudo install -d -m 0700 /etc/teldrive-backup
-```
-
-Configure an rclone remote directly into the backup-specific config file:
-
-```bash
 sudo rclone config --config /etc/teldrive-backup/rclone.conf
 sudo chmod 0600 /etc/teldrive-backup/rclone.conf
-```
 
-In the examples below, the remote is named `backup`. Replace it with your actual rclone remote name.
-
-Generate a separate random password for the restic repository:
-
-```bash
 openssl rand -base64 32 | sudo tee /etc/teldrive-backup/restic-password >/dev/null
 sudo chmod 0600 /etc/teldrive-backup/restic-password
 ```
@@ -70,15 +56,8 @@ RCLONE_CONFIG=/etc/teldrive-backup/rclone.conf
 RESTIC_CACHE_DIR=/var/cache/teldrive-backup
 ```
 
-Protect it:
-
 ```bash
 sudo chmod 0600 /etc/teldrive-backup/backup.env
-```
-
-Initialize the repository once:
-
-```bash
 sudo env \
   RESTIC_REPOSITORY='rclone:backup:teldrive/postgres' \
   RESTIC_PASSWORD_FILE=/etc/teldrive-backup/restic-password \
@@ -86,19 +65,15 @@ sudo env \
   restic init
 ```
 
-Back up the restic repository password itself somewhere offline or in a separate password manager. Losing it means losing access to the repository.
+Back up the restic password separately. Without it, the repository cannot be restored.
 
-## Automated systemd backup
+## systemd service
 
-The following service is designed for the Docker Compose setup from the Quick Start and writes the `pg_dumpall` output directly into restic. No plaintext SQL dump is left behind on disk.
-
-Restic's `--stdin-from-command` mode is important here: restic executes `pg_dumpall` and checks its exit status. If the dump command fails, restic does not create a successful backup snapshot.
-
-Create `/etc/systemd/system/teldrive-backup.service`:
+For the Quick Start Docker Compose deployment, create `/etc/systemd/system/teldrive-backup.service`:
 
 ```ini
 [Unit]
-Description=Back up Teldrive PostgreSQL with restic
+Description=Back up Teldrive PostgreSQL
 Wants=network-online.target
 After=network-online.target docker.service
 
@@ -125,168 +100,81 @@ LockPersonality=true
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 ```
 
-Adjust `/opt/teldrive/compose.yaml` if your Compose file is stored elsewhere.
+Change `/opt/teldrive/compose.yaml` to your actual Compose path.
 
-For Podman Compose, replace the Docker command after `--` with the equivalent `podman compose ...` command.
+For Podman, replace the Docker command with the equivalent `podman compose` command.
 
-For PostgreSQL installed directly on the host, replace the command after `--` with `pg_dumpall`, for example:
+For host PostgreSQL, use `pg_dumpall` directly and authenticate with a protected `PGPASSFILE`/`.pgpass` instead of embedding the password in the unit.
 
-```ini
-ExecStart=/usr/bin/restic backup --stdin-from-command --stdin-filename teldrive-postgres.sql --tag teldrive-postgres -- /usr/bin/pg_dumpall --clean --if-exists --dbname postgresql://backup-user@127.0.0.1/postgres
-```
-
-For unattended host PostgreSQL authentication, use a protected `.pgpass`/`PGPASSFILE` rather than placing the database password directly in the unit file.
-
-### Run it every day
+## systemd timer
 
 Create `/etc/systemd/system/teldrive-backup.timer`:
 
 ```ini
 [Unit]
-Description=Run the Teldrive PostgreSQL backup daily
+Description=Run Teldrive PostgreSQL backup daily
 
 [Timer]
 OnCalendar=*-*-* 03:15:00
 Persistent=true
 RandomizedDelaySec=15m
-AccuracySec=1m
 
 [Install]
 WantedBy=timers.target
 ```
 
-Enable the timer:
+Enable and test:
 
 ```bash
 sudo systemctl daemon-reload
 sudo systemctl enable --now teldrive-backup.timer
-```
-
-Run one backup immediately before relying on the timer:
-
-```bash
 sudo systemctl start teldrive-backup.service
 sudo systemctl status teldrive-backup.service
 ```
 
-Inspect logs with:
+Logs:
 
 ```bash
 sudo journalctl -u teldrive-backup.service
 ```
 
-The example retention policy keeps seven daily, five weekly, twelve monthly, and three yearly snapshots, then prunes unneeded repository data. Adjust that policy for your recovery requirements and storage budget.
-
-## Verify the repository
-
-Load the same restic environment into a root shell or pass the values explicitly, then list snapshots:
+## Verify backups
 
 ```bash
 restic snapshots --tag teldrive-postgres
-```
-
-Run repository checks periodically:
-
-```bash
 restic check
 ```
 
-A backup that has never been restored is still unverified. Periodically restore into an isolated PostgreSQL instance and start a disposable Teldrive process against it.
+Periodically perform a real restore into an isolated PostgreSQL instance.
 
-Verify at least:
+## Restore
 
-- login/session recovery;
-- file and folder listings;
-- a small download;
-- storage channels;
-- configured bots;
-- shares/grants if used;
-- encrypted content if enabled.
-
-## Restore PostgreSQL from restic
-
-### 1. Recover the SQL dump
-
-Configure the same `RESTIC_REPOSITORY`, `RESTIC_PASSWORD_FILE`, and `RCLONE_CONFIG` values used by the backup service, then extract the newest dump:
+Extract the latest SQL dump:
 
 ```bash
 restic dump latest teldrive-postgres.sql > teldrive-postgres.sql
 ```
 
-Because `pg_dumpall` produces a plain SQL script, restore it with `psql`, not `pg_restore`.
-
-For the Docker Compose setup:
+`pg_dumpall` produces plain SQL, so restore with `psql`, not `pg_restore`:
 
 ```bash
 docker compose -f /opt/teldrive/compose.yaml exec -T postgres \
   psql -X -U teldrive -d postgres < teldrive-postgres.sql
 ```
 
-The `-X` option prevents a local `psqlrc` from changing restore behavior.
+Then restore the same `security.data-key`, signing key, content-encryption keys, and deployment configuration before starting Teldrive.
 
-A `pg_dumpall` restore can report harmless errors for objects such as roles that already exist in a freshly initialized cluster. Read the output and investigate unexpected failures rather than assuming every message is fatal.
-
-### 2. Restore the same Teldrive keys
-
-Configure the same `security.data-key` and every content-encryption key version still referenced by stored files.
-
-Do **not** replace the data key with a newly generated value and expect stored Telegram sessions/bot credentials to decrypt.
-
-### 3. Restore configuration
-
-Restore the database URL, server address, reverse-proxy settings, deployment files, and any other deployment-specific settings. If you intentionally override Teldrive's built-in public Telegram application credentials, restore those custom values as well.
-
-### 4. Validate before serving traffic
-
-Run:
-
-```bash
-teldrive check
-```
-
-or in Compose:
+Validate:
 
 ```bash
 docker compose run --rm teldrive check
+docker compose up -d
 ```
 
-`check` loads configuration, connects to dependencies, and applies required migrations before exiting.
+Verify login, listing, upload, download, channels, bots, shares, and encrypted files if used.
 
-### 5. Start Teldrive
+## Important
 
-Start the server and verify:
+PostgreSQL contains Teldrive metadata, not the Telegram file payload itself. A database backup cannot recover payloads independently deleted from Telegram.
 
-```bash
-curl -f http://127.0.0.1:8080/health/ready
-```
-
-Then test a known file download from the UI.
-
-## What PostgreSQL does not contain
-
-The file payload itself is stored through Telegram, so the PostgreSQL backup does not duplicate all uploaded bytes. The database contains the metadata needed to locate and reconstruct those parts.
-
-Database recovery therefore cannot recover Telegram content that was independently deleted or made inaccessible in Telegram.
-
-## Higher-end PostgreSQL recovery
-
-`pg_dumpall` is a good logical backup for normal installations, migrations, and disaster recovery. Larger or business-critical PostgreSQL deployments should additionally use the database provider's physical backup and WAL / point-in-time-recovery strategy rather than depending only on periodic logical dumps.
-
-## Disaster-recovery checklist
-
-Keep a written record of:
-
-```text
-restic repository location
-restic repository password backup location
-rclone configuration/credential recovery method
-last successful PostgreSQL snapshot
-security.data-key backup location
-security.signing-key backup location
-encryption key versions and backup locations
-custom Telegram API credentials, if configured
-deployment configuration backup location
-last restore-test date
-```
-
-See [Content encryption](/advanced/encryption) for key rotation rules and [Health checks](/operations/health-checks) for restore validation.
+For installations requiring point-in-time recovery, add PostgreSQL physical/WAL backups; `pg_dumpall` is the logical disaster-recovery layer.

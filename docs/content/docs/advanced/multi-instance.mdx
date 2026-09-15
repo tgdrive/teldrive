@@ -1,71 +1,50 @@
 ---
 title: Multi-instance deployments
-description: Separate API and worker roles and coordinate multiple Teldrive processes safely through PostgreSQL.
+description: Run multiple Teldrive API and worker processes against shared PostgreSQL.
 ---
 
-A single Teldrive process is the recommended default. Move to multiple instances only when you have a measured availability or capacity requirement.
+Use multiple instances only for a measured availability or capacity requirement.
 
-## Shared state
+## Shared configuration
 
-Every instance in the same deployment must use the same:
+Every instance must share:
 
 - PostgreSQL database and schema;
 - `security.signing-key`;
 - `security.data-key`;
-- content-encryption key map and active-key policy;
-- Telegram application identity appropriate for the deployment.
+- `encryption.keys` and active version;
+- Telegram application identity.
 
-If different instances use different data keys, a request or background job can land on a process that cannot decrypt credentials or encrypted job arguments created by another process.
+## Worker roles
 
-## API + worker on every instance
-
-The default is:
+Default API + worker process:
 
 ```yaml
 jobs:
   run-workers: true
 ```
 
-With two Teldrive processes, both can serve HTTP and both can consume River jobs from the shared PostgreSQL database.
-
-This is the simplest horizontally scaled shape, but account for the combined PostgreSQL connection pools and Telegram concurrency.
-
-## Dedicated API instances
-
-Disable workers on API-only processes:
+API-only process:
 
 ```yaml
 jobs:
   run-workers: false
 ```
 
-or:
-
-```bash
-TELDRIVE_JOBS_RUN_WORKERS=false
-```
-
-Then run at least one separate process with workers enabled.
-
-Example topology:
+At least one instance must keep workers enabled.
 
 ```text
-                 ┌──────────── API 1 (workers off)
-load balancer ───┼──────────── API 2 (workers off)
-                 │
-                 └──────────── Worker (workers on)
-                               │
-                               ▼
-                         shared PostgreSQL
+load balancer ──► API 1 (workers off)
+              ├► API 2 (workers off)
+              └► Worker (workers on)
+                      │
+                      ▼
+                PostgreSQL
 ```
 
-A worker process is still the same Teldrive binary. The `run-workers` setting controls whether it consumes background jobs; it does not create a separate worker executable.
+## PostgreSQL pools
 
-## Database pool budgeting
-
-Each process owns its own PostgreSQL pool. If three processes each allow 25 connections, the potential application total is much larger than 25.
-
-Before scaling, set per-process values intentionally:
+Each process owns a pool. Budget the aggregate maximum, not just one instance:
 
 ```yaml
 database:
@@ -73,68 +52,41 @@ database:
   min-connections: 1
 ```
 
-The correct values depend on request volume, worker load, PostgreSQL capacity, and the number of instances.
-
 ## Bot rotation
 
-For a single instance:
+Single instance:
 
 ```yaml
 telegram:
   bot-rotation-backend: memory
 ```
 
-For multiple instances that must coordinate download-bot rotation:
+Multiple coordinated instances:
 
 ```yaml
 telegram:
   bot-rotation-backend: database
 ```
 
-The database backend exists specifically for cluster-wide coordination.
+## SSE
 
-## Event connections
+`events.max-connections-per-user` is per API instance. The load balancer and proxy must support long-lived SSE connections on every instance.
 
-`events.max-connections-per-user` is enforced per API instance. With a load balancer, the overall number of event connections for one user can therefore exceed the per-instance value.
+## Encryption-key rollout
 
-Make sure the load balancer and reverse proxy support long-lived SSE connections across all API instances.
+For a new content key:
 
-## Shared cryptographic configuration
-
-Use one secret source and distribute the same versions to all processes:
-
-```yaml
-encryption:
-  active-key-version: 2
-  keys:
-    1: OLD_KEY
-    2: CURRENT_KEY
-```
-
-Deploying a new active content key is safer as an ordered rollout:
-
-1. distribute the new key version to **all** instances while leaving the old version active;
-2. verify all instances can start;
+1. distribute the new key version to every instance;
+2. verify all instances start;
 3. switch the active version everywhere;
-4. keep old versions available for old files.
+4. retain old key versions for old files.
 
-## Rolling upgrades
+## Upgrades
 
-Because startup may run database migrations, read release notes and back up PostgreSQL before rolling out a new version.
+Back up PostgreSQL before migrations. Avoid prolonged mixed-version deployments unless the release explicitly supports them.
 
-Do not assume arbitrary old and new versions can always operate against the same schema during a prolonged mixed-version rollout.
+See [Upgrading](/deployment/upgrading).
 
-For a small self-hosted deployment, short maintenance windows are often simpler and safer than building a complex zero-downtime upgrade system.
+## Before scaling
 
-## When not to scale horizontally
-
-Multiple instances will not fix:
-
-- a Telegram-side rate limit;
-- a single client's slow network;
-- an incorrectly buffering reverse proxy;
-- CPU spent hashing on the same constrained host;
-- an undersized PostgreSQL server;
-- bad concurrency settings.
-
-Measure the actual bottleneck first. Vertical scaling and correct tuning are frequently enough.
+Multiple instances do not fix Telegram rate limits, proxy buffering, slow clients, an undersized PostgreSQL server, or excessive per-instance concurrency. Measure the bottleneck first.

@@ -1,11 +1,9 @@
 ---
 title: Database
-description: Configure PostgreSQL, connection pooling, schemas, migrations, backups, and legacy database migration.
+description: Configure PostgreSQL schema, pooling, migrations, and connectivity.
 ---
 
-PostgreSQL is the durable control plane for Teldrive. Telegram stores file payloads; PostgreSQL stores the metadata and application state needed to find, authenticate, organize, share, and process those files.
-
-## Basic configuration
+## Configuration
 
 ```yaml
 database:
@@ -21,55 +19,21 @@ database:
   auto-migrate-legacy: true
 ```
 
-The database URL is required.
+`database.url` is required.
 
 ## Schema
 
-The default PostgreSQL schema is:
+Default: `teldrive`.
 
-```text
-teldrive
-```
-
-Teldrive uses this schema for application tables and its River/RiverPro job infrastructure. The schema name must be a valid PostgreSQL identifier.
-
-Using a separate schema is useful when a database is shared with other applications:
-
-```yaml
-database:
-  schema: my_teldrive
-```
-
-Keep the schema name stable after deployment unless you are deliberately performing a database migration.
+Teldrive uses the configured schema for application and River/RiverPro tables. Use a different valid PostgreSQL identifier only when you intentionally need another schema.
 
 ## Migrations
 
-At application initialization Teldrive runs the required Teldrive, River, and RiverPro migrations before it opens the long-lived application pool.
+Teldrive runs its application, River, and RiverPro migrations during initialization. Do not run migration SQL manually.
 
-For a normal installation, you do not run SQL migration files manually.
+`auto-migrate-legacy: true` enables automatic v1 detection/migration. See [Migrate from Teldrive v1](/deployment/v1-migration).
 
-A safe upgrade workflow is still:
-
-1. back up PostgreSQL;
-2. update the Teldrive image or binary;
-3. run `teldrive check` against the new version;
-4. start the application;
-5. inspect logs before declaring the upgrade complete.
-
-## Legacy migration
-
-```yaml
-database:
-  auto-migrate-legacy: true
-```
-
-When enabled, startup can detect and migrate a legacy Teldrive database before applying the current v2 schema.
-
-For important installations, take a full database backup before the first v2 startup. Automatic migration is convenient, but a tested backup is what gives you a rollback path.
-
-## Connection pool
-
-Defaults:
+## Pool
 
 | Setting | Default |
 | --- | ---: |
@@ -80,46 +44,28 @@ Defaults:
 | `health-check-interval` | `30s` |
 | `connect-timeout` | `10s` |
 
-Do not multiply `max-connections` blindly when scaling Teldrive horizontally. A four-instance deployment with `25` maximum connections per instance can consume roughly four times the database connection budget.
-
-Plan the total across:
-
-```text
-API instances
-+ worker instances
-+ administration tools
-+ backup/monitoring clients
-+ safety headroom
-```
+For multiple Teldrive processes, budget the sum of all process pools against PostgreSQL's connection limit.
 
 ## TLS
 
-For PostgreSQL on the same private host or an isolated container network, `sslmode=disable` is common.
+`sslmode=disable` is suitable only for trusted local/private networking. Use the TLS settings required by your remote/managed PostgreSQL provider.
 
-For remote or managed PostgreSQL, use the TLS mode and certificate settings required by your provider. Do not copy the local quick-start URL to a database reached over an untrusted network.
+## Backup
 
-## Backups
+Use [Backup and restore](/deployment/backup-and-restore). PostgreSQL backups and `security.data-key` are both required for full recovery.
 
-A basic logical backup:
+## Connection failures
 
-```bash
-pg_dump --format=custom --file=teldrive.dump 'postgres://teldrive:password@localhost:5432/teldrive'
-```
+Check:
 
-Restore to an isolated test database periodically. A backup you have never restored is only an assumption.
-
-Remember that encrypted Telegram credentials in the database also require the matching `security.data-key`. Back up that key independently.
-
-## What failure looks like
-
-If Teldrive cannot reach PostgreSQL during startup, it fails initialization rather than serving a partially functional application. Check:
-
-- hostname and port;
-- database/user names;
-- password escaping in the URL;
+- hostname/port from Teldrive's network namespace;
+- database, user, password, and URL escaping;
 - TLS mode;
 - firewall/container network;
-- PostgreSQL readiness;
-- connection limits.
+- PostgreSQL readiness and connection limits.
 
-Use `teldrive check` as the quickest configuration-and-dependency validation command.
+Validate with:
+
+```bash
+teldrive check
+```
