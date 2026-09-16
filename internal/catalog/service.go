@@ -285,8 +285,8 @@ func (s *Service) List(ctx context.Context, in ListInput) ([]*sqlcgen.File, erro
 	if in.Limit <= 0 {
 		in.Limit = 100
 	}
-	if in.Limit > 200 {
-		in.Limit = 200
+	if in.Limit > 500 {
+		in.Limit = 500
 	}
 	if in.SearchType == "" {
 		in.SearchType = "text"
