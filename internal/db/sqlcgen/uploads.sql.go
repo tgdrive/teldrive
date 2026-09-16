@@ -307,24 +307,21 @@ func (q *Queries) CreateUploadSession(ctx context.Context, arg CreateUploadSessi
 	return &i, err
 }
 
-const deleteUploadPartForCleanup = `-- name: DeleteUploadPartForCleanup :execrows
-DELETE FROM /* TEMPLATE: schema */upload_parts up
-USING /* TEMPLATE: schema */upload_sessions us
-WHERE up.upload_id = $1
-  AND up.part_no = $2
-  AND up.message_id = $3
-  AND us.id = up.upload_id
-  AND us.state IN ('aborted', 'expired')
+const deleteUploadPartsForCleanup = `-- name: DeleteUploadPartsForCleanup :execrows
+DELETE FROM /* TEMPLATE: schema */upload_parts AS part
+USING /* TEMPLATE: schema */upload_sessions AS session,
+      jsonb_to_recordset($1::jsonb) AS cleanup_part(
+        upload_id uuid, part_no integer, message_id bigint
+      )
+WHERE part.upload_id = cleanup_part.upload_id
+  AND part.part_no = cleanup_part.part_no
+  AND part.message_id = cleanup_part.message_id
+  AND session.id = part.upload_id
+  AND session.state IN ('aborted', 'expired')
 `
 
-type DeleteUploadPartForCleanupParams struct {
-	UploadID  pgtype.UUID `json:"upload_id"`
-	PartNo    int32       `json:"part_no"`
-	MessageID pgtype.Int8 `json:"message_id"`
-}
-
-func (q *Queries) DeleteUploadPartForCleanup(ctx context.Context, arg DeleteUploadPartForCleanupParams) (int64, error) {
-	result, err := q.db.Exec(ctx, deleteUploadPartForCleanup, arg.UploadID, arg.PartNo, arg.MessageID)
+func (q *Queries) DeleteUploadPartsForCleanup(ctx context.Context, parts []byte) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteUploadPartsForCleanup, parts)
 	if err != nil {
 		return 0, err
 	}
@@ -431,6 +428,86 @@ func (q *Queries) FinalizeUploadExpectedSize(ctx context.Context, arg FinalizeUp
 		&i.CompletedAt,
 	)
 	return &i, err
+}
+
+const findResumableUploadSessions = `-- name: FindResumableUploadSessions :many
+SELECT id, user_id, parent_id, name, normalized_name, expected_size, expected_hash_algorithm, expected_hash_value, mime_type, mod_time, encryption, encryption_key_version, conflict_policy, part_size, state, file_id, expires_at, created_at, updated_at, completed_at
+FROM /* TEMPLATE: schema */upload_sessions
+WHERE user_id = $1
+  AND parent_id IS NOT DISTINCT FROM $2::uuid
+  AND name = $3
+  AND expected_size = $4
+  AND encryption = $5
+  AND conflict_policy = 'replace'
+  AND expires_at > now()
+  AND state = 'open'
+  AND mime_type IS NOT DISTINCT FROM $6::text
+  AND (
+    NOT $7::boolean
+    OR abs(extract(epoch FROM (mod_time - $8::timestamptz))) <= 1
+  )
+ORDER BY created_at DESC, id DESC
+`
+
+type FindResumableUploadSessionsParams struct {
+	UserID       int64              `json:"user_id"`
+	ParentID     pgtype.UUID        `json:"parent_id"`
+	Name         string             `json:"name"`
+	ExpectedSize int64              `json:"expected_size"`
+	Encryption   bool               `json:"encryption"`
+	MimeType     pgtype.Text        `json:"mime_type"`
+	HasModTime   bool               `json:"has_mod_time"`
+	ModTime      pgtype.Timestamptz `json:"mod_time"`
+}
+
+func (q *Queries) FindResumableUploadSessions(ctx context.Context, arg FindResumableUploadSessionsParams) ([]*UploadSession, error) {
+	rows, err := q.db.Query(ctx, findResumableUploadSessions,
+		arg.UserID,
+		arg.ParentID,
+		arg.Name,
+		arg.ExpectedSize,
+		arg.Encryption,
+		arg.MimeType,
+		arg.HasModTime,
+		arg.ModTime,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*UploadSession{}
+	for rows.Next() {
+		var i UploadSession
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.ParentID,
+			&i.Name,
+			&i.NormalizedName,
+			&i.ExpectedSize,
+			&i.ExpectedHashAlgorithm,
+			&i.ExpectedHashValue,
+			&i.MimeType,
+			&i.ModTime,
+			&i.Encryption,
+			&i.EncryptionKeyVersion,
+			&i.ConflictPolicy,
+			&i.PartSize,
+			&i.State,
+			&i.FileID,
+			&i.ExpiresAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.CompletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getAllUploadPartSummary = `-- name: GetAllUploadPartSummary :one
@@ -864,18 +941,61 @@ func (q *Queries) ListUploadParts(ctx context.Context, arg ListUploadPartsParams
 	return items, nil
 }
 
-const listUploadPartsForCleanup = `-- name: ListUploadPartsForCleanup :many
-SELECT up.upload_id, up.part_no, up.channel_id, up.message_id, up.plain_size, up.stored_size, up.checksum, up.salt, up.state, up.lease_token, up.lease_expires_at, up.last_error_code, up.created_at, up.updated_at, up.block_hashes
-FROM /* TEMPLATE: schema */upload_parts up
-JOIN /* TEMPLATE: schema */upload_sessions us ON us.id = up.upload_id
-WHERE us.id = $1
-  AND us.state IN ('aborted', 'expired')
-  AND up.message_id IS NOT NULL
-ORDER BY up.part_no
+const listUploadPartsByUploadIDs = `-- name: ListUploadPartsByUploadIDs :many
+SELECT upload_id, part_no, channel_id, message_id, plain_size, stored_size, checksum, salt, state, lease_token, lease_expires_at, last_error_code, created_at, updated_at, block_hashes
+FROM /* TEMPLATE: schema */upload_parts
+WHERE upload_id = ANY($1::uuid[])
+ORDER BY upload_id, part_no
 `
 
-func (q *Queries) ListUploadPartsForCleanup(ctx context.Context, uploadID pgtype.UUID) ([]*UploadPart, error) {
-	rows, err := q.db.Query(ctx, listUploadPartsForCleanup, uploadID)
+func (q *Queries) ListUploadPartsByUploadIDs(ctx context.Context, uploadIds []pgtype.UUID) ([]*UploadPart, error) {
+	rows, err := q.db.Query(ctx, listUploadPartsByUploadIDs, uploadIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*UploadPart{}
+	for rows.Next() {
+		var i UploadPart
+		if err := rows.Scan(
+			&i.UploadID,
+			&i.PartNo,
+			&i.ChannelID,
+			&i.MessageID,
+			&i.PlainSize,
+			&i.StoredSize,
+			&i.Checksum,
+			&i.Salt,
+			&i.State,
+			&i.LeaseToken,
+			&i.LeaseExpiresAt,
+			&i.LastErrorCode,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.BlockHashes,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUploadPartsForCleanupMany = `-- name: ListUploadPartsForCleanupMany :many
+SELECT up.upload_id, up.part_no, up.channel_id, up.message_id, up.plain_size, up.stored_size, up.checksum, up.salt, up.state, up.lease_token, up.lease_expires_at, up.last_error_code, up.created_at, up.updated_at, up.block_hashes
+FROM /* TEMPLATE: schema */upload_parts AS up
+JOIN /* TEMPLATE: schema */upload_sessions AS us ON us.id = up.upload_id
+WHERE us.id = ANY($1::uuid[])
+  AND us.state IN ('aborted', 'expired')
+  AND up.message_id IS NOT NULL
+ORDER BY up.upload_id, up.channel_id, up.part_no
+`
+
+func (q *Queries) ListUploadPartsForCleanupMany(ctx context.Context, uploadIds []pgtype.UUID) ([]*UploadPart, error) {
+	rows, err := q.db.Query(ctx, listUploadPartsForCleanupMany, uploadIds)
 	if err != nil {
 		return nil, err
 	}

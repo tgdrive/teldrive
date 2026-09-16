@@ -103,6 +103,32 @@ func TestExplicitFullChannelDoesNotRollover(t *testing.T) {
 	}
 }
 
+func TestResolveManyAllocatesAcrossChannelCapacity(t *testing.T) {
+	db := testpostgres.New(t)
+	seedChannelOwner(t, db.Pool, 1001)
+	insertChannel(t, db.Pool, 1001, 9001, true)
+	insertStoredPart(t, db.Pool, 1001, 9001, 1)
+	creator := &fakeCreator{nextID: 9100}
+	svc := channels.NewService(db.Pool, creator, channels.Config{PartLimit: 2, AutoCreate: true})
+
+	resolved, err := svc.ResolveMany(context.Background(), 1001, 5)
+	if err != nil {
+		t.Fatalf("ResolveMany() error = %v", err)
+	}
+	want := []int64{9001, 9101, 9101, 9102, 9102}
+	if len(resolved) != len(want) {
+		t.Fatalf("resolved channels = %#v, want %#v", resolved, want)
+	}
+	for index := range want {
+		if resolved[index] != want[index] {
+			t.Fatalf("resolved channels = %#v, want %#v", resolved, want)
+		}
+	}
+	if creator.createCalls() != 2 {
+		t.Fatalf("created %d channels, want 2", creator.createCalls())
+	}
+}
+
 func TestRolloverCompensatesDatabaseFailure(t *testing.T) {
 	db := testpostgres.New(t)
 	seedChannelOwner(t, db.Pool, 1001)

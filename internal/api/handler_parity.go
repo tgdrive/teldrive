@@ -16,19 +16,12 @@ func (h *Handler) BulkMoveFiles(ctx context.Context, req *gen.FileBulkMoveReques
 		return nil, mapServiceError(ErrOperationUnavailable)
 	}
 	fileIDs := make([]uuid.UUID, 0, len(req.FileIds))
-	ownerID := int64(0)
 	for _, value := range req.FileIds {
-		fileID := googleUUID(value)
-		access, err := h.resolveAuthenticatedFileAccess(ctx, fileID, true)
-		if err != nil {
-			return nil, mapServiceError(err)
-		}
-		if ownerID == 0 {
-			ownerID = access.OwnerID
-		} else if ownerID != access.OwnerID {
-			return nil, mapServiceError(shares.ErrForbidden)
-		}
-		fileIDs = append(fileIDs, fileID)
+		fileIDs = append(fileIDs, googleUUID(value))
+	}
+	ownerID, _, err := h.resolveAuthenticatedFileAccessMany(ctx, fileIDs, true)
+	if err != nil {
+		return nil, mapServiceError(err)
 	}
 	parentID := optionalGoogleUUID(req.ParentId)
 	if parentID == nil {
@@ -65,22 +58,17 @@ func (h *Handler) BulkTrashFiles(ctx context.Context, req *gen.FileBulkTrashRequ
 		return nil, mapServiceError(ErrOperationUnavailable)
 	}
 	fileIDs := make([]uuid.UUID, 0, len(req.FileIds))
-	ownerID := int64(0)
 	for _, value := range req.FileIds {
-		fileID := googleUUID(value)
-		access, err := h.resolveAuthenticatedFileAccess(ctx, fileID, true)
-		if err != nil {
-			return nil, mapServiceError(err)
-		}
-		if !access.Owned && access.RootFileID == fileID {
+		fileIDs = append(fileIDs, googleUUID(value))
+	}
+	ownerID, accesses, err := h.resolveAuthenticatedFileAccessMany(ctx, fileIDs, true)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	for index, access := range accesses {
+		if !access.Owned && access.RootFileID == fileIDs[index] {
 			return nil, mapServiceError(shares.ErrForbidden)
 		}
-		if ownerID == 0 {
-			ownerID = access.OwnerID
-		} else if ownerID != access.OwnerID {
-			return nil, mapServiceError(shares.ErrForbidden)
-		}
-		fileIDs = append(fileIDs, fileID)
 	}
 	files, err := h.Catalog.BulkTrash(ctx, ownerID, fileIDs)
 	if err != nil {
@@ -91,6 +79,43 @@ func (h *Handler) BulkTrashFiles(ctx context.Context, req *gen.FileBulkTrashRequ
 		return nil, mapServiceError(err)
 	}
 	return &gen.FileBulkResult{Items: items}, nil
+}
+
+func (h *Handler) resolveAuthenticatedFileAccessMany(ctx context.Context, fileIDs []uuid.UUID, requireEdit bool) (int64, []*shares.Access, error) {
+	actorID, err := UserIDFromContext(ctx)
+	if err != nil {
+		return 0, nil, err
+	}
+	if len(fileIDs) == 0 {
+		return 0, nil, shares.ErrInvalidInput
+	}
+	var accesses []*shares.Access
+	if h.Shares != nil {
+		accesses, err = h.Shares.ResolveAccessMany(ctx, actorID, fileIDs, requireEdit)
+		if err != nil {
+			return 0, nil, err
+		}
+	} else {
+		if h.Catalog == nil {
+			return 0, nil, ErrOperationUnavailable
+		}
+		accesses = make([]*shares.Access, 0, len(fileIDs))
+		for _, fileID := range fileIDs {
+			if _, err := h.Catalog.Get(ctx, actorID, fileID); err != nil {
+				return 0, nil, err
+			}
+			accesses = append(accesses, &shares.Access{
+				OwnerID: actorID, RootFileID: fileID, Permission: sqlcgen.SharePermissionEdit, Owned: true,
+			})
+		}
+	}
+	ownerID := accesses[0].OwnerID
+	for _, access := range accesses[1:] {
+		if access.OwnerID != ownerID {
+			return 0, nil, shares.ErrForbidden
+		}
+	}
+	return ownerID, accesses, nil
 }
 
 func (h *Handler) GetFileCategoryStatistics(ctx context.Context) (gen.GetFileCategoryStatisticsRes, error) {

@@ -26,8 +26,8 @@ var (
 
 // RemoteChannel is the minimum Telegram metadata required for durable storage.
 type RemoteChannel struct {
-	ID   int64
-	Name string
+	ID   int64  `json:"channel_id"`
+	Name string `json:"name"`
 }
 
 // Creator performs Telegram-side channel lifecycle operations. Implementations
@@ -116,6 +116,120 @@ func (s *Service) Resolve(ctx context.Context, userID, requestedChannelID int64)
 		return 0, ErrAutoCreateOff
 	}
 	return s.rollover(ctx, userID)
+}
+
+// ResolveMany reserves channel capacity for count parts while holding the
+// rollover lock. The returned channel IDs correspond to parts in input order.
+func (s *Service) ResolveMany(ctx context.Context, userID int64, count int) (channelIDs []int64, err error) {
+	if userID <= 0 {
+		return nil, ErrInvalidOwner
+	}
+	if count <= 0 {
+		return []int64{}, nil
+	}
+	conn, err := s.pool.Acquire(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("acquire channel allocation connection: %w", err)
+	}
+	defer conn.Release()
+	lockID := advisoryLockID(userID)
+	queries := sqlcgen.New(conn)
+	if err := queries.AcquireAdvisoryLock(ctx, lockID); err != nil {
+		return nil, fmt.Errorf("acquire channel allocation lock: %w", err)
+	}
+	defer func() {
+		unlockCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if _, unlockErr := queries.ReleaseAdvisoryLock(unlockCtx, lockID); unlockErr != nil && err == nil {
+			err = fmt.Errorf("release channel allocation lock: %w", unlockErr)
+		}
+	}()
+
+	selected, selectedErr := queries.GetSelectedChannel(ctx, userID)
+	if selectedErr != nil && !errors.Is(selectedErr, pgx.ErrNoRows) {
+		return nil, fmt.Errorf("get selected channel for allocation: %w", selectedErr)
+	}
+	for len(channelIDs) < count {
+		var channelID int64
+		used := int64(0)
+		if selectedErr == nil && selected.Health != sqlcgen.ChannelHealthUnavailable {
+			channelID = selected.ChannelID
+			if s.config.PartLimit > 0 {
+				used, err = queries.CountChannelStoredMessages(ctx, channelID)
+				if err != nil {
+					return nil, fmt.Errorf("count channel parts: %w", err)
+				}
+			}
+		}
+		capacity := count - len(channelIDs)
+		if channelID != 0 && s.config.PartLimit > 0 {
+			capacity = int(max(s.config.PartLimit-used, 0))
+			capacity = min(capacity, count-len(channelIDs))
+		}
+		if channelID != 0 && capacity > 0 {
+			for range capacity {
+				channelIDs = append(channelIDs, channelID)
+			}
+			if len(channelIDs) < count {
+				selected.Health = sqlcgen.ChannelHealthUnavailable
+			}
+			continue
+		}
+		if !s.config.AutoCreate {
+			if errors.Is(selectedErr, pgx.ErrNoRows) {
+				return nil, ErrNoSelected
+			}
+			return nil, ErrAutoCreateOff
+		}
+		selected, err = s.createSelectedChannel(ctx, conn, queries, userID)
+		if err != nil {
+			return nil, err
+		}
+		selectedErr = nil
+	}
+	return channelIDs, nil
+}
+
+func (s *Service) createSelectedChannel(ctx context.Context, conn *pgxpool.Conn, queries *sqlcgen.Queries, userID int64) (*sqlcgen.Channel, error) {
+	if s.creator == nil {
+		return nil, errors.New("Telegram channel creator is not configured")
+	}
+	name := fmt.Sprintf("%s_%s", strings.TrimSpace(s.config.NamePrefix), s.now().UTC().Format("20060102_150405"))
+	remote, err := s.creator.Create(ctx, userID, name)
+	if err != nil {
+		return nil, fmt.Errorf("create Telegram channel: %w", err)
+	}
+	if remote.ID == 0 {
+		return nil, errors.New("Telegram returned an empty channel id")
+	}
+	if strings.TrimSpace(remote.Name) == "" {
+		remote.Name = name
+	}
+	tx, err := conn.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		s.compensateDelete(userID, remote.ID)
+		return nil, fmt.Errorf("begin channel allocation transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+	q := queries.WithTx(tx)
+	if err := q.ClearSelectedChannel(ctx, userID); err != nil {
+		s.compensateDelete(userID, remote.ID)
+		return nil, fmt.Errorf("clear selected channel: %w", err)
+	}
+	if _, err := q.CreateChannel(ctx, sqlcgen.CreateChannelParams{ChannelID: remote.ID, UserID: userID, Name: remote.Name}); err != nil {
+		s.compensateDelete(userID, remote.ID)
+		return nil, fmt.Errorf("create channel record: %w", err)
+	}
+	selected, err := q.SelectChannel(ctx, sqlcgen.SelectChannelParams{UserID: userID, ChannelID: remote.ID})
+	if err != nil {
+		s.compensateDelete(userID, remote.ID)
+		return nil, fmt.Errorf("select channel record: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		s.compensateDelete(userID, remote.ID)
+		return nil, fmt.Errorf("commit channel allocation: %w", err)
+	}
+	return selected, nil
 }
 
 func (s *Service) limitReached(ctx context.Context, channelID int64) (bool, error) {

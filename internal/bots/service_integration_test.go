@@ -6,11 +6,59 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"testing"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/tgdrive/teldrive/v2/internal/secureblob"
 	testpostgres "github.com/tgdrive/teldrive/v2/internal/testutil/postgres"
+	"github.com/tgdrive/teldrive/v2/internal/testutil/querytrace"
 )
+
+func TestInsertPendingUsesOneBulkQuery(t *testing.T) {
+	db := testpostgres.New(t)
+	ctx := context.Background()
+	if _, err := db.Pool.Exec(ctx, "INSERT INTO users (user_id) VALUES (1001)"); err != nil {
+		t.Fatal(err)
+	}
+	tokens := make([]string, 500)
+	for index := range tokens {
+		tokens[index] = fmt.Sprintf("%d:secret-token", 10_000+index)
+	}
+	cipher, err := secureblob.NewWithKey(bytes.Repeat([]byte{2}, 32), bytes.NewReader(bytes.Repeat([]byte{4}, 24*len(tokens))))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tracer := &querytrace.Counter{}
+	config, err := pgxpool.ParseConfig(db.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	config.ConnConfig.Tracer = tracer
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	service, err := NewService(pool, cipher, &fakeVerifier{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rows, err := service.InsertPending(ctx, 1001, tokens)
+	if err != nil {
+		t.Fatalf("InsertPending() error = %v", err)
+	}
+	if len(rows) != len(tokens) {
+		t.Fatalf("inserted bots = %d, want %d", len(rows), len(tokens))
+	}
+	if got := tracer.Count("InsertPendingBots"); got != 1 {
+		t.Fatalf("InsertPendingBots queries = %d, want 1", got)
+	}
+	if got := tracer.Count("InsertPendingBot") + tracer.Count("GetBot"); got != 0 {
+		t.Fatalf("per-bot queries = %d, want 0", got)
+	}
+}
 
 func TestBotCRUDEncryptsTokenAgainstRealPostgres(t *testing.T) {
 	db := testpostgres.New(t)

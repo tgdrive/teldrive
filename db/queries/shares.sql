@@ -196,11 +196,66 @@ FROM /* TEMPLATE: schema */files
 WHERE id = sqlc.arg(file_id)
   AND status = 'active';
 
--- name: ListActiveFileAccessGrantsForGrantee :many
-SELECT *
-FROM /* TEMPLATE: schema */file_access_grants
-WHERE grantee_id = sqlc.arg(grantee_id)
-  AND owner_id = sqlc.arg(owner_id)
-  AND revoked_at IS NULL
-  AND (expires_at IS NULL OR expires_at > now())
-ORDER BY (permission = 'edit') DESC, created_at DESC;
+-- name: ListActiveFileIDsAnyOwner :many
+SELECT id
+FROM /* TEMPLATE: schema */files
+WHERE id = ANY(sqlc.arg(file_ids)::uuid[])
+  AND status = 'active';
+
+-- name: ResolveFileAccessMany :many
+WITH RECURSIVE params AS (
+  SELECT sqlc.arg(file_ids)::uuid[] AS file_ids,
+         sqlc.arg(actor_id)::bigint AS actor_id,
+         sqlc.arg(require_edit)::boolean AS require_edit
+), ancestors AS (
+  SELECT target.id AS target_file_id,
+         target.id AS ancestor_file_id,
+         target.parent_id,
+         target.user_id AS owner_id
+  FROM /* TEMPLATE: schema */files AS target
+  CROSS JOIN params
+  WHERE target.id = ANY(params.file_ids)
+    AND target.status = 'active'
+  UNION ALL
+  SELECT ancestors.target_file_id,
+         parent.id,
+         parent.parent_id,
+         ancestors.owner_id
+  FROM /* TEMPLATE: schema */files AS parent
+  JOIN ancestors ON parent.id = ancestors.parent_id
+  WHERE parent.user_id = ancestors.owner_id
+), candidates AS (
+  SELECT ancestors.target_file_id,
+         ancestors.owner_id,
+         ancestors.target_file_id AS root_file_id,
+         'edit'::/* TEMPLATE: schema */share_permission AS permission,
+         true AS owned,
+         NULL::timestamptz AS grant_created_at
+  FROM ancestors
+  CROSS JOIN params
+  WHERE ancestors.target_file_id = ancestors.ancestor_file_id
+    AND ancestors.owner_id = params.actor_id
+  UNION ALL
+  SELECT ancestors.target_file_id,
+         ancestors.owner_id,
+         access_grant.file_id AS root_file_id,
+         access_grant.permission,
+         false AS owned,
+         access_grant.created_at AS grant_created_at
+  FROM ancestors
+  JOIN /* TEMPLATE: schema */file_access_grants AS access_grant
+    ON access_grant.file_id = ancestors.ancestor_file_id
+   AND access_grant.owner_id = ancestors.owner_id
+  CROSS JOIN params
+  WHERE access_grant.grantee_id = params.actor_id
+    AND access_grant.revoked_at IS NULL
+    AND (access_grant.expires_at IS NULL OR access_grant.expires_at > now())
+    AND (NOT params.require_edit OR access_grant.permission = 'edit')
+)
+SELECT DISTINCT ON (target_file_id)
+       target_file_id, owner_id, root_file_id, permission, owned
+FROM candidates
+ORDER BY target_file_id,
+         owned DESC,
+         (permission = 'edit') DESC,
+         grant_created_at DESC NULLS LAST;

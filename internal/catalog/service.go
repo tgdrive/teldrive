@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -200,6 +201,38 @@ func (s *Service) UpdatePartSizes(ctx context.Context, fileID uuid.UUID, partNo 
 	_, err := s.queries.UpdateFilePartSizes(ctx, sqlcgen.UpdateFilePartSizesParams{
 		FileID: dbtypes.UUID(fileID), PartNo: partNo,
 		PlainSize: dbtypes.Int8(plainSize), StoredSize: dbtypes.Int8(storedSize),
+	})
+	if err != nil {
+		return fmt.Errorf("update file part sizes: %w", err)
+	}
+	if s.cache != nil {
+		stripe := s.cacheStripe(fileID)
+		stripe.Lock()
+		_ = s.cache.Delete(ctx, s.cacheKey("catalog", "parts", fileID.String()))
+		stripe.Unlock()
+	}
+	return nil
+}
+
+func (s *Service) UpdatePartSizesMany(ctx context.Context, fileID uuid.UUID, sizes map[int32][2]int64) error {
+	if len(sizes) == 0 {
+		return nil
+	}
+	type partSizeRecord struct {
+		PartNo     int32 `json:"part_no"`
+		PlainSize  int64 `json:"plain_size"`
+		StoredSize int64 `json:"stored_size"`
+	}
+	records := make([]partSizeRecord, 0, len(sizes))
+	for partNo, partSizes := range sizes {
+		records = append(records, partSizeRecord{PartNo: partNo, PlainSize: partSizes[0], StoredSize: partSizes[1]})
+	}
+	encoded, err := json.Marshal(records)
+	if err != nil {
+		return fmt.Errorf("encode file part sizes: %w", err)
+	}
+	_, err = s.queries.UpdateFilePartSizesMany(ctx, sqlcgen.UpdateFilePartSizesManyParams{
+		FileID: dbtypes.UUID(fileID), Parts: encoded,
 	})
 	if err != nil {
 		return fmt.Errorf("update file part sizes: %w", err)

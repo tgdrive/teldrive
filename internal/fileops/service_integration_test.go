@@ -21,7 +21,71 @@ import (
 	"github.com/tgdrive/teldrive/v2/internal/dbtypes"
 	"github.com/tgdrive/teldrive/v2/internal/telegramstore"
 	testpostgres "github.com/tgdrive/teldrive/v2/internal/testutil/postgres"
+	"github.com/tgdrive/teldrive/v2/internal/testutil/querytrace"
 )
+
+func TestCopyWideFolderUsesSetBasedCatalogQueries(t *testing.T) {
+	db := testpostgres.New(t)
+	ctx := context.Background()
+	if _, err := db.Pool.Exec(ctx, "INSERT INTO users (user_id) VALUES (1001)"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Pool.Exec(ctx, "INSERT INTO channels (channel_id,user_id,name,selected) VALUES (9001,1001,'storage',true)"); err != nil {
+		t.Fatal(err)
+	}
+	sourceID, destinationID := uuid.New(), uuid.New()
+	if _, err := db.Pool.Exec(ctx, `
+INSERT INTO files (id,user_id,name,normalized_name,kind,encryption,status,mod_time)
+VALUES ($1,1001,'source','source','folder',false,'active',now()),
+       ($2,1001,'destination','destination','folder',false,'active',now())`, sourceID, destinationID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Pool.Exec(ctx, `
+WITH children AS (
+  INSERT INTO files (user_id,parent_id,name,normalized_name,kind,size,encryption,status,mod_time)
+  SELECT 1001, $1, 'child-' || value, 'child-' || value, 'file', 1, false, 'active', now()
+  FROM generate_series(1, 1000) AS value
+  RETURNING id
+)
+INSERT INTO file_parts (file_id,part_no,channel_id,message_id,plain_size,stored_size,checksum,block_hashes)
+SELECT id, 1, 9001, row_number() OVER ()::bigint, 1, 1, repeat('a',64), decode(repeat('ab',32),'hex')
+FROM children`, sourceID); err != nil {
+		t.Fatal(err)
+	}
+	messages := make(map[int64][]byte, 1000)
+	for id := int64(1); id <= 1000; id++ {
+		messages[id] = []byte{'x'}
+	}
+	storage := &fileStorage{messages: messages, nextID: 1000}
+	tracer := &querytrace.Counter{}
+	config, err := pgxpool.ParseConfig(db.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	config.ConnConfig.Tracer = tracer
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	service, err := NewService(pool, catalog.NewService(pool, nil), channels.NewService(pool, nil, channels.Config{PartLimit: 2000}), storage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Copy(ctx, CopyInput{UserID: 1001, FileID: sourceID, ParentID: &destinationID}); err != nil {
+		t.Fatalf("Copy() error = %v", err)
+	}
+	for _, name := range []string{"ListFilePartsByFileIDs", "GetSelectedChannel", "CountChannelStoredMessages", "InsertCopiedFiles", "InsertCopiedFileParts"} {
+		if got := tracer.Count(name); got != 1 {
+			t.Fatalf("%s queries = %d, want 1", name, got)
+		}
+	}
+	for _, name := range []string{"ListFileParts", "InsertCopiedFile", "InsertCopiedFilePart"} {
+		if got := tracer.Count(name); got != 0 {
+			t.Fatalf("%s queries = %d, want 0", name, got)
+		}
+	}
+}
 
 func TestCleanTrashMarksAllUserTrashDeletionPending(t *testing.T) {
 	db := testpostgres.New(t)

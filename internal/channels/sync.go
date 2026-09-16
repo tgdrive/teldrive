@@ -2,6 +2,7 @@ package channels
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -41,18 +42,30 @@ func (s *Service) Sync(ctx context.Context, userID int64, remote []RemoteChannel
 	}
 	defer tx.Rollback(ctx)
 	queries := s.queries.WithTx(tx)
-	rows := make([]*sqlcgen.Channel, 0, len(items))
-	for _, channel := range items {
-		row, err := queries.UpsertDiscoveredChannel(ctx, sqlcgen.UpsertDiscoveredChannelParams{
-			ChannelID: channel.ID, UserID: userID, Name: channel.Name,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("upsert discovered channel %d: %w", channel.ID, err)
-		}
-		rows = append(rows, row)
+	encoded, err := json.Marshal(items)
+	if err != nil {
+		return nil, fmt.Errorf("encode discovered channels: %w", err)
+	}
+	inserted, err := queries.UpsertDiscoveredChannels(ctx, sqlcgen.UpsertDiscoveredChannelsParams{
+		UserID: userID, Channels: encoded,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("upsert discovered channels: %w", err)
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("commit channel sync: %w", err)
+	}
+	byID := make(map[int64]*sqlcgen.Channel, len(inserted))
+	for _, row := range inserted {
+		byID[row.ChannelID] = row
+	}
+	rows := make([]*sqlcgen.Channel, 0, len(items))
+	for _, item := range items {
+		row := byID[item.ID]
+		if row == nil {
+			return nil, ErrInvalidChannel
+		}
+		rows = append(rows, row)
 	}
 	return rows, nil
 }

@@ -257,33 +257,54 @@ func (q *Queries) GetSelectedChannel(ctx context.Context, userID int64) (*Channe
 	return &i, err
 }
 
-const insertPendingBot = `-- name: InsertPendingBot :execrows
-INSERT INTO /* TEMPLATE: schema */bots (
-    bot_id,
-    user_id,
-    token_ciphertext,
-    enabled
-) VALUES (
-    $1,
-    $2,
-    $3,
-    FALSE
+const insertPendingBots = `-- name: InsertPendingBots :many
+INSERT INTO /* TEMPLATE: schema */bots AS bot (
+    bot_id, user_id, token_ciphertext, enabled
+)
+SELECT input.bot_id, $1, decode(input.token_ciphertext, 'base64'), false
+FROM jsonb_to_recordset($2::jsonb) AS input(
+    bot_id bigint, token_ciphertext text
 )
 ON CONFLICT (user_id, bot_id) DO NOTHING
+RETURNING bot.bot_id, bot.user_id, bot.username, bot.token_ciphertext, bot.enabled, bot.session, bot.consecutive_failures, bot.last_error, bot.last_used_at, bot.retry_after, bot.created_at, bot.updated_at
 `
 
-type InsertPendingBotParams struct {
-	BotID           int64  `json:"bot_id"`
-	UserID          int64  `json:"user_id"`
-	TokenCiphertext []byte `json:"token_ciphertext"`
+type InsertPendingBotsParams struct {
+	UserID int64  `json:"user_id"`
+	Bots   []byte `json:"bots"`
 }
 
-func (q *Queries) InsertPendingBot(ctx context.Context, arg InsertPendingBotParams) (int64, error) {
-	result, err := q.db.Exec(ctx, insertPendingBot, arg.BotID, arg.UserID, arg.TokenCiphertext)
+func (q *Queries) InsertPendingBots(ctx context.Context, arg InsertPendingBotsParams) ([]*Bot, error) {
+	rows, err := q.db.Query(ctx, insertPendingBots, arg.UserID, arg.Bots)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
-	return result.RowsAffected(), nil
+	defer rows.Close()
+	items := []*Bot{}
+	for rows.Next() {
+		var i Bot
+		if err := rows.Scan(
+			&i.BotID,
+			&i.UserID,
+			&i.Username,
+			&i.TokenCiphertext,
+			&i.Enabled,
+			&i.Session,
+			&i.ConsecutiveFailures,
+			&i.LastError,
+			&i.LastUsedAt,
+			&i.RetryAfter,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listBots = `-- name: ListBots :many
@@ -744,44 +765,50 @@ func (q *Queries) UpdateChannelHealth(ctx context.Context, arg UpdateChannelHeal
 	return &i, err
 }
 
-const upsertDiscoveredChannel = `-- name: UpsertDiscoveredChannel :one
-INSERT INTO /* TEMPLATE: schema */channels (
-    channel_id,
-    user_id,
-    name,
-    selected,
-    health
-) VALUES (
-    $1,
-    $2,
-    $3,
-    FALSE,
-    'unknown'
+const upsertDiscoveredChannels = `-- name: UpsertDiscoveredChannels :many
+INSERT INTO /* TEMPLATE: schema */channels AS channel (
+    channel_id, user_id, name, selected, health
+)
+SELECT input.channel_id, $1, input.name, false, 'unknown'
+FROM jsonb_to_recordset($2::jsonb) AS input(
+    channel_id bigint, name text
 )
 ON CONFLICT (user_id, channel_id) DO UPDATE
 SET name = EXCLUDED.name,
     updated_at = now()
-RETURNING channel_id, user_id, name, selected, health, last_checked_at, created_at, updated_at
+RETURNING channel.channel_id, channel.user_id, channel.name, channel.selected, channel.health, channel.last_checked_at, channel.created_at, channel.updated_at
 `
 
-type UpsertDiscoveredChannelParams struct {
-	ChannelID int64  `json:"channel_id"`
-	UserID    int64  `json:"user_id"`
-	Name      string `json:"name"`
+type UpsertDiscoveredChannelsParams struct {
+	UserID   int64  `json:"user_id"`
+	Channels []byte `json:"channels"`
 }
 
-func (q *Queries) UpsertDiscoveredChannel(ctx context.Context, arg UpsertDiscoveredChannelParams) (*Channel, error) {
-	row := q.db.QueryRow(ctx, upsertDiscoveredChannel, arg.ChannelID, arg.UserID, arg.Name)
-	var i Channel
-	err := row.Scan(
-		&i.ChannelID,
-		&i.UserID,
-		&i.Name,
-		&i.Selected,
-		&i.Health,
-		&i.LastCheckedAt,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return &i, err
+func (q *Queries) UpsertDiscoveredChannels(ctx context.Context, arg UpsertDiscoveredChannelsParams) ([]*Channel, error) {
+	rows, err := q.db.Query(ctx, upsertDiscoveredChannels, arg.UserID, arg.Channels)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*Channel{}
+	for rows.Next() {
+		var i Channel
+		if err := rows.Scan(
+			&i.ChannelID,
+			&i.UserID,
+			&i.Name,
+			&i.Selected,
+			&i.Health,
+			&i.LastCheckedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }

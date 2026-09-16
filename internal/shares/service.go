@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 
@@ -529,42 +530,67 @@ func (s *Service) ResolveAccess(ctx context.Context, actorID int64, fileID uuid.
 	if actorID <= 0 || fileID == uuid.Nil {
 		return nil, ErrInvalidInput
 	}
-	file, err := s.queries.GetActiveFileAnyOwner(ctx, dbtypes.UUID(fileID))
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrNotFound
-	}
+	access, err := s.ResolveAccessMany(ctx, actorID, []uuid.UUID{fileID}, requireEdit)
 	if err != nil {
-		return nil, fmt.Errorf("resolve file owner: %w", err)
+		return nil, err
 	}
-	if file.UserID == actorID {
-		return &Access{OwnerID: actorID, RootFileID: fileID, Permission: sqlcgen.SharePermissionEdit, Owned: true}, nil
+	return access[0], nil
+}
+
+func (s *Service) ResolveAccessMany(ctx context.Context, actorID int64, fileIDs []uuid.UUID, requireEdit bool) ([]*Access, error) {
+	if actorID <= 0 || len(fileIDs) == 0 {
+		return nil, ErrInvalidInput
 	}
-	grants, err := s.queries.ListActiveFileAccessGrantsForGrantee(ctx, sqlcgen.ListActiveFileAccessGrantsForGranteeParams{GranteeID: actorID, OwnerID: file.UserID})
-	if err != nil {
-		return nil, fmt.Errorf("list effective access grants: %w", err)
-	}
-	for _, grant := range grants {
-		if requireEdit && grant.Permission != sqlcgen.SharePermissionEdit {
+	unique := make([]uuid.UUID, 0, len(fileIDs))
+	seen := make(map[uuid.UUID]struct{}, len(fileIDs))
+	for _, fileID := range fileIDs {
+		if fileID == uuid.Nil {
+			return nil, ErrInvalidInput
+		}
+		if _, ok := seen[fileID]; ok {
 			continue
 		}
-		rootID, ok := dbtypes.GoogleUUID(grant.FileID)
-		if !ok {
-			continue
-		}
-		if rootID == fileID {
-			return &Access{OwnerID: file.UserID, RootFileID: rootID, Permission: grant.Permission}, nil
-		}
-		ids, err := s.queries.ListFileSubtreeIDs(ctx, sqlcgen.ListFileSubtreeIDsParams{FileID: grant.FileID, UserID: file.UserID})
-		if err != nil {
-			return nil, fmt.Errorf("resolve grant subtree: %w", err)
-		}
-		for _, id := range ids {
-			if candidate, ok := dbtypes.GoogleUUID(id); ok && candidate == fileID {
-				return &Access{OwnerID: file.UserID, RootFileID: rootID, Permission: grant.Permission}, nil
-			}
-		}
+		seen[fileID] = struct{}{}
+		unique = append(unique, fileID)
 	}
-	return nil, ErrForbidden
+	rows, err := s.queries.ResolveFileAccessMany(ctx, sqlcgen.ResolveFileAccessManyParams{
+		FileIds: shareUUIDs(unique), ActorID: actorID, RequireEdit: requireEdit,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("resolve file access: %w", err)
+	}
+	byID := make(map[uuid.UUID]*Access, len(rows))
+	for _, row := range rows {
+		fileID, fileOK := dbtypes.GoogleUUID(row.TargetFileID)
+		rootID, rootOK := dbtypes.GoogleUUID(row.RootFileID)
+		if !fileOK || !rootOK {
+			return nil, ErrNotFound
+		}
+		byID[fileID] = &Access{OwnerID: row.OwnerID, RootFileID: rootID, Permission: row.Permission, Owned: row.Owned}
+	}
+	if len(byID) != len(unique) {
+		activeIDs, loadErr := s.queries.ListActiveFileIDsAnyOwner(ctx, shareUUIDs(unique))
+		if loadErr != nil {
+			return nil, fmt.Errorf("resolve file access targets: %w", loadErr)
+		}
+		if len(activeIDs) != len(unique) {
+			return nil, ErrNotFound
+		}
+		return nil, ErrForbidden
+	}
+	result := make([]*Access, 0, len(fileIDs))
+	for _, fileID := range fileIDs {
+		result = append(result, byID[fileID])
+	}
+	return result, nil
+}
+
+func shareUUIDs(ids []uuid.UUID) []pgtype.UUID {
+	result := make([]pgtype.UUID, len(ids))
+	for index, id := range ids {
+		result[index] = dbtypes.UUID(id)
+	}
+	return result
 }
 
 func (s *Service) ResolvePublicEditableFile(ctx context.Context, token, password string, fileID uuid.UUID) (*Public, error) {

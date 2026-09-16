@@ -16,6 +16,7 @@ import (
 	"github.com/tgdrive/teldrive/v2/internal/jobs"
 	"github.com/tgdrive/teldrive/v2/internal/telegramstore"
 	testpostgres "github.com/tgdrive/teldrive/v2/internal/testutil/postgres"
+	"github.com/tgdrive/teldrive/v2/internal/testutil/querytrace"
 	"github.com/tgdrive/teldrive/v2/internal/treehash"
 	"github.com/tgdrive/teldrive/v2/internal/uploads"
 )
@@ -141,8 +142,19 @@ FROM sessions
 		t.Fatal(err)
 	}
 
+	tracer := &querytrace.Counter{}
+	config, err := pgxpool.ParseConfig(db.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	config.ConnConfig.Tracer = tracer
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
 	storage := &cleanupStorage{}
-	worker := jobs.NewUploadCleanupWorker(db.Pool, storage)
+	worker := jobs.NewUploadCleanupWorker(pool, storage)
 	if err := worker.Work(ctx, &river.Job[jobs.CleanupSweepArgs]{Args: jobs.CleanupSweepArgs{}}); err != nil {
 		t.Fatalf("Work() error = %v", err)
 	}
@@ -155,6 +167,15 @@ FROM sessions
 	}
 	if remaining != 0 {
 		t.Fatalf("remaining upload parts = %d, want 0", remaining)
+	}
+	if got := tracer.Count("ListUploadPartsForCleanupMany"); got != 2 {
+		t.Fatalf("ListUploadPartsForCleanupMany queries = %d, want 2", got)
+	}
+	if got := tracer.Count("DeleteUploadPartsForCleanup"); got != 2 {
+		t.Fatalf("DeleteUploadPartsForCleanup queries = %d, want 2", got)
+	}
+	if got := tracer.Count("DeleteUploadPartForCleanup"); got != 0 {
+		t.Fatalf("DeleteUploadPartForCleanup queries = %d, want 0", got)
 	}
 }
 

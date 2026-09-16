@@ -5,11 +5,49 @@ package channels_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/tgdrive/teldrive/v2/internal/channels"
 	testpostgres "github.com/tgdrive/teldrive/v2/internal/testutil/postgres"
+	"github.com/tgdrive/teldrive/v2/internal/testutil/querytrace"
 )
+
+func TestSyncUsesOneUpsertForWideDiscovery(t *testing.T) {
+	db := testpostgres.New(t)
+	ctx := context.Background()
+	seedChannelOwner(t, db.Pool, 1001)
+	remote := make([]channels.RemoteChannel, 500)
+	for index := range remote {
+		remote[index] = channels.RemoteChannel{ID: int64(10_000 + index), Name: fmt.Sprintf("channel-%03d", index)}
+	}
+	tracer := &querytrace.Counter{}
+	config, err := pgxpool.ParseConfig(db.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	config.ConnConfig.Tracer = tracer
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	rows, err := channels.NewService(pool, nil, channels.Config{}).Sync(ctx, 1001, remote)
+	if err != nil {
+		t.Fatalf("Sync() error = %v", err)
+	}
+	if len(rows) != len(remote) {
+		t.Fatalf("synced channels = %d, want %d", len(rows), len(remote))
+	}
+	if got := tracer.Count("UpsertDiscoveredChannels"); got != 1 {
+		t.Fatalf("UpsertDiscoveredChannels queries = %d, want 1", got)
+	}
+	if got := tracer.Count("UpsertDiscoveredChannel"); got != 0 {
+		t.Fatalf("UpsertDiscoveredChannel queries = %d, want 0", got)
+	}
+}
 
 func TestSyncDeduplicatesSortsAndUpdatesChannels(t *testing.T) {
 	db := testpostgres.New(t)

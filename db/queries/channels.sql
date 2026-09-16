@@ -81,19 +81,16 @@ WHERE user_id = sqlc.arg(user_id)
 ORDER BY created_at DESC, bot_id DESC
 LIMIT sqlc.arg(page_size);
 
--- name: InsertPendingBot :execrows
-INSERT INTO /* TEMPLATE: schema */bots (
-    bot_id,
-    user_id,
-    token_ciphertext,
-    enabled
-) VALUES (
-    sqlc.arg(bot_id),
-    sqlc.arg(user_id),
-    sqlc.arg(token_ciphertext),
-    FALSE
+-- name: InsertPendingBots :many
+INSERT INTO /* TEMPLATE: schema */bots AS bot (
+    bot_id, user_id, token_ciphertext, enabled
 )
-ON CONFLICT (user_id, bot_id) DO NOTHING;
+SELECT input.bot_id, sqlc.arg(user_id), decode(input.token_ciphertext, 'base64'), false
+FROM jsonb_to_recordset(sqlc.arg(bots)::jsonb) AS input(
+    bot_id bigint, token_ciphertext text
+)
+ON CONFLICT (user_id, bot_id) DO NOTHING
+RETURNING bot.*;
 
 -- name: GetBot :one
 SELECT *
@@ -194,24 +191,18 @@ FROM (
       AND up.message_id = ANY(sqlc.arg(message_ids)::bigint[])
 ) AS referenced_messages;
 
--- name: UpsertDiscoveredChannel :one
-INSERT INTO /* TEMPLATE: schema */channels (
-    channel_id,
-    user_id,
-    name,
-    selected,
-    health
-) VALUES (
-    sqlc.arg(channel_id),
-    sqlc.arg(user_id),
-    sqlc.arg(name),
-    FALSE,
-    'unknown'
+-- name: UpsertDiscoveredChannels :many
+INSERT INTO /* TEMPLATE: schema */channels AS channel (
+    channel_id, user_id, name, selected, health
+)
+SELECT input.channel_id, sqlc.arg(user_id), input.name, false, 'unknown'
+FROM jsonb_to_recordset(sqlc.arg(channels)::jsonb) AS input(
+    channel_id bigint, name text
 )
 ON CONFLICT (user_id, channel_id) DO UPDATE
 SET name = EXCLUDED.name,
     updated_at = now()
-RETURNING *;
+RETURNING channel.*;
 
 -- name: UpdateBotSession :execrows
 UPDATE /* TEMPLATE: schema */bots

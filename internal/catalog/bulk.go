@@ -153,82 +153,134 @@ func (s *Service) bulkMove(ctx context.Context, userID int64, rawIDs []uuid.UUID
 		if parentID != nil && id == *parentID {
 			return nil, ErrCycle
 		}
-		if locked[id].Kind == sqlcgen.FileKindFolder && parentID != nil {
-			cycle, err := subtreeContains(ctx, queries, userID, id, *parentID)
-			if err != nil {
-				return nil, err
-			}
-			if cycle {
+	}
+	if parentID != nil {
+		ancestorIDs, err := queries.ListFileAncestorIDs(ctx, sqlcgen.ListFileAncestorIDsParams{
+			FileID: dbtypes.UUID(*parentID), UserID: userID,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("list bulk move destination ancestors: %w", err)
+		}
+		for _, ancestorID := range ancestorIDs {
+			id, ok := dbtypes.GoogleUUID(ancestorID)
+			if ok && locked[id] != nil && locked[id].Kind == sqlcgen.FileKindFolder {
 				return nil, ErrCycle
 			}
 		}
 	}
 
-	result := make([]*sqlcgen.File, 0, len(ids))
-	invalidated := make([]uuid.UUID, 0)
-	for _, id := range ids {
+	destination, err := queries.LockActiveDestinationEntries(ctx, sqlcgen.LockActiveDestinationEntriesParams{
+		UserID: userID, ParentID: dbtypes.OptionalUUID(parentID),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("lock bulk move destination entries: %w", err)
+	}
+	usedNames := make(map[string]struct{}, len(destination)+len(ids))
+	conflicts := make(map[string]uuid.UUID, len(destination))
+	for _, entry := range destination {
+		entryID, ok := dbtypes.GoogleUUID(entry.ID)
+		if !ok {
+			return nil, ErrConflict
+		}
+		usedNames[entry.NormalizedName] = struct{}{}
+		conflicts[entry.NormalizedName] = entryID
+	}
+
+	names := make([]string, len(ids))
+	normalizedNames := make([]string, len(ids))
+	replacedSet := make(map[uuid.UUID]struct{})
+	for index, id := range ids {
 		file := locked[id]
 		name, normalized := file.Name, file.NormalizedName
-		conflict, conflictErr := queries.LockActiveNameConflict(ctx, sqlcgen.LockActiveNameConflictParams{
-			UserID: userID, ParentID: dbtypes.OptionalUUID(parentID), NormalizedName: normalized, ExcludeID: dbtypes.UUID(id),
-		})
-		if conflictErr != nil && !errors.Is(conflictErr, pgx.ErrNoRows) {
-			return nil, fmt.Errorf("check bulk move conflict: %w", conflictErr)
+		if occupant, occupied := conflicts[normalized]; occupied && occupant == id {
+			delete(usedNames, normalized)
+			delete(conflicts, normalized)
 		}
-		if conflictErr == nil {
-			conflictID, ok := fileUUID(conflict)
-			if !ok {
-				return nil, ErrConflict
-			}
+		_, nameUsed := usedNames[normalized]
+		if nameUsed {
 			switch policy {
 			case "fail":
 				return nil, ErrConflict
 			case "replace":
-				if _, partOfRequest := requested[conflictID]; partOfRequest {
+				conflictID, exists := conflicts[normalized]
+				if !exists {
 					return nil, ErrConflict
 				}
-				replacedIDs, err := queries.ListFileSubtreeIDs(ctx, sqlcgen.ListFileSubtreeIDsParams{
-					FileID: dbtypes.UUID(conflictID), UserID: userID,
-				})
-				if err != nil {
-					return nil, fmt.Errorf("list replaced subtree: %w", err)
+				if _, moving := requested[conflictID]; moving {
+					return nil, ErrConflict
 				}
-				for _, replacedID := range replacedIDs {
-					if value, ok := dbtypes.GoogleUUID(replacedID); ok {
-						invalidated = append(invalidated, value)
-					}
-				}
-				if err := queries.MarkFileSubtreeDeletionPending(ctx, sqlcgen.MarkFileSubtreeDeletionPendingParams{
-					FileID: dbtypes.UUID(conflictID), UserID: userID,
-				}); err != nil {
-					return nil, fmt.Errorf("mark replaced subtree for deletion: %w", err)
-				}
-				if err := queries.RevokeSharesForFileSubtree(ctx, sqlcgen.RevokeSharesForFileSubtreeParams{
-					FileID: dbtypes.UUID(conflictID), UserID: userID,
-				}); err != nil {
-					return nil, fmt.Errorf("revoke replaced subtree shares: %w", err)
-				}
+				replacedSet[conflictID] = struct{}{}
+				delete(usedNames, normalized)
+				delete(conflicts, normalized)
 			case "rename":
-				name, normalized, err = nextAvailableName(ctx, queries, userID, parentID, file.Name, id)
-				if err != nil {
-					return nil, err
+				var renameErr error
+				name, normalized, renameErr = nextAvailableNameFromSet(file.Name, usedNames)
+				if renameErr != nil {
+					return nil, renameErr
 				}
 			}
 		}
-		updated, err := queries.MoveFileWithName(ctx, sqlcgen.MoveFileWithNameParams{
-			ParentID: dbtypes.OptionalUUID(parentID), Name: name, NormalizedName: normalized,
-			FileID: dbtypes.UUID(id), UserID: userID, ExpectedGeneration: dbtypes.OptionalInt8(expectedGeneration),
+		usedNames[normalized] = struct{}{}
+		conflicts[normalized] = id
+		names[index], normalizedNames[index] = name, normalized
+	}
+
+	invalidated := make([]uuid.UUID, 0)
+	if len(replacedSet) > 0 {
+		replacedRoots := make([]uuid.UUID, 0, len(replacedSet))
+		for id := range replacedSet {
+			replacedRoots = append(replacedRoots, id)
+		}
+		replacedRows, err := queries.LoadFileSubtrees(ctx, sqlcgen.LoadFileSubtreesParams{
+			RootIds: pgUUIDs(replacedRoots), UserID: userID,
 		})
-		if errors.Is(err, pgx.ErrNoRows) {
-			if expectedGeneration != nil {
-				return nil, ErrPrecondition
+		if err != nil {
+			return nil, fmt.Errorf("load replaced subtrees: %w", err)
+		}
+		for _, row := range replacedRows {
+			if id, ok := dbtypes.GoogleUUID(row.ID); ok {
+				invalidated = append(invalidated, id)
 			}
+		}
+		if err := queries.MarkFileSubtreesDeletionPending(ctx, sqlcgen.MarkFileSubtreesDeletionPendingParams{
+			FileIds: pgUUIDs(replacedRoots), UserID: userID,
+		}); err != nil {
+			return nil, fmt.Errorf("mark replaced subtrees for deletion: %w", err)
+		}
+		if err := queries.RevokeSharesForFileSubtrees(ctx, sqlcgen.RevokeSharesForFileSubtreesParams{
+			UserID: userID, FileIds: pgUUIDs(replacedRoots),
+		}); err != nil {
+			return nil, fmt.Errorf("revoke replaced subtree shares: %w", err)
+		}
+	}
+
+	updatedRows, err := queries.MoveFilesWithNames(ctx, sqlcgen.MoveFilesWithNamesParams{
+		ParentID: dbtypes.OptionalUUID(parentID), UserID: userID,
+		ExpectedGeneration: dbtypes.OptionalInt8(expectedGeneration), FileIds: pgUUIDs(ids),
+		Names: names, NormalizedNames: normalizedNames,
+	})
+	if err != nil {
+		return nil, classifyWriteError("move files", err)
+	}
+	if len(updatedRows) != len(ids) {
+		if expectedGeneration != nil {
+			return nil, ErrPrecondition
+		}
+		return nil, ErrNotFound
+	}
+	updatedByID := make(map[uuid.UUID]*sqlcgen.File, len(updatedRows))
+	for _, file := range updatedRows {
+		if id, ok := fileUUID(file); ok {
+			updatedByID[id] = file
+		}
+	}
+	result := make([]*sqlcgen.File, 0, len(ids))
+	for _, id := range ids {
+		file := updatedByID[id]
+		if file == nil {
 			return nil, ErrNotFound
 		}
-		if err != nil {
-			return nil, classifyWriteError("move file", err)
-		}
-		result = append(result, updated)
+		result = append(result, file)
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return nil, classifyWriteError("commit bulk move", err)
@@ -242,32 +294,7 @@ func (s *Service) bulkMove(ctx context.Context, userID int64, rawIDs []uuid.UUID
 	return result, nil
 }
 
-func subtreeContains(ctx context.Context, queries *sqlcgen.Queries, userID int64, rootID, candidateID uuid.UUID) (bool, error) {
-	ids, err := queries.ListFileSubtreeIDs(ctx, sqlcgen.ListFileSubtreeIDsParams{
-		FileID: dbtypes.UUID(rootID), UserID: userID,
-	})
-	if err != nil {
-		return false, fmt.Errorf("list file subtree: %w", err)
-	}
-	for _, id := range ids {
-		if value, ok := dbtypes.GoogleUUID(id); ok && value == candidateID {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-func nextAvailableName(ctx context.Context, queries *sqlcgen.Queries, userID int64, parentID *uuid.UUID, original string, excludeID uuid.UUID) (string, string, error) {
-	names, err := queries.ListActiveNormalizedNames(ctx, sqlcgen.ListActiveNormalizedNamesParams{
-		UserID: userID, ParentID: dbtypes.OptionalUUID(parentID), ExcludeID: dbtypes.UUID(excludeID),
-	})
-	if err != nil {
-		return "", "", fmt.Errorf("list destination names: %w", err)
-	}
-	used := make(map[string]struct{}, len(names))
-	for _, value := range names {
-		used[value] = struct{}{}
-	}
+func nextAvailableNameFromSet(original string, used map[string]struct{}) (string, string, error) {
 	base, extension := splitCatalogName(original)
 	for sequence := 1; sequence <= 10000; sequence++ {
 		candidate := boundedCatalogName(base, extension, fmt.Sprintf(" (%d)", sequence))

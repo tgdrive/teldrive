@@ -32,6 +32,10 @@ type PartSizeBackfiller interface {
 	UpdatePartSizes(context.Context, uuid.UUID, int32, int64, int64) error
 }
 
+type PartSizeBatchBackfiller interface {
+	UpdatePartSizesMany(context.Context, uuid.UUID, map[int32][2]int64) error
+}
+
 type Downloader struct {
 	catalog FileCatalog
 	storage telegramstore.Storage
@@ -145,6 +149,8 @@ func (d *Downloader) openOrigin(ctx context.Context, request DownloadRequest) (*
 
 func (d *Downloader) resolveMissingPartSizes(ctx context.Context, session telegramstore.DownloadSession, userID int64, fileID uuid.UUID, file *sqlcgen.File, parts []*sqlcgen.FilePart) error {
 	backfiller, _ := d.catalog.(PartSizeBackfiller)
+	batchBackfiller, _ := d.catalog.(PartSizeBatchBackfiller)
+	resolvedSizes := make(map[int32][2]int64)
 	for _, part := range parts {
 		if part == nil || (part.PlainSize.Valid && part.StoredSize.Valid) {
 			continue
@@ -164,10 +170,17 @@ func (d *Downloader) resolveMissingPartSizes(ctx context.Context, session telegr
 		}
 		part.StoredSize.Int64, part.StoredSize.Valid = stored.Size, true
 		part.PlainSize.Int64, part.PlainSize.Valid = plainSize, true
-		if backfiller != nil {
+		if batchBackfiller != nil {
+			resolvedSizes[part.PartNo] = [2]int64{plainSize, stored.Size}
+		} else if backfiller != nil {
 			if err := backfiller.UpdatePartSizes(ctx, fileID, part.PartNo, plainSize, stored.Size); err != nil {
 				return err
 			}
+		}
+	}
+	if batchBackfiller != nil && len(resolvedSizes) > 0 {
+		if err := batchBackfiller.UpdatePartSizesMany(ctx, fileID, resolvedSizes); err != nil {
+			return err
 		}
 	}
 	return nil

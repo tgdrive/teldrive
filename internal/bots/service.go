@@ -2,6 +2,7 @@ package bots
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -47,6 +48,11 @@ type Service struct {
 	queries  *sqlcgen.Queries
 	cipher   *secureblob.Cipher
 	verifier Verifier
+}
+
+type pendingBotRecord struct {
+	BotID           int64  `json:"bot_id"`
+	TokenCiphertext []byte `json:"token_ciphertext"`
 }
 
 func NewService(pool *pgxpool.Pool, cipher *secureblob.Cipher, verifier Verifier) (*Service, error) {
@@ -97,7 +103,8 @@ func (s *Service) InsertPending(ctx context.Context, userID int64, tokens []stri
 	}
 	defer tx.Rollback(ctx)
 	queries := s.queries.WithTx(tx)
-	rows := make([]*sqlcgen.Bot, 0, len(tokens))
+	records := make([]pendingBotRecord, 0, len(tokens))
+	order := make([]int64, 0, len(tokens))
 	seen := make(map[int64]struct{}, len(tokens))
 	for _, raw := range tokens {
 		token := strings.TrimSpace(raw)
@@ -113,20 +120,26 @@ func (s *Service) InsertPending(ctx context.Context, userID int64, tokens []stri
 		if sealErr != nil {
 			return nil, sealErr
 		}
-		inserted, insertErr := queries.InsertPendingBot(ctx, sqlcgen.InsertPendingBotParams{
-			BotID: botID, UserID: userID, TokenCiphertext: ciphertext,
-		})
-		if insertErr != nil {
-			return nil, fmt.Errorf("insert pending bot %d: %w", botID, insertErr)
+		records = append(records, pendingBotRecord{BotID: botID, TokenCiphertext: ciphertext})
+		order = append(order, botID)
+	}
+	encoded, err := json.Marshal(records)
+	if err != nil {
+		return nil, fmt.Errorf("encode pending bots: %w", err)
+	}
+	inserted, err := queries.InsertPendingBots(ctx, sqlcgen.InsertPendingBotsParams{UserID: userID, Bots: encoded})
+	if err != nil {
+		return nil, fmt.Errorf("insert pending bots: %w", err)
+	}
+	byID := make(map[int64]*sqlcgen.Bot, len(inserted))
+	for _, row := range inserted {
+		byID[row.BotID] = row
+	}
+	rows := make([]*sqlcgen.Bot, 0, len(inserted))
+	for _, botID := range order {
+		if row := byID[botID]; row != nil {
+			rows = append(rows, row)
 		}
-		if inserted == 0 {
-			continue
-		}
-		row, getErr := queries.GetBot(ctx, sqlcgen.GetBotParams{UserID: userID, BotID: botID})
-		if getErr != nil {
-			return nil, fmt.Errorf("load pending bot %d: %w", botID, getErr)
-		}
-		rows = append(rows, row)
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("commit pending bots: %w", err)

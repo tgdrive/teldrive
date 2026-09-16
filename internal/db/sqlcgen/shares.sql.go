@@ -303,44 +303,26 @@ func (q *Queries) IncrementShareDownloadCount(ctx context.Context, id pgtype.UUI
 	return &i, err
 }
 
-const listActiveFileAccessGrantsForGrantee = `-- name: ListActiveFileAccessGrantsForGrantee :many
-SELECT id, file_id, owner_id, grantee_id, permission, expires_at, created_at, updated_at, revoked_at
-FROM /* TEMPLATE: schema */file_access_grants
-WHERE grantee_id = $1
-  AND owner_id = $2
-  AND revoked_at IS NULL
-  AND (expires_at IS NULL OR expires_at > now())
-ORDER BY (permission = 'edit') DESC, created_at DESC
+const listActiveFileIDsAnyOwner = `-- name: ListActiveFileIDsAnyOwner :many
+SELECT id
+FROM /* TEMPLATE: schema */files
+WHERE id = ANY($1::uuid[])
+  AND status = 'active'
 `
 
-type ListActiveFileAccessGrantsForGranteeParams struct {
-	GranteeID int64 `json:"grantee_id"`
-	OwnerID   int64 `json:"owner_id"`
-}
-
-func (q *Queries) ListActiveFileAccessGrantsForGrantee(ctx context.Context, arg ListActiveFileAccessGrantsForGranteeParams) ([]*FileAccessGrant, error) {
-	rows, err := q.db.Query(ctx, listActiveFileAccessGrantsForGrantee, arg.GranteeID, arg.OwnerID)
+func (q *Queries) ListActiveFileIDsAnyOwner(ctx context.Context, fileIds []pgtype.UUID) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, listActiveFileIDsAnyOwner, fileIds)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []*FileAccessGrant{}
+	items := []pgtype.UUID{}
 	for rows.Next() {
-		var i FileAccessGrant
-		if err := rows.Scan(
-			&i.ID,
-			&i.FileID,
-			&i.OwnerID,
-			&i.GranteeID,
-			&i.Permission,
-			&i.ExpiresAt,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.RevokedAt,
-		); err != nil {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
 			return nil, err
 		}
-		items = append(items, &i)
+		items = append(items, id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -612,6 +594,105 @@ func (q *Queries) ListSharedWithMe(ctx context.Context, arg ListSharedWithMePara
 			&i.UpdatedAt,
 			&i.DeletedAt,
 			&i.Permission,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const resolveFileAccessMany = `-- name: ResolveFileAccessMany :many
+WITH RECURSIVE params AS (
+  SELECT $1::uuid[] AS file_ids,
+         $2::bigint AS actor_id,
+         $3::boolean AS require_edit
+), ancestors AS (
+  SELECT target.id AS target_file_id,
+         target.id AS ancestor_file_id,
+         target.parent_id,
+         target.user_id AS owner_id
+  FROM /* TEMPLATE: schema */files AS target
+  CROSS JOIN params
+  WHERE target.id = ANY(params.file_ids)
+    AND target.status = 'active'
+  UNION ALL
+  SELECT ancestors.target_file_id,
+         parent.id,
+         parent.parent_id,
+         ancestors.owner_id
+  FROM /* TEMPLATE: schema */files AS parent
+  JOIN ancestors ON parent.id = ancestors.parent_id
+  WHERE parent.user_id = ancestors.owner_id
+), candidates AS (
+  SELECT ancestors.target_file_id,
+         ancestors.owner_id,
+         ancestors.target_file_id AS root_file_id,
+         'edit'::/* TEMPLATE: schema */share_permission AS permission,
+         true AS owned,
+         NULL::timestamptz AS grant_created_at
+  FROM ancestors
+  CROSS JOIN params
+  WHERE ancestors.target_file_id = ancestors.ancestor_file_id
+    AND ancestors.owner_id = params.actor_id
+  UNION ALL
+  SELECT ancestors.target_file_id,
+         ancestors.owner_id,
+         access_grant.file_id AS root_file_id,
+         access_grant.permission,
+         false AS owned,
+         access_grant.created_at AS grant_created_at
+  FROM ancestors
+  JOIN /* TEMPLATE: schema */file_access_grants AS access_grant
+    ON access_grant.file_id = ancestors.ancestor_file_id
+   AND access_grant.owner_id = ancestors.owner_id
+  CROSS JOIN params
+  WHERE access_grant.grantee_id = params.actor_id
+    AND access_grant.revoked_at IS NULL
+    AND (access_grant.expires_at IS NULL OR access_grant.expires_at > now())
+    AND (NOT params.require_edit OR access_grant.permission = 'edit')
+)
+SELECT DISTINCT ON (target_file_id)
+       target_file_id, owner_id, root_file_id, permission, owned
+FROM candidates
+ORDER BY target_file_id,
+         owned DESC,
+         (permission = 'edit') DESC,
+         grant_created_at DESC NULLS LAST
+`
+
+type ResolveFileAccessManyParams struct {
+	FileIds     []pgtype.UUID `json:"file_ids"`
+	ActorID     int64         `json:"actor_id"`
+	RequireEdit bool          `json:"require_edit"`
+}
+
+type ResolveFileAccessManyRow struct {
+	TargetFileID pgtype.UUID     `json:"target_file_id"`
+	OwnerID      int64           `json:"owner_id"`
+	RootFileID   pgtype.UUID     `json:"root_file_id"`
+	Permission   SharePermission `json:"permission"`
+	Owned        bool            `json:"owned"`
+}
+
+func (q *Queries) ResolveFileAccessMany(ctx context.Context, arg ResolveFileAccessManyParams) ([]*ResolveFileAccessManyRow, error) {
+	rows, err := q.db.Query(ctx, resolveFileAccessMany, arg.FileIds, arg.ActorID, arg.RequireEdit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*ResolveFileAccessManyRow{}
+	for rows.Next() {
+		var i ResolveFileAccessManyRow
+		if err := rows.Scan(
+			&i.TargetFileID,
+			&i.OwnerID,
+			&i.RootFileID,
+			&i.Permission,
+			&i.Owned,
 		); err != nil {
 			return nil, err
 		}

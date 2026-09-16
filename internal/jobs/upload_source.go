@@ -23,6 +23,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 	"golang.org/x/sync/errgroup"
@@ -161,6 +162,7 @@ func (w *UploadBatchWorker) Work(ctx context.Context, job *river.Job[UploadBatch
 		return fmt.Errorf("%w: invalid batch id", errInvalidUploadSource)
 	}
 	index := 0
+	insertParams := make([]river.InsertManyParams, 0)
 	for _, source := range job.Args.Sources {
 		files, err := w.expand(ctx, source, job.Args.Headers, filter)
 		if err != nil {
@@ -168,10 +170,13 @@ func (w *UploadBatchWorker) Work(ctx context.Context, job *river.Job[UploadBatch
 		}
 		for _, file := range files {
 			args := UploadSourceArgs{BatchID: batchID, SourceIndex: index, UserID: job.Args.UserID, ParentID: parentID, Source: file, PartConcurrency: partConcurrency, ChunkSize: chunkSize, Encryption: job.Args.Encryption}
-			if _, err := client.Insert(ctx, args, nil); err != nil {
-				return fmt.Errorf("insert upload source job: %w", err)
-			}
+			insertParams = append(insertParams, river.InsertManyParams{Args: args})
 			index++
+		}
+	}
+	if len(insertParams) > 0 {
+		if _, err := client.InsertMany(ctx, insertParams); err != nil {
+			return fmt.Errorf("insert upload source jobs: %w", err)
 		}
 	}
 	return nil
@@ -512,81 +517,62 @@ func normalizeUploadChunkSize(value int64) (int64, error) {
 }
 
 func (w *UploadSourceWorker) findResumableUpload(ctx context.Context, userID int64, parentID *uuid.UUID, name string, source UploadFileSource, encryption bool) (*sqlcgen.UploadSession, map[int32]int64, error) {
-	state := sqlcgen.UploadStateOpen
-	var afterCreatedAt *time.Time
-	var afterID *uuid.UUID
-	for {
-		sessions, err := w.uploads.List(ctx, uploads.ListInput{UserID: userID, State: &state, AfterCreatedAt: afterCreatedAt, AfterID: afterID, Limit: 200})
-		if err != nil {
-			return nil, nil, err
-		}
-		for _, session := range sessions {
-			if !uploadSessionMatches(session, parentID, name, source, encryption) {
-				continue
-			}
-			uploadID, ok := dbtypes.GoogleUUID(session.ID)
-			if !ok {
-				continue
-			}
-			stored, compatible, err := w.storedUploadParts(ctx, userID, uploadID, session.ExpectedSize, session.PartSize)
-			if err != nil {
-				return nil, nil, err
-			}
-			if compatible {
-				return session, stored, nil
-			}
-		}
-		if len(sessions) < 200 {
-			return nil, map[int32]int64{}, nil
-		}
-		last := sessions[len(sessions)-1]
-		id, ok := dbtypes.GoogleUUID(last.ID)
-		if !ok || !last.CreatedAt.Valid {
-			return nil, nil, errInvalidUploadSource
-		}
-		createdAt := last.CreatedAt.Time
-		afterCreatedAt, afterID = &createdAt, &id
+	modTime := pgtype.Timestamptz{}
+	if source.HasModTime {
+		modTime = dbtypes.Time(source.ModTime)
 	}
+	sessions, err := w.queries.FindResumableUploadSessions(ctx, sqlcgen.FindResumableUploadSessionsParams{
+		UserID: userID, ParentID: dbtypes.OptionalUUID(parentID), Name: name,
+		ExpectedSize: source.Size, Encryption: encryption, MimeType: dbtypes.OptionalText(optionalString(source.MIMEType)),
+		HasModTime: source.HasModTime, ModTime: modTime,
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("find resumable uploads: %w", err)
+	}
+	if len(sessions) == 0 {
+		return nil, map[int32]int64{}, nil
+	}
+	uploadIDs := make([]pgtype.UUID, 0, len(sessions))
+	for _, session := range sessions {
+		uploadIDs = append(uploadIDs, session.ID)
+	}
+	parts, err := w.queries.ListUploadPartsByUploadIDs(ctx, uploadIDs)
+	if err != nil {
+		return nil, nil, fmt.Errorf("list resumable upload parts: %w", err)
+	}
+	partsByUpload := make(map[uuid.UUID][]*sqlcgen.UploadPart, len(sessions))
+	for _, part := range parts {
+		uploadID, ok := dbtypes.GoogleUUID(part.UploadID)
+		if ok {
+			partsByUpload[uploadID] = append(partsByUpload[uploadID], part)
+		}
+	}
+	for _, session := range sessions {
+		uploadID, ok := dbtypes.GoogleUUID(session.ID)
+		if !ok {
+			continue
+		}
+		stored, compatible := resumableStoredParts(partsByUpload[uploadID], session.ExpectedSize, session.PartSize)
+		if compatible {
+			return session, stored, nil
+		}
+	}
+	return nil, map[int32]int64{}, nil
 }
 
-func uploadSessionMatches(session *sqlcgen.UploadSession, parentID *uuid.UUID, name string, source UploadFileSource, encryption bool) bool {
-	if session == nil || session.Name != name || session.ExpectedSize != source.Size || session.Encryption != encryption || session.ConflictPolicy != sqlcgen.NameConflictPolicyReplace || !session.ExpiresAt.Valid || !session.ExpiresAt.Time.After(time.Now()) {
-		return false
-	}
-	sessionParent, hasParent := dbtypes.GoogleUUID(session.ParentID)
-	if (parentID == nil) != !hasParent || parentID != nil && sessionParent != *parentID {
-		return false
-	}
-	if session.MimeType.Valid != (source.MIMEType != "") || session.MimeType.Valid && session.MimeType.String != source.MIMEType {
-		return false
-	}
-	return !source.HasModTime || session.ModTime.Valid && modTimesEqual(session.ModTime.Time, source.ModTime)
-}
-
-func (w *UploadSourceWorker) storedUploadParts(ctx context.Context, userID int64, uploadID uuid.UUID, totalSize, partSize int64) (map[int32]int64, bool, error) {
+func resumableStoredParts(parts []*sqlcgen.UploadPart, totalSize, partSize int64) (map[int32]int64, bool) {
 	stored := make(map[int32]int64)
-	var after *int32
-	for {
-		parts, err := w.uploads.ListParts(ctx, uploads.ListPartsInput{UserID: userID, UploadID: uploadID, AfterPartNo: after, Limit: 200})
-		if err != nil {
-			return nil, false, err
+	for _, part := range parts {
+		if part.State != sqlcgen.UploadPartStateStored {
+			continue
 		}
-		for _, part := range parts {
-			if part.State != sqlcgen.UploadPartStateStored {
-				continue
-			}
-			offset := int64(part.PartNo-1) * partSize
-			if offset < 0 || offset >= totalSize || part.PlainSize != min(partSize, totalSize-offset) {
-				return nil, false, nil
-			}
-			stored[part.PartNo] = part.PlainSize
+		offset := int64(part.PartNo-1) * partSize
+		if offset < 0 || offset >= totalSize || part.PlainSize != min(partSize, totalSize-offset) {
+			return nil, false
 		}
-		if len(parts) < 200 {
-			return stored, true, nil
-		}
-		value := parts[len(parts)-1].PartNo
-		after = &value
+		stored[part.PartNo] = part.PlainSize
 	}
+	return stored, true
 }
 
 func (t *uploadProgressTracker) finish(ctx context.Context, stage string, fileID *uuid.UUID) error {

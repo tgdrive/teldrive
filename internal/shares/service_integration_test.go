@@ -11,12 +11,78 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/tgdrive/teldrive/v2/internal/catalog"
 	"github.com/tgdrive/teldrive/v2/internal/db/sqlcgen"
 	"github.com/tgdrive/teldrive/v2/internal/dbtypes"
 	testpostgres "github.com/tgdrive/teldrive/v2/internal/testutil/postgres"
+	"github.com/tgdrive/teldrive/v2/internal/testutil/querytrace"
 )
+
+func TestResolveAccessManyUsesOneRecursiveQuery(t *testing.T) {
+	db := testpostgres.New(t)
+	ctx := context.Background()
+	if _, err := db.Pool.Exec(ctx, "INSERT INTO users (user_id) VALUES (1001), (2002)"); err != nil {
+		t.Fatal(err)
+	}
+	rootID := uuid.New()
+	if _, err := db.Pool.Exec(ctx, `
+INSERT INTO files (id,user_id,name,normalized_name,kind,encryption,status,mod_time)
+VALUES ($1,1001,'shared','shared','folder',false,'active',now())`, rootID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Pool.Exec(ctx, `
+INSERT INTO files (id,user_id,parent_id,name,normalized_name,kind,size,encryption,status,mod_time)
+SELECT gen_random_uuid(), 1001, $1, 'child-' || value, 'child-' || value, 'file', 1, false, 'active', now()
+FROM generate_series(1, 500) AS value`, rootID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Pool.Exec(ctx, `
+INSERT INTO file_access_grants (file_id,owner_id,grantee_id,permission)
+VALUES ($1,1001,2002,'edit')`, rootID); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := db.Pool.Query(ctx, "SELECT id FROM files WHERE parent_id = $1 ORDER BY id", rootID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fileIDs []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		fileIDs = append(fileIDs, id)
+	}
+	rows.Close()
+
+	tracer := &querytrace.Counter{}
+	config, err := pgxpool.ParseConfig(db.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	config.ConnConfig.Tracer = tracer
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	service, err := NewService(pool, catalog.NewService(pool, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	access, err := service.ResolveAccessMany(ctx, 2002, fileIDs, true)
+	if err != nil {
+		t.Fatalf("ResolveAccessMany() error = %v", err)
+	}
+	if len(access) != len(fileIDs) {
+		t.Fatalf("access rows = %d, want %d", len(access), len(fileIDs))
+	}
+	if got := tracer.Count("ResolveFileAccessMany"); got != 1 {
+		t.Fatalf("ResolveFileAccessMany queries = %d, want 1", got)
+	}
+}
 
 func TestShareLifecycleAndDownloadLimitAgainstRealPostgres(t *testing.T) {
 	db := testpostgres.New(t)

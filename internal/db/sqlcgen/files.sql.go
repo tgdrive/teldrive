@@ -243,91 +243,84 @@ func (q *Queries) GetFileForUser(ctx context.Context, arg GetFileForUserParams) 
 	return &i, err
 }
 
-const insertCopiedFile = `-- name: InsertCopiedFile :exec
-INSERT INTO /* TEMPLATE: schema */files (
-    id, user_id, parent_id, name, normalized_name, kind, mime_type, size,
-    hash_algorithm, hash_value, encryption, encryption_key_version,
-    status, mod_time, generation
-) VALUES (
-    $1, $2, $3, $4,
-    $5, $6, $7,
-    $8, $9, $10,
-    $11, $12,
-    'active', $13, 1
-)
-`
-
-type InsertCopiedFileParams struct {
-	ID                   pgtype.UUID        `json:"id"`
-	UserID               int64              `json:"user_id"`
-	ParentID             pgtype.UUID        `json:"parent_id"`
-	Name                 string             `json:"name"`
-	NormalizedName       string             `json:"normalized_name"`
-	Kind                 FileKind           `json:"kind"`
-	MimeType             pgtype.Text        `json:"mime_type"`
-	Size                 pgtype.Int8        `json:"size"`
-	HashAlgorithm        pgtype.Text        `json:"hash_algorithm"`
-	HashValue            pgtype.Text        `json:"hash_value"`
-	Encryption           bool               `json:"encryption"`
-	EncryptionKeyVersion pgtype.Int4        `json:"encryption_key_version"`
-	ModTime              pgtype.Timestamptz `json:"mod_time"`
-}
-
-func (q *Queries) InsertCopiedFile(ctx context.Context, arg InsertCopiedFileParams) error {
-	_, err := q.db.Exec(ctx, insertCopiedFile,
-		arg.ID,
-		arg.UserID,
-		arg.ParentID,
-		arg.Name,
-		arg.NormalizedName,
-		arg.Kind,
-		arg.MimeType,
-		arg.Size,
-		arg.HashAlgorithm,
-		arg.HashValue,
-		arg.Encryption,
-		arg.EncryptionKeyVersion,
-		arg.ModTime,
-	)
-	return err
-}
-
-const insertCopiedFilePart = `-- name: InsertCopiedFilePart :exec
+const insertCopiedFileParts = `-- name: InsertCopiedFileParts :execrows
 INSERT INTO /* TEMPLATE: schema */file_parts (
     file_id, part_no, channel_id, message_id, plain_size, stored_size,
     checksum, salt, block_hashes
-) VALUES (
-    $1, $2, $3,
-    $4, $5, $6,
-    $7, $8, $9
+)
+SELECT input.file_id, input.part_no, input.channel_id, input.message_id,
+       input.plain_size, input.stored_size, input.checksum, input.salt,
+       decode(input.block_hashes, 'base64')
+FROM jsonb_to_recordset($1::jsonb) AS input(
+    file_id uuid, part_no integer, channel_id bigint, message_id bigint,
+    plain_size bigint, stored_size bigint, checksum text, salt text,
+    block_hashes text
 )
 `
 
-type InsertCopiedFilePartParams struct {
-	FileID      pgtype.UUID `json:"file_id"`
-	PartNo      int32       `json:"part_no"`
-	ChannelID   int64       `json:"channel_id"`
-	MessageID   int64       `json:"message_id"`
-	PlainSize   pgtype.Int8 `json:"plain_size"`
-	StoredSize  pgtype.Int8 `json:"stored_size"`
-	Checksum    pgtype.Text `json:"checksum"`
-	Salt        pgtype.Text `json:"salt"`
-	BlockHashes []byte      `json:"block_hashes"`
+func (q *Queries) InsertCopiedFileParts(ctx context.Context, parts []byte) (int64, error) {
+	result, err := q.db.Exec(ctx, insertCopiedFileParts, parts)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
-func (q *Queries) InsertCopiedFilePart(ctx context.Context, arg InsertCopiedFilePartParams) error {
-	_, err := q.db.Exec(ctx, insertCopiedFilePart,
-		arg.FileID,
-		arg.PartNo,
-		arg.ChannelID,
-		arg.MessageID,
-		arg.PlainSize,
-		arg.StoredSize,
-		arg.Checksum,
-		arg.Salt,
-		arg.BlockHashes,
-	)
-	return err
+const insertCopiedFiles = `-- name: InsertCopiedFiles :many
+INSERT INTO /* TEMPLATE: schema */files AS file (
+    id, user_id, parent_id, name, normalized_name, kind, mime_type, size,
+    hash_algorithm, hash_value, encryption, encryption_key_version,
+    status, mod_time, generation
+)
+SELECT input.id, input.user_id, input.parent_id, input.name, input.normalized_name,
+       input.kind::/* TEMPLATE: schema */file_kind, input.mime_type, input.size,
+       input.hash_algorithm, input.hash_value, input.encryption,
+       input.encryption_key_version, 'active', input.mod_time, 1
+FROM jsonb_to_recordset($1::jsonb) AS input(
+    id uuid, user_id bigint, parent_id uuid, name text, normalized_name text,
+    kind text, mime_type text, size bigint, hash_algorithm text, hash_value text,
+    encryption boolean, encryption_key_version integer, mod_time timestamptz
+)
+RETURNING file.id, file.user_id, file.parent_id, file.name, file.normalized_name, file.kind, file.mime_type, file.size, file.hash_algorithm, file.hash_value, file.encryption, file.encryption_key_version, file.status, file.mod_time, file.generation, file.created_at, file.updated_at, file.deleted_at
+`
+
+func (q *Queries) InsertCopiedFiles(ctx context.Context, files []byte) ([]*File, error) {
+	rows, err := q.db.Query(ctx, insertCopiedFiles, files)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*File{}
+	for rows.Next() {
+		var i File
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.ParentID,
+			&i.Name,
+			&i.NormalizedName,
+			&i.Kind,
+			&i.MimeType,
+			&i.Size,
+			&i.HashAlgorithm,
+			&i.HashValue,
+			&i.Encryption,
+			&i.EncryptionKeyVersion,
+			&i.Status,
+			&i.ModTime,
+			&i.Generation,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listActiveNormalizedNames = `-- name: ListActiveNormalizedNames :many
@@ -358,6 +351,46 @@ func (q *Queries) ListActiveNormalizedNames(ctx context.Context, arg ListActiveN
 			return nil, err
 		}
 		items = append(items, normalized_name)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listFileAncestorIDs = `-- name: ListFileAncestorIDs :many
+WITH RECURSIVE ancestors AS (
+  SELECT file.id, file.parent_id
+  FROM /* TEMPLATE: schema */files AS file
+  WHERE file.id = $1
+    AND file.user_id = $2
+  UNION ALL
+  SELECT parent.id, parent.parent_id
+  FROM /* TEMPLATE: schema */files AS parent
+  JOIN ancestors AS child ON parent.id = child.parent_id
+  WHERE parent.user_id = $2
+)
+SELECT id FROM ancestors
+`
+
+type ListFileAncestorIDsParams struct {
+	FileID pgtype.UUID `json:"file_id"`
+	UserID int64       `json:"user_id"`
+}
+
+func (q *Queries) ListFileAncestorIDs(ctx context.Context, arg ListFileAncestorIDsParams) ([]pgtype.UUID, error) {
+	rows, err := q.db.Query(ctx, listFileAncestorIDs, arg.FileID, arg.UserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []pgtype.UUID{}
+	for rows.Next() {
+		var id pgtype.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -465,6 +498,44 @@ ORDER BY part_no
 // Recursive move-cycle validation will be implemented as a hand-reviewed query in the file service.
 func (q *Queries) ListFileParts(ctx context.Context, fileID pgtype.UUID) ([]*FilePart, error) {
 	rows, err := q.db.Query(ctx, listFileParts, fileID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*FilePart{}
+	for rows.Next() {
+		var i FilePart
+		if err := rows.Scan(
+			&i.FileID,
+			&i.PartNo,
+			&i.ChannelID,
+			&i.MessageID,
+			&i.PlainSize,
+			&i.StoredSize,
+			&i.Checksum,
+			&i.Salt,
+			&i.CreatedAt,
+			&i.BlockHashes,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listFilePartsByFileIDs = `-- name: ListFilePartsByFileIDs :many
+SELECT file_id, part_no, channel_id, message_id, plain_size, stored_size, checksum, salt, created_at, block_hashes
+FROM /* TEMPLATE: schema */file_parts
+WHERE file_id = ANY($1::uuid[])
+ORDER BY file_id, part_no
+`
+
+func (q *Queries) ListFilePartsByFileIDs(ctx context.Context, fileIds []pgtype.UUID) ([]*FilePart, error) {
+	rows, err := q.db.Query(ctx, listFilePartsByFileIDs, fileIds)
 	if err != nil {
 		return nil, err
 	}
@@ -972,6 +1043,45 @@ func (q *Queries) LoadFileSubtrees(ctx context.Context, arg LoadFileSubtreesPara
 	return items, nil
 }
 
+const lockActiveDestinationEntries = `-- name: LockActiveDestinationEntries :many
+SELECT id, normalized_name
+FROM /* TEMPLATE: schema */files
+WHERE user_id = $1
+  AND parent_id IS NOT DISTINCT FROM $2::uuid
+  AND status = 'active'
+FOR UPDATE
+`
+
+type LockActiveDestinationEntriesParams struct {
+	UserID   int64       `json:"user_id"`
+	ParentID pgtype.UUID `json:"parent_id"`
+}
+
+type LockActiveDestinationEntriesRow struct {
+	ID             pgtype.UUID `json:"id"`
+	NormalizedName string      `json:"normalized_name"`
+}
+
+func (q *Queries) LockActiveDestinationEntries(ctx context.Context, arg LockActiveDestinationEntriesParams) ([]*LockActiveDestinationEntriesRow, error) {
+	rows, err := q.db.Query(ctx, lockActiveDestinationEntries, arg.UserID, arg.ParentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*LockActiveDestinationEntriesRow{}
+	for rows.Next() {
+		var i LockActiveDestinationEntriesRow
+		if err := rows.Scan(&i.ID, &i.NormalizedName); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const lockActiveFiles = `-- name: LockActiveFiles :many
 SELECT id, user_id, parent_id, name, normalized_name, kind, mime_type, size, hash_algorithm, hash_value, encryption, encryption_key_version, status, mod_time, generation, created_at, updated_at, deleted_at
 FROM /* TEMPLATE: schema */files
@@ -1042,55 +1152,6 @@ type LockActiveFolderParams struct {
 
 func (q *Queries) LockActiveFolder(ctx context.Context, arg LockActiveFolderParams) (*File, error) {
 	row := q.db.QueryRow(ctx, lockActiveFolder, arg.FolderID, arg.UserID)
-	var i File
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.ParentID,
-		&i.Name,
-		&i.NormalizedName,
-		&i.Kind,
-		&i.MimeType,
-		&i.Size,
-		&i.HashAlgorithm,
-		&i.HashValue,
-		&i.Encryption,
-		&i.EncryptionKeyVersion,
-		&i.Status,
-		&i.ModTime,
-		&i.Generation,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-	)
-	return &i, err
-}
-
-const lockActiveNameConflict = `-- name: LockActiveNameConflict :one
-SELECT id, user_id, parent_id, name, normalized_name, kind, mime_type, size, hash_algorithm, hash_value, encryption, encryption_key_version, status, mod_time, generation, created_at, updated_at, deleted_at
-FROM /* TEMPLATE: schema */files
-WHERE user_id = $1
-  AND parent_id IS NOT DISTINCT FROM $2::uuid
-  AND normalized_name = $3
-  AND status = 'active'
-  AND id <> $4
-FOR UPDATE
-`
-
-type LockActiveNameConflictParams struct {
-	UserID         int64       `json:"user_id"`
-	ParentID       pgtype.UUID `json:"parent_id"`
-	NormalizedName string      `json:"normalized_name"`
-	ExcludeID      pgtype.UUID `json:"exclude_id"`
-}
-
-func (q *Queries) LockActiveNameConflict(ctx context.Context, arg LockActiveNameConflictParams) (*File, error) {
-	row := q.db.QueryRow(ctx, lockActiveNameConflict,
-		arg.UserID,
-		arg.ParentID,
-		arg.NormalizedName,
-		arg.ExcludeID,
-	)
 	var i File
 	err := row.Scan(
 		&i.ID,
@@ -1218,6 +1279,39 @@ func (q *Queries) MarkFileSubtreeDeletionPending(ctx context.Context, arg MarkFi
 	return err
 }
 
+const markFileSubtreesDeletionPending = `-- name: MarkFileSubtreesDeletionPending :exec
+WITH RECURSIVE target AS (
+  SELECT root.id
+  FROM /* TEMPLATE: schema */files AS root
+  WHERE root.id = ANY($2::uuid[])
+    AND root.user_id = $1
+    AND root.status = 'active'
+  UNION
+  SELECT child.id
+  FROM /* TEMPLATE: schema */files AS child
+  JOIN target AS parent ON child.parent_id = parent.id
+  WHERE child.user_id = $1
+    AND child.status = 'active'
+)
+UPDATE /* TEMPLATE: schema */files AS target_file
+SET status = 'deletion_pending',
+    deleted_at = COALESCE(target_file.deleted_at, now()),
+    generation = target_file.generation + 1,
+    updated_at = now()
+WHERE target_file.user_id = $1
+  AND target_file.id IN (SELECT target.id FROM target)
+`
+
+type MarkFileSubtreesDeletionPendingParams struct {
+	UserID  int64         `json:"user_id"`
+	FileIds []pgtype.UUID `json:"file_ids"`
+}
+
+func (q *Queries) MarkFileSubtreesDeletionPending(ctx context.Context, arg MarkFileSubtreesDeletionPendingParams) error {
+	_, err := q.db.Exec(ctx, markFileSubtreesDeletionPending, arg.UserID, arg.FileIds)
+	return err
+}
+
 const moveFile = `-- name: MoveFile :one
 UPDATE /* TEMPLATE: schema */files
 SET parent_id = $1,
@@ -1271,60 +1365,85 @@ func (q *Queries) MoveFile(ctx context.Context, arg MoveFileParams) (*File, erro
 	return &i, err
 }
 
-const moveFileWithName = `-- name: MoveFileWithName :one
-UPDATE /* TEMPLATE: schema */files
+const moveFilesWithNames = `-- name: MoveFilesWithNames :many
+WITH arrays AS (
+  SELECT $4::uuid[] AS file_ids,
+         $5::text[] AS names,
+         $6::text[] AS normalized_names
+), input AS (
+  SELECT arrays.file_ids[index] AS file_id,
+         arrays.names[index] AS name,
+         arrays.normalized_names[index] AS normalized_name
+  FROM arrays
+  CROSS JOIN LATERAL generate_subscripts(arrays.file_ids, 1) AS index
+)
+UPDATE /* TEMPLATE: schema */files AS file
 SET parent_id = $1,
-    name = $2,
-    normalized_name = $3,
-    generation = generation + 1,
+    name = input.name,
+    normalized_name = input.normalized_name,
+    generation = file.generation + 1,
     updated_at = now()
-WHERE id = $4
-  AND user_id = $5
-  AND status = 'active'
-  AND ($6::bigint IS NULL OR generation = $6::bigint)
-RETURNING id, user_id, parent_id, name, normalized_name, kind, mime_type, size, hash_algorithm, hash_value, encryption, encryption_key_version, status, mod_time, generation, created_at, updated_at, deleted_at
+FROM input
+WHERE file.id = input.file_id
+  AND file.user_id = $2
+  AND file.status = 'active'
+  AND ($3::bigint IS NULL OR file.generation = $3::bigint)
+RETURNING file.id, file.user_id, file.parent_id, file.name, file.normalized_name, file.kind, file.mime_type, file.size, file.hash_algorithm, file.hash_value, file.encryption, file.encryption_key_version, file.status, file.mod_time, file.generation, file.created_at, file.updated_at, file.deleted_at
 `
 
-type MoveFileWithNameParams struct {
-	ParentID           pgtype.UUID `json:"parent_id"`
-	Name               string      `json:"name"`
-	NormalizedName     string      `json:"normalized_name"`
-	FileID             pgtype.UUID `json:"file_id"`
-	UserID             int64       `json:"user_id"`
-	ExpectedGeneration pgtype.Int8 `json:"expected_generation"`
+type MoveFilesWithNamesParams struct {
+	ParentID           pgtype.UUID   `json:"parent_id"`
+	UserID             int64         `json:"user_id"`
+	ExpectedGeneration pgtype.Int8   `json:"expected_generation"`
+	FileIds            []pgtype.UUID `json:"file_ids"`
+	Names              []string      `json:"names"`
+	NormalizedNames    []string      `json:"normalized_names"`
 }
 
-func (q *Queries) MoveFileWithName(ctx context.Context, arg MoveFileWithNameParams) (*File, error) {
-	row := q.db.QueryRow(ctx, moveFileWithName,
+func (q *Queries) MoveFilesWithNames(ctx context.Context, arg MoveFilesWithNamesParams) ([]*File, error) {
+	rows, err := q.db.Query(ctx, moveFilesWithNames,
 		arg.ParentID,
-		arg.Name,
-		arg.NormalizedName,
-		arg.FileID,
 		arg.UserID,
 		arg.ExpectedGeneration,
+		arg.FileIds,
+		arg.Names,
+		arg.NormalizedNames,
 	)
-	var i File
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.ParentID,
-		&i.Name,
-		&i.NormalizedName,
-		&i.Kind,
-		&i.MimeType,
-		&i.Size,
-		&i.HashAlgorithm,
-		&i.HashValue,
-		&i.Encryption,
-		&i.EncryptionKeyVersion,
-		&i.Status,
-		&i.ModTime,
-		&i.Generation,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-	)
-	return &i, err
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*File{}
+	for rows.Next() {
+		var i File
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.ParentID,
+			&i.Name,
+			&i.NormalizedName,
+			&i.Kind,
+			&i.MimeType,
+			&i.Size,
+			&i.HashAlgorithm,
+			&i.HashValue,
+			&i.Encryption,
+			&i.EncryptionKeyVersion,
+			&i.Status,
+			&i.ModTime,
+			&i.Generation,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const queueFileSubtreePurge = `-- name: QueueFileSubtreePurge :many
@@ -1796,6 +1915,31 @@ func (q *Queries) UpdateFilePartSizes(ctx context.Context, arg UpdateFilePartSiz
 		arg.FileID,
 		arg.PartNo,
 	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateFilePartSizesMany = `-- name: UpdateFilePartSizesMany :execrows
+UPDATE /* TEMPLATE: schema */file_parts AS part
+SET plain_size = input.plain_size,
+    stored_size = input.stored_size
+FROM jsonb_to_recordset($2::jsonb) AS input(
+    part_no integer, plain_size bigint, stored_size bigint
+)
+WHERE part.file_id = $1
+  AND part.part_no = input.part_no
+  AND (part.plain_size IS NULL OR part.stored_size IS NULL)
+`
+
+type UpdateFilePartSizesManyParams struct {
+	FileID pgtype.UUID `json:"file_id"`
+	Parts  []byte      `json:"parts"`
+}
+
+func (q *Queries) UpdateFilePartSizesMany(ctx context.Context, arg UpdateFilePartSizesManyParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateFilePartSizesMany, arg.FileID, arg.Parts)
 	if err != nil {
 		return 0, err
 	}

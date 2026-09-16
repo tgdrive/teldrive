@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -52,6 +53,34 @@ type treeNode struct {
 type copiedPart struct {
 	Part   sqlcgen.FilePart
 	Stored telegramstore.StoredPart
+}
+
+type copiedFileRecord struct {
+	ID                   uuid.UUID  `json:"id"`
+	UserID               int64      `json:"user_id"`
+	ParentID             *uuid.UUID `json:"parent_id"`
+	Name                 string     `json:"name"`
+	NormalizedName       string     `json:"normalized_name"`
+	Kind                 string     `json:"kind"`
+	MIMEType             *string    `json:"mime_type"`
+	Size                 *int64     `json:"size"`
+	HashAlgorithm        *string    `json:"hash_algorithm"`
+	HashValue            *string    `json:"hash_value"`
+	Encryption           bool       `json:"encryption"`
+	EncryptionKeyVersion *int32     `json:"encryption_key_version"`
+	ModTime              time.Time  `json:"mod_time"`
+}
+
+type copiedFilePartRecord struct {
+	FileID      uuid.UUID `json:"file_id"`
+	PartNo      int32     `json:"part_no"`
+	ChannelID   int64     `json:"channel_id"`
+	MessageID   int64     `json:"message_id"`
+	PlainSize   *int64    `json:"plain_size"`
+	StoredSize  *int64    `json:"stored_size"`
+	Checksum    *string   `json:"checksum"`
+	Salt        *string   `json:"salt"`
+	BlockHashes []byte    `json:"block_hashes"`
 }
 
 func NewService(pool *pgxpool.Pool, catalogService *catalog.Service, channelService *channels.Service, storage telegramstore.Storage) (*Service, error) {
@@ -109,7 +138,26 @@ func (s *Service) Copy(ctx context.Context, in CopyInput) (*sqlcgen.File, error)
 		return nil, err
 	}
 
-	copied := make(map[uuid.UUID][]copiedPart)
+	sourceFileIDs := make([]uuid.UUID, 0)
+	for _, node := range nodes {
+		if node.File.Kind != sqlcgen.FileKindFile {
+			continue
+		}
+		if node.File.Status != sqlcgen.FileStatusActive {
+			return nil, catalog.ErrNotAFile
+		}
+		oldID, _ := dbtypes.GoogleUUID(node.File.ID)
+		sourceFileIDs = append(sourceFileIDs, oldID)
+	}
+	parts, err := s.queries.ListFilePartsByFileIDs(ctx, pgUUIDs(sourceFileIDs))
+	if err != nil {
+		return nil, fmt.Errorf("list copied file parts: %w", err)
+	}
+	destinationChannels, err := s.channels.ResolveMany(ctx, in.UserID, len(parts))
+	if err != nil {
+		return nil, err
+	}
+	copied := make(map[uuid.UUID][]copiedPart, len(sourceFileIDs))
 	cleanup := make([]telegramstore.StoredPart, 0)
 	compensate := func() {
 		grouped := make(map[int64][]int64)
@@ -123,35 +171,24 @@ func (s *Service) Copy(ctx context.Context, in CopyInput) (*sqlcgen.File, error)
 		}
 	}
 
-	for _, node := range nodes {
-		if node.File.Kind != sqlcgen.FileKindFile {
-			continue
+	for index, part := range parts {
+		oldID, ok := dbtypes.GoogleUUID(part.FileID)
+		if !ok {
+			compensate()
+			return nil, ErrNotFound
 		}
-		oldID, _ := dbtypes.GoogleUUID(node.File.ID)
-		parts, err := s.catalog.Parts(ctx, in.UserID, oldID)
+		stored, err := s.storage.CopyPart(ctx, in.UserID, part.ChannelID, part.MessageID, destinationChannels[index])
 		if err != nil {
 			compensate()
-			return nil, err
+			return nil, fmt.Errorf("copy Telegram part %d: %w", part.PartNo, err)
 		}
-		for _, part := range parts {
-			destination, err := s.channels.Resolve(ctx, in.UserID, 0)
-			if err != nil {
-				compensate()
-				return nil, err
-			}
-			stored, err := s.storage.CopyPart(ctx, in.UserID, part.ChannelID, part.MessageID, destination)
-			if err != nil {
-				compensate()
-				return nil, fmt.Errorf("copy Telegram part %d: %w", part.PartNo, err)
-			}
-			if !part.StoredSize.Valid || stored.Size != part.StoredSize.Int64 {
-				cleanup = append(cleanup, stored)
-				compensate()
-				return nil, telegramstore.ErrSizeMismatch
-			}
+		if !part.StoredSize.Valid || stored.Size != part.StoredSize.Int64 {
 			cleanup = append(cleanup, stored)
-			copied[oldID] = append(copied[oldID], copiedPart{Part: *part, Stored: stored})
+			compensate()
+			return nil, telegramstore.ErrSizeMismatch
 		}
+		cleanup = append(cleanup, stored)
+		copied[oldID] = append(copied[oldID], copiedPart{Part: *part, Stored: stored})
 	}
 
 	tx, err := s.pool.Begin(ctx)
@@ -216,6 +253,8 @@ func (s *Service) Copy(ctx context.Context, in CopyInput) (*sqlcgen.File, error)
 			}
 		}
 	}
+	fileRecords := make([]copiedFileRecord, 0, len(nodes))
+	partRecords := make([]copiedFilePartRecord, 0, len(parts))
 	for _, node := range nodes {
 		oldID, _ := dbtypes.GoogleUUID(node.File.ID)
 		newID := idMap[oldID]
@@ -230,26 +269,51 @@ func (s *Service) Copy(ctx context.Context, in CopyInput) (*sqlcgen.File, error)
 		if oldID == rootOldID {
 			displayName, normalizedName = rootDisplayName, rootNormalizedName
 		}
-		if err := queries.InsertCopiedFile(ctx, sqlcgen.InsertCopiedFileParams{
-			ID: dbtypes.UUID(newID), UserID: in.UserID, ParentID: dbtypes.OptionalUUID(parentID),
-			Name: displayName, NormalizedName: normalizedName, Kind: node.File.Kind,
-			MimeType: node.File.MimeType, Size: node.File.Size, HashAlgorithm: node.File.HashAlgorithm,
-			HashValue: node.File.HashValue, Encryption: node.File.Encryption,
-			EncryptionKeyVersion: node.File.EncryptionKeyVersion, ModTime: node.File.ModTime,
-		}); err != nil {
-			compensate()
-			return nil, fmt.Errorf("insert copied catalog row: %w", err)
-		}
+		fileRecords = append(fileRecords, copiedFileRecord{
+			ID: newID, UserID: in.UserID, ParentID: parentID, Name: displayName,
+			NormalizedName: normalizedName, Kind: string(node.File.Kind),
+			MIMEType: optionalText(node.File.MimeType), Size: optionalInt64(node.File.Size),
+			HashAlgorithm: optionalText(node.File.HashAlgorithm), HashValue: optionalText(node.File.HashValue),
+			Encryption: node.File.Encryption, EncryptionKeyVersion: optionalInt32(node.File.EncryptionKeyVersion),
+			ModTime: node.File.ModTime.Time,
+		})
 		for _, part := range copied[oldID] {
-			if err := queries.InsertCopiedFilePart(ctx, sqlcgen.InsertCopiedFilePartParams{
-				FileID: dbtypes.UUID(newID), PartNo: part.Part.PartNo,
-				ChannelID: part.Stored.ChannelID, MessageID: part.Stored.MessageID,
-				PlainSize: part.Part.PlainSize, StoredSize: part.Part.StoredSize,
-				Checksum: part.Part.Checksum, Salt: part.Part.Salt, BlockHashes: part.Part.BlockHashes,
-			}); err != nil {
-				compensate()
-				return nil, fmt.Errorf("insert copied file part: %w", err)
-			}
+			partRecords = append(partRecords, copiedFilePartRecord{
+				FileID: newID, PartNo: part.Part.PartNo, ChannelID: part.Stored.ChannelID,
+				MessageID: part.Stored.MessageID, PlainSize: optionalInt64(part.Part.PlainSize),
+				StoredSize: optionalInt64(part.Part.StoredSize), Checksum: optionalText(part.Part.Checksum),
+				Salt: optionalText(part.Part.Salt), BlockHashes: part.Part.BlockHashes,
+			})
+		}
+	}
+	encodedFiles, err := json.Marshal(fileRecords)
+	if err != nil {
+		compensate()
+		return nil, fmt.Errorf("encode copied files: %w", err)
+	}
+	insertedFiles, err := queries.InsertCopiedFiles(ctx, encodedFiles)
+	if err != nil {
+		compensate()
+		return nil, fmt.Errorf("insert copied catalog rows: %w", err)
+	}
+	if len(insertedFiles) != len(fileRecords) {
+		compensate()
+		return nil, ErrNotFound
+	}
+	if len(partRecords) > 0 {
+		encodedParts, err := json.Marshal(partRecords)
+		if err != nil {
+			compensate()
+			return nil, fmt.Errorf("encode copied file parts: %w", err)
+		}
+		insertedParts, err := queries.InsertCopiedFileParts(ctx, encodedParts)
+		if err != nil {
+			compensate()
+			return nil, fmt.Errorf("insert copied file parts: %w", err)
+		}
+		if insertedParts != int64(len(partRecords)) {
+			compensate()
+			return nil, ErrNotFound
 		}
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -257,7 +321,33 @@ func (s *Service) Copy(ctx context.Context, in CopyInput) (*sqlcgen.File, error)
 		return nil, fmt.Errorf("commit file copy: %w", err)
 	}
 	s.catalog.InvalidateFiles(ctx, in.UserID, replacedIDs...)
-	return s.catalog.Get(ctx, in.UserID, rootNewID)
+	for _, file := range insertedFiles {
+		if id, ok := dbtypes.GoogleUUID(file.ID); ok && id == rootNewID {
+			return file, nil
+		}
+	}
+	return nil, ErrNotFound
+}
+
+func optionalText(value pgtype.Text) *string {
+	if !value.Valid {
+		return nil
+	}
+	return &value.String
+}
+
+func optionalInt64(value pgtype.Int8) *int64 {
+	if !value.Valid {
+		return nil
+	}
+	return &value.Int64
+}
+
+func optionalInt32(value pgtype.Int4) *int32 {
+	if !value.Valid {
+		return nil
+	}
+	return &value.Int32
 }
 
 func nextAvailableCopyName(ctx context.Context, queries *sqlcgen.Queries, userID int64, parentID *uuid.UUID, original string) (string, string, error) {

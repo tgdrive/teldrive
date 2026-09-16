@@ -63,6 +63,24 @@ WHERE user_id = sqlc.arg(user_id)
 ORDER BY created_at DESC, id DESC
 LIMIT sqlc.arg(page_size);
 
+-- name: FindResumableUploadSessions :many
+SELECT *
+FROM /* TEMPLATE: schema */upload_sessions
+WHERE user_id = sqlc.arg(user_id)
+  AND parent_id IS NOT DISTINCT FROM sqlc.narg(parent_id)::uuid
+  AND name = sqlc.arg(name)
+  AND expected_size = sqlc.arg(expected_size)
+  AND encryption = sqlc.arg(encryption)
+  AND conflict_policy = 'replace'
+  AND expires_at > now()
+  AND state = 'open'
+  AND mime_type IS NOT DISTINCT FROM sqlc.narg(mime_type)::text
+  AND (
+    NOT sqlc.arg(has_mod_time)::boolean
+    OR abs(extract(epoch FROM (mod_time - sqlc.arg(mod_time)::timestamptz))) <= 1
+  )
+ORDER BY created_at DESC, id DESC;
+
 -- name: GetUploadPart :one
 SELECT *
 FROM /* TEMPLATE: schema */upload_parts
@@ -154,6 +172,12 @@ WHERE upload_id = sqlc.arg(upload_id)
   )
 ORDER BY part_no
 LIMIT sqlc.arg(page_size);
+
+-- name: ListUploadPartsByUploadIDs :many
+SELECT *
+FROM /* TEMPLATE: schema */upload_parts
+WHERE upload_id = ANY(sqlc.arg(upload_ids)::uuid[])
+ORDER BY upload_id, part_no;
 
 -- name: LockUploadSessionForCompletion :one
 SELECT *
@@ -299,14 +323,14 @@ WHERE id IN (
 )
 RETURNING *;
 
--- name: ListUploadPartsForCleanup :many
+-- name: ListUploadPartsForCleanupMany :many
 SELECT up.*
-FROM /* TEMPLATE: schema */upload_parts up
-JOIN /* TEMPLATE: schema */upload_sessions us ON us.id = up.upload_id
-WHERE us.id = sqlc.arg(upload_id)
+FROM /* TEMPLATE: schema */upload_parts AS up
+JOIN /* TEMPLATE: schema */upload_sessions AS us ON us.id = up.upload_id
+WHERE us.id = ANY(sqlc.arg(upload_ids)::uuid[])
   AND us.state IN ('aborted', 'expired')
   AND up.message_id IS NOT NULL
-ORDER BY up.part_no;
+ORDER BY up.upload_id, up.channel_id, up.part_no;
 
 -- name: ListUploadSessionsPendingCleanup :many
 SELECT DISTINCT us.*
@@ -317,14 +341,17 @@ WHERE us.state IN ('aborted', 'expired')
 ORDER BY us.updated_at, us.id
 LIMIT 1000;
 
--- name: DeleteUploadPartForCleanup :execrows
-DELETE FROM /* TEMPLATE: schema */upload_parts up
-USING /* TEMPLATE: schema */upload_sessions us
-WHERE up.upload_id = sqlc.arg(upload_id)
-  AND up.part_no = sqlc.arg(part_no)
-  AND up.message_id = sqlc.arg(message_id)
-  AND us.id = up.upload_id
-  AND us.state IN ('aborted', 'expired');
+-- name: DeleteUploadPartsForCleanup :execrows
+DELETE FROM /* TEMPLATE: schema */upload_parts AS part
+USING /* TEMPLATE: schema */upload_sessions AS session,
+      jsonb_to_recordset(sqlc.arg(parts)::jsonb) AS cleanup_part(
+        upload_id uuid, part_no integer, message_id bigint
+      )
+WHERE part.upload_id = cleanup_part.upload_id
+  AND part.part_no = cleanup_part.part_no
+  AND part.message_id = cleanup_part.message_id
+  AND session.id = part.upload_id
+  AND session.state IN ('aborted', 'expired');
 
 -- name: LockUploadDestinationConflict :one
 SELECT *

@@ -172,6 +172,12 @@ FROM /* TEMPLATE: schema */file_parts
 WHERE file_id = sqlc.arg(file_id)
 ORDER BY part_no;
 
+-- name: ListFilePartsByFileIDs :many
+SELECT *
+FROM /* TEMPLATE: schema */file_parts
+WHERE file_id = ANY(sqlc.arg(file_ids)::uuid[])
+ORDER BY file_id, part_no;
+
 -- name: SumFilePartSizes :one
 SELECT
     COALESCE(sum(plain_size), 0)::bigint AS plain_size,
@@ -359,15 +365,27 @@ WHERE id = sqlc.arg(folder_id)
   AND status = 'active'
 FOR UPDATE;
 
--- name: LockActiveNameConflict :one
-SELECT *
+-- name: LockActiveDestinationEntries :many
+SELECT id, normalized_name
 FROM /* TEMPLATE: schema */files
 WHERE user_id = sqlc.arg(user_id)
   AND parent_id IS NOT DISTINCT FROM sqlc.narg(parent_id)::uuid
-  AND normalized_name = sqlc.arg(normalized_name)
   AND status = 'active'
-  AND id <> sqlc.arg(exclude_id)
 FOR UPDATE;
+
+-- name: ListFileAncestorIDs :many
+WITH RECURSIVE ancestors AS (
+  SELECT file.id, file.parent_id
+  FROM /* TEMPLATE: schema */files AS file
+  WHERE file.id = sqlc.arg(file_id)
+    AND file.user_id = sqlc.arg(user_id)
+  UNION ALL
+  SELECT parent.id, parent.parent_id
+  FROM /* TEMPLATE: schema */files AS parent
+  JOIN ancestors AS child ON parent.id = child.parent_id
+  WHERE parent.user_id = sqlc.arg(user_id)
+)
+SELECT id FROM ancestors;
 
 -- name: ListFileSubtreeIDs :many
 WITH RECURSIVE subtree AS (
@@ -425,6 +443,28 @@ SET status = 'deletion_pending',
     updated_at = now()
 WHERE target_file.user_id = sqlc.arg(user_id) AND target_file.id IN (SELECT target.id FROM target);
 
+-- name: MarkFileSubtreesDeletionPending :exec
+WITH RECURSIVE target AS (
+  SELECT root.id
+  FROM /* TEMPLATE: schema */files AS root
+  WHERE root.id = ANY(sqlc.arg(file_ids)::uuid[])
+    AND root.user_id = sqlc.arg(user_id)
+    AND root.status = 'active'
+  UNION
+  SELECT child.id
+  FROM /* TEMPLATE: schema */files AS child
+  JOIN target AS parent ON child.parent_id = parent.id
+  WHERE child.user_id = sqlc.arg(user_id)
+    AND child.status = 'active'
+)
+UPDATE /* TEMPLATE: schema */files AS target_file
+SET status = 'deletion_pending',
+    deleted_at = COALESCE(target_file.deleted_at, now()),
+    generation = target_file.generation + 1,
+    updated_at = now()
+WHERE target_file.user_id = sqlc.arg(user_id)
+  AND target_file.id IN (SELECT target.id FROM target);
+
 -- name: RevokeSharesForFileSubtree :exec
 WITH RECURSIVE target AS (
   SELECT root.id FROM /* TEMPLATE: schema */files root WHERE root.id = sqlc.arg(file_id) AND root.user_id = sqlc.arg(user_id)
@@ -445,18 +485,30 @@ WHERE user_id = sqlc.arg(user_id)
   AND status = 'active'
   AND (sqlc.narg(exclude_id)::uuid IS NULL OR id <> sqlc.narg(exclude_id)::uuid);
 
--- name: MoveFileWithName :one
-UPDATE /* TEMPLATE: schema */files
+-- name: MoveFilesWithNames :many
+WITH arrays AS (
+  SELECT sqlc.arg(file_ids)::uuid[] AS file_ids,
+         sqlc.arg(names)::text[] AS names,
+         sqlc.arg(normalized_names)::text[] AS normalized_names
+), input AS (
+  SELECT arrays.file_ids[index] AS file_id,
+         arrays.names[index] AS name,
+         arrays.normalized_names[index] AS normalized_name
+  FROM arrays
+  CROSS JOIN LATERAL generate_subscripts(arrays.file_ids, 1) AS index
+)
+UPDATE /* TEMPLATE: schema */files AS file
 SET parent_id = sqlc.narg(parent_id),
-    name = sqlc.arg(name),
-    normalized_name = sqlc.arg(normalized_name),
-    generation = generation + 1,
+    name = input.name,
+    normalized_name = input.normalized_name,
+    generation = file.generation + 1,
     updated_at = now()
-WHERE id = sqlc.arg(file_id)
-  AND user_id = sqlc.arg(user_id)
-  AND status = 'active'
-  AND (sqlc.narg(expected_generation)::bigint IS NULL OR generation = sqlc.narg(expected_generation)::bigint)
-RETURNING *;
+FROM input
+WHERE file.id = input.file_id
+  AND file.user_id = sqlc.arg(user_id)
+  AND file.status = 'active'
+  AND (sqlc.narg(expected_generation)::bigint IS NULL OR file.generation = sqlc.narg(expected_generation)::bigint)
+RETURNING file.*;
 
 -- name: LoadFileSubtree :many
 WITH RECURSIVE tree AS (
@@ -493,27 +545,35 @@ SELECT id, user_id, parent_id, name, normalized_name, kind, mime_type, size,
 FROM tree
 ORDER BY depth, id;
 
--- name: InsertCopiedFile :exec
-INSERT INTO /* TEMPLATE: schema */files (
+-- name: InsertCopiedFiles :many
+INSERT INTO /* TEMPLATE: schema */files AS file (
     id, user_id, parent_id, name, normalized_name, kind, mime_type, size,
     hash_algorithm, hash_value, encryption, encryption_key_version,
     status, mod_time, generation
-) VALUES (
-    sqlc.arg(id), sqlc.arg(user_id), sqlc.narg(parent_id), sqlc.arg(name),
-    sqlc.arg(normalized_name), sqlc.arg(kind), sqlc.narg(mime_type),
-    sqlc.narg(size), sqlc.narg(hash_algorithm), sqlc.narg(hash_value),
-    sqlc.arg(encryption), sqlc.narg(encryption_key_version),
-    'active', sqlc.arg(mod_time), 1
-);
+)
+SELECT input.id, input.user_id, input.parent_id, input.name, input.normalized_name,
+       input.kind::/* TEMPLATE: schema */file_kind, input.mime_type, input.size,
+       input.hash_algorithm, input.hash_value, input.encryption,
+       input.encryption_key_version, 'active', input.mod_time, 1
+FROM jsonb_to_recordset(sqlc.arg(files)::jsonb) AS input(
+    id uuid, user_id bigint, parent_id uuid, name text, normalized_name text,
+    kind text, mime_type text, size bigint, hash_algorithm text, hash_value text,
+    encryption boolean, encryption_key_version integer, mod_time timestamptz
+)
+RETURNING file.*;
 
--- name: InsertCopiedFilePart :exec
+-- name: InsertCopiedFileParts :execrows
 INSERT INTO /* TEMPLATE: schema */file_parts (
     file_id, part_no, channel_id, message_id, plain_size, stored_size,
     checksum, salt, block_hashes
-) VALUES (
-    sqlc.arg(file_id), sqlc.arg(part_no), sqlc.arg(channel_id),
-    sqlc.arg(message_id), sqlc.arg(plain_size), sqlc.arg(stored_size),
-    sqlc.narg(checksum), sqlc.narg(salt), sqlc.arg(block_hashes)
+)
+SELECT input.file_id, input.part_no, input.channel_id, input.message_id,
+       input.plain_size, input.stored_size, input.checksum, input.salt,
+       decode(input.block_hashes, 'base64')
+FROM jsonb_to_recordset(sqlc.arg(parts)::jsonb) AS input(
+    file_id uuid, part_no integer, channel_id bigint, message_id bigint,
+    plain_size bigint, stored_size bigint, checksum text, salt text,
+    block_hashes text
 );
 
 -- name: MarkFileIDsDeletionPending :exec
@@ -578,3 +638,14 @@ SET plain_size = sqlc.arg(plain_size),
 WHERE file_id = sqlc.arg(file_id)
   AND part_no = sqlc.arg(part_no)
   AND (plain_size IS NULL OR stored_size IS NULL);
+
+-- name: UpdateFilePartSizesMany :execrows
+UPDATE /* TEMPLATE: schema */file_parts AS part
+SET plain_size = input.plain_size,
+    stored_size = input.stored_size
+FROM jsonb_to_recordset(sqlc.arg(parts)::jsonb) AS input(
+    part_no integer, plain_size bigint, stored_size bigint
+)
+WHERE part.file_id = sqlc.arg(file_id)
+  AND part.part_no = input.part_no
+  AND (part.plain_size IS NULL OR part.stored_size IS NULL);

@@ -16,7 +16,112 @@ import (
 	"github.com/tgdrive/teldrive/v2/internal/db/sqlcgen"
 	"github.com/tgdrive/teldrive/v2/internal/dbtypes"
 	testpostgres "github.com/tgdrive/teldrive/v2/internal/testutil/postgres"
+	"github.com/tgdrive/teldrive/v2/internal/testutil/querytrace"
 )
+
+func TestBulkMoveUsesSetBasedQueries(t *testing.T) {
+	db := testpostgres.New(t)
+	ctx := context.Background()
+	seedUser(t, db.Pool, 1001)
+	destinationID := uuid.New()
+	if _, err := db.Pool.Exec(ctx, `
+INSERT INTO files (id,user_id,name,normalized_name,kind,encryption,status,mod_time)
+VALUES ($1,1001,'destination','destination','folder',false,'active',now())`, destinationID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Pool.Exec(ctx, `
+INSERT INTO files (id,user_id,name,normalized_name,kind,size,encryption,status,mod_time)
+SELECT gen_random_uuid(), 1001, 'file-' || value, 'file-' || value, 'file', 1, false, 'active', now()
+FROM generate_series(1, 500) AS value`); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := db.Pool.Query(ctx, "SELECT id FROM files WHERE kind = 'file' ORDER BY id")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var fileIDs []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			t.Fatal(err)
+		}
+		fileIDs = append(fileIDs, id)
+	}
+	rows.Close()
+
+	tracer := &querytrace.Counter{}
+	config, err := pgxpool.ParseConfig(db.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	config.ConnConfig.Tracer = tracer
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	svc := catalog.NewService(pool, nil)
+	moved, err := svc.BulkMove(ctx, 1001, fileIDs, &destinationID, "fail")
+	if err != nil {
+		t.Fatalf("BulkMove() error = %v", err)
+	}
+	if len(moved) != len(fileIDs) {
+		t.Fatalf("moved files = %d, want %d", len(moved), len(fileIDs))
+	}
+	for _, name := range []string{"LockActiveFiles", "ListFileAncestorIDs", "LockActiveDestinationEntries", "MoveFilesWithNames"} {
+		if got := tracer.Count(name); got != 1 {
+			t.Fatalf("%s queries = %d, want 1", name, got)
+		}
+	}
+	if got := tracer.Count("MoveFileWithName"); got != 0 {
+		t.Fatalf("MoveFileWithName queries = %d, want 0", got)
+	}
+}
+
+func TestUpdatePartSizesManyUsesOneQuery(t *testing.T) {
+	db := testpostgres.New(t)
+	ctx := context.Background()
+	seedUser(t, db.Pool, 1001)
+	fileID := uuid.New()
+	if _, err := db.Pool.Exec(ctx, `
+INSERT INTO files (id,user_id,name,normalized_name,kind,size,encryption,status,mod_time)
+VALUES ($1,1001,'legacy.bin','legacy.bin','file',1000,false,'active',now())`, fileID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Pool.Exec(ctx, "INSERT INTO channels (channel_id,user_id,name,selected) VALUES (9001,1001,'storage',true)"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Pool.Exec(ctx, `
+INSERT INTO file_parts (file_id,part_no,channel_id,message_id)
+SELECT $1, value, 9001, value
+FROM generate_series(1,1000) AS value`, fileID); err != nil {
+		t.Fatal(err)
+	}
+	sizes := make(map[int32][2]int64, 1000)
+	for partNo := int32(1); partNo <= 1000; partNo++ {
+		sizes[partNo] = [2]int64{1, 1}
+	}
+	tracer := &querytrace.Counter{}
+	config, err := pgxpool.ParseConfig(db.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	config.ConnConfig.Tracer = tracer
+	pool, err := pgxpool.NewWithConfig(ctx, config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	if err := catalog.NewService(pool, nil).UpdatePartSizesMany(ctx, fileID, sizes); err != nil {
+		t.Fatalf("UpdatePartSizesMany() error = %v", err)
+	}
+	if got := tracer.Count("UpdateFilePartSizesMany"); got != 1 {
+		t.Fatalf("UpdateFilePartSizesMany queries = %d, want 1", got)
+	}
+	if got := tracer.Count("UpdateFilePartSizes"); got != 0 {
+		t.Fatalf("UpdateFilePartSizes queries = %d, want 0", got)
+	}
+}
 
 func TestCatalogLifecycleAgainstRealPostgres(t *testing.T) {
 	db := testpostgres.New(t)
