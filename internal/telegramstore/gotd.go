@@ -493,7 +493,7 @@ func (r *telegramRangeReader) fill(ctx context.Context, api *tg.Client, location
 
 			var response tg.UploadFileClass
 			var err error
-			for attempt := 0; attempt < r.attempts; attempt++ {
+			for range r.attempts {
 				attemptCtx, attemptCancel := context.WithTimeout(fetchCtx, r.timeout)
 				response, err = download(attemptCtx, usedLocation)
 				if _, expired := tgerr.AsType(err, "FILE_REFERENCE_EXPIRED"); expired && refresh != nil {

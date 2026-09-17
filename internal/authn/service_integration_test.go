@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -381,10 +382,5 @@ func (f *fakeQRLogin) PollQR(context.Context, []byte) (LoginStep, error) {
 }
 
 func containsRole(roles []string, target string) bool {
-	for _, role := range roles {
-		if role == target {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(roles, target)
 }

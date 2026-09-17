@@ -1,10 +1,12 @@
 package channels
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/tgdrive/teldrive/v2/internal/db/sqlcgen"
@@ -25,15 +27,8 @@ func (s *Service) Sync(ctx context.Context, userID int64, remote []RemoteChannel
 		}
 		unique[channel.ID] = channel
 	}
-	items := make([]RemoteChannel, 0, len(unique))
-	for _, channel := range unique {
-		items = append(items, channel)
-	}
-	sort.Slice(items, func(i, j int) bool {
-		if items[i].Name == items[j].Name {
-			return items[i].ID < items[j].ID
-		}
-		return items[i].Name < items[j].Name
+	items := slices.SortedFunc(maps.Values(unique), func(a, b RemoteChannel) int {
+		return cmp.Or(cmp.Compare(a.Name, b.Name), cmp.Compare(a.ID, b.ID))
 	})
 
 	tx, err := s.pool.Begin(ctx)

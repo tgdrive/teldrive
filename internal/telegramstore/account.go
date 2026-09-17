@@ -2,10 +2,12 @@ package telegramstore
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 
 	"github.com/gotd/td/telegram/downloader"
 	"github.com/gotd/td/telegram/query"
@@ -71,15 +73,8 @@ func (a *GotdAccount) DiscoverChannels(ctx context.Context, userID int64) ([]Dis
 	if err != nil {
 		return nil, err
 	}
-	result := make([]DiscoveredChannel, 0, len(channels))
-	for _, channel := range channels {
-		result = append(result, channel)
-	}
-	sort.Slice(result, func(i, j int) bool {
-		if result[i].Name == result[j].Name {
-			return result[i].ID < result[j].ID
-		}
-		return result[i].Name < result[j].Name
+	result := slices.SortedFunc(maps.Values(channels), func(a, b DiscoveredChannel) int {
+		return cmp.Or(cmp.Compare(a.Name, b.Name), cmp.Compare(a.ID, b.ID))
 	})
 	return result, nil
 }

@@ -52,16 +52,14 @@ func TestConcurrentRolloverCreatesOneChannel(t *testing.T) {
 	errs := make(chan error, callers)
 	var wg sync.WaitGroup
 	for range callers {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			id, err := svc.Resolve(context.Background(), 1001, 0)
 			if err != nil {
 				errs <- err
 				return
 			}
 			results <- id
-		}()
+		})
 	}
 	wg.Wait()
 	close(results)

@@ -1,13 +1,15 @@
 package fileops
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -570,11 +572,7 @@ func (s *Service) PurgeMany(ctx context.Context, userID int64, rootIDs []uuid.UU
 	for _, ref := range refs {
 		grouped[ref.ChannelID] = append(grouped[ref.ChannelID], ref.MessageID)
 	}
-	channelIDs := make([]int64, 0, len(grouped))
-	for channelID := range grouped {
-		channelIDs = append(channelIDs, channelID)
-	}
-	sort.Slice(channelIDs, func(i, j int) bool { return channelIDs[i] < channelIDs[j] })
+	channelIDs := slices.Sorted(maps.Keys(grouped))
 	for _, channelID := range channelIDs {
 		if err := s.storage.DeleteMessages(ctx, userID, channelID, grouped[channelID]); err != nil {
 			return fmt.Errorf("delete Telegram purge messages for channel %d: %w", channelID, err)
@@ -604,7 +602,7 @@ func (s *Service) PurgeMany(ctx context.Context, userID int64, rootIDs []uuid.UU
 		}
 		byDepth[node.Depth] = append(byDepth[node.Depth], id)
 	}
-	sort.Slice(depths, func(i, j int) bool { return depths[i] > depths[j] })
+	slices.SortFunc(depths, func(a, b int32) int { return cmp.Compare(b, a) })
 	for _, depth := range depths {
 		depthIDs := byDepth[depth]
 		count, err := queries.DeleteFileCatalogRowsByIDs(ctx, sqlcgen.DeleteFileCatalogRowsByIDsParams{

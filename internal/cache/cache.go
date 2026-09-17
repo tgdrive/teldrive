@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -30,10 +30,7 @@ type MemoryCache struct {
 // NewMemoryCache creates a Ristretto-backed memory cache.
 // size is the maximum cache cost in bytes, e.g. 5*1024*1024 for 5MB.
 func NewMemoryCache(size int) *MemoryCache {
-	numCounters := int64(size/1024) * 10
-	if numCounters < 10_000 {
-		numCounters = 10_000
-	}
+	numCounters := max(int64(size/1024)*10, 10_000)
 	c, err := ristretto.NewCache(&ristretto.Config[string, []byte]{
 		NumCounters: numCounters,
 		MaxCost:     int64(size),
@@ -131,7 +128,7 @@ func formatValue(v any) string {
 		return formatValue(val.Elem().Interface())
 	case reflect.Array, reflect.Slice:
 		parts := make([]string, val.Len())
-		for i := 0; i < val.Len(); i++ {
+		for i := range val.Len() {
 			parts[i] = formatValue(val.Index(i).Interface())
 		}
 		return fmt.Sprintf("[%s]", strings.Join(parts, ","))
@@ -140,7 +137,7 @@ func formatValue(v any) string {
 		for _, k := range val.MapKeys() {
 			parts = append(parts, fmt.Sprintf("%s=%s", formatValue(k.Interface()), formatValue(val.MapIndex(k).Interface())))
 		}
-		sort.Strings(parts)
+		slices.Sort(parts)
 		return fmt.Sprintf("{%s}", strings.Join(parts, ","))
 	case reflect.Struct:
 		return fmt.Sprintf("%+v", v)

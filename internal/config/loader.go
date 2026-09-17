@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -18,6 +18,7 @@ import (
 	"github.com/knadh/koanf/providers/file"
 	"github.com/knadh/koanf/v2"
 	"github.com/spf13/pflag"
+	stdmaps "maps"
 
 	"github.com/tgdrive/teldrive/v2/internal/size"
 )
@@ -57,7 +58,7 @@ func (l *Loader) RegisterFlags(flags *pflag.FlagSet) {
 	}
 	flags.StringP("config", "c", "", "Config file path (default "+defaultConfigPath+")")
 	defaults := Default()
-	l.registerStruct(flags, "", reflect.ValueOf(defaults), reflect.TypeOf(defaults))
+	l.registerStruct(flags, "", reflect.ValueOf(defaults), reflect.TypeFor[Config]())
 }
 
 // Load applies sources in the same precedence order as the original TelDrive:
@@ -90,7 +91,7 @@ func (l *Loader) Load(flags *pflag.FlagSet) (Config, error) {
 	}
 
 	l.envMap = make(map[string]string)
-	l.generateEnvMap(reflect.TypeOf(Config{}), "", "")
+	l.generateEnvMap(reflect.TypeFor[Config](), "", "")
 	if err := k.Load(staticProvider{values: l.environmentValues()}, nil); err != nil {
 		return Config{}, fmt.Errorf("load environment configuration: %w", err)
 	}
@@ -189,11 +190,7 @@ func parserForPath(path string) (koanf.Parser, error) {
 
 func (l *Loader) environmentValues() map[string]any {
 	flat := make(map[string]any)
-	keys := make([]string, 0, len(l.envMap))
-	for key := range l.envMap {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
+	keys := slices.Sorted(stdmaps.Keys(l.envMap))
 	for _, envKey := range keys {
 		if value, ok := l.lookup(envPrefix + envKey); ok {
 			flat[l.envMap[envKey]] = value
@@ -206,8 +203,7 @@ func (l *Loader) generateEnvMap(t reflect.Type, path, envPath string) {
 	if t.Kind() == reflect.Pointer {
 		t = t.Elem()
 	}
-	for i := 0; i < t.NumField(); i++ {
-		field := t.Field(i)
+	for field := range t.Fields() {
 		key := fieldKey(field)
 		childPath := joinPath(path, key)
 		childEnv := strings.ToUpper(strings.ReplaceAll(key, "-", "_"))
@@ -223,7 +219,7 @@ func (l *Loader) generateEnvMap(t reflect.Type, path, envPath string) {
 }
 
 func (l *Loader) registerStruct(flags *pflag.FlagSet, path string, value reflect.Value, t reflect.Type) {
-	for i := 0; i < t.NumField(); i++ {
+	for i := range t.NumField() {
 		field := t.Field(i)
 		fieldValue := value.Field(i)
 		key := joinPath(path, fieldKey(field))
@@ -238,13 +234,13 @@ func (l *Loader) registerStruct(flags *pflag.FlagSet, path string, value reflect
 			description = "Set " + key
 		}
 		switch {
-		case field.Type == reflect.TypeOf(time.Duration(0)):
+		case field.Type == reflect.TypeFor[time.Duration]():
 			flags.Duration(name, time.Duration(fieldValue.Int()), description)
-		case field.Type == reflect.TypeOf(size.Size(0)):
+		case field.Type == reflect.TypeFor[size.Size]():
 			flags.String(name, fieldValue.Interface().(size.Size).String(), description)
-		case field.Type == reflect.TypeOf(map[int32]string{}):
+		case field.Type == reflect.TypeFor[map[int32]string]():
 			flags.String(name, formatEncryptionKeys(fieldValue.Interface().(map[int32]string)), description)
-		case field.Type == reflect.TypeOf([]string{}):
+		case field.Type == reflect.TypeFor[[]string]():
 			flags.StringSlice(name, fieldValue.Interface().([]string), description)
 		case field.Type.Kind() == reflect.String:
 			flags.String(name, fieldValue.String(), description)
@@ -261,23 +257,23 @@ func (l *Loader) registerStruct(flags *pflag.FlagSet, path string, value reflect
 }
 
 func defaultsMap(cfg Config) map[string]any {
-	return structMap(reflect.ValueOf(cfg), reflect.TypeOf(cfg))
+	return structMap(reflect.ValueOf(cfg), reflect.TypeFor[Config]())
 }
 
 func structMap(value reflect.Value, t reflect.Type) map[string]any {
 	result := make(map[string]any)
-	for i := 0; i < t.NumField(); i++ {
+	for i := range t.NumField() {
 		field := t.Field(i)
 		fieldValue := value.Field(i)
 		key := fieldKey(field)
 		switch {
 		case isNestedStruct(field.Type):
 			result[key] = structMap(fieldValue, field.Type)
-		case field.Type == reflect.TypeOf(time.Duration(0)):
+		case field.Type == reflect.TypeFor[time.Duration]():
 			result[key] = time.Duration(fieldValue.Int()).String()
-		case field.Type == reflect.TypeOf(size.Size(0)):
+		case field.Type == reflect.TypeFor[size.Size]():
 			result[key] = fieldValue.Interface().(size.Size).String()
-		case field.Type == reflect.TypeOf(map[int32]string{}):
+		case field.Type == reflect.TypeFor[map[int32]string]():
 			result[key] = formatEncryptionKeys(fieldValue.Interface().(map[int32]string))
 		default:
 			result[key] = fieldValue.Interface()
@@ -287,7 +283,7 @@ func structMap(value reflect.Value, t reflect.Type) map[string]any {
 }
 
 func decodeSize(_ reflect.Type, to reflect.Type, data any) (any, error) {
-	if to != reflect.TypeOf(size.Size(0)) {
+	if to != reflect.TypeFor[size.Size]() {
 		return data, nil
 	}
 	switch value := data.(type) {
@@ -305,7 +301,7 @@ func decodeSize(_ reflect.Type, to reflect.Type, data any) (any, error) {
 }
 
 func decodeEncryptionKeys(from reflect.Type, to reflect.Type, data any) (any, error) {
-	if to != reflect.TypeOf(map[int32]string{}) {
+	if to != reflect.TypeFor[map[int32]string]() {
 		return data, nil
 	}
 	switch value := data.(type) {
@@ -333,7 +329,7 @@ func formatEncryptionKeys(keys map[int32]string) string {
 	for version := range keys {
 		versions = append(versions, int(version))
 	}
-	sort.Ints(versions)
+	slices.Sort(versions)
 	parts := make([]string, 0, len(versions))
 	for _, version := range versions {
 		parts = append(parts, fmt.Sprintf("%d:%s", version, keys[int32(version)]))
@@ -368,7 +364,7 @@ func joinPath(prefix, key string) string {
 }
 
 func isNestedStruct(t reflect.Type) bool {
-	return t.Kind() == reflect.Struct && t != reflect.TypeOf(time.Duration(0)) && t != reflect.TypeOf(size.Size(0))
+	return t.Kind() == reflect.Struct && t != reflect.TypeFor[time.Duration]() && t != reflect.TypeFor[size.Size]()
 }
 
 type staticProvider struct{ values map[string]any }

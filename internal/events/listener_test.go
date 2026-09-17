@@ -85,8 +85,7 @@ func TestListenerReconnectsAndDelivers(t *testing.T) {
 		ReconnectMin:   time.Millisecond,
 		ReconnectMax:   5 * time.Millisecond,
 	})
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	ctx := t.Context()
 	if err := listener.Start(ctx); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}

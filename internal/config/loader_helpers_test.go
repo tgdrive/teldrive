@@ -12,8 +12,8 @@ import (
 
 func TestDecodeSizeVariants(t *testing.T) {
 	t.Parallel()
-	target := reflect.TypeOf(size.Size(0))
-	other := reflect.TypeOf("")
+	target := reflect.TypeFor[size.Size]()
+	other := reflect.TypeFor[string]()
 
 	if got, err := decodeSize(nil, other, "1MiB"); err != nil || got != "1MiB" {
 		t.Fatalf("non-size decode = %#v, %v", got, err)
@@ -44,8 +44,8 @@ func TestDecodeSizeVariants(t *testing.T) {
 
 func TestDecodeEncryptionKeysVariants(t *testing.T) {
 	t.Parallel()
-	target := reflect.TypeOf(map[int32]string{})
-	other := reflect.TypeOf("")
+	target := reflect.TypeFor[map[int32]string]()
+	other := reflect.TypeFor[string]()
 	if got, err := decodeEncryptionKeys(nil, other, "1:key"); err != nil || got != "1:key" {
 		t.Fatalf("non-key decode = %#v, %v", got, err)
 	}
@@ -110,7 +110,7 @@ func TestLoaderProviderAndKeyHelpers(t *testing.T) {
 	if got := joinPath("parent", "key"); got != "parent.key" {
 		t.Fatalf("joinPath nested = %q", got)
 	}
-	if !isNestedStruct(reflect.TypeOf(struct{ Value string }{})) || isNestedStruct(reflect.TypeOf(time.Second)) || isNestedStruct(reflect.TypeOf(size.Size(0))) {
+	if !isNestedStruct(reflect.TypeFor[struct{ Value string }]()) || isNestedStruct(reflect.TypeFor[time.Duration]()) || isNestedStruct(reflect.TypeFor[size.Size]()) {
 		t.Fatal("isNestedStruct() classification is incorrect")
 	}
 }

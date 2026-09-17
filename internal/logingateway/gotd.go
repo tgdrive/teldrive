@@ -25,7 +25,7 @@ type loginState struct {
 	Session       string    `json:"session"`
 	PhoneCodeHash string    `json:"phone_code_hash,omitempty"`
 	QRURL         string    `json:"qr_url,omitempty"`
-	QRExpiresAt   time.Time `json:"qr_expires_at,omitempty"`
+	QRExpiresAt   time.Time `json:"qr_expires_at"`
 }
 
 type qrExportResult struct {

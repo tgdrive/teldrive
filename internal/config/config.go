@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net/netip"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -196,7 +196,7 @@ func (c Config) Validate() error {
 		problems = append(problems, "event reconnect maximum must not be less than minimum")
 	}
 	if len(problems) > 0 {
-		sort.Strings(problems)
+		slices.Sort(problems)
 		return fmt.Errorf("%w: %s", ErrInvalid, strings.Join(problems, "; "))
 	}
 	return nil

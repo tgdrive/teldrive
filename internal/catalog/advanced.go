@@ -38,7 +38,7 @@ func (s *Service) ResolveFolderPath(ctx context.Context, userID int64, rootID *u
 		return nil, ErrInvalidParent
 	}
 	current := rootID
-	for _, component := range strings.Split(path, "/") {
+	for component := range strings.SplitSeq(path, "/") {
 		if component == "" || component == "." || component == ".." {
 			return nil, ErrInvalidParent
 		}

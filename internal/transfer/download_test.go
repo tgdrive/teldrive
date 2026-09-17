@@ -127,16 +127,13 @@ func TestDownloadReaderSeekAndConcurrentReadAt(t *testing.T) {
 		{off: 2, want: "efg"},
 		{off: 4, want: "gh"},
 	} {
-		tc := tc
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
+		wg.Go(func() {
 			got := make([]byte, len(tc.want))
 			n, err := download.Reader.ReadAt(got, tc.off)
 			if err != nil || n != len(tc.want) || string(got) != tc.want {
 				t.Errorf("ReadAt(%d) = %d, %v, %q, want %q", tc.off, n, err, got, tc.want)
 			}
-		}()
+		})
 	}
 	wg.Wait()
 }

@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -128,7 +128,7 @@ func (r *Runtime) ListQueues(ctx context.Context) ([]Queue, error) {
 		}
 		result = append(result, queue)
 	}
-	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
+	slices.SortFunc(result, func(a, b Queue) int { return strings.Compare(a.Name, b.Name) })
 	return result, nil
 }
 

@@ -4,7 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
+	"maps"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -74,11 +75,7 @@ func (w *TrashCleanupWorker) Work(ctx context.Context, job *river.Job[TrashClean
 			}
 			byUser[item.UserID] = append(byUser[item.UserID], fileID)
 		}
-		userIDs := make([]int64, 0, len(byUser))
-		for userID := range byUser {
-			userIDs = append(userIDs, userID)
-		}
-		sort.Slice(userIDs, func(i, j int) bool { return userIDs[i] < userIDs[j] })
+		userIDs := slices.Sorted(maps.Keys(byUser))
 		for _, userID := range userIDs {
 			if err := w.service.PurgeMany(ctx, userID, byUser[userID]); err != nil {
 				return fmt.Errorf("purge expired trash files for user %d: %w", userID, err)

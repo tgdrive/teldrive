@@ -256,7 +256,7 @@ func (r *downloadReader) Read(p []byte) (int, error) {
 		n, err := r.reader.Read(p[read:])
 		read += n
 		r.pos += int64(n)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			_ = r.reader.Close()
 			r.reader = nil
 			continue
@@ -387,7 +387,7 @@ func (r *downloadReader) readSegmentAt(p []byte, segment downloadSegment, off in
 	}
 	defer reader.Close()
 	n, err := io.ReadFull(reader, p)
-	if err == io.ErrUnexpectedEOF || err == io.EOF {
+	if errors.Is(err, io.ErrUnexpectedEOF) || errors.Is(err, io.EOF) {
 		return n, err
 	}
 	return n, err

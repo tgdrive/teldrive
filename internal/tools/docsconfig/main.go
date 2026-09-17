@@ -5,7 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -25,8 +25,8 @@ type row struct {
 
 func main() {
 	cfg := config.Default()
-	rows := collect(reflect.ValueOf(cfg), reflect.TypeOf(cfg), "", "")
-	sort.Slice(rows, func(i, j int) bool { return rows[i].configKey < rows[j].configKey })
+	rows := collect(reflect.ValueOf(cfg), reflect.TypeFor[config.Config](), "", "")
+	slices.SortFunc(rows, func(a, b row) int { return strings.Compare(a.configKey, b.configKey) })
 
 	var b strings.Builder
 	b.WriteString("---\ntitle: \"CLI, environment & config reference\"\ndescription: Complete generated mapping of Teldrive config keys to command-line flags and TELDRIVE_ environment variables.\n---\n\n")
@@ -55,7 +55,7 @@ func main() {
 
 func collect(v reflect.Value, t reflect.Type, path, section string) []row {
 	var rows []row
-	for i := 0; i < t.NumField(); i++ {
+	for i := range t.NumField() {
 		f := t.Field(i)
 		key := fieldKey(f)
 		if key == "-" {
@@ -106,14 +106,14 @@ func toKebab(s string) string {
 }
 
 func isNestedStruct(t reflect.Type) bool {
-	return t.Kind() == reflect.Struct && t != reflect.TypeOf(time.Duration(0)) && t != reflect.TypeOf(size.Size(0))
+	return t.Kind() == reflect.Struct && t != reflect.TypeFor[time.Duration]() && t != reflect.TypeFor[size.Size]()
 }
 
 func formatValue(v reflect.Value) string {
-	if v.Type() == reflect.TypeOf(time.Duration(0)) {
+	if v.Type() == reflect.TypeFor[time.Duration]() {
 		return time.Duration(v.Int()).String()
 	}
-	if v.Type() == reflect.TypeOf(size.Size(0)) {
+	if v.Type() == reflect.TypeFor[size.Size]() {
 		return v.Interface().(size.Size).String()
 	}
 	switch v.Kind() {

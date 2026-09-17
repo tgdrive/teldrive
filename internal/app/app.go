@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net"
 	"net/http"
 	"os"
@@ -182,9 +183,7 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 		NamePrefix: cfg.Telegram.ChannelNamePrefix,
 	})
 	keys := make(transfer.StaticKeyProvider, len(cfg.Encryption.Keys))
-	for version, key := range cfg.Encryption.Keys {
-		keys[version] = key
-	}
+	maps.Copy(keys, cfg.Encryption.Keys)
 	uploadPipeline := transfer.NewPipeline(uploadService, channelService, storage, keys, transfer.Config{
 		UploadThreads: cfg.Telegram.UploadThreads, RandomizePartNames: cfg.Telegram.RandomizePartNames,
 		DisableHashing: !cfg.Uploads.HashingEnabled,

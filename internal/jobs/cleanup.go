@@ -1,11 +1,12 @@
 package jobs
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"time"
 
 	"github.com/google/uuid"
@@ -130,11 +131,8 @@ func (w *UploadCleanupWorker) cleanupUploads(ctx context.Context, sessions []*sq
 	for channel := range byChannel {
 		channels = append(channels, channel)
 	}
-	sort.Slice(channels, func(i, j int) bool {
-		if channels[i].userID == channels[j].userID {
-			return channels[i].channelID < channels[j].channelID
-		}
-		return channels[i].userID < channels[j].userID
+	slices.SortFunc(channels, func(a, b cleanupChannel) int {
+		return cmp.Or(cmp.Compare(a.userID, b.userID), cmp.Compare(a.channelID, b.channelID))
 	})
 	for _, channel := range channels {
 		channelParts := byChannel[channel]

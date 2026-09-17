@@ -72,10 +72,7 @@ func (w *BotProvisionWorker) Work(ctx context.Context, job *river.Job[BotProvisi
 		var inviteMu sync.Mutex
 		sem := make(chan struct{}, 3)
 		for _, channel := range channels {
-			channel := channel
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
+			wg.Go(func() {
 				sem <- struct{}{}
 				defer func() { <-sem }()
 
@@ -86,7 +83,7 @@ func (w *BotProvisionWorker) Work(ctx context.Context, job *river.Job[BotProvisi
 					}
 					inviteMu.Unlock()
 				}
-			}()
+			})
 		}
 		wg.Wait()
 		if inviteErr != nil {

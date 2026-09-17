@@ -28,7 +28,7 @@ func applyStructDefaults(value reflect.Value, path string) error {
 		return fmt.Errorf("default target %q must be a struct", path)
 	}
 	valueType := value.Type()
-	for i := 0; i < value.NumField(); i++ {
+	for i := range value.NumField() {
 		field := value.Field(i)
 		fieldType := valueType.Field(i)
 		fieldPath := fieldType.Name

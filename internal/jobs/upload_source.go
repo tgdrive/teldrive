@@ -360,9 +360,7 @@ func (w *UploadSourceWorker) Work(ctx context.Context, job *river.Job[UploadSour
 	group.SetLimit(job.Args.PartConcurrency)
 	progressCtx, stopProgress := context.WithCancel(ctx)
 	var progressWG sync.WaitGroup
-	progressWG.Add(1)
-	go func() {
-		defer progressWG.Done()
+	progressWG.Go(func() {
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
 		for {
@@ -373,9 +371,8 @@ func (w *UploadSourceWorker) Work(ctx context.Context, job *river.Job[UploadSour
 				_ = tracker.update(progressCtx, "uploading", false)
 			}
 		}
-	}()
-	for part := 0; part < partCount; part++ {
-		part := part
+	})
+	for part := range partCount {
 		if _, ok := storedParts[int32(part+1)]; ok {
 			continue
 		}
@@ -588,7 +585,7 @@ func (t *uploadProgressTracker) finish(ctx context.Context, stage string, fileID
 }
 
 func (w *UploadSourceWorker) ensureFolders(ctx context.Context, userID int64, parentID *uuid.UUID, directory string) (*uuid.UUID, error) {
-	for _, name := range strings.Split(strings.Trim(directory, "/"), "/") {
+	for name := range strings.SplitSeq(strings.Trim(directory, "/"), "/") {
 		if name == "" || name == "." {
 			continue
 		}

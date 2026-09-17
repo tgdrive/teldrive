@@ -3,7 +3,7 @@ package config
 import (
 	"fmt"
 	"reflect"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/go-playground/validator/v10"
@@ -28,7 +28,7 @@ func validateTaggedFields(cfg Config) []string {
 		} else {
 			problems = append(problems, err.Error())
 		}
-		sort.Strings(problems)
+		slices.Sort(problems)
 		return problems
 	}
 	return nil

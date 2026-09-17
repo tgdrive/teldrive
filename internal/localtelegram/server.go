@@ -286,7 +286,7 @@ func (s *Server) finalizeUpload(ctx context.Context, media *tg.InputMediaUploade
 	hash := sha256.New()
 	writer := io.MultiWriter(temp, hash)
 	var size int64
-	for part := 0; part < parts; part++ {
+	for part := range parts {
 		if err := ctx.Err(); err != nil {
 			return documentRecord{}, err
 		}

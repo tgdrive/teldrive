@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 
 	"github.com/tgdrive/teldrive/v2/internal/api/gen"
@@ -55,12 +56,7 @@ func HasRole(ctx context.Context, role string) bool {
 	if !ok {
 		return false
 	}
-	for _, candidate := range identity.Roles {
-		if candidate == role {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(identity.Roles, role)
 }
 
 func HasAdminRole(ctx context.Context) bool {

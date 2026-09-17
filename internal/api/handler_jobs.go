@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
 	"net/http"
 	"strconv"
 	"strings"
@@ -134,9 +135,7 @@ func (h *Handler) CreateUploadImport(ctx context.Context, req *gen.UploadImportR
 
 func cloneHeaders[T ~map[string]string](values T) map[string]string {
 	result := make(map[string]string, len(values))
-	for key, value := range values {
-		result[key] = value
-	}
+	maps.Copy(result, values)
 	return result
 }
 
