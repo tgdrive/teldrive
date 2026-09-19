@@ -93,5 +93,29 @@
           teldrive = teldrive;
           default = teldrive;
         });
+
+      devShells = forAllSystems (system:
+        let pkgs = import nixpkgs { inherit system; }; in {
+          # Toolchain for the just workflows: go/bun/nodejs run the code,
+          # sqlc + patchsqlc regenerate the DB layer (must be v1.31.1),
+          # just drives justfile, podman backs integration tests,
+          # postgresql provides psql for debugging test databases.
+          default = pkgs.mkShell {
+            packages = with pkgs; [
+              go
+              bun
+              nodejs
+              sqlc
+              just
+              git
+              podman
+              postgresql
+            ];
+            shellHook = ''
+              echo "teldrive dev shell: $(go version | cut -d' ' -f3), bun $(bun --version), sqlc $(sqlc version 2>/dev/null | head -n1)"
+              echo "run 'just --list' for workflows (try: just install-tools)"
+            '';
+          };
+        });
     };
 }
