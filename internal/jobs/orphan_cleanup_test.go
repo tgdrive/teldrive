@@ -47,9 +47,9 @@ func TestFindBrokenFiles(t *testing.T) {
 		{MessageID: 13, FileID: mustTestFileUUID("22222222-2222-2222-2222-222222222222"), FileName: "a.bin", FileSize: pgtype.Int8{Int64: 10, Valid: true}},
 	}
 	seen := map[int64]struct{}{10: {}, 12: {}}
-	broken, total := findBrokenFiles(seen, rows, 9001, maxBrokenFiles)
-	if total != 2 || len(broken) != 2 {
-		t.Fatalf("findBrokenFiles() total = %d, len = %d, want 2/2", total, len(broken))
+	broken := findBrokenFiles(seen, rows, 9001)
+	if len(broken) != 2 {
+		t.Fatalf("findBrokenFiles() len = %d, want 2", len(broken))
 	}
 	if broken[0].Name != "a.bin" || broken[1].Name != "b.bin" {
 		t.Fatalf("broken files not sorted by name: %+v", broken)
@@ -60,11 +60,26 @@ func TestFindBrokenFiles(t *testing.T) {
 	if broken[0].FileID != "22222222-2222-2222-2222-222222222222" || broken[0].Size != 10 || broken[0].ChannelID != 9001 {
 		t.Fatalf("a.bin entry = %+v", broken[0])
 	}
-	capped, total := findBrokenFiles(seen, rows, 9001, 1)
-	if total != 2 || len(capped) != 1 {
-		t.Fatalf("capped findBrokenFiles() total = %d, len = %d, want 2/1", total, len(capped))
+	if got := findBrokenFiles(map[int64]struct{}{10: {}, 11: {}, 12: {}, 13: {}}, rows, 9001); len(got) != 0 {
+		t.Fatalf("len = %d, want 0", len(got))
 	}
-	if _, total := findBrokenFiles(map[int64]struct{}{10: {}, 11: {}, 12: {}, 13: {}}, rows, 9001, maxBrokenFiles); total != 0 {
-		t.Fatalf("total = %d, want 0", total)
+}
+
+func TestLimitBrokenFilesSize(t *testing.T) {
+	t.Parallel()
+	output := OrphanCleanupOutput{
+		Channels: 1, Scanned: 4, Deleted: 0,
+		BrokenFiles: []BrokenFile{{FileID: "22222222-2222-2222-2222-222222222222", Name: "a.bin", Size: 10, ChannelID: 9001, MissingMessageIDs: []int64{13}}},
+		BrokenTotal: 1,
+	}
+	if got := limitBrokenFilesSize(output, 1<<20); got.BrokenTruncated || len(got.BrokenFiles) != 1 {
+		t.Fatalf("under budget: truncated = %v, len = %d, want false/1", got.BrokenTruncated, len(got.BrokenFiles))
+	}
+	if got := limitBrokenFilesSize(output, 10); !got.BrokenTruncated || len(got.BrokenFiles) != 0 || got.BrokenTotal != 1 {
+		t.Fatalf("over budget: truncated = %v, len = %d, total = %d, want true/0/1", got.BrokenTruncated, len(got.BrokenFiles), got.BrokenTotal)
+	}
+	empty := OrphanCleanupOutput{BrokenFiles: []BrokenFile{}, BrokenTotal: 0}
+	if got := limitBrokenFilesSize(empty, 10); got.BrokenTruncated {
+		t.Fatalf("empty list must never truncate")
 	}
 }

@@ -2,6 +2,7 @@ package jobs
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -18,10 +19,10 @@ import (
 
 const OrphanCleanupKind = "teldrive_cleanup_orphaned_telegram_parts"
 
-// maxBrokenFiles caps the broken-file list kept in the job output; the
-// brokenTotal counter always reflects the full count. River rejects job
-// output above 32MB, and names make entries unbounded.
-const maxBrokenFiles = 500
+// maxOrphanOutputBytes bounds the recorded job output well below River's
+// 32MB limit, so a badly damaged channel degrades to counters instead of
+// failing the sweep.
+const maxOrphanOutputBytes = 16 << 20
 
 type OrphanCleanupArgs struct{}
 
@@ -39,8 +40,9 @@ type OrphanCleanupOutput struct {
 	Cutoff      time.Time `json:"cutoff"`
 	CompletedAt time.Time `json:"completedAt"`
 	// BrokenFiles lists active files with DB-referenced messages missing from
-	// Telegram, so owners know what to re-upload. Capped at maxBrokenFiles;
-	// BrokenTotal always holds the full count.
+	// Telegram, so owners know what to re-upload. The list is uncapped;
+	// limitBrokenFilesSize degrades to counters when it would exceed the
+	// job-output size budget.
 	BrokenFiles     []BrokenFile `json:"brokenFiles"`
 	BrokenTotal     int          `json:"brokenTotal"`
 	BrokenTruncated bool         `json:"brokenTruncated"`
@@ -57,9 +59,8 @@ type BrokenFile struct {
 }
 
 // findBrokenFiles returns files with referenced messages absent from the
-// Telegram listing, grouped by file and sorted by name. The returned list is
-// capped at limit entries; total is the uncapped file count.
-func findBrokenFiles(seen map[int64]struct{}, rows []*sqlcgen.ListChannelReferencedPartsRow, channelID int64, limit int) (broken []BrokenFile, total int) {
+// Telegram listing, grouped by file and sorted by name.
+func findBrokenFiles(seen map[int64]struct{}, rows []*sqlcgen.ListChannelReferencedPartsRow, channelID int64) []BrokenFile {
 	type pending struct {
 		name string
 		size int64
@@ -96,14 +97,23 @@ func findBrokenFiles(seen map[int64]struct{}, rows []*sqlcgen.ListChannelReferen
 		}
 		return strings.Compare(a.FileID, b.FileID)
 	})
-	total = len(files)
-	if limit < 0 {
-		limit = 0
+	return files
+}
+
+// limitBrokenFilesSize drops the broken-file list, keeping counters, when
+// the marshaled output would exceed maxBytes. The sweep still completes
+// with full totals instead of failing on oversized job output.
+func limitBrokenFilesSize(output OrphanCleanupOutput, maxBytes int) OrphanCleanupOutput {
+	if len(output.BrokenFiles) == 0 {
+		return output
 	}
-	if len(files) > limit {
-		files = files[:limit]
+	raw, err := json.Marshal(output)
+	if err != nil || len(raw) <= maxBytes {
+		return output
 	}
-	return files, total
+	output.BrokenFiles = []BrokenFile{}
+	output.BrokenTruncated = true
+	return output
 }
 
 type OrphanedTelegramPartsCleanupWorker struct {
@@ -191,17 +201,21 @@ func (w *OrphanedTelegramPartsCleanupWorker) Work(ctx context.Context, job *rive
 		if err != nil {
 			return fmt.Errorf("list referenced parts for channel %d: %w", channel.ChannelID, err)
 		}
-		channelBrokenFiles, channelBrokenTotal := findBrokenFiles(seen, referenced, channel.ChannelID, maxBrokenFiles-len(brokenFiles))
+		channelBrokenFiles := findBrokenFiles(seen, referenced, channel.ChannelID)
 		brokenFiles = append(brokenFiles, channelBrokenFiles...)
-		brokenTotal += channelBrokenTotal
-		channelBroken = channelBrokenTotal
+		brokenTotal += len(channelBrokenFiles)
+		channelBroken = len(channelBrokenFiles)
 		slog.DebugContext(ctx, "orphaned Telegram part cleanup: channel completed",
 			"user_id", channel.UserID, "channel_id", channel.ChannelID,
 			"scanned", channelScanned, "deleted", channelDeleted, "broken", channelBroken)
 	}
 	slog.InfoContext(ctx, "orphaned Telegram part cleanup completed", "channels", len(channels), "scanned", scanned, "deleted", deleted, "broken", brokenTotal, "cutoff", cutoff)
-	output := OrphanCleanupOutput{Channels: len(channels), Scanned: scanned, Deleted: deleted, Cutoff: cutoff, CompletedAt: time.Now().UTC(),
-		BrokenFiles: brokenFiles, BrokenTotal: brokenTotal, BrokenTruncated: brokenTotal > len(brokenFiles)}
+	output := limitBrokenFilesSize(OrphanCleanupOutput{Channels: len(channels), Scanned: scanned, Deleted: deleted, Cutoff: cutoff, CompletedAt: time.Now().UTC(),
+		BrokenFiles: brokenFiles, BrokenTotal: brokenTotal}, maxOrphanOutputBytes)
+	if output.BrokenTruncated {
+		slog.WarnContext(ctx, "orphaned Telegram part cleanup: broken-file list exceeds output budget, recording counters only",
+			"broken", brokenTotal)
+	}
 	if job.JobRow != nil {
 		return river.RecordOutput(ctx, output)
 	}
