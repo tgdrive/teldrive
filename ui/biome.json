@@ -54,5 +54,13 @@
       "tailwindDirectives": true,
       "cssModules": true
     }
-  }
+  },
+  "overrides": [
+    {
+      "includes": ["src/api/schema.ts"],
+      "linter": { "enabled": false },
+      "formatter": { "enabled": false },
+      "assist": { "enabled": false }
+    }
+  ]
 }

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/riverqueue/river"
 
 	"github.com/tgdrive/teldrive/v2/internal/jobs"
@@ -27,6 +28,17 @@ WITH session AS (
 )
 INSERT INTO upload_parts (upload_id, part_no, channel_id, message_id, plain_size, stored_size, state)
 SELECT id, 1, 9001, 12, 1, 1, 'stored' FROM session`); err != nil {
+		t.Fatal(err)
+	}
+	brokenID := uuid.New()
+	if _, err := db.Pool.Exec(ctx, `
+INSERT INTO files (id, user_id, name, normalized_name, kind, size, mod_time)
+VALUES ($1, 1001, 'broken.bin', 'broken.bin', 'file', 5, now())`, brokenID.String()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Pool.Exec(ctx, `
+INSERT INTO file_parts (file_id, part_no, channel_id, message_id)
+VALUES ($1, 1, 9001, 99)`, brokenID.String()); err != nil {
 		t.Fatal(err)
 	}
 	storage := &orphanStorage{messages: []telegramstore.DocumentMessage{
@@ -83,6 +95,11 @@ SELECT id, 1, 9001, 12, 1, 1, 'stored' FROM session`); err != nil {
 	}
 	if len(storage.deleted) != 1 || storage.deleted[0] != 10 {
 		t.Fatalf("deleted messages = %v, want [10]", storage.deleted)
+	}
+	for _, id := range storage.deleted {
+		if id == 99 {
+			t.Fatalf("deleted messages = %v, must not delete referenced message 99", storage.deleted)
+		}
 	}
 	if len(storage.limits) != 1 || storage.limits[0] != 100 {
 		t.Fatalf("Telegram page limits = %v, want [100]", storage.limits)

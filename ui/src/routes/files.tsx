@@ -184,7 +184,7 @@ function FilesPage() {
   const activeSelectedIds =
     activePane === "secondary" && search.split ? secondarySelectedIds : primarySelectedIds;
   const activeSelectedCount = activeSelectedFiles.length;
-  const activeSingleSelectedFile =
+  const _activeSingleSelectedFile =
     activeSelectedFiles.length === 1 ? activeSelectedFiles[0] : undefined;
 
   const cutIds =

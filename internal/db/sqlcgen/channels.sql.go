@@ -367,6 +367,53 @@ func (q *Queries) ListBots(ctx context.Context, arg ListBotsParams) ([]*Bot, err
 	return items, nil
 }
 
+const listChannelReferencedParts = `-- name: ListChannelReferencedParts :many
+SELECT fp.message_id::bigint AS message_id, f.id AS file_id, f.name AS file_name, f.size AS file_size
+FROM /* TEMPLATE: schema */file_parts fp
+JOIN /* TEMPLATE: schema */files f ON f.id = fp.file_id
+WHERE fp.channel_id = $1
+  AND f.user_id = $2
+  AND f.status = 'active'
+ORDER BY f.name, fp.message_id
+`
+
+type ListChannelReferencedPartsParams struct {
+	TargetChannelID int64 `json:"target_channel_id"`
+	TargetUserID    int64 `json:"target_user_id"`
+}
+
+type ListChannelReferencedPartsRow struct {
+	MessageID int64       `json:"message_id"`
+	FileID    pgtype.UUID `json:"file_id"`
+	FileName  string      `json:"file_name"`
+	FileSize  pgtype.Int8 `json:"file_size"`
+}
+
+func (q *Queries) ListChannelReferencedParts(ctx context.Context, arg ListChannelReferencedPartsParams) ([]*ListChannelReferencedPartsRow, error) {
+	rows, err := q.db.Query(ctx, listChannelReferencedParts, arg.TargetChannelID, arg.TargetUserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*ListChannelReferencedPartsRow{}
+	for rows.Next() {
+		var i ListChannelReferencedPartsRow
+		if err := rows.Scan(
+			&i.MessageID,
+			&i.FileID,
+			&i.FileName,
+			&i.FileSize,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listChannels = `-- name: ListChannels :many
 SELECT channel_id, user_id, name, selected, health, last_checked_at, created_at, updated_at
 FROM /* TEMPLATE: schema */channels

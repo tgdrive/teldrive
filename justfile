@@ -80,6 +80,29 @@ build: generate-ui
     mkdir -p bin
     CGO_ENABLED=0 go build -trimpath -ldflags '{{ldflags}}' -o {{binary}} ./cmd/teldrive
 
+# Fast re-pin of nix fixed-output hashes without a full `nix build`.
+# Uses nixpkgs-provided toolchains so the pinned hashes always match
+# what `nix build` will see — no host-toolchain drift, no content
+# mismatch. Still seconds, not minutes (only vendors + builds UI).
+update-flake-hashes:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "→ vendorHash (nixpkgs go + nix hash)..."
+    rm -rf vendor
+    trap 'rm -rf vendor' EXIT
+    nix shell nixpkgs#go --command go mod vendor
+    vendor_hash=$(nix hash path --sri vendor)
+    rm -rf vendor
+    trap - EXIT
+    sed -i "s|vendorHash = \"[^\"]*\";|vendorHash = \"${vendor_hash}\";|" flake.nix
+    echo "  vendorHash = ${vendor_hash}"
+    echo "→ ui outputHash (nixpkgs bun/nodejs + nix hash)..."
+    nix shell nixpkgs#bun nixpkgs#nodejs --command bash -c "bun run --cwd {{ui_dir}} build > /dev/null"
+    ui_hash=$(nix hash path --sri {{ui_dir}}/dist)
+    sed -i "s|outputHash = \"[^\"]*\";|outputHash = \"${ui_hash}\";|" flake.nix
+    echo "  outputHash = ${ui_hash}"
+    echo "done — flake.nix pinned (nixpkgs toolchains)"
+
 dev:
     #!/usr/bin/env bash
     set -euo pipefail

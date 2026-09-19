@@ -191,6 +191,15 @@ FROM (
       AND up.message_id = ANY(sqlc.arg(message_ids)::bigint[])
 ) AS referenced_messages;
 
+-- name: ListChannelReferencedParts :many
+SELECT fp.message_id::bigint AS message_id, f.id AS file_id, f.name AS file_name, f.size AS file_size
+FROM /* TEMPLATE: schema */file_parts fp
+JOIN /* TEMPLATE: schema */files f ON f.id = fp.file_id
+WHERE fp.channel_id = sqlc.arg(target_channel_id)
+  AND f.user_id = sqlc.arg(target_user_id)
+  AND f.status = 'active'
+ORDER BY f.name, fp.message_id;
+
 -- name: UpsertDiscoveredChannels :many
 INSERT INTO /* TEMPLATE: schema */channels AS channel (
     channel_id, user_id, name, selected, health

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import BackIcon from "~icons/gravity-ui/arrow-left";
 import RetryIcon from "~icons/gravity-ui/arrows-rotate-right";
+import DownloadIcon from "~icons/gravity-ui/arrow-down-to-line";
 import CheckIcon from "~icons/gravity-ui/check";
 import ClockIcon from "~icons/gravity-ui/clock";
 import PlayIcon from "~icons/gravity-ui/circle-play";
@@ -105,6 +106,7 @@ function TaskDetailPage() {
   };
 
   const errors = [...(task.errors ?? [])].sort((a, b) => (b.attempt ?? 0) - (a.attempt ?? 0));
+  const brokenFiles = extractBrokenFiles(task.output);
 
   return (
     <div className="mx-auto flex max-w-[1500px] flex-col gap-5">
@@ -199,8 +201,17 @@ function TaskDetailPage() {
 
       <div className="grid gap-5 lg:grid-cols-2">
         <JsonPanel title="Arguments" value={task.args} empty="This task has no arguments." />
-        <JsonPanel title="Output" value={task.output} empty="No output was recorded." />
+        <JsonPanel
+          title="Output"
+          value={task.output}
+          empty="No output was recorded."
+          downloadName={`task-${task.id}-output.json`}
+        />
       </div>
+
+      {brokenFiles.length > 0 && (
+        <BrokenFilesCard files={brokenFiles} truncated={isOutputTruncated(task.output)} />
+      )}
 
       <Card className="overflow-hidden p-0">
         <div className="flex items-center justify-between border-border border-b px-5 py-4">
@@ -411,16 +422,23 @@ function JsonPanel({
   value,
   empty,
   tall = false,
+  downloadName,
 }: {
   title: string;
   value?: unknown;
   empty: string;
   tall?: boolean;
+  downloadName?: string;
 }) {
   return (
     <Card className="overflow-hidden p-0">
-      <div className="border-border border-b px-5 py-3.5">
+      <div className="flex items-center justify-between gap-2 border-border border-b px-5 py-3.5">
         <h2 className="text-sm font-semibold">{title}</h2>
+        {downloadName && hasJsonValue(value) && (
+          <Button size="sm" variant="tertiary" onPress={() => downloadJsonFile(downloadName, value)}>
+            <DownloadIcon className="size-3.5" /> Download
+          </Button>
+        )}
       </div>
       {hasJsonValue(value) ? (
         <pre
@@ -433,6 +451,87 @@ function JsonPanel({
       )}
     </Card>
   );
+}
+
+type BrokenFileEntry = {
+  fileId?: unknown;
+  name?: unknown;
+  size?: unknown;
+  channelId?: unknown;
+  missingMessageIds?: unknown;
+};
+
+function extractBrokenFiles(output: unknown): BrokenFileEntry[] {
+  if (!output || typeof output !== "object" || Array.isArray(output)) return [];
+  const list = (output as Record<string, unknown>).brokenFiles;
+  if (!Array.isArray(list)) return [];
+  return list.filter(
+    (item): item is BrokenFileEntry => !!item && typeof item === "object" && !Array.isArray(item),
+  );
+}
+
+function isOutputTruncated(output: unknown): boolean {
+  if (!output || typeof output !== "object" || Array.isArray(output)) return false;
+  return (output as Record<string, unknown>).brokenTruncated === true;
+}
+
+function missingPartCount(entry: BrokenFileEntry): number {
+  return Array.isArray(entry.missingMessageIds) ? entry.missingMessageIds.length : 0;
+}
+
+function BrokenFilesCard({ files, truncated }: { files: BrokenFileEntry[]; truncated: boolean }) {
+  return (
+    <Card className="overflow-hidden p-0">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-border border-b px-5 py-3.5">
+        <div>
+          <h2 className="text-sm font-semibold">Broken files</h2>
+          <p className="mt-0.5 text-xs text-muted">
+            Files with messages missing from Telegram — re-upload the originals to repair them.
+            {truncated ? " List truncated; download for the full set shown here." : ""}
+          </p>
+        </div>
+        <Button size="sm" variant="tertiary" onPress={() => downloadJsonFile("broken-files.json", files)}>
+          <DownloadIcon className="size-3.5" /> Download list
+        </Button>
+      </div>
+      <div className="divide-y divide-border">
+        {files.map((file, index) => (
+          <div
+            key={typeof file.fileId === "string" ? file.fileId : index}
+            className="flex flex-wrap items-center gap-x-6 gap-y-1 px-5 py-3"
+          >
+            <span className="min-w-0 flex-1 truncate text-sm font-medium">
+              {typeof file.name === "string" && file.name ? file.name : "Unnamed file"}
+            </span>
+            <span className="text-xs text-muted">{formatBytes(file.size)}</span>
+            <span className="text-xs text-muted">
+              {missingPartCount(file)} missing part{missingPartCount(file) === 1 ? "" : "s"}
+            </span>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function downloadJsonFile(filename: string, value: unknown) {
+  const blob = new Blob([JSON.stringify(value, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+function formatBytes(value: unknown): string {
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return "—";
+  if (value === 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const index = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1);
+  return `${(value / 1024 ** index).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
 }
 
 function sortJsonKeys(value: unknown): unknown {

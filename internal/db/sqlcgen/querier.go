@@ -88,6 +88,7 @@ type Querier interface {
 	ListActiveNormalizedNames(ctx context.Context, arg ListActiveNormalizedNamesParams) ([]string, error)
 	ListAuditEvents(ctx context.Context, arg ListAuditEventsParams) ([]*AuditEvent, error)
 	ListBots(ctx context.Context, arg ListBotsParams) ([]*Bot, error)
+	ListChannelReferencedParts(ctx context.Context, arg ListChannelReferencedPartsParams) ([]*ListChannelReferencedPartsRow, error)
 	ListChannels(ctx context.Context, arg ListChannelsParams) ([]*Channel, error)
 	ListChannelsForOrphanCleanup(ctx context.Context) ([]*Channel, error)
 	ListDeletionPendingRoots(ctx context.Context) ([]*ListDeletionPendingRootsRow, error)
