@@ -15,7 +15,7 @@
 - Integration tests require Podman and must use the harness: `scripts/test-postgres.sh go test -tags=integration ./internal/uploads`; use `just test-integration` for all packages.
 - Race tests also require the PostgreSQL harness: `just test-race`.
 - Full project validation: `just check`. This regenerates artifacts and runs lint, UI checks/build, unit tests, and the Podman-backed 80% core coverage gate; it is intentionally expensive.
-- UI checks: `just ui-check`. Browser E2E with real backend/filesystem Telegram: `just ui-e2e`; `scripts/test-ui.sh start|test|status|stop` supports a reusable environment.
+- UI checks: `just ui-check` (includes browser E2E with mocked API responses).
 - Format only handwritten code with `just format`; generated Go directories are deliberately excluded.
 
 ## Architecture

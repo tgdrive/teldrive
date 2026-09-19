@@ -59,9 +59,6 @@ docs-generate: generate-openapi
 generate: generate-api generate-db generate-ui docs-generate
     go mod tidy
 
-ui-e2e:
-    ./scripts/test-ui.sh
-
 ui-check: generate-ui
     bun run --cwd {{ui_dir}} lint
     bun run --cwd {{ui_dir}} typecheck
