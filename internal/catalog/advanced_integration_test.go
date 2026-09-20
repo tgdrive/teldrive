@@ -27,13 +27,13 @@ func TestAdvancedListingPathAndStatistics(t *testing.T) {
 	docID := uuid.New()
 	trashedID := uuid.New()
 	if _, err := db.Pool.Exec(ctx, `
-INSERT INTO files (id, user_id, parent_id, name, normalized_name, kind, mime_type, size, status, mod_time, updated_at, deleted_at)
+INSERT INTO files (id, user_id, parent_id, name, kind, mime_type, size, status, mod_time, updated_at, deleted_at)
 VALUES
-    ($1, 1001, NULL, 'Photos', 'Photos', 'folder', NULL, NULL, 'active', now(), now() - interval '4 minutes', NULL),
-    ($2, 1001, $1, 'Nested', 'Nested', 'folder', NULL, NULL, 'active', now(), now() - interval '3 minutes', NULL),
-    ($3, 1001, $2, 'sunset.JPG', 'sunset.JPG', 'file', 'image/jpeg', 20, 'active', now(), now() - interval '2 minutes', NULL),
-    ($4, 1001, $2, 'notes.txt', 'notes.txt', 'file', 'text/plain', 10, 'active', now(), now() - interval '1 minute', NULL),
-    ($5, 1001, NULL, 'old.zip', 'old.zip', 'file', 'application/zip', 30, 'trashed', now(), now(), now())
+    ($1, 1001, NULL, 'Photos', 'folder', NULL, NULL, 'active', now(), now() - interval '4 minutes', NULL),
+    ($2, 1001, $1, 'Nested', 'folder', NULL, NULL, 'active', now(), now() - interval '3 minutes', NULL),
+    ($3, 1001, $2, 'sunset.JPG', 'file', 'image/jpeg', 20, 'active', now(), now() - interval '2 minutes', NULL),
+    ($4, 1001, $2, 'notes.txt', 'file', 'text/plain', 10, 'active', now(), now() - interval '1 minute', NULL),
+    ($5, 1001, NULL, 'old.zip', 'file', 'application/zip', 30, 'trashed', now(), now(), now())
 `, folderID, nestedID, imageID, docID, trashedID); err != nil {
 		t.Fatal(err)
 	}

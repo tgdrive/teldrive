@@ -1,7 +1,6 @@
 package catalog
 
 import (
-	"strings"
 	"testing"
 	"time"
 
@@ -22,15 +21,6 @@ func TestBulkCatalogHelpers(t *testing.T) {
 		if base, extension := splitCatalogName(name); base != name || extension != "" {
 			t.Fatalf("splitCatalogName(%q) = %q, %q", name, base, extension)
 		}
-	}
-
-	bounded := boundedCatalogName(strings.Repeat("界", 300), ".txt", " (1)")
-	if len([]rune(bounded)) != 255 || !strings.HasSuffix(bounded, " (1).txt") {
-		t.Fatalf("boundedCatalogName() produced %d runes with suffix %q", len([]rune(bounded)), bounded[len(bounded)-12:])
-	}
-	oversizedExtension := boundedCatalogName("base", strings.Repeat("x", 300), " (2)")
-	if len([]rune(oversizedExtension)) != len([]rune("base (2)")) || oversizedExtension != "base (2)" {
-		t.Fatalf("oversized extension result = %q", oversizedExtension)
 	}
 
 	parent := uuid.New()
@@ -79,10 +69,10 @@ func TestFileCursorValueVariants(t *testing.T) {
 	id := uuid.New()
 	updatedAt := time.Date(2026, 7, 2, 12, 34, 56, 789, time.UTC)
 	file := &sqlcgen.File{
-		ID:             dbtypes.UUID(id),
-		NormalizedName: "Name",
-		Size:           pgtype.Int8{Int64: 42, Valid: true},
-		UpdatedAt:      pgtype.Timestamptz{Time: updatedAt, Valid: true},
+		ID:        dbtypes.UUID(id),
+		Name:      "Name",
+		Size:      pgtype.Int8{Int64: 42, Valid: true},
+		UpdatedAt: pgtype.Timestamptz{Time: updatedAt, Valid: true},
 	}
 	if got := FileCursorValue(file, "id"); got != id.String() {
 		t.Fatalf("id cursor = %q", got)

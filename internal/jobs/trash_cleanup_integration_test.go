@@ -26,11 +26,11 @@ func TestTrashCleanupWorkerPurgesOnlyExpiredTrashedRoots(t *testing.T) {
 	expiredChildID := uuid.New()
 	recentRootID := uuid.New()
 	if _, err := db.Pool.Exec(ctx, `
-INSERT INTO files (id, user_id, parent_id, name, normalized_name, kind, size, status, mod_time, deleted_at)
+INSERT INTO files (id, user_id, parent_id, name, kind, size, status, mod_time, deleted_at)
 VALUES
-    ($1, 1001, NULL, 'expired-root', 'expired-root', 'folder', NULL, 'trashed', now(), now() - interval '40 days'),
-    ($2, 1001, $1, 'expired-child', 'expired-child', 'file', 0, 'trashed', now(), now() - interval '40 days'),
-    ($3, 1001, NULL, 'recent-root', 'recent-root', 'file', 0, 'trashed', now(), now() - interval '2 days')
+    ($1, 1001, NULL, 'expired-root', 'folder', NULL, 'trashed', now(), now() - interval '40 days'),
+    ($2, 1001, $1, 'expired-child', 'file', 0, 'trashed', now(), now() - interval '40 days'),
+    ($3, 1001, NULL, 'recent-root', 'file', 0, 'trashed', now(), now() - interval '2 days')
 `, expiredRootID, expiredChildID, recentRootID); err != nil {
 		t.Fatal(err)
 	}
@@ -84,8 +84,8 @@ func TestTrashCleanupWorkerDrainsMultiplePages(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := db.Pool.Exec(ctx, `
-INSERT INTO files (user_id, name, normalized_name, kind, size, status, mod_time, deleted_at)
-SELECT 1001, 'trashed-' || value, 'trashed-' || value, 'file', 0, 'trashed', now(), now() - interval '40 days'
+INSERT INTO files (user_id, name, kind, size, status, mod_time, deleted_at)
+SELECT 1001, 'trashed-' || value, 'file', 0, 'trashed', now(), now() - interval '40 days'
 FROM generate_series(1, 1001) AS value
 `); err != nil {
 		t.Fatal(err)

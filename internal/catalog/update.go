@@ -29,18 +29,11 @@ func (s *Service) Update(ctx context.Context, in UpdateInput) (*sqlcgen.File, er
 		return nil, ErrInvalidName
 	}
 	var name pgtype.Text
-	var normalized pgtype.Text
 	if in.Name != nil {
-		display, folded, err := NormalizeName(*in.Name)
-		if err != nil {
-			return nil, err
-		}
-		name = dbtypes.Text(display)
-		normalized = dbtypes.Text(folded)
+		name = dbtypes.Text(*in.Name)
 	}
 	file, err := s.queries.UpdateFileMetadata(ctx, sqlcgen.UpdateFileMetadataParams{
 		Name:               name,
-		NormalizedName:     normalized,
 		ModTime:            dbtypes.OptionalTime(in.ModTime),
 		FileID:             dbtypes.UUID(in.FileID),
 		UserID:             in.UserID,

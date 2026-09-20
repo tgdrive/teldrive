@@ -4,7 +4,6 @@ INSERT INTO /* TEMPLATE: schema */upload_sessions (
     user_id,
     parent_id,
     name,
-    normalized_name,
     expected_size,
     expected_hash_algorithm,
     expected_hash_value,
@@ -21,7 +20,6 @@ INSERT INTO /* TEMPLATE: schema */upload_sessions (
     sqlc.arg(user_id),
     sqlc.narg(parent_id),
     sqlc.arg(name),
-    sqlc.arg(normalized_name),
     sqlc.arg(expected_size),
     sqlc.narg(expected_hash_algorithm),
     sqlc.narg(expected_hash_value),
@@ -229,7 +227,6 @@ INSERT INTO /* TEMPLATE: schema */files (
     user_id,
     parent_id,
     name,
-    normalized_name,
     kind,
     mime_type,
     size,
@@ -245,7 +242,6 @@ SELECT
     user_id,
     parent_id,
     name,
-    normalized_name,
     'file',
     mime_type,
     expected_size,
@@ -358,7 +354,7 @@ SELECT *
 FROM /* TEMPLATE: schema */files
 WHERE user_id = sqlc.arg(user_id)
   AND parent_id IS NOT DISTINCT FROM sqlc.narg(parent_id)::uuid
-  AND normalized_name = sqlc.arg(normalized_name)
+  AND name = sqlc.arg(name)
   AND status = 'active'
 FOR UPDATE;
 
@@ -382,7 +378,6 @@ WHERE file_id = sqlc.arg(file_id)
 -- name: RenameUploadSession :execrows
 UPDATE /* TEMPLATE: schema */upload_sessions
 SET name = sqlc.arg(name),
-    normalized_name = sqlc.arg(normalized_name),
     updated_at = now()
 WHERE id = sqlc.arg(upload_id)
   AND user_id = sqlc.arg(user_id);

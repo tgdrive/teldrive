@@ -290,15 +290,11 @@ func (w *UploadSourceWorker) Work(ctx context.Context, job *river.Job[UploadSour
 	if err != nil {
 		return err
 	}
-	normalizedName, err := normalizedUploadName(name)
-	if err != nil {
-		return err
-	}
 	job.Args.Source.MIMEType, err = w.detectSourceMIME(ctx, job.Args.Source)
 	if err != nil {
 		return err
 	}
-	existing, err := w.queries.ResolveActiveChild(ctx, sqlcgen.ResolveActiveChildParams{UserID: job.Args.UserID, ParentID: dbtypes.OptionalUUID(parentID), NormalizedName: normalizedName})
+	existing, err := w.queries.ResolveActiveChild(ctx, sqlcgen.ResolveActiveChildParams{UserID: job.Args.UserID, ParentID: dbtypes.OptionalUUID(parentID), Name: name})
 	if err == nil {
 		if existing.Kind != sqlcgen.FileKindFile {
 			return uploads.ErrNameConflict
@@ -589,15 +585,11 @@ func (w *UploadSourceWorker) ensureFolders(ctx context.Context, userID int64, pa
 		if name == "" || name == "." {
 			continue
 		}
-		normalized, err := normalizedUploadName(name)
-		if err != nil {
-			return nil, err
-		}
-		id, err := w.queries.ResolveActiveChildFolder(ctx, sqlcgen.ResolveActiveChildFolderParams{UserID: userID, ParentID: dbtypes.OptionalUUID(parentID), NormalizedName: normalized})
+		id, err := w.queries.ResolveActiveChildFolder(ctx, sqlcgen.ResolveActiveChildFolderParams{UserID: userID, ParentID: dbtypes.OptionalUUID(parentID), Name: name})
 		if errors.Is(err, pgx.ErrNoRows) {
 			folder, createErr := w.catalog.CreateFolder(ctx, catalog.CreateFolderInput{UserID: userID, ParentID: parentID, Name: name})
 			if errors.Is(createErr, catalog.ErrConflict) {
-				id, err = w.queries.ResolveActiveChildFolder(ctx, sqlcgen.ResolveActiveChildFolderParams{UserID: userID, ParentID: dbtypes.OptionalUUID(parentID), NormalizedName: normalized})
+				id, err = w.queries.ResolveActiveChildFolder(ctx, sqlcgen.ResolveActiveChildFolderParams{UserID: userID, ParentID: dbtypes.OptionalUUID(parentID), Name: name})
 			} else if createErr != nil {
 				return nil, createErr
 			} else {
@@ -1041,11 +1033,6 @@ func validateDestinationPath(value string) (string, error) {
 		return "", fmt.Errorf("%w: invalid destination path", errInvalidUploadSource)
 	}
 	return cleaned, nil
-}
-
-func normalizedUploadName(value string) (string, error) {
-	_, normalized, err := catalog.NormalizeName(value)
-	return normalized, err
 }
 
 func parseOptionalUUID(value string) (*uuid.UUID, error) {

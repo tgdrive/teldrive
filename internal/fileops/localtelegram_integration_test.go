@@ -48,8 +48,8 @@ func TestPurgeThroughLocalTelegramStorage(t *testing.T) {
 	}
 	fileID := uuid.New()
 	if _, err := db.Pool.Exec(ctx, `
-INSERT INTO files (id,user_id,name,normalized_name,kind,mime_type,size,encryption,status,mod_time)
-VALUES ($1,1001,'purge.bin','purge.bin','file','application/octet-stream',$2,false,'active',now())
+INSERT INTO files (id,user_id,name,kind,mime_type,size,encryption,status,mod_time)
+VALUES ($1,1001,'purge.bin','file','application/octet-stream',$2,false,'active',now())
 `, fileID, len(payload)); err != nil {
 		t.Fatal(err)
 	}
@@ -62,10 +62,10 @@ VALUES ($1,1,$2,$3,$4,$5)
 	uploadID := uuid.New()
 	if _, err := db.Pool.Exec(ctx, `
 INSERT INTO upload_sessions (
-    id,user_id,name,normalized_name,expected_size,mime_type,mod_time,
+    id,user_id,name,expected_size,mime_type,mod_time,
     encryption,conflict_policy,part_size,state,file_id,expires_at,completed_at
 ) VALUES (
-    $1,1001,'purge.bin','purge.bin',$2,'application/octet-stream',now(),
+    $1,1001,'purge.bin',$2,'application/octet-stream',now(),
     false,'replace',1048576,'completed',$3,now()+interval '1 day',now()
 )
 `, uploadID, len(payload), fileID); err != nil {

@@ -73,8 +73,8 @@ func TestServiceDurableReplayNotificationsAndTickets(t *testing.T) {
 
 	var fileID string
 	if err := db.Pool.QueryRow(ctx, `
-		INSERT INTO files (user_id, name, normalized_name, kind, mod_time)
-		VALUES (1001, 'first', 'first', 'folder', now())
+		INSERT INTO files (user_id, name, kind, mod_time)
+		VALUES (1001, 'first', 'folder', now())
 		RETURNING id::text
 	`).Scan(&fileID); err != nil {
 		t.Fatalf("insert file: %v", err)
@@ -101,8 +101,8 @@ func TestServiceDurableReplayNotificationsAndTickets(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO files (user_id, name, normalized_name, kind, mod_time)
-		VALUES (1001, 'rolled-back', 'rolled-back', 'folder', now())
+		INSERT INTO files (user_id, name, kind, mod_time)
+		VALUES (1001, 'rolled-back', 'folder', now())
 	`); err != nil {
 		_ = tx.Rollback(ctx)
 		t.Fatal(err)
@@ -123,7 +123,7 @@ func TestServiceDurableReplayNotificationsAndTickets(t *testing.T) {
 		t.Fatalf("rolled-back mutation created events: %#v", rows)
 	}
 
-	if _, err := db.Pool.Exec(ctx, "UPDATE files SET name = 'second', normalized_name = 'second', generation = generation + 1 WHERE id = $1", fileID); err != nil {
+	if _, err := db.Pool.Exec(ctx, "UPDATE files SET name = 'second', generation = generation + 1 WHERE id = $1", fileID); err != nil {
 		t.Fatal(err)
 	}
 	waitWake(t, firstWake, "file update")

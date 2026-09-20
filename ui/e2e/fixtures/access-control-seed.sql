@@ -12,15 +12,15 @@ SET display_name = EXCLUDED.display_name,
     role = EXCLUDED.role,
     disabled_at = EXCLUDED.disabled_at;
 
-INSERT INTO files (id, user_id, parent_id, name, normalized_name, kind, mime_type, size, status, mod_time, created_at, updated_at)
+INSERT INTO files (id, user_id, parent_id, name, kind, mime_type, size, status, mod_time, created_at, updated_at)
 VALUES
-  ('70000000-0000-4000-8000-000000000001', 1003, NULL, 'Read shared', 'Read shared', 'folder', NULL, NULL, 'active', now(), now(), now()),
-  ('70000000-0000-4000-8000-000000000002', 1003, '70000000-0000-4000-8000-000000000001', 'readme.txt', 'readme.txt', 'file', 'text/plain', 12, 'active', now(), now(), now()),
-  ('70000000-0000-4000-8000-000000000003', 1003, NULL, 'Edit shared', 'Edit shared', 'folder', NULL, NULL, 'active', now(), now(), now()),
-  ('70000000-0000-4000-8000-000000000004', 1003, '70000000-0000-4000-8000-000000000003', 'editable.txt', 'editable.txt', 'file', 'text/plain', 14, 'active', now(), now(), now()),
-  ('70000000-0000-4000-8000-000000000005', 1003, NULL, 'Private Alice', 'Private Alice', 'folder', NULL, NULL, 'active', now(), now(), now()),
-  ('70000000-0000-4000-8000-000000000006', 1003, NULL, 'Expired shared', 'Expired shared', 'folder', NULL, NULL, 'active', now(), now(), now()),
-  ('70000000-0000-4000-8000-000000000007', 1003, NULL, 'Revoked shared', 'Revoked shared', 'folder', NULL, NULL, 'active', now(), now(), now())
+  ('70000000-0000-4000-8000-000000000001', 1003, NULL, 'Read shared', 'folder', NULL, NULL, 'active', now(), now(), now()),
+  ('70000000-0000-4000-8000-000000000002', 1003, '70000000-0000-4000-8000-000000000001', 'readme.txt', 'file', 'text/plain', 12, 'active', now(), now(), now()),
+  ('70000000-0000-4000-8000-000000000003', 1003, NULL, 'Edit shared', 'folder', NULL, NULL, 'active', now(), now(), now()),
+  ('70000000-0000-4000-8000-000000000004', 1003, '70000000-0000-4000-8000-000000000003', 'editable.txt', 'file', 'text/plain', 14, 'active', now(), now(), now()),
+  ('70000000-0000-4000-8000-000000000005', 1003, NULL, 'Private Alice', 'folder', NULL, NULL, 'active', now(), now(), now()),
+  ('70000000-0000-4000-8000-000000000006', 1003, NULL, 'Expired shared', 'folder', NULL, NULL, 'active', now(), now(), now()),
+  ('70000000-0000-4000-8000-000000000007', 1003, NULL, 'Revoked shared', 'folder', NULL, NULL, 'active', now(), now(), now())
 ON CONFLICT (id) DO NOTHING;
 
 INSERT INTO file_access_grants (id, file_id, owner_id, grantee_id, permission, expires_at, revoked_at)

@@ -82,7 +82,6 @@ export function useFileActions() {
     return result;
   }
 
-
   async function copyMany(
     files: FileEntry[],
     parentId?: string,

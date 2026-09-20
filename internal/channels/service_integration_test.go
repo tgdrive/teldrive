@@ -167,8 +167,8 @@ func insertStoredPart(t testing.TB, pool *pgxpool.Pool, userID, channelID, messa
 	t.Helper()
 	fileID := uuid.New()
 	if _, err := pool.Exec(context.Background(), `
-INSERT INTO files (id, user_id, name, normalized_name, kind, mime_type, size, encryption, status, mod_time)
-VALUES ($1, $2, 'file.bin', 'file.bin', 'file', 'application/octet-stream', 1, false, 'active', now())`, fileID, userID); err != nil {
+INSERT INTO files (id, user_id, name, kind, mime_type, size, encryption, status, mod_time)
+VALUES ($1, $2, 'file.bin', 'file', 'application/octet-stream', 1, false, 'active', now())`, fileID, userID); err != nil {
 		t.Fatalf("insert file: %v", err)
 	}
 	if _, err := pool.Exec(context.Background(), `

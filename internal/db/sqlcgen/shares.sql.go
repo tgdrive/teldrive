@@ -127,7 +127,7 @@ func (q *Queries) CreateFileShare(ctx context.Context, arg CreateFileShareParams
 }
 
 const getActiveFileAnyOwner = `-- name: GetActiveFileAnyOwner :one
-SELECT id, user_id, parent_id, name, normalized_name, kind, mime_type, size, hash_algorithm, hash_value, encryption, encryption_key_version, status, mod_time, generation, created_at, updated_at, deleted_at
+SELECT id, user_id, parent_id, name, kind, mime_type, size, hash_algorithm, hash_value, encryption, encryption_key_version, status, mod_time, generation, created_at, updated_at, deleted_at
 FROM /* TEMPLATE: schema */files
 WHERE id = $1
   AND status = 'active'
@@ -141,7 +141,6 @@ func (q *Queries) GetActiveFileAnyOwner(ctx context.Context, fileID pgtype.UUID)
 		&i.UserID,
 		&i.ParentID,
 		&i.Name,
-		&i.NormalizedName,
 		&i.Kind,
 		&i.MimeType,
 		&i.Size,
@@ -455,7 +454,7 @@ func (q *Queries) ListFileShares(ctx context.Context, arg ListFileSharesParams) 
 }
 
 const listShared = `-- name: ListShared :many
-SELECT f.id, f.user_id, f.parent_id, f.name, f.normalized_name, f.kind, f.mime_type, f.size, f.hash_algorithm, f.hash_value, f.encryption, f.encryption_key_version, f.status, f.mod_time, f.generation, f.created_at, f.updated_at, f.deleted_at
+SELECT f.id, f.user_id, f.parent_id, f.name, f.kind, f.mime_type, f.size, f.hash_algorithm, f.hash_value, f.encryption, f.encryption_key_version, f.status, f.mod_time, f.generation, f.created_at, f.updated_at, f.deleted_at
 FROM /* TEMPLATE: schema */files f
 WHERE f.user_id = $1
   AND f.status = 'active'
@@ -501,7 +500,6 @@ func (q *Queries) ListShared(ctx context.Context, arg ListSharedParams) ([]*File
 			&i.UserID,
 			&i.ParentID,
 			&i.Name,
-			&i.NormalizedName,
 			&i.Kind,
 			&i.MimeType,
 			&i.Size,
@@ -527,7 +525,7 @@ func (q *Queries) ListShared(ctx context.Context, arg ListSharedParams) ([]*File
 }
 
 const listSharedWithMe = `-- name: ListSharedWithMe :many
-SELECT f.id, f.user_id, f.parent_id, f.name, f.normalized_name, f.kind, f.mime_type, f.size, f.hash_algorithm, f.hash_value, f.encryption, f.encryption_key_version, f.status, f.mod_time, f.generation, f.created_at, f.updated_at, f.deleted_at, g.permission
+SELECT f.id, f.user_id, f.parent_id, f.name, f.kind, f.mime_type, f.size, f.hash_algorithm, f.hash_value, f.encryption, f.encryption_key_version, f.status, f.mod_time, f.generation, f.created_at, f.updated_at, f.deleted_at, g.permission
 FROM /* TEMPLATE: schema */file_access_grants g
 JOIN /* TEMPLATE: schema */files f ON f.id = g.file_id AND f.user_id = g.owner_id
 WHERE g.grantee_id = $1
@@ -548,7 +546,6 @@ type ListSharedWithMeRow struct {
 	UserID               int64              `json:"user_id"`
 	ParentID             pgtype.UUID        `json:"parent_id"`
 	Name                 string             `json:"name"`
-	NormalizedName       string             `json:"normalized_name"`
 	Kind                 FileKind           `json:"kind"`
 	MimeType             pgtype.Text        `json:"mime_type"`
 	Size                 pgtype.Int8        `json:"size"`
@@ -579,7 +576,6 @@ func (q *Queries) ListSharedWithMe(ctx context.Context, arg ListSharedWithMePara
 			&i.UserID,
 			&i.ParentID,
 			&i.Name,
-			&i.NormalizedName,
 			&i.Kind,
 			&i.MimeType,
 			&i.Size,

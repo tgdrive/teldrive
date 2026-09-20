@@ -435,7 +435,11 @@ function JsonPanel({
       <div className="flex items-center justify-between gap-2 border-border border-b px-5 py-3.5">
         <h2 className="text-sm font-semibold">{title}</h2>
         {downloadName && hasJsonValue(value) && (
-          <Button size="sm" variant="tertiary" onPress={() => downloadJsonFile(downloadName, value)}>
+          <Button
+            size="sm"
+            variant="tertiary"
+            onPress={() => downloadJsonFile(downloadName, value)}
+          >
             <DownloadIcon className="size-3.5" /> Download
           </Button>
         )}
@@ -490,7 +494,11 @@ function BrokenFilesCard({ files, truncated }: { files: BrokenFileEntry[]; trunc
             {truncated ? " List truncated; download for the full set shown here." : ""}
           </p>
         </div>
-        <Button size="sm" variant="tertiary" onPress={() => downloadJsonFile("broken-files.json", files)}>
+        <Button
+          size="sm"
+          variant="tertiary"
+          onPress={() => downloadJsonFile("broken-files.json", files)}
+        >
           <DownloadIcon className="size-3.5" /> Download list
         </Button>
       </div>

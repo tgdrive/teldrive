@@ -12,7 +12,6 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/tgdrive/teldrive/v2/internal/bots"
-	"github.com/tgdrive/teldrive/v2/internal/catalog"
 	"github.com/tgdrive/teldrive/v2/internal/database"
 	"github.com/tgdrive/teldrive/v2/internal/secureblob"
 )
@@ -332,9 +331,6 @@ ORDER BY created_at, id`)
 		if err := json.Unmarshal(raw, &f.Parts); err != nil {
 			return Report{}, nil, fmt.Errorf("decode parts for file %s: %w", f.ID, err)
 		}
-		if _, _, err := catalog.NormalizeName(f.Name); err != nil {
-			return Report{}, nil, fmt.Errorf("invalid name for file %s: %w", f.ID, err)
-		}
 		if f.Kind == "folder" {
 			report.Folders++
 		} else {
@@ -562,10 +558,6 @@ func migrateFiles(ctx context.Context, tx pgx.Tx, files []legacyFile, cfg Config
 	fileRows := make([][]any, 0, len(files))
 	partRows := make([][]any, 0)
 	for _, f := range files {
-		display, normalized, err := catalog.NormalizeName(f.Name)
-		if err != nil {
-			return err
-		}
 		status := "active"
 		var deletedAt *time.Time
 		if f.Status != "active" {
@@ -589,7 +581,7 @@ func migrateFiles(ctx context.Context, tx pgx.Tx, files []legacyFile, cfg Config
 			alg := "blake3-tree"
 			hashAlg, hashValue = &alg, f.Hash
 		}
-		fileRows = append(fileRows, []any{f.ID, f.UserID, f.ParentID, display, normalized, f.Kind, f.MimeType, size, hashAlg, hashValue, enc, keyVersion, status, f.UpdatedAt, int64(1), f.CreatedAt, f.UpdatedAt, deletedAt})
+		fileRows = append(fileRows, []any{f.ID, f.UserID, f.ParentID, f.Name, f.Kind, f.MimeType, size, hashAlg, hashValue, enc, keyVersion, status, f.UpdatedAt, int64(1), f.CreatedAt, f.UpdatedAt, deletedAt})
 		if f.Kind != "file" || len(f.Parts) == 0 {
 			continue
 		}
@@ -601,7 +593,7 @@ func migrateFiles(ctx context.Context, tx pgx.Tx, files []legacyFile, cfg Config
 			partRows = append(partRows, []any{f.ID, int32(i + 1), *f.ChannelID, p.ID, nil, nil, salt, f.CreatedAt})
 		}
 	}
-	if _, err := tx.CopyFrom(ctx, pgx.Identifier{cfg.Target.Schema, "files"}, []string{"id", "user_id", "parent_id", "name", "normalized_name", "kind", "mime_type", "size", "hash_algorithm", "hash_value", "encryption", "encryption_key_version", "status", "mod_time", "generation", "created_at", "updated_at", "deleted_at"}, pgx.CopyFromRows(fileRows)); err != nil {
+	if _, err := tx.CopyFrom(ctx, pgx.Identifier{cfg.Target.Schema, "files"}, []string{"id", "user_id", "parent_id", "name", "kind", "mime_type", "size", "hash_algorithm", "hash_value", "encryption", "encryption_key_version", "status", "mod_time", "generation", "created_at", "updated_at", "deleted_at"}, pgx.CopyFromRows(fileRows)); err != nil {
 		return fmt.Errorf("copy files: %w", err)
 	}
 	if len(partRows) > 0 {

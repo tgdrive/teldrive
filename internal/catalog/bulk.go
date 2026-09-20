@@ -182,27 +182,26 @@ func (s *Service) bulkMove(ctx context.Context, userID int64, rawIDs []uuid.UUID
 		if !ok {
 			return nil, ErrConflict
 		}
-		usedNames[entry.NormalizedName] = struct{}{}
-		conflicts[entry.NormalizedName] = entryID
+		usedNames[entry.Name] = struct{}{}
+		conflicts[entry.Name] = entryID
 	}
 
 	names := make([]string, len(ids))
-	normalizedNames := make([]string, len(ids))
 	replacedSet := make(map[uuid.UUID]struct{})
 	for index, id := range ids {
 		file := locked[id]
-		name, normalized := file.Name, file.NormalizedName
-		if occupant, occupied := conflicts[normalized]; occupied && occupant == id {
-			delete(usedNames, normalized)
-			delete(conflicts, normalized)
+		name := file.Name
+		if occupant, occupied := conflicts[name]; occupied && occupant == id {
+			delete(usedNames, name)
+			delete(conflicts, name)
 		}
-		_, nameUsed := usedNames[normalized]
+		_, nameUsed := usedNames[name]
 		if nameUsed {
 			switch policy {
 			case "fail":
 				return nil, ErrConflict
 			case "replace":
-				conflictID, exists := conflicts[normalized]
+				conflictID, exists := conflicts[name]
 				if !exists {
 					return nil, ErrConflict
 				}
@@ -210,19 +209,19 @@ func (s *Service) bulkMove(ctx context.Context, userID int64, rawIDs []uuid.UUID
 					return nil, ErrConflict
 				}
 				replacedSet[conflictID] = struct{}{}
-				delete(usedNames, normalized)
-				delete(conflicts, normalized)
+				delete(usedNames, name)
+				delete(conflicts, name)
 			case "rename":
 				var renameErr error
-				name, normalized, renameErr = nextAvailableNameFromSet(file.Name, usedNames)
+				name, renameErr = nextAvailableNameFromSet(file.Name, usedNames)
 				if renameErr != nil {
 					return nil, renameErr
 				}
 			}
 		}
-		usedNames[normalized] = struct{}{}
-		conflicts[normalized] = id
-		names[index], normalizedNames[index] = name, normalized
+		usedNames[name] = struct{}{}
+		conflicts[name] = id
+		names[index] = name
 	}
 
 	invalidated := make([]uuid.UUID, 0)
@@ -257,7 +256,7 @@ func (s *Service) bulkMove(ctx context.Context, userID int64, rawIDs []uuid.UUID
 	updatedRows, err := queries.MoveFilesWithNames(ctx, sqlcgen.MoveFilesWithNamesParams{
 		ParentID: dbtypes.OptionalUUID(parentID), UserID: userID,
 		ExpectedGeneration: dbtypes.OptionalInt8(expectedGeneration), FileIds: pgUUIDs(ids),
-		Names: names, NormalizedNames: normalizedNames,
+		Names: names,
 	})
 	if err != nil {
 		return nil, classifyWriteError("move files", err)
@@ -294,19 +293,15 @@ func (s *Service) bulkMove(ctx context.Context, userID int64, rawIDs []uuid.UUID
 	return result, nil
 }
 
-func nextAvailableNameFromSet(original string, used map[string]struct{}) (string, string, error) {
+func nextAvailableNameFromSet(original string, used map[string]struct{}) (string, error) {
 	base, extension := splitCatalogName(original)
 	for sequence := 1; sequence <= 10000; sequence++ {
-		candidate := boundedCatalogName(base, extension, fmt.Sprintf(" (%d)", sequence))
-		name, normalized, err := NormalizeName(candidate)
-		if err != nil {
-			return "", "", err
-		}
-		if _, exists := used[normalized]; !exists {
-			return name, normalized, nil
+		candidate := base + fmt.Sprintf(" (%d)", sequence) + extension
+		if _, exists := used[candidate]; !exists {
+			return candidate, nil
 		}
 	}
-	return "", "", ErrConflict
+	return "", ErrConflict
 }
 
 func splitCatalogName(name string) (string, string) {
@@ -315,21 +310,6 @@ func splitCatalogName(name string) (string, string) {
 		return name, ""
 	}
 	return name[:index], name[index:]
-}
-
-func boundedCatalogName(base, extension, suffix string) string {
-	const maxRunes = 255
-	extensionRunes, suffixRunes := []rune(extension), []rune(suffix)
-	available := maxRunes - len(extensionRunes) - len(suffixRunes)
-	if available < 1 {
-		extensionRunes = nil
-		available = maxRunes - len(suffixRunes)
-	}
-	baseRunes := []rune(base)
-	if len(baseRunes) > available {
-		baseRunes = baseRunes[:available]
-	}
-	return string(baseRunes) + suffix + string(extensionRunes)
 }
 
 func catalogDestinationLockID(userID int64, parentID *uuid.UUID) int64 {

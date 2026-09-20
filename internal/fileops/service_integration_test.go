@@ -35,15 +35,15 @@ func TestCopyWideFolderUsesSetBasedCatalogQueries(t *testing.T) {
 	}
 	sourceID, destinationID := uuid.New(), uuid.New()
 	if _, err := db.Pool.Exec(ctx, `
-INSERT INTO files (id,user_id,name,normalized_name,kind,encryption,status,mod_time)
-VALUES ($1,1001,'source','source','folder',false,'active',now()),
-       ($2,1001,'destination','destination','folder',false,'active',now())`, sourceID, destinationID); err != nil {
+INSERT INTO files (id,user_id,name,kind,encryption,status,mod_time)
+VALUES ($1,1001,'source','folder',false,'active',now()),
+       ($2,1001,'destination','folder',false,'active',now())`, sourceID, destinationID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.Pool.Exec(ctx, `
 WITH children AS (
-  INSERT INTO files (user_id,parent_id,name,normalized_name,kind,size,encryption,status,mod_time)
-  SELECT 1001, $1, 'child-' || value, 'child-' || value, 'file', 1, false, 'active', now()
+  INSERT INTO files (user_id,parent_id,name,kind,size,encryption,status,mod_time)
+  SELECT 1001, $1, 'child-' || value, 'file', 1, false, 'active', now()
   FROM generate_series(1, 1000) AS value
   RETURNING id
 )
@@ -98,12 +98,12 @@ func TestCleanTrashMarksAllUserTrashDeletionPending(t *testing.T) {
 	}
 	trashedA, trashedB, active, otherUser := uuid.New(), uuid.New(), uuid.New(), uuid.New()
 	if _, err := db.Pool.Exec(ctx, `
-INSERT INTO files (id,user_id,name,normalized_name,kind,size,encryption,status,mod_time,deleted_at)
+INSERT INTO files (id,user_id,name,kind,size,encryption,status,mod_time,deleted_at)
 VALUES
-($1,1001,'a','a','file',0,false,'trashed',now(),now()),
-($2,1001,'b','b','folder',NULL,false,'trashed',now(),now()),
-($3,1001,'active','active','file',0,false,'active',now(),NULL),
-($4,1002,'other','other','file',0,false,'trashed',now(),now())`, trashedA, trashedB, active, otherUser); err != nil {
+($1,1001,'a','file',0,false,'trashed',now(),now()),
+($2,1001,'b','folder',NULL,false,'trashed',now(),now()),
+($3,1001,'active','file',0,false,'active',now(),NULL),
+($4,1002,'other','file',0,false,'trashed',now(),now())`, trashedA, trashedB, active, otherUser); err != nil {
 		t.Fatal(err)
 	}
 	catalogService := catalog.NewService(db.Pool, nil)
@@ -146,10 +146,10 @@ func TestQueuePurgeMarksSubtreeWithoutDeletingTelegramMessages(t *testing.T) {
 	}
 	rootID, childID := uuid.New(), uuid.New()
 	if _, err := db.Pool.Exec(ctx, `
-INSERT INTO files (id,user_id,parent_id,name,normalized_name,kind,size,encryption,status,mod_time,deleted_at)
+INSERT INTO files (id,user_id,parent_id,name,kind,size,encryption,status,mod_time,deleted_at)
 VALUES
-($1,1001,NULL,'folder','folder','folder',NULL,false,'trashed',now(),now()),
-($2,1001,$1,'child','child','file',1,false,'trashed',now(),now())`, rootID, childID); err != nil {
+($1,1001,NULL,'folder','folder',NULL,false,'trashed',now(),now()),
+($2,1001,$1,'child','file',1,false,'trashed',now(),now())`, rootID, childID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.Pool.Exec(ctx, `
@@ -234,14 +234,14 @@ func TestCopyAndPurgeUseIndependentTelegramMessages(t *testing.T) {
 
 	folderID := uuid.New()
 	if _, err := db.Pool.Exec(ctx, `
-INSERT INTO files (id,user_id,name,normalized_name,kind,encryption,status,mod_time)
-VALUES ($1,1001,'folder','folder','folder',false,'active',now())`, folderID); err != nil {
+INSERT INTO files (id,user_id,name,kind,encryption,status,mod_time)
+VALUES ($1,1001,'folder','folder',false,'active',now())`, folderID); err != nil {
 		t.Fatal(err)
 	}
 	childID := uuid.New()
 	if _, err := db.Pool.Exec(ctx, `
-INSERT INTO files (id,user_id,parent_id,name,normalized_name,kind,mime_type,size,encryption,status,mod_time)
-VALUES ($1,1001,$2,'child.bin','child.bin','file','application/octet-stream',4,false,'active',now())`, childID, folderID); err != nil {
+INSERT INTO files (id,user_id,parent_id,name,kind,mime_type,size,encryption,status,mod_time)
+VALUES ($1,1001,$2,'child.bin','file','application/octet-stream',4,false,'active',now())`, childID, folderID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.Pool.Exec(ctx, `
@@ -311,8 +311,8 @@ func TestPurgeManyGroupsTelegramMessagesByChannel(t *testing.T) {
 	}
 	if _, err := db.Pool.Exec(ctx, `
 WITH files AS (
-    INSERT INTO files (user_id,name,normalized_name,kind,size,encryption,status,mod_time,deleted_at)
-    SELECT 1001, 'pending-' || value, 'pending-' || value, 'file', 1, false, 'deletion_pending', now(), now()
+    INSERT INTO files (user_id,name,kind,size,encryption,status,mod_time,deleted_at)
+    SELECT 1001, 'pending-' || value, 'file', 1, false, 'deletion_pending', now(), now()
     FROM generate_series(1, 1000) AS value
     RETURNING id
 )
@@ -372,14 +372,14 @@ func TestPurgeWideFolderUsesDepthBatchedQueries(t *testing.T) {
 	}
 	rootID := uuid.New()
 	if _, err := db.Pool.Exec(ctx, `
-INSERT INTO files (id,user_id,name,normalized_name,kind,encryption,status,mod_time,deleted_at)
-VALUES ($1,1001,'folder','folder','folder',false,'trashed',now(),now())`, rootID); err != nil {
+INSERT INTO files (id,user_id,name,kind,encryption,status,mod_time,deleted_at)
+VALUES ($1,1001,'folder','folder',false,'trashed',now(),now())`, rootID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.Pool.Exec(ctx, `
 WITH children AS (
-    INSERT INTO files (user_id,parent_id,name,normalized_name,kind,size,encryption,status,mod_time,deleted_at)
-    SELECT 1001, $1, 'child-' || value, 'child-' || value, 'file', 1, false, 'trashed', now(), now()
+    INSERT INTO files (user_id,parent_id,name,kind,size,encryption,status,mod_time,deleted_at)
+    SELECT 1001, $1, 'child-' || value, 'file', 1, false, 'trashed', now(), now()
     FROM generate_series(1, 1000) AS value
     RETURNING id
 )
@@ -429,8 +429,8 @@ func TestCopyCompensatesPartialTelegramSuccess(t *testing.T) {
 	}
 	sourceID := uuid.New()
 	if _, err := db.Pool.Exec(ctx, `
-INSERT INTO files (id,user_id,name,normalized_name,kind,mime_type,size,encryption,status,mod_time)
-VALUES ($1,1001,'two-part.bin','two-part.bin','file','application/octet-stream',8,false,'active',now())`, sourceID); err != nil {
+INSERT INTO files (id,user_id,name,kind,mime_type,size,encryption,status,mod_time)
+VALUES ($1,1001,'two-part.bin','file','application/octet-stream',8,false,'active',now())`, sourceID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.Pool.Exec(ctx, `
@@ -461,7 +461,7 @@ VALUES
 		t.Fatalf("source message was changed: %q", got)
 	}
 	var count int
-	if err := db.Pool.QueryRow(ctx, "SELECT count(*) FROM files WHERE user_id=1001 AND normalized_name='rollback-copy.bin'").Scan(&count); err != nil {
+	if err := db.Pool.QueryRow(ctx, "SELECT count(*) FROM files WHERE user_id=1001 AND name='rollback-copy.bin'").Scan(&count); err != nil {
 		t.Fatal(err)
 	}
 	if count != 0 {
@@ -477,14 +477,14 @@ func TestPurgeFolderClearsUploadSessionParent(t *testing.T) {
 	}
 	folderID := uuid.New()
 	if _, err := db.Pool.Exec(ctx, `
-INSERT INTO files (id,user_id,name,normalized_name,kind,encryption,status,mod_time)
-VALUES ($1,1001,'uploads','uploads','folder',false,'active',now())`, folderID); err != nil {
+INSERT INTO files (id,user_id,name,kind,encryption,status,mod_time)
+VALUES ($1,1001,'uploads','folder',false,'active',now())`, folderID); err != nil {
 		t.Fatal(err)
 	}
 	uploadID := uuid.New()
 	if _, err := db.Pool.Exec(ctx, `
-INSERT INTO upload_sessions (id,user_id,parent_id,name,normalized_name,expected_size,mod_time,encryption,conflict_policy,part_size,state,expires_at)
-VALUES ($1,1001,$2,'pending.bin','pending.bin',1,now(),false,'fail',1,'aborted',now())`, uploadID, folderID); err != nil {
+INSERT INTO upload_sessions (id,user_id,parent_id,name,expected_size,mod_time,encryption,conflict_policy,part_size,state,expires_at)
+VALUES ($1,1001,$2,'pending.bin',1,now(),false,'fail',1,'aborted',now())`, uploadID, folderID); err != nil {
 		t.Fatal(err)
 	}
 	catalogService := catalog.NewService(db.Pool, nil)
@@ -512,8 +512,8 @@ func insertStoredFile(t testing.TB, db *testpostgres.Database, name string, mess
 	id := uuid.New()
 	ctx := context.Background()
 	if _, err := db.Pool.Exec(ctx, `
-INSERT INTO files (id,user_id,name,normalized_name,kind,mime_type,size,hash_algorithm,hash_value,encryption,status,mod_time)
-VALUES ($1,1001,$2,lower($2),'file','application/octet-stream',4,'blake3',repeat('a',64),false,'active',now())`, id, name); err != nil {
+INSERT INTO files (id,user_id,name,kind,mime_type,size,hash_algorithm,hash_value,encryption,status,mod_time)
+VALUES ($1,1001,$2,'file','application/octet-stream',4,'blake3',repeat('a',64),false,'active',now())`, id, name); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.Pool.Exec(ctx, `

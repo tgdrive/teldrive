@@ -23,21 +23,21 @@ func TestStatisticsReturnsDenseDailySeries(t *testing.T) {
 	todayFile := uuid.New()
 	yesterdayFile := uuid.New()
 	if _, err := db.Pool.Exec(ctx, `
-INSERT INTO files (id, user_id, name, normalized_name, kind, mime_type, size, status, mod_time)
+INSERT INTO files (id, user_id, name, kind, mime_type, size, status, mod_time)
 VALUES
-    ($1, 1001, 'today.bin', 'today.bin', 'file', 'application/octet-stream', 7, 'active', now()),
-    ($2, 1001, 'yesterday.bin', 'yesterday.bin', 'file', 'application/octet-stream', 5, 'active', now())
+    ($1, 1001, 'today.bin', 'file', 'application/octet-stream', 7, 'active', now()),
+    ($2, 1001, 'yesterday.bin', 'file', 'application/octet-stream', 5, 'active', now())
 `, todayFile, yesterdayFile); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.Pool.Exec(ctx, `
 INSERT INTO upload_sessions (
-    id, user_id, name, normalized_name, expected_size, part_size, state,
+    id, user_id, name, expected_size, part_size, state,
     mod_time, file_id, expires_at, completed_at
 ) VALUES
-    ($1, 1001, 'today.bin', 'today.bin', 7, 1, 'completed', now(), $4, now() + interval '1 day', now()),
-    ($2, 1001, 'yesterday.bin', 'yesterday.bin', 5, 1, 'completed', now(), $5, now() + interval '1 day', now() - interval '1 day'),
-    ($3, 1001, 'open.bin', 'open.bin', 99, 1, 'open', now(), NULL, now() + interval '1 day', NULL)
+    ($1, 1001, 'today.bin', 7, 1, 'completed', now(), $4, now() + interval '1 day', now()),
+    ($2, 1001, 'yesterday.bin', 5, 1, 'completed', now(), $5, now() + interval '1 day', now() - interval '1 day'),
+    ($3, 1001, 'open.bin', 99, 1, 'open', now(), NULL, now() + interval '1 day', NULL)
 `, uuid.New(), uuid.New(), uuid.New(), todayFile, yesterdayFile); err != nil {
 		t.Fatal(err)
 	}

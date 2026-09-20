@@ -174,7 +174,7 @@ func (h *Handler) ListFiles(ctx context.Context, params gen.ListFilesParams) (ge
 		last := files[len(files)-1]
 		lastID, _ := dbtypes.GoogleUUID(last.ID)
 		response.NextCursor = encodeCursor(fileCursor{
-			Name: last.NormalizedName, Sort: sortBy, Order: order,
+			Name: last.Name, Sort: sortBy, Order: order,
 			Value: catalog.FileCursorValue(last, sortBy), ID: lastID,
 		})
 	}

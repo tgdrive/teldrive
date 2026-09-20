@@ -33,7 +33,7 @@ func TestUpdateMetadataAgainstRealPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Update() error = %v", err)
 	}
-	if updated.Name != name || updated.NormalizedName != "After" || !updated.ModTime.Time.Equal(modTime) || updated.Generation != created.Generation+1 {
+	if updated.Name != name || !updated.ModTime.Time.Equal(modTime) || updated.Generation != created.Generation+1 {
 		t.Fatalf("updated file = %#v", updated)
 	}
 	if _, err := svc.Update(ctx, catalog.UpdateInput{

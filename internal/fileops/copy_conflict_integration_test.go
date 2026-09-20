@@ -57,8 +57,8 @@ func TestCopyConflictPolicies(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Copy() error = %v", err)
 		}
-		if copied.Name != "rename-target (1)" || copied.NormalizedName != "rename-target (1)" {
-			t.Fatalf("renamed copy = %q / %q", copied.Name, copied.NormalizedName)
+		if copied.Name != "rename-target (1)" {
+			t.Fatalf("renamed copy = %q", copied.Name)
 		}
 		assertFileStatus(t, db, renameConflictID, sqlcgen.FileStatusActive)
 		assertActiveNameCount(t, db, "rename-target", 1)
@@ -87,8 +87,8 @@ func insertFolder(t testing.TB, db *testpostgres.Database, parentID *uuid.UUID, 
 	t.Helper()
 	id := uuid.New()
 	if _, err := db.Pool.Exec(context.Background(), `
-INSERT INTO files (id,user_id,parent_id,name,normalized_name,kind,encryption,status,mod_time)
-VALUES ($1,1001,$2,$3,lower($3),'folder',false,'active',now())`, id, parentID, name); err != nil {
+INSERT INTO files (id,user_id,parent_id,name,kind,encryption,status,mod_time)
+VALUES ($1,1001,$2,$3,'folder',false,'active',now())`, id, parentID, name); err != nil {
 		t.Fatal(err)
 	}
 	return id
@@ -105,15 +105,15 @@ func assertFileStatus(t testing.TB, db *testpostgres.Database, id uuid.UUID, wan
 	}
 }
 
-func assertActiveNameCount(t testing.TB, db *testpostgres.Database, normalizedName string, want int) {
+func assertActiveNameCount(t testing.TB, db *testpostgres.Database, name string, want int) {
 	t.Helper()
 	var count int
 	if err := db.Pool.QueryRow(context.Background(), `
 SELECT count(*) FROM files
-WHERE user_id=1001 AND parent_id IS NULL AND normalized_name=$1 AND status='active'`, normalizedName).Scan(&count); err != nil {
+WHERE user_id=1001 AND parent_id IS NULL AND name=$1 AND status='active'`, name).Scan(&count); err != nil {
 		t.Fatal(err)
 	}
 	if count != want {
-		t.Fatalf("active name %q count = %d, want %d", normalizedName, count, want)
+		t.Fatalf("active name %q count = %d, want %d", name, count, want)
 	}
 }

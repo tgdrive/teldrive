@@ -103,8 +103,8 @@ func TestGeneratedServerEventStreamReplayTicketAndShutdown(t *testing.T) {
 
 	var fileID string
 	if err := db.Pool.QueryRow(ctx, `
-		INSERT INTO files (user_id, name, normalized_name, kind, mod_time)
-		VALUES (1001, 'first', 'first', 'folder', now())
+		INSERT INTO files (user_id, name, kind, mod_time)
+		VALUES (1001, 'first', 'folder', now())
 		RETURNING id::text
 	`).Scan(&fileID); err != nil {
 		t.Fatalf("insert file: %v", err)
@@ -149,7 +149,7 @@ func TestGeneratedServerEventStreamReplayTicketAndShutdown(t *testing.T) {
 		t.Fatalf("initial live stream frame = %#v", frame)
 	}
 
-	if _, err := db.Pool.Exec(ctx, "UPDATE files SET name = 'second', normalized_name = 'second', generation = generation + 1 WHERE id = $1", fileID); err != nil {
+	if _, err := db.Pool.Exec(ctx, "UPDATE files SET name = 'second', generation = generation + 1 WHERE id = $1", fileID); err != nil {
 		t.Fatal(err)
 	}
 	liveFrame := readEventFrame(t, liveReader, "file.updated")

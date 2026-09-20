@@ -130,7 +130,6 @@ export function FileBrowser({
               view={view}
               selection={selection}
               onOpen={onOpen}
-
               dimmedIds={dimmedIds}
               hasNextPage={hasNextPage}
               isLoadingMore={isLoadingMore}

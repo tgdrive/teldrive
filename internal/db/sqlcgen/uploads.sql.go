@@ -18,7 +18,7 @@ SET state = 'aborted',
 WHERE id = $1
   AND user_id = $2
   AND state IN ('open', 'completing')
-RETURNING id, user_id, parent_id, name, normalized_name, expected_size, expected_hash_algorithm, expected_hash_value, mime_type, mod_time, encryption, encryption_key_version, conflict_policy, part_size, state, file_id, expires_at, created_at, updated_at, completed_at
+RETURNING id, user_id, parent_id, name, expected_size, expected_hash_algorithm, expected_hash_value, mime_type, mod_time, encryption, encryption_key_version, conflict_policy, part_size, state, file_id, expires_at, created_at, updated_at, completed_at
 `
 
 type AbortUploadSessionParams struct {
@@ -34,7 +34,6 @@ func (q *Queries) AbortUploadSession(ctx context.Context, arg AbortUploadSession
 		&i.UserID,
 		&i.ParentID,
 		&i.Name,
-		&i.NormalizedName,
 		&i.ExpectedSize,
 		&i.ExpectedHashAlgorithm,
 		&i.ExpectedHashValue,
@@ -141,7 +140,7 @@ SET state = 'completed',
 WHERE id = $2
   AND user_id = $3
   AND state = 'completing'
-RETURNING id, user_id, parent_id, name, normalized_name, expected_size, expected_hash_algorithm, expected_hash_value, mime_type, mod_time, encryption, encryption_key_version, conflict_policy, part_size, state, file_id, expires_at, created_at, updated_at, completed_at
+RETURNING id, user_id, parent_id, name, expected_size, expected_hash_algorithm, expected_hash_value, mime_type, mod_time, encryption, encryption_key_version, conflict_policy, part_size, state, file_id, expires_at, created_at, updated_at, completed_at
 `
 
 type CompleteUploadSessionParams struct {
@@ -158,7 +157,6 @@ func (q *Queries) CompleteUploadSession(ctx context.Context, arg CompleteUploadS
 		&i.UserID,
 		&i.ParentID,
 		&i.Name,
-		&i.NormalizedName,
 		&i.ExpectedSize,
 		&i.ExpectedHashAlgorithm,
 		&i.ExpectedHashValue,
@@ -212,7 +210,6 @@ INSERT INTO /* TEMPLATE: schema */upload_sessions (
     user_id,
     parent_id,
     name,
-    normalized_name,
     expected_size,
     expected_hash_algorithm,
     expected_hash_value,
@@ -238,11 +235,10 @@ INSERT INTO /* TEMPLATE: schema */upload_sessions (
     $11,
     $12,
     $13,
-    $14,
     'open',
-    $15
+    $14
 )
-RETURNING id, user_id, parent_id, name, normalized_name, expected_size, expected_hash_algorithm, expected_hash_value, mime_type, mod_time, encryption, encryption_key_version, conflict_policy, part_size, state, file_id, expires_at, created_at, updated_at, completed_at
+RETURNING id, user_id, parent_id, name, expected_size, expected_hash_algorithm, expected_hash_value, mime_type, mod_time, encryption, encryption_key_version, conflict_policy, part_size, state, file_id, expires_at, created_at, updated_at, completed_at
 `
 
 type CreateUploadSessionParams struct {
@@ -250,7 +246,6 @@ type CreateUploadSessionParams struct {
 	UserID                int64              `json:"user_id"`
 	ParentID              pgtype.UUID        `json:"parent_id"`
 	Name                  string             `json:"name"`
-	NormalizedName        string             `json:"normalized_name"`
 	ExpectedSize          int64              `json:"expected_size"`
 	ExpectedHashAlgorithm pgtype.Text        `json:"expected_hash_algorithm"`
 	ExpectedHashValue     pgtype.Text        `json:"expected_hash_value"`
@@ -269,7 +264,6 @@ func (q *Queries) CreateUploadSession(ctx context.Context, arg CreateUploadSessi
 		arg.UserID,
 		arg.ParentID,
 		arg.Name,
-		arg.NormalizedName,
 		arg.ExpectedSize,
 		arg.ExpectedHashAlgorithm,
 		arg.ExpectedHashValue,
@@ -287,7 +281,6 @@ func (q *Queries) CreateUploadSession(ctx context.Context, arg CreateUploadSessi
 		&i.UserID,
 		&i.ParentID,
 		&i.Name,
-		&i.NormalizedName,
 		&i.ExpectedSize,
 		&i.ExpectedHashAlgorithm,
 		&i.ExpectedHashValue,
@@ -341,7 +334,7 @@ WHERE id IN (
     FOR UPDATE SKIP LOCKED
     LIMIT 1000
 )
-RETURNING id, user_id, parent_id, name, normalized_name, expected_size, expected_hash_algorithm, expected_hash_value, mime_type, mod_time, encryption, encryption_key_version, conflict_policy, part_size, state, file_id, expires_at, created_at, updated_at, completed_at
+RETURNING id, user_id, parent_id, name, expected_size, expected_hash_algorithm, expected_hash_value, mime_type, mod_time, encryption, encryption_key_version, conflict_policy, part_size, state, file_id, expires_at, created_at, updated_at, completed_at
 `
 
 func (q *Queries) ExpireUploadSessions(ctx context.Context) ([]*UploadSession, error) {
@@ -358,7 +351,6 @@ func (q *Queries) ExpireUploadSessions(ctx context.Context) ([]*UploadSession, e
 			&i.UserID,
 			&i.ParentID,
 			&i.Name,
-			&i.NormalizedName,
 			&i.ExpectedSize,
 			&i.ExpectedHashAlgorithm,
 			&i.ExpectedHashValue,
@@ -393,7 +385,7 @@ WHERE id = $2
   AND user_id = $3
   AND expected_size = -1
   AND state = 'open'
-RETURNING id, user_id, parent_id, name, normalized_name, expected_size, expected_hash_algorithm, expected_hash_value, mime_type, mod_time, encryption, encryption_key_version, conflict_policy, part_size, state, file_id, expires_at, created_at, updated_at, completed_at
+RETURNING id, user_id, parent_id, name, expected_size, expected_hash_algorithm, expected_hash_value, mime_type, mod_time, encryption, encryption_key_version, conflict_policy, part_size, state, file_id, expires_at, created_at, updated_at, completed_at
 `
 
 type FinalizeUploadExpectedSizeParams struct {
@@ -410,7 +402,6 @@ func (q *Queries) FinalizeUploadExpectedSize(ctx context.Context, arg FinalizeUp
 		&i.UserID,
 		&i.ParentID,
 		&i.Name,
-		&i.NormalizedName,
 		&i.ExpectedSize,
 		&i.ExpectedHashAlgorithm,
 		&i.ExpectedHashValue,
@@ -431,7 +422,7 @@ func (q *Queries) FinalizeUploadExpectedSize(ctx context.Context, arg FinalizeUp
 }
 
 const findResumableUploadSessions = `-- name: FindResumableUploadSessions :many
-SELECT id, user_id, parent_id, name, normalized_name, expected_size, expected_hash_algorithm, expected_hash_value, mime_type, mod_time, encryption, encryption_key_version, conflict_policy, part_size, state, file_id, expires_at, created_at, updated_at, completed_at
+SELECT id, user_id, parent_id, name, expected_size, expected_hash_algorithm, expected_hash_value, mime_type, mod_time, encryption, encryption_key_version, conflict_policy, part_size, state, file_id, expires_at, created_at, updated_at, completed_at
 FROM /* TEMPLATE: schema */upload_sessions
 WHERE user_id = $1
   AND parent_id IS NOT DISTINCT FROM $2::uuid
@@ -483,7 +474,6 @@ func (q *Queries) FindResumableUploadSessions(ctx context.Context, arg FindResum
 			&i.UserID,
 			&i.ParentID,
 			&i.Name,
-			&i.NormalizedName,
 			&i.ExpectedSize,
 			&i.ExpectedHashAlgorithm,
 			&i.ExpectedHashValue,
@@ -611,7 +601,7 @@ func (q *Queries) GetUploadPart(ctx context.Context, arg GetUploadPartParams) (*
 }
 
 const getUploadSessionAnyOwner = `-- name: GetUploadSessionAnyOwner :one
-SELECT id, user_id, parent_id, name, normalized_name, expected_size, expected_hash_algorithm, expected_hash_value, mime_type, mod_time, encryption, encryption_key_version, conflict_policy, part_size, state, file_id, expires_at, created_at, updated_at, completed_at
+SELECT id, user_id, parent_id, name, expected_size, expected_hash_algorithm, expected_hash_value, mime_type, mod_time, encryption, encryption_key_version, conflict_policy, part_size, state, file_id, expires_at, created_at, updated_at, completed_at
 FROM /* TEMPLATE: schema */upload_sessions
 WHERE id = $1
 `
@@ -624,7 +614,6 @@ func (q *Queries) GetUploadSessionAnyOwner(ctx context.Context, uploadID pgtype.
 		&i.UserID,
 		&i.ParentID,
 		&i.Name,
-		&i.NormalizedName,
 		&i.ExpectedSize,
 		&i.ExpectedHashAlgorithm,
 		&i.ExpectedHashValue,
@@ -645,7 +634,7 @@ func (q *Queries) GetUploadSessionAnyOwner(ctx context.Context, uploadID pgtype.
 }
 
 const getUploadSessionForUser = `-- name: GetUploadSessionForUser :one
-SELECT id, user_id, parent_id, name, normalized_name, expected_size, expected_hash_algorithm, expected_hash_value, mime_type, mod_time, encryption, encryption_key_version, conflict_policy, part_size, state, file_id, expires_at, created_at, updated_at, completed_at
+SELECT id, user_id, parent_id, name, expected_size, expected_hash_algorithm, expected_hash_value, mime_type, mod_time, encryption, encryption_key_version, conflict_policy, part_size, state, file_id, expires_at, created_at, updated_at, completed_at
 FROM /* TEMPLATE: schema */upload_sessions
 WHERE id = $1
   AND user_id = $2
@@ -664,7 +653,6 @@ func (q *Queries) GetUploadSessionForUser(ctx context.Context, arg GetUploadSess
 		&i.UserID,
 		&i.ParentID,
 		&i.Name,
-		&i.NormalizedName,
 		&i.ExpectedSize,
 		&i.ExpectedHashAlgorithm,
 		&i.ExpectedHashValue,
@@ -690,7 +678,6 @@ INSERT INTO /* TEMPLATE: schema */files (
     user_id,
     parent_id,
     name,
-    normalized_name,
     kind,
     mime_type,
     size,
@@ -706,7 +693,6 @@ SELECT
     user_id,
     parent_id,
     name,
-    normalized_name,
     'file',
     mime_type,
     expected_size,
@@ -720,7 +706,7 @@ FROM /* TEMPLATE: schema */upload_sessions us
 WHERE us.id = $4
   AND us.user_id = $5
   AND us.state = 'completing'
-RETURNING id, user_id, parent_id, name, normalized_name, kind, mime_type, size, hash_algorithm, hash_value, encryption, encryption_key_version, status, mod_time, generation, created_at, updated_at, deleted_at
+RETURNING id, user_id, parent_id, name, kind, mime_type, size, hash_algorithm, hash_value, encryption, encryption_key_version, status, mod_time, generation, created_at, updated_at, deleted_at
 `
 
 type InsertFileFromUploadParams struct {
@@ -745,7 +731,6 @@ func (q *Queries) InsertFileFromUpload(ctx context.Context, arg InsertFileFromUp
 		&i.UserID,
 		&i.ParentID,
 		&i.Name,
-		&i.NormalizedName,
 		&i.Kind,
 		&i.MimeType,
 		&i.Size,
@@ -1031,7 +1016,7 @@ func (q *Queries) ListUploadPartsForCleanupMany(ctx context.Context, uploadIds [
 }
 
 const listUploadSessions = `-- name: ListUploadSessions :many
-SELECT id, user_id, parent_id, name, normalized_name, expected_size, expected_hash_algorithm, expected_hash_value, mime_type, mod_time, encryption, encryption_key_version, conflict_policy, part_size, state, file_id, expires_at, created_at, updated_at, completed_at
+SELECT id, user_id, parent_id, name, expected_size, expected_hash_algorithm, expected_hash_value, mime_type, mod_time, encryption, encryption_key_version, conflict_policy, part_size, state, file_id, expires_at, created_at, updated_at, completed_at
 FROM /* TEMPLATE: schema */upload_sessions
 WHERE user_id = $1
   AND ($2::/* TEMPLATE: schema */upload_state IS NULL OR state = $2::/* TEMPLATE: schema */upload_state)
@@ -1074,7 +1059,6 @@ func (q *Queries) ListUploadSessions(ctx context.Context, arg ListUploadSessions
 			&i.UserID,
 			&i.ParentID,
 			&i.Name,
-			&i.NormalizedName,
 			&i.ExpectedSize,
 			&i.ExpectedHashAlgorithm,
 			&i.ExpectedHashValue,
@@ -1102,7 +1086,7 @@ func (q *Queries) ListUploadSessions(ctx context.Context, arg ListUploadSessions
 }
 
 const listUploadSessionsPendingCleanup = `-- name: ListUploadSessionsPendingCleanup :many
-SELECT DISTINCT us.id, us.user_id, us.parent_id, us.name, us.normalized_name, us.expected_size, us.expected_hash_algorithm, us.expected_hash_value, us.mime_type, us.mod_time, us.encryption, us.encryption_key_version, us.conflict_policy, us.part_size, us.state, us.file_id, us.expires_at, us.created_at, us.updated_at, us.completed_at
+SELECT DISTINCT us.id, us.user_id, us.parent_id, us.name, us.expected_size, us.expected_hash_algorithm, us.expected_hash_value, us.mime_type, us.mod_time, us.encryption, us.encryption_key_version, us.conflict_policy, us.part_size, us.state, us.file_id, us.expires_at, us.created_at, us.updated_at, us.completed_at
 FROM /* TEMPLATE: schema */upload_sessions us
 JOIN /* TEMPLATE: schema */upload_parts up ON up.upload_id = us.id
 WHERE us.state IN ('aborted', 'expired')
@@ -1125,7 +1109,6 @@ func (q *Queries) ListUploadSessionsPendingCleanup(ctx context.Context) ([]*Uplo
 			&i.UserID,
 			&i.ParentID,
 			&i.Name,
-			&i.NormalizedName,
 			&i.ExpectedSize,
 			&i.ExpectedHashAlgorithm,
 			&i.ExpectedHashValue,
@@ -1153,30 +1136,29 @@ func (q *Queries) ListUploadSessionsPendingCleanup(ctx context.Context) ([]*Uplo
 }
 
 const lockUploadDestinationConflict = `-- name: LockUploadDestinationConflict :one
-SELECT id, user_id, parent_id, name, normalized_name, kind, mime_type, size, hash_algorithm, hash_value, encryption, encryption_key_version, status, mod_time, generation, created_at, updated_at, deleted_at
+SELECT id, user_id, parent_id, name, kind, mime_type, size, hash_algorithm, hash_value, encryption, encryption_key_version, status, mod_time, generation, created_at, updated_at, deleted_at
 FROM /* TEMPLATE: schema */files
 WHERE user_id = $1
   AND parent_id IS NOT DISTINCT FROM $2::uuid
-  AND normalized_name = $3
+  AND name = $3
   AND status = 'active'
 FOR UPDATE
 `
 
 type LockUploadDestinationConflictParams struct {
-	UserID         int64       `json:"user_id"`
-	ParentID       pgtype.UUID `json:"parent_id"`
-	NormalizedName string      `json:"normalized_name"`
+	UserID   int64       `json:"user_id"`
+	ParentID pgtype.UUID `json:"parent_id"`
+	Name     string      `json:"name"`
 }
 
 func (q *Queries) LockUploadDestinationConflict(ctx context.Context, arg LockUploadDestinationConflictParams) (*File, error) {
-	row := q.db.QueryRow(ctx, lockUploadDestinationConflict, arg.UserID, arg.ParentID, arg.NormalizedName)
+	row := q.db.QueryRow(ctx, lockUploadDestinationConflict, arg.UserID, arg.ParentID, arg.Name)
 	var i File
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
 		&i.ParentID,
 		&i.Name,
-		&i.NormalizedName,
 		&i.Kind,
 		&i.MimeType,
 		&i.Size,
@@ -1195,7 +1177,7 @@ func (q *Queries) LockUploadDestinationConflict(ctx context.Context, arg LockUpl
 }
 
 const lockUploadSessionForCompletion = `-- name: LockUploadSessionForCompletion :one
-SELECT id, user_id, parent_id, name, normalized_name, expected_size, expected_hash_algorithm, expected_hash_value, mime_type, mod_time, encryption, encryption_key_version, conflict_policy, part_size, state, file_id, expires_at, created_at, updated_at, completed_at
+SELECT id, user_id, parent_id, name, expected_size, expected_hash_algorithm, expected_hash_value, mime_type, mod_time, encryption, encryption_key_version, conflict_policy, part_size, state, file_id, expires_at, created_at, updated_at, completed_at
 FROM /* TEMPLATE: schema */upload_sessions
 WHERE id = $1
   AND user_id = $2
@@ -1215,7 +1197,6 @@ func (q *Queries) LockUploadSessionForCompletion(ctx context.Context, arg LockUp
 		&i.UserID,
 		&i.ParentID,
 		&i.Name,
-		&i.NormalizedName,
 		&i.ExpectedSize,
 		&i.ExpectedHashAlgorithm,
 		&i.ExpectedHashValue,
@@ -1266,7 +1247,7 @@ SET state = 'completing',
 WHERE id = $1
   AND user_id = $2
   AND state = 'open'
-RETURNING id, user_id, parent_id, name, normalized_name, expected_size, expected_hash_algorithm, expected_hash_value, mime_type, mod_time, encryption, encryption_key_version, conflict_policy, part_size, state, file_id, expires_at, created_at, updated_at, completed_at
+RETURNING id, user_id, parent_id, name, expected_size, expected_hash_algorithm, expected_hash_value, mime_type, mod_time, encryption, encryption_key_version, conflict_policy, part_size, state, file_id, expires_at, created_at, updated_at, completed_at
 `
 
 type MarkUploadCompletingParams struct {
@@ -1282,7 +1263,6 @@ func (q *Queries) MarkUploadCompleting(ctx context.Context, arg MarkUploadComple
 		&i.UserID,
 		&i.ParentID,
 		&i.Name,
-		&i.NormalizedName,
 		&i.ExpectedSize,
 		&i.ExpectedHashAlgorithm,
 		&i.ExpectedHashValue,
@@ -1415,26 +1395,19 @@ func (q *Queries) MarkUploadPartStored(ctx context.Context, arg MarkUploadPartSt
 const renameUploadSession = `-- name: RenameUploadSession :execrows
 UPDATE /* TEMPLATE: schema */upload_sessions
 SET name = $1,
-    normalized_name = $2,
     updated_at = now()
-WHERE id = $3
-  AND user_id = $4
+WHERE id = $2
+  AND user_id = $3
 `
 
 type RenameUploadSessionParams struct {
-	Name           string      `json:"name"`
-	NormalizedName string      `json:"normalized_name"`
-	UploadID       pgtype.UUID `json:"upload_id"`
-	UserID         int64       `json:"user_id"`
+	Name     string      `json:"name"`
+	UploadID pgtype.UUID `json:"upload_id"`
+	UserID   int64       `json:"user_id"`
 }
 
 func (q *Queries) RenameUploadSession(ctx context.Context, arg RenameUploadSessionParams) (int64, error) {
-	result, err := q.db.Exec(ctx, renameUploadSession,
-		arg.Name,
-		arg.NormalizedName,
-		arg.UploadID,
-		arg.UserID,
-	)
+	result, err := q.db.Exec(ctx, renameUploadSession, arg.Name, arg.UploadID, arg.UserID)
 	if err != nil {
 		return 0, err
 	}

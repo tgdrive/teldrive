@@ -35,7 +35,6 @@ INSERT INTO /* TEMPLATE: schema */files (
     user_id,
     parent_id,
     name,
-    normalized_name,
     kind,
     mime_type,
     size,
@@ -47,24 +46,22 @@ INSERT INTO /* TEMPLATE: schema */files (
     $2,
     $3,
     $4,
-    $5,
     'folder',
     'inode/directory',
     NULL,
     false,
     'active',
-    $6
+    $5
 )
-RETURNING id, user_id, parent_id, name, normalized_name, kind, mime_type, size, hash_algorithm, hash_value, encryption, encryption_key_version, status, mod_time, generation, created_at, updated_at, deleted_at
+RETURNING id, user_id, parent_id, name, kind, mime_type, size, hash_algorithm, hash_value, encryption, encryption_key_version, status, mod_time, generation, created_at, updated_at, deleted_at
 `
 
 type CreateFolderParams struct {
-	ID             pgtype.UUID        `json:"id"`
-	UserID         int64              `json:"user_id"`
-	ParentID       pgtype.UUID        `json:"parent_id"`
-	Name           string             `json:"name"`
-	NormalizedName string             `json:"normalized_name"`
-	ModTime        pgtype.Timestamptz `json:"mod_time"`
+	ID       pgtype.UUID        `json:"id"`
+	UserID   int64              `json:"user_id"`
+	ParentID pgtype.UUID        `json:"parent_id"`
+	Name     string             `json:"name"`
+	ModTime  pgtype.Timestamptz `json:"mod_time"`
 }
 
 func (q *Queries) CreateFolder(ctx context.Context, arg CreateFolderParams) (*File, error) {
@@ -73,7 +70,6 @@ func (q *Queries) CreateFolder(ctx context.Context, arg CreateFolderParams) (*Fi
 		arg.UserID,
 		arg.ParentID,
 		arg.Name,
-		arg.NormalizedName,
 		arg.ModTime,
 	)
 	var i File
@@ -82,7 +78,6 @@ func (q *Queries) CreateFolder(ctx context.Context, arg CreateFolderParams) (*Fi
 		&i.UserID,
 		&i.ParentID,
 		&i.Name,
-		&i.NormalizedName,
 		&i.Kind,
 		&i.MimeType,
 		&i.Size,
@@ -131,7 +126,7 @@ func (q *Queries) DeleteFilePartsByFileIDs(ctx context.Context, fileIds []pgtype
 }
 
 const getActiveFolderForUser = `-- name: GetActiveFolderForUser :one
-SELECT id, user_id, parent_id, name, normalized_name, kind, mime_type, size, hash_algorithm, hash_value, encryption, encryption_key_version, status, mod_time, generation, created_at, updated_at, deleted_at
+SELECT id, user_id, parent_id, name, kind, mime_type, size, hash_algorithm, hash_value, encryption, encryption_key_version, status, mod_time, generation, created_at, updated_at, deleted_at
 FROM /* TEMPLATE: schema */files
 WHERE id = $1
   AND user_id = $2
@@ -152,7 +147,6 @@ func (q *Queries) GetActiveFolderForUser(ctx context.Context, arg GetActiveFolde
 		&i.UserID,
 		&i.ParentID,
 		&i.Name,
-		&i.NormalizedName,
 		&i.Kind,
 		&i.MimeType,
 		&i.Size,
@@ -206,7 +200,7 @@ func (q *Queries) GetDriveStatistics(ctx context.Context, userID int64) (*GetDri
 }
 
 const getFileForUser = `-- name: GetFileForUser :one
-SELECT id, user_id, parent_id, name, normalized_name, kind, mime_type, size, hash_algorithm, hash_value, encryption, encryption_key_version, status, mod_time, generation, created_at, updated_at, deleted_at
+SELECT id, user_id, parent_id, name, kind, mime_type, size, hash_algorithm, hash_value, encryption, encryption_key_version, status, mod_time, generation, created_at, updated_at, deleted_at
 FROM /* TEMPLATE: schema */files
 WHERE id = $1
   AND user_id = $2
@@ -225,7 +219,6 @@ func (q *Queries) GetFileForUser(ctx context.Context, arg GetFileForUserParams) 
 		&i.UserID,
 		&i.ParentID,
 		&i.Name,
-		&i.NormalizedName,
 		&i.Kind,
 		&i.MimeType,
 		&i.Size,
@@ -268,20 +261,20 @@ func (q *Queries) InsertCopiedFileParts(ctx context.Context, parts []byte) (int6
 
 const insertCopiedFiles = `-- name: InsertCopiedFiles :many
 INSERT INTO /* TEMPLATE: schema */files AS file (
-    id, user_id, parent_id, name, normalized_name, kind, mime_type, size,
+    id, user_id, parent_id, name, kind, mime_type, size,
     hash_algorithm, hash_value, encryption, encryption_key_version,
     status, mod_time, generation
 )
-SELECT input.id, input.user_id, input.parent_id, input.name, input.normalized_name,
+SELECT input.id, input.user_id, input.parent_id, input.name,
        input.kind::/* TEMPLATE: schema */file_kind, input.mime_type, input.size,
        input.hash_algorithm, input.hash_value, input.encryption,
        input.encryption_key_version, 'active', input.mod_time, 1
 FROM jsonb_to_recordset($1::jsonb) AS input(
-    id uuid, user_id bigint, parent_id uuid, name text, normalized_name text,
+    id uuid, user_id bigint, parent_id uuid, name text,
     kind text, mime_type text, size bigint, hash_algorithm text, hash_value text,
     encryption boolean, encryption_key_version integer, mod_time timestamptz
 )
-RETURNING file.id, file.user_id, file.parent_id, file.name, file.normalized_name, file.kind, file.mime_type, file.size, file.hash_algorithm, file.hash_value, file.encryption, file.encryption_key_version, file.status, file.mod_time, file.generation, file.created_at, file.updated_at, file.deleted_at
+RETURNING file.id, file.user_id, file.parent_id, file.name, file.kind, file.mime_type, file.size, file.hash_algorithm, file.hash_value, file.encryption, file.encryption_key_version, file.status, file.mod_time, file.generation, file.created_at, file.updated_at, file.deleted_at
 `
 
 func (q *Queries) InsertCopiedFiles(ctx context.Context, files []byte) ([]*File, error) {
@@ -298,7 +291,6 @@ func (q *Queries) InsertCopiedFiles(ctx context.Context, files []byte) ([]*File,
 			&i.UserID,
 			&i.ParentID,
 			&i.Name,
-			&i.NormalizedName,
 			&i.Kind,
 			&i.MimeType,
 			&i.Size,
@@ -323,8 +315,8 @@ func (q *Queries) InsertCopiedFiles(ctx context.Context, files []byte) ([]*File,
 	return items, nil
 }
 
-const listActiveNormalizedNames = `-- name: ListActiveNormalizedNames :many
-SELECT normalized_name
+const listActiveNames = `-- name: ListActiveNames :many
+SELECT name
 FROM /* TEMPLATE: schema */files
 WHERE user_id = $1
   AND parent_id IS NOT DISTINCT FROM $2::uuid
@@ -332,25 +324,25 @@ WHERE user_id = $1
   AND ($3::uuid IS NULL OR id <> $3::uuid)
 `
 
-type ListActiveNormalizedNamesParams struct {
+type ListActiveNamesParams struct {
 	UserID    int64       `json:"user_id"`
 	ParentID  pgtype.UUID `json:"parent_id"`
 	ExcludeID pgtype.UUID `json:"exclude_id"`
 }
 
-func (q *Queries) ListActiveNormalizedNames(ctx context.Context, arg ListActiveNormalizedNamesParams) ([]string, error) {
-	rows, err := q.db.Query(ctx, listActiveNormalizedNames, arg.UserID, arg.ParentID, arg.ExcludeID)
+func (q *Queries) ListActiveNames(ctx context.Context, arg ListActiveNamesParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, listActiveNames, arg.UserID, arg.ParentID, arg.ExcludeID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	items := []string{}
 	for rows.Next() {
-		var normalized_name string
-		if err := rows.Scan(&normalized_name); err != nil {
+		var name string
+		if err := rows.Scan(&name); err != nil {
 			return nil, err
 		}
-		items = append(items, normalized_name)
+		items = append(items, name)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -600,7 +592,7 @@ func (q *Queries) ListFileSubtreeIDs(ctx context.Context, arg ListFileSubtreeIDs
 }
 
 const listFiles = `-- name: ListFiles :many
-SELECT id, user_id, parent_id, name, normalized_name, kind, mime_type, size, hash_algorithm, hash_value, encryption, encryption_key_version, status, mod_time, generation, created_at, updated_at, deleted_at
+SELECT id, user_id, parent_id, name, kind, mime_type, size, hash_algorithm, hash_value, encryption, encryption_key_version, status, mod_time, generation, created_at, updated_at, deleted_at
 FROM /* TEMPLATE: schema */files
 WHERE files.user_id = $1
   AND (
@@ -622,14 +614,14 @@ WHERE files.user_id = $1
   AND ($4::/* TEMPLATE: schema */file_kind IS NULL OR files.kind = $4::/* TEMPLATE: schema */file_kind)
   AND (
     $5::text IS NULL
-    OR files.normalized_name % $5::text
-    OR files.normalized_name ILIKE '%' || $5::text || '%'
+    OR files.name % $5::text
+    OR files.name ILIKE '%' || $5::text || '%'
   )
   AND (
     $6::text IS NULL
-    OR (normalized_name, id) > ($6::text, $7::uuid)
+    OR (name, id) > ($6::text, $7::uuid)
   )
-ORDER BY normalized_name, id
+ORDER BY name, id
 LIMIT $8
 `
 
@@ -667,7 +659,6 @@ func (q *Queries) ListFiles(ctx context.Context, arg ListFilesParams) ([]*File, 
 			&i.UserID,
 			&i.ParentID,
 			&i.Name,
-			&i.NormalizedName,
 			&i.Kind,
 			&i.MimeType,
 			&i.Size,
@@ -693,7 +684,7 @@ func (q *Queries) ListFiles(ctx context.Context, arg ListFilesParams) ([]*File, 
 }
 
 const listFilesAdvanced = `-- name: ListFilesAdvanced :many
-SELECT f.id, f.user_id, f.parent_id, f.name, f.normalized_name, f.kind, f.mime_type, f.size, f.hash_algorithm, f.hash_value, f.encryption, f.encryption_key_version, f.status, f.mod_time, f.generation, f.created_at, f.updated_at, f.deleted_at
+SELECT f.id, f.user_id, f.parent_id, f.name, f.kind, f.mime_type, f.size, f.hash_algorithm, f.hash_value, f.encryption, f.encryption_key_version, f.status, f.mod_time, f.generation, f.created_at, f.updated_at, f.deleted_at
 FROM /* TEMPLATE: schema */files f
 WHERE f.user_id = $1
   AND (
@@ -719,8 +710,8 @@ WHERE f.user_id = $1
     OR (
       $6::text = 'text'
       AND (
-        f.normalized_name % $5::text
-        OR f.normalized_name ILIKE '%' || $5::text || '%'
+        f.name % $5::text
+        OR f.name ILIKE '%' || $5::text || '%'
       )
     )
   )
@@ -755,8 +746,8 @@ WHERE f.user_id = $1
       $11::text = 'name'
       AND $12::text IS NOT NULL
       AND (
-        ($13::text = 'asc' AND (f.normalized_name, f.id) > ($12::text, $10::uuid))
-        OR ($13::text = 'desc' AND (f.normalized_name, f.id) < ($12::text, $10::uuid))
+        ($13::text = 'asc' AND (f.name, f.id) > ($12::text, $10::uuid))
+        OR ($13::text = 'desc' AND (f.name, f.id) < ($12::text, $10::uuid))
       )
     )
     OR (
@@ -784,8 +775,8 @@ WHERE f.user_id = $1
     )
   )
 ORDER BY
-  CASE WHEN $11::text = 'name' AND $13::text = 'asc' THEN f.normalized_name END ASC,
-  CASE WHEN $11::text = 'name' AND $13::text = 'desc' THEN f.normalized_name END DESC,
+  CASE WHEN $11::text = 'name' AND $13::text = 'asc' THEN f.name END ASC,
+  CASE WHEN $11::text = 'name' AND $13::text = 'desc' THEN f.name END DESC,
   CASE WHEN $11::text = 'updatedAt' AND $13::text = 'asc' THEN f.updated_at END ASC,
   CASE WHEN $11::text = 'updatedAt' AND $13::text = 'desc' THEN f.updated_at END DESC,
   CASE WHEN $11::text = 'size' AND $13::text = 'asc' THEN COALESCE(f.size, -1) END ASC,
@@ -847,7 +838,6 @@ func (q *Queries) ListFilesAdvanced(ctx context.Context, arg ListFilesAdvancedPa
 			&i.UserID,
 			&i.ParentID,
 			&i.Name,
-			&i.NormalizedName,
 			&i.Kind,
 			&i.MimeType,
 			&i.Size,
@@ -874,16 +864,16 @@ func (q *Queries) ListFilesAdvanced(ctx context.Context, arg ListFilesAdvancedPa
 
 const loadFileSubtree = `-- name: LoadFileSubtree :many
 WITH RECURSIVE tree AS (
-    SELECT f.id, f.user_id, f.parent_id, f.name, f.normalized_name, f.kind, f.mime_type, f.size, f.hash_algorithm, f.hash_value, f.encryption, f.encryption_key_version, f.status, f.mod_time, f.generation, f.created_at, f.updated_at, f.deleted_at, 0::integer AS depth
+    SELECT f.id, f.user_id, f.parent_id, f.name, f.kind, f.mime_type, f.size, f.hash_algorithm, f.hash_value, f.encryption, f.encryption_key_version, f.status, f.mod_time, f.generation, f.created_at, f.updated_at, f.deleted_at, 0::integer AS depth
     FROM /* TEMPLATE: schema */files f
     WHERE f.id = $1 AND f.user_id = $2
     UNION ALL
-    SELECT child.id, child.user_id, child.parent_id, child.name, child.normalized_name, child.kind, child.mime_type, child.size, child.hash_algorithm, child.hash_value, child.encryption, child.encryption_key_version, child.status, child.mod_time, child.generation, child.created_at, child.updated_at, child.deleted_at, tree.depth + 1
+    SELECT child.id, child.user_id, child.parent_id, child.name, child.kind, child.mime_type, child.size, child.hash_algorithm, child.hash_value, child.encryption, child.encryption_key_version, child.status, child.mod_time, child.generation, child.created_at, child.updated_at, child.deleted_at, tree.depth + 1
     FROM /* TEMPLATE: schema */files child
     JOIN tree ON child.parent_id = tree.id
     WHERE child.user_id = $2
 )
-SELECT id, user_id, parent_id, name, normalized_name, kind, mime_type, size,
+SELECT id, user_id, parent_id, name, kind, mime_type, size,
        hash_algorithm, hash_value, encryption, encryption_key_version, status,
        mod_time, generation, created_at, updated_at, deleted_at, depth
 FROM tree
@@ -900,7 +890,6 @@ type LoadFileSubtreeRow struct {
 	UserID               int64              `json:"user_id"`
 	ParentID             pgtype.UUID        `json:"parent_id"`
 	Name                 string             `json:"name"`
-	NormalizedName       string             `json:"normalized_name"`
 	Kind                 FileKind           `json:"kind"`
 	MimeType             pgtype.Text        `json:"mime_type"`
 	Size                 pgtype.Int8        `json:"size"`
@@ -931,7 +920,6 @@ func (q *Queries) LoadFileSubtree(ctx context.Context, arg LoadFileSubtreeParams
 			&i.UserID,
 			&i.ParentID,
 			&i.Name,
-			&i.NormalizedName,
 			&i.Kind,
 			&i.MimeType,
 			&i.Size,
@@ -959,17 +947,17 @@ func (q *Queries) LoadFileSubtree(ctx context.Context, arg LoadFileSubtreeParams
 
 const loadFileSubtrees = `-- name: LoadFileSubtrees :many
 WITH RECURSIVE tree AS (
-    SELECT f.id, f.user_id, f.parent_id, f.name, f.normalized_name, f.kind, f.mime_type, f.size, f.hash_algorithm, f.hash_value, f.encryption, f.encryption_key_version, f.status, f.mod_time, f.generation, f.created_at, f.updated_at, f.deleted_at, 0::integer AS depth
+    SELECT f.id, f.user_id, f.parent_id, f.name, f.kind, f.mime_type, f.size, f.hash_algorithm, f.hash_value, f.encryption, f.encryption_key_version, f.status, f.mod_time, f.generation, f.created_at, f.updated_at, f.deleted_at, 0::integer AS depth
     FROM /* TEMPLATE: schema */files f
     WHERE f.id = ANY($1::uuid[])
       AND f.user_id = $2
     UNION ALL
-    SELECT child.id, child.user_id, child.parent_id, child.name, child.normalized_name, child.kind, child.mime_type, child.size, child.hash_algorithm, child.hash_value, child.encryption, child.encryption_key_version, child.status, child.mod_time, child.generation, child.created_at, child.updated_at, child.deleted_at, tree.depth + 1
+    SELECT child.id, child.user_id, child.parent_id, child.name, child.kind, child.mime_type, child.size, child.hash_algorithm, child.hash_value, child.encryption, child.encryption_key_version, child.status, child.mod_time, child.generation, child.created_at, child.updated_at, child.deleted_at, tree.depth + 1
     FROM /* TEMPLATE: schema */files child
     JOIN tree ON child.parent_id = tree.id
     WHERE child.user_id = $2
 )
-SELECT id, user_id, parent_id, name, normalized_name, kind, mime_type, size,
+SELECT id, user_id, parent_id, name, kind, mime_type, size,
        hash_algorithm, hash_value, encryption, encryption_key_version, status,
        mod_time, generation, created_at, updated_at, deleted_at, depth
 FROM tree
@@ -986,7 +974,6 @@ type LoadFileSubtreesRow struct {
 	UserID               int64              `json:"user_id"`
 	ParentID             pgtype.UUID        `json:"parent_id"`
 	Name                 string             `json:"name"`
-	NormalizedName       string             `json:"normalized_name"`
 	Kind                 FileKind           `json:"kind"`
 	MimeType             pgtype.Text        `json:"mime_type"`
 	Size                 pgtype.Int8        `json:"size"`
@@ -1017,7 +1004,6 @@ func (q *Queries) LoadFileSubtrees(ctx context.Context, arg LoadFileSubtreesPara
 			&i.UserID,
 			&i.ParentID,
 			&i.Name,
-			&i.NormalizedName,
 			&i.Kind,
 			&i.MimeType,
 			&i.Size,
@@ -1044,7 +1030,7 @@ func (q *Queries) LoadFileSubtrees(ctx context.Context, arg LoadFileSubtreesPara
 }
 
 const lockActiveDestinationEntries = `-- name: LockActiveDestinationEntries :many
-SELECT id, normalized_name
+SELECT id, name
 FROM /* TEMPLATE: schema */files
 WHERE user_id = $1
   AND parent_id IS NOT DISTINCT FROM $2::uuid
@@ -1058,8 +1044,8 @@ type LockActiveDestinationEntriesParams struct {
 }
 
 type LockActiveDestinationEntriesRow struct {
-	ID             pgtype.UUID `json:"id"`
-	NormalizedName string      `json:"normalized_name"`
+	ID   pgtype.UUID `json:"id"`
+	Name string      `json:"name"`
 }
 
 func (q *Queries) LockActiveDestinationEntries(ctx context.Context, arg LockActiveDestinationEntriesParams) ([]*LockActiveDestinationEntriesRow, error) {
@@ -1071,7 +1057,7 @@ func (q *Queries) LockActiveDestinationEntries(ctx context.Context, arg LockActi
 	items := []*LockActiveDestinationEntriesRow{}
 	for rows.Next() {
 		var i LockActiveDestinationEntriesRow
-		if err := rows.Scan(&i.ID, &i.NormalizedName); err != nil {
+		if err := rows.Scan(&i.ID, &i.Name); err != nil {
 			return nil, err
 		}
 		items = append(items, &i)
@@ -1083,7 +1069,7 @@ func (q *Queries) LockActiveDestinationEntries(ctx context.Context, arg LockActi
 }
 
 const lockActiveFiles = `-- name: LockActiveFiles :many
-SELECT id, user_id, parent_id, name, normalized_name, kind, mime_type, size, hash_algorithm, hash_value, encryption, encryption_key_version, status, mod_time, generation, created_at, updated_at, deleted_at
+SELECT id, user_id, parent_id, name, kind, mime_type, size, hash_algorithm, hash_value, encryption, encryption_key_version, status, mod_time, generation, created_at, updated_at, deleted_at
 FROM /* TEMPLATE: schema */files
 WHERE user_id = $1
   AND id = ANY($2::uuid[])
@@ -1110,7 +1096,6 @@ func (q *Queries) LockActiveFiles(ctx context.Context, arg LockActiveFilesParams
 			&i.UserID,
 			&i.ParentID,
 			&i.Name,
-			&i.NormalizedName,
 			&i.Kind,
 			&i.MimeType,
 			&i.Size,
@@ -1136,7 +1121,7 @@ func (q *Queries) LockActiveFiles(ctx context.Context, arg LockActiveFilesParams
 }
 
 const lockActiveFolder = `-- name: LockActiveFolder :one
-SELECT id, user_id, parent_id, name, normalized_name, kind, mime_type, size, hash_algorithm, hash_value, encryption, encryption_key_version, status, mod_time, generation, created_at, updated_at, deleted_at
+SELECT id, user_id, parent_id, name, kind, mime_type, size, hash_algorithm, hash_value, encryption, encryption_key_version, status, mod_time, generation, created_at, updated_at, deleted_at
 FROM /* TEMPLATE: schema */files
 WHERE id = $1
   AND user_id = $2
@@ -1158,7 +1143,6 @@ func (q *Queries) LockActiveFolder(ctx context.Context, arg LockActiveFolderPara
 		&i.UserID,
 		&i.ParentID,
 		&i.Name,
-		&i.NormalizedName,
 		&i.Kind,
 		&i.MimeType,
 		&i.Size,
@@ -1202,7 +1186,7 @@ SET status = 'deletion_pending',
 WHERE id = $1
   AND user_id = $2
   AND status = 'trashed'
-RETURNING id, user_id, parent_id, name, normalized_name, kind, mime_type, size, hash_algorithm, hash_value, encryption, encryption_key_version, status, mod_time, generation, created_at, updated_at, deleted_at
+RETURNING id, user_id, parent_id, name, kind, mime_type, size, hash_algorithm, hash_value, encryption, encryption_key_version, status, mod_time, generation, created_at, updated_at, deleted_at
 `
 
 type MarkFileDeletionPendingParams struct {
@@ -1218,7 +1202,6 @@ func (q *Queries) MarkFileDeletionPending(ctx context.Context, arg MarkFileDelet
 		&i.UserID,
 		&i.ParentID,
 		&i.Name,
-		&i.NormalizedName,
 		&i.Kind,
 		&i.MimeType,
 		&i.Size,
@@ -1324,7 +1307,7 @@ WHERE id = $2
     $4::bigint IS NULL
     OR generation = $4::bigint
   )
-RETURNING id, user_id, parent_id, name, normalized_name, kind, mime_type, size, hash_algorithm, hash_value, encryption, encryption_key_version, status, mod_time, generation, created_at, updated_at, deleted_at
+RETURNING id, user_id, parent_id, name, kind, mime_type, size, hash_algorithm, hash_value, encryption, encryption_key_version, status, mod_time, generation, created_at, updated_at, deleted_at
 `
 
 type MoveFileParams struct {
@@ -1347,7 +1330,6 @@ func (q *Queries) MoveFile(ctx context.Context, arg MoveFileParams) (*File, erro
 		&i.UserID,
 		&i.ParentID,
 		&i.Name,
-		&i.NormalizedName,
 		&i.Kind,
 		&i.MimeType,
 		&i.Size,
@@ -1368,19 +1350,16 @@ func (q *Queries) MoveFile(ctx context.Context, arg MoveFileParams) (*File, erro
 const moveFilesWithNames = `-- name: MoveFilesWithNames :many
 WITH arrays AS (
   SELECT $4::uuid[] AS file_ids,
-         $5::text[] AS names,
-         $6::text[] AS normalized_names
+         $5::text[] AS names
 ), input AS (
   SELECT arrays.file_ids[index] AS file_id,
-         arrays.names[index] AS name,
-         arrays.normalized_names[index] AS normalized_name
+         arrays.names[index] AS name
   FROM arrays
   CROSS JOIN LATERAL generate_subscripts(arrays.file_ids, 1) AS index
 )
 UPDATE /* TEMPLATE: schema */files AS file
 SET parent_id = $1,
     name = input.name,
-    normalized_name = input.normalized_name,
     generation = file.generation + 1,
     updated_at = now()
 FROM input
@@ -1388,7 +1367,7 @@ WHERE file.id = input.file_id
   AND file.user_id = $2
   AND file.status = 'active'
   AND ($3::bigint IS NULL OR file.generation = $3::bigint)
-RETURNING file.id, file.user_id, file.parent_id, file.name, file.normalized_name, file.kind, file.mime_type, file.size, file.hash_algorithm, file.hash_value, file.encryption, file.encryption_key_version, file.status, file.mod_time, file.generation, file.created_at, file.updated_at, file.deleted_at
+RETURNING file.id, file.user_id, file.parent_id, file.name, file.kind, file.mime_type, file.size, file.hash_algorithm, file.hash_value, file.encryption, file.encryption_key_version, file.status, file.mod_time, file.generation, file.created_at, file.updated_at, file.deleted_at
 `
 
 type MoveFilesWithNamesParams struct {
@@ -1397,7 +1376,6 @@ type MoveFilesWithNamesParams struct {
 	ExpectedGeneration pgtype.Int8   `json:"expected_generation"`
 	FileIds            []pgtype.UUID `json:"file_ids"`
 	Names              []string      `json:"names"`
-	NormalizedNames    []string      `json:"normalized_names"`
 }
 
 func (q *Queries) MoveFilesWithNames(ctx context.Context, arg MoveFilesWithNamesParams) ([]*File, error) {
@@ -1407,7 +1385,6 @@ func (q *Queries) MoveFilesWithNames(ctx context.Context, arg MoveFilesWithNames
 		arg.ExpectedGeneration,
 		arg.FileIds,
 		arg.Names,
-		arg.NormalizedNames,
 	)
 	if err != nil {
 		return nil, err
@@ -1421,7 +1398,6 @@ func (q *Queries) MoveFilesWithNames(ctx context.Context, arg MoveFilesWithNames
 			&i.UserID,
 			&i.ParentID,
 			&i.Name,
-			&i.NormalizedName,
 			&i.Kind,
 			&i.MimeType,
 			&i.Size,
@@ -1465,7 +1441,7 @@ SET status = 'deletion_pending',
     updated_at = now()
 WHERE target_file.user_id = $1
   AND target_file.id IN (SELECT target.id FROM target)
-RETURNING target_file.id, target_file.user_id, target_file.parent_id, target_file.name, target_file.normalized_name, target_file.kind, target_file.mime_type, target_file.size, target_file.hash_algorithm, target_file.hash_value, target_file.encryption, target_file.encryption_key_version, target_file.status, target_file.mod_time, target_file.generation, target_file.created_at, target_file.updated_at, target_file.deleted_at
+RETURNING target_file.id, target_file.user_id, target_file.parent_id, target_file.name, target_file.kind, target_file.mime_type, target_file.size, target_file.hash_algorithm, target_file.hash_value, target_file.encryption, target_file.encryption_key_version, target_file.status, target_file.mod_time, target_file.generation, target_file.created_at, target_file.updated_at, target_file.deleted_at
 `
 
 type QueueFileSubtreePurgeParams struct {
@@ -1487,7 +1463,6 @@ func (q *Queries) QueueFileSubtreePurge(ctx context.Context, arg QueueFileSubtre
 			&i.UserID,
 			&i.ParentID,
 			&i.Name,
-			&i.NormalizedName,
 			&i.Kind,
 			&i.MimeType,
 			&i.Size,
@@ -1513,29 +1488,28 @@ func (q *Queries) QueueFileSubtreePurge(ctx context.Context, arg QueueFileSubtre
 }
 
 const resolveActiveChild = `-- name: ResolveActiveChild :one
-SELECT id, user_id, parent_id, name, normalized_name, kind, mime_type, size, hash_algorithm, hash_value, encryption, encryption_key_version, status, mod_time, generation, created_at, updated_at, deleted_at
+SELECT id, user_id, parent_id, name, kind, mime_type, size, hash_algorithm, hash_value, encryption, encryption_key_version, status, mod_time, generation, created_at, updated_at, deleted_at
 FROM /* TEMPLATE: schema */files
 WHERE user_id = $1
   AND parent_id IS NOT DISTINCT FROM $2::uuid
-  AND normalized_name = $3
+  AND name = $3
   AND status = 'active'
 `
 
 type ResolveActiveChildParams struct {
-	UserID         int64       `json:"user_id"`
-	ParentID       pgtype.UUID `json:"parent_id"`
-	NormalizedName string      `json:"normalized_name"`
+	UserID   int64       `json:"user_id"`
+	ParentID pgtype.UUID `json:"parent_id"`
+	Name     string      `json:"name"`
 }
 
 func (q *Queries) ResolveActiveChild(ctx context.Context, arg ResolveActiveChildParams) (*File, error) {
-	row := q.db.QueryRow(ctx, resolveActiveChild, arg.UserID, arg.ParentID, arg.NormalizedName)
+	row := q.db.QueryRow(ctx, resolveActiveChild, arg.UserID, arg.ParentID, arg.Name)
 	var i File
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
 		&i.ParentID,
 		&i.Name,
-		&i.NormalizedName,
 		&i.Kind,
 		&i.MimeType,
 		&i.Size,
@@ -1558,19 +1532,19 @@ SELECT id
 FROM /* TEMPLATE: schema */files
 WHERE user_id = $1
   AND parent_id IS NOT DISTINCT FROM $2::uuid
-  AND normalized_name = $3
+  AND name = $3
   AND kind = 'folder'
   AND status = 'active'
 `
 
 type ResolveActiveChildFolderParams struct {
-	UserID         int64       `json:"user_id"`
-	ParentID       pgtype.UUID `json:"parent_id"`
-	NormalizedName string      `json:"normalized_name"`
+	UserID   int64       `json:"user_id"`
+	ParentID pgtype.UUID `json:"parent_id"`
+	Name     string      `json:"name"`
 }
 
 func (q *Queries) ResolveActiveChildFolder(ctx context.Context, arg ResolveActiveChildFolderParams) (pgtype.UUID, error) {
-	row := q.db.QueryRow(ctx, resolveActiveChildFolder, arg.UserID, arg.ParentID, arg.NormalizedName)
+	row := q.db.QueryRow(ctx, resolveActiveChildFolder, arg.UserID, arg.ParentID, arg.Name)
 	var id pgtype.UUID
 	err := row.Scan(&id)
 	return id, err
@@ -1607,7 +1581,7 @@ SET status = 'active',
     updated_at = now()
 WHERE target_file.user_id = $1
   AND target_file.id IN (SELECT target.id FROM target)
-RETURNING target_file.id, target_file.user_id, target_file.parent_id, target_file.name, target_file.normalized_name, target_file.kind, target_file.mime_type, target_file.size, target_file.hash_algorithm, target_file.hash_value, target_file.encryption, target_file.encryption_key_version, target_file.status, target_file.mod_time, target_file.generation, target_file.created_at, target_file.updated_at, target_file.deleted_at
+RETURNING target_file.id, target_file.user_id, target_file.parent_id, target_file.name, target_file.kind, target_file.mime_type, target_file.size, target_file.hash_algorithm, target_file.hash_value, target_file.encryption, target_file.encryption_key_version, target_file.status, target_file.mod_time, target_file.generation, target_file.created_at, target_file.updated_at, target_file.deleted_at
 `
 
 type RestoreFileSubtreeParams struct {
@@ -1629,7 +1603,6 @@ func (q *Queries) RestoreFileSubtree(ctx context.Context, arg RestoreFileSubtree
 			&i.UserID,
 			&i.ParentID,
 			&i.Name,
-			&i.NormalizedName,
 			&i.Kind,
 			&i.MimeType,
 			&i.Size,
@@ -1731,7 +1704,7 @@ SET status = 'trashed',
 WHERE id = $1
   AND user_id = $2
   AND status = 'active'
-RETURNING id, user_id, parent_id, name, normalized_name, kind, mime_type, size, hash_algorithm, hash_value, encryption, encryption_key_version, status, mod_time, generation, created_at, updated_at, deleted_at
+RETURNING id, user_id, parent_id, name, kind, mime_type, size, hash_algorithm, hash_value, encryption, encryption_key_version, status, mod_time, generation, created_at, updated_at, deleted_at
 `
 
 type TrashFileParams struct {
@@ -1747,7 +1720,6 @@ func (q *Queries) TrashFile(ctx context.Context, arg TrashFileParams) (*File, er
 		&i.UserID,
 		&i.ParentID,
 		&i.Name,
-		&i.NormalizedName,
 		&i.Kind,
 		&i.MimeType,
 		&i.Size,
@@ -1786,7 +1758,7 @@ SET status = 'trashed',
     updated_at = now()
 WHERE target_file.user_id = $1
   AND target_file.id IN (SELECT target.id FROM target)
-RETURNING target_file.id, target_file.user_id, target_file.parent_id, target_file.name, target_file.normalized_name, target_file.kind, target_file.mime_type, target_file.size, target_file.hash_algorithm, target_file.hash_value, target_file.encryption, target_file.encryption_key_version, target_file.status, target_file.mod_time, target_file.generation, target_file.created_at, target_file.updated_at, target_file.deleted_at
+RETURNING target_file.id, target_file.user_id, target_file.parent_id, target_file.name, target_file.kind, target_file.mime_type, target_file.size, target_file.hash_algorithm, target_file.hash_value, target_file.encryption, target_file.encryption_key_version, target_file.status, target_file.mod_time, target_file.generation, target_file.created_at, target_file.updated_at, target_file.deleted_at
 `
 
 type TrashFileSubtreesParams struct {
@@ -1808,7 +1780,6 @@ func (q *Queries) TrashFileSubtrees(ctx context.Context, arg TrashFileSubtreesPa
 			&i.UserID,
 			&i.ParentID,
 			&i.Name,
-			&i.NormalizedName,
 			&i.Kind,
 			&i.MimeType,
 			&i.Size,
@@ -1836,23 +1807,21 @@ func (q *Queries) TrashFileSubtrees(ctx context.Context, arg TrashFileSubtreesPa
 const updateFileMetadata = `-- name: UpdateFileMetadata :one
 UPDATE /* TEMPLATE: schema */files
 SET name = COALESCE($1, name),
-    normalized_name = COALESCE($2, normalized_name),
-    mod_time = COALESCE($3, mod_time),
+    mod_time = COALESCE($2, mod_time),
     generation = generation + 1,
     updated_at = now()
-WHERE id = $4
-  AND user_id = $5
+WHERE id = $3
+  AND user_id = $4
   AND status = 'active'
   AND (
-    $6::bigint IS NULL
-    OR generation = $6::bigint
+    $5::bigint IS NULL
+    OR generation = $5::bigint
   )
-RETURNING id, user_id, parent_id, name, normalized_name, kind, mime_type, size, hash_algorithm, hash_value, encryption, encryption_key_version, status, mod_time, generation, created_at, updated_at, deleted_at
+RETURNING id, user_id, parent_id, name, kind, mime_type, size, hash_algorithm, hash_value, encryption, encryption_key_version, status, mod_time, generation, created_at, updated_at, deleted_at
 `
 
 type UpdateFileMetadataParams struct {
 	Name               pgtype.Text        `json:"name"`
-	NormalizedName     pgtype.Text        `json:"normalized_name"`
 	ModTime            pgtype.Timestamptz `json:"mod_time"`
 	FileID             pgtype.UUID        `json:"file_id"`
 	UserID             int64              `json:"user_id"`
@@ -1862,7 +1831,6 @@ type UpdateFileMetadataParams struct {
 func (q *Queries) UpdateFileMetadata(ctx context.Context, arg UpdateFileMetadataParams) (*File, error) {
 	row := q.db.QueryRow(ctx, updateFileMetadata,
 		arg.Name,
-		arg.NormalizedName,
 		arg.ModTime,
 		arg.FileID,
 		arg.UserID,
@@ -1874,7 +1842,6 @@ func (q *Queries) UpdateFileMetadata(ctx context.Context, arg UpdateFileMetadata
 		&i.UserID,
 		&i.ParentID,
 		&i.Name,
-		&i.NormalizedName,
 		&i.Kind,
 		&i.MimeType,
 		&i.Size,

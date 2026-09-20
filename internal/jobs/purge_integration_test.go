@@ -27,12 +27,12 @@ func TestPendingFilePurgeWorkerProcessesDeletionPendingRoots(t *testing.T) {
 	secondRootID := uuid.New()
 	activeID := uuid.New()
 	if _, err := db.Pool.Exec(ctx, `
-INSERT INTO files (id, user_id, parent_id, name, normalized_name, kind, size, status, mod_time, deleted_at)
+INSERT INTO files (id, user_id, parent_id, name, kind, size, status, mod_time, deleted_at)
 VALUES
-    ($1, 1001, NULL, 'root', 'root', 'folder', NULL, 'deletion_pending', now(), now()),
-    ($2, 1001, $1, 'child', 'child', 'file', 0, 'deletion_pending', now(), now()),
-    ($3, 1001, NULL, 'second-root', 'second-root', 'file', 0, 'deletion_pending', now(), now()),
-    ($4, 1001, NULL, 'active', 'active', 'file', 0, 'active', now(), NULL)
+    ($1, 1001, NULL, 'root', 'folder', NULL, 'deletion_pending', now(), now()),
+    ($2, 1001, $1, 'child', 'file', 0, 'deletion_pending', now(), now()),
+    ($3, 1001, NULL, 'second-root', 'file', 0, 'deletion_pending', now(), now()),
+    ($4, 1001, NULL, 'active', 'file', 0, 'active', now(), NULL)
 `, rootID, childID, secondRootID, activeID); err != nil {
 		t.Fatal(err)
 	}
@@ -87,8 +87,8 @@ func TestPendingFilePurgeWorkerDrainsMultiplePages(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := db.Pool.Exec(ctx, `
-INSERT INTO files (user_id, name, normalized_name, kind, size, status, mod_time, deleted_at)
-SELECT 1001, 'pending-' || value, 'pending-' || value, 'file', 0, 'deletion_pending', now(), now()
+INSERT INTO files (user_id, name, kind, size, status, mod_time, deleted_at)
+SELECT 1001, 'pending-' || value, 'file', 0, 'deletion_pending', now(), now()
 FROM generate_series(1, 1001) AS value
 `); err != nil {
 		t.Fatal(err)
@@ -125,8 +125,8 @@ func TestPendingFilePurgeWorkerReturnsServiceFailure(t *testing.T) {
 	}
 	fileID := uuid.New()
 	if _, err := db.Pool.Exec(ctx, `
-INSERT INTO files (id, user_id, name, normalized_name, kind, size, status, mod_time, deleted_at)
-VALUES ($1, 1001, 'pending', 'pending', 'file', 0, 'deletion_pending', now(), now())
+INSERT INTO files (id, user_id, name, kind, size, status, mod_time, deleted_at)
+VALUES ($1, 1001, 'pending', 'file', 0, 'deletion_pending', now(), now())
 `, fileID); err != nil {
 		t.Fatal(err)
 	}

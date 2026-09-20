@@ -35,14 +35,14 @@ WHERE files.user_id = sqlc.arg(user_id)
   AND (sqlc.narg(kind)::/* TEMPLATE: schema */file_kind IS NULL OR files.kind = sqlc.narg(kind)::/* TEMPLATE: schema */file_kind)
   AND (
     sqlc.narg(search)::text IS NULL
-    OR files.normalized_name % sqlc.narg(search)::text
-    OR files.normalized_name ILIKE '%' || sqlc.narg(search)::text || '%'
+    OR files.name % sqlc.narg(search)::text
+    OR files.name ILIKE '%' || sqlc.narg(search)::text || '%'
   )
   AND (
     sqlc.narg(after_name)::text IS NULL
-    OR (normalized_name, id) > (sqlc.narg(after_name)::text, sqlc.narg(after_id)::uuid)
+    OR (name, id) > (sqlc.narg(after_name)::text, sqlc.narg(after_id)::uuid)
   )
-ORDER BY normalized_name, id
+ORDER BY name, id
 LIMIT sqlc.arg(page_size);
 
 -- name: CreateFolder :one
@@ -51,7 +51,6 @@ INSERT INTO /* TEMPLATE: schema */files (
     user_id,
     parent_id,
     name,
-    normalized_name,
     kind,
     mime_type,
     size,
@@ -63,7 +62,6 @@ INSERT INTO /* TEMPLATE: schema */files (
     sqlc.arg(user_id),
     sqlc.narg(parent_id),
     sqlc.arg(name),
-    sqlc.arg(normalized_name),
     'folder',
     'inode/directory',
     NULL,
@@ -76,7 +74,6 @@ RETURNING *;
 -- name: UpdateFileMetadata :one
 UPDATE /* TEMPLATE: schema */files
 SET name = COALESCE(sqlc.narg(name), name),
-    normalized_name = COALESCE(sqlc.narg(normalized_name), normalized_name),
     mod_time = COALESCE(sqlc.narg(mod_time), mod_time),
     generation = generation + 1,
     updated_at = now()
@@ -191,7 +188,7 @@ SELECT id
 FROM /* TEMPLATE: schema */files
 WHERE user_id = sqlc.arg(user_id)
   AND parent_id IS NOT DISTINCT FROM sqlc.narg(parent_id)::uuid
-  AND normalized_name = sqlc.arg(normalized_name)
+  AND name = sqlc.arg(name)
   AND kind = 'folder'
   AND status = 'active';
 
@@ -200,7 +197,7 @@ SELECT *
 FROM /* TEMPLATE: schema */files
 WHERE user_id = sqlc.arg(user_id)
   AND parent_id IS NOT DISTINCT FROM sqlc.narg(parent_id)::uuid
-  AND normalized_name = sqlc.arg(normalized_name)
+  AND name = sqlc.arg(name)
   AND status = 'active';
 
 -- name: ListFilesAdvanced :many
@@ -230,8 +227,8 @@ WHERE f.user_id = sqlc.arg(user_id)
     OR (
       sqlc.arg(search_type)::text = 'text'
       AND (
-        f.normalized_name % sqlc.narg(search)::text
-        OR f.normalized_name ILIKE '%' || sqlc.narg(search)::text || '%'
+        f.name % sqlc.narg(search)::text
+        OR f.name ILIKE '%' || sqlc.narg(search)::text || '%'
       )
     )
   )
@@ -266,8 +263,8 @@ WHERE f.user_id = sqlc.arg(user_id)
       sqlc.arg(sort_by)::text = 'name'
       AND sqlc.narg(after_name)::text IS NOT NULL
       AND (
-        (sqlc.arg(sort_order)::text = 'asc' AND (f.normalized_name, f.id) > (sqlc.narg(after_name)::text, sqlc.narg(after_id)::uuid))
-        OR (sqlc.arg(sort_order)::text = 'desc' AND (f.normalized_name, f.id) < (sqlc.narg(after_name)::text, sqlc.narg(after_id)::uuid))
+        (sqlc.arg(sort_order)::text = 'asc' AND (f.name, f.id) > (sqlc.narg(after_name)::text, sqlc.narg(after_id)::uuid))
+        OR (sqlc.arg(sort_order)::text = 'desc' AND (f.name, f.id) < (sqlc.narg(after_name)::text, sqlc.narg(after_id)::uuid))
       )
     )
     OR (
@@ -295,8 +292,8 @@ WHERE f.user_id = sqlc.arg(user_id)
     )
   )
 ORDER BY
-  CASE WHEN sqlc.arg(sort_by)::text = 'name' AND sqlc.arg(sort_order)::text = 'asc' THEN f.normalized_name END ASC,
-  CASE WHEN sqlc.arg(sort_by)::text = 'name' AND sqlc.arg(sort_order)::text = 'desc' THEN f.normalized_name END DESC,
+  CASE WHEN sqlc.arg(sort_by)::text = 'name' AND sqlc.arg(sort_order)::text = 'asc' THEN f.name END ASC,
+  CASE WHEN sqlc.arg(sort_by)::text = 'name' AND sqlc.arg(sort_order)::text = 'desc' THEN f.name END DESC,
   CASE WHEN sqlc.arg(sort_by)::text = 'updatedAt' AND sqlc.arg(sort_order)::text = 'asc' THEN f.updated_at END ASC,
   CASE WHEN sqlc.arg(sort_by)::text = 'updatedAt' AND sqlc.arg(sort_order)::text = 'desc' THEN f.updated_at END DESC,
   CASE WHEN sqlc.arg(sort_by)::text = 'size' AND sqlc.arg(sort_order)::text = 'asc' THEN COALESCE(f.size, -1) END ASC,
@@ -366,7 +363,7 @@ WHERE id = sqlc.arg(folder_id)
 FOR UPDATE;
 
 -- name: LockActiveDestinationEntries :many
-SELECT id, normalized_name
+SELECT id, name
 FROM /* TEMPLATE: schema */files
 WHERE user_id = sqlc.arg(user_id)
   AND parent_id IS NOT DISTINCT FROM sqlc.narg(parent_id)::uuid
@@ -477,8 +474,8 @@ WHERE share.owner_id = sqlc.arg(user_id)
   AND share.revoked_at IS NULL
   AND share.file_id IN (SELECT target.id FROM target);
 
--- name: ListActiveNormalizedNames :many
-SELECT normalized_name
+-- name: ListActiveNames :many
+SELECT name
 FROM /* TEMPLATE: schema */files
 WHERE user_id = sqlc.arg(user_id)
   AND parent_id IS NOT DISTINCT FROM sqlc.narg(parent_id)::uuid
@@ -488,19 +485,16 @@ WHERE user_id = sqlc.arg(user_id)
 -- name: MoveFilesWithNames :many
 WITH arrays AS (
   SELECT sqlc.arg(file_ids)::uuid[] AS file_ids,
-         sqlc.arg(names)::text[] AS names,
-         sqlc.arg(normalized_names)::text[] AS normalized_names
+         sqlc.arg(names)::text[] AS names
 ), input AS (
   SELECT arrays.file_ids[index] AS file_id,
-         arrays.names[index] AS name,
-         arrays.normalized_names[index] AS normalized_name
+         arrays.names[index] AS name
   FROM arrays
   CROSS JOIN LATERAL generate_subscripts(arrays.file_ids, 1) AS index
 )
 UPDATE /* TEMPLATE: schema */files AS file
 SET parent_id = sqlc.narg(parent_id),
     name = input.name,
-    normalized_name = input.normalized_name,
     generation = file.generation + 1,
     updated_at = now()
 FROM input
@@ -521,7 +515,7 @@ WITH RECURSIVE tree AS (
     JOIN tree ON child.parent_id = tree.id
     WHERE child.user_id = sqlc.arg(user_id)
 )
-SELECT id, user_id, parent_id, name, normalized_name, kind, mime_type, size,
+SELECT id, user_id, parent_id, name, kind, mime_type, size,
        hash_algorithm, hash_value, encryption, encryption_key_version, status,
        mod_time, generation, created_at, updated_at, deleted_at, depth
 FROM tree
@@ -539,7 +533,7 @@ WITH RECURSIVE tree AS (
     JOIN tree ON child.parent_id = tree.id
     WHERE child.user_id = sqlc.arg(user_id)
 )
-SELECT id, user_id, parent_id, name, normalized_name, kind, mime_type, size,
+SELECT id, user_id, parent_id, name, kind, mime_type, size,
        hash_algorithm, hash_value, encryption, encryption_key_version, status,
        mod_time, generation, created_at, updated_at, deleted_at, depth
 FROM tree
@@ -547,16 +541,16 @@ ORDER BY depth, id;
 
 -- name: InsertCopiedFiles :many
 INSERT INTO /* TEMPLATE: schema */files AS file (
-    id, user_id, parent_id, name, normalized_name, kind, mime_type, size,
+    id, user_id, parent_id, name, kind, mime_type, size,
     hash_algorithm, hash_value, encryption, encryption_key_version,
     status, mod_time, generation
 )
-SELECT input.id, input.user_id, input.parent_id, input.name, input.normalized_name,
+SELECT input.id, input.user_id, input.parent_id, input.name,
        input.kind::/* TEMPLATE: schema */file_kind, input.mime_type, input.size,
        input.hash_algorithm, input.hash_value, input.encryption,
        input.encryption_key_version, 'active', input.mod_time, 1
 FROM jsonb_to_recordset(sqlc.arg(files)::jsonb) AS input(
-    id uuid, user_id bigint, parent_id uuid, name text, normalized_name text,
+    id uuid, user_id bigint, parent_id uuid, name text,
     kind text, mime_type text, size bigint, hash_algorithm text, hash_value text,
     encryption boolean, encryption_key_version integer, mod_time timestamptz
 )

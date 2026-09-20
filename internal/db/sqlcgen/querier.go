@@ -85,7 +85,7 @@ type Querier interface {
 	InsertUserEvent(ctx context.Context, arg InsertUserEventParams) (*UserEvent, error)
 	ListAPIKeys(ctx context.Context, arg ListAPIKeysParams) ([]*ApiKey, error)
 	ListActiveFileIDsAnyOwner(ctx context.Context, fileIds []pgtype.UUID) ([]pgtype.UUID, error)
-	ListActiveNormalizedNames(ctx context.Context, arg ListActiveNormalizedNamesParams) ([]string, error)
+	ListActiveNames(ctx context.Context, arg ListActiveNamesParams) ([]string, error)
 	ListAuditEvents(ctx context.Context, arg ListAuditEventsParams) ([]*AuditEvent, error)
 	ListBots(ctx context.Context, arg ListBotsParams) ([]*Bot, error)
 	ListChannelReferencedParts(ctx context.Context, arg ListChannelReferencedPartsParams) ([]*ListChannelReferencedPartsRow, error)

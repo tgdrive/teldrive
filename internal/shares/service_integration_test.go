@@ -28,13 +28,13 @@ func TestResolveAccessManyUsesOneRecursiveQuery(t *testing.T) {
 	}
 	rootID := uuid.New()
 	if _, err := db.Pool.Exec(ctx, `
-INSERT INTO files (id,user_id,name,normalized_name,kind,encryption,status,mod_time)
-VALUES ($1,1001,'shared','shared','folder',false,'active',now())`, rootID); err != nil {
+INSERT INTO files (id,user_id,name,kind,encryption,status,mod_time)
+VALUES ($1,1001,'shared','folder',false,'active',now())`, rootID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.Pool.Exec(ctx, `
-INSERT INTO files (id,user_id,parent_id,name,normalized_name,kind,size,encryption,status,mod_time)
-SELECT gen_random_uuid(), 1001, $1, 'child-' || value, 'child-' || value, 'file', 1, false, 'active', now()
+INSERT INTO files (id,user_id,parent_id,name,kind,size,encryption,status,mod_time)
+SELECT gen_random_uuid(), 1001, $1, 'child-' || value, 'file', 1, false, 'active', now()
 FROM generate_series(1, 500) AS value`, rootID); err != nil {
 		t.Fatal(err)
 	}
@@ -92,8 +92,8 @@ func TestShareLifecycleAndDownloadLimitAgainstRealPostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := db.Pool.Exec(ctx, `
-INSERT INTO files (id,user_id,name,normalized_name,kind,mime_type,size,encryption,status,mod_time)
-VALUES ($1,1001,'shared.bin','shared.bin','file','application/octet-stream',4,false,'active',now())`, fileID); err != nil {
+INSERT INTO files (id,user_id,name,kind,mime_type,size,encryption,status,mod_time)
+VALUES ($1,1001,'shared.bin','file','application/octet-stream',4,false,'active',now())`, fileID); err != nil {
 		t.Fatal(err)
 	}
 	service, err := NewService(db.Pool, catalog.NewService(db.Pool, nil))
@@ -178,11 +178,11 @@ func TestShareUpdateAndPublicFolderTraversalAgainstRealPostgres(t *testing.T) {
 	childFolderID := uuid.New()
 	fileID := uuid.New()
 	if _, err := db.Pool.Exec(ctx, `
-INSERT INTO files (id,user_id,parent_id,name,normalized_name,kind,mime_type,size,encryption,status,mod_time)
+INSERT INTO files (id,user_id,parent_id,name,kind,mime_type,size,encryption,status,mod_time)
 VALUES
-  ($1,1001,NULL,'Public','Public','folder',NULL,NULL,false,'active',now()),
-  ($2,1001,$1,'Docs','Docs','folder',NULL,NULL,false,'active',now()),
-  ($3,1001,$2,'Readme.txt','Readme.txt','file','text/plain',6,false,'active',now())`,
+  ($1,1001,NULL,'Public','folder',NULL,NULL,false,'active',now()),
+  ($2,1001,$1,'Docs','folder',NULL,NULL,false,'active',now()),
+  ($3,1001,$2,'Readme.txt','file','text/plain',6,false,'active',now())`,
 		rootID, childFolderID, fileID); err != nil {
 		t.Fatal(err)
 	}
@@ -253,10 +253,10 @@ func TestInternalGrantAccessLifecycleAgainstRealPostgres(t *testing.T) {
 	}
 	rootID, childID := uuid.New(), uuid.New()
 	if _, err := db.Pool.Exec(ctx, `
-INSERT INTO files (id,user_id,parent_id,name,normalized_name,kind,mime_type,size,encryption,status,mod_time)
+INSERT INTO files (id,user_id,parent_id,name,kind,mime_type,size,encryption,status,mod_time)
 VALUES
-  ($1,1001,NULL,'Team','Team','folder',NULL,NULL,false,'active',now()),
-  ($2,1001,$1,'notes.txt','notes.txt','file','text/plain',5,false,'active',now())`, rootID, childID); err != nil {
+  ($1,1001,NULL,'Team','folder',NULL,NULL,false,'active',now()),
+  ($2,1001,$1,'notes.txt','file','text/plain',5,false,'active',now())`, rootID, childID); err != nil {
 		t.Fatal(err)
 	}
 	service, err := NewService(db.Pool, catalog.NewService(db.Pool, nil))
@@ -341,10 +341,10 @@ func TestPublicShareEditPermissionAgainstRealPostgres(t *testing.T) {
 	}
 	rootID, childID := uuid.New(), uuid.New()
 	if _, err := db.Pool.Exec(ctx, `
-INSERT INTO files (id,user_id,parent_id,name,normalized_name,kind,mime_type,size,encryption,status,mod_time)
+INSERT INTO files (id,user_id,parent_id,name,kind,mime_type,size,encryption,status,mod_time)
 VALUES
-  ($1,1001,NULL,'Public','Public','folder',NULL,NULL,false,'active',now()),
-  ($2,1001,$1,'child.txt','child.txt','file','text/plain',5,false,'active',now())`, rootID, childID); err != nil {
+  ($1,1001,NULL,'Public','folder',NULL,NULL,false,'active',now()),
+  ($2,1001,$1,'child.txt','file','text/plain',5,false,'active',now())`, rootID, childID); err != nil {
 		t.Fatal(err)
 	}
 	service, err := NewService(db.Pool, catalog.NewService(db.Pool, nil))

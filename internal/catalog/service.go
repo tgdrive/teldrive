@@ -23,6 +23,7 @@ import (
 var (
 	ErrNotFound      = errors.New("file not found")
 	ErrConflict      = errors.New("file name conflict")
+	ErrInvalidName   = errors.New("invalid file name")
 	ErrInvalidOwner  = errors.New("invalid owner")
 	ErrInvalidParent = errors.New("invalid parent folder")
 	ErrNotAFile      = errors.New("catalog entry is not an active file")
@@ -61,10 +62,6 @@ func (s *Service) CreateFolder(ctx context.Context, in CreateFolderInput) (*sqlc
 	if in.UserID <= 0 {
 		return nil, ErrInvalidOwner
 	}
-	name, normalized, err := NormalizeName(in.Name)
-	if err != nil {
-		return nil, err
-	}
 	if in.ParentID != nil {
 		if _, err := s.queries.GetActiveFolderForUser(ctx, sqlcgen.GetActiveFolderForUserParams{
 			FolderID: dbtypes.UUID(*in.ParentID),
@@ -81,12 +78,11 @@ func (s *Service) CreateFolder(ctx context.Context, in CreateFolderInput) (*sqlc
 		modTime = s.now().UTC()
 	}
 	file, err := s.queries.CreateFolder(ctx, sqlcgen.CreateFolderParams{
-		ID:             dbtypes.UUID(uuid.New()),
-		UserID:         in.UserID,
-		ParentID:       dbtypes.OptionalUUID(in.ParentID),
-		Name:           name,
-		NormalizedName: normalized,
-		ModTime:        dbtypes.Time(modTime.UTC()),
+		ID:       dbtypes.UUID(uuid.New()),
+		UserID:   in.UserID,
+		ParentID: dbtypes.OptionalUUID(in.ParentID),
+		Name:     in.Name,
+		ModTime:  dbtypes.Time(modTime.UTC()),
 	})
 	if err != nil {
 		return nil, classifyWriteError("create folder", err)
@@ -306,11 +302,7 @@ func (s *Service) List(ctx context.Context, in ListInput) ([]*sqlcgen.File, erro
 	}
 	var search pgtype.Text
 	if strings.TrimSpace(in.Search) != "" {
-		_, folded, err := NormalizeName(in.Search)
-		if err != nil {
-			return nil, err
-		}
-		search = dbtypes.Text(folded)
+		search = dbtypes.Text(in.Search)
 	}
 	var afterName pgtype.Text
 	var afterID pgtype.UUID
@@ -338,13 +330,8 @@ func (s *Service) Rename(ctx context.Context, userID int64, fileID uuid.UUID, ex
 	if userID <= 0 {
 		return nil, ErrInvalidOwner
 	}
-	name, normalized, err := NormalizeName(rawName)
-	if err != nil {
-		return nil, err
-	}
 	file, err := s.queries.UpdateFileMetadata(ctx, sqlcgen.UpdateFileMetadataParams{
-		Name:               dbtypes.Text(name),
-		NormalizedName:     dbtypes.Text(normalized),
+		Name:               dbtypes.Text(rawName),
 		FileID:             dbtypes.UUID(fileID),
 		UserID:             userID,
 		ExpectedGeneration: dbtypes.OptionalInt8(expectedGeneration),

@@ -23,8 +23,8 @@ func TestOrphanCleanupDeletesOnlyExpiredUnreferencedDocuments(t *testing.T) {
 	seedCleanupOwner(t, db.Pool)
 	if _, err := db.Pool.Exec(ctx, `
 WITH session AS (
-  INSERT INTO upload_sessions (user_id, name, normalized_name, expected_size, mod_time, part_size, expires_at)
-  VALUES (1001, 'active.bin', 'active.bin', 1, now(), 1, now() + interval '7 days') RETURNING id
+  INSERT INTO upload_sessions (user_id, name, expected_size, mod_time, part_size, expires_at)
+  VALUES (1001, 'active.bin', 1, now(), 1, now() + interval '7 days') RETURNING id
 )
 INSERT INTO upload_parts (upload_id, part_no, channel_id, message_id, plain_size, stored_size, state)
 SELECT id, 1, 9001, 12, 1, 1, 'stored' FROM session`); err != nil {
@@ -32,8 +32,8 @@ SELECT id, 1, 9001, 12, 1, 1, 'stored' FROM session`); err != nil {
 	}
 	brokenID := uuid.New()
 	if _, err := db.Pool.Exec(ctx, `
-INSERT INTO files (id, user_id, name, normalized_name, kind, size, mod_time)
-VALUES ($1, 1001, 'broken.bin', 'broken.bin', 'file', 5, now())`, brokenID.String()); err != nil {
+INSERT INTO files (id, user_id, name, kind, size, mod_time)
+VALUES ($1, 1001, 'broken.bin', 'file', 5, now())`, brokenID.String()); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.Pool.Exec(ctx, `

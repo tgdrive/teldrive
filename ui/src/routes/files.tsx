@@ -339,7 +339,6 @@ function FilesPage() {
     }
   };
 
-
   const stageClipboard = (mode: "copy" | "cut", pane: PaneId) => {
     const files = paneSelectedFiles(pane);
     if (files.length === 0) return;
@@ -599,7 +598,8 @@ function FilesPage() {
         : "primary";
     const showClipboard = hasClipboard && (!search.split || pane === clipboardTargetPane);
     const canPasteHere =
-      showClipboard && !(clipboardMode === "cut" && clipboardSourceParentId === paneLocation(pane).parentId);
+      showClipboard &&
+      !(clipboardMode === "cut" && clipboardSourceParentId === paneLocation(pane).parentId);
     if (showClipboard) {
       return (
         <div className="pointer-events-none absolute inset-x-0 bottom-4 z-30 flex justify-center px-4">
@@ -772,10 +772,7 @@ function FilesPage() {
     const selectedKeys = paneSelectedKeys(pane);
     const fileQuery = pane === "secondary" ? secondaryFileQuery : primaryFileQuery;
     return (
-      <div
-        data-testid={`file-pane-${pane}`}
-        className="flex min-h-0 min-w-0 flex-1 rounded-xl"
-      >
+      <div data-testid={`file-pane-${pane}`} className="flex min-h-0 min-w-0 flex-1 rounded-xl">
         <DropZone
           data-testid={pane === "primary" ? "file-drop-zone" : "file-drop-zone-secondary"}
           aria-label={`Upload files into ${location.path}`}
@@ -821,7 +818,6 @@ function FilesPage() {
                 }}
                 toolbar={renderToolbar(pane)}
                 selectionOverlay={renderSelectionOverlay(pane)}
-
                 dimmedIds={cutIds}
               />
             </div>

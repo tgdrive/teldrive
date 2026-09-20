@@ -62,7 +62,6 @@ type copiedFileRecord struct {
 	UserID               int64      `json:"user_id"`
 	ParentID             *uuid.UUID `json:"parent_id"`
 	Name                 string     `json:"name"`
-	NormalizedName       string     `json:"normalized_name"`
 	Kind                 string     `json:"kind"`
 	MIMEType             *string    `json:"mime_type"`
 	Size                 *int64     `json:"size"`
@@ -133,11 +132,7 @@ func (s *Service) Copy(ctx context.Context, in CopyInput) (*sqlcgen.File, error)
 	rootNewID := idMap[rootOldID]
 	rootName := nodes[0].File.Name
 	if in.Name != nil {
-		rootName = strings.TrimSpace(*in.Name)
-	}
-	rootDisplayName, rootNormalizedName, err := catalog.NormalizeName(rootName)
-	if err != nil {
-		return nil, err
+		rootName = *in.Name
 	}
 
 	sourceFileIDs := make([]uuid.UUID, 0)
@@ -205,7 +200,7 @@ func (s *Service) Copy(ctx context.Context, in CopyInput) (*sqlcgen.File, error)
 		return nil, fmt.Errorf("lock copy destination: %w", err)
 	}
 	conflict, conflictErr := queries.LockUploadDestinationConflict(ctx, sqlcgen.LockUploadDestinationConflictParams{
-		UserID: in.UserID, ParentID: dbtypes.OptionalUUID(in.ParentID), NormalizedName: rootNormalizedName,
+		UserID: in.UserID, ParentID: dbtypes.OptionalUUID(in.ParentID), Name: rootName,
 	})
 	if conflictErr != nil && !errors.Is(conflictErr, pgx.ErrNoRows) {
 		compensate()
@@ -223,7 +218,7 @@ func (s *Service) Copy(ctx context.Context, in CopyInput) (*sqlcgen.File, error)
 			compensate()
 			return nil, catalog.ErrConflict
 		case sqlcgen.NameConflictPolicyRename:
-			rootDisplayName, rootNormalizedName, err = nextAvailableCopyName(ctx, queries, in.UserID, in.ParentID, rootDisplayName)
+			rootName, err = nextAvailableCopyName(ctx, queries, in.UserID, in.ParentID, rootName)
 			if err != nil {
 				compensate()
 				return nil, err
@@ -267,13 +262,13 @@ func (s *Service) Copy(ctx context.Context, in CopyInput) (*sqlcgen.File, error)
 			mapped := idMap[oldParent]
 			parentID = &mapped
 		}
-		displayName, normalizedName := node.File.Name, node.File.NormalizedName
+		name := node.File.Name
 		if oldID == rootOldID {
-			displayName, normalizedName = rootDisplayName, rootNormalizedName
+			name = rootName
 		}
 		fileRecords = append(fileRecords, copiedFileRecord{
-			ID: newID, UserID: in.UserID, ParentID: parentID, Name: displayName,
-			NormalizedName: normalizedName, Kind: string(node.File.Kind),
+			ID: newID, UserID: in.UserID, ParentID: parentID, Name: name,
+			Kind:     string(node.File.Kind),
 			MIMEType: optionalText(node.File.MimeType), Size: optionalInt64(node.File.Size),
 			HashAlgorithm: optionalText(node.File.HashAlgorithm), HashValue: optionalText(node.File.HashValue),
 			Encryption: node.File.Encryption, EncryptionKeyVersion: optionalInt32(node.File.EncryptionKeyVersion),
@@ -352,12 +347,12 @@ func optionalInt32(value pgtype.Int4) *int32 {
 	return &value.Int32
 }
 
-func nextAvailableCopyName(ctx context.Context, queries *sqlcgen.Queries, userID int64, parentID *uuid.UUID, original string) (string, string, error) {
-	names, err := queries.ListActiveNormalizedNames(ctx, sqlcgen.ListActiveNormalizedNamesParams{
+func nextAvailableCopyName(ctx context.Context, queries *sqlcgen.Queries, userID int64, parentID *uuid.UUID, original string) (string, error) {
+	names, err := queries.ListActiveNames(ctx, sqlcgen.ListActiveNamesParams{
 		UserID: userID, ParentID: dbtypes.OptionalUUID(parentID),
 	})
 	if err != nil {
-		return "", "", fmt.Errorf("list copy destination names: %w", err)
+		return "", fmt.Errorf("list copy destination names: %w", err)
 	}
 	used := make(map[string]struct{}, len(names))
 	for _, name := range names {
@@ -365,16 +360,12 @@ func nextAvailableCopyName(ctx context.Context, queries *sqlcgen.Queries, userID
 	}
 	base, extension := splitCopyName(original)
 	for sequence := 1; sequence <= 10000; sequence++ {
-		candidate := boundedCopyName(base, extension, fmt.Sprintf(" (%d)", sequence))
-		display, normalized, err := catalog.NormalizeName(candidate)
-		if err != nil {
-			return "", "", err
-		}
-		if _, exists := used[normalized]; !exists {
-			return display, normalized, nil
+		candidate := base + fmt.Sprintf(" (%d)", sequence) + extension
+		if _, exists := used[candidate]; !exists {
+			return candidate, nil
 		}
 	}
-	return "", "", catalog.ErrConflict
+	return "", catalog.ErrConflict
 }
 
 func splitCopyName(name string) (string, string) {
@@ -383,21 +374,6 @@ func splitCopyName(name string) (string, string) {
 		return name, ""
 	}
 	return name[:index], name[index:]
-}
-
-func boundedCopyName(base, extension, suffix string) string {
-	const maxRunes = 255
-	extensionRunes, suffixRunes := []rune(extension), []rune(suffix)
-	available := maxRunes - len(extensionRunes) - len(suffixRunes)
-	if available < 1 {
-		extensionRunes = nil
-		available = maxRunes - len(suffixRunes)
-	}
-	baseRunes := []rune(base)
-	if len(baseRunes) > available {
-		baseRunes = baseRunes[:available]
-	}
-	return string(baseRunes) + suffix + string(extensionRunes)
 }
 
 func copyDestinationLockID(userID int64, parentID *uuid.UUID) int64 {
@@ -528,7 +504,7 @@ func (s *Service) PurgeMany(ctx context.Context, userID int64, rootIDs []uuid.UU
 		}
 		node := treeNode{File: sqlcgen.File{
 			ID: row.ID, UserID: row.UserID, ParentID: row.ParentID, Name: row.Name,
-			NormalizedName: row.NormalizedName, Kind: row.Kind, MimeType: row.MimeType,
+			Kind: row.Kind, MimeType: row.MimeType,
 			Size: row.Size, HashAlgorithm: row.HashAlgorithm, HashValue: row.HashValue,
 			Encryption: row.Encryption, EncryptionKeyVersion: row.EncryptionKeyVersion,
 			Status: row.Status, ModTime: row.ModTime, Generation: row.Generation,
@@ -636,7 +612,7 @@ func (s *Service) loadTree(ctx context.Context, userID int64, rootID uuid.UUID) 
 	for _, row := range rows {
 		out = append(out, treeNode{File: sqlcgen.File{
 			ID: row.ID, UserID: row.UserID, ParentID: row.ParentID, Name: row.Name,
-			NormalizedName: row.NormalizedName, Kind: row.Kind, MimeType: row.MimeType,
+			Kind: row.Kind, MimeType: row.MimeType,
 			Size: row.Size, HashAlgorithm: row.HashAlgorithm, HashValue: row.HashValue,
 			Encryption: row.Encryption, EncryptionKeyVersion: row.EncryptionKeyVersion,
 			Status: row.Status, ModTime: row.ModTime, Generation: row.Generation,

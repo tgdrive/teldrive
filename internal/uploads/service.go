@@ -16,7 +16,6 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"github.com/tgdrive/teldrive/v2/internal/catalog"
 	"github.com/tgdrive/teldrive/v2/internal/db/sqlcgen"
 	"github.com/tgdrive/teldrive/v2/internal/dbtypes"
 	"github.com/tgdrive/teldrive/v2/internal/treehash"
@@ -95,10 +94,6 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*sqlcgen.UploadSe
 	if in.UserID <= 0 || in.ExpectedSize < -1 {
 		return nil, ErrInvalidInput
 	}
-	name, normalized, err := catalog.NormalizeName(in.Name)
-	if err != nil {
-		return nil, err
-	}
 	if (in.ExpectedHashAlgorithm == nil) != (in.ExpectedHashValue == nil) {
 		return nil, ErrInvalidInput
 	}
@@ -148,8 +143,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*sqlcgen.UploadSe
 		ID:                    dbtypes.UUID(id),
 		UserID:                in.UserID,
 		ParentID:              dbtypes.OptionalUUID(in.ParentID),
-		Name:                  name,
-		NormalizedName:        normalized,
+		Name:                  in.Name,
 		ExpectedSize:          in.ExpectedSize,
 		ExpectedHashAlgorithm: dbtypes.OptionalText(in.ExpectedHashAlgorithm),
 		ExpectedHashValue:     dbtypes.OptionalText(in.ExpectedHashValue),
@@ -543,7 +537,7 @@ func prepareConflictPolicy(ctx context.Context, tx pgx.Tx, session *sqlcgen.Uplo
 	}
 
 	existing, err := queries.LockUploadDestinationConflict(ctx, sqlcgen.LockUploadDestinationConflictParams{
-		UserID: session.UserID, ParentID: session.ParentID, NormalizedName: session.NormalizedName,
+		UserID: session.UserID, ParentID: session.ParentID, Name: session.Name,
 	})
 	hasConflict := err == nil
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
@@ -586,12 +580,12 @@ func prepareConflictPolicy(ctx context.Context, tx pgx.Tx, session *sqlcgen.Uplo
 		if !hasConflict {
 			return nil, nil
 		}
-		name, normalized, err := nextAvailableUploadName(ctx, queries, session)
+		name, err := nextAvailableUploadName(ctx, queries, session)
 		if err != nil {
 			return nil, err
 		}
 		count, err := queries.RenameUploadSession(ctx, sqlcgen.RenameUploadSessionParams{
-			Name: name, NormalizedName: normalized, UploadID: session.ID, UserID: session.UserID,
+			Name: name, UploadID: session.ID, UserID: session.UserID,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("rename upload destination: %w", err)
@@ -600,19 +594,18 @@ func prepareConflictPolicy(ctx context.Context, tx pgx.Tx, session *sqlcgen.Uplo
 			return nil, ErrInvalidState
 		}
 		session.Name = name
-		session.NormalizedName = normalized
 		return nil, nil
 	default:
 		return nil, ErrInvalidInput
 	}
 }
 
-func nextAvailableUploadName(ctx context.Context, queries *sqlcgen.Queries, session *sqlcgen.UploadSession) (string, string, error) {
-	names, err := queries.ListActiveNormalizedNames(ctx, sqlcgen.ListActiveNormalizedNamesParams{
+func nextAvailableUploadName(ctx context.Context, queries *sqlcgen.Queries, session *sqlcgen.UploadSession) (string, error) {
+	names, err := queries.ListActiveNames(ctx, sqlcgen.ListActiveNamesParams{
 		UserID: session.UserID, ParentID: session.ParentID,
 	})
 	if err != nil {
-		return "", "", fmt.Errorf("list upload destination names: %w", err)
+		return "", fmt.Errorf("list upload destination names: %w", err)
 	}
 	used := make(map[string]struct{}, len(names))
 	for _, normalized := range names {
@@ -621,17 +614,12 @@ func nextAvailableUploadName(ctx context.Context, queries *sqlcgen.Queries, sess
 
 	base, extension := splitUploadName(session.Name)
 	for sequence := 1; sequence <= 10000; sequence++ {
-		suffix := fmt.Sprintf(" (%d)", sequence)
-		candidate := boundedUploadName(base, extension, suffix)
-		display, normalized, err := catalog.NormalizeName(candidate)
-		if err != nil {
-			return "", "", err
-		}
-		if _, exists := used[normalized]; !exists {
-			return display, normalized, nil
+		candidate := base + fmt.Sprintf(" (%d)", sequence) + extension
+		if _, exists := used[candidate]; !exists {
+			return candidate, nil
 		}
 	}
-	return "", "", ErrNameConflict
+	return "", ErrNameConflict
 }
 
 func splitUploadName(name string) (string, string) {
@@ -640,22 +628,6 @@ func splitUploadName(name string) (string, string) {
 		return name, ""
 	}
 	return name[:index], name[index:]
-}
-
-func boundedUploadName(base, extension, suffix string) string {
-	const maxRunes = 255
-	extensionRunes := []rune(extension)
-	suffixRunes := []rune(suffix)
-	available := maxRunes - len(extensionRunes) - len(suffixRunes)
-	if available < 1 {
-		extensionRunes = nil
-		available = maxRunes - len(suffixRunes)
-	}
-	baseRunes := []rune(base)
-	if len(baseRunes) > available {
-		baseRunes = baseRunes[:available]
-	}
-	return string(baseRunes) + suffix + string(extensionRunes)
 }
 
 func uploadDestinationLockID(session *sqlcgen.UploadSession) int64 {

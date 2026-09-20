@@ -26,16 +26,16 @@ func TestFindResumableUploadUsesTargetedQueries(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := db.Pool.Exec(ctx, `
-INSERT INTO upload_sessions (user_id,name,normalized_name,expected_size,mime_type,mod_time,encryption,conflict_policy,part_size,expires_at)
-SELECT 1001, 'other-' || value, 'other-' || value, 10, 'application/octet-stream', now(), false, 'replace', 10, now() + interval '1 day'
+INSERT INTO upload_sessions (user_id,name,expected_size,mime_type,mod_time,encryption,conflict_policy,part_size,expires_at)
+SELECT 1001, 'other-' || value, 10, 'application/octet-stream', now(), false, 'replace', 10, now() + interval '1 day'
 FROM generate_series(1,500) AS value`); err != nil {
 		t.Fatal(err)
 	}
 	matchingID := uuid.New()
 	modTime := time.Now().UTC().Truncate(time.Second)
 	if _, err := db.Pool.Exec(ctx, `
-INSERT INTO upload_sessions (id,user_id,name,normalized_name,expected_size,mime_type,mod_time,encryption,conflict_policy,part_size,expires_at)
-VALUES ($1,1001,'target.bin','target.bin',10,'application/octet-stream',$2,false,'replace',10,now() + interval '1 day')`, matchingID, modTime); err != nil {
+INSERT INTO upload_sessions (id,user_id,name,expected_size,mime_type,mod_time,encryption,conflict_policy,part_size,expires_at)
+VALUES ($1,1001,'target.bin',10,'application/octet-stream',$2,false,'replace',10,now() + interval '1 day')`, matchingID, modTime); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.Pool.Exec(ctx, `

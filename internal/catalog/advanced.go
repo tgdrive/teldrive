@@ -42,12 +42,8 @@ func (s *Service) ResolveFolderPath(ctx context.Context, userID int64, rootID *u
 		if component == "" || component == "." || component == ".." {
 			return nil, ErrInvalidParent
 		}
-		_, normalized, err := NormalizeName(component)
-		if err != nil {
-			return nil, ErrInvalidParent
-		}
 		id, err := s.queries.ResolveActiveChildFolder(ctx, sqlcgen.ResolveActiveChildFolderParams{
-			UserID: userID, ParentID: dbtypes.OptionalUUID(current), NormalizedName: normalized,
+			UserID: userID, ParentID: dbtypes.OptionalUUID(current), Name: component,
 		})
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrInvalidParent
@@ -85,22 +81,18 @@ func (s *Service) EnsureFolderPath(ctx context.Context, userID int64, rootID *uu
 		if component == "" || component == "." || component == ".." {
 			return nil, ErrInvalidParent
 		}
-		if _, _, err := NormalizeName(component); err != nil {
-			return nil, ErrInvalidParent
-		}
 	}
 
 	current := rootID
 	for _, component := range components {
-		_, normalized, _ := NormalizeName(component)
 		id, err := s.queries.ResolveActiveChildFolder(ctx, sqlcgen.ResolveActiveChildFolderParams{
-			UserID: userID, ParentID: dbtypes.OptionalUUID(current), NormalizedName: normalized,
+			UserID: userID, ParentID: dbtypes.OptionalUUID(current), Name: component,
 		})
 		if errors.Is(err, pgx.ErrNoRows) {
 			folder, createErr := s.CreateFolder(ctx, CreateFolderInput{UserID: userID, ParentID: current, Name: component})
 			if errors.Is(createErr, ErrConflict) {
 				id, err = s.queries.ResolveActiveChildFolder(ctx, sqlcgen.ResolveActiveChildFolderParams{
-					UserID: userID, ParentID: dbtypes.OptionalUUID(current), NormalizedName: normalized,
+					UserID: userID, ParentID: dbtypes.OptionalUUID(current), Name: component,
 				})
 			} else if createErr != nil {
 				return nil, createErr
@@ -148,11 +140,7 @@ func (s *Service) listAdvanced(ctx context.Context, in ListInput) ([]*sqlcgen.Fi
 			}
 			search = &value
 		} else {
-			_, normalized, err := NormalizeName(value)
-			if err != nil {
-				return nil, err
-			}
-			search = &normalized
+			search = &value
 		}
 	}
 
@@ -223,7 +211,7 @@ func FileCursorValue(file *sqlcgen.File, sortBy string) string {
 		}
 		return ""
 	default:
-		return file.NormalizedName
+		return file.Name
 	}
 }
 

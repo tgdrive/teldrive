@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -18,6 +19,23 @@ import (
 	"github.com/tgdrive/teldrive/v2/internal/treehash"
 	"github.com/tgdrive/teldrive/v2/internal/uploads"
 )
+
+func TestUploadPreservesExactName(t *testing.T) {
+	db := testpostgres.New(t)
+	ctx := context.Background()
+	seedUploadOwner(t, db.Pool, 1001, 9001)
+	name := "  Cafe\u0301  " + strings.Repeat("x", 300)
+
+	session, err := uploads.NewService(db.Pool).Create(ctx, uploads.CreateInput{
+		UserID: 1001, Name: name, ExpectedSize: 0,
+	})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if session.Name != name {
+		t.Fatalf("session name = %q, want exact %q", session.Name, name)
+	}
+}
 
 func TestUploadLifecycleAgainstRealPostgres(t *testing.T) {
 	db := testpostgres.New(t)

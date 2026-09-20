@@ -467,7 +467,6 @@ type File struct {
 	UserID               int64              `json:"user_id"`
 	ParentID             pgtype.UUID        `json:"parent_id"`
 	Name                 string             `json:"name"`
-	NormalizedName       string             `json:"normalized_name"`
 	Kind                 FileKind           `json:"kind"`
 	MimeType             pgtype.Text        `json:"mime_type"`
 	Size                 pgtype.Int8        `json:"size"`
@@ -594,7 +593,6 @@ type UploadSession struct {
 	UserID                int64              `json:"user_id"`
 	ParentID              pgtype.UUID        `json:"parent_id"`
 	Name                  string             `json:"name"`
-	NormalizedName        string             `json:"normalized_name"`
 	ExpectedSize          int64              `json:"expected_size"`
 	ExpectedHashAlgorithm pgtype.Text        `json:"expected_hash_algorithm"`
 	ExpectedHashValue     pgtype.Text        `json:"expected_hash_value"`

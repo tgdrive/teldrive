@@ -516,7 +516,7 @@ func (s *Service) ListSharedWithMe(ctx context.Context, granteeID int64) ([]Shar
 	for _, row := range rows {
 		out = append(out, SharedWithMe{File: &sqlcgen.File{
 			ID: row.ID, UserID: row.UserID, ParentID: row.ParentID, Name: row.Name,
-			NormalizedName: row.NormalizedName, Kind: row.Kind, MimeType: row.MimeType,
+			Kind: row.Kind, MimeType: row.MimeType,
 			Size: row.Size, HashAlgorithm: row.HashAlgorithm, HashValue: row.HashValue,
 			Encryption: row.Encryption, EncryptionKeyVersion: row.EncryptionKeyVersion,
 			Status: row.Status, ModTime: row.ModTime, Generation: row.Generation,

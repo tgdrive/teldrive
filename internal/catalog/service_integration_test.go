@@ -5,6 +5,7 @@ package catalog_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -19,19 +20,38 @@ import (
 	"github.com/tgdrive/teldrive/v2/internal/testutil/querytrace"
 )
 
+func TestCatalogPreservesExactNames(t *testing.T) {
+	db := testpostgres.New(t)
+	ctx := context.Background()
+	seedUser(t, db.Pool, 1001)
+	svc := catalog.NewService(db.Pool, nil)
+
+	decomposed := "  Cafe\u0301  " + strings.Repeat("x", 300)
+	created, err := svc.CreateFolder(ctx, catalog.CreateFolderInput{UserID: 1001, Name: decomposed})
+	if err != nil {
+		t.Fatalf("CreateFolder() error = %v", err)
+	}
+	if created.Name != decomposed {
+		t.Fatalf("created name = %q, want exact %q", created.Name, decomposed)
+	}
+	if _, err := svc.CreateFolder(ctx, catalog.CreateFolderInput{UserID: 1001, Name: "  Café  " + strings.Repeat("x", 300)}); err != nil {
+		t.Fatalf("create NFC-distinct name: %v", err)
+	}
+}
+
 func TestBulkMoveUsesSetBasedQueries(t *testing.T) {
 	db := testpostgres.New(t)
 	ctx := context.Background()
 	seedUser(t, db.Pool, 1001)
 	destinationID := uuid.New()
 	if _, err := db.Pool.Exec(ctx, `
-INSERT INTO files (id,user_id,name,normalized_name,kind,encryption,status,mod_time)
-VALUES ($1,1001,'destination','destination','folder',false,'active',now())`, destinationID); err != nil {
+INSERT INTO files (id,user_id,name,kind,encryption,status,mod_time)
+VALUES ($1,1001,'destination','folder',false,'active',now())`, destinationID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.Pool.Exec(ctx, `
-INSERT INTO files (id,user_id,name,normalized_name,kind,size,encryption,status,mod_time)
-SELECT gen_random_uuid(), 1001, 'file-' || value, 'file-' || value, 'file', 1, false, 'active', now()
+INSERT INTO files (id,user_id,name,kind,size,encryption,status,mod_time)
+SELECT gen_random_uuid(), 1001, 'file-' || value, 'file', 1, false, 'active', now()
 FROM generate_series(1, 500) AS value`); err != nil {
 		t.Fatal(err)
 	}
@@ -84,8 +104,8 @@ func TestUpdatePartSizesManyUsesOneQuery(t *testing.T) {
 	seedUser(t, db.Pool, 1001)
 	fileID := uuid.New()
 	if _, err := db.Pool.Exec(ctx, `
-INSERT INTO files (id,user_id,name,normalized_name,kind,size,encryption,status,mod_time)
-VALUES ($1,1001,'legacy.bin','legacy.bin','file',1000,false,'active',now())`, fileID); err != nil {
+INSERT INTO files (id,user_id,name,kind,size,encryption,status,mod_time)
+VALUES ($1,1001,'legacy.bin','file',1000,false,'active',now())`, fileID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := db.Pool.Exec(ctx, "INSERT INTO channels (channel_id,user_id,name,selected) VALUES (9001,1001,'storage',true)"); err != nil {
@@ -140,8 +160,8 @@ func TestCatalogLifecycleAgainstRealPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create case-distinct root folder: %v", err)
 	}
-	if lowerDocs.NormalizedName != "docs" || docs.NormalizedName != "Docs" {
-		t.Fatalf("case-sensitive normalized names = %q, %q", docs.NormalizedName, lowerDocs.NormalizedName)
+	if lowerDocs.Name != "docs" || docs.Name != "Docs" {
+		t.Fatalf("case-sensitive names = %q, %q", docs.Name, lowerDocs.Name)
 	}
 	if _, err := svc.CreateFolder(ctx, catalog.CreateFolderInput{UserID: 1001, Name: "Docs"}); !errors.Is(err, catalog.ErrConflict) {
 		t.Fatalf("exact duplicate error = %v, want ErrConflict", err)
@@ -190,7 +210,7 @@ func TestCatalogLifecycleAgainstRealPostgres(t *testing.T) {
 	}
 	listedNames := map[string]bool{}
 	for _, item := range items {
-		listedNames[item.NormalizedName] = true
+		listedNames[item.Name] = true
 	}
 	for _, name := range []string{"Docs", "docs", "Quarterly"} {
 		if !listedNames[name] {
@@ -372,17 +392,13 @@ func mustUUID(t testing.TB, value pgtype.UUID) uuid.UUID {
 
 func seedFile(t testing.TB, db *pgxpool.Pool, userID int64, parentID *uuid.UUID, name, mime string, size int64, updatedAt time.Time) uuid.UUID {
 	t.Helper()
-	display, normalized, err := catalog.NormalizeName(name)
-	if err != nil {
-		t.Fatalf("normalize seed file: %v", err)
-	}
 	id := uuid.New()
 	if _, err := db.Exec(context.Background(), `
 INSERT INTO files (
-  id, user_id, parent_id, name, normalized_name, kind, mime_type, size,
+  id, user_id, parent_id, name, kind, mime_type, size,
   encryption, status, mod_time, created_at, updated_at
-) VALUES ($1,$2,$3,$4,$5,'file',$6,$7,false,'active',$8,$8,$8)`,
-		id, userID, parentID, display, normalized, mime, size, updatedAt.UTC()); err != nil {
+) VALUES ($1,$2,$3,$4,'file',$5,$6,false,'active',$7,$7,$7)`,
+		id, userID, parentID, name, mime, size, updatedAt.UTC()); err != nil {
 		t.Fatalf("seed file: %v", err)
 	}
 	return id

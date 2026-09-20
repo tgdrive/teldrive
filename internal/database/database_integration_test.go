@@ -61,8 +61,21 @@ WHERE table_schema = 'public'
 	if err := db.Pool.QueryRow(ctx, "SELECT max(version_id) FROM teldrive.migrations WHERE is_applied").Scan(&migrationVersion); err != nil {
 		t.Fatalf("read migration version: %v", err)
 	}
-	if migrationVersion != 6 {
-		t.Fatalf("migration version = %d, want 6", migrationVersion)
+	if migrationVersion != 7 {
+		t.Fatalf("migration version = %d, want 7", migrationVersion)
+	}
+
+	var normalizedNameColumns int
+	if err := db.Pool.QueryRow(ctx, `
+SELECT count(*)
+FROM information_schema.columns
+WHERE table_schema = 'teldrive'
+  AND table_name IN ('files', 'upload_sessions')
+  AND column_name = 'normalized_name'`).Scan(&normalizedNameColumns); err != nil {
+		t.Fatalf("count normalized name columns: %v", err)
+	}
+	if normalizedNameColumns != 0 {
+		t.Fatalf("normalized name columns = %d, want 0", normalizedNameColumns)
 	}
 }
 

@@ -220,7 +220,7 @@ func (h *Handler) ListPublicShareFiles(ctx context.Context, params gen.ListPubli
 	if len(files) == int(limit) && len(files) > 0 {
 		last := files[len(files)-1]
 		lastID, _ := dbtypes.GoogleUUID(last.ID)
-		response.NextCursor = encodeCursor(fileCursor{Name: last.NormalizedName, Sort: "name", Order: "asc", Value: last.NormalizedName, ID: lastID})
+		response.NextCursor = encodeCursor(fileCursor{Name: last.Name, Sort: "name", Order: "asc", Value: last.Name, ID: lastID})
 	}
 	return &response, nil
 }

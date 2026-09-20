@@ -8,7 +8,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/tgdrive/teldrive/v2/internal/catalog"
 	"github.com/tgdrive/teldrive/v2/internal/treehash"
 )
 
@@ -46,7 +45,6 @@ func TestServiceRejectsInvalidInputsBeforeDatabaseAccess(t *testing.T) {
 			_, err := svc.Create(ctx, CreateInput{UserID: 1, Name: "x", ConflictPolicy: "bad"})
 			return err
 		}, want: ErrInvalidInput},
-		{name: "create bad name", call: func() error { _, err := svc.Create(ctx, CreateInput{UserID: 1, Name: "/"}); return err }, want: catalog.ErrInvalidName},
 		{name: "get owner", call: func() error { _, err := svc.Get(ctx, 0, id); return err }, want: ErrInvalidInput},
 		{name: "claim basic", call: func() error { _, err := svc.ClaimPart(ctx, ClaimPartInput{}); return err }, want: ErrInvalidInput},
 		{name: "store basic", call: func() error { _, err := svc.StorePart(ctx, StorePartInput{}); return err }, want: ErrInvalidInput},

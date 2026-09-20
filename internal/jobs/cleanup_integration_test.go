@@ -130,8 +130,8 @@ func TestCleanupSweepDrainsMultiplePages(t *testing.T) {
 	seedCleanupOwner(t, db.Pool)
 	if _, err := db.Pool.Exec(ctx, `
 WITH sessions AS (
-    INSERT INTO upload_sessions (user_id, name, normalized_name, expected_size, mod_time, part_size, expires_at)
-    SELECT 1001, 'expired-' || value, 'expired-' || value, 1, now(), 1, now() - interval '1 minute'
+    INSERT INTO upload_sessions (user_id, name, expected_size, mod_time, part_size, expires_at)
+    SELECT 1001, 'expired-' || value, 1, now(), 1, now() - interval '1 minute'
     FROM generate_series(1, 1001) AS value
     RETURNING id
 )
