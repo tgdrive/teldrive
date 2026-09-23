@@ -91,8 +91,7 @@ type Events struct {
 	Heartbeat             time.Duration `koanf:"heartbeat" default:"20s" validate:"gt=0" description:"SSE heartbeat interval"`
 	WriteTimeout          time.Duration `koanf:"write-timeout" default:"10s" validate:"gt=0" description:"Maximum duration for one SSE write and flush"`
 	TicketTTL             time.Duration `koanf:"ticket-ttl" default:"2m" validate:"gt=0" description:"Lifetime of browser event stream tickets"`
-	Retention             time.Duration `koanf:"retention" default:"168h" validate:"gt=0" description:"Duration to retain replayable user events"`
-	CleanupInterval       time.Duration `koanf:"cleanup-interval" default:"1h" validate:"gt=0" description:"Expired event and ticket cleanup interval"`
+	CleanupInterval       time.Duration `koanf:"cleanup-interval" default:"1h" validate:"gt=0" description:"Expired event stream ticket cleanup interval"`
 	ConnectTimeout        time.Duration `koanf:"connect-timeout" default:"10s" validate:"gt=0" description:"PostgreSQL event listener connection timeout"`
 	PingInterval          time.Duration `koanf:"ping-interval" default:"5s" validate:"gt=0" description:"PostgreSQL event listener health-check interval"`
 	ReconnectMin          time.Duration `koanf:"reconnect-min" default:"100ms" validate:"gt=0" description:"Minimum PostgreSQL listener reconnect delay"`

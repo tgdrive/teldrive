@@ -217,6 +217,9 @@ IN ACCESS EXCLUSIVE MODE`); err != nil {
 	if err := ensureEmpty(ctx, tx, cfg.Target.Schema); err != nil {
 		return Report{}, err
 	}
+	if err := setCopyEventTriggers(ctx, tx, cfg.Target.Schema, false); err != nil {
+		return Report{}, err
+	}
 	if err := migrateUsers(ctx, sourceTx, tx, cfg.Target.Schema); err != nil {
 		return Report{}, err
 	}
@@ -227,6 +230,9 @@ IN ACCESS EXCLUSIVE MODE`); err != nil {
 		return Report{}, err
 	}
 	if err := migrateFiles(ctx, tx, files, cfg); err != nil {
+		return Report{}, err
+	}
+	if err := setCopyEventTriggers(ctx, tx, cfg.Target.Schema, true); err != nil {
 		return Report{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -358,11 +364,39 @@ ORDER BY created_at, id`)
 	if err := rows.Err(); err != nil {
 		return Report{}, nil, fmt.Errorf("iterate legacy files: %w", err)
 	}
+	files, removedRoots := flattenSyntheticRoots(files)
+	report.Folders -= int64(removedRoots)
 	ordered, err := orderFilesParentFirst(files)
 	if err != nil {
 		return Report{}, nil, err
 	}
 	return report, ordered, nil
+}
+
+func flattenSyntheticRoots(files []legacyFile) ([]legacyFile, int) {
+	rootIDs := make(map[uuid.UUID]struct{})
+	for _, file := range files {
+		if file.ParentID == nil && file.Name == "root" && file.Kind == "folder" && file.MimeType == "drive/folder" {
+			rootIDs[file.ID] = struct{}{}
+		}
+	}
+	if len(rootIDs) == 0 {
+		return files, 0
+	}
+
+	flattened := make([]legacyFile, 0, len(files)-len(rootIDs))
+	for _, file := range files {
+		if _, syntheticRoot := rootIDs[file.ID]; syntheticRoot {
+			continue
+		}
+		if file.ParentID != nil {
+			if _, childOfSyntheticRoot := rootIDs[*file.ParentID]; childOfSyntheticRoot {
+				file.ParentID = nil
+			}
+		}
+		flattened = append(flattened, file)
+	}
+	return flattened, len(rootIDs)
 }
 
 func orderFilesParentFirst(files []legacyFile) ([]legacyFile, error) {
@@ -421,6 +455,25 @@ func ensureEmpty(ctx context.Context, tx pgx.Tx, schema string) error {
 	for table, count := range map[string]int64{"users": users, "channels": channels, "bots": bots, "files": files, "file_parts": parts} {
 		if count != 0 {
 			return fmt.Errorf("target table %s is not empty", table)
+		}
+	}
+	return nil
+}
+
+func setCopyEventTriggers(ctx context.Context, tx pgx.Tx, schema string, enabled bool) error {
+	action := "DISABLE"
+	if enabled {
+		action = "ENABLE"
+	}
+	prefix := pgx.Identifier{schema}.Sanitize()
+	for _, target := range [][2]string{
+		{"channels", "channels_emit_user_event"},
+		{"files", "files_emit_user_event"},
+	} {
+		table, trigger := target[0], target[1]
+		query := "ALTER TABLE " + prefix + "." + pgx.Identifier{table}.Sanitize() + " " + action + " TRIGGER " + pgx.Identifier{trigger}.Sanitize()
+		if _, err := tx.Exec(ctx, query); err != nil {
+			return fmt.Errorf("%s legacy copy event trigger %s: %w", strings.ToLower(action), trigger, err)
 		}
 	}
 	return nil

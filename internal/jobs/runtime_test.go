@@ -43,6 +43,24 @@ func TestTrashCleanupPeriodicTemplate(t *testing.T) {
 	t.Fatal("trash cleanup periodic template not found")
 }
 
+func TestEventCleanupPeriodicTemplate(t *testing.T) {
+	t.Parallel()
+	runtime := &Runtime{}
+	for _, template := range runtime.PeriodicJobCatalog() {
+		if template.Kind != EventCleanupKind {
+			continue
+		}
+		if template.ID != eventCleanupPeriodicID || template.DefaultCronExpression != "0 0 * * *" {
+			t.Fatalf("event cleanup template = %#v", template)
+		}
+		if got := string(template.DefaultArgs["retention"]); got != `"`+eventCleanupDefaultRetention+`"` {
+			t.Fatalf("event cleanup retention arg = %s", got)
+		}
+		return
+	}
+	t.Fatal("event cleanup periodic template not found")
+}
+
 func TestPendingDeletionCleanupPeriodicTemplate(t *testing.T) {
 	t.Parallel()
 	runtime := &Runtime{purgeEnabled: true}

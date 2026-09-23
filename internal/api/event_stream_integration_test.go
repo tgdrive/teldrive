@@ -37,7 +37,6 @@ func TestGeneratedServerEventStreamReplayTicketAndShutdown(t *testing.T) {
 		Heartbeat:             40 * time.Millisecond,
 		WriteTimeout:          time.Second,
 		TicketTTL:             time.Minute,
-		Retention:             time.Hour,
 		CleanupInterval:       time.Hour,
 		ConnectTimeout:        time.Second,
 		PingInterval:          20 * time.Millisecond,

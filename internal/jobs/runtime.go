@@ -27,10 +27,13 @@ import (
 
 const (
 	uploadCleanupPeriodicID           = "teldrive-upload-cleanup"
+	eventCleanupPeriodicID            = "teldrive-user-event-cleanup"
 	trashCleanupPeriodicID            = "teldrive-trash-cleanup"
 	purgePeriodicID                   = "teldrive-pending-file-purge"
 	orphanCleanupPeriodicID           = "teldrive-orphaned-telegram-part-cleanup"
 	uploadCleanupDefaultCron          = "@every 12h"
+	eventCleanupDefaultCron           = "0 0 * * *"
+	eventCleanupDefaultRetention      = "48h"
 	trashCleanupDefaultCron           = "@every 12h"
 	pendingDeletionCleanupDefaultCron = "@every 12h"
 	orphanCleanupDefaultCron          = "@every 336h"
@@ -51,6 +54,7 @@ type Runtime struct {
 	uploadEnabled        bool
 	mu                   sync.Mutex
 	started              bool
+	cancel               context.CancelFunc
 }
 
 func NewRuntime(pool *pgxpool.Pool, storage telegramstore.Storage, purgeServices ...PurgeService) (*Runtime, error) {
@@ -85,6 +89,9 @@ func newRuntimeWithSchema(pool *pgxpool.Pool, storage telegramstore.Storage, sch
 	workers := river.NewWorkers()
 	if err := river.AddWorkerSafely(workers, NewUploadCleanupWorker(pool, storage)); err != nil {
 		return nil, fmt.Errorf("register upload cleanup worker: %w", err)
+	}
+	if err := river.AddWorkerSafely(workers, NewEventCleanupWorker(pool)); err != nil {
+		return nil, fmt.Errorf("register event cleanup worker: %w", err)
 	}
 	var purgeService PurgeService
 	if len(purgeServices) > 0 {
@@ -185,6 +192,24 @@ func (r *Runtime) Start(ctx context.Context) error {
 	}); err != nil && !errors.Is(err, riverpro.ErrPeriodicJobAlreadyExists) {
 		return fmt.Errorf("upsert upload cleanup periodic job: %w", err)
 	}
+	eventCleanupArgs, err := json.Marshal(EventCleanupArgs{Retention: eventCleanupDefaultRetention})
+	if err != nil {
+		return fmt.Errorf("marshal event cleanup periodic args: %w", err)
+	}
+	if _, err := r.client.PeriodicJobInsert(ctx, &riverpro.PeriodicJobInsertOpts{
+		ID:          eventCleanupPeriodicID,
+		Kind:        EventCleanupKind,
+		Args:        eventCleanupArgs,
+		Queue:       CleanupQueue,
+		Priority:    2,
+		MaxAttempts: 3,
+		Schedule: &riverpro.PeriodicJobSchedule{
+			CronExpression: eventCleanupDefaultCron,
+			CronTimezone:   maintenanceTimezone,
+		},
+	}); err != nil && !errors.Is(err, riverpro.ErrPeriodicJobAlreadyExists) {
+		return fmt.Errorf("upsert event cleanup periodic job: %w", err)
+	}
 	if r.purgeEnabled {
 		trashCleanupArgs, err := json.Marshal(TrashCleanupSweepArgs{Retention: "720h"})
 		if err != nil {
@@ -244,9 +269,12 @@ func (r *Runtime) Start(ctx context.Context) error {
 			return fmt.Errorf("upsert orphan cleanup periodic job: %w", err)
 		}
 	}
-	if err := r.client.Start(ctx); err != nil {
+	runCtx, cancel := context.WithCancel(ctx)
+	if err := r.client.Start(runCtx); err != nil {
+		cancel()
 		return fmt.Errorf("start RiverPro client: %w", err)
 	}
+	r.cancel = cancel
 	r.started = true
 	return nil
 }
@@ -259,6 +287,10 @@ func (r *Runtime) Stop(ctx context.Context) error {
 	defer r.mu.Unlock()
 	if !r.started {
 		return nil
+	}
+	if r.cancel != nil {
+		r.cancel()
+		r.cancel = nil
 	}
 	if err := r.client.Stop(ctx); err != nil {
 		return fmt.Errorf("stop RiverPro client: %w", err)

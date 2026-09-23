@@ -161,7 +161,6 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 		Heartbeat:             cfg.Events.Heartbeat,
 		WriteTimeout:          cfg.Events.WriteTimeout,
 		TicketTTL:             cfg.Events.TicketTTL,
-		Retention:             cfg.Events.Retention,
 		CleanupInterval:       cfg.Events.CleanupInterval,
 		ConnectTimeout:        cfg.Events.ConnectTimeout,
 		PingInterval:          cfg.Events.PingInterval,

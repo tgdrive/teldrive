@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/tgdrive/teldrive/v2/internal/bots"
+	"github.com/tgdrive/teldrive/v2/internal/catalog"
 	"github.com/tgdrive/teldrive/v2/internal/database"
 	"github.com/tgdrive/teldrive/v2/internal/legacymigrate"
 	"github.com/tgdrive/teldrive/v2/internal/secureblob"
@@ -53,15 +54,17 @@ INSERT INTO teldrive.bots VALUES
 `); err != nil {
 		t.Fatalf("seed legacy schema: %v", err)
 	}
+	syntheticRootID := uuid.New()
 	folderID := uuid.New()
 	fileID := uuid.New()
 	rootFileID := uuid.New()
 	if _, err := source.Pool.Exec(ctx, `
 INSERT INTO teldrive.files(id,name,type,mime_type,size,user_id,parent_id,status,channel_id,parts,encrypted,created_at,updated_at)
 VALUES
-($1,'Folder','folder','application/octet-stream',NULL,101,NULL,'active',NULL,'[]',false,now(),now()),
-($2,'File.bin','file','application/octet-stream',10,101,$1,'active',201,'[{"id":401}]',false,now(),now()),
-($3,'Top-level empty.bin','file','application/octet-stream',0,101,NULL,'active',NULL,'[]',false,now(),now())`, folderID, fileID, rootFileID); err != nil {
+($1,'root','folder','drive/folder',NULL,101,NULL,'active',NULL,'[]',false,now(),now()),
+($2,'Folder','folder','application/octet-stream',NULL,101,$1,'active',NULL,'[]',false,now(),now()),
+($3,'File.bin','file','application/octet-stream',10,101,$2,'active',201,'[{"id":401}]',false,now(),now()),
+($4,'Top-level empty.bin','file','application/octet-stream',0,101,$1,'active',NULL,'[]',false,now(),now())`, syntheticRootID, folderID, fileID, rootFileID); err != nil {
 		t.Fatalf("seed legacy files: %v", err)
 	}
 
@@ -132,7 +135,17 @@ VALUES
 		t.Fatalf("inspect top-level file: %v", err)
 	}
 	if !rootParentMissing {
-		t.Fatal("top-level legacy file acquired a synthetic parent")
+		t.Fatal("synthetic root child was not promoted to the v2 root")
+	}
+	var folderParentMissing, nestedFileParentPreserved, syntheticRootMissing bool
+	if err := source.Pool.QueryRow(ctx, `SELECT
+(SELECT parent_id IS NULL FROM teldrive.files WHERE id=$1),
+(SELECT parent_id = $1 FROM teldrive.files WHERE id=$2),
+NOT EXISTS (SELECT 1 FROM teldrive.files WHERE id=$3)`, folderID, fileID, syntheticRootID).Scan(&folderParentMissing, &nestedFileParentPreserved, &syntheticRootMissing); err != nil {
+		t.Fatalf("inspect migrated root hierarchy: %v", err)
+	}
+	if !folderParentMissing || !nestedFileParentPreserved || !syntheticRootMissing {
+		t.Fatalf("migrated root hierarchy = folder parent missing %v, nested parent preserved %v, synthetic root missing %v", folderParentMissing, nestedFileParentPreserved, syntheticRootMissing)
 	}
 	var unresolved bool
 	if err := source.Pool.QueryRow(ctx, `SELECT plain_size IS NULL AND stored_size IS NULL FROM teldrive.file_parts WHERE file_id=$1`, fileID).Scan(&unresolved); err != nil {
@@ -156,6 +169,76 @@ VALUES
 	}
 	if !gooseMoved {
 		t.Fatal("legacy goose table was not moved into the backup schema")
+	}
+	var eventCount, streamStateCount int
+	if err := source.Pool.QueryRow(ctx, `SELECT
+(SELECT count(*) FROM teldrive.user_events),
+(SELECT count(*) FROM teldrive.user_event_stream_state)`).Scan(&eventCount, &streamStateCount); err != nil {
+		t.Fatalf("inspect migrated event history: %v", err)
+	}
+	if eventCount != 0 || streamStateCount != 0 {
+		t.Fatalf("migration-generated event history = events %d, stream states %d; want 0, 0", eventCount, streamStateCount)
+	}
+
+	service := catalog.NewService(source.Pool, nil)
+	if _, err := service.Move(ctx, 101, rootFileID, &folderID, nil); err != nil {
+		t.Fatalf("move file after schema cutover: %v", err)
+	}
+	if _, err := source.Pool.Exec(ctx, `UPDATE teldrive.channels SET health='healthy' WHERE user_id=101 AND channel_id=201`); err != nil {
+		t.Fatalf("update channel after schema cutover: %v", err)
+	}
+	uploadID := uuid.New()
+	if _, err := source.Pool.Exec(ctx, `
+INSERT INTO teldrive.upload_sessions (
+    id,user_id,parent_id,name,expected_size,mod_time,part_size,expires_at
+) VALUES ($1,101,$2,'new.bin',1,now(),1,now()+interval '1 hour')`, uploadID, folderID); err != nil {
+		t.Fatalf("create upload after schema cutover: %v", err)
+	}
+	if _, err := source.Pool.Exec(ctx, `
+INSERT INTO teldrive.file_shares (file_id,owner_id,token_prefix,token_hash)
+VALUES ($1,101,'prefix',decode('01020304','hex'))`, rootFileID); err != nil {
+		t.Fatalf("create share after schema cutover: %v", err)
+	}
+	rows, err := source.Pool.Query(ctx, `SELECT event_type, count(*) FROM teldrive.user_events GROUP BY event_type`)
+	if err != nil {
+		t.Fatalf("inspect post-cutover events: %v", err)
+	}
+	events := make(map[string]int)
+	for rows.Next() {
+		var eventType string
+		var count int
+		if err := rows.Scan(&eventType, &count); err != nil {
+			rows.Close()
+			t.Fatalf("scan post-cutover event: %v", err)
+		}
+		events[eventType] = count
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		t.Fatalf("iterate post-cutover events: %v", err)
+	}
+	wantEvents := map[string]int{
+		"file.updated":    1,
+		"channel.updated": 1,
+		"upload.created":  1,
+		"share.created":   1,
+	}
+	if len(events) != len(wantEvents) {
+		t.Fatalf("post-cutover events = %#v, want %#v", events, wantEvents)
+	}
+	for eventType, want := range wantEvents {
+		if events[eventType] != want {
+			t.Fatalf("post-cutover event %q count = %d, want %d", eventType, events[eventType], want)
+		}
+	}
+	var streamAtLatest bool
+	if err := source.Pool.QueryRow(ctx, `SELECT
+(SELECT last_event_id FROM teldrive.user_event_stream_state WHERE user_id=101) =
+(SELECT max(id) FROM teldrive.user_events WHERE user_id=101)`).Scan(&streamAtLatest); err != nil {
+		t.Fatalf("inspect post-cutover event stream state: %v", err)
+	}
+	if !streamAtLatest {
+		t.Fatal("post-cutover event stream state did not advance to the latest event")
 	}
 	if _, migrated, err := legacymigrate.MigrateIfNeeded(ctx, database.Config{URL: source.URL}, "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", verifier); err != nil || migrated {
 		t.Fatalf("second migration = migrated %v, error %v", migrated, err)

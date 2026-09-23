@@ -22,8 +22,14 @@ func TestRuntimeAppliesProductionDefaults(t *testing.T) {
 	if err := runtime.Start(ctx); err != nil {
 		t.Fatalf("Start() error = %v", err)
 	}
+	if runtime.cancel == nil {
+		t.Fatal("Start() did not retain the RiverPro run-context cancellation")
+	}
 	if err := runtime.Stop(ctx); err != nil {
 		t.Fatalf("Stop() error = %v", err)
+	}
+	if runtime.cancel != nil {
+		t.Fatal("Stop() retained the RiverPro run-context cancellation")
 	}
 }
 
@@ -112,21 +118,25 @@ func TestRuntimeResetPeriodicJobsRestoresDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResetPeriodicJobs() error = %v", err)
 	}
-	if len(reset) != 1 {
-		t.Fatalf("reset periodic jobs = %d, want 1", len(reset))
+	if len(reset) != 2 {
+		t.Fatalf("reset periodic jobs = %d, want 2", len(reset))
 	}
-	if reset[0].ID != uploadCleanupPeriodicID || reset[0].Schedule.CronExpression != uploadCleanupDefaultCron {
-		t.Fatalf("reset periodic job = %#v", reset[0])
+	resetByID := make(map[string]PeriodicJob, len(reset))
+	for _, job := range reset {
+		resetByID[job.ID] = job
 	}
-	if len(reset[0].Args) != 0 {
-		t.Fatalf("reset args = %#v, want none", reset[0].Args)
+	if job := resetByID[uploadCleanupPeriodicID]; job.Schedule.CronExpression != uploadCleanupDefaultCron || len(job.Args) != 0 {
+		t.Fatalf("reset upload cleanup job = %#v", job)
+	}
+	if job := resetByID[eventCleanupPeriodicID]; job.Schedule.CronExpression != eventCleanupDefaultCron || string(job.Args["retention"]) != `"`+eventCleanupDefaultRetention+`"` {
+		t.Fatalf("reset event cleanup job = %#v", job)
 	}
 
 	persisted, err := runtime.ListPeriodicJobs(ctx)
 	if err != nil {
 		t.Fatalf("ListPeriodicJobs() error = %v", err)
 	}
-	if len(persisted) != 1 || persisted[0].ID != uploadCleanupPeriodicID {
+	if len(persisted) != 2 {
 		t.Fatalf("persisted periodic jobs after reset = %#v", persisted)
 	}
 }

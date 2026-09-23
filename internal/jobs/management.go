@@ -297,6 +297,12 @@ func (r *Runtime) PeriodicJobCatalog() []PeriodicTemplate {
 			DefaultQueue: CleanupQueue, DefaultPriority: 2, DefaultMaxAttempts: 3,
 			DefaultCronExpression: uploadCleanupDefaultCron, DefaultCronTimezone: maintenanceTimezone,
 		},
+		{
+			ID: eventCleanupPeriodicID, Label: "User event cleanup", Description: "Delete replayable user events older than the configured retention period.",
+			Kind: EventCleanupKind, DefaultArgs: rawArgs(EventCleanupArgs{Retention: eventCleanupDefaultRetention}),
+			DefaultQueue: CleanupQueue, DefaultPriority: 2, DefaultMaxAttempts: 3,
+			DefaultCronExpression: eventCleanupDefaultCron, DefaultCronTimezone: maintenanceTimezone,
+		},
 	}
 	if r.purgeEnabled {
 		templates = append(templates,
@@ -500,7 +506,7 @@ func (r *Runtime) Create(ctx context.Context, input CreateInput) (Job, error) {
 		return Job{}, ErrRuntimeNotConfigured
 	}
 	kind := strings.TrimSpace(input.Kind)
-	if kind != UploadCleanupSweepKind && kind != TrashCleanupSweepKind && kind != PurgeSweepKind && kind != OrphanCleanupKind {
+	if kind != UploadCleanupSweepKind && kind != EventCleanupKind && kind != TrashCleanupSweepKind && kind != PurgeSweepKind && kind != OrphanCleanupKind {
 		return Job{}, fmt.Errorf("unsupported job kind %q", kind)
 	}
 	encoded, err := json.Marshal(input.Args)

@@ -39,14 +39,13 @@ The **Default** column is the runtime default, not a production recommendation.
 | Config key | CLI flag | Environment variable | Default | Validation | Description |
 | --- | --- | --- | --- | --- | --- |
 | `events.batch-size` | `--events-batch-size` | `TELDRIVE_EVENTS_BATCH_SIZE` | `100` | `min=1,max=1000` | Maximum events read from PostgreSQL per SSE batch |
-| `events.cleanup-interval` | `--events-cleanup-interval` | `TELDRIVE_EVENTS_CLEANUP_INTERVAL` | `1h0m0s` | `gt=0` | Expired event and ticket cleanup interval |
+| `events.cleanup-interval` | `--events-cleanup-interval` | `TELDRIVE_EVENTS_CLEANUP_INTERVAL` | `1h0m0s` | `gt=0` | Expired event stream ticket cleanup interval |
 | `events.connect-timeout` | `--events-connect-timeout` | `TELDRIVE_EVENTS_CONNECT_TIMEOUT` | `10s` | `gt=0` | PostgreSQL event listener connection timeout |
 | `events.heartbeat` | `--events-heartbeat` | `TELDRIVE_EVENTS_HEARTBEAT` | `20s` | `gt=0` | SSE heartbeat interval |
 | `events.max-connections-per-user` | `--events-max-connections-per-user` | `TELDRIVE_EVENTS_MAX_CONNECTIONS_PER_USER` | `5` | `min=1,max=1000` | Maximum concurrent SSE connections per user on one API instance |
 | `events.ping-interval` | `--events-ping-interval` | `TELDRIVE_EVENTS_PING_INTERVAL` | `5s` | `gt=0` | PostgreSQL event listener health-check interval |
 | `events.reconnect-max` | `--events-reconnect-max` | `TELDRIVE_EVENTS_RECONNECT_MAX` | `30s` | `gt=0` | Maximum PostgreSQL listener reconnect delay |
 | `events.reconnect-min` | `--events-reconnect-min` | `TELDRIVE_EVENTS_RECONNECT_MIN` | `100ms` | `gt=0` | Minimum PostgreSQL listener reconnect delay |
-| `events.retention` | `--events-retention` | `TELDRIVE_EVENTS_RETENTION` | `168h0m0s` | `gt=0` | Duration to retain replayable user events |
 | `events.ticket-ttl` | `--events-ticket-ttl` | `TELDRIVE_EVENTS_TICKET_TTL` | `2m0s` | `gt=0` | Lifetime of browser event stream tickets |
 | `events.write-timeout` | `--events-write-timeout` | `TELDRIVE_EVENTS_WRITE_TIMEOUT` | `10s` | `gt=0` | Maximum duration for one SSE write and flush |
 ## HTTP

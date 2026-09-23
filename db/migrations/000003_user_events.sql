@@ -41,11 +41,14 @@ CREATE FUNCTION /* TEMPLATE: schema */notify_user_event() RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 BEGIN
-    INSERT INTO /* TEMPLATE: schema */user_event_stream_state (user_id, last_event_id, updated_at)
-    VALUES (NEW.user_id, NEW.id, now())
-    ON CONFLICT (user_id) DO UPDATE
-    SET last_event_id = EXCLUDED.last_event_id,
-        updated_at = EXCLUDED.updated_at;
+    EXECUTE format(
+        'INSERT INTO %I.user_event_stream_state (user_id, last_event_id, updated_at)
+         VALUES ($1, $2, now())
+         ON CONFLICT (user_id) DO UPDATE
+         SET last_event_id = EXCLUDED.last_event_id,
+             updated_at = EXCLUDED.updated_at',
+        TG_TABLE_SCHEMA
+    ) USING NEW.user_id, NEW.id;
 
     PERFORM pg_notify(
         'teldrive_events',
@@ -65,7 +68,7 @@ CREATE FUNCTION /* TEMPLATE: schema */emit_file_event() RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    row_value /* TEMPLATE: schema */files%ROWTYPE;
+    row_value RECORD;
     event_name TEXT;
 BEGIN
     IF TG_OP = 'DELETE' THEN
@@ -98,9 +101,12 @@ BEGIN
         END;
     END IF;
 
-    INSERT INTO /* TEMPLATE: schema */user_events (
-        user_id, event_type, resource_type, resource_id, generation, payload
-    ) VALUES (
+    EXECUTE format(
+        'INSERT INTO %I.user_events (
+             user_id, event_type, resource_type, resource_id, generation, payload
+         ) VALUES ($1, $2, $3, $4, $5, $6)',
+        TG_TABLE_SCHEMA
+    ) USING
         row_value.user_id,
         event_name,
         'file',
@@ -111,8 +117,7 @@ BEGIN
             'name', row_value.name,
             'kind', row_value.kind,
             'status', row_value.status
-        ))
-    );
+        ));
 
     RETURN NULL;
 END;
@@ -138,9 +143,12 @@ BEGIN
         event_name := 'upload.' || NEW.state::text;
     END IF;
 
-    INSERT INTO /* TEMPLATE: schema */user_events (
-        user_id, event_type, resource_type, resource_id, payload
-    ) VALUES (
+    EXECUTE format(
+        'INSERT INTO %I.user_events (
+             user_id, event_type, resource_type, resource_id, payload
+         ) VALUES ($1, $2, $3, $4, $5)',
+        TG_TABLE_SCHEMA
+    ) USING
         NEW.user_id,
         event_name,
         'upload',
@@ -149,8 +157,7 @@ BEGIN
             'state', NEW.state,
             'fileId', NEW.file_id,
             'name', NEW.name
-        ))
-    );
+        ));
 
     RETURN NEW;
 END;
@@ -166,7 +173,7 @@ CREATE FUNCTION /* TEMPLATE: schema */emit_share_event() RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    row_value /* TEMPLATE: schema */file_shares%ROWTYPE;
+    row_value RECORD;
     event_name TEXT;
 BEGIN
     IF TG_OP = 'DELETE' THEN
@@ -188,9 +195,12 @@ BEGIN
         END;
     END IF;
 
-    INSERT INTO /* TEMPLATE: schema */user_events (
-        user_id, event_type, resource_type, resource_id, payload
-    ) VALUES (
+    EXECUTE format(
+        'INSERT INTO %I.user_events (
+             user_id, event_type, resource_type, resource_id, payload
+         ) VALUES ($1, $2, $3, $4, $5)',
+        TG_TABLE_SCHEMA
+    ) USING
         row_value.owner_id,
         event_name,
         'share',
@@ -199,8 +209,7 @@ BEGIN
             'fileId', row_value.file_id,
             'expiresAt', row_value.expires_at,
             'revokedAt', row_value.revoked_at
-        ))
-    );
+        ));
 
     RETURN NULL;
 END;
@@ -216,7 +225,7 @@ CREATE FUNCTION /* TEMPLATE: schema */emit_channel_event() RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    row_value /* TEMPLATE: schema */channels%ROWTYPE;
+    row_value RECORD;
     event_name TEXT;
 BEGIN
     IF TG_OP = 'DELETE' THEN
@@ -235,9 +244,12 @@ BEGIN
         event_name := 'channel.updated';
     END IF;
 
-    INSERT INTO /* TEMPLATE: schema */user_events (
-        user_id, event_type, resource_type, resource_id, payload
-    ) VALUES (
+    EXECUTE format(
+        'INSERT INTO %I.user_events (
+             user_id, event_type, resource_type, resource_id, payload
+         ) VALUES ($1, $2, $3, $4, $5)',
+        TG_TABLE_SCHEMA
+    ) USING
         row_value.user_id,
         event_name,
         'channel',
@@ -246,8 +258,7 @@ BEGIN
             'name', row_value.name,
             'selected', row_value.selected,
             'health', row_value.health
-        )
-    );
+        );
 
     RETURN NULL;
 END;

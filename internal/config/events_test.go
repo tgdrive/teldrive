@@ -11,7 +11,7 @@ func TestEventDefaults(t *testing.T) {
 	if cfg.Events.BatchSize != 100 || cfg.Events.MaxConnectionsPerUser != 5 || cfg.Events.Heartbeat != 20*time.Second || cfg.Events.WriteTimeout != 10*time.Second {
 		t.Fatalf("event defaults = %#v", cfg.Events)
 	}
-	if cfg.Events.TicketTTL != 2*time.Minute || cfg.Events.Retention != 7*24*time.Hour {
+	if cfg.Events.TicketTTL != 2*time.Minute || cfg.Events.CleanupInterval != time.Hour {
 		t.Fatalf("event lifetime defaults = %#v", cfg.Events)
 	}
 	if cfg.Events.ReconnectMin != 100*time.Millisecond || cfg.Events.ReconnectMax != 30*time.Second {
@@ -32,7 +32,6 @@ func TestLoadFromParsesEventEnvironment(t *testing.T) {
 		"TELDRIVE_EVENTS_HEARTBEAT":                "15s",
 		"TELDRIVE_EVENTS_WRITE_TIMEOUT":            "4s",
 		"TELDRIVE_EVENTS_TICKET_TTL":               "90s",
-		"TELDRIVE_EVENTS_RETENTION":                "48h",
 		"TELDRIVE_EVENTS_CLEANUP_INTERVAL":         "30m",
 		"TELDRIVE_EVENTS_CONNECT_TIMEOUT":          "3s",
 		"TELDRIVE_EVENTS_PING_INTERVAL":            "2s",
@@ -49,8 +48,8 @@ func TestLoadFromParsesEventEnvironment(t *testing.T) {
 	if cfg.Events.BatchSize != 250 || cfg.Events.MaxConnectionsPerUser != 7 || cfg.Events.Heartbeat != 15*time.Second || cfg.Events.WriteTimeout != 4*time.Second || cfg.Events.TicketTTL != 90*time.Second {
 		t.Fatalf("loaded event config = %#v", cfg.Events)
 	}
-	if cfg.Events.Retention != 48*time.Hour || cfg.Events.CleanupInterval != 30*time.Minute {
-		t.Fatalf("loaded event retention = %#v", cfg.Events)
+	if cfg.Events.CleanupInterval != 30*time.Minute {
+		t.Fatalf("loaded event cleanup = %#v", cfg.Events)
 	}
 	if cfg.Events.ConnectTimeout != 3*time.Second || cfg.Events.PingInterval != 2*time.Second || cfg.Events.ReconnectMin != 50*time.Millisecond || cfg.Events.ReconnectMax != 5*time.Second {
 		t.Fatalf("loaded listener config = %#v", cfg.Events)

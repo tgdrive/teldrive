@@ -30,7 +30,6 @@ type Config struct {
 	Heartbeat             time.Duration
 	WriteTimeout          time.Duration
 	TicketTTL             time.Duration
-	Retention             time.Duration
 	CleanupInterval       time.Duration
 	ConnectTimeout        time.Duration
 	PingInterval          time.Duration
@@ -113,9 +112,6 @@ func withDefaults(cfg Config) Config {
 	if cfg.TicketTTL == 0 {
 		cfg.TicketTTL = 2 * time.Minute
 	}
-	if cfg.Retention == 0 {
-		cfg.Retention = 7 * 24 * time.Hour
-	}
 	if cfg.CleanupInterval == 0 {
 		cfg.CleanupInterval = time.Hour
 	}
@@ -146,8 +142,6 @@ func validateConfig(cfg Config) error {
 		return errors.New("event write timeout must be positive")
 	case cfg.TicketTTL <= 0:
 		return errors.New("event ticket TTL must be positive")
-	case cfg.Retention <= 0:
-		return errors.New("event retention must be positive")
 	case cfg.CleanupInterval <= 0:
 		return errors.New("event cleanup interval must be positive")
 	case cfg.ConnectTimeout <= 0:
@@ -183,7 +177,7 @@ func (s *Service) Start(ctx context.Context) error {
 	s.cancel = cancel
 	s.running = true
 	s.done = make(chan struct{})
-	go s.runCleanup(serviceCtx, s.done)
+	go s.runTicketCleanup(serviceCtx, s.done)
 	return nil
 }
 
@@ -354,7 +348,7 @@ func (s *Service) AuthenticateTicket(ctx context.Context, value string) (int64, 
 	return userID, nil
 }
 
-func (s *Service) runCleanup(ctx context.Context, done chan struct{}) {
+func (s *Service) runTicketCleanup(ctx context.Context, done chan struct{}) {
 	defer func() {
 		s.mu.Lock()
 		s.running = false
@@ -371,11 +365,6 @@ func (s *Service) runCleanup(ctx context.Context, done chan struct{}) {
 			return
 		case <-ticker.C:
 			cleanupCtx, cancel := context.WithTimeout(ctx, s.config.ConnectTimeout)
-			if _, err := s.queries.DeleteUserEventsBefore(cleanupCtx, pgtype.Timestamptz{
-				Time: time.Now().UTC().Add(-s.config.Retention), Valid: true,
-			}); err != nil && !errors.Is(err, context.Canceled) {
-				s.logger.ErrorContext(ctx, "delete expired user events", "error", err)
-			}
 			if _, err := s.queries.DeleteExpiredEventStreamTickets(cleanupCtx); err != nil && !errors.Is(err, context.Canceled) {
 				s.logger.ErrorContext(ctx, "delete expired event stream tickets", "error", err)
 			}

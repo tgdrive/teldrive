@@ -31,7 +31,6 @@ func TestServiceDurableReplayNotificationsAndTickets(t *testing.T) {
 		Heartbeat:             20 * time.Millisecond,
 		WriteTimeout:          time.Second,
 		TicketTTL:             80 * time.Millisecond,
-		Retention:             time.Hour,
 		CleanupInterval:       time.Hour,
 		ConnectTimeout:        time.Second,
 		PingInterval:          20 * time.Millisecond,
