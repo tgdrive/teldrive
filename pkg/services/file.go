@@ -944,7 +944,7 @@ func (e *extendedService) FilesStream(w http.ResponseWriter, r *http.Request, fi
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		client, err = tgc.BotClient(ctx, e.api.db, e.api.cache, &e.api.cnf.TG, token, e.api.newMiddlewares(ctx, 5)...)
+		client, err = tgc.BotClient(ctx, e.api.db, e.api.cache, &e.api.cnf.TG, token, e.api.streamMiddlewares(ctx, token, len(tokens))...)
 		if err != nil {
 			logger.Error("stream.bot_client_failed", zap.Error(err))
 			http.Error(w, err.Error(), http.StatusInternalServerError)

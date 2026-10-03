@@ -10,9 +10,12 @@ import (
 	"github.com/gotd/contrib/clock"
 	"github.com/gotd/contrib/middleware/floodwait"
 	"github.com/gotd/contrib/middleware/ratelimit"
+	"github.com/gotd/td/bin"
 	"github.com/gotd/td/session"
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/telegram/dcs"
+	"github.com/gotd/td/tg"
+	"github.com/gotd/td/tgerr"
 	"github.com/tgdrive/teldrive/internal/cache"
 	"github.com/tgdrive/teldrive/internal/config"
 	"github.com/tgdrive/teldrive/internal/logging"
@@ -139,6 +142,32 @@ func NewMiddleware(config *config.TGConfig, opts ...middlewareOption) []telegram
 func WithFloodWait() middlewareOption {
 	return func(mc *middlewareConfig) {
 		mc.middlewares = append(mc.middlewares, floodwait.NewSimpleWaiter())
+	}
+}
+
+// WithFloodWaitLimit waits out flood waits up to maxWait. A longer flood wait fails the request
+// immediately and onExceeded is called with the wait Telegram asked for, so the caller can move to
+// another bot instead of stalling.
+func WithFloodWaitLimit(maxWait time.Duration, onExceeded func(time.Duration)) middlewareOption {
+	return func(mc *middlewareConfig) {
+		mc.middlewares = append(mc.middlewares,
+			floodWaitReporter{maxWait: maxWait, onExceeded: onExceeded},
+			floodwait.NewSimpleWaiter().WithMaxWait(maxWait))
+	}
+}
+
+type floodWaitReporter struct {
+	maxWait    time.Duration
+	onExceeded func(time.Duration)
+}
+
+func (f floodWaitReporter) Handle(next tg.Invoker) telegram.InvokeFunc {
+	return func(ctx context.Context, input bin.Encoder, output bin.Decoder) error {
+		err := next.Invoke(ctx, input, output)
+		if d, ok := tgerr.AsFloodWait(err); ok && d > f.maxWait {
+			f.onExceeded(d)
+		}
+		return err
 	}
 }
 

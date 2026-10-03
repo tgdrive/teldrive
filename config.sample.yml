@@ -74,6 +74,7 @@ tg:
     buffers: 8
     chunk-timeout: "20s"
     concurrency: 1
+    max-flood-wait: "5s"
   uploads:
     encryption-key: ""
     max-retries: 10
