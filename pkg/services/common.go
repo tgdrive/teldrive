@@ -89,11 +89,11 @@ func resolvePathID(db *gorm.DB, path string, userId int64) (*string, error) {
 		JOIN hierarchy h ON child.parent_id = h.id
 		JOIN path_parts p ON p.depth = h.depth + 1 AND child.name = p.name
 		JOIN max_depth md ON h.depth < md.val
-		WHERE child.status = 'active'
+		WHERE child.user_id = ? AND child.status = 'active'
 	)
 	SELECT id FROM hierarchy WHERE depth = (SELECT val FROM max_depth) LIMIT 1;
 	`
-	if err := db.Raw(query, path, userId).Scan(&id).Error; err != nil {
+	if err := db.Raw(query, path, userId, userId).Scan(&id).Error; err != nil {
 		return nil, err
 	}
 	if id == "" {
