@@ -160,6 +160,7 @@ type TGStream struct {
 	Buffers      int           `default:"8" description:"Number of stream buffers"`
 	ChunkTimeout time.Duration `default:"30s" description:"Chunk download timeout"`
 	BotsLimit    int           `default:"0" description:"Maximum number of bots for streaming (0 = use all bots)"`
+	MaxFloodWait time.Duration `default:"5s" description:"Longest flood wait to sit out while streaming; a longer wait puts the bot on standby for that long and the request is retried on another bot (0 = always wait)"`
 }
 
 type TGUpload struct {

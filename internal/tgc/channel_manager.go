@@ -71,7 +71,7 @@ func (cm *ChannelManager) CurrentChannel(ctx context.Context, userID int64) (int
 func (cm *ChannelManager) BotTokens(ctx context.Context, userID int64) ([]string, error) {
 	return cache.Fetch(ctx, cm.cache, cache.KeyUserBots(userID), 0, func() ([]string, error) {
 		var bots []string
-		if err := cm.db.Model(&models.Bot{}).Where("user_id = ?", userID).Pluck("token", &bots).Error; err != nil {
+		if err := cm.db.Model(&models.Bot{}).Where("user_id = ?", userID).Order("bot_id").Pluck("token", &bots).Error; err != nil {
 			return nil, err
 		}
 		return bots, nil

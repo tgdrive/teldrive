@@ -67,6 +67,7 @@ func TestConfigLoader_LoadDefaults(t *testing.T) {
 	assert.Equal(t, 1, cfg.TG.Stream.Concurrency)
 	assert.Equal(t, 8, cfg.TG.Stream.Buffers)
 	assert.Equal(t, 30*time.Second, cfg.TG.Stream.ChunkTimeout)
+	assert.Equal(t, 5*time.Second, cfg.TG.Stream.MaxFloodWait)
 	assert.Equal(t, 8, cfg.TG.Uploads.Threads)
 	assert.Equal(t, 10, cfg.TG.Uploads.MaxRetries)
 	assert.Equal(t, 7*24*time.Hour, cfg.TG.Uploads.Retention)
@@ -419,6 +420,14 @@ func TestConfigLoader_CustomEnvMapping(t *testing.T) {
 			envVal: "128",
 			check: func(t *testing.T, c *ServerCmdConfig) {
 				assert.Equal(t, 128, c.TG.Stream.Buffers)
+			},
+		},
+		{
+			// Deep nesting + Dashed key: tg.stream.max-flood-wait
+			envKey: "TELDRIVE_TG_STREAM_MAX_FLOOD_WAIT",
+			envVal: "10s",
+			check: func(t *testing.T, c *ServerCmdConfig) {
+				assert.Equal(t, 10*time.Second, c.TG.Stream.MaxFloodWait)
 			},
 		},
 		{

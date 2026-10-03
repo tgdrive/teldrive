@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-faster/errors"
@@ -40,6 +41,30 @@ func (a *apiService) newMiddlewares(ctx context.Context, retries int) []telegram
 		tgc.WithFloodWait(),
 		tgc.WithRecovery(ctx),
 		tgc.WithRetry(retries),
+		tgc.WithRateLimit(),
+	)
+}
+
+// streamMiddlewares is newMiddlewares for a streaming bot client. When other bots are available, a
+// flood wait longer than tg.stream.max-flood-wait fails the request instead of stalling playback,
+// and the bot is put on standby so the player's next request lands on a different bot.
+func (a *apiService) streamMiddlewares(ctx context.Context, token string, bots int) []telegram.Middleware {
+	maxWait := a.cnf.TG.Stream.MaxFloodWait
+	if maxWait <= 0 || bots < 2 {
+		return a.newMiddlewares(ctx, 5)
+	}
+	logger := logging.FromContext(ctx).With(zap.String("bot_id", strings.Split(token, ":")[0]))
+	return tgc.NewMiddleware(&a.cnf.TG,
+		tgc.WithFloodWaitLimit(maxWait, func(d time.Duration) {
+			// The request context may already be cancelled; standby must still be recorded.
+			if err := a.botSelector.Standby(context.WithoutCancel(ctx), tgc.BotOpStream, token, d); err != nil {
+				logger.Error("stream.bot_standby_failed", zap.Error(err))
+				return
+			}
+			logger.Info("stream.bot_standby", zap.Duration("duration", d))
+		}),
+		tgc.WithRecovery(ctx),
+		tgc.WithRetry(5),
 		tgc.WithRateLimit(),
 	)
 }
