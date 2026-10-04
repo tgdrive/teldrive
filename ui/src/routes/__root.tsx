@@ -1,14 +1,16 @@
 import {
+  RouterProvider as AriaRouterProvider,
   Avatar,
   Button,
-  Dropdown,
-  Label,
-  RouterProvider as AriaRouterProvider,
-  Separator,
   cn,
+  Dropdown,
+  InputGroup,
+  Kbd,
+  Label,
+  Separator,
 } from "@heroui/react";
 import { buttonVariants } from "@heroui/styles";
-import { useQuery, type QueryClient } from "@tanstack/react-query";
+import { type QueryClient, useQuery } from "@tanstack/react-query";
 import {
   createRootRouteWithContext,
   Link,
@@ -18,28 +20,26 @@ import {
   useNavigate,
 } from "@tanstack/react-router";
 import { useTheme } from "next-themes";
-import { useEffect, useState, type Ref } from "react";
+import { type Ref, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import LogoutIcon from "~icons/gravity-ui/arrow-right-from-square";
 import MenuIcon from "~icons/gravity-ui/bars";
 import ChevronLeftIcon from "~icons/gravity-ui/chevron-left";
 import ChevronRightIcon from "~icons/gravity-ui/chevron-right";
+import StorageIcon from "~icons/gravity-ui/database";
+import FolderIcon from "~icons/gravity-ui/folder";
 import SettingsIcon from "~icons/gravity-ui/gear";
 import LogoIcon from "~icons/gravity-ui/layers";
 import GridIcon from "~icons/gravity-ui/layout-header-cells";
-import FolderIcon from "~icons/gravity-ui/folder";
 import TasksIcon from "~icons/gravity-ui/list-ul";
-import StorageIcon from "~icons/gravity-ui/database";
 import SearchIcon from "~icons/gravity-ui/magnifier";
 import MoonIcon from "~icons/gravity-ui/moon";
 import SunIcon from "~icons/gravity-ui/sun";
 import CloseIcon from "~icons/gravity-ui/xmark";
-import LogoutIcon from "~icons/gravity-ui/arrow-right-from-square";
-import { useCommandPalette } from "../components/command-palette-context";
-import { SearchOverlay } from "../components/search-overlay";
-import { UploadShelf } from "../components/upload-shelf";
-import { currentUserQueryOptions } from "../auth/queries";
 import { $api } from "../api/client";
 import { isUnauthorized, userMessage } from "../api/errors";
+import { currentUserQueryOptions } from "../auth/queries";
+import { UploadShelf } from "../components/upload-shelf";
 import { getQueryClient } from "../lib/queryClient";
 
 const mainNav = [
@@ -54,6 +54,7 @@ const mainNav = [
 const DESKTOP_BREAKPOINT = 1024;
 
 function getPageTitle(pathname: string) {
+  if (pathname === "/search") return "Search";
   if (pathname.startsWith("/settings")) return "Settings";
   const item = mainNav.find(
     (entry) => pathname === entry.path || pathname.startsWith(`${entry.path}/`),
@@ -242,9 +243,54 @@ function TopBar({
   onOpenMobile: () => void;
 }) {
   const { resolvedTheme, setTheme } = useTheme();
-  const commandPalette = useCommandPalette();
+  const navigate = useNavigate();
+  const searchRef = useRef<HTMLInputElement>(null);
+  const searchTimer = useRef<number | undefined>(undefined);
+  const composingSearch = useRef(false);
+  const [searchText, setSearchText] = useState("");
   const pathname = useLocation({ select: (location) => location.pathname });
+  const routeSearch = useLocation({
+    select: (location) => location.search as Record<string, unknown>,
+  });
+  const locationKey = useLocation({ select: (location) => location.href });
   const title = getPageTitle(pathname);
+  const scheduleSearch = (value: string) => {
+    if (searchTimer.current) window.clearTimeout(searchTimer.current);
+    searchTimer.current = undefined;
+    const q = value.trim() || undefined;
+    if (pathname !== "/search" || composingSearch.current || q === routeSearch.q) return;
+    searchTimer.current = window.setTimeout(() => {
+      searchTimer.current = undefined;
+      void navigate({ to: "/search", search: { ...routeSearch, q }, replace: true });
+    }, 300);
+  };
+
+  useEffect(() => {
+    if (pathname === "/search")
+      setSearchText(typeof routeSearch.q === "string" ? routeSearch.q : "");
+  }, [pathname, routeSearch]);
+  useEffect(
+    () => () => {
+      if (searchTimer.current) window.clearTimeout(searchTimer.current);
+    },
+    [locationKey],
+  );
+
+  useEffect(() => {
+    const keydown = (event: KeyboardEvent) => {
+      if (
+        event.isComposing ||
+        (event.target instanceof HTMLElement && event.target.closest('[role="dialog"]'))
+      )
+        return;
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        searchRef.current?.focus();
+      }
+    };
+    window.addEventListener("keydown", keydown);
+    return () => window.removeEventListener("keydown", keydown);
+  }, []);
 
   return (
     <header className="flex h-16 shrink-0 items-center gap-3 border-b border-border bg-background/80 px-3 backdrop-blur-xl sm:px-5">
@@ -269,32 +315,77 @@ function TopBar({
         )}
       </Button>
 
-      <div className="min-w-0 flex-1">
+      <div className="hidden min-w-0 flex-1 md:block">
         <p className="truncate text-sm font-semibold sm:text-base">{title}</p>
       </div>
 
-      <Button
-        variant="ghost"
-        className="hidden h-9 w-64 justify-between rounded-xl border border-border bg-surface/70 px-3 text-sm font-normal text-muted shadow-sm md:flex"
-        onPress={commandPalette.open}
-      >
-        <span className="flex items-center gap-2">
-          <SearchIcon className="size-3.5" />
-          Search files
-        </span>
-        <kbd className="rounded-md border border-border bg-default/30 px-1.5 py-0.5 text-[10px]">
-          Ctrl K
-        </kbd>
-      </Button>
-      <Button
-        isIconOnly
-        variant="ghost"
-        className="size-9 rounded-xl md:hidden"
-        onPress={commandPalette.open}
-        aria-label="Search files"
-      >
-        <SearchIcon className="size-4" />
-      </Button>
+      <search aria-label="Search drive" className="flex min-w-0 flex-1 items-center md:max-w-md">
+        <form
+          className="w-full"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (composingSearch.current) return;
+            if (searchTimer.current) window.clearTimeout(searchTimer.current);
+            searchTimer.current = undefined;
+            void navigate({
+              to: "/search",
+              search: {
+                ...(pathname === "/search" ? routeSearch : {}),
+                ...(pathname === "/files"
+                  ? {
+                      parentId:
+                        typeof routeSearch.parentId === "string" ? routeSearch.parentId : undefined,
+                      folderPath:
+                        typeof routeSearch.path === "string" && routeSearch.path !== "/"
+                          ? routeSearch.path
+                          : undefined,
+                    }
+                  : {}),
+                q: searchText.trim() || undefined,
+              },
+            });
+          }}
+        >
+          <InputGroup className="w-full" variant="secondary">
+            <InputGroup.Prefix>
+              <SearchIcon className="size-4 text-muted" />
+            </InputGroup.Prefix>
+            <InputGroup.Input
+              ref={searchRef}
+              aria-label="Search files"
+              value={searchText}
+              maxLength={512}
+              enterKeyHint="search"
+              onCompositionStart={() => {
+                composingSearch.current = true;
+                if (searchTimer.current) window.clearTimeout(searchTimer.current);
+              }}
+              onCompositionEnd={(event) => {
+                composingSearch.current = false;
+                setSearchText(event.currentTarget.value);
+                scheduleSearch(event.currentTarget.value);
+              }}
+              onKeyDown={(event) => {
+                if (
+                  event.key === "Enter" &&
+                  (event.nativeEvent.isComposing || composingSearch.current)
+                )
+                  event.preventDefault();
+              }}
+              onChange={(event) => {
+                const value = event.target.value;
+                setSearchText(value);
+                scheduleSearch(value);
+              }}
+              placeholder="Search files"
+              className="min-w-0 text-sm"
+            />
+            <InputGroup.Suffix className="hidden md:flex">
+              <Kbd>Ctrl K</Kbd>
+            </InputGroup.Suffix>
+          </InputGroup>
+        </form>
+      </search>
       <Button
         isIconOnly
         variant="ghost"
@@ -388,7 +479,6 @@ function Layout() {
             <Outlet />
           </main>
         </div>
-        <SearchOverlay />
         <UploadShelf />
       </div>
     </AriaRouterProvider>

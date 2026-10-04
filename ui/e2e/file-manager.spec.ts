@@ -436,7 +436,7 @@ test("React Aria file selection supports replacement, ranges, select all, and es
   await expect(
     page.getByRole("button", { name: "Copy selected file download link" }),
   ).toBeVisible();
-  await expect(page.getByRole("button", { name: "Cut selected items" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Cut selected items" })).toBeVisible();
   await beta.click({ modifiers: ["Shift"] });
   await expect(page.getByText("2 selected", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Rename selected item" })).toBeHidden();
@@ -529,10 +529,47 @@ test("file operation shortcuts are guarded and update visible state", async ({
   await page.keyboard.press("Control+Shift+KeyN");
   const createFolder = page.getByRole("dialog", { name: "Create folder" });
   await expect(createFolder).toBeVisible();
+  await expect
+    .poll(() => createFolder.evaluate((dialog) => dialog.contains(document.activeElement)))
+    .toBe(true);
   await page.keyboard.press("Escape");
   await expect(createFolder).toBeHidden();
   await expect(page.getByRole("textbox", { name: "Search this folder" })).toHaveCount(0);
   await expect(page.getByText(/selected$/)).toBeHidden();
+});
+
+test("file shortcuts stay within the browser and do not act inside inputs or dialogs", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, "desktop keyboard shortcuts");
+  await page.goto("/files");
+  const alpha = page.getByRole("row", { name: /alpha\.txt/ });
+  await alpha.click();
+  const search = page.getByRole("textbox", { name: "Search files" });
+  await search.fill("draft");
+  await search.press("F2");
+  await expect(page.getByRole("dialog", { name: "Rename item" })).toHaveCount(0);
+  await search.press("Control+x");
+  await search.press("Delete");
+  await expect(alpha).toBeVisible();
+  await expect(page.getByText("1 selected", { exact: true })).toBeVisible();
+  await alpha.focus();
+  await alpha.press("F2");
+  const dialog = page.getByRole("dialog", { name: "Rename item" });
+  const name = dialog.getByRole("textbox", { name: "New name" });
+  await name.fill("draft.txt");
+  await name.press("Control+a");
+  await name.press("Delete");
+  await expect(name).toHaveValue("");
+  await expect(dialog).toBeVisible();
+  await name.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(alpha).toBeVisible();
+  await expect(page.getByText("1 selected", { exact: true })).toBeVisible();
+  await alpha.focus();
+  await alpha.press("Escape");
+  await expect(page.getByText("1 selected", { exact: true })).toHaveCount(0);
 });
 
 test("selected files keep the destination picker alongside clipboard actions", async ({
@@ -561,7 +598,6 @@ test("selected files keep the destination picker alongside clipboard actions", a
   await expect(page.getByText("alpha.txt", { exact: true })).toBeVisible();
 });
 
-
 test("split panes cut and copy items directly between folders", async ({ page, isMobile }) => {
   test.skip(isMobile, "desktop split view");
   await page.goto("/files");
@@ -580,7 +616,9 @@ test("split panes cut and copy items directly between folders", async ({ page, i
   await expect(secondary.getByText("1 cut", { exact: true })).toBeVisible();
   await expect(secondary.getByRole("button", { name: "Cancel cut" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Clear selection" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Move selected items", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Move selected items", exact: true })).toHaveCount(
+    0,
+  );
   await expect(page.getByRole("button", { name: "Move selected items to trash" })).toHaveCount(0);
 
   await secondary.getByRole("button", { name: "Cancel cut" }).click();
@@ -605,7 +643,6 @@ test("split panes cut and copy items directly between folders", async ({ page, i
   await expect(page.getByRole("button", { name: /^Paste / })).toHaveCount(0);
 });
 
-
 test("cut paste asks before resolving a name conflict", async ({ page, isMobile }) => {
   test.skip(isMobile, "desktop split view");
   await page.goto("/files");
@@ -619,6 +656,8 @@ test("cut paste asks before resolving a name conflict", async ({ page, isMobile 
   await primary.getByRole("button", { name: "Copy selected items" }).click();
   await secondary.getByRole("button", { name: /^Paste 1 clipboard item$/ }).click();
   await expect(secondary.getByText("alpha.txt", { exact: true })).toBeVisible();
+  // The success toast overlaps the action bar and pauses while the pointer is over it.
+  await page.getByRole("button", { name: "Close toast", exact: true }).click();
   await secondary.getByRole("button", { name: "Clear copied items" }).click();
 
   await primary.getByRole("row", { name: /alpha\.txt/ }).click();

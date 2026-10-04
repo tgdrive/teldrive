@@ -1,5 +1,5 @@
 import { Button, Spinner } from "@heroui/react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { GridList, GridListItem } from "react-aria-components";
 import ChevronIcon from "~icons/gravity-ui/chevron-right";
 import FolderIcon from "~icons/gravity-ui/folder";
@@ -11,20 +11,26 @@ export function FolderPicker({
   initialParentId,
   onConfirm,
   confirmLabel = "Move here",
+  isDisabled = false,
+  requireFolder = false,
 }: {
   initialPath?: string;
   initialParentId?: string;
   onConfirm: (parentId?: string, path?: string) => void;
   confirmLabel?: string;
+  isDisabled?: boolean;
+  requireFolder?: boolean;
 }) {
   const [path, setPath] = useState(initialPath);
   const [parentId, setParentId] = useState<string | undefined>(initialParentId);
+  const folderIds = useRef(new Map<string, string | undefined>([[initialPath, initialParentId]]));
   const folders = useFolderChildren(parentId, parentId ? undefined : path);
   const crumbs = path.split("/").filter(Boolean);
 
   const openPath = (nextPath: string, nextParentId?: string) => {
+    if (nextParentId) folderIds.current.set(nextPath, nextParentId);
     setPath(nextPath);
-    setParentId(nextParentId);
+    setParentId(nextParentId ?? folderIds.current.get(nextPath));
   };
 
   return (
@@ -107,7 +113,13 @@ export function FolderPicker({
       </div>
 
       <div className="flex justify-end">
-        <Button variant="primary" onPress={() => onConfirm(parentId, path)}>
+        <Button
+          variant="primary"
+          isDisabled={
+            isDisabled || folders.isLoading || folders.isError || (requireFolder && !parentId)
+          }
+          onPress={() => onConfirm(parentId, path)}
+        >
           {confirmLabel}
         </Button>
       </div>

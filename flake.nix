@@ -105,12 +105,16 @@
               go
               bun
               nodejs
+              chromium
+              ffmpeg
               sqlc
               just
               git
               podman
               postgresql
             ];
+            PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH = "${pkgs.chromium}/bin/chromium";
+            PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1";
             shellHook = ''
               echo "teldrive dev shell: $(go version | cut -d' ' -f3), bun $(bun --version), sqlc $(sqlc version 2>/dev/null | head -n1)"
               echo "run 'just --list' for workflows (try: just install-tools)"

@@ -1,12 +1,14 @@
 import { Button, Chip, Input, Label, Spinner, TextField } from "@heroui/react";
+import { keepPreviousData } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
-import RefreshIcon from "~icons/gravity-ui/arrow-rotate-left";
 import { $api } from "@/api/client";
 import { userMessage } from "@/api/errors";
 import { SettingsPageHeader, SettingsRow, SettingsSection } from "@/components/settings-layout";
 import { getQueryClient } from "@/lib/queryClient";
+import { useDebouncedValue } from "@/lib/use-debounced-value";
+import RefreshIcon from "~icons/gravity-ui/arrow-rotate-left";
 
 export const Route = createFileRoute("/_settings/settings/users")({
   component: UsersSettings,
@@ -19,11 +21,12 @@ export const Route = createFileRoute("/_settings/settings/users")({
 
 function UsersSettings() {
   const [search, setSearch] = useState("");
-  const query = $api.useSuspenseQuery(
+  const debouncedSearch = useDebouncedValue(search.trim(), 300);
+  const query = $api.useQuery(
     "get",
     "/v1/admin/users",
-    { params: { query: { search: search.trim() || undefined } } },
-    { staleTime: 10_000 },
+    { params: { query: { search: debouncedSearch || undefined } } },
+    { staleTime: 10_000, placeholderData: keepPreviousData, throwOnError: true },
   );
   const updateUser = $api.useMutation("patch", "/v1/admin/users/{userId}");
   const revokeAccess = $api.useMutation("post", "/v1/admin/users/{userId}/revoke-access");
@@ -65,7 +68,11 @@ function UsersSettings() {
             <Input placeholder="Name, username, or Telegram user ID" />
           </TextField>
         </div>
-        {query.data.length ? (
+        {query.isPending ? (
+          <div className="flex justify-center p-6" role="status" aria-label="Loading users">
+            <Spinner />
+          </div>
+        ) : query.data?.length ? (
           query.data.map((user) => {
             const displayName =
               user.displayName?.trim() || user.username?.trim() || `User ${user.userId}`;

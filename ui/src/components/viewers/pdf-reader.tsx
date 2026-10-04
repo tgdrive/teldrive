@@ -121,6 +121,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
   const [findCount, setFindCount] = useState<FindCount>({ current: 0, total: 0 });
   const [findState, setFindState] = useState<number>(FindState.FOUND);
   const [annotationTool, setAnnotationTool] = useState<AnnotationTool>("select");
+  const annotationToolRef = useRef<AnnotationTool>("select");
   const [annotationColor, setAnnotationColorState] = useState<(typeof HIGHLIGHT_COLORS)[number]>(
     HIGHLIGHT_COLORS[0],
   );
@@ -294,12 +295,36 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
         setSearchOpen(true);
         return;
       }
-      if (event.key === "Escape" && searchOpen) {
+      if (event.key === "Escape" && searchOpen && !inNestedOverlay(event.target)) {
         event.preventDefault();
         event.stopPropagation();
         setSearchOpen(false);
         setQuery("");
         runtimeRef.current?.eventBus.dispatch("findbarclose", { source: containerRef.current });
+        return;
+      }
+      if (
+        event.key === "Escape" &&
+        annotationToolRef.current !== "select" &&
+        !inNestedOverlay(event.target)
+      ) {
+        // Escape leaves the annotation tool before it closes the reader.
+        event.preventDefault();
+        event.stopPropagation();
+        setTool("select");
+        return;
+      }
+      if (
+        event.key === "Escape" &&
+        !isEditableTarget(event.target) &&
+        !inNestedOverlay(event.target) &&
+        (!window.document.activeElement || window.document.activeElement === window.document.body)
+      ) {
+        // Focus escaped the modal (e.g. after triggering a download), in which
+        // case the modal ignores Escape. Close explicitly instead.
+        event.preventDefault();
+        event.stopPropagation();
+        closeRef.current();
         return;
       }
       if (isEditableTarget(event.target)) return;
@@ -362,6 +387,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
   const setTool = (tool: AnnotationTool) => {
     const viewer = runtimeRef.current?.viewer;
     if (!viewer) return;
+    annotationToolRef.current = tool;
     setAnnotationTool(tool);
     viewer.annotationEditorMode = { mode: annotationEditorMode(tool) };
     if (tool !== "select") setAnnotationColor(annotationColor, tool);
@@ -1299,6 +1325,14 @@ function isEditableTarget(target: EventTarget | null) {
     target instanceof HTMLSelectElement ||
     (target instanceof HTMLElement && target.isContentEditable)
   );
+}
+
+// A portalled overlay (popover, drawer, nested dialog) that is not the reader
+// itself owns Escape while it is open.
+function inNestedOverlay(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false;
+  const overlay = target.closest('[role="dialog"]');
+  return overlay !== null && overlay.querySelector("[data-pdf-reader]") === null;
 }
 
 function formatBytes(value: number) {

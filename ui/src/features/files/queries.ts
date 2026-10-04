@@ -48,7 +48,11 @@ export type FileRouteSearch = {
   q?: string;
   sort: FileSort;
   order: "asc" | "desc";
-  category?: FileCategory;
+  category?: FileCategory | FileCategory[];
+  scope?: "folder" | "drive" | "recursive";
+  kind?: "file" | "folder";
+  updatedAfter?: string;
+  updatedBefore?: string;
   cursor?: string;
   cursorHistory?: string;
   view: "list" | "grid";
@@ -62,10 +66,25 @@ export function filePageInit(search: FileRouteSearch, status: FileStatus, cursor
     params: {
       query: {
         parentId: search.parentId,
-        path: search.parentId ? undefined : search.path === "/" ? undefined : search.path,
+        path:
+          search.scope && search.scope !== "folder"
+            ? undefined
+            : search.parentId
+              ? undefined
+              : search.path === "/"
+                ? undefined
+                : search.path,
+        scope: search.scope,
+        kind: search.kind,
         status,
         search: search.q || undefined,
-        category: search.category ? [search.category] : undefined,
+        category: Array.isArray(search.category)
+          ? search.category
+          : search.category
+            ? [search.category]
+            : undefined,
+        updatedAfter: search.updatedAfter,
+        updatedBefore: search.updatedBefore,
         sort: search.sort,
         order: search.order,
         cursor,
@@ -101,6 +120,10 @@ export function useInfiniteFilePages(search: FileRouteSearch, status: FileStatus
       sort: search.sort,
       order: search.order,
       category: search.category,
+      scope: search.scope,
+      kind: search.kind,
+      updatedAfter: search.updatedAfter,
+      updatedBefore: search.updatedBefore,
       status,
     },
   ] as const;
@@ -121,8 +144,21 @@ export function useInfiniteFilePages(search: FileRouteSearch, status: FileStatus
     getNextPageParam: (lastPage) => lastPage.nextCursor,
     staleTime: 15_000,
     enabled,
+    placeholderData: search.scope && search.scope !== "folder" ? (previous) => previous : undefined,
   });
 }
+
+export type DriveSearchOptions = {
+  q?: string;
+  scope: "drive" | "recursive";
+  parentId?: string;
+  kind?: "file" | "folder";
+  category?: FileCategory[];
+  updatedAfter?: string;
+  updatedBefore?: string;
+  sort: FileSort;
+  order: "asc" | "desc";
+};
 
 export function useFolderChildren(parentId?: string, path?: string) {
   return $api.useQuery(

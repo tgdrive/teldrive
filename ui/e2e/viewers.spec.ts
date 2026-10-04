@@ -168,14 +168,12 @@ test("PDF opens in the Teldrive PDF.js workspace with navigation and search", as
   await expect.poll(() => dialog.locator(".pdfViewer .page").count()).toBe(2);
   await expect(dialog.locator(".pdfViewer .textLayer").first()).toBeVisible();
   const initialContentRequests = stats.pdfContentRequests;
-  const initialStateWrites = writes.length;
 
   const pageInput = dialog.getByRole("textbox", { name: "PDF page number" });
   await expect(pageInput).toHaveValue("1");
   await dialog.getByRole("button", { name: "Next PDF page" }).click();
   await expect(pageInput).toHaveValue("2");
   await page.keyboard.press("=");
-  await expect.poll(() => writes.length, { timeout: 2_000 }).toBeGreaterThan(initialStateWrites);
   expect(stats.pdfContentRequests).toBe(initialContentRequests);
 
   const viewportWidth = page.viewportSize()?.width ?? 0;
@@ -217,8 +215,16 @@ test("PDF opens in the Teldrive PDF.js workspace with navigation and search", as
     .poll(async () => (await editedDownload).suggestedFilename())
     .toBe("reader-sample-edited.pdf");
 
-  await expect.poll(() => writes.some((write) => write.fileId === pdfId)).toBe(true);
-  await page.keyboard.press("Escape");
+  expect(writes).toEqual([]);
+  // Escape peels the overlay stack: tool popover, annotation tool, then reader.
+  // Mobile has no physical Escape key, so fall back to the close button to
+  // keep teardown deterministic once the keyboard path has been exercised.
+  for (let attempt = 0; attempt < 5 && (await dialog.isVisible()); attempt += 1) {
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(200);
+  }
+  if (await dialog.isVisible())
+    await dialog.getByRole("button", { name: "Close PDF reader" }).click();
   await expect(dialog).toBeHidden();
   expect(errors).toEqual([]);
 });
@@ -247,7 +253,7 @@ test("mobile EPUB navigation opens in a HeroUI drawer", async ({ page }) => {
   await expect(dialog.getByText("Across the Cloud").first()).toBeVisible();
 });
 
-test("EPUB renders in its dedicated reader, navigates, persists, and closes cleanly", async ({
+test("EPUB renders in its dedicated reader, navigates without persisting, and closes cleanly", async ({
   page,
 }) => {
   const writes: StateWrite[] = [];
@@ -316,7 +322,7 @@ test("EPUB renders in its dedicated reader, navigates, persists, and closes clea
   expect(errors).toEqual([]);
 
   await dialog.getByRole("button", { name: "Next page" }).click();
-  await expect.poll(() => writes.some((write) => write.fileId === epubId)).toBe(true);
+  expect(writes).toEqual([]);
   await settleBrowserLayout(page);
   expect(errors).toEqual([]);
   await page.keyboard.press("Escape");

@@ -222,24 +222,34 @@ export function EpubReader({ file, url, onClose }: EpubReaderProps) {
     drawerState.close();
 
     const finishClose = async () => {
-      const pending = [...navigationTasksRef.current];
-      if (openingRef.current) pending.push(openingRef.current);
-      await Promise.allSettled(pending);
+      try {
+        const pending = [...navigationTasksRef.current];
+        if (openingRef.current) pending.push(openingRef.current);
+        await settleSoon(pending);
 
-      const fontLoads = [...loadedDocumentsRef.current].map((doc) => doc.fonts.ready);
-      await Promise.allSettled(fontLoads);
-      await nextAnimationFrame();
-      await nextAnimationFrame();
+        const fontLoads = [...loadedDocumentsRef.current].flatMap((doc) =>
+          doc.fonts?.ready ? [doc.fonts.ready.catch(() => undefined)] : [],
+        );
+        await settleSoon(fontLoads);
+        await nextAnimationFrame();
+        await nextAnimationFrame();
 
-      const current = viewRef.current;
-      if (current && !closedRef.current) {
-        await closePublication(current);
-        closedRef.current = true;
-        viewRef.current = undefined;
+        const current = viewRef.current;
+        if (current && !closedRef.current) {
+          try {
+            await closePublication(current);
+          } catch {
+            // Best effort: a reader teardown failure must never trap the dialog open.
+          } finally {
+            closedRef.current = true;
+            viewRef.current = undefined;
+          }
+        }
+
+        await nextAnimationFrame();
+      } finally {
+        onCloseRef.current();
       }
-
-      await nextAnimationFrame();
-      onCloseRef.current();
     };
 
     void finishClose();
@@ -253,18 +263,33 @@ export function EpubReader({ file, url, onClose }: EpubReaderProps) {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (isEditableTarget(event.target)) return;
-      if (event.key === "Escape") {
-        if (settingsOpen) setSettingsOpen(false);
-        else if (drawerState.isOpen) drawerState.close();
-        else requestClose();
-        return;
-      }
       if (event.key === "ArrowLeft" || event.key === "PageUp") navigate("previous");
       else if (event.key === "ArrowRight" || event.key === "PageDown") navigate("next");
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [drawerState, navigate, requestClose, settingsOpen]);
+  }, [navigate]);
+
+  // Escape is handled on capture: the reader modal is not keyboard-dismissable,
+  // so a bubble listener would never fire. Nested settings/drawer close first,
+  // and portalled overlays (role=dialog outside the reader root) own Escape.
+  useEffect(() => {
+    const onEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || isEditableTarget(event.target)) return;
+      const overlay =
+        event.target instanceof HTMLElement
+          ? event.target.closest('[role="dialog"]')
+          : null;
+      if (overlay && !overlay.querySelector("[data-epub-reader]")) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (settingsOpen) setSettingsOpen(false);
+      else if (drawerState.isOpen) drawerState.close();
+      else requestClose();
+    };
+    window.addEventListener("keydown", onEscape, true);
+    return () => window.removeEventListener("keydown", onEscape, true);
+  }, [drawerState, requestClose, settingsOpen]);
 
   const navigation = (
     <EpubNavigation file={file} toc={toc} activeChapter={chapter} onNavigate={goTo} />
@@ -744,6 +769,18 @@ function isEditableTarget(target: EventTarget | null) {
 
 function nextAnimationFrame() {
   return new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+}
+
+// Closing must be bounded: an unsettled navigation or font promise must never
+// trap the reader open after the user asked to leave.
+function settleSoon(tasks: Promise<unknown>[], ms = 1500) {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<void>((resolve) => {
+    timer = setTimeout(resolve, ms);
+  });
+  return Promise.race([Promise.allSettled(tasks).then(() => undefined), timeout]).finally(() =>
+    clearTimeout(timer),
+  );
 }
 
 function useMediaQuery(query: string) {

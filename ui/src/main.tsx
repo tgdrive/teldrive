@@ -3,7 +3,6 @@ import { createRouter, RouterProvider } from "@tanstack/react-router";
 import { ThemeProvider } from "next-themes";
 import ReactDOM from "react-dom/client";
 import { Toaster } from "sonner";
-import { CommandPaletteProvider } from "./components/command-palette-context";
 import { getQueryClient } from "./lib/queryClient";
 import { routeTree } from "./routeTree.gen";
 import "./styles/globals.css";
@@ -30,9 +29,7 @@ async function startApp() {
     root.render(
       <QueryClientProvider client={queryClient}>
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
-          <CommandPaletteProvider>
-            <RouterProvider router={router} />
-          </CommandPaletteProvider>
+          <RouterProvider router={router} />
           <Toaster
             position="bottom-right"
             richColors

@@ -1,4 +1,5 @@
 node_modules/
+.direnv/
 dist/
 test-results/
 .env

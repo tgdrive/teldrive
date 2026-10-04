@@ -11,6 +11,7 @@ type AppDialogProps = {
   children: ReactNode;
   footer?: ReactNode;
   isDismissable?: boolean;
+  isCloseDisabled?: boolean;
   size?: "md" | "lg";
   className?: string;
   bodyClassName?: string;
@@ -25,16 +26,22 @@ export function AppDialog({
   children,
   footer,
   isDismissable = true,
+  isCloseDisabled = false,
   size = "lg",
   className,
   bodyClassName,
   headerClassName,
 }: AppDialogProps) {
   return (
-    <Modal.Backdrop isOpen={open} onOpenChange={onOpenChange} isDismissable={isDismissable}>
+    <Modal.Backdrop
+      isOpen={open}
+      onOpenChange={onOpenChange}
+      isDismissable={isDismissable}
+      isKeyboardDismissDisabled={isCloseDisabled}
+    >
       <Modal.Container size={size} scroll="inside">
         <Modal.Dialog className={cn(DEFAULT_DIALOG_CLASS, className)}>
-          <Modal.CloseTrigger />
+          <Modal.CloseTrigger isDisabled={isCloseDisabled} />
           <Modal.Header className={headerClassName}>
             <Modal.Heading>{title}</Modal.Heading>
             {description ? <div className="text-sm text-muted">{description}</div> : null}
