@@ -13,10 +13,10 @@ import {
 import type { FileEntry } from "@/api/types";
 import BackIcon from "~icons/gravity-ui/arrow-left";
 import UpIcon from "~icons/gravity-ui/chevron-up";
-import FileIcon from "~icons/gravity-ui/file";
 import FolderIcon from "~icons/gravity-ui/folder";
 import GridIcon from "~icons/gravity-ui/layout-cells";
 import ListIcon from "~icons/gravity-ui/list-ul";
+import { FileTypeIcon } from "./file-type-icon";
 
 export type FileBrowserView = "list" | "grid";
 
@@ -335,13 +335,16 @@ function GridFile({
   location?: string;
   onOpenContainingFolder?: () => void;
 }) {
-  const Icon = file.kind === "folder" ? FolderIcon : FileIcon;
   return (
     <>
       <div className="flex items-start gap-2">
         {selectable ? <SelectionCheckbox file={file} isVisible={showCheckbox} /> : null}
         <div className="flex size-11 items-center justify-center rounded-xl bg-accent/10 text-accent">
-          <Icon className="size-5" />
+          {file.kind === "folder" ? (
+            <FolderIcon className="size-5" />
+          ) : (
+            <FileTypeIcon file={file} className="size-5" />
+          )}
         </div>
       </div>
       <div className="min-w-0">
@@ -370,13 +373,16 @@ function ListFile({
   location?: string;
   onOpenContainingFolder?: () => void;
 }) {
-  const Icon = file.kind === "folder" ? FolderIcon : FileIcon;
   return (
     <>
       <div className="flex min-w-0 items-center gap-3">
         {selectable ? <SelectionCheckbox file={file} isVisible={showCheckbox} /> : null}
         <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent">
-          <Icon className="size-4" />
+          {file.kind === "folder" ? (
+            <FolderIcon className="size-4" />
+          ) : (
+            <FileTypeIcon file={file} className="size-4" />
+          )}
         </div>
         <div className="min-w-0">
           <span

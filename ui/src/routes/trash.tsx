@@ -2,7 +2,6 @@ import { Button, Card, Chip, Spinner } from "@heroui/react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
-import FileIcon from "~icons/gravity-ui/file";
 import FolderIcon from "~icons/gravity-ui/folder";
 import RefreshIcon from "~icons/gravity-ui/arrow-rotate-left";
 import RestoreIcon from "~icons/gravity-ui/arrow-rotate-left";
@@ -11,6 +10,7 @@ import { userMessage } from "@/api/errors";
 import type { FileEntry } from "@/api/types";
 import { ConfirmDialog } from "@/components/dialogs/confirm-dialog";
 import { EmptyState, Page, PageContent, PageHeader } from "@/components/page";
+import { FileTypeIcon } from "@/features/files/file-type-icon";
 import { useFileActions } from "@/features/files/mutations";
 import { useFilePage } from "@/features/files/queries";
 
@@ -99,7 +99,6 @@ function TrashPage() {
         ) : (
           <Card className="gap-0 overflow-hidden border border-border bg-surface/80 shadow-sm">
             {query.data.items.map((file) => {
-              const Icon = file.kind === "folder" ? FolderIcon : FileIcon;
               return (
                 <div
                   key={file.id}
@@ -107,7 +106,11 @@ function TrashPage() {
                 >
                   <div className="flex min-w-0 items-center gap-3">
                     <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-default/20 text-muted">
-                      <Icon className="size-4" />
+                      {file.kind === "folder" ? (
+                        <FolderIcon className="size-4" />
+                      ) : (
+                        <FileTypeIcon file={file} className="size-4" />
+                      )}
                     </div>
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium">{file.name}</p>
