@@ -14,6 +14,7 @@ import (
 	"github.com/tgdrive/teldrive/internal/config"
 	"github.com/tgdrive/teldrive/internal/events"
 	"github.com/tgdrive/teldrive/internal/tgc"
+	"github.com/tgdrive/teldrive/internal/utils"
 	"github.com/tgdrive/teldrive/pkg/models"
 	"github.com/tgdrive/teldrive/pkg/services"
 	"github.com/tgdrive/teldrive/pkg/types"
@@ -35,7 +36,24 @@ func createDummyUser(db *gorm.DB) error {
 		UserName:  testUserName,
 		IsPremium: false,
 	}
-	return db.Clauses(clause.OnConflict{DoNothing: true}).Create(&user).Error
+	if err := db.Clauses(clause.OnConflict{DoNothing: true}).Create(&user).Error; err != nil {
+		return err
+	}
+	// Login creates each user's root folder; path resolution depends on it.
+	var roots int64
+	if err := db.Model(&models.File{}).
+		Where("user_id = ? AND name = 'root' AND parent_id IS NULL AND status = 'active'", testUserID).
+		Count(&roots).Error; err != nil || roots > 0 {
+		return err
+	}
+	return db.Create(&models.File{
+		Name:      "root",
+		Type:      "folder",
+		MimeType:  "drive/folder",
+		UserId:    testUserID,
+		Status:    "active",
+		UpdatedAt: utils.Ptr(time.Now().UTC()),
+	}).Error
 }
 
 func createSession(db *gorm.DB) (string, error) {
@@ -83,7 +101,7 @@ func newTestApiService(db *gorm.DB) api.Handler {
 			},
 		},
 	}
-	c := cache.NewCache(context.Background(), config.CacheConfig{}.MaxSize, nil,nil)
+	c := cache.NewCache(context.Background(), config.CacheConfig{}.MaxSize, nil, zap.NewNop())
 	botSelector := tgc.NewBotSelector(nil)
 	ev := events.NewBroadcaster(context.Background(), db, nil, time.Duration(10*time.Second), events.BroadcasterConfig{}, zap.NewNop())
 	return services.NewApiService(db, cnf, c, botSelector, ev)
