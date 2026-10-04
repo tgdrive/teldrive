@@ -11,6 +11,7 @@ import (
 	"github.com/tgdrive/teldrive/internal/cache"
 	"github.com/tgdrive/teldrive/internal/config"
 	"github.com/tgdrive/teldrive/pkg/models"
+	"go.uber.org/zap"
 	"gorm.io/gorm/clause"
 )
 
@@ -36,7 +37,7 @@ func TestWholeFileFlow(t *testing.T) {
 	require.True(t, ok, "AuthSession should return SessionHeaders")
 
 	// Set up authenticated context
-	c := cache.NewCache(context.Background(), config.CacheConfig{}.MaxSize, nil,nil)
+	c := cache.NewCache(context.Background(), config.CacheConfig{}.MaxSize, nil, zap.NewNop())
 	security := auth.NewSecurityHandler(testDB, c, &config.JWTConfig{Secret: testJWTSecret})
 	ctx, err = security.HandleBearerAuth(ctx, "FilesCreate", api.BearerAuth{Token: token})
 	require.NoError(t, err)
@@ -105,7 +106,10 @@ func TestWholeFileFlow(t *testing.T) {
 	// Verify move
 	movedFile, err := service.FilesGetById(ctx, api.FilesGetByIdParams{ID: file.ID.Value})
 	require.NoError(t, err)
-	assert.False(t, movedFile.ParentId.IsSet()) // Root has no parent
+	var rootFolder models.File
+	require.NoError(t, testDB.Where("user_id = ? AND name = 'root' AND parent_id IS NULL", testUserID).
+		First(&rootFolder).Error)
+	assert.Equal(t, rootFolder.ID, movedFile.ParentId.Value) // "/" is the user's root folder
 
 	// 7. Delete File
 	err = service.FilesDelete(ctx, &api.FileDelete{
