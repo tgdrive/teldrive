@@ -12,6 +12,7 @@ import (
 	"github.com/tgdrive/teldrive/internal/cache"
 	"github.com/tgdrive/teldrive/internal/config"
 	"github.com/tgdrive/teldrive/pkg/models"
+	"go.uber.org/zap"
 )
 
 func getAuthenticatedContext(t *testing.T, service api.Handler) (context.Context, string) {
@@ -22,7 +23,7 @@ func getAuthenticatedContext(t *testing.T, service api.Handler) (context.Context
 	require.NoError(t, err)
 
 	ctx := context.Background()
-	c := cache.NewCache(context.Background(), config.CacheConfig{}.MaxSize, nil,nil)
+	c := cache.NewCache(context.Background(), config.CacheConfig{}.MaxSize, nil, zap.NewNop())
 	security := auth.NewSecurityHandler(testDB, c, &config.JWTConfig{Secret: testJWTSecret})
 	ctx, err = security.HandleBearerAuth(ctx, "test", api.BearerAuth{Token: token})
 	require.NoError(t, err)

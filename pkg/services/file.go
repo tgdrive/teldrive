@@ -396,15 +396,16 @@ func (a *apiService) deleteFilesBulk(db *gorm.DB, fileIds []string, userId int64
 		SELECT id FROM teldrive.files WHERE id IN (?) AND user_id = ?
 		UNION ALL
 		SELECT f.id FROM teldrive.files f JOIN target_folders tf ON f.parent_id = tf.id
+		WHERE f.user_id = ?
 	),
 	mark_deleted AS (
 		UPDATE teldrive.files SET status = 'pending_deletion'
 		WHERE (parent_id IN (SELECT id FROM target_folders) OR id IN (?))
-		AND type = 'file'
+		AND type = 'file' AND user_id = ?
 	)
 	DELETE FROM teldrive.files WHERE id IN (SELECT id FROM target_folders) AND type = 'folder';
 	`
-	return db.Exec(query, fileIds, userId, fileIds).Error
+	return db.Exec(query, fileIds, userId, userId, fileIds, userId).Error
 }
 
 func (a *apiService) getFullPath(db *gorm.DB, fileID string) (string, error) {
