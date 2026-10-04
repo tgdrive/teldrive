@@ -34,6 +34,12 @@ enum FileSearchType {
   regex: "regex",
 }
 
+enum FileListScope {
+  folder: "folder",
+  drive: "drive",
+  recursive: "recursive",
+}
+
 enum FileSort {
   name: "name",
   updatedAt: "updatedAt",
@@ -60,6 +66,8 @@ model FileEntry {
   generation: int64;
   createdAt: utcDateTime;
   updatedAt: utcDateTime;
+  /** Location path, included for drive and recursive listings. */
+  parentPath?: string;
 }
 
 enum ViewerKind {
@@ -90,6 +98,9 @@ model FileViewStateUpdate {
 }
 
 model FileListQuery {
+  @query
+  scope?: FileListScope = FileListScope.folder;
+
   @query
   parentId?: Uuid;
 

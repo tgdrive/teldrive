@@ -447,6 +447,54 @@ func (q *Queries) ListFileCategoryStatistics(ctx context.Context, userID int64) 
 	return items, nil
 }
 
+const listFileParentPaths = `-- name: ListFileParentPaths :many
+WITH RECURSIVE ancestors AS (
+  SELECT f.id AS listed_id, f.parent_id AS ancestor_id, 0 AS depth
+  FROM /* TEMPLATE: schema */files f
+  WHERE f.user_id = $1 AND f.id = ANY($2::uuid[])
+  UNION ALL
+  SELECT a.listed_id, parent.parent_id, a.depth + 1
+  FROM ancestors a
+  JOIN /* TEMPLATE: schema */files parent ON parent.id = a.ancestor_id
+  WHERE parent.user_id = $1
+)
+SELECT a.listed_id AS file_id,
+       COALESCE('/' || string_agg(node.name, '/' ORDER BY a.depth DESC) FILTER (WHERE node.id IS NOT NULL), '/')::text AS parent_path
+FROM ancestors a
+LEFT JOIN /* TEMPLATE: schema */files node ON node.id = a.ancestor_id AND node.user_id = $1
+GROUP BY a.listed_id
+`
+
+type ListFileParentPathsParams struct {
+	UserID  int64         `json:"user_id"`
+	FileIds []pgtype.UUID `json:"file_ids"`
+}
+
+type ListFileParentPathsRow struct {
+	FileID     pgtype.UUID `json:"file_id"`
+	ParentPath string      `json:"parent_path"`
+}
+
+func (q *Queries) ListFileParentPaths(ctx context.Context, arg ListFileParentPathsParams) ([]*ListFileParentPathsRow, error) {
+	rows, err := q.db.Query(ctx, listFileParentPaths, arg.UserID, arg.FileIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*ListFileParentPathsRow{}
+	for rows.Next() {
+		var i ListFileParentPathsRow
+		if err := rows.Scan(&i.FileID, &i.ParentPath); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listFilePartMessageRefs = `-- name: ListFilePartMessageRefs :many
 SELECT channel_id, message_id
 FROM /* TEMPLATE: schema */file_parts
@@ -684,14 +732,36 @@ func (q *Queries) ListFiles(ctx context.Context, arg ListFilesParams) ([]*File, 
 }
 
 const listFilesAdvanced = `-- name: ListFilesAdvanced :many
+WITH RECURSIVE scope_files AS (
+  SELECT root.id
+  FROM /* TEMPLATE: schema */files root
+  WHERE $2::text IN ('drive', 'recursive')
+    AND $18::uuid IS NULL
+    AND root.user_id = $1 AND root.parent_id IS NULL
+  UNION ALL
+  SELECT child.id
+  FROM /* TEMPLATE: schema */files child
+  JOIN /* TEMPLATE: schema */files selected ON selected.id = $18::uuid
+  WHERE $2::text = 'recursive'
+    AND selected.user_id = $1
+    AND selected.kind = 'folder' AND selected.status = 'active'
+    AND child.parent_id = selected.id AND child.user_id = $1
+  UNION ALL
+  SELECT child.id
+  FROM /* TEMPLATE: schema */files child
+  JOIN scope_files parent ON child.parent_id = parent.id
+  WHERE $2::text IN ('drive', 'recursive')
+    AND child.user_id = $1
+)
 SELECT f.id, f.user_id, f.parent_id, f.name, f.kind, f.mime_type, f.size, f.hash_algorithm, f.hash_value, f.encryption, f.encryption_key_version, f.status, f.mod_time, f.generation, f.created_at, f.updated_at, f.deleted_at
 FROM /* TEMPLATE: schema */files f
 WHERE f.user_id = $1
   AND (
-    f.parent_id IS NOT DISTINCT FROM $2::uuid
+    ($2::text = 'folder' AND f.parent_id IS NOT DISTINCT FROM $3::uuid)
+    OR ($2::text <> 'folder' AND f.id IN (SELECT id FROM scope_files))
     OR (
-      $3::/* TEMPLATE: schema */file_status = 'trashed'
-      AND $2::uuid IS NULL
+      $4::/* TEMPLATE: schema */file_status = 'trashed'
+      AND $3::uuid IS NULL
       AND f.parent_id IS NOT NULL
       AND NOT EXISTS (
         SELECT 1
@@ -702,21 +772,21 @@ WHERE f.user_id = $1
       )
     )
   )
-  AND f.status = $3::/* TEMPLATE: schema */file_status
-  AND ($4::/* TEMPLATE: schema */file_kind IS NULL OR f.kind = $4::/* TEMPLATE: schema */file_kind)
+  AND f.status = $4::/* TEMPLATE: schema */file_status
+  AND ($5::/* TEMPLATE: schema */file_kind IS NULL OR f.kind = $5::/* TEMPLATE: schema */file_kind)
   AND (
-    $5::text IS NULL
-    OR ($6::text = 'regex' AND f.name ~* $5::text)
+    $6::text IS NULL
+    OR ($7::text = 'regex' AND f.name ~* $6::text)
     OR (
-      $6::text = 'text'
+      $7::text = 'text'
       AND (
-        f.name % $5::text
-        OR f.name ILIKE '%' || $5::text || '%'
+        f.name % $6::text
+        OR f.name ILIKE '%' || $6::text || '%'
       )
     )
   )
   AND (
-    cardinality($7::text[]) = 0
+    cardinality($8::text[]) = 0
     OR (CASE
       WHEN f.kind = 'folder' THEN 'other'
       WHEN lower(COALESCE(f.mime_type, '')) LIKE 'image/%' THEN 'image'
@@ -736,60 +806,61 @@ WHERE f.user_id = $1
           'application/x-tar', 'application/gzip', 'application/x-bzip2', 'application/x-xz'
         ) OR lower(f.name) ~ '\.(zip|rar|7z|tar|gz|tgz|bz2|xz)$' THEN 'archive'
       ELSE 'other'
-    END) = ANY($7::text[])
+    END) = ANY($8::text[])
   )
-  AND ($8::timestamptz IS NULL OR f.updated_at >= $8::timestamptz)
-  AND ($9::timestamptz IS NULL OR f.updated_at < $9::timestamptz)
+  AND ($9::timestamptz IS NULL OR f.updated_at >= $9::timestamptz)
+  AND ($10::timestamptz IS NULL OR f.updated_at < $10::timestamptz)
   AND (
-    $10::uuid IS NULL
+    $11::uuid IS NULL
     OR (
-      $11::text = 'name'
-      AND $12::text IS NOT NULL
+      $12::text = 'name'
+      AND $13::text IS NOT NULL
       AND (
-        ($13::text = 'asc' AND (f.name, f.id) > ($12::text, $10::uuid))
-        OR ($13::text = 'desc' AND (f.name, f.id) < ($12::text, $10::uuid))
+        ($14::text = 'asc' AND (f.name, f.id) > ($13::text, $11::uuid))
+        OR ($14::text = 'desc' AND (f.name, f.id) < ($13::text, $11::uuid))
       )
     )
     OR (
-      $11::text = 'updatedAt'
-      AND $14::timestamptz IS NOT NULL
+      $12::text = 'updatedAt'
+      AND $15::timestamptz IS NOT NULL
       AND (
-        ($13::text = 'asc' AND (f.updated_at, f.id) > ($14::timestamptz, $10::uuid))
-        OR ($13::text = 'desc' AND (f.updated_at, f.id) < ($14::timestamptz, $10::uuid))
+        ($14::text = 'asc' AND (f.updated_at, f.id) > ($15::timestamptz, $11::uuid))
+        OR ($14::text = 'desc' AND (f.updated_at, f.id) < ($15::timestamptz, $11::uuid))
       )
     )
     OR (
-      $11::text = 'size'
-      AND $15::bigint IS NOT NULL
+      $12::text = 'size'
+      AND $16::bigint IS NOT NULL
       AND (
-        ($13::text = 'asc' AND (COALESCE(f.size, -1), f.id) > ($15::bigint, $10::uuid))
-        OR ($13::text = 'desc' AND (COALESCE(f.size, -1), f.id) < ($15::bigint, $10::uuid))
+        ($14::text = 'asc' AND (COALESCE(f.size, -1), f.id) > ($16::bigint, $11::uuid))
+        OR ($14::text = 'desc' AND (COALESCE(f.size, -1), f.id) < ($16::bigint, $11::uuid))
       )
     )
     OR (
-      $11::text = 'id'
+      $12::text = 'id'
       AND (
-        ($13::text = 'asc' AND f.id > $10::uuid)
-        OR ($13::text = 'desc' AND f.id < $10::uuid)
+        ($14::text = 'asc' AND f.id > $11::uuid)
+        OR ($14::text = 'desc' AND f.id < $11::uuid)
       )
     )
   )
 ORDER BY
-  CASE WHEN $11::text = 'name' AND $13::text = 'asc' THEN f.name END ASC,
-  CASE WHEN $11::text = 'name' AND $13::text = 'desc' THEN f.name END DESC,
-  CASE WHEN $11::text = 'updatedAt' AND $13::text = 'asc' THEN f.updated_at END ASC,
-  CASE WHEN $11::text = 'updatedAt' AND $13::text = 'desc' THEN f.updated_at END DESC,
-  CASE WHEN $11::text = 'size' AND $13::text = 'asc' THEN COALESCE(f.size, -1) END ASC,
-  CASE WHEN $11::text = 'size' AND $13::text = 'desc' THEN COALESCE(f.size, -1) END DESC,
-  CASE WHEN $11::text = 'id' AND $13::text = 'asc' THEN f.id END ASC,
-  CASE WHEN $11::text = 'id' AND $13::text = 'desc' THEN f.id END DESC,
-  CASE WHEN $13::text = 'asc' THEN f.id END ASC,
-  CASE WHEN $13::text = 'desc' THEN f.id END DESC
-LIMIT $16
+  CASE WHEN $12::text = 'name' AND $14::text = 'asc' THEN f.name END ASC,
+  CASE WHEN $12::text = 'name' AND $14::text = 'desc' THEN f.name END DESC,
+  CASE WHEN $12::text = 'updatedAt' AND $14::text = 'asc' THEN f.updated_at END ASC,
+  CASE WHEN $12::text = 'updatedAt' AND $14::text = 'desc' THEN f.updated_at END DESC,
+  CASE WHEN $12::text = 'size' AND $14::text = 'asc' THEN COALESCE(f.size, -1) END ASC,
+  CASE WHEN $12::text = 'size' AND $14::text = 'desc' THEN COALESCE(f.size, -1) END DESC,
+  CASE WHEN $12::text = 'id' AND $14::text = 'asc' THEN f.id END ASC,
+  CASE WHEN $12::text = 'id' AND $14::text = 'desc' THEN f.id END DESC,
+  CASE WHEN $14::text = 'asc' THEN f.id END ASC,
+  CASE WHEN $14::text = 'desc' THEN f.id END DESC
+LIMIT $17
 `
 
 type ListFilesAdvancedParams struct {
 	UserID         int64              `json:"user_id"`
+	Scope          string             `json:"scope"`
 	ParentID       pgtype.UUID        `json:"parent_id"`
 	Status         FileStatus         `json:"status"`
 	Kind           NullFileKind       `json:"kind"`
@@ -805,11 +876,13 @@ type ListFilesAdvancedParams struct {
 	AfterUpdatedAt pgtype.Timestamptz `json:"after_updated_at"`
 	AfterSize      pgtype.Int8        `json:"after_size"`
 	PageSize       int32              `json:"page_size"`
+	ScopeFolder    pgtype.UUID        `json:"scope_folder"`
 }
 
 func (q *Queries) ListFilesAdvanced(ctx context.Context, arg ListFilesAdvancedParams) ([]*File, error) {
 	rows, err := q.db.Query(ctx, listFilesAdvanced,
 		arg.UserID,
+		arg.Scope,
 		arg.ParentID,
 		arg.Status,
 		arg.Kind,
@@ -825,6 +898,7 @@ func (q *Queries) ListFilesAdvanced(ctx context.Context, arg ListFilesAdvancedPa
 		arg.AfterUpdatedAt,
 		arg.AfterSize,
 		arg.PageSize,
+		arg.ScopeFolder,
 	)
 	if err != nil {
 		return nil, err

@@ -6366,9 +6366,10 @@ func decodeListFileSharesParams(args [1]string, argsEscaped bool, r *http.Reques
 
 // ListFilesParams is parameters of listFiles operation.
 type ListFilesParams struct {
-	Cursor   OptCursor `json:",omitempty,omitzero"`
-	Limit    OptInt32  `json:",omitempty,omitzero"`
-	ParentId OptUUID   `json:",omitempty,omitzero"`
+	Cursor   OptCursor             `json:",omitempty,omitzero"`
+	Limit    OptInt32              `json:",omitempty,omitzero"`
+	Scope    OptFileListQueryScope `json:",omitempty,omitzero"`
+	ParentId OptUUID               `json:",omitempty,omitzero"`
 	// Resolve the listing root relative to the user's drive root.
 	Path   OptString              `json:",omitempty,omitzero"`
 	Kind   OptFileKind            `json:",omitempty,omitzero"`
@@ -6401,6 +6402,15 @@ func unpackListFilesParams(packed middleware.Parameters) (params ListFilesParams
 		}
 		if v, ok := packed[key]; ok {
 			params.Limit = v.(OptInt32)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "scope",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.Scope = v.(OptFileListQueryScope)
 		}
 	}
 	{
@@ -6622,6 +6632,67 @@ func decodeListFilesParams(args [0]string, argsEscaped bool, r *http.Request) (p
 	}(); err != nil {
 		return params, &ogenerrors.DecodeParamError{
 			Name: "limit",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	// Set default value for query: scope.
+	{
+		val := FileListQueryScope("folder")
+		params.Scope.SetTo(val)
+	}
+	// Decode query: scope.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "scope",
+			Style:   uri.QueryStyleForm,
+			Explode: false,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotScopeVal FileListQueryScope
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotScopeVal = FileListQueryScope(c)
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.Scope.SetTo(paramsDotScopeVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+			if err := func() error {
+				if value, ok := params.Scope.Get(); ok {
+					if err := func() error {
+						if err := value.Validate(); err != nil {
+							return err
+						}
+						return nil
+					}(); err != nil {
+						return err
+					}
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "scope",
 			In:   "query",
 			Err:  err,
 		}

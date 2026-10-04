@@ -244,6 +244,8 @@ func (s *Service) UpdatePartSizesMany(ctx context.Context, fileID uuid.UUID, siz
 
 type ListInput struct {
 	UserID        int64
+	Scope         string
+	ScopeFolderID *uuid.UUID
 	ParentID      *uuid.UUID
 	Path          string
 	Status        sqlcgen.FileStatus
@@ -267,6 +269,28 @@ func (s *Service) List(ctx context.Context, in ListInput) ([]*sqlcgen.File, erro
 	}
 	if in.ParentID != nil && strings.TrimSpace(in.Path) != "" {
 		return nil, ErrInvalidParent
+	}
+	if in.Scope == "" {
+		in.Scope = "folder"
+	}
+	if in.Scope != "folder" && in.Scope != "drive" && in.Scope != "recursive" {
+		return nil, ErrInvalidParent
+	}
+	if in.Scope != "folder" {
+		if in.Status != "" && in.Status != sqlcgen.FileStatusActive || in.ParentID != nil || strings.TrimSpace(in.Path) != "" {
+			return nil, ErrInvalidParent
+		}
+		if in.Scope == "drive" && in.ScopeFolderID != nil {
+			return nil, ErrInvalidParent
+		}
+		if in.Scope == "recursive" && in.ScopeFolderID != nil {
+			if _, err := s.queries.GetActiveFolderForUser(ctx, sqlcgen.GetActiveFolderForUserParams{FolderID: dbtypes.UUID(*in.ScopeFolderID), UserID: in.UserID}); err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					return nil, ErrInvalidParent
+				}
+				return nil, fmt.Errorf("validate recursive folder: %w", err)
+			}
+		}
 	}
 	if strings.TrimSpace(in.Path) != "" {
 		resolved, err := s.ResolveFolderPath(ctx, in.UserID, nil, in.Path)
@@ -293,7 +317,7 @@ func (s *Service) List(ctx context.Context, in ListInput) ([]*sqlcgen.File, erro
 	if in.Order == "" {
 		in.Order = "asc"
 	}
-	if len(in.Categories) > 0 || in.UpdatedAfter != nil || in.UpdatedBefore != nil || in.SearchType != "text" || in.Sort != "name" || in.Order != "asc" || in.AfterValue != "" {
+	if in.Scope != "folder" || len(in.Categories) > 0 || in.UpdatedAfter != nil || in.UpdatedBefore != nil || in.SearchType != "text" || in.Sort != "name" || in.Order != "asc" || in.AfterValue != "" {
 		return s.listAdvanced(ctx, in)
 	}
 	var kind sqlcgen.NullFileKind

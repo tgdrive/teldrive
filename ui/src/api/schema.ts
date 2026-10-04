@@ -1684,6 +1684,8 @@ export interface components {
             expiresAt: string;
         };
         /** @enum {string} */
+        FileListScope: "folder" | "drive" | "recursive";
+        /** @enum {string} */
         FileKind: "file" | "folder";
         /** @enum {string} */
         FileStatus: "active" | "trashed" | "deletion_pending";
@@ -1721,6 +1723,8 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+            /** @description Location path, included for drive and recursive listings. */
+            parentPath?: string;
         };
         FileUpdateRequest: {
             name?: string;
@@ -2259,6 +2263,7 @@ export interface components {
         RefreshCookie: string;
         "CursorQuery.cursor": components["schemas"]["Cursor"];
         "CursorQuery.limit": number;
+        "FileListQuery.scope": components["schemas"]["FileListScope"];
         "FileListQuery.parentId": components["schemas"]["Uuid"];
         /** @description Resolve the listing root relative to the user's drive root. */
         "FileListQuery.path": string;
@@ -4077,6 +4082,7 @@ export interface operations {
             query?: {
                 cursor?: components["parameters"]["CursorQuery.cursor"];
                 limit?: components["parameters"]["CursorQuery.limit"];
+                scope?: components["parameters"]["FileListQuery.scope"];
                 parentId?: components["parameters"]["FileListQuery.parentId"];
                 /** @description Resolve the listing root relative to the user's drive root. */
                 path?: components["parameters"]["FileListQuery.path"];

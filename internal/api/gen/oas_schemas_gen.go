@@ -3895,6 +3895,8 @@ type FileEntry struct {
 	Generation int64       `json:"generation"`
 	CreatedAt  time.Time   `json:"createdAt"`
 	UpdatedAt  time.Time   `json:"updatedAt"`
+	// Location path, included for drive and recursive listings.
+	ParentPath OptString `json:"parentPath"`
 }
 
 // GetID returns the value of ID.
@@ -3962,6 +3964,11 @@ func (s *FileEntry) GetUpdatedAt() time.Time {
 	return s.UpdatedAt
 }
 
+// GetParentPath returns the value of ParentPath.
+func (s *FileEntry) GetParentPath() OptString {
+	return s.ParentPath
+}
+
 // SetID sets the value of ID.
 func (s *FileEntry) SetID(val UUID) {
 	s.ID = val
@@ -4025,6 +4032,11 @@ func (s *FileEntry) SetCreatedAt(val time.Time) {
 // SetUpdatedAt sets the value of UpdatedAt.
 func (s *FileEntry) SetUpdatedAt(val time.Time) {
 	s.UpdatedAt = val
+}
+
+// SetParentPath sets the value of ParentPath.
+func (s *FileEntry) SetParentPath(val OptString) {
+	s.ParentPath = val
 }
 
 func (*FileEntry) createPublicShareFolderRes() {}
@@ -4165,6 +4177,55 @@ func (s *FileListQueryOrder) UnmarshalText(data []byte) error {
 		return nil
 	case FileListQueryOrderDesc:
 		*s = FileListQueryOrderDesc
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+// Merged schema.
+type FileListQueryScope string
+
+const (
+	FileListQueryScopeFolder    FileListQueryScope = "folder"
+	FileListQueryScopeDrive     FileListQueryScope = "drive"
+	FileListQueryScopeRecursive FileListQueryScope = "recursive"
+)
+
+// AllValues returns all FileListQueryScope values.
+func (FileListQueryScope) AllValues() []FileListQueryScope {
+	return []FileListQueryScope{
+		FileListQueryScopeFolder,
+		FileListQueryScopeDrive,
+		FileListQueryScopeRecursive,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s FileListQueryScope) MarshalText() ([]byte, error) {
+	switch s {
+	case FileListQueryScopeFolder:
+		return []byte(s), nil
+	case FileListQueryScopeDrive:
+		return []byte(s), nil
+	case FileListQueryScopeRecursive:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *FileListQueryScope) UnmarshalText(data []byte) error {
+	switch FileListQueryScope(data) {
+	case FileListQueryScopeFolder:
+		*s = FileListQueryScopeFolder
+		return nil
+	case FileListQueryScopeDrive:
+		*s = FileListQueryScopeDrive
+		return nil
+	case FileListQueryScopeRecursive:
+		*s = FileListQueryScopeRecursive
 		return nil
 	default:
 		return errors.Errorf("invalid value: %q", data)
@@ -7404,6 +7465,52 @@ func (o OptFileListQueryOrder) Get() (v FileListQueryOrder, ok bool) {
 
 // Or returns value if set, or given parameter if does not.
 func (o OptFileListQueryOrder) Or(d FileListQueryOrder) FileListQueryOrder {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptFileListQueryScope returns new OptFileListQueryScope with value set to v.
+func NewOptFileListQueryScope(v FileListQueryScope) OptFileListQueryScope {
+	return OptFileListQueryScope{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptFileListQueryScope is optional FileListQueryScope.
+type OptFileListQueryScope struct {
+	Value FileListQueryScope
+	Set   bool
+}
+
+// IsSet returns true if OptFileListQueryScope was set.
+func (o OptFileListQueryScope) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptFileListQueryScope) Reset() {
+	var v FileListQueryScope
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptFileListQueryScope) SetTo(v FileListQueryScope) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptFileListQueryScope) Get() (v FileListQueryScope, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptFileListQueryScope) Or(d FileListQueryScope) FileListQueryScope {
 	if v, ok := o.Get(); ok {
 		return v
 	}

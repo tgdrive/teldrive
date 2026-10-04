@@ -1519,6 +1519,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/CursorQuery.cursor"
         - $ref: "#/components/parameters/CursorQuery.limit"
+        - $ref: "#/components/parameters/FileListQuery.scope"
         - $ref: "#/components/parameters/FileListQuery.parentId"
         - $ref: "#/components/parameters/FileListQuery.path"
         - $ref: "#/components/parameters/FileListQuery.kind"
@@ -5626,6 +5627,15 @@ components:
         maximum: 500
         default: 100
       explode: false
+    FileListQuery.scope:
+      name: scope
+      in: query
+      required: false
+      schema:
+        allOf:
+          - $ref: "#/components/schemas/FileListScope"
+        default: folder
+      explode: false
     FileListQuery.parentId:
       name: parentId
       in: query
@@ -6243,6 +6253,12 @@ components:
         expiresAt:
           type: string
           format: date-time
+    FileListScope:
+      type: string
+      enum:
+        - folder
+        - drive
+        - recursive
     FileKind:
       type: string
       enum:
@@ -6340,6 +6356,9 @@ components:
         updatedAt:
           type: string
           format: date-time
+        parentPath:
+          type: string
+          description: Location path, included for drive and recursive listings.
     FileUpdateRequest:
       type: object
       properties:

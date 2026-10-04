@@ -13084,6 +13084,10 @@ func (s *Server) handleListFilesRequest(args [0]string, argsEscaped bool, w http
 					In:   "query",
 				}: params.Limit,
 				{
+					Name: "scope",
+					In:   "query",
+				}: params.Scope,
+				{
 					Name: "parentId",
 					In:   "query",
 				}: params.ParentId,

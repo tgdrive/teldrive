@@ -12,6 +12,7 @@ import (
 
 	"github.com/tgdrive/teldrive/v2/internal/catalog"
 	"github.com/tgdrive/teldrive/v2/internal/db/sqlcgen"
+	"github.com/tgdrive/teldrive/v2/internal/dbtypes"
 	testpostgres "github.com/tgdrive/teldrive/v2/internal/testutil/postgres"
 )
 
@@ -155,5 +156,82 @@ func TestEnsureFolderPathCreatesMissingFolders(t *testing.T) {
 	}
 	if _, err := svc.ResolveFolderPath(ctx, 1001, nil, "/Would"); !errors.Is(err, catalog.ErrInvalidParent) {
 		t.Fatalf("invalid ensure path created partial folders: %v", err)
+	}
+}
+
+func TestScopedListingsIsolationPathsAndValidation(t *testing.T) {
+	db := testpostgres.New(t)
+	ctx := context.Background()
+	if _, err := db.Pool.Exec(ctx, "INSERT INTO users (user_id) VALUES (1001), (1002)"); err != nil {
+		t.Fatal(err)
+	}
+	root, nested, leaf, sibling, inactive, other, secondPDF, inactiveFolder, recovered := uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New(), uuid.New()
+	if _, err := db.Pool.Exec(ctx, `
+INSERT INTO files (id,user_id,parent_id,name,kind,mime_type,size,status,mod_time,updated_at,deleted_at) VALUES
+($1,1001,NULL,'Docs','folder',NULL,NULL,'active',now(),now(),NULL),
+($2,1001,$1,'Reports','folder',NULL,NULL,'active',now(),now(),NULL),
+($3,1001,$2,'annual.pdf','file','application/pdf',10,'active',now(),now(),NULL),
+($4,1001,$1,'Sibling.txt','file','text/plain',20,'active',now(),now(),NULL),
+($5,1001,$2,'gone.pdf','file','application/pdf',30,'trashed',now(),now(),now()),
+($6,1002,NULL,'foreign.pdf','file','application/pdf',40,'active',now(),now(),NULL),
+($7,1001,$1,'budget.pdf','file','application/pdf',15,'active',now(),now(),NULL),
+($8,1001,$1,'Archive','folder',NULL,NULL,'trashed',now(),now(),now()),
+($9,1001,$8,'recovered.txt','file','text/plain',12,'active',now(),now(),NULL)
+`, root, nested, leaf, sibling, inactive, other, secondPDF, inactiveFolder, recovered); err != nil {
+		t.Fatal(err)
+	}
+	svc := catalog.NewService(db.Pool, nil)
+	drive, err := svc.List(ctx, catalog.ListInput{UserID: 1001, Scope: "drive", Status: sqlcgen.FileStatusActive, Sort: "name", Order: "asc", Limit: 100})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(drive) != 6 {
+		t.Fatalf("drive returned %d active own rows, want 6", len(drive))
+	}
+	for _, f := range drive {
+		if f.UserID != 1001 || f.Status != sqlcgen.FileStatusActive {
+			t.Fatalf("drive leaked/inactive file: %#v", f)
+		}
+	}
+	paths, err := svc.ParentPaths(ctx, 1001, []uuid.UUID{root, nested, leaf, sibling, recovered})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if paths[root] != "/" || paths[nested] != "/Docs" || paths[leaf] != "/Docs/Reports" || paths[sibling] != "/Docs" || paths[recovered] != "/Docs/Archive" {
+		t.Fatalf("parent paths = %#v", paths)
+	}
+	recursive, err := svc.List(ctx, catalog.ListInput{UserID: 1001, Scope: "recursive", ScopeFolderID: &root, Status: sqlcgen.FileStatusActive, Sort: "name", Order: "asc", Limit: 100})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(recursive) != 5 {
+		t.Fatalf("recursive returned %d rows, want active descendants across inactive parents, excluding root/inactive", len(recursive))
+	}
+	for _, f := range recursive {
+		if f.ID == dbtypes.UUID(root) || f.Status != sqlcgen.FileStatusActive {
+			t.Fatalf("recursive scope included selected folder or inactive file: %#v", f)
+		}
+	}
+	nestedRecursive, err := svc.List(ctx, catalog.ListInput{UserID: 1001, Scope: "recursive", ScopeFolderID: &nested, Status: sqlcgen.FileStatusActive, Sort: "name", Order: "asc", Limit: 100})
+	if err != nil || len(nestedRecursive) != 1 || nestedRecursive[0].Name != "annual.pdf" {
+		t.Fatalf("nested recursive scope = %#v, %v; want only descendant, not selected folder or sibling", nestedRecursive, err)
+	}
+	page, err := svc.List(ctx, catalog.ListInput{UserID: 1001, Scope: "drive", Status: sqlcgen.FileStatusActive, Kind: func() *sqlcgen.FileKind { k := sqlcgen.FileKindFile; return &k }(), Search: "pdf", Categories: []string{"document"}, Sort: "name", Order: "asc", Limit: 1})
+	if err != nil || len(page) != 1 || page[0].Name != "annual.pdf" {
+		t.Fatalf("filtered drive page = %#v, %v", page, err)
+	}
+	pageID, ok := dbtypes.GoogleUUID(page[0].ID)
+	if !ok {
+		t.Fatal("first page file has invalid ID")
+	}
+	page2, err := svc.List(ctx, catalog.ListInput{UserID: 1001, Scope: "drive", Status: sqlcgen.FileStatusActive, Kind: func() *sqlcgen.FileKind { k := sqlcgen.FileKindFile; return &k }(), Search: "pdf", Categories: []string{"document"}, Sort: "name", Order: "asc", Limit: 1, AfterID: &pageID, AfterName: page[0].Name, AfterValue: page[0].Name})
+	if err != nil || len(page2) != 1 || page2[0].Name != "budget.pdf" {
+		t.Fatalf("filtered drive second page = %#v, %v", page2, err)
+	}
+	if _, err := svc.List(ctx, catalog.ListInput{UserID: 1001, Scope: "recursive", ScopeFolderID: &other, Status: sqlcgen.FileStatusActive}); !errors.Is(err, catalog.ErrInvalidParent) {
+		t.Fatalf("foreign recursive folder error = %v", err)
+	}
+	if _, err := svc.List(ctx, catalog.ListInput{UserID: 1001, Scope: "drive", Status: sqlcgen.FileStatusTrashed}); !errors.Is(err, catalog.ErrInvalidParent) {
+		t.Fatalf("drive trashed status error = %v", err)
 	}
 }

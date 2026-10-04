@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/tgdrive/teldrive/v2/internal/db/sqlcgen"
 	"github.com/tgdrive/teldrive/v2/internal/dbtypes"
@@ -179,7 +180,7 @@ func (s *Service) listAdvanced(ctx context.Context, in ListInput) ([]*sqlcgen.Fi
 	}
 
 	files, err := s.queries.ListFilesAdvanced(ctx, sqlcgen.ListFilesAdvancedParams{
-		UserID: in.UserID, ParentID: dbtypes.OptionalUUID(in.ParentID), Status: in.Status,
+		UserID: in.UserID, Scope: in.Scope, ScopeFolder: dbtypes.OptionalUUID(in.ScopeFolderID), ParentID: dbtypes.OptionalUUID(in.ParentID), Status: in.Status,
 		Kind: kind, Search: dbtypes.OptionalText(search), SearchType: in.SearchType,
 		Categories: categories, UpdatedAfter: dbtypes.OptionalTime(in.UpdatedAfter),
 		UpdatedBefore: dbtypes.OptionalTime(in.UpdatedBefore), AfterID: dbtypes.OptionalUUID(in.AfterID),
@@ -191,6 +192,30 @@ func (s *Service) listAdvanced(ctx context.Context, in ListInput) ([]*sqlcgen.Fi
 		return nil, fmt.Errorf("advanced file list: %w", err)
 	}
 	return files, nil
+}
+
+// ParentPaths returns display paths for listed IDs with one batched database query.
+func (s *Service) ParentPaths(ctx context.Context, userID int64, ids []uuid.UUID) (map[uuid.UUID]string, error) {
+	paths := make(map[uuid.UUID]string, len(ids))
+	if len(ids) == 0 {
+		return paths, nil
+	}
+	fileIDs := make([]pgtype.UUID, len(ids))
+	for i, id := range ids {
+		fileIDs[i] = dbtypes.UUID(id)
+	}
+	rows, err := s.queries.ListFileParentPaths(ctx, sqlcgen.ListFileParentPathsParams{UserID: userID, FileIds: fileIDs})
+	if err != nil {
+		return nil, fmt.Errorf("list file parent paths: %w", err)
+	}
+	for _, row := range rows {
+		id, ok := dbtypes.GoogleUUID(row.FileID)
+		if !ok {
+			continue
+		}
+		paths[id] = row.ParentPath
+	}
+	return paths, nil
 }
 
 func FileCursorValue(file *sqlcgen.File, sortBy string) string {

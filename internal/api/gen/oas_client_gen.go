@@ -10260,6 +10260,23 @@ func (c *Client) sendListFiles(ctx context.Context, params ListFilesParams) (res
 		}
 	}
 	{
+		// Encode "scope" parameter.
+		cfg := uri.QueryParameterEncodingConfig{
+			Name:    "scope",
+			Style:   uri.QueryStyleForm,
+			Explode: false,
+		}
+
+		if err := q.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.Scope.Get(); ok {
+				return e.EncodeValue(conv.StringToString(string(val)))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode query")
+		}
+	}
+	{
 		// Encode "parentId" parameter.
 		cfg := uri.QueryParameterEncodingConfig{
 			Name:    "parentId",

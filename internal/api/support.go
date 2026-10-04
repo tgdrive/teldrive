@@ -280,11 +280,14 @@ func decodeCursor(value gen.OptCursor, target any) error {
 }
 
 type fileCursor struct {
-	Name  string    `json:"name,omitempty"`
-	Sort  string    `json:"sort,omitempty"`
-	Order string    `json:"order,omitempty"`
-	Value string    `json:"value,omitempty"`
-	ID    uuid.UUID `json:"id"`
+	Name        string    `json:"name,omitempty"`
+	Sort        string    `json:"sort,omitempty"`
+	Order       string    `json:"order,omitempty"`
+	Value       string    `json:"value,omitempty"`
+	ID          uuid.UUID `json:"id"`
+	Scope       string    `json:"scope,omitempty"`
+	Fingerprint string    `json:"fingerprint,omitempty"`
+	FolderID    string    `json:"folder_id,omitempty"`
 }
 type uploadCursor struct {
 	CreatedAt time.Time `json:"created_at"`

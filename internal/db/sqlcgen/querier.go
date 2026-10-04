@@ -96,6 +96,7 @@ type Querier interface {
 	ListFileAccessGrantsForOwner(ctx context.Context, arg ListFileAccessGrantsForOwnerParams) ([]*ListFileAccessGrantsForOwnerRow, error)
 	ListFileAncestorIDs(ctx context.Context, arg ListFileAncestorIDsParams) ([]pgtype.UUID, error)
 	ListFileCategoryStatistics(ctx context.Context, userID int64) ([]*ListFileCategoryStatisticsRow, error)
+	ListFileParentPaths(ctx context.Context, arg ListFileParentPathsParams) ([]*ListFileParentPathsRow, error)
 	ListFilePartMessageRefs(ctx context.Context, fileIds []pgtype.UUID) ([]*ListFilePartMessageRefsRow, error)
 	// Recursive move-cycle validation will be implemented as a hand-reviewed query in the file service.
 	ListFileParts(ctx context.Context, fileID pgtype.UUID) ([]*FilePart, error)

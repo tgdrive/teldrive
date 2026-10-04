@@ -2,6 +2,9 @@ package api
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"net/url"
 	"strings"
 	"time"
@@ -109,6 +112,7 @@ func (h *Handler) ListFiles(ctx context.Context, params gen.ListFilesParams) (ge
 		return nil, mapServiceError(uploads.ErrInvalidInput)
 	}
 	limit := params.Limit.Or(100)
+	scope := string(params.Scope.Or(gen.FileListQueryScopeFolder))
 	sortBy, order, searchType := "name", "asc", "text"
 	if value, ok := params.Sort.Get(); ok {
 		sortBy = string(value)
@@ -124,7 +128,32 @@ func (h *Handler) ListFiles(ctx context.Context, params gen.ListFilesParams) (ge
 	}
 	parentID := optionalGoogleUUID(params.ParentId)
 	ownerID := userID
-	if parentID != nil {
+	if cursor.ID != uuid.Nil && cursor.Scope != "" && cursor.Scope != scope {
+		return nil, mapServiceError(uploads.ErrInvalidInput)
+	}
+	if scope != "folder" {
+		folderCursor := ""
+		if parentID != nil {
+			folderCursor = parentID.String()
+		}
+		fingerprintBytes, _ := json.Marshal(struct {
+			Scope, Folder, Search, SearchType, Sort, Order, Kind, Status string
+			Categories                                                   []gen.FileCategory
+			After, Before                                                string
+		}{scope, folderCursor, params.Search.Or(""), searchType, sortBy, order, string(params.Kind.Or("")), string(params.Status.Or("")), params.Category, params.UpdatedAfter.Or(time.Time{}).Format(time.RFC3339Nano), params.UpdatedBefore.Or(time.Time{}).Format(time.RFC3339Nano)})
+		fingerprintSum := sha256.Sum256(fingerprintBytes)
+		fingerprint := hex.EncodeToString(fingerprintSum[:])
+		if cursor.ID != uuid.Nil && (cursor.Scope != scope || cursor.FolderID != folderCursor || cursor.Fingerprint != fingerprint) {
+			return nil, mapServiceError(uploads.ErrInvalidInput)
+		}
+		cursor.Fingerprint = fingerprint
+		if strings.TrimSpace(params.Path.Or("")) != "" {
+			return nil, mapServiceError(uploads.ErrInvalidInput)
+		}
+		if scope == "drive" && parentID != nil {
+			return nil, mapServiceError(uploads.ErrInvalidInput)
+		}
+	} else if parentID != nil {
 		access, err := h.resolveAuthenticatedFileAccess(ctx, *parentID, false)
 		if err != nil {
 			return nil, mapServiceError(err)
@@ -132,9 +161,13 @@ func (h *Handler) ListFiles(ctx context.Context, params gen.ListFilesParams) (ge
 		ownerID = access.OwnerID
 	}
 	input := catalog.ListInput{
-		UserID: ownerID, ParentID: parentID, Path: params.Path.Or(""),
+		UserID: ownerID, Scope: scope, ParentID: parentID, Path: params.Path.Or(""),
 		Search: params.Search.Or(""), SearchType: searchType,
 		Sort: sortBy, Order: order, Limit: limit,
+	}
+	if scope == "recursive" {
+		input.ScopeFolderID = parentID
+		input.ParentID = nil
 	}
 	if value, ok := params.Kind.Get(); ok {
 		kind := sqlcgen.FileKind(value)
@@ -161,11 +194,29 @@ func (h *Handler) ListFiles(ctx context.Context, params gen.ListFilesParams) (ge
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
+	paths := map[uuid.UUID]string{}
+	if scope != "folder" {
+		ids := make([]uuid.UUID, 0, len(files))
+		for _, file := range files {
+			if id, ok := dbtypes.GoogleUUID(file.ID); ok {
+				ids = append(ids, id)
+			}
+		}
+		paths, err = h.Catalog.ParentPaths(ctx, userID, ids)
+		if err != nil {
+			return nil, mapServiceError(err)
+		}
+	}
 	items := make([]gen.FileEntry, 0, len(files))
 	for _, file := range files {
 		entry, err := fileEntry(file)
 		if err != nil {
 			return nil, mapServiceError(err)
+		}
+		if scope != "folder" {
+			if id, ok := dbtypes.GoogleUUID(file.ID); ok {
+				entry.ParentPath = gen.NewOptString(paths[id])
+			}
 		}
 		items = append(items, entry)
 	}
@@ -175,7 +226,14 @@ func (h *Handler) ListFiles(ctx context.Context, params gen.ListFilesParams) (ge
 		lastID, _ := dbtypes.GoogleUUID(last.ID)
 		response.NextCursor = encodeCursor(fileCursor{
 			Name: last.Name, Sort: sortBy, Order: order,
-			Value: catalog.FileCursorValue(last, sortBy), ID: lastID,
+			Value: catalog.FileCursorValue(last, sortBy), ID: lastID, Scope: scope,
+			FolderID: func() string {
+				if parentID != nil {
+					return parentID.String()
+				}
+				return ""
+			}(),
+			Fingerprint: cursor.Fingerprint,
 		})
 	}
 	return &response, nil

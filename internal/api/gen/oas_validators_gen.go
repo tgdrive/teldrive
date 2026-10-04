@@ -1196,6 +1196,19 @@ func (s FileListQueryOrder) Validate() error {
 	}
 }
 
+func (s FileListQueryScope) Validate() error {
+	switch s {
+	case "folder":
+		return nil
+	case "drive":
+		return nil
+	case "recursive":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
 func (s FileListQuerySearchType) Validate() error {
 	switch s {
 	case "text":

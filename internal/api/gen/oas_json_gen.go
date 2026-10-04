@@ -9200,9 +9200,15 @@ func (s *FileEntry) encodeFields(e *jx.Encoder) {
 		e.FieldStart("updatedAt")
 		json.EncodeDateTime(e, s.UpdatedAt)
 	}
+	{
+		if s.ParentPath.Set {
+			e.FieldStart("parentPath")
+			s.ParentPath.Encode(e)
+		}
+	}
 }
 
-var jsonFieldsNameOfFileEntry = [13]string{
+var jsonFieldsNameOfFileEntry = [14]string{
 	0:  "id",
 	1:  "parentId",
 	2:  "name",
@@ -9216,6 +9222,7 @@ var jsonFieldsNameOfFileEntry = [13]string{
 	10: "generation",
 	11: "createdAt",
 	12: "updatedAt",
+	13: "parentPath",
 }
 
 // Decode decodes FileEntry from json.
@@ -9368,6 +9375,16 @@ func (s *FileEntry) Decode(d *jx.Decoder) error {
 				return nil
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"updatedAt\"")
+			}
+		case "parentPath":
+			if err := func() error {
+				s.ParentPath.Reset()
+				if err := s.ParentPath.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"parentPath\"")
 			}
 		default:
 			return d.Skip()

@@ -201,11 +201,33 @@ WHERE user_id = sqlc.arg(user_id)
   AND status = 'active';
 
 -- name: ListFilesAdvanced :many
+WITH RECURSIVE scope_files AS (
+  SELECT root.id
+  FROM /* TEMPLATE: schema */files root
+  WHERE sqlc.arg(scope)::text IN ('drive', 'recursive')
+    AND sqlc.narg(scope_folder)::uuid IS NULL
+    AND root.user_id = sqlc.arg(user_id) AND root.parent_id IS NULL
+  UNION ALL
+  SELECT child.id
+  FROM /* TEMPLATE: schema */files child
+  JOIN /* TEMPLATE: schema */files selected ON selected.id = sqlc.narg(scope_folder)::uuid
+  WHERE sqlc.arg(scope)::text = 'recursive'
+    AND selected.user_id = sqlc.arg(user_id)
+    AND selected.kind = 'folder' AND selected.status = 'active'
+    AND child.parent_id = selected.id AND child.user_id = sqlc.arg(user_id)
+  UNION ALL
+  SELECT child.id
+  FROM /* TEMPLATE: schema */files child
+  JOIN scope_files parent ON child.parent_id = parent.id
+  WHERE sqlc.arg(scope)::text IN ('drive', 'recursive')
+    AND child.user_id = sqlc.arg(user_id)
+)
 SELECT f.*
 FROM /* TEMPLATE: schema */files f
 WHERE f.user_id = sqlc.arg(user_id)
   AND (
-    f.parent_id IS NOT DISTINCT FROM sqlc.narg(parent_id)::uuid
+    (sqlc.arg(scope)::text = 'folder' AND f.parent_id IS NOT DISTINCT FROM sqlc.narg(parent_id)::uuid)
+    OR (sqlc.arg(scope)::text <> 'folder' AND f.id IN (SELECT id FROM scope_files))
     OR (
       sqlc.arg(status)::/* TEMPLATE: schema */file_status = 'trashed'
       AND sqlc.narg(parent_id)::uuid IS NULL
@@ -303,6 +325,23 @@ ORDER BY
   CASE WHEN sqlc.arg(sort_order)::text = 'asc' THEN f.id END ASC,
   CASE WHEN sqlc.arg(sort_order)::text = 'desc' THEN f.id END DESC
 LIMIT sqlc.arg(page_size);
+
+-- name: ListFileParentPaths :many
+WITH RECURSIVE ancestors AS (
+  SELECT f.id AS listed_id, f.parent_id AS ancestor_id, 0 AS depth
+  FROM /* TEMPLATE: schema */files f
+  WHERE f.user_id = sqlc.arg(user_id) AND f.id = ANY(sqlc.arg(file_ids)::uuid[])
+  UNION ALL
+  SELECT a.listed_id, parent.parent_id, a.depth + 1
+  FROM ancestors a
+  JOIN /* TEMPLATE: schema */files parent ON parent.id = a.ancestor_id
+  WHERE parent.user_id = sqlc.arg(user_id)
+)
+SELECT a.listed_id AS file_id,
+       COALESCE('/' || string_agg(node.name, '/' ORDER BY a.depth DESC) FILTER (WHERE node.id IS NOT NULL), '/')::text AS parent_path
+FROM ancestors a
+LEFT JOIN /* TEMPLATE: schema */files node ON node.id = a.ancestor_id AND node.user_id = sqlc.arg(user_id)
+GROUP BY a.listed_id;
 
 -- name: ListFileCategoryStatistics :many
 SELECT category, count(*)::bigint AS total_files, COALESCE(sum(size), 0)::bigint AS total_size
