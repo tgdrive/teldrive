@@ -1,6 +1,11 @@
 version: 2
 project_name: teldrive
 
+snapshot:
+  # The v2 image workflow builds from the v2 branch with --snapshot, which
+  # would otherwise derive the version from v1 git tags (e.g. 1.8.x).
+  version_template: "2.0.0-SNAPSHOT-{{ .ShortCommit }}"
+
 before:
   hooks:
     - bun ci --cwd ui

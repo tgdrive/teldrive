@@ -82,7 +82,7 @@ type Security struct {
 
 type Logging struct {
 	LogLevel  string `koanf:"log-level" default:"info" validate:"oneof=debug info warn error" description:"Log level: debug, info, warn, or error"`
-	LogFormat string `koanf:"log-format" default:"json" validate:"oneof=json text" description:"Log format: json or text"`
+	LogFormat string `koanf:"log-format" default:"text" validate:"oneof=json text" description:"Log format: json or text"`
 }
 
 type Events struct {
