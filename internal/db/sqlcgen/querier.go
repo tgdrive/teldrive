@@ -105,6 +105,12 @@ type Querier interface {
 	ListFileSubtreeIDs(ctx context.Context, arg ListFileSubtreeIDsParams) ([]pgtype.UUID, error)
 	ListFiles(ctx context.Context, arg ListFilesParams) ([]*File, error)
 	ListFilesAdvanced(ctx context.Context, arg ListFilesAdvancedParams) ([]*File, error)
+	// The bytes of the active files under each folder, at any depth. A folder holding none is 0;
+	// an id that is not one of the user's folders gets no row.
+	// Only folders go through the recursion; each one's files are then summed through files_list_idx
+	// (user_id, parent_id, status, kind). The cost is that of the files under the folders asked for,
+	// not of the whole account, so a small folder in a large account stays cheap.
+	ListFolderSizes(ctx context.Context, arg ListFolderSizesParams) ([]*ListFolderSizesRow, error)
 	ListRecentStorageActivity(ctx context.Context, arg ListRecentStorageActivityParams) ([]*ListRecentStorageActivityRow, error)
 	ListReferencedMessageIDs(ctx context.Context, arg ListReferencedMessageIDsParams) ([]int64, error)
 	ListSessions(ctx context.Context, arg ListSessionsParams) ([]*Session, error)

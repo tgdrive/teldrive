@@ -20,6 +20,12 @@ import { FileTypeIcon } from "./file-type-icon";
 
 export type FileBrowserView = "list" | "grid";
 
+// A folder says what it holds when the server reports it; an older server sends no size for one.
+function fileSizeLabel(file: FileEntry) {
+  if (file.kind !== "folder") return formatFileBytes(file.size ?? 0);
+  return file.size == null ? "Folder" : `Folder · ${formatFileBytes(file.size)}`;
+}
+
 type FileBrowserProps = {
   files: FileEntry[];
   path: string;
@@ -352,9 +358,7 @@ function GridFile({
         {location && (
           <LocationButton location={location} onPress={onOpenContainingFolder} className="mt-1" />
         )}
-        <p className="mt-1 text-[11px] text-muted">
-          {file.kind === "folder" ? "Folder" : formatFileBytes(file.size ?? 0)}
-        </p>
+        <p className="mt-1 text-[11px] text-muted">{fileSizeLabel(file)}</p>
       </div>
     </>
   );
@@ -400,9 +404,7 @@ function ListFile({
           ) : null}
         </div>
       </div>
-      <span className="hidden text-xs text-muted sm:block">
-        {file.kind === "folder" ? "Folder" : formatFileBytes(file.size ?? 0)}
-      </span>
+      <span className="hidden text-xs text-muted sm:block">{fileSizeLabel(file)}</span>
       <span className="hidden min-w-0 text-xs text-muted lg:block">
         {location ? (
           <LocationButton location={location} onPress={onOpenContainingFolder} />
