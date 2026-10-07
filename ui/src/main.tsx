@@ -1,6 +1,6 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createRouter, RouterProvider } from "@tanstack/react-router";
-import { ThemeProvider } from "next-themes";
+import { ThemeProvider, useTheme } from "next-themes";
 import ReactDOM from "react-dom/client";
 import { Toaster } from "sonner";
 import { getQueryClient } from "./lib/queryClient";
@@ -21,6 +21,26 @@ declare module "@tanstack/react-router" {
   }
 }
 
+// Toasts follow the chosen theme, drawn with its own overlay and border tokens.
+function ThemedToaster() {
+  const { resolvedTheme } = useTheme();
+  return (
+    <Toaster
+      position="bottom-right"
+      richColors
+      closeButton
+      theme={resolvedTheme === "light" ? "light" : "dark"}
+      toastOptions={{
+        style: {
+          background: "color-mix(in oklch, var(--overlay) 85%, transparent)",
+          border: "1px solid var(--border)",
+          backdropFilter: "blur(16px)",
+        },
+      }}
+    />
+  );
+}
+
 async function startApp() {
   const rootElement = document.getElementById("root")!;
 
@@ -28,21 +48,11 @@ async function startApp() {
     const root = ReactDOM.createRoot(rootElement);
     root.render(
       <QueryClientProvider client={queryClient}>
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+        {/* index.html starts with both the class and data-theme set to dark, and the dark tokens
+            are selected by either: both have to be switched, or the page stays dark. */}
+        <ThemeProvider attribute={["class", "data-theme"]} defaultTheme="dark" enableSystem={false}>
           <RouterProvider router={router} />
-          <Toaster
-            position="bottom-right"
-            richColors
-            closeButton
-            theme="dark"
-            toastOptions={{
-              style: {
-                background: "oklch(0.21 0.008 70 / 0.85)",
-                border: "1px solid oklch(0.95 0.02 70 / 0.1)",
-                backdropFilter: "blur(16px)",
-              },
-            }}
-          />
+          <ThemedToaster />
         </ThemeProvider>
       </QueryClientProvider>,
     );
