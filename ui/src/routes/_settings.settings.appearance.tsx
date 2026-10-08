@@ -1,6 +1,6 @@
 import { Button } from "@heroui/react";
 import { createFileRoute } from "@tanstack/react-router";
-import { useTheme } from "next-themes";
+import { useTheme } from "@/lib/theme";
 import MoonIcon from "~icons/gravity-ui/moon";
 import SunIcon from "~icons/gravity-ui/sun";
 import { SettingsPageHeader, SettingsRow, SettingsSection } from "@/components/settings-layout";

@@ -56,7 +56,7 @@ generate-ui: generate-openapi
 docs-generate: generate-openapi
     go run ./internal/tools/docsconfig
 
-generate: generate-api generate-db generate-ui docs-generate
+generate: generate-api generate-db generate-ui docs-generate nix-generate
     go mod tidy
 
 ui-check: generate-ui
@@ -77,10 +77,20 @@ build: generate-ui
     mkdir -p bin
     CGO_ENABLED=0 go build -trimpath -ldflags '{{ldflags}}' -o {{binary}} ./cmd/teldrive
 
-# Fast re-pin of nix fixed-output hashes without a full `nix build`.
-# Uses nixpkgs-provided toolchains so the pinned hashes always match
+# Regenerate the Nix module options from the Go config structs.
+nix-generate:
+    go run ./internal/tools/nixconfig
+
+# NOTE: foliate-js must stay an https tarball URL for the pinned commit —
+# bun2nix 2.x cannot parse bun 1.4's 4-tuple `github:` lock entries, and the
+# npm `foliate-js` tag is older than the pinned commit. Keep lockfileVersion 1.
+update-bun-nix:
+    nix run github:nix-community/bun2nix -- -l {{ui_dir}}/bun.lock -o {{ui_dir}}/bun.nix
+
+# Fast re-pin of the Go vendor hash without a full `nix build`.
+# Uses the nixpkgs-provided toolchain so the pinned hash always matches
 # what `nix build` will see — no host-toolchain drift, no content
-# mismatch. Still seconds, not minutes (only vendors + builds UI).
+# mismatch. Still seconds, not minutes (only vendors).
 update-flake-hashes:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -93,11 +103,6 @@ update-flake-hashes:
     trap - EXIT
     sed -i "s|vendorHash = \"[^\"]*\";|vendorHash = \"${vendor_hash}\";|" flake.nix
     echo "  vendorHash = ${vendor_hash}"
-    echo "→ ui outputHash (nixpkgs bun/nodejs + nix hash)..."
-    nix shell nixpkgs#bun nixpkgs#nodejs --command bash -c "bun run --cwd {{ui_dir}} build > /dev/null"
-    ui_hash=$(nix hash path --sri {{ui_dir}}/dist)
-    sed -i "s|outputHash = \"[^\"]*\";|outputHash = \"${ui_hash}\";|" flake.nix
-    echo "  outputHash = ${ui_hash}"
     echo "done — flake.nix pinned (nixpkgs toolchains)"
 
 dev:

@@ -5,6 +5,7 @@
 - Use `justfile` for supported workflows; it loads a root `.env` automatically.
 - TypeSpec files in `typespec/` own the HTTP contract. Do not hand-edit `openapi/teldrive.openapi.yaml`, `internal/api/gen/`, or `ui/src/api/schema.ts`; run `just generate-api`, `just generate-ui`, or `just generate` as appropriate.
 - SQL lives in `db/queries/` and migrations in `db/migrations/`. Do not edit `internal/db/sqlcgen/` manually.
+- Go config structs in `internal/config` own the NixOS/Home Manager option schema. Do not hand-edit `nix/modules/generated-options.nix` or `nix/modules/generated-leaf-maps.nix`; run `just nix-generate`.
 - Always run `just generate-db` after SQL changes. A bare `sqlc generate` omits the required `go run ./internal/tools/patchsqlc` step and breaks configurable PostgreSQL schema rewriting in `internal/db/sqlcgen/db.go`.
 - Preserve `/* TEMPLATE: schema */` markers in SQL; the generated DB wrapper replaces them with the configured schema at runtime.
 

@@ -19,7 +19,7 @@ import {
   useLocation,
   useNavigate,
 } from "@tanstack/react-router";
-import { useTheme } from "next-themes";
+import { useTheme } from "@/lib/theme";
 import { type Ref, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import LogoutIcon from "~icons/gravity-ui/arrow-right-from-square";

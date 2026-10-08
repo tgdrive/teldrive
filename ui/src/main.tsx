@@ -1,6 +1,6 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createRouter, RouterProvider } from "@tanstack/react-router";
-import { ThemeProvider } from "next-themes";
+import { ThemeProvider } from "@/lib/theme";
 import ReactDOM from "react-dom/client";
 import { Toaster } from "sonner";
 import { getQueryClient } from "./lib/queryClient";
@@ -28,7 +28,7 @@ async function startApp() {
     const root = ReactDOM.createRoot(rootElement);
     root.render(
       <QueryClientProvider client={queryClient}>
-        <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
+        <ThemeProvider>
           <RouterProvider router={router} />
           <Toaster
             position="bottom-right"
