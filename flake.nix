@@ -4,19 +4,53 @@
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   inputs.bun2nix.url = "github:nix-community/bun2nix";
   inputs.bun2nix.inputs.nixpkgs.follows = "nixpkgs";
+  inputs.nix-pkgs.url = "github:divyam234/nix-pkgs";
+  inputs.nix-pkgs.inputs.nixpkgs.follows = "nixpkgs";
 
-  outputs = { self, nixpkgs, bun2nix, ... }:
+  outputs = { self, nixpkgs, bun2nix, ... }@inputs:
     let
       systems = [ "x86_64-linux" "aarch64-linux" ];
       forAllSystems = nixpkgs.lib.genAttrs systems;
       version = "dev";
+
+      bun2nixPrebuilt = final: prev:
+        let
+          slimHook = final.makeSetupHook
+            {
+              name = "bun2nix-hook";
+              propagatedBuildInputs = [ final.bun final.yq-go ];
+              substitutions = {
+                resolveCatalogTs = inputs.bun2nix.outPath + "/nix/mk-derivation/resolve-catalog.ts";
+                bunDefaultInstallFlags =
+                  if final.stdenv.hostPlatform.isDarwin then
+                    [
+                      "--linker=isolated"
+                      "--backend=symlink"
+                    ]
+                  else
+                    [
+                      "--linker=isolated"
+                    ];
+              };
+            }
+            (inputs.bun2nix.outPath + "/nix/mk-derivation/hook.sh");
+        in
+        {
+          bun2nix = inputs."nix-pkgs".packages.${final.stdenv.hostPlatform.system}.bun2nix
+            // {
+              hook = slimHook;
+              fetchBunDeps = prev.bun2nix.fetchBunDeps;
+            };
+        };
+
+      mkPkgs = system: import nixpkgs {
+        inherit system;
+        overlays = [ bun2nix.overlays.default bun2nixPrebuilt ];
+      };
     in {
       packages = forAllSystems (system:
         let
-          pkgs = import nixpkgs {
-            inherit system;
-            overlays = [ bun2nix.overlays.default ];
-          };
+          pkgs = mkPkgs system;
 
           commit = self.shortRev or self.dirtyShortRev or "unknown";
           buildDate = self.lastModifiedDate or "unknown";
@@ -28,6 +62,7 @@
         in {
           teldrive = teldrive;
           default = teldrive;
+          bun2nix = pkgs.bun2nix;
         });
 
       overlays.default = final: prev: {
@@ -45,23 +80,13 @@
 
       devShells = forAllSystems (system:
         let
-          pkgs = import nixpkgs {
-            inherit system;
-            overlays = [ bun2nix.overlays.default ];
-          };
+          pkgs = mkPkgs system;
         in {
-          # Toolchain for the just workflows: go/bun/nodejs run the code,
-          # sqlc + patchsqlc regenerate the DB layer (must be v1.31.1),
-          # just drives justfile, podman backs integration tests,
-          # postgresql provides psql for debugging test databases.
-          # NOTE: bun2nix is deliberately absent here (its nix-community
-          # binary cache is untrusted without --accept-flake-config, so it
-          # would compile from source). `just update-bun-nix` fetches it
-          # on demand instead.
           default = pkgs.mkShell {
             packages = with pkgs; [
               go
               bun
+              pkgs.bun2nix
               nodejs
               chromium
               ffmpeg

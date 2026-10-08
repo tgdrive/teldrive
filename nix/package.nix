@@ -1,4 +1,3 @@
-# Teldrive server binary (embeds the web UI from uiDist).
 { lib, buildGoModule, version, commit, buildDate, uiDist }:
 buildGoModule {
   pname = "teldrive";
@@ -29,6 +28,5 @@ buildGoModule {
     cp -r ${uiDist} ui/dist
     chmod -R u+w ui/dist
   '';
-  # Build-only flake: tests run via just/test harnesses instead.
   doCheck = false;
 }

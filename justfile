@@ -85,7 +85,7 @@ nix-generate:
 # bun2nix 2.x cannot parse bun 1.4's 4-tuple `github:` lock entries, and the
 # npm `foliate-js` tag is older than the pinned commit. Keep lockfileVersion 1.
 update-bun-nix:
-    nix run github:nix-community/bun2nix -- -l {{ui_dir}}/bun.lock -o {{ui_dir}}/bun.nix
+    nix run .#bun2nix -- -l {{ui_dir}}/bun.lock -o {{ui_dir}}/bun.nix
 
 # Fast re-pin of the Go vendor hash without a full `nix build`.
 # Uses the nixpkgs-provided toolchain so the pinned hash always matches

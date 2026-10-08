@@ -44,6 +44,48 @@
         "type": "github"
       }
     },
+    "home-manager": {
+      "inputs": {
+        "nixpkgs": [
+          "nix-pkgs",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1791306979,
+        "narHash": "sha256-KuLePuhwJM9NLt/gTLHzXaOoSZKGoB3m7NfXjiQ98HY=",
+        "owner": "nix-community",
+        "repo": "home-manager",
+        "rev": "fae6e9e42c3b762ab47635cddcfaf6f52374a61b",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-community",
+        "repo": "home-manager",
+        "type": "github"
+      }
+    },
+    "nix-pkgs": {
+      "inputs": {
+        "home-manager": "home-manager",
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1791470854,
+        "narHash": "sha256-sE4nE5nsLYposd3CQ3JlH+cUjR2/oOnWBq4EKOW7EkM=",
+        "owner": "divyam234",
+        "repo": "nix-pkgs",
+        "rev": "2029f39d1bed13c05e9e13b294a01bc76e311a9b",
+        "type": "github"
+      },
+      "original": {
+        "owner": "divyam234",
+        "repo": "nix-pkgs",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1790822859,
@@ -63,6 +105,7 @@
     "root": {
       "inputs": {
         "bun2nix": "bun2nix",
+        "nix-pkgs": "nix-pkgs",
         "nixpkgs": "nixpkgs"
       }
     },

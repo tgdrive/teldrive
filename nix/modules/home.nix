@@ -1,12 +1,3 @@
-# Home Manager module for Teldrive (user service). Apply the teldrive flake
-# overlay so pkgs.teldrive exists, then:
-#
-#   services.teldrive = {
-#     enable = true;
-#     settings.database.url = "postgres://...";
-#     settings.security.signing-key = "…";
-#     settings.security.data-key = "…";
-#   };
 { config, lib, pkgs, ... }:
 let
   cfg = config.services.teldrive;

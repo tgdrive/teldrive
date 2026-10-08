@@ -1,13 +1,3 @@
-# NixOS module for Teldrive. Apply the teldrive flake overlay so pkgs.teldrive
-# exists, then:
-#
-#   services.teldrive = {
-#     enable = true;
-#     settings.database.url = "postgres://...";
-#     settings.security.signing-key = "…";
-#     settings.security.data-key = "…";
-#     environmentFile = "/run/secrets/teldrive.env"; # optional TELDRIVE_ file
-#   };
 { config, lib, pkgs, ... }:
 let
   cfg = config.services.teldrive;

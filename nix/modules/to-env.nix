@@ -1,13 +1,5 @@
-# Render a nested services.teldrive.settings attrset to TELDRIVE_ environment
-# variables. Mirrors internal/config generateEnvMap: path segments are
-# uppercased with '-' and '.' converted to '_'.
-#
-# Only explicitly set (non-null) leaves are emitted; empty maps are skipped.
-# Leaf rendering matches the daemon loader: bools as true/false, ints as-is,
-# string lists comma-joined, string maps as comma-joined version:key pairs.
 { lib }:
 let
-  # Dotted settings paths that are leaf maps (generated alongside the options).
   leafMaps = import ./generated-leaf-maps.nix;
 
   renderScalar = value:
