@@ -5,14 +5,6 @@
   inputs.bun2nix.url = "github:nix-community/bun2nix";
   inputs.bun2nix.inputs.nixpkgs.follows = "nixpkgs";
 
-  # Use the cached bun2nix build instead of compiling the Rust tool locally.
-  nixConfig = {
-    extra-substituters = [ "https://nix-community.cachix.org" ];
-    extra-trusted-public-keys = [
-      "nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs="
-    ];
-  };
-
   outputs = { self, nixpkgs, bun2nix, ... }:
     let
       systems = [ "x86_64-linux" "aarch64-linux" ];
