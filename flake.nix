@@ -53,13 +53,15 @@
           # Toolchain for the just workflows: go/bun/nodejs run the code,
           # sqlc + patchsqlc regenerate the DB layer (must be v1.31.1),
           # just drives justfile, podman backs integration tests,
-          # postgresql provides psql for debugging test databases,
-          # bun2nix regenerates ui/bun.nix (`just update-bun-nix`).
+          # postgresql provides psql for debugging test databases.
+          # NOTE: bun2nix is deliberately absent here (its nix-community
+          # binary cache is untrusted without --accept-flake-config, so it
+          # would compile from source). `just update-bun-nix` fetches it
+          # on demand instead.
           default = pkgs.mkShell {
             packages = with pkgs; [
               go
               bun
-              pkgs.bun2nix
               nodejs
               chromium
               ffmpeg
