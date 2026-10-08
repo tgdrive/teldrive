@@ -15,6 +15,8 @@ import { Page, PageContent } from "@/components/page";
 import { useUploadStore } from "@/features/uploads/store";
 import PasteIcon from "~icons/gravity-ui/arrow-right-to-square";
 import UploadIcon from "~icons/gravity-ui/arrow-up-from-line";
+import SortIcon from "~icons/gravity-ui/bars-descending-align-left";
+import CheckIcon from "~icons/gravity-ui/check";
 import FileIcon from "~icons/gravity-ui/file";
 import FolderIcon from "~icons/gravity-ui/folder";
 import SplitIcon from "~icons/gravity-ui/layout-split-columns";
@@ -38,12 +40,28 @@ import {
 
 type FileBrowserView = "list" | "grid";
 type PaneId = "primary" | "secondary";
+export type FolderSort = "name" | "updatedAt" | "size";
+export type FolderSortOrder = "asc" | "desc";
+
+const folderSorts: { id: FolderSort; label: string }[] = [
+  { id: "name", label: "Name" },
+  { id: "updatedAt", label: "Modified date" },
+  { id: "size", label: "Size" },
+];
+const folderSortOrders: { id: FolderSortOrder; label: string }[] = [
+  { id: "asc", label: "Ascending" },
+  { id: "desc", label: "Descending" },
+];
 
 type PaneLocation = {
   path: string;
   parentId?: string;
   query: string;
   view: FileBrowserView;
+  // How the folder is listed: undefined is the default (by name, ascending). A location that
+  // leaves the keys out altogether keeps the order its pane has.
+  sort?: FolderSort;
+  order?: FolderSortOrder;
 };
 
 export type FilesLocation = PaneLocation & {
@@ -52,6 +70,8 @@ export type FilesLocation = PaneLocation & {
   secondaryParentId?: string;
   secondaryQuery?: string;
   secondaryView?: FileBrowserView;
+  secondarySort?: FolderSort;
+  secondaryOrder?: FolderSortOrder;
 };
 
 export function FileManagerPage({
@@ -82,6 +102,8 @@ export function FileManagerPage({
     parentId: search.parentId,
     query: search.query,
     view: search.view,
+    sort: search.sort,
+    order: search.order,
   };
   const secondaryLocation: PaneLocation = search.secondaryPath
     ? {
@@ -89,6 +111,8 @@ export function FileManagerPage({
         parentId: search.secondaryParentId,
         query: search.secondaryQuery ?? "",
         view: search.secondaryView ?? search.view,
+        sort: search.secondarySort,
+        order: search.secondaryOrder,
       }
     : primaryLocation;
 
@@ -132,8 +156,8 @@ export function FileManagerPage({
       path: primaryLocation.path,
       parentId: primaryLocation.parentId,
       q: primaryLocation.query || undefined,
-      sort: "name",
-      order: "asc",
+      sort: primaryLocation.sort ?? "name",
+      order: primaryLocation.order ?? "asc",
       view: primaryLocation.view,
       ...(criteria ? driveSearchOptions(criteria) : {}),
     },
@@ -145,8 +169,8 @@ export function FileManagerPage({
       path: secondaryLocation.path,
       parentId: secondaryLocation.parentId,
       q: secondaryLocation.query || undefined,
-      sort: "name",
-      order: "asc",
+      sort: secondaryLocation.sort ?? "name",
+      order: secondaryLocation.order ?? "asc",
       view: secondaryLocation.view,
     },
     "active",
@@ -215,6 +239,8 @@ export function FileManagerPage({
           secondaryParentId: location.parentId,
           secondaryQuery: location.query,
           secondaryView: location.view,
+          secondarySort: "sort" in location ? location.sort : secondaryLocation.sort,
+          secondaryOrder: "order" in location ? location.order : secondaryLocation.order,
         },
         replace,
       });
@@ -227,9 +253,25 @@ export function FileManagerPage({
         parentId: location.parentId,
         query: location.query,
         view: location.view,
+        sort: "sort" in location ? location.sort : primaryLocation.sort,
+        order: "order" in location ? location.order : primaryLocation.order,
       },
       replace,
     });
+  };
+
+  // Replaces the history entry: stepping back should leave the folder, not undo a sort.
+  const setPaneSort = (pane: PaneId, sort: FolderSort, order: FolderSortOrder) => {
+    const location = paneLocation(pane);
+    navigatePane(
+      pane,
+      {
+        ...location,
+        sort: sort === "name" ? undefined : sort,
+        order: order === "asc" ? undefined : order,
+      },
+      true,
+    );
   };
 
   const openSplitView = () => {
@@ -243,6 +285,8 @@ export function FileManagerPage({
         secondaryParentId: primaryLocation.parentId,
         secondaryQuery: primaryLocation.query,
         secondaryView: primaryLocation.view,
+        secondarySort: primaryLocation.sort,
+        secondaryOrder: primaryLocation.order,
       },
     });
   };
@@ -256,6 +300,8 @@ export function FileManagerPage({
         parentId: primaryLocation.parentId,
         query: primaryLocation.query,
         view: primaryLocation.view,
+        sort: primaryLocation.sort,
+        order: primaryLocation.order,
         split: false,
       },
     });
@@ -583,6 +629,46 @@ export function FileManagerPage({
         >
           <PlusIcon className="size-4" />
         </Button>
+        <Dropdown>
+          <Button
+            isIconOnly
+            size="sm"
+            variant={location.sort || location.order ? "secondary" : "ghost"}
+            aria-label="Sort"
+          >
+            <SortIcon className="size-4" />
+          </Button>
+          <Dropdown.Popover className="min-w-48">
+            <Dropdown.Menu
+              aria-label="Sort"
+              onAction={(key) => {
+                const sort = folderSorts.find((item) => item.id === key)?.id;
+                const order = folderSortOrders.find((item) => item.id === key)?.id;
+                setPaneSort(
+                  pane,
+                  sort ?? location.sort ?? "name",
+                  order ?? location.order ?? "asc",
+                );
+              }}
+            >
+              {[
+                ...folderSorts.map((item) => ({
+                  ...item,
+                  chosen: (location.sort ?? "name") === item.id,
+                })),
+                ...folderSortOrders.map((item) => ({
+                  ...item,
+                  chosen: (location.order ?? "asc") === item.id,
+                })),
+              ].map((item) => (
+                <Dropdown.Item key={item.id} id={item.id} textValue={item.label}>
+                  <CheckIcon className={item.chosen ? "size-4" : "size-4 opacity-0"} />
+                  <Label>{item.label}</Label>
+                </Dropdown.Item>
+              ))}
+            </Dropdown.Menu>
+          </Dropdown.Popover>
+        </Dropdown>
         <Dropdown>
           <Button isIconOnly size="sm" variant="primary" aria-label="Upload">
             <UploadIcon className="size-4" />
