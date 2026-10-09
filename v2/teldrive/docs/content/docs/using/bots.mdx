@@ -1,0 +1,53 @@
+---
+title: Telegram bots
+description: Add Telegram bots and configure download rotation.
+---
+
+Bots are optional. Use them only when you need additional Telegram clients for throughput.
+
+## Add bots
+
+1. Create bots with **@BotFather**.
+2. Open **Settings → Telegram bots**.
+3. Paste one token per line.
+4. Choose **Add bots**.
+
+Verification/channel updates run as background jobs. Check **Tasks** if a bot stays disabled.
+
+## Download rotation
+
+```yaml
+telegram:
+  download-bots: 0
+```
+
+`0` uses the authenticated user. Increase only after bots are healthy.
+
+Single instance:
+
+```yaml
+telegram:
+  bot-rotation-backend: memory
+```
+
+Multiple coordinated instances:
+
+```yaml
+telegram:
+  bot-rotation-backend: database
+```
+
+Optional warm clients:
+
+```yaml
+telegram:
+  download-client-pool: true
+```
+
+This trades memory/connections for less client setup overhead.
+
+## Security
+
+BotFather tokens are credentials. Do not publish or commit them.
+
+See [Performance tuning](/advanced/performance).

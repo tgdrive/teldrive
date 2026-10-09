@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+
+set -e
+
+NAME=rclone-sftp-openssh
+USER=rclone
+PASS=password
+PORT=28627
+
+. $(dirname "$0")/docker.bash
+
+start() {
+    docker run --rm -d --name ${NAME} \
+           -p 127.0.0.1:${PORT}:22 \
+           rclone/test-sftp-openssh
+    
+    echo type=sftp
+    echo host=127.0.0.1
+    echo port=$PORT
+    echo user=$USER
+    echo pass=$(rclone obscure $PASS)
+    echo copy_is_hardlink=true
+    # OpenSSH supports concurrent writes at arbitrary offsets, so exercise
+    # multi-thread uploads here (off by default) against a real server.
+    echo multithread_upload=true
+    echo _connect=127.0.0.1:${PORT}
+}
+
+. $(dirname "$0")/run.bash

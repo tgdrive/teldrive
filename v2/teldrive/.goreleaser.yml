@@ -1,0 +1,97 @@
+version: 2
+project_name: teldrive
+
+snapshot:
+  # The v2 image workflow builds from the v2 branch with --snapshot, which
+  # would otherwise derive the version from v1 git tags (e.g. 1.8.x).
+  version_template: "2.0.0-SNAPSHOT-{{ .ShortCommit }}"
+
+before:
+  hooks:
+    - bun ci --cwd ui
+    - bun run --cwd ui build
+
+builds:
+  - id: teldrive
+    main: ./cmd/teldrive
+    binary: teldrive
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X main.version={{ .Version }}
+      - -X main.commit={{ .FullCommit }}
+      - -X main.date={{ .Date }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm
+
+checksum:
+  name_template: "{{ .ProjectName }}_checksums.txt"
+
+archives:
+  - name_template: "{{ .ProjectName }}-{{ .Tag }}-{{ .Os }}-{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+    files:
+      - README*.md
+
+dockers_v2:
+  - id: teldrive
+    ids:
+      - teldrive
+    images:
+      - "ghcr.io/tgdrive/{{ .ProjectName }}"
+    tags:
+      - "{{ .Tag }}"
+      - "latest"
+    dockerfile: .goreleaser.Dockerfile
+    platforms:
+      - linux/amd64
+      - linux/arm64
+    labels:
+      "org.opencontainers.image.created": "{{.Date}}"
+      "org.opencontainers.image.title": "{{.ProjectName}}"
+      "org.opencontainers.image.revision": "{{.FullCommit}}"
+      "org.opencontainers.image.source": "{{.GitURL}}"
+      "org.opencontainers.image.version": "{{.Version}}"
+
+changelog:
+  use: github
+  sort: asc
+  groups:
+    - title: Features
+      regexp: "^.*feat[(\\w)]*:+.*$"
+      order: 0
+    - title: Bug fixes
+      regexp: "^.*fix[(\\w)]*:+.*$"
+      order: 1
+    - title: Refactoring
+      regexp: "^.*refactor[(\\w)]*:+.*$"
+      order: 2
+    - title: Others
+      order: 3
+  filters:
+    exclude:
+      - '^README'
+      - '^Update'
+      - '^Version'
+      - '^ci:'
+      - '^docs:'
+      - Merge pull request
+      - Merge branch
+
+release:
+  draft: true

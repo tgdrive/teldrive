@@ -1,0 +1,165 @@
+version: "2"
+
+linters:
+  # Configure the linter set. To avoid unexpected results the implicit default
+  # set is ignored and all the ones to use are explicitly enabled.
+  default: none
+  enable:
+    # Default
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    # Additional
+    - gocritic
+    - misspell
+    #- prealloc # TODO
+    - revive
+    - unconvert
+  exclusions:
+    rules:
+      - linters:
+          - revive
+        text: 'var-naming: avoid meaningless package names'
+      - linters:
+          - revive
+        text: 'var-naming: avoid package names that conflict with Go standard library package names'
+  # Configure checks. Mostly using defaults but with some commented exceptions.
+  settings:
+    govet:
+      enable-all: true
+      disable:
+        - fieldalignment
+        - shadow
+    staticcheck:
+      # With staticcheck there is only one setting, so to extend the implicit
+      # default value it must be explicitly included.
+      checks:
+        # Default
+        - all
+        - -ST1000
+        - -ST1003
+        - -ST1016
+        - -ST1020
+        - -ST1021
+        - -ST1022
+        # Disable quickfix checks
+        - -QF*
+        # Disabled because its dataflow analysis (new in staticcheck
+        # 0.8.0) makes linting large packages more than 10x slower,
+        # which takes the CI lint job past its timeout, and it
+        # produces false positives (eg on operations.Delete).
+        - -SA4023
+    gocritic:
+      # With gocritic there are different settings, but since enabled-checks
+      # and disabled-checks cannot both be set, for full customization the
+      # alternative is to disable all defaults and explicitly enable the ones
+      # to use.
+      disable-all: true
+      enabled-checks:
+        #- appendAssign # Skip default
+        - argOrder
+        - assignOp
+        - badCall
+        - badCond
+        #- captLocal # Skip default
+        - caseOrder
+        - codegenComment
+        #- commentFormatting # Skip default
+        - defaultCaseOrder
+        - deprecatedComment
+        - dupArg
+        - dupBranchBody
+        - dupCase
+        - dupSubExpr
+        - elseif
+        #- exitAfterDefer # Skip default
+        - flagDeref
+        - flagName
+        #- ifElseChain # Skip default
+        - mapKey
+        - newDeref
+        - offBy1
+        - regexpMust
+        - ruleguard # Enable additional check that are not enabled by default
+        #- singleCaseSwitch # Skip default
+        - sloppyLen
+        - sloppyTypeAssert
+        - switchTrue
+        - typeSwitchVar
+        - underef
+        - unlambda
+        - unslice
+        - valSwap
+        - wrapperFunc
+      settings:
+        ruleguard:
+          rules: ${base-path}/bin/rules.go
+    revive:
+      # With revive there is in reality only one setting, and when at least one
+      # rule are specified then only these rules will be considered, defaults
+      # and all others are then implicitly disabled, so must explicitly enable
+      # all rules to be used.
+      rules:
+        - name: blank-imports
+          disabled: false
+        - name: context-as-argument
+          disabled: false
+        - name: context-keys-type
+          disabled: false
+        - name: dot-imports
+          disabled: false
+        #- name: empty-block # Skip default
+        #  disabled: true
+        - name: error-naming
+          disabled: false
+        - name: error-return
+          disabled: false
+        - name: error-strings
+          disabled: false
+        - name: errorf
+          disabled: false
+        - name: exported
+          disabled: false
+        #- name: increment-decrement # Skip default
+        #  disabled: true
+        - name: indent-error-flow
+          disabled: false
+        - name: package-comments
+          disabled: false
+        - name: range
+          disabled: false
+        - name: receiver-naming
+          disabled: false
+        #- name: redefines-builtin-id # Skip default
+        #  disabled: true
+        #- name: superfluous-else # Skip default
+        #  disabled: true
+        - name: time-naming
+          disabled: false
+        - name: unexported-return
+          disabled: false
+        #- name: unreachable-code # Skip default
+        #  disabled: true
+        #- name: unused-parameter # Skip default
+        #  disabled: true
+        - name: var-declaration
+          disabled: false
+        - name: var-naming
+          disabled: false
+
+
+formatters:
+  enable:
+    - goimports
+
+issues:
+  # Maximum issues count per one linter. Set to 0 to disable. Default is 50.
+  max-issues-per-linter: 0
+  # Maximum count of issues with the same text. Set to 0 to disable. Default is 3.
+  max-same-issues: 0
+
+run:
+  # Timeout for total work, e.g. 30s, 5m, 5m30s. Default is 0 (disabled).
+  timeout: 10m

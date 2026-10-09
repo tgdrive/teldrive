@@ -1,0 +1,76 @@
+---
+title: Rclone setup
+description: Configure rclone's native Teldrive backend with an API key.
+---
+
+## 1. Create an API key
+
+In Teldrive, open **Settings → API keys**, create a key, and copy the secret. It is shown once.
+
+## 2. Configure rclone
+
+```bash
+rclone config
+```
+
+Choose the `teldrive` backend and set `api_host` and `api_key`.
+
+Minimal config:
+
+```ini
+[teldrive]
+type = teldrive
+api_host = https://drive.example.com
+api_key = YOUR_TELDRIVE_API_KEY
+```
+
+Non-interactive:
+
+```bash
+rclone config create teldrive teldrive \
+  api_host=https://drive.example.com \
+  api_key=YOUR_TELDRIVE_API_KEY
+```
+
+## 3. Test
+
+```bash
+rclone lsf teldrive:
+rclone mkdir teldrive:/rclone-test
+rclone copy ./example.txt teldrive:/rclone-test/
+rclone copy teldrive:/rclone-test/example.txt ./download-test/
+```
+
+Revoke exposed/retired keys from **Settings → API keys**.
+
+## Backend options
+
+| Option | Config key | Environment variable | Default |
+| --- | --- | --- | --- |
+| API key | `api_key` | `RCLONE_TELDRIVE_API_KEY` | — |
+| API server | `api_host` | `RCLONE_TELDRIVE_API_HOST` | — |
+| Upload host | `upload_host` | `RCLONE_TELDRIVE_UPLOAD_HOST` | — |
+| Chunk size | `chunk_size` | `RCLONE_TELDRIVE_CHUNK_SIZE` | `512Mi` |
+| Upload concurrency | `upload_concurrency` | `RCLONE_TELDRIVE_UPLOAD_CONCURRENCY` | `4` |
+| Teldrive encryption | `encrypt_files` | `RCLONE_TELDRIVE_ENCRYPT_FILES` | `false` |
+| BLAKE3 hashing | `hash_enabled` | `RCLONE_TELDRIVE_HASH_ENABLED` | `true` |
+| Page size | `page_size` | `RCLONE_TELDRIVE_PAGE_SIZE` | `200` |
+| Public-link password | `link_password` | `RCLONE_TELDRIVE_LINK_PASSWORD` | — |
+
+Check your installed version:
+
+```bash
+rclone help backend teldrive
+```
+
+## Trash commands
+
+```bash
+rclone backend trash-list teldrive:
+rclone backend restore teldrive: FILE_ID
+rclone backend purge teldrive: FILE_ID
+```
+
+`purge` is permanent.
+
+See [Mounting and performance](/rclone/mounting-and-performance).

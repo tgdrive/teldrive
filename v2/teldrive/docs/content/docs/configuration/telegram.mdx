@@ -1,0 +1,109 @@
+---
+title: Telegram settings
+description: Configure Telegram connectivity, concurrency, channels, proxies, and download clients.
+---
+
+Teldrive includes public Telegram application credentials. Override `app-id` and `app-hash` only when using a custom Telegram application.
+
+## Connection
+
+```yaml
+telegram:
+  backend: remote
+  dial-timeout: 10s
+  reconnect-timeout: 5m
+  max-retries: 10
+  rate-limit: true
+  rate-interval: 50ms
+  rate-burst: 10
+```
+
+Keep rate limiting enabled unless you have a specific reason to change it.
+
+## Uploads
+
+```yaml
+telegram:
+  upload-threads: 8
+```
+
+Valid range: `1`–`32`. Increase only after measuring throughput and Telegram errors.
+
+## Downloads
+
+```yaml
+telegram:
+  download-bots: 0
+  download-client-pool: false
+  download-read-buffers: 32
+  download-read-parallel: 4
+```
+
+- `download-bots`: `0` uses the authenticated user; up to `32` enables configured bots for rotation.
+- `download-client-pool`: keeps authenticated download clients warm when enabled.
+- `download-read-buffers`: prefetched chunks per stream, range `1`–`256`.
+- `download-read-parallel`: concurrent chunk fetches per stream, range `1`–`32`.
+
+Increasing buffering/parallelism raises memory and Telegram request pressure across simultaneous downloads.
+
+## Storage channels
+
+```yaml
+telegram:
+  randomize-part-names: true
+  auto-channel-create: true
+  channel-part-limit: 500000
+  channel-name-prefix: teldrive
+```
+
+See [Storage channels](/using/channels).
+
+## Bot rotation
+
+```yaml
+telegram:
+  bot-rotation-backend: memory
+```
+
+Use `memory` for one instance and `database` when multiple instances must coordinate bot rotation.
+
+## Proxy
+
+Standard HTTP/HTTPS/SOCKS5 proxy:
+
+```yaml
+telegram:
+  proxy: "socks5://user:password@proxy.example.com:1080"
+```
+
+MTProxy:
+
+```yaml
+telegram:
+  mtproxy:
+    address: "proxy.example.com:443"
+    secret: "YOUR_SECRET"
+```
+
+Do not configure both. MTProxy address and secret must be set together.
+
+## Client logging
+
+```yaml
+telegram:
+  client-logging: false
+```
+
+Enable temporarily for low-level Telegram diagnostics.
+
+## Filesystem backend
+
+For development/tests only:
+
+```yaml
+telegram:
+  backend: filesystem
+  local-root: ./var/local-telegram
+```
+
+This stores payloads locally instead of in Telegram.

@@ -1,0 +1,178 @@
+set dotenv-load := true
+
+openapi_spec := "openapi/teldrive.openapi.yaml"
+ui_dir := "ui"
+docs_dir := "docs"
+binary := "bin/teldrive"
+version := env_var_or_default("VERSION", "dev")
+default_commit := `git rev-parse --short HEAD 2>/dev/null || echo unknown`
+default_build_date := `date -u +%Y-%m-%dT%H:%M:%SZ`
+commit := env_var_or_default("COMMIT", default_commit)
+build_date := env_var_or_default("BUILD_DATE", default_build_date)
+ldflags := "-s -w -X main.version=" + version + " -X main.commit=" + commit + " -X main.date=" + build_date
+
+_default:
+    @just --list
+
+install-tools:
+    bun ci --cwd typespec
+    bun ci --cwd {{ui_dir}}
+    bun ci --cwd {{docs_dir}}
+
+format:
+    bun run --cwd typespec format
+    bun run --cwd {{ui_dir}} format
+    gofmt -w $(find . -name '*.go' -not -path './internal/api/gen/*' -not -path './internal/db/sqlcgen/*')
+
+lint:
+    bun run --cwd typespec lint
+    bun run --cwd {{ui_dir}} lint
+    go vet ./...
+
+# TypeSpec is the source of truth for the HTTP contract.
+generate-openapi:
+    bun run --cwd typespec generate:openapi
+
+# Generate the complete Go server/client contract.
+generate-api: generate-openapi
+    go run github.com/ogen-go/ogen/cmd/ogen@latest \
+        --config ogen.yml \
+        --target internal/api/gen \
+        --package gen \
+        --clean \
+        {{openapi_spec}}
+    test ! -e internal/api/gen/oas_unimplemented_gen.go
+    test "$(grep -c '^\s*[A-Z][A-Za-z0-9]*(ctx context.Context' internal/api/gen/oas_server_gen.go)" -eq "$(grep -c 'operationId:' {{openapi_spec}})"
+
+# Generate the typed PostgreSQL query layer.
+generate-db:
+    sqlc generate
+    go run ./internal/tools/patchsqlc
+
+generate-ui: generate-openapi
+    bun run --cwd {{ui_dir}} generate:api
+
+# Generate documentation derived from server configuration and the API contract.
+docs-generate: generate-openapi
+    go run ./internal/tools/docsconfig
+
+generate: generate-api generate-db generate-ui docs-generate nix-generate
+    go mod tidy
+
+ui-check: generate-ui
+    bun run --cwd {{ui_dir}} lint
+    bun run --cwd {{ui_dir}} typecheck
+    bun run --cwd {{ui_dir}} test
+    bun run --cwd {{ui_dir}} build
+
+# Run the fully static Astro + Fumadocs documentation site.
+docs-dev: docs-generate
+    bun run --cwd {{docs_dir}} dev
+
+docs-build: docs-generate
+    bun run --cwd {{docs_dir}} build
+
+build: generate-ui
+    bun run --cwd {{ui_dir}} build
+    mkdir -p bin
+    CGO_ENABLED=0 go build -trimpath -ldflags '{{ldflags}}' -o {{binary}} ./cmd/teldrive
+
+# Regenerate the Nix module options from the Go config structs.
+nix-generate:
+    go run ./internal/tools/nixconfig
+
+# Re-pin the UI node_modules fixed-output hash after package.json/bun.lock changes.
+update-ui-deps-hash:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    out=$(nix build .#teldrive 2>&1 || true)
+    echo "$out"
+    got=$(echo "$out" | grep -oP 'got:\s+\Ksha256-[A-Za-z0-9+/=]+' | head -n1 || true)
+    if [ -n "$got" ]; then
+      sed -i "s|outputHash = \"sha256-[^\"]*\";|outputHash = \"${got}\";|" nix/ui.nix
+      echo "patched nix/ui.nix to $got — re-run nix build .#teldrive"
+    fi
+
+# Fast re-pin of the Go vendor hash without a full `nix build`.
+# Uses the nixpkgs-provided toolchain so the pinned hash always matches
+# what `nix build` will see — no host-toolchain drift, no content
+# mismatch. Still seconds, not minutes (only vendors).
+update-flake-hashes:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "→ vendorHash (nixpkgs go + nix hash)..."
+    rm -rf vendor
+    trap 'rm -rf vendor' EXIT
+    nix shell nixpkgs#go --command go mod vendor
+    vendor_hash=$(nix hash path --sri vendor)
+    rm -rf vendor
+    trap - EXIT
+    sed -i "s|vendorHash = \"[^\"]*\";|vendorHash = \"${vendor_hash}\";|" flake.nix
+    echo "  vendorHash = ${vendor_hash}"
+    echo "done — flake.nix pinned (nixpkgs toolchains)"
+
+dev:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    backend_pid=""
+    ui_pid=""
+
+    cleanup() {
+        trap - INT TERM EXIT
+        if [ -n "$ui_pid" ]; then
+            kill -TERM "$ui_pid" 2>/dev/null || true
+        fi
+        if [ -n "$backend_pid" ]; then
+            kill -TERM "$backend_pid" 2>/dev/null || true
+        fi
+        if [ -n "$ui_pid" ]; then
+            wait "$ui_pid" 2>/dev/null || true
+        fi
+        if [ -n "$backend_pid" ]; then
+            wait "$backend_pid" 2>/dev/null || true
+        fi
+    }
+
+    trap 'cleanup; exit 130' INT
+    trap 'cleanup; exit 143' TERM
+    trap cleanup EXIT
+
+    go run ./cmd/teldrive run &
+    backend_pid=$!
+
+
+    bun run --cwd {{ui_dir}} dev -- --host &
+    ui_pid=$!
+
+    set +e
+    wait -n "$backend_pid" "$ui_pid"
+    status=$?
+    set -e
+
+    cleanup
+    exit "$status"
+
+image:
+    podman build --build-arg VERSION={{version}} --build-arg COMMIT={{commit}} --build-arg BUILD_DATE={{build_date}} -t teldrive-backend:{{version}} .
+
+test-unit:
+    go test ./...
+
+test-integration:
+    ./scripts/test-postgres.sh go test -tags=integration ./...
+
+test-race:
+    ./scripts/test-postgres.sh go test -race -tags=integration ./...
+
+coverage:
+    ./scripts/coverage.sh
+
+check: generate lint test-unit coverage
+    bun run --cwd {{ui_dir}} typecheck
+    bun run --cwd {{ui_dir}} test
+    bun run --cwd {{ui_dir}} build
+    bun run --cwd {{docs_dir}} build
+
+clean-generated:
+    rm -rf openapi internal/api/gen internal/db/sqlcgen ui/src/api/schema.ts ui/dist coverage.out

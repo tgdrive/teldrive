@@ -1,0 +1,69 @@
+---
+title: Architecture
+description: How Teldrive splits state between PostgreSQL, Telegram, the API, and background workers.
+---
+
+```text
+Browser / API client
+        │ HTTP/S
+        ▼
+   Teldrive server ─────► Telegram (file payloads)
+        │
+        ▼
+   PostgreSQL (metadata, auth, jobs, events)
+```
+
+The React UI is embedded in the Go binary; no separate frontend service is required.
+
+## PostgreSQL
+
+Stores users/auth state, encrypted Telegram credentials, file/folder metadata, Telegram part references, channels, bots, shares, uploads, jobs, and events.
+
+Recovery requires PostgreSQL plus the matching encryption keys.
+
+## Telegram
+
+With `telegram.backend=remote`, Telegram stores file payloads. Teldrive manages parts and exposes normal files/folders through its API.
+
+## Authentication
+
+```text
+Browser ⇄ Teldrive ⇄ Telegram
+```
+
+- `security.signing-key`: signs Teldrive tokens.
+- `security.data-key`: encrypts stored Telegram credentials.
+
+## Background jobs
+
+River/RiverPro stores job state in PostgreSQL. Workers run in the API process by default:
+
+```yaml
+jobs:
+  run-workers: true
+```
+
+See [Multi-instance deployments](/advanced/multi-instance) to split API and worker roles.
+
+## Live events
+
+The UI uses Server-Sent Events (SSE). Reverse proxies must allow long-lived, unbuffered responses.
+
+## Encryption
+
+```text
+security.data-key  → sensitive database values
+encryption.keys    → optional file-content encryption
+```
+
+See [Content encryption](/advanced/encryption).
+
+## Default topology
+
+```text
+1 Teldrive instance
+1 PostgreSQL instance
+Telegram
+```
+
+Scale only for a measured capacity or availability requirement.

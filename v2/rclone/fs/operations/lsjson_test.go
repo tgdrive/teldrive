@@ -1,0 +1,497 @@
+package operations_test
+
+import (
+	"context"
+	"io"
+	"sort"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/accounting"
+	"github.com/rclone/rclone/fs/operations"
+	"github.com/rclone/rclone/fstest"
+	"github.com/rclone/rclone/fstest/mockfs"
+	"github.com/rclone/rclone/fstest/mockobject"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// Compare a and b in a file system independent way
+func compareListJSONItem(t *testing.T, a, b *operations.ListJSONItem, precision time.Duration) {
+	assert.Equal(t, a.Path, b.Path, "Path")
+	assert.Equal(t, a.Name, b.Name, "Name")
+	// assert.Equal(t, a.EncryptedPath, b.EncryptedPath, "EncryptedPath")
+	// assert.Equal(t, a.Encrypted, b.Encrypted, "Encrypted")
+	if !a.IsDir {
+		assert.Equal(t, a.Size, b.Size, "Size")
+	}
+	// assert.Equal(t, a.MimeType, a.Mib.MimeType, "MimeType")
+	if !a.IsDir {
+		fstest.AssertTimeEqualWithPrecision(t, "ListJSON", a.ModTime.When, b.ModTime.When, precision)
+	}
+	assert.Equal(t, a.IsDir, b.IsDir, "IsDir")
+	// assert.Equal(t, a.Hashes, a.b.Hashes, "Hashes")
+	// assert.Equal(t, a.ID, b.ID, "ID")
+	// assert.Equal(t, a.OrigID, a.b.OrigID, "OrigID")
+	// assert.Equal(t, a.Tier, b.Tier, "Tier")
+	// assert.Equal(t, a.IsBucket, a.Isb.IsBucket, "IsBucket")
+}
+
+func TestListJSON(t *testing.T) {
+	ctx := context.Background()
+	r := fstest.NewRun(t)
+	file1 := r.WriteBoth(ctx, "file1", "file1", t1)
+	file2 := r.WriteBoth(ctx, "sub/file2", "sub/file2", t2)
+
+	r.CheckRemoteItems(t, file1, file2)
+	precision := fs.GetModifyWindow(ctx, r.Fremote)
+
+	for _, test := range []struct {
+		name   string
+		remote string
+		opt    operations.ListJSONOpt
+		want   []*operations.ListJSONItem
+	}{
+		{
+			name: "Default",
+			opt:  operations.ListJSONOpt{},
+			want: []*operations.ListJSONItem{{
+				Path:    "file1",
+				Name:    "file1",
+				Size:    5,
+				ModTime: operations.Timestamp{When: t1},
+				IsDir:   false,
+			}, {
+				Path:  "sub",
+				Name:  "sub",
+				IsDir: true,
+			}},
+		}, {
+			name: "FilesOnly",
+			opt: operations.ListJSONOpt{
+				FilesOnly: true,
+			},
+			want: []*operations.ListJSONItem{{
+				Path:    "file1",
+				Name:    "file1",
+				Size:    5,
+				ModTime: operations.Timestamp{When: t1},
+				IsDir:   false,
+			}},
+		}, {
+			name: "DirsOnly",
+			opt: operations.ListJSONOpt{
+				DirsOnly: true,
+			},
+			want: []*operations.ListJSONItem{{
+				Path:  "sub",
+				Name:  "sub",
+				IsDir: true,
+			}},
+		}, {
+			name: "Recurse",
+			opt: operations.ListJSONOpt{
+				Recurse: true,
+			},
+			want: []*operations.ListJSONItem{{
+				Path:    "file1",
+				Name:    "file1",
+				Size:    5,
+				ModTime: operations.Timestamp{When: t1},
+				IsDir:   false,
+			}, {
+				Path:  "sub",
+				Name:  "sub",
+				IsDir: true,
+			}, {
+				Path:    "sub/file2",
+				Name:    "file2",
+				Size:    9,
+				ModTime: operations.Timestamp{When: t2},
+				IsDir:   false,
+			}},
+		}, {
+			name:   "SubDir",
+			remote: "sub",
+			opt:    operations.ListJSONOpt{},
+			want: []*operations.ListJSONItem{{
+				Path:    "sub/file2",
+				Name:    "file2",
+				Size:    9,
+				ModTime: operations.Timestamp{When: t2},
+				IsDir:   false,
+			}},
+		}, {
+			name: "NoModTime",
+			opt: operations.ListJSONOpt{
+				FilesOnly: true,
+				NoModTime: true,
+			},
+			want: []*operations.ListJSONItem{{
+				Path:    "file1",
+				Name:    "file1",
+				Size:    5,
+				ModTime: operations.Timestamp{When: time.Time{}},
+				IsDir:   false,
+			}},
+		}, {
+			name: "NoMimeType",
+			opt: operations.ListJSONOpt{
+				FilesOnly:  true,
+				NoMimeType: true,
+			},
+			want: []*operations.ListJSONItem{{
+				Path:    "file1",
+				Name:    "file1",
+				Size:    5,
+				ModTime: operations.Timestamp{When: t1},
+				IsDir:   false,
+			}},
+		}, {
+			name: "ShowHash",
+			opt: operations.ListJSONOpt{
+				FilesOnly: true,
+				ShowHash:  true,
+			},
+			want: []*operations.ListJSONItem{{
+				Path:    "file1",
+				Name:    "file1",
+				Size:    5,
+				ModTime: operations.Timestamp{When: t1},
+				IsDir:   false,
+			}},
+		}, {
+			name: "HashTypes",
+			opt: operations.ListJSONOpt{
+				FilesOnly: true,
+				ShowHash:  true,
+				HashTypes: []string{"MD5"},
+			},
+			want: []*operations.ListJSONItem{{
+				Path:    "file1",
+				Name:    "file1",
+				Size:    5,
+				ModTime: operations.Timestamp{When: t1},
+				IsDir:   false,
+			}},
+		}, {
+			name: "Metadata",
+			opt: operations.ListJSONOpt{
+				FilesOnly: false,
+				Metadata:  true,
+			},
+			want: []*operations.ListJSONItem{{
+				Path:    "file1",
+				Name:    "file1",
+				Size:    5,
+				ModTime: operations.Timestamp{When: t1},
+				IsDir:   false,
+			}, {
+				Path:  "sub",
+				Name:  "sub",
+				IsDir: true,
+			}},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var got []*operations.ListJSONItem
+			require.NoError(t, operations.ListJSON(ctx, r.Fremote, test.remote, &test.opt, func(item *operations.ListJSONItem) error {
+				got = append(got, item)
+				return nil
+			}))
+			sort.Slice(got, func(i, j int) bool {
+				return got[i].Path < got[j].Path
+			})
+			require.Equal(t, len(test.want), len(got), "Wrong number of results")
+			for i := range test.want {
+				compareListJSONItem(t, test.want[i], got[i], precision)
+				if test.opt.NoMimeType {
+					assert.Equal(t, "", got[i].MimeType)
+				} else {
+					assert.NotEqual(t, "", got[i].MimeType)
+				}
+				if test.opt.Metadata {
+					features := r.Fremote.Features()
+					if features.ReadMetadata && !got[i].IsDir {
+						assert.Greater(t, len(got[i].Metadata), 0, "Expecting metadata for file")
+					}
+					if features.ReadDirMetadata && got[i].IsDir {
+						assert.Greater(t, len(got[i].Metadata), 0, "Expecting metadata for dir")
+					}
+				}
+				if test.opt.ShowHash {
+					hashes := got[i].Hashes
+					assert.NotNil(t, hashes)
+					if len(test.opt.HashTypes) > 0 && len(hashes) > 0 {
+						assert.Equal(t, 1, len(hashes))
+					}
+					if hashes["crc32"] != "" {
+						assert.Equal(t, "9ee760e5", hashes["crc32"])
+					}
+					if hashes["dropbox"] != "" {
+						assert.Equal(t, "f4d62afeaee6f35d3efdd8c66623360395165473bcc958f835343eb3f542f983", hashes["dropbox"])
+					}
+					if hashes["mailru"] != "" {
+						assert.Equal(t, "66696c6531000000000000000000000000000000", hashes["mailru"])
+					}
+					if hashes["md5"] != "" {
+						assert.Equal(t, "826e8142e6baabe8af779f5f490cf5f5", hashes["md5"])
+					}
+					if hashes["quickxor"] != "" {
+						assert.Equal(t, "6648031bca100300000000000500000000000000", hashes["quickxor"])
+					}
+					if hashes["sha1"] != "" {
+						assert.Equal(t, "60b27f004e454aca81b0480209cce5081ec52390", hashes["sha1"])
+					}
+					if hashes["sha256"] != "" {
+						assert.Equal(t, "c147efcfc2d7ea666a9e4f5187b115c90903f0fc896a56df9a6ef5d8f3fc9f31", hashes["sha256"])
+					}
+					if hashes["whirlpool"] != "" {
+						assert.Equal(t, "02fa11755b6470bfc5aab6d94cde5cf2939474fb5b0ebbf8ddf3d32bf06aa438eb92eac097047c02017dc1c317ee83fa8a2717ca4d544b4ee75b3231d1c466b0", hashes["whirlpool"])
+					}
+				} else {
+					assert.Nil(t, got[i].Hashes)
+				}
+			}
+		})
+	}
+}
+
+func TestStatJSON(t *testing.T) {
+	ctx := context.Background()
+	r := fstest.NewRun(t)
+	file1 := r.WriteBoth(ctx, "file1", "file1", t1)
+	file2 := r.WriteBoth(ctx, "sub/file2", "sub/file2", t2)
+
+	r.CheckRemoteItems(t, file1, file2)
+	precision := fs.GetModifyWindow(ctx, r.Fremote)
+
+	for _, test := range []struct {
+		name   string
+		remote string
+		opt    operations.ListJSONOpt
+		want   *operations.ListJSONItem
+	}{
+		{
+			name:   "Root",
+			remote: "",
+			opt:    operations.ListJSONOpt{},
+			want: &operations.ListJSONItem{
+				Path:  "",
+				Name:  "",
+				IsDir: true,
+			},
+		}, {
+			name:   "RootFilesOnly",
+			remote: "",
+			opt: operations.ListJSONOpt{
+				FilesOnly: true,
+			},
+			want: nil,
+		}, {
+			name:   "RootDirsOnly",
+			remote: "",
+			opt: operations.ListJSONOpt{
+				DirsOnly: true,
+			},
+			want: &operations.ListJSONItem{
+				Path:  "",
+				Name:  "",
+				IsDir: true,
+			},
+		}, {
+			name:   "Dir",
+			remote: "sub",
+			opt:    operations.ListJSONOpt{},
+			want: &operations.ListJSONItem{
+				Path:  "sub",
+				Name:  "sub",
+				IsDir: true,
+			},
+		}, {
+			name:   "DirWithTrailingSlash",
+			remote: "sub/",
+			opt:    operations.ListJSONOpt{},
+			want: &operations.ListJSONItem{
+				Path:  "sub",
+				Name:  "sub",
+				IsDir: true,
+			},
+		}, {
+			name:   "File",
+			remote: "file1",
+			opt:    operations.ListJSONOpt{},
+			want: &operations.ListJSONItem{
+				Path:    "file1",
+				Name:    "file1",
+				Size:    5,
+				ModTime: operations.Timestamp{When: t1},
+				IsDir:   false,
+			},
+		}, {
+			name:   "NotFound",
+			remote: "notfound",
+			opt:    operations.ListJSONOpt{},
+			want:   nil,
+		}, {
+			name:   "DirFilesOnly",
+			remote: "sub",
+			opt: operations.ListJSONOpt{
+				FilesOnly: true,
+			},
+			want: nil,
+		}, {
+			name:   "FileFilesOnly",
+			remote: "file1",
+			opt: operations.ListJSONOpt{
+				FilesOnly: true,
+			},
+			want: &operations.ListJSONItem{
+				Path:    "file1",
+				Name:    "file1",
+				Size:    5,
+				ModTime: operations.Timestamp{When: t1},
+				IsDir:   false,
+			},
+		}, {
+			name:   "NotFoundFilesOnly",
+			remote: "notfound",
+			opt: operations.ListJSONOpt{
+				FilesOnly: true,
+			},
+			want: nil,
+		}, {
+			name:   "DirDirsOnly",
+			remote: "sub",
+			opt: operations.ListJSONOpt{
+				DirsOnly: true,
+			},
+			want: &operations.ListJSONItem{
+				Path:  "sub",
+				Name:  "sub",
+				IsDir: true,
+			},
+		}, {
+			name:   "FileDirsOnly",
+			remote: "file1",
+			opt: operations.ListJSONOpt{
+				DirsOnly: true,
+			},
+			want: nil,
+		}, {
+			name:   "NotFoundDirsOnly",
+			remote: "notfound",
+			opt: operations.ListJSONOpt{
+				DirsOnly: true,
+			},
+			want: nil,
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := operations.StatJSON(ctx, r.Fremote, test.remote, &test.opt)
+			require.NoError(t, err)
+			if test.want == nil {
+				assert.Nil(t, got)
+				return
+			}
+			require.NotNil(t, got)
+			compareListJSONItem(t, test.want, got, precision)
+		})
+	}
+
+	t.Run("RootNotFound", func(t *testing.T) {
+		f, err := fs.NewFs(ctx, r.FremoteName+"/notfound")
+		require.NoError(t, err)
+		_, err = operations.StatJSON(ctx, f, "", &operations.ListJSONOpt{})
+		// This should return an error except for bucket based remotes
+		assert.True(t, err != nil || f.Features().BucketBased, "Need an error for non bucket based backends")
+	})
+}
+
+// TestStatJSONMemory tests StatJSON against the memory backend.
+//
+// The memory backend is bucket based and implements ListP, so this
+// exercises the fast path in StatJSON which lists the target directory
+// itself rather than its (potentially huge) parent. It also checks that
+// the entries listed on that path are accounted in the Listed stats.
+func TestStatJSONMemory(t *testing.T) {
+	ctx := context.Background()
+	f, err := fs.NewFs(ctx, ":memory:")
+	require.NoError(t, err)
+
+	// Check the memory backend triggers the fast path
+	require.True(t, f.Features().BucketBased, "memory backend should be bucket based")
+	require.NotNil(t, f.Features().ListP, "memory backend should implement ListP")
+
+	// Put a file into a subdirectory
+	_, err = operations.Rcat(ctx, f, "sub/file1", io.NopCloser(strings.NewReader("hello")), t1, nil)
+	require.NoError(t, err)
+
+	t.Run("Dir", func(t *testing.T) {
+		accounting.GlobalStats().ResetCounters()
+		got, err := operations.StatJSON(ctx, f, "sub", &operations.ListJSONOpt{})
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		assert.Equal(t, "sub", got.Path)
+		assert.Equal(t, "sub", got.Name)
+		assert.True(t, got.IsDir)
+		// The fast path lists the directory itself - check the entries
+		// it listed were accounted.
+		assert.Positive(t, accounting.GlobalStats().Listed(0), "expected the fast path listing to be accounted")
+	})
+
+	t.Run("DirWithTrailingSlash", func(t *testing.T) {
+		got, err := operations.StatJSON(ctx, f, "sub/", &operations.ListJSONOpt{})
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		assert.Equal(t, "sub", got.Path)
+		assert.True(t, got.IsDir)
+	})
+
+	t.Run("File", func(t *testing.T) {
+		got, err := operations.StatJSON(ctx, f, "sub/file1", &operations.ListJSONOpt{})
+		require.NoError(t, err)
+		require.NotNil(t, got)
+		assert.Equal(t, "sub/file1", got.Path)
+		assert.False(t, got.IsDir)
+	})
+
+	t.Run("NotFound", func(t *testing.T) {
+		got, err := operations.StatJSON(ctx, f, "notfound", &operations.ListJSONOpt{})
+		require.NoError(t, err)
+		assert.Nil(t, got)
+	})
+}
+
+// TestStatJSONConfinement checks that StatJSON never returns an item whose
+// remote escapes the Fs root. StatJSON calls List/NewObject directly and so
+// bypasses the confinement in fs/list and fs/walk - the escaping objects added
+// below would be returned without the guard in StatJSON.
+func TestStatJSONConfinement(t *testing.T) {
+	ctx := context.Background()
+	ff, err := mockfs.NewFs(ctx, "mock", "/", nil)
+	require.NoError(t, err)
+	f := ff.(*mockfs.Fs)
+	f.AddObject(mockobject.Object("ok"))
+	f.AddObject(mockobject.Object(".."))
+	f.AddObject(mockobject.Object("../evil"))
+	f.AddObject(mockobject.Object("/../slashevil"))
+	f.AddObject(mockobject.Object("//../../slashevil2"))
+	f.AddObject(mockobject.Object("/../../etc/passwd"))
+
+	// Escaping remotes are treated as not found, including the leading-slash
+	// variants that path.Clean would anchor as absolute and miss.
+	for _, remote := range []string{"..", "../evil", "/../slashevil", "//../../slashevil2", "/../../etc/passwd"} {
+		got, err := operations.StatJSON(ctx, f, remote, &operations.ListJSONOpt{})
+		require.NoError(t, err, remote)
+		assert.Nil(t, got, remote)
+	}
+
+	// A legitimate remote is still returned.
+	got, err := operations.StatJSON(ctx, f, "ok", &operations.ListJSONOpt{})
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, "ok", got.Path)
+}

@@ -1,0 +1,848 @@
+// Internal tests for march
+
+package march
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"runtime"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	_ "github.com/rclone/rclone/backend/local"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/filter"
+	"github.com/rclone/rclone/fs/fserrors"
+	"github.com/rclone/rclone/fs/list"
+	"github.com/rclone/rclone/fs/walk"
+	"github.com/rclone/rclone/fstest"
+	"github.com/rclone/rclone/fstest/mockdir"
+	"github.com/rclone/rclone/fstest/mockobject"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"golang.org/x/text/unicode/norm"
+)
+
+// Some times used in the tests
+var (
+	t1 = fstest.Time("2001-02-03T04:05:06.499999999Z")
+)
+
+func TestMain(m *testing.M) {
+	fstest.TestMain(m)
+}
+
+type marchTester struct {
+	ctx        context.Context // internal context for controlling go-routines
+	cancel     func()          // cancel the context
+	srcOnly    fs.DirEntries
+	dstOnly    fs.DirEntries
+	match      fs.DirEntries
+	entryMutex sync.Mutex
+	errorMu    sync.Mutex // Mutex covering the error variables
+	err        error
+	noRetryErr error
+	fatalErr   error
+	noTraverse bool
+}
+
+// DstOnly have an object which is in the destination only
+func (mt *marchTester) DstOnly(dst fs.DirEntry) (recurse bool) {
+	mt.entryMutex.Lock()
+	mt.dstOnly = append(mt.dstOnly, dst)
+	mt.entryMutex.Unlock()
+
+	switch dst.(type) {
+	case fs.Object:
+		return false
+	case fs.Directory:
+		return true
+	default:
+		panic("Bad object in DirEntries")
+	}
+}
+
+// SrcOnly have an object which is in the source only
+func (mt *marchTester) SrcOnly(src fs.DirEntry) (recurse bool) {
+	mt.entryMutex.Lock()
+	mt.srcOnly = append(mt.srcOnly, src)
+	mt.entryMutex.Unlock()
+
+	switch src.(type) {
+	case fs.Object:
+		return false
+	case fs.Directory:
+		return true
+	default:
+		panic("Bad object in DirEntries")
+	}
+}
+
+// Match is called when src and dst are present, so sync src to dst
+func (mt *marchTester) Match(ctx context.Context, dst, src fs.DirEntry) (recurse bool) {
+	mt.entryMutex.Lock()
+	mt.match = append(mt.match, src)
+	mt.entryMutex.Unlock()
+
+	switch src.(type) {
+	case fs.Object:
+		return false
+	case fs.Directory:
+		// Do the same thing to the entire contents of the directory
+		_, ok := dst.(fs.Directory)
+		if ok {
+			return true
+		}
+		// FIXME src is dir, dst is file
+		err := errors.New("can't overwrite file with directory")
+		fs.Errorf(dst, "%v", err)
+		mt.processError(err)
+	default:
+		panic("Bad object in DirEntries")
+	}
+	return false
+}
+
+func (mt *marchTester) processError(err error) {
+	if err == nil {
+		return
+	}
+	mt.errorMu.Lock()
+	defer mt.errorMu.Unlock()
+	switch {
+	case fserrors.IsFatalError(err):
+		if !mt.aborting() {
+			fs.Errorf(nil, "Cancelling sync due to fatal error: %v", err)
+			mt.cancel()
+		}
+		mt.fatalErr = err
+	case fserrors.IsNoRetryError(err):
+		mt.noRetryErr = err
+	default:
+		mt.err = err
+	}
+}
+
+func (mt *marchTester) currentError() error {
+	mt.errorMu.Lock()
+	defer mt.errorMu.Unlock()
+	if mt.fatalErr != nil {
+		return mt.fatalErr
+	}
+	if mt.err != nil {
+		return mt.err
+	}
+	return mt.noRetryErr
+}
+
+func (mt *marchTester) aborting() bool {
+	return mt.ctx.Err() != nil
+}
+
+func TestMarch(t *testing.T) {
+	for _, test := range []struct {
+		what        string
+		fileSrcOnly []string
+		dirSrcOnly  []string
+		fileDstOnly []string
+		dirDstOnly  []string
+		fileMatch   []string
+		dirMatch    []string
+		noTraverse  bool
+		fastList    bool
+	}{
+		{
+			what:        "source only",
+			fileSrcOnly: []string{"test", "test2", "test3", "sub dir/test4"},
+			dirSrcOnly:  []string{"sub dir"},
+		},
+		{
+			what:      "identical",
+			fileMatch: []string{"test", "test2", "sub dir/test3", "sub dir/sub sub dir/test4"},
+			dirMatch:  []string{"sub dir", "sub dir/sub sub dir"},
+		},
+		{
+			what:        "typical sync",
+			fileSrcOnly: []string{"srcOnly", "srcOnlyDir/sub"},
+			dirSrcOnly:  []string{"srcOnlyDir"},
+			fileMatch:   []string{"match", "matchDir/match file"},
+			dirMatch:    []string{"matchDir"},
+			fileDstOnly: []string{"dstOnly", "dstOnlyDir/sub"},
+			dirDstOnly:  []string{"dstOnlyDir"},
+		},
+		{
+			what:        "no traverse source only",
+			fileSrcOnly: []string{"test", "test2", "test3", "sub dir/test4"},
+			dirSrcOnly:  []string{"sub dir"},
+			noTraverse:  true,
+		},
+		{
+			what:       "no traverse identical",
+			fileMatch:  []string{"test", "test2", "sub dir/test3", "sub dir/sub sub dir/test4"},
+			noTraverse: true,
+		},
+		{
+			what:        "no traverse typical sync",
+			fileSrcOnly: []string{"srcOnly", "srcOnlyDir/sub"},
+			fileMatch:   []string{"match", "matchDir/match file"},
+			noTraverse:  true,
+		},
+		{
+			what:        "fast list source only",
+			fileSrcOnly: []string{"test", "test2", "test3", "sub dir/test4"},
+			dirSrcOnly:  []string{"sub dir"},
+			fastList:    true,
+		},
+		{
+			what:      "fast list identical",
+			fileMatch: []string{"test", "test2", "sub dir/test3", "sub dir/sub sub dir/test4"},
+			dirMatch:  []string{"sub dir", "sub dir/sub sub dir"},
+			fastList:  true,
+		},
+		{
+			what:        "fast list typical sync",
+			fileSrcOnly: []string{"srcOnly", "srcOnlyDir/sub"},
+			dirSrcOnly:  []string{"srcOnlyDir"},
+			fileMatch:   []string{"match", "matchDir/match file"},
+			dirMatch:    []string{"matchDir"},
+			fileDstOnly: []string{"dstOnly", "dstOnlyDir/sub"},
+			dirDstOnly:  []string{"dstOnlyDir"},
+			fastList:    true,
+		},
+	} {
+		t.Run(fmt.Sprintf("TestMarch-%s", test.what), func(t *testing.T) {
+			r := fstest.NewRun(t)
+
+			var srcOnly []fstest.Item
+			var dstOnly []fstest.Item
+			var match []fstest.Item
+
+			ctx, cancel := context.WithCancel(context.Background())
+
+			for _, f := range test.fileSrcOnly {
+				srcOnly = append(srcOnly, r.WriteFile(f, "hello world", t1))
+			}
+			for _, f := range test.fileDstOnly {
+				dstOnly = append(dstOnly, r.WriteObject(ctx, f, "hello world", t1))
+			}
+			for _, f := range test.fileMatch {
+				match = append(match, r.WriteBoth(ctx, f, "hello world", t1))
+			}
+
+			ctx, ci := fs.AddConfig(ctx)
+			ci.UseListR = test.fastList
+
+			fi := filter.GetConfig(ctx)
+
+			// Local backend doesn't implement ListR, so monkey patch it for this test
+			if test.fastList && r.Flocal.Features().ListR == nil {
+				r.Flocal.Features().ListR = func(ctx context.Context, dir string, callback fs.ListRCallback) error {
+					r.Flocal.Features().ListR = nil // disable ListR to avoid infinite recursion
+					return walk.ListR(ctx, r.Flocal, dir, true, -1, walk.ListAll, callback)
+				}
+				defer func() {
+					r.Flocal.Features().ListR = nil
+				}()
+			}
+
+			mt := &marchTester{
+				ctx:        ctx,
+				cancel:     cancel,
+				noTraverse: test.noTraverse,
+			}
+			m := &March{
+				Ctx:           ctx,
+				Fdst:          r.Fremote,
+				Fsrc:          r.Flocal,
+				Dir:           "",
+				NoTraverse:    test.noTraverse,
+				Callback:      mt,
+				DstIncludeAll: fi.Opt.DeleteExcluded,
+			}
+
+			mt.processError(m.Run(ctx))
+			mt.cancel()
+			err := mt.currentError()
+			require.NoError(t, err)
+
+			precision := fs.GetModifyWindow(ctx, r.Fremote, r.Flocal)
+			fstest.CompareItems(t, mt.srcOnly, srcOnly, test.dirSrcOnly, precision, "srcOnly")
+			fstest.CompareItems(t, mt.dstOnly, dstOnly, test.dirDstOnly, precision, "dstOnly")
+			fstest.CompareItems(t, mt.match, match, test.dirMatch, precision, "match")
+		})
+	}
+}
+
+func TestMarchNoProcessDstOnly(t *testing.T) {
+	for _, test := range []struct {
+		what             string
+		fileSrcOnly      []string
+		dirSrcOnly       []string
+		fileDstOnly      []string
+		dirDstOnly       []string
+		fileMatch        []string
+		dirMatch         []string
+		noProcessDstOnly bool
+		fastList         bool
+	}{
+		{
+			// dst-only files sort after all src files so they are
+			// skipped when NoProcessDstOnly cancels the dst listing.
+			what:             "no process dst only - typical sync",
+			fileSrcOnly:      []string{"a_srcOnly"},
+			fileMatch:        []string{"b_match"},
+			fileDstOnly:      []string{"z_dstOnly1", "z_dstOnly2"},
+			noProcessDstOnly: true,
+		},
+		{
+			what:             "no process dst only - fast list",
+			fileSrcOnly:      []string{"a_srcOnly"},
+			fileMatch:        []string{"b_match"},
+			fileDstOnly:      []string{"z_dstOnly1", "z_dstOnly2"},
+			noProcessDstOnly: true,
+			fastList:         true,
+		},
+		{
+			what:             "no process dst only - source only",
+			fileSrcOnly:      []string{"test", "test2"},
+			noProcessDstOnly: true,
+		},
+		{
+			what:             "no process dst only - dest only skipped",
+			fileSrcOnly:      []string{"a_src"},
+			fileDstOnly:      []string{"z_dstOnly1", "z_dstOnly2"},
+			noProcessDstOnly: true,
+		},
+	} {
+		t.Run(fmt.Sprintf("TestMarch-%s", test.what), func(t *testing.T) {
+			r := fstest.NewRun(t)
+
+			var srcOnly []fstest.Item
+			var match []fstest.Item
+
+			ctx, cancel := context.WithCancel(context.Background())
+
+			for _, f := range test.fileSrcOnly {
+				srcOnly = append(srcOnly, r.WriteFile(f, "hello world", t1))
+			}
+			for _, f := range test.fileDstOnly {
+				r.WriteObject(ctx, f, "hello world", t1)
+			}
+			for _, f := range test.fileMatch {
+				match = append(match, r.WriteBoth(ctx, f, "hello world", t1))
+			}
+
+			ctx, ci := fs.AddConfig(ctx)
+			ci.UseListR = test.fastList
+
+			fi := filter.GetConfig(ctx)
+
+			// Local backend doesn't implement ListR, so monkey patch it for this test
+			if test.fastList && r.Flocal.Features().ListR == nil {
+				r.Flocal.Features().ListR = func(ctx context.Context, dir string, callback fs.ListRCallback) error {
+					r.Flocal.Features().ListR = nil
+					return walk.ListR(ctx, r.Flocal, dir, true, -1, walk.ListAll, callback)
+				}
+				defer func() {
+					r.Flocal.Features().ListR = nil
+				}()
+			}
+
+			mt := &marchTester{
+				ctx:    ctx,
+				cancel: cancel,
+			}
+			m := &March{
+				Ctx:              ctx,
+				Fdst:             r.Fremote,
+				Fsrc:             r.Flocal,
+				Dir:              "",
+				Callback:         mt,
+				DstIncludeAll:    fi.Opt.DeleteExcluded,
+				NoProcessDstOnly: test.noProcessDstOnly,
+			}
+
+			mt.processError(m.Run(ctx))
+			mt.cancel()
+			err := mt.currentError()
+			require.NoError(t, err)
+
+			precision := fs.GetModifyWindow(ctx, r.Fremote, r.Flocal)
+
+			// With NoProcessDstOnly, dst-only entries should not be reported
+			fstest.CompareItems(t, mt.srcOnly, srcOnly, test.dirSrcOnly, precision, "srcOnly")
+			assert.Empty(t, mt.dstOnly, "dstOnly should be empty with NoProcessDstOnly")
+			fstest.CompareItems(t, mt.match, match, test.dirMatch, precision, "match")
+		})
+	}
+}
+
+// TestMarchNoGoroutineLeak checks that a march which completes normally (its
+// context is never cancelled, as with an async rc job) does not strand the
+// janitor goroutine that drains the job channel (See #9620)
+func TestMarchNoGoroutineLeak(t *testing.T) {
+	r := fstest.NewRun(t)
+
+	ctx := context.Background()
+	ctx, _ = fs.AddConfig(ctx)
+	// Write to both src and dst so the march lists real directories on both
+	// sides and completes cleanly (no missing-directory listing errors).
+	r.WriteBoth(ctx, "test", "hello world", t1)
+	r.WriteBoth(ctx, "sub dir/test2", "hello world", t1)
+
+	runMarch := func() {
+		mt := &marchTester{ctx: ctx, cancel: func() {}}
+		m := &March{
+			Ctx:      ctx,
+			Fdst:     r.Fremote,
+			Fsrc:     r.Flocal,
+			Dir:      "",
+			Callback: mt,
+		}
+		require.NoError(t, m.Run(ctx))
+	}
+
+	// Warm up so any one-time background goroutines are already started.
+	runMarch()
+	waitForGoroutines := func() int {
+		// Give any exiting goroutines a moment to unwind before counting.
+		var n int
+		for range 20 {
+			runtime.GC()
+			n = runtime.NumGoroutine()
+			time.Sleep(10 * time.Millisecond)
+		}
+		return n
+	}
+	before := waitForGoroutines()
+
+	const runs = 20
+	for range runs {
+		runMarch()
+	}
+	after := waitForGoroutines()
+
+	// The leak stranded one goroutine per run. Allow a small slack for unrelated
+	// runtime goroutines, but well under the number of runs.
+	if after-before >= runs {
+		t.Fatalf("goroutine leak: %d before, %d after %d marches (delta %d)", before, after, runs, after-before)
+	}
+}
+
+// matchPair is a matched pair of direntries returned by matchListings
+type matchPair struct {
+	src, dst fs.DirEntry
+}
+
+func TestMatchListings(t *testing.T) {
+	var (
+		a    = mockobject.Object("a")
+		A    = mockobject.Object("A")
+		b    = mockobject.Object("b")
+		c    = mockobject.Object("c")
+		d    = mockobject.Object("d")
+		uE1  = mockobject.Object("é") // one of the unicode E characters
+		uE2  = mockobject.Object("é")  // a different unicode E character
+		dirA = mockdir.New("A")
+		dirb = mockdir.New("b")
+	)
+
+	for _, test := range []struct {
+		what       string
+		input      fs.DirEntries // pairs of input src, dst
+		srcOnly    fs.DirEntries
+		dstOnly    fs.DirEntries
+		matches    []matchPair // pairs of output
+		transforms []matchTransformFn
+	}{
+		{
+			what: "only src or dst",
+			input: fs.DirEntries{
+				a, nil,
+				b, nil,
+				c, nil,
+				d, nil,
+			},
+			srcOnly: fs.DirEntries{
+				a, b, c, d,
+			},
+		},
+		{
+			what: "typical sync #1",
+			input: fs.DirEntries{
+				a, nil,
+				b, b,
+				nil, c,
+				nil, d,
+			},
+			srcOnly: fs.DirEntries{
+				a,
+			},
+			dstOnly: fs.DirEntries{
+				c, d,
+			},
+			matches: []matchPair{
+				{b, b},
+			},
+		},
+		{
+			what: "typical sync #2",
+			input: fs.DirEntries{
+				a, a,
+				b, b,
+				nil, c,
+				d, d,
+			},
+			dstOnly: fs.DirEntries{
+				c,
+			},
+			matches: []matchPair{
+				{a, a},
+				{b, b},
+				{d, d},
+			},
+		},
+		{
+			what: "One duplicate",
+			input: fs.DirEntries{
+				A, A,
+				a, a,
+				a, nil,
+				b, b,
+			},
+			matches: []matchPair{
+				{A, A},
+				{a, a},
+				{b, b},
+			},
+		},
+		{
+			what: "Two duplicates",
+			input: fs.DirEntries{
+				a, a,
+				a, a,
+				a, nil,
+			},
+			matches: []matchPair{
+				{a, a},
+			},
+		},
+		{
+			what: "Case insensitive duplicate - no transform",
+			input: fs.DirEntries{
+				a, a,
+				A, A,
+			},
+			matches: []matchPair{
+				{A, A},
+				{a, a},
+			},
+		},
+		{
+			what: "Case insensitive duplicate - transform to lower case",
+			input: fs.DirEntries{
+				a, A,
+				A, a,
+			},
+			matches: []matchPair{
+				{a, A}, // the first duplicate will be returned with a stable sort
+			},
+			transforms: []matchTransformFn{strings.ToLower},
+		},
+		{
+			what: "Unicode near-duplicate that becomes duplicate with normalization",
+			input: fs.DirEntries{
+				uE1, uE1,
+				uE2, uE2,
+			},
+			matches: []matchPair{
+				{uE1, uE1},
+			},
+			transforms: []matchTransformFn{norm.NFC.String},
+		},
+		{
+			what: "Unicode near-duplicate with no normalization",
+			input: fs.DirEntries{
+				uE1, uE1,
+				uE2, uE2,
+			},
+			matches: []matchPair{
+				{uE1, uE1},
+				{uE2, uE2},
+			},
+		},
+		{
+			what: "File and directory are not duplicates - srcOnly",
+			input: fs.DirEntries{
+				dirA, nil,
+				A, nil,
+			},
+			srcOnly: fs.DirEntries{
+				dirA,
+				A,
+			},
+		},
+		{
+			what: "File and directory are not duplicates - matches",
+			input: fs.DirEntries{
+				dirA, dirA,
+				A, A,
+			},
+			matches: []matchPair{
+				{dirA, dirA},
+				{A, A},
+			},
+		},
+		{
+			what: "Sync with directory #1",
+			input: fs.DirEntries{
+				dirA, nil,
+				A, nil,
+				b, b,
+				nil, c,
+				nil, d,
+			},
+			srcOnly: fs.DirEntries{
+				dirA,
+				A,
+			},
+			dstOnly: fs.DirEntries{
+				c, d,
+			},
+			matches: []matchPair{
+				{b, b},
+			},
+		},
+		{
+			what: "Sync with 2 directories",
+			input: fs.DirEntries{
+				dirA, dirA,
+				A, nil,
+				nil, dirb,
+				nil, b,
+			},
+			srcOnly: fs.DirEntries{
+				A,
+			},
+			dstOnly: fs.DirEntries{
+				dirb,
+				b,
+			},
+			matches: []matchPair{
+				{dirA, dirA},
+			},
+		},
+		{
+			what: "Sync with duplicate files and dirs",
+			input: fs.DirEntries{
+				dirA, A,
+				A, dirA,
+			},
+			matches: []matchPair{
+				{dirA, dirA},
+				{A, A},
+			},
+		},
+	} {
+		t.Run(fmt.Sprintf("TestMatchListings-%s", test.what), func(t *testing.T) {
+			ctx := context.Background()
+			var wg sync.WaitGroup
+
+			// Skeleton March for testing
+			m := March{
+				Ctx:        context.Background(),
+				transforms: test.transforms,
+			}
+
+			// Make a channel to send the source (0) or dest (1) using a list.Sorter
+			makeChan := func(offset int) <-chan fs.DirEntry {
+				out := make(chan fs.DirEntry)
+				key := m.dstKey
+				if offset == 0 {
+					key = m.srcKey
+				}
+				ls, err := list.NewSorter(ctx, nil, list.SortToChan(out), key)
+				require.NoError(t, err)
+				wg.Go(func() {
+					for i := 0; i < len(test.input); i += 2 {
+						entry := test.input[i+offset]
+						if entry != nil {
+							require.NoError(t, ls.Add(fs.DirEntries{entry}))
+						}
+					}
+					require.NoError(t, ls.Send())
+					ls.CleanUp()
+					close(out)
+				})
+				return out
+			}
+
+			var srcOnly fs.DirEntries
+			srcOnlyFn := func(entry fs.DirEntry) {
+				srcOnly = append(srcOnly, entry)
+			}
+			var dstOnly fs.DirEntries
+			dstOnlyFn := func(entry fs.DirEntry) {
+				dstOnly = append(dstOnly, entry)
+			}
+			var matches []matchPair
+			matchFn := func(dst, src fs.DirEntry) {
+				matches = append(matches, matchPair{dst: dst, src: src})
+			}
+
+			err := m.matchListings(makeChan(0), makeChan(1), func() {}, srcOnlyFn, dstOnlyFn, matchFn)
+			require.NoError(t, err)
+			wg.Wait()
+			assert.Equal(t, test.srcOnly, srcOnly, test.what, "srcOnly differ")
+			assert.Equal(t, test.dstOnly, dstOnly, test.what, "dstOnly differ")
+			assert.Equal(t, test.matches, matches, test.what, "matches differ")
+
+			// now swap src and dst
+			srcOnly, dstOnly, matches = nil, nil, nil
+			err = m.matchListings(makeChan(0), makeChan(1), func() {}, srcOnlyFn, dstOnlyFn, matchFn)
+			require.NoError(t, err)
+			wg.Wait()
+			assert.Equal(t, test.srcOnly, srcOnly, test.what, "srcOnly differ")
+			assert.Equal(t, test.dstOnly, dstOnly, test.what, "dstOnly differ")
+			assert.Equal(t, test.matches, matches, test.what, "matches differ")
+		})
+	}
+}
+
+func TestMatchListingsNoProcessDstOnly(t *testing.T) {
+	var (
+		a = mockobject.Object("a")
+		b = mockobject.Object("b")
+		c = mockobject.Object("c")
+		d = mockobject.Object("d")
+	)
+
+	for _, test := range []struct {
+		what    string
+		input   fs.DirEntries // pairs of input src, dst
+		srcOnly fs.DirEntries
+		matches []matchPair
+	}{
+		{
+			what: "src and dst with dst-only skipped",
+			input: fs.DirEntries{
+				a, nil,
+				b, b,
+				nil, c,
+				nil, d,
+			},
+			srcOnly: fs.DirEntries{
+				a,
+			},
+			matches: []matchPair{
+				{b, b},
+			},
+		},
+		{
+			what: "all dst-only skipped",
+			input: fs.DirEntries{
+				nil, a,
+				nil, b,
+				nil, c,
+			},
+		},
+		{
+			what: "all src-only",
+			input: fs.DirEntries{
+				a, nil,
+				b, nil,
+				c, nil,
+			},
+			srcOnly: fs.DirEntries{
+				a, b, c,
+			},
+		},
+		{
+			what: "matches then dst-only skipped",
+			input: fs.DirEntries{
+				a, a,
+				b, b,
+				nil, c,
+				nil, d,
+			},
+			matches: []matchPair{
+				{a, a},
+				{b, b},
+			},
+		},
+	} {
+		t.Run(test.what, func(t *testing.T) {
+			ctx := context.Background()
+			var wg sync.WaitGroup
+
+			m := March{
+				Ctx:              context.Background(),
+				NoProcessDstOnly: true,
+			}
+
+			// makeChan creates a channel sending sorted entries.
+			// It returns the channel and a drain function to unblock
+			// senders if the channel isn't fully consumed.
+			makeChan := func(offset int) (<-chan fs.DirEntry, func()) {
+				out := make(chan fs.DirEntry)
+				key := m.dstKey
+				if offset == 0 {
+					key = m.srcKey
+				}
+				ls, err := list.NewSorter(ctx, nil, list.SortToChan(out), key)
+				require.NoError(t, err)
+				wg.Go(func() {
+					for i := 0; i < len(test.input); i += 2 {
+						entry := test.input[i+offset]
+						if entry != nil {
+							require.NoError(t, ls.Add(fs.DirEntries{entry}))
+						}
+					}
+					require.NoError(t, ls.Send())
+					ls.CleanUp()
+					close(out)
+				})
+				drain := func() {
+					for range out {
+					}
+				}
+				return out, drain
+			}
+
+			var srcOnly fs.DirEntries
+			srcOnlyFn := func(entry fs.DirEntry) {
+				srcOnly = append(srcOnly, entry)
+			}
+			var dstOnly fs.DirEntries
+			dstOnlyFn := func(entry fs.DirEntry) {
+				dstOnly = append(dstOnly, entry)
+			}
+			var matches []matchPair
+			matchFn := func(dst, src fs.DirEntry) {
+				matches = append(matches, matchPair{dst: dst, src: src})
+			}
+
+			srcChan, _ := makeChan(0)
+			dstChan, drainDst := makeChan(1)
+
+			cancelled := false
+			dstCancel := func() {
+				cancelled = true
+				// Drain remaining dst entries to unblock the sender,
+				// mimicking what the real code does via context cancellation.
+				go drainDst()
+			}
+
+			err := m.matchListings(srcChan, dstChan, dstCancel, srcOnlyFn, dstOnlyFn, matchFn)
+			require.NoError(t, err)
+			wg.Wait()
+			assert.Equal(t, test.srcOnly, srcOnly, test.what, "srcOnly differ")
+			assert.Empty(t, dstOnly, test.what, "dstOnly should be empty")
+			assert.Equal(t, test.matches, matches, test.what, "matches differ")
+			assert.True(t, cancelled, "dstCancel should have been called")
+		})
+	}
+}

@@ -1,0 +1,34 @@
+---
+title: Storage channels
+description: Manage Telegram channels used for Teldrive file parts.
+---
+
+Teldrive stores file payload parts in Telegram channels and keeps their mapping in PostgreSQL.
+
+## Automatic channels
+
+```yaml
+telegram:
+  auto-channel-create: true
+  channel-name-prefix: teldrive
+  channel-part-limit: 500000
+```
+
+Teldrive creates another channel when the active channel reaches the configured part limit.
+
+## UI
+
+Open **Settings → Storage channels** to:
+
+- create a channel;
+- discover/sync channels;
+- select the active channel;
+- remove an unused channel.
+
+A channel cannot be removed while files still reference it.
+
+Changing the active channel affects new parts only; existing files stay mapped to their current channels.
+
+`channel-part-limit` counts parts, not logical files.
+
+Bots are added to storage channels through background jobs. See [Telegram bots](/using/bots).

@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+set -e
+
+NAME=rclone-serve-webdav
+USER=rclone
+PASS=PagansSwimExpiry9
+IP=127.0.0.1
+PORT=28620
+
+start() {
+    run rclone serve webdav --user $USER --pass $PASS --addr ${IP}:${PORT} ${DATADIR}
+    
+    echo type=webdav
+    echo vendor=rclone
+    echo url=http://${IP}:${PORT}/
+    echo user=$USER
+    echo pass=$(rclone obscure $PASS)
+    echo _connect=${IP}:$PORT
+}
+
+. $(dirname "$0")/rclone-serve.bash

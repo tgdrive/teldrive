@@ -1,0 +1,26 @@
+name: "rclone"
+arch: "{{.Arch}}"
+platform: "linux"
+version: "{{.Version}}"
+section: "default"
+priority: "extra"
+provides:
+- rclone
+maintainer: "Nick Craig-Wood <nick@craig-wood.com>"
+description: |
+  Rclone - "rsync for cloud storage"
+    is a command-line program to sync files and directories to and
+    from most cloud providers. It can also mount, tree, ncdu and lots
+    of other useful things.
+vendor: "rclone"
+homepage: "https://rclone.org"
+license: "MIT"
+contents:
+  - src: ./rclone
+    dst: /usr/bin/rclone
+  - src: ./README.html
+    dst: /usr/share/doc/rclone/README.html
+  - src: ./README.txt
+    dst: /usr/share/doc/rclone/README.txt
+  - src: ./rclone.1
+    dst: /usr/share/man/man1/rclone.1

@@ -1,0 +1,23 @@
+{
+  "title": "Teldrive Docs",
+  "pages": [
+    "index",
+    "---Getting Started---",
+    "getting-started",
+    "---Install---",
+    "installation",
+    "---Use Teldrive---",
+    "using",
+    "rclone",
+    "---Configure---",
+    "configuration",
+    "---Deploy---",
+    "deployment",
+    "---API---",
+    "[API Reference](/api/)",
+    "---Operations---",
+    "operations",
+    "---Advanced---",
+    "advanced"
+  ]
+}

@@ -1,0 +1,72 @@
+---
+title: Build from source
+description: Build and test Teldrive from the repository.
+---
+
+## Requirements
+
+- Go 1.26
+- Bun
+- Just
+- Git
+- PostgreSQL to run the server
+- Podman for integration/E2E tests
+
+## Build
+
+```bash
+git clone https://github.com/tgdrive/teldrive.git
+cd teldrive
+just install-tools
+just build
+./bin/teldrive version
+```
+
+`just build` generates the UI API client, builds the Vite/React UI, and embeds it into the Go binary.
+
+## Development
+
+```bash
+just dev
+```
+
+The root `justfile` loads `.env`. Do not commit production secrets.
+
+## Validate changes
+
+```bash
+just test-unit
+just ui-check
+just check
+```
+
+`just check` runs generation, linting, builds, tests, and coverage checks.
+
+## Generated code
+
+TypeSpec under `typespec/` owns the HTTP contract. After API changes:
+
+```bash
+just generate-api
+just generate-ui
+```
+
+or:
+
+```bash
+just generate
+```
+
+After SQL/query changes:
+
+```bash
+just generate-db
+```
+
+Use repository targets instead of editing generated OpenAPI/API/SQLC output directly.
+
+## Container image
+
+```bash
+just image
+```

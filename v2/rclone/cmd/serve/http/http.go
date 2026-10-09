@@ -1,0 +1,437 @@
+// Package http provides common functionality for http servers
+package http
+
+import (
+	"context"
+	_ "embed"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"os"
+	"path"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/go-chi/chi/v5/middleware"
+	"github.com/rclone/rclone/cmd"
+	cmdserve "github.com/rclone/rclone/cmd/serve"
+	"github.com/rclone/rclone/cmd/serve/proxy"
+	"github.com/rclone/rclone/cmd/serve/proxy/proxyflags"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/accounting"
+	"github.com/rclone/rclone/fs/config/flags"
+	"github.com/rclone/rclone/fs/rc"
+	libhttp "github.com/rclone/rclone/lib/http"
+	"github.com/rclone/rclone/lib/http/serve"
+	"github.com/rclone/rclone/lib/systemd"
+	"github.com/rclone/rclone/vfs"
+	"github.com/rclone/rclone/vfs/vfscommon"
+	"github.com/rclone/rclone/vfs/vfsflags"
+	"github.com/spf13/cobra"
+)
+
+// OptionsInfo describes the Options in use
+var OptionsInfo = fs.Options{{
+	Name:    "disable_zip",
+	Default: false,
+	Help:    "Disable zip download of directories",
+}, {
+	Name:    "disable_dir_list",
+	Default: false,
+	Help:    "Disable HTML directory list on GET request for a directory",
+}}.
+	Add(libhttp.ConfigInfo).
+	Add(libhttp.AuthConfigInfo).
+	Add(libhttp.TemplateConfigInfo)
+
+// Options required for http server
+type Options struct {
+	Auth           libhttp.AuthConfig
+	HTTP           libhttp.Config
+	Template       libhttp.TemplateConfig
+	DisableZip     bool `config:"disable_zip"`
+	DisableDirList bool `config:"disable_dir_list"`
+}
+
+// DefaultOpt is the default values used for Options
+var DefaultOpt = Options{
+	Auth:     libhttp.DefaultAuthCfg(),
+	HTTP:     libhttp.DefaultCfg(),
+	Template: libhttp.DefaultTemplateCfg(),
+}
+
+// Opt is options set by command line flags
+var Opt = DefaultOpt
+
+//go:embed favicon.png
+var faviconData []byte
+
+func init() {
+	fs.RegisterGlobalOptions(fs.OptionsInfo{Name: "http", Opt: &Opt, Options: OptionsInfo})
+}
+
+// flagPrefix is the prefix used to uniquely identify command line flags.
+// It is intentionally empty for this package.
+const flagPrefix = ""
+
+func init() {
+	flagSet := Command.Flags()
+	flags.AddFlagsFromOptions(flagSet, "", OptionsInfo)
+	vfsflags.AddFlags(flagSet)
+	proxyflags.AddFlags(flagSet)
+	cmdserve.Command.AddCommand(Command)
+	cmdserve.AddRc("http", func(ctx context.Context, f fs.Fs, in rc.Params) (cmdserve.Handle, error) {
+		// Read VFS Opts
+		var vfsOpt = vfscommon.Opt // set default opts
+		err := rc.ParseOptions(in, "vfsOpt", &vfsOpt)
+		if err != nil {
+			return nil, err
+		}
+		// Read Proxy Opts
+		var proxyOpt = proxy.Opt // set default opts
+		err = rc.ParseOptions(in, "proxyOpt", &proxyOpt)
+		if err != nil {
+			return nil, err
+		}
+		// Read opts
+		var opt = Opt // set default opts
+		err = rc.ParseOptions(in, "opt", &opt)
+		if err != nil {
+			return nil, err
+		}
+		// Create server
+		return newServer(ctx, f, &opt, &vfsOpt, &proxyOpt)
+	})
+}
+
+// Command definition for cobra
+var Command = &cobra.Command{
+	Use:   "http remote:path",
+	Short: `Serve the remote over HTTP.`,
+	Long: `Run a basic web server to serve a remote over HTTP.
+This can be viewed in a web browser or you can make a remote of type
+http read from it.
+
+You can use the filter flags (e.g. ` + "`--include`, `--exclude`" + `) to control what
+is served.
+
+The server will log errors.  Use ` + "`-v`" + ` to see access logs.
+
+` + "`--bwlimit`" + ` will be respected for file transfers.  Use ` + "`--stats`" + ` to
+control the stats printing.
+
+` + strings.TrimSpace(libhttp.Help(flagPrefix)+libhttp.TemplateHelp(flagPrefix)+libhttp.AuthHelp(flagPrefix)+vfs.Help()+proxy.Help),
+	Annotations: map[string]string{
+		"versionIntroduced": "v1.39",
+		"groups":            "Filter",
+	},
+	Run: func(command *cobra.Command, args []string) {
+		var f fs.Fs
+		if proxy.Opt.AuthProxy == "" {
+			cmd.CheckArgs(1, 1, command, args)
+			f = cmd.NewFsSrc(args)
+		} else {
+			cmd.CheckArgs(0, 0, command, args)
+		}
+
+		cmd.Run(false, true, command, func() error {
+			s, err := newServer(context.Background(), f, &Opt, &vfscommon.Opt, &proxy.Opt)
+			if err != nil {
+				fs.Fatal(nil, fmt.Sprint(err))
+			}
+			defer systemd.Notify()()
+			return s.Serve()
+		})
+	},
+}
+
+// HTTP contains everything to run the server
+type HTTP struct {
+	f        fs.Fs
+	provider *proxy.Provider
+	server   *libhttp.Server
+	opt      Options
+	ctx      context.Context // for global config
+}
+
+// Gets the VFS in use for this request
+func (s *HTTP) getVFS(ctx context.Context) (VFS *vfs.VFS, err error) {
+	return s.provider.Get(ctx)
+}
+
+// auth does proxy authorization
+func (s *HTTP) auth(r *http.Request, user, pass string) (value any, err error) {
+	VFS, _, err := s.provider.Proxy().Call(user, pass, false, r.RemoteAddr)
+	if err != nil {
+		return nil, err
+	}
+	return VFS, err
+}
+
+func newServer(ctx context.Context, f fs.Fs, opt *Options, vfsOpt *vfscommon.Options, proxyOpt *proxy.Options) (_ *HTTP, err error) {
+	s := &HTTP{
+		f:        f,
+		ctx:      ctx,
+		opt:      *opt,
+		provider: proxy.NewProvider(ctx, f, vfsOpt, proxyOpt),
+	}
+	defer func() {
+		if err != nil {
+			s.provider.Shutdown()
+		}
+	}()
+
+	if s.provider.IsProxy() {
+		s.opt.Auth.CustomAuthFn = s.auth
+	}
+
+	s.server, err = libhttp.NewServer(ctx,
+		libhttp.WithConfig(s.opt.HTTP),
+		libhttp.WithAuth(s.opt.Auth),
+		libhttp.WithTemplate(s.opt.Template),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to init server: %w", err)
+	}
+
+	router := s.server.Router()
+	router.Use(
+		middleware.Compress(5),
+		middleware.SetHeader("Accept-Ranges", "bytes"),
+		middleware.SetHeader("Server", "rclone/"+fs.Version),
+	)
+	router.Get("/favicon.ico", s.serveFavicon)
+	router.Get("/*", s.handler)
+	router.Head("/*", s.handler)
+
+	return s, nil
+}
+
+// Serve HTTP until the server is shutdown
+func (s *HTTP) Serve() error {
+	s.server.Serve()
+	fs.Logf(s.f, "HTTP Server started on %s", s.server.URLs())
+	s.server.Wait()
+	return nil
+}
+
+// Addr returns the first address of the server
+func (s *HTTP) Addr() net.Addr {
+	return s.server.Addr()
+}
+
+// Shutdown the server
+func (s *HTTP) Shutdown() error {
+	err := s.server.Shutdown()
+	s.provider.Shutdown()
+	return err
+}
+
+// serveFavicon serves the remote's favicon.ico if it exists, otherwise
+// the rclone favicon
+func (s *HTTP) serveFavicon(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	VFS, err := s.getVFS(ctx)
+	if err == nil {
+		node, err := VFS.Stat("favicon.ico")
+		if err == nil && node.IsFile() {
+			// Remote has favicon.ico, serve it as a regular file
+			s.serveFile(w, r, "favicon.ico")
+			return
+		}
+	}
+	// Serve the embedded rclone favicon
+	w.Header().Set("Content-Type", "image/png")
+	w.Header().Set("Cache-Control", "max-age=86400")
+	if _, err := w.Write(faviconData); err != nil {
+		fs.Debugf(nil, "Failed to write favicon: %v", err)
+	}
+}
+
+// handler reads incoming requests and dispatches them
+func (s *HTTP) handler(w http.ResponseWriter, r *http.Request) {
+	isDir := strings.HasSuffix(r.URL.Path, "/")
+	remote := strings.Trim(r.URL.Path, "/")
+	if isDir {
+		if s.opt.DisableDirList {
+			http.NotFound(w, r)
+			return
+		}
+		s.serveDir(w, r, remote)
+	} else {
+		s.serveFile(w, r, remote)
+	}
+}
+
+// serveDir serves a directory index at dirRemote
+func (s *HTTP) serveDir(w http.ResponseWriter, r *http.Request, dirRemote string) {
+	ctx := r.Context()
+	VFS, err := s.getVFS(r.Context())
+	if err != nil {
+		http.Error(w, "Root directory not found", http.StatusNotFound)
+		fs.Errorf(nil, "Failed to serve directory: %v", err)
+		return
+	}
+	// List the directory
+	node, err := VFS.Stat(dirRemote)
+	if err == vfs.ENOENT {
+		http.Error(w, "Directory not found", http.StatusNotFound)
+		return
+	} else if err != nil {
+		serve.Error(ctx, dirRemote, w, "Failed to list directory", err)
+		return
+	}
+	if !node.IsDir() {
+		http.Error(w, "Not a directory", http.StatusNotFound)
+		return
+	}
+	dir := node.(*vfs.Dir)
+
+	if r.URL.Query().Get("download") == "zip" && !s.opt.DisableZip {
+		fs.Infof(dirRemote, "%s: Zipping directory", r.RemoteAddr)
+		zipName := path.Base(dirRemote)
+		if dirRemote == "" {
+			zipName = "root"
+		}
+		w.Header().Set("Content-Disposition", "attachment; filename=\""+zipName+".zip\"")
+		w.Header().Set("Content-Type", "application/zip")
+		w.Header().Set("Last-Modified", time.Now().UTC().Format(http.TimeFormat))
+		err := vfs.CreateZip(ctx, dir, w)
+		if err != nil {
+			serve.Error(ctx, dirRemote, w, "Failed to create zip", err)
+			return
+		}
+		return
+	}
+
+	dirEntries, err := dir.ReadDirAll()
+	if err != nil {
+		serve.Error(ctx, dirRemote, w, "Failed to list directory", err)
+		return
+	}
+
+	// Make the entries for display
+	directory := serve.NewDirectory(dirRemote, s.server.HTMLTemplate())
+	for _, node := range dirEntries {
+		if vfscommon.Opt.NoModTime {
+			directory.AddHTMLEntry(node.Path(), node.IsDir(), node.Size(), time.Time{})
+		} else {
+			directory.AddHTMLEntry(node.Path(), node.IsDir(), node.Size(), node.ModTime().UTC())
+		}
+	}
+
+	sortParm := r.URL.Query().Get("sort")
+	orderParm := r.URL.Query().Get("order")
+	directory.ProcessQueryParams(sortParm, orderParm)
+
+	// Set the Last-Modified header to the timestamp
+	w.Header().Set("Last-Modified", dir.ModTime().UTC().Format(http.TimeFormat))
+
+	directory.DisableZip = s.opt.DisableZip
+
+	directory.Serve(w, r)
+}
+
+// serveFile serves a file object at remote
+func (s *HTTP) serveFile(w http.ResponseWriter, r *http.Request, remote string) {
+	ctx := r.Context()
+	VFS, err := s.getVFS(r.Context())
+	if err != nil {
+		http.Error(w, "File not found", http.StatusNotFound)
+		fs.Errorf(nil, "Failed to serve file: %v", err)
+		return
+	}
+
+	node, err := VFS.Stat(remote)
+	if err == vfs.ENOENT {
+		fs.Infof(remote, "%s: File not found", r.RemoteAddr)
+		if s.opt.DisableDirList {
+			// Return the same response as for a directory URL so
+			// that missing and existing paths are indistinguishable
+			http.NotFound(w, r)
+			return
+		}
+		http.Error(w, "File not found", http.StatusNotFound)
+		return
+	} else if err != nil {
+		serve.Error(ctx, remote, w, "Failed to find file", err)
+		return
+	}
+	if !node.IsFile() {
+		if s.opt.DisableDirList {
+			// Return the same response as for a directory URL so
+			// that a directory's existence can't be probed via a
+			// URL without a trailing slash
+			http.NotFound(w, r)
+			return
+		}
+		http.Error(w, "Not a file", http.StatusNotFound)
+		return
+	}
+	entry := node.DirEntry()
+	if entry == nil {
+		http.Error(w, "Can't open file being written", http.StatusNotFound)
+		return
+	}
+	obj := entry.(fs.Object)
+	file := node.(*vfs.File)
+
+	// Set content length if we know how long the object is
+	knownSize := obj.Size() >= 0
+	if knownSize {
+		w.Header().Set("Content-Length", strconv.FormatInt(node.Size(), 10))
+	}
+
+	// Set content type
+	mimeType := fs.MimeType(r.Context(), obj)
+	if mimeType == "application/octet-stream" && path.Ext(remote) == "" {
+		// Leave header blank so http server guesses
+	} else {
+		w.Header().Set("Content-Type", mimeType)
+	}
+
+	// Set the Last-Modified header to the timestamp
+	w.Header().Set("Last-Modified", file.ModTime().UTC().Format(http.TimeFormat))
+
+	// If HEAD no need to read the object since we have set the headers
+	if r.Method == "HEAD" {
+		return
+	}
+
+	// open the object
+	in, err := file.Open(os.O_RDONLY)
+	if err != nil {
+		serve.Error(ctx, remote, w, "Failed to open file", err)
+		return
+	}
+	defer func() {
+		err := in.Close()
+		if err != nil {
+			fs.Errorf(remote, "Failed to close file: %v", err)
+		}
+	}()
+
+	// Account the transfer
+	tr := accounting.Stats(r.Context()).NewTransfer(obj, nil)
+	defer tr.Done(r.Context(), nil)
+	// FIXME in = fs.NewAccount(in, obj).WithBuffer() // account the transfer
+
+	// Serve the file
+	if knownSize {
+		http.ServeContent(w, r, remote, node.ModTime(), in)
+	} else {
+		// http.ServeContent can't serve unknown length files
+		if rangeRequest := r.Header.Get("Range"); rangeRequest != "" {
+			http.Error(w, "Can't use Range: on files of unknown length", http.StatusRequestedRangeNotSatisfiable)
+			return
+		}
+		n, err := io.Copy(w, in)
+		if err != nil {
+			fs.Errorf(obj, "Didn't finish writing GET request (wrote %d/unknown bytes): %v", n, err)
+			return
+		}
+	}
+
+}

@@ -1,0 +1,125 @@
+package accounting
+
+import (
+	"context"
+	"errors"
+	"io"
+	"strings"
+	"testing"
+
+	"github.com/rclone/rclone/fs/rc"
+	"github.com/rclone/rclone/fstest/mockfs"
+	"github.com/rclone/rclone/fstest/mockobject"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestTransfer(t *testing.T) {
+	ctx := context.Background()
+	s := NewStats(ctx)
+
+	o := mockobject.Object("obj")
+	srcFs, err := mockfs.NewFs(ctx, "srcFs", "srcFs", nil)
+	require.NoError(t, err)
+	dstFs, err := mockfs.NewFs(ctx, "dstFs", "dstFs", nil)
+	require.NoError(t, err)
+
+	tr := newTransfer(s, o, srcFs, dstFs)
+
+	t.Run("Snapshot", func(t *testing.T) {
+		snap := tr.Snapshot()
+		assert.Equal(t, "obj", snap.Name)
+		assert.Equal(t, int64(0), snap.Size)
+		assert.Equal(t, int64(0), snap.Bytes)
+		assert.Equal(t, false, snap.Checked)
+		assert.Equal(t, "transferring", snap.What)
+		assert.Equal(t, false, snap.StartedAt.IsZero())
+		assert.Equal(t, true, snap.CompletedAt.IsZero())
+		assert.Equal(t, nil, snap.Error)
+		assert.Equal(t, "", snap.Group)
+		assert.Equal(t, "srcFs:srcFs", snap.SrcFs)
+		assert.Equal(t, "dstFs:dstFs", snap.DstFs)
+	})
+
+	t.Run("Done", func(t *testing.T) {
+		tr.Done(ctx, io.EOF)
+		snap := tr.Snapshot()
+		assert.Equal(t, "obj", snap.Name)
+		assert.Equal(t, int64(0), snap.Size)
+		assert.Equal(t, int64(0), snap.Bytes)
+		assert.Equal(t, false, snap.Checked)
+		assert.Equal(t, "transferring", snap.What)
+		assert.Equal(t, false, snap.StartedAt.IsZero())
+		assert.Equal(t, false, snap.CompletedAt.IsZero())
+		assert.Equal(t, true, errors.Is(snap.Error, io.EOF))
+		assert.Equal(t, "", snap.Group)
+		assert.Equal(t, "srcFs:srcFs", snap.SrcFs)
+		assert.Equal(t, "dstFs:dstFs", snap.DstFs)
+	})
+
+	t.Run("DoneReleasesAccount", func(t *testing.T) {
+		content := "hello world"
+		o := mockobject.New("obj").WithContent([]byte(content), mockobject.SeekModeNone)
+		tr := newTransfer(s, o, srcFs, dstFs)
+		in := tr.Account(ctx, io.NopCloser(strings.NewReader(content)))
+		_, err := io.Copy(io.Discard, in)
+		require.NoError(t, err)
+
+		tr.Done(ctx, nil)
+
+		tr.mu.RLock()
+		acc := tr.acc
+		tr.mu.RUnlock()
+		assert.Nil(t, acc)
+
+		snap := tr.Snapshot()
+		assert.Equal(t, int64(len(content)), snap.Bytes)
+		assert.Equal(t, int64(len(content)), snap.Size)
+	})
+
+	t.Run("rcStats", func(t *testing.T) {
+		out := tr.rcStats()
+		assert.Equal(t, rc.Params{
+			"name":  "obj",
+			"size":  int64(0),
+			"srcFs": "srcFs:srcFs",
+			"dstFs": "dstFs:dstFs",
+		}, out)
+	})
+
+	t.Run("NoHistory", func(t *testing.T) {
+		s := NewStats(ctx)
+
+		// A normal checking transfer is kept in the history
+		tr := s.NewCheckingTransfer(o, "checking")
+		tr.Done(ctx, nil)
+		assert.Equal(t, 1, len(s.Transferred()))
+
+		// A no history checking transfer is shown while running but
+		// is not kept in the history
+		tr = s.NewCheckingTransferNoHistory(o, "setting modtime")
+		assert.Equal(t, 1, s.checking.count())
+		assert.Equal(t, 1, len(s.Transferred()))
+		tr.Done(ctx, nil)
+		assert.Equal(t, 0, s.checking.count())
+		assert.Equal(t, 1, len(s.Transferred()))
+		assert.Equal(t, int64(2), s.GetChecks())
+	})
+
+	t.Run("Snapshot checking transfer", func(t *testing.T) {
+		ctr := newCheckingTransfer(s, o, "checking")
+		snap := ctr.Snapshot()
+
+		assert.Equal(t, "obj", snap.Name)
+		assert.Equal(t, int64(0), snap.Size)
+		assert.Equal(t, int64(0), snap.Bytes)
+		assert.Equal(t, true, snap.Checked)
+		assert.Equal(t, "checking", snap.What)
+		assert.Equal(t, false, snap.StartedAt.IsZero())
+		assert.Equal(t, true, snap.CompletedAt.IsZero())
+		assert.Equal(t, nil, snap.Error)
+		assert.Equal(t, "", snap.Group)
+		assert.Equal(t, "", snap.SrcFs)
+		assert.Equal(t, "", snap.DstFs)
+	})
+}

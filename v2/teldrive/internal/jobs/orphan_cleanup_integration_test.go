@@ -1,0 +1,137 @@
+//go:build integration
+
+package jobs_test
+
+import (
+	"context"
+	"errors"
+	"io"
+	"testing"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/riverqueue/river"
+
+	"github.com/tgdrive/teldrive/v2/internal/jobs"
+	"github.com/tgdrive/teldrive/v2/internal/telegramstore"
+	testpostgres "github.com/tgdrive/teldrive/v2/internal/testutil/postgres"
+)
+
+func TestOrphanCleanupDeletesOnlyExpiredUnreferencedDocuments(t *testing.T) {
+	db := testpostgres.New(t)
+	ctx := context.Background()
+	seedCleanupOwner(t, db.Pool)
+	if _, err := db.Pool.Exec(ctx, `
+WITH session AS (
+  INSERT INTO upload_sessions (user_id, name, expected_size, mod_time, part_size, expires_at)
+  VALUES (1001, 'active.bin', 1, now(), 1, now() + interval '7 days') RETURNING id
+)
+INSERT INTO upload_parts (upload_id, part_no, channel_id, message_id, plain_size, stored_size, state)
+SELECT id, 1, 9001, 12, 1, 1, 'stored' FROM session`); err != nil {
+		t.Fatal(err)
+	}
+	brokenID := uuid.New()
+	if _, err := db.Pool.Exec(ctx, `
+INSERT INTO files (id, user_id, name, kind, size, mod_time)
+VALUES ($1, 1001, 'broken.bin', 'file', 5, now())`, brokenID.String()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Pool.Exec(ctx, `
+INSERT INTO file_parts (file_id, part_no, channel_id, message_id)
+VALUES ($1, 1, 9001, 99)`, brokenID.String()); err != nil {
+		t.Fatal(err)
+	}
+	storage := &orphanStorage{messages: []telegramstore.DocumentMessage{
+		{ID: 10, CreatedAt: time.Now().Add(-8 * 24 * time.Hour)},
+		{ID: 11, CreatedAt: time.Now().Add(-6 * 24 * time.Hour)},
+		{ID: 12, CreatedAt: time.Now().Add(-8 * 24 * time.Hour)},
+	}}
+	runtime, err := jobs.NewRuntime(db.Pool, storage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var template jobs.PeriodicTemplate
+	for _, candidate := range runtime.PeriodicJobCatalog() {
+		if candidate.Kind == jobs.OrphanCleanupKind {
+			template = candidate
+		}
+	}
+	if template.DefaultCronExpression != "@every 336h" || template.DefaultMaxAttempts != 3 || len(template.DefaultTags) != 0 {
+		t.Fatalf("orphan cleanup template = %#v", template)
+	}
+	if err := runtime.Start(ctx); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	defer func() {
+		if err := runtime.Stop(context.Background()); err != nil {
+			t.Errorf("Stop() error = %v", err)
+		}
+	}()
+	periodicJobs, err := runtime.ListPeriodicJobs(ctx)
+	if err != nil {
+		t.Fatalf("ListPeriodicJobs() error = %v", err)
+	}
+	found := false
+	for _, periodicJob := range periodicJobs {
+		if periodicJob.Kind == jobs.OrphanCleanupKind {
+			found = true
+			if periodicJob.Schedule.CronExpression != "@every 336h" {
+				t.Fatalf("orphan cleanup schedule = %q", periodicJob.Schedule.CronExpression)
+			}
+			if len(periodicJob.Args) != 0 {
+				t.Fatalf("orphan cleanup args = %#v", periodicJob.Args)
+			}
+		}
+	}
+	if !found {
+		t.Fatal("orphan cleanup periodic job not persisted")
+	}
+	worker := jobs.NewOrphanedTelegramPartsCleanupWorker(db.Pool, storage, storage, 7*24*time.Hour)
+	if got := worker.Timeout(nil); got != 4*time.Hour {
+		t.Fatalf("Timeout() = %s", got)
+	}
+	if err := worker.Work(ctx, &river.Job[jobs.OrphanCleanupArgs]{Args: jobs.OrphanCleanupArgs{}}); err != nil {
+		t.Fatal(err)
+	}
+	if len(storage.deleted) != 1 || storage.deleted[0] != 10 {
+		t.Fatalf("deleted messages = %v, want [10]", storage.deleted)
+	}
+	for _, id := range storage.deleted {
+		if id == 99 {
+			t.Fatalf("deleted messages = %v, must not delete referenced message 99", storage.deleted)
+		}
+	}
+	if len(storage.limits) != 1 || storage.limits[0] != 100 {
+		t.Fatalf("Telegram page limits = %v, want [100]", storage.limits)
+	}
+}
+
+type orphanStorage struct {
+	messages []telegramstore.DocumentMessage
+	deleted  []int64
+	limits   []int
+}
+
+func (s *orphanStorage) ListDocumentMessages(_ context.Context, request telegramstore.ListDocumentMessagesRequest) (telegramstore.DocumentMessagePage, error) {
+	s.limits = append(s.limits, request.Limit)
+	return telegramstore.DocumentMessagePage{Messages: s.messages, Exhausted: true}, nil
+}
+func (*orphanStorage) Upload(context.Context, telegramstore.UploadRequest) (telegramstore.StoredPart, error) {
+	return telegramstore.StoredPart{}, errors.New("not used")
+}
+func (*orphanStorage) OpenRange(context.Context, telegramstore.RangeRequest) (io.ReadCloser, error) {
+	return nil, errors.New("not used")
+}
+func (s *orphanStorage) DeleteMessages(_ context.Context, _, _ int64, ids []int64) error {
+	s.deleted = append(s.deleted, ids...)
+	return nil
+}
+func (*orphanStorage) CopyPart(context.Context, int64, int64, int64, int64) (telegramstore.StoredPart, error) {
+	return telegramstore.StoredPart{}, errors.New("not used")
+}
+func (*orphanStorage) CreateChannel(context.Context, int64, string) (telegramstore.Channel, error) {
+	return telegramstore.Channel{}, errors.New("not used")
+}
+func (*orphanStorage) DeleteChannel(context.Context, int64, int64) error {
+	return errors.New("not used")
+}

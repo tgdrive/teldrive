@@ -1,0 +1,33 @@
+---
+title: Tasks
+description: Inspect, retry, and cancel background jobs.
+---
+
+The **Tasks** page shows River/RiverPro background jobs such as server-side imports and bot/channel maintenance.
+
+## States
+
+Jobs may be queued, running, completed, failed, cancelled, or scheduled for retry.
+
+Open a failed task before retrying. Retry transient failures only after fixing permanent causes such as invalid paths, revoked credentials, missing permissions, or bad configuration.
+
+## Cancel
+
+Cancellation stops future processing where supported; it does not undo external side effects already completed.
+
+## Periodic jobs
+
+Use **Settings → Periodic jobs** to manage scheduled jobs.
+
+## Worker configuration
+
+Default:
+
+```yaml
+jobs:
+  run-workers: true
+```
+
+Set `false` only for API-only instances when another process runs workers.
+
+See [Jobs and queues](/operations/jobs-and-queues) and [Multi-instance deployments](/advanced/multi-instance).

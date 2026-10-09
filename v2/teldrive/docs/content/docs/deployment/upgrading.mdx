@@ -1,0 +1,69 @@
+---
+title: Upgrading
+description: Upgrade Teldrive with a database backup, validation, smoke tests, and rollback path.
+---
+
+Startup can run Teldrive, River, and RiverPro migrations. Back up PostgreSQL before the new version initializes.
+
+## Before upgrading
+
+1. Read release notes.
+2. Record the current version.
+3. Back up PostgreSQL.
+4. Verify you still have `security.data-key` and content-encryption keys.
+5. Keep the previous image/binary available.
+
+Use a pinned release tag:
+
+```yaml
+image: ghcr.io/tgdrive/teldrive:vX.Y.Z
+```
+
+## Compose
+
+```bash
+docker compose pull teldrive
+docker compose run --rm teldrive check
+docker compose up -d teldrive
+docker compose logs --tail=250 teldrive
+```
+
+`check` can run migrations, so the backup must exist before it.
+
+## Binary install
+
+Keep old and new binaries side by side:
+
+```text
+/usr/local/lib/teldrive/teldrive-vOLD
+/usr/local/lib/teldrive/teldrive-vX.Y.Z
+```
+
+Validate before switching:
+
+```bash
+/usr/local/lib/teldrive/teldrive-vX.Y.Z check --config /etc/teldrive/config.toml
+```
+
+## Smoke test
+
+Verify:
+
+- `/health/live` and `/health/ready`;
+- login/session refresh;
+- listing, upload, download, rename/move/trash/restore;
+- tasks;
+- shares, rclone, and bots if used.
+
+## Rollback
+
+An older binary may not work against a newer migrated schema. A full rollback may require:
+
+1. stop the new version;
+2. restore the pre-upgrade PostgreSQL backup;
+3. restore the previous binary/image and matching configuration;
+4. run `teldrive check` before serving traffic.
+
+For multi-instance deployments, coordinate the rollout and avoid unsupported mixed-version operation.
+
+See [Backup and restore](/deployment/backup-and-restore).

@@ -1,0 +1,58 @@
+---
+title: Containers
+description: Run Teldrive with Docker or Podman.
+---
+
+Official images:
+
+```text
+ghcr.io/tgdrive/teldrive:<tag>
+```
+
+Use [Quick start](/getting-started/quick-start) for PostgreSQL + Teldrive Compose.
+
+## Minimal container
+
+With PostgreSQL already available:
+
+```bash
+docker run --rm \
+  -p 127.0.0.1:8080:8080 \
+  -e TELDRIVE_HTTP_ADDRESS=0.0.0.0:8080 \
+  -e TELDRIVE_DATABASE_URL='postgres://teldrive:password@db.example:5432/teldrive?sslmode=require' \
+  -e TELDRIVE_SECURITY_SIGNING_KEY='YOUR_SIGNING_KEY' \
+  -e TELDRIVE_SECURITY_DATA_KEY='YOUR_DATA_KEY' \
+  ghcr.io/tgdrive/teldrive:v2
+```
+
+Podman uses the same settings with `podman run`.
+
+## Pin releases
+
+```yaml
+image: ghcr.io/tgdrive/teldrive:vX.Y.Z
+```
+
+Avoid `latest` for controlled upgrades/rollbacks.
+
+## Local imports
+
+```yaml
+services:
+  teldrive:
+    volumes:
+      - /srv/imports:/imports:ro
+    environment:
+      TELDRIVE_UPLOADS_LOCAL_IMPORT_ROOTS: /imports
+```
+
+Import roots must be absolute paths.
+
+## Validate
+
+```bash
+docker compose run --rm teldrive check
+docker compose logs --tail=200 teldrive
+```
+
+See [Upgrading](/deployment/upgrading).

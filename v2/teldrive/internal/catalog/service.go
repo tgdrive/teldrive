@@ -1,0 +1,460 @@
+package catalog
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/tgdrive/teldrive/v2/internal/cache"
+	"github.com/tgdrive/teldrive/v2/internal/db/sqlcgen"
+	"github.com/tgdrive/teldrive/v2/internal/dbtypes"
+)
+
+var (
+	ErrNotFound      = errors.New("file not found")
+	ErrConflict      = errors.New("file name conflict")
+	ErrInvalidName   = errors.New("invalid file name")
+	ErrInvalidOwner  = errors.New("invalid owner")
+	ErrInvalidParent = errors.New("invalid parent folder")
+	ErrNotAFile      = errors.New("catalog entry is not an active file")
+	ErrCycle         = errors.New("folder move would create a cycle")
+	ErrPrecondition  = errors.New("generation precondition failed")
+)
+
+type Service struct {
+	pool         *pgxpool.Pool
+	queries      *sqlcgen.Queries
+	now          func() time.Time
+	cache        cache.Cacher
+	cacheStripes [64]sync.RWMutex
+}
+
+func NewService(pool *pgxpool.Pool, c cache.Cacher) *Service {
+	return &Service{pool: pool, queries: sqlcgen.New(pool), now: time.Now, cache: c}
+}
+
+func (s *Service) cacheKey(parts ...any) string {
+	return cache.Key(parts...)
+}
+
+func (s *Service) cacheStripe(fileID uuid.UUID) *sync.RWMutex {
+	return &s.cacheStripes[int(fileID[15])%len(s.cacheStripes)]
+}
+
+type CreateFolderInput struct {
+	UserID   int64
+	ParentID *uuid.UUID
+	Name     string
+	ModTime  time.Time
+}
+
+func (s *Service) CreateFolder(ctx context.Context, in CreateFolderInput) (*sqlcgen.File, error) {
+	if in.UserID <= 0 {
+		return nil, ErrInvalidOwner
+	}
+	if in.ParentID != nil {
+		if _, err := s.queries.GetActiveFolderForUser(ctx, sqlcgen.GetActiveFolderForUserParams{
+			FolderID: dbtypes.UUID(*in.ParentID),
+			UserID:   in.UserID,
+		}); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil, ErrInvalidParent
+			}
+			return nil, fmt.Errorf("get parent folder: %w", err)
+		}
+	}
+	modTime := in.ModTime
+	if modTime.IsZero() {
+		modTime = s.now().UTC()
+	}
+	file, err := s.queries.CreateFolder(ctx, sqlcgen.CreateFolderParams{
+		ID:       dbtypes.UUID(uuid.New()),
+		UserID:   in.UserID,
+		ParentID: dbtypes.OptionalUUID(in.ParentID),
+		Name:     in.Name,
+		ModTime:  dbtypes.Time(modTime.UTC()),
+	})
+	if err != nil {
+		return nil, classifyWriteError("create folder", err)
+	}
+	return file, nil
+}
+
+func (s *Service) Get(ctx context.Context, userID int64, fileID uuid.UUID) (*sqlcgen.File, error) {
+	if userID <= 0 {
+		return nil, ErrInvalidOwner
+	}
+	if s.cache != nil {
+		stripe := s.cacheStripe(fileID)
+		stripe.RLock()
+		defer stripe.RUnlock()
+	}
+	if s.cache != nil {
+		key := s.cacheKey("catalog", "file", userID, fileID.String())
+		return cache.Fetch(ctx, s.cache, key, 0, func() (*sqlcgen.File, error) {
+			f, err := s.queries.GetFileForUser(ctx, sqlcgen.GetFileForUserParams{
+				FileID: dbtypes.UUID(fileID),
+				UserID: userID,
+			})
+			if errors.Is(err, pgx.ErrNoRows) {
+				return nil, ErrNotFound
+			}
+			if err != nil {
+				return nil, fmt.Errorf("get file: %w", err)
+			}
+			return f, nil
+		})
+	}
+	file, err := s.queries.GetFileForUser(ctx, sqlcgen.GetFileForUserParams{
+		FileID: dbtypes.UUID(fileID),
+		UserID: userID,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get file: %w", err)
+	}
+	return file, nil
+}
+
+func (s *Service) GetViewState(ctx context.Context, userID int64, fileID uuid.UUID) (*sqlcgen.FileViewState, error) {
+	state, err := s.queries.GetFileViewState(ctx, sqlcgen.GetFileViewStateParams{
+		UserID: userID, FileID: dbtypes.UUID(fileID),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get file view state: %w", err)
+	}
+	return state, nil
+}
+
+func (s *Service) UpsertViewState(ctx context.Context, userID int64, fileID uuid.UUID, kind string, position, preferences, bookmarks []byte) (*sqlcgen.FileViewState, error) {
+	state, err := s.queries.UpsertFileViewState(ctx, sqlcgen.UpsertFileViewStateParams{
+		UserID: userID, FileID: dbtypes.UUID(fileID), ViewerKind: kind,
+		Position: position, Preferences: preferences, Bookmarks: bookmarks,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("upsert file view state: %w", err)
+	}
+	return state, nil
+}
+
+func (s *Service) DeleteViewState(ctx context.Context, userID int64, fileID uuid.UUID) error {
+	if _, err := s.queries.DeleteFileViewState(ctx, sqlcgen.DeleteFileViewStateParams{
+		UserID: userID, FileID: dbtypes.UUID(fileID),
+	}); err != nil {
+		return fmt.Errorf("delete file view state: %w", err)
+	}
+	return nil
+}
+
+// Parts returns finalized Telegram parts for an active file owned by userID.
+func (s *Service) Parts(ctx context.Context, userID int64, fileID uuid.UUID) ([]*sqlcgen.FilePart, error) {
+	file, err := s.Get(ctx, userID, fileID)
+	if err != nil {
+		return nil, err
+	}
+	if file.Kind != sqlcgen.FileKindFile || file.Status != sqlcgen.FileStatusActive {
+		return nil, ErrNotAFile
+	}
+	if s.cache != nil {
+		stripe := s.cacheStripe(fileID)
+		stripe.RLock()
+		defer stripe.RUnlock()
+		key := s.cacheKey("catalog", "parts", fileID.String())
+		return cache.Fetch(ctx, s.cache, key, 0, func() ([]*sqlcgen.FilePart, error) {
+			parts, err := s.queries.ListFileParts(ctx, dbtypes.UUID(fileID))
+			if err != nil {
+				return nil, fmt.Errorf("list file parts: %w", err)
+			}
+			return parts, nil
+		})
+	}
+	parts, err := s.queries.ListFileParts(ctx, dbtypes.UUID(fileID))
+	if err != nil {
+		return nil, fmt.Errorf("list file parts: %w", err)
+	}
+	return parts, nil
+}
+
+func (s *Service) UpdatePartSizes(ctx context.Context, fileID uuid.UUID, partNo int32, plainSize, storedSize int64) error {
+	_, err := s.queries.UpdateFilePartSizes(ctx, sqlcgen.UpdateFilePartSizesParams{
+		FileID: dbtypes.UUID(fileID), PartNo: partNo,
+		PlainSize: dbtypes.Int8(plainSize), StoredSize: dbtypes.Int8(storedSize),
+	})
+	if err != nil {
+		return fmt.Errorf("update file part sizes: %w", err)
+	}
+	if s.cache != nil {
+		stripe := s.cacheStripe(fileID)
+		stripe.Lock()
+		_ = s.cache.Delete(ctx, s.cacheKey("catalog", "parts", fileID.String()))
+		stripe.Unlock()
+	}
+	return nil
+}
+
+func (s *Service) UpdatePartSizesMany(ctx context.Context, fileID uuid.UUID, sizes map[int32][2]int64) error {
+	if len(sizes) == 0 {
+		return nil
+	}
+	type partSizeRecord struct {
+		PartNo     int32 `json:"part_no"`
+		PlainSize  int64 `json:"plain_size"`
+		StoredSize int64 `json:"stored_size"`
+	}
+	records := make([]partSizeRecord, 0, len(sizes))
+	for partNo, partSizes := range sizes {
+		records = append(records, partSizeRecord{PartNo: partNo, PlainSize: partSizes[0], StoredSize: partSizes[1]})
+	}
+	encoded, err := json.Marshal(records)
+	if err != nil {
+		return fmt.Errorf("encode file part sizes: %w", err)
+	}
+	_, err = s.queries.UpdateFilePartSizesMany(ctx, sqlcgen.UpdateFilePartSizesManyParams{
+		FileID: dbtypes.UUID(fileID), Parts: encoded,
+	})
+	if err != nil {
+		return fmt.Errorf("update file part sizes: %w", err)
+	}
+	if s.cache != nil {
+		stripe := s.cacheStripe(fileID)
+		stripe.Lock()
+		_ = s.cache.Delete(ctx, s.cacheKey("catalog", "parts", fileID.String()))
+		stripe.Unlock()
+	}
+	return nil
+}
+
+type ListInput struct {
+	UserID        int64
+	Scope         string
+	ScopeFolderID *uuid.UUID
+	ParentID      *uuid.UUID
+	Path          string
+	Status        sqlcgen.FileStatus
+	Kind          *sqlcgen.FileKind
+	Search        string
+	SearchType    string
+	Categories    []string
+	UpdatedAfter  *time.Time
+	UpdatedBefore *time.Time
+	Sort          string
+	Order         string
+	AfterName     string
+	AfterValue    string
+	AfterID       *uuid.UUID
+	Limit         int32
+}
+
+func (s *Service) List(ctx context.Context, in ListInput) ([]*sqlcgen.File, error) {
+	if in.UserID <= 0 {
+		return nil, ErrInvalidOwner
+	}
+	if in.ParentID != nil && strings.TrimSpace(in.Path) != "" {
+		return nil, ErrInvalidParent
+	}
+	if in.Scope == "" {
+		in.Scope = "folder"
+	}
+	if in.Scope != "folder" && in.Scope != "drive" && in.Scope != "recursive" {
+		return nil, ErrInvalidParent
+	}
+	if in.Scope != "folder" {
+		if in.Status != "" && in.Status != sqlcgen.FileStatusActive || in.ParentID != nil || strings.TrimSpace(in.Path) != "" {
+			return nil, ErrInvalidParent
+		}
+		if in.Scope == "drive" && in.ScopeFolderID != nil {
+			return nil, ErrInvalidParent
+		}
+		if in.Scope == "recursive" && in.ScopeFolderID != nil {
+			if _, err := s.queries.GetActiveFolderForUser(ctx, sqlcgen.GetActiveFolderForUserParams{FolderID: dbtypes.UUID(*in.ScopeFolderID), UserID: in.UserID}); err != nil {
+				if errors.Is(err, pgx.ErrNoRows) {
+					return nil, ErrInvalidParent
+				}
+				return nil, fmt.Errorf("validate recursive folder: %w", err)
+			}
+		}
+	}
+	if strings.TrimSpace(in.Path) != "" {
+		resolved, err := s.ResolveFolderPath(ctx, in.UserID, nil, in.Path)
+		if err != nil {
+			return nil, err
+		}
+		in.ParentID = resolved
+	}
+	if in.Status == "" {
+		in.Status = sqlcgen.FileStatusActive
+	}
+	if in.Limit <= 0 {
+		in.Limit = 100
+	}
+	if in.Limit > 500 {
+		in.Limit = 500
+	}
+	if in.SearchType == "" {
+		in.SearchType = "text"
+	}
+	if in.Sort == "" {
+		in.Sort = "name"
+	}
+	if in.Order == "" {
+		in.Order = "asc"
+	}
+	if in.Scope != "folder" || len(in.Categories) > 0 || in.UpdatedAfter != nil || in.UpdatedBefore != nil || in.SearchType != "text" || in.Sort != "name" || in.Order != "asc" || in.AfterValue != "" {
+		return s.listAdvanced(ctx, in)
+	}
+	var kind sqlcgen.NullFileKind
+	if in.Kind != nil {
+		kind = sqlcgen.NullFileKind{FileKind: *in.Kind, Valid: true}
+	}
+	var search pgtype.Text
+	if strings.TrimSpace(in.Search) != "" {
+		search = dbtypes.Text(in.Search)
+	}
+	var afterName pgtype.Text
+	var afterID pgtype.UUID
+	if in.AfterName != "" && in.AfterID != nil {
+		afterName = dbtypes.Text(in.AfterName)
+		afterID = dbtypes.UUID(*in.AfterID)
+	}
+	items, err := s.queries.ListFiles(ctx, sqlcgen.ListFilesParams{
+		UserID:    in.UserID,
+		ParentID:  dbtypes.OptionalUUID(in.ParentID),
+		Status:    in.Status,
+		Kind:      kind,
+		Search:    search,
+		AfterName: afterName,
+		AfterID:   afterID,
+		PageSize:  in.Limit,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list files: %w", err)
+	}
+	return items, nil
+}
+
+func (s *Service) Rename(ctx context.Context, userID int64, fileID uuid.UUID, expectedGeneration *int64, rawName string) (*sqlcgen.File, error) {
+	if userID <= 0 {
+		return nil, ErrInvalidOwner
+	}
+	file, err := s.queries.UpdateFileMetadata(ctx, sqlcgen.UpdateFileMetadataParams{
+		Name:               dbtypes.Text(rawName),
+		FileID:             dbtypes.UUID(fileID),
+		UserID:             userID,
+		ExpectedGeneration: dbtypes.OptionalInt8(expectedGeneration),
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		if expectedGeneration != nil {
+			return nil, ErrPrecondition
+		}
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, classifyWriteError("rename file", err)
+	}
+	s.invalidateFile(ctx, userID, fileID)
+	return file, nil
+}
+
+func (s *Service) Move(ctx context.Context, userID int64, fileID uuid.UUID, parentID *uuid.UUID, expectedGeneration *int64) (*sqlcgen.File, error) {
+	return s.MoveWithPolicy(ctx, userID, fileID, parentID, expectedGeneration, "fail")
+}
+
+func (s *Service) Trash(ctx context.Context, userID int64, fileID uuid.UUID) (*sqlcgen.File, error) {
+	items, err := s.BulkTrash(ctx, userID, []uuid.UUID{fileID})
+	if err != nil {
+		return nil, err
+	}
+	for _, item := range items {
+		if id, ok := fileUUID(item); ok && id == fileID {
+			return item, nil
+		}
+	}
+	return nil, ErrNotFound
+}
+
+func (s *Service) Restore(ctx context.Context, userID int64, fileID uuid.UUID) (*sqlcgen.File, error) {
+	if userID <= 0 {
+		return nil, ErrInvalidOwner
+	}
+	files, err := s.queries.RestoreFileSubtree(ctx, sqlcgen.RestoreFileSubtreeParams{FileID: dbtypes.UUID(fileID), UserID: userID})
+	if err != nil {
+		return nil, classifyWriteError("restore file subtree", err)
+	}
+	if len(files) == 0 {
+		file, err := s.queries.GetFileForUser(ctx, sqlcgen.GetFileForUserParams{
+			FileID: dbtypes.UUID(fileID), UserID: userID,
+		})
+		if err == nil && file.Status == sqlcgen.FileStatusTrashed {
+			return nil, ErrConflict
+		}
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return nil, fmt.Errorf("load restore root: %w", err)
+		}
+		return nil, ErrNotFound
+	}
+	var root *sqlcgen.File
+	ids := make([]uuid.UUID, 0, len(files))
+	for _, file := range files {
+		id, ok := fileUUID(file)
+		if !ok {
+			return nil, ErrNotFound
+		}
+		ids = append(ids, id)
+		if id == fileID {
+			root = file
+		}
+	}
+	if root == nil {
+		return nil, ErrNotFound
+	}
+	s.InvalidateFiles(ctx, userID, ids...)
+	return root, nil
+}
+
+func (s *Service) InvalidateFiles(ctx context.Context, userID int64, fileIDs ...uuid.UUID) {
+	if s.cache == nil || userID <= 0 {
+		return
+	}
+	for _, fileID := range fileIDs {
+		if fileID == uuid.Nil {
+			continue
+		}
+		stripe := s.cacheStripe(fileID)
+		stripe.Lock()
+		_ = s.cache.Delete(ctx,
+			s.cacheKey("catalog", "file", userID, fileID.String()),
+			s.cacheKey("catalog", "parts", fileID.String()),
+		)
+		stripe.Unlock()
+	}
+}
+
+func (s *Service) invalidateFile(ctx context.Context, userID int64, fileID uuid.UUID) {
+	s.InvalidateFiles(ctx, userID, fileID)
+}
+
+func classifyWriteError(action string, err error) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		return ErrConflict
+	}
+	return fmt.Errorf("%s: %w", action, err)
+}

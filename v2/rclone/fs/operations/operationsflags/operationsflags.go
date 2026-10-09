@@ -1,0 +1,93 @@
+// Package operationsflags defines the flags used by rclone operations.
+// It is decoupled into a separate package so it can be replaced.
+package operationsflags
+
+import (
+	"context"
+	_ "embed"
+	"strings"
+
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/config/flags"
+	"github.com/rclone/rclone/fs/operations"
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
+)
+
+//go:embed operationsflags.md
+var help string
+
+// Help returns the help string cleaned up to simplify appending
+func Help() string {
+	return strings.TrimSpace(help)
+}
+
+// AddLoggerFlagsOptions contains options for the Logger Flags
+type AddLoggerFlagsOptions struct {
+	Combined     string // a file with file names with leading sigils
+	MissingOnSrc string // files only in the destination
+	MissingOnDst string // files only in the source
+	Match        string // matching files
+	Differ       string // differing files
+	ErrFile      string // files with errors of some kind
+	DestAfter    string // files that exist on the destination post-sync
+}
+
+// AnySet checks if any of the logger flags have a non-blank value
+func (o AddLoggerFlagsOptions) AnySet() bool {
+	return anyNotBlank(o.Combined, o.MissingOnSrc, o.MissingOnDst, o.Match, o.Differ, o.ErrFile, o.DestAfter)
+}
+
+func anyNotBlank(s ...string) bool {
+	for _, x := range s {
+		if x != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// AddLoggerFlags adds the logger flags to the cmdFlags command
+func AddLoggerFlags(cmdFlags *pflag.FlagSet, opt *operations.LoggerOpt, flagsOpt *AddLoggerFlagsOptions) {
+	flags.StringVarP(cmdFlags, &flagsOpt.Combined, "combined", "", flagsOpt.Combined, "Make a combined report of changes to this file", "Sync")
+	flags.StringVarP(cmdFlags, &flagsOpt.MissingOnSrc, "missing-on-src", "", flagsOpt.MissingOnSrc, "Report all files missing from the source to this file", "Sync")
+	flags.StringVarP(cmdFlags, &flagsOpt.MissingOnDst, "missing-on-dst", "", flagsOpt.MissingOnDst, "Report all files missing from the destination to this file", "Sync")
+	flags.StringVarP(cmdFlags, &flagsOpt.Match, "match", "", flagsOpt.Match, "Report all matching files to this file", "Sync")
+	flags.StringVarP(cmdFlags, &flagsOpt.Differ, "differ", "", flagsOpt.Differ, "Report all non-matching files to this file", "Sync")
+	flags.StringVarP(cmdFlags, &flagsOpt.ErrFile, "error", "", flagsOpt.ErrFile, "Report all files with errors (hashing or reading) to this file", "Sync")
+	flags.StringVarP(cmdFlags, &flagsOpt.DestAfter, "dest-after", "", flagsOpt.DestAfter, "Report all files that exist on the dest post-sync", "Sync")
+
+	// lsf flags for destAfter
+	def := operations.NewSyncLoggerOpt()
+	flags.StringVarP(cmdFlags, &opt.Format, "format", "F", def.Format, "Output format - see lsf help for details", "Sync")
+	flags.StringVarP(cmdFlags, &opt.TimeFormat, "timeformat", "t", def.TimeFormat, "Specify a custom time format - see docs for details (default: 2006-01-02 15:04:05)", "")
+	flags.StringVarP(cmdFlags, &opt.Separator, "separator", "s", def.Separator, "Separator for the items in the format", "Sync")
+	flags.BoolVarP(cmdFlags, &opt.DirSlash, "dir-slash", "d", def.DirSlash, "Append a slash to directory names", "Sync")
+	opt.HashType = def.HashType
+	flags.FVarP(cmdFlags, &opt.HashType, "hash", "", "Use this hash when `h` is used in the format MD5|SHA-1|DropboxHash", "Sync")
+	flags.BoolVarP(cmdFlags, &opt.FilesOnly, "files-only", "", def.FilesOnly, "Only list files", "Sync")
+	flags.BoolVarP(cmdFlags, &opt.DirsOnly, "dirs-only", "", def.DirsOnly, "Only list directories", "Sync")
+	flags.BoolVarP(cmdFlags, &opt.Csv, "csv", "", def.Csv, "Output in CSV format", "Sync")
+	flags.BoolVarP(cmdFlags, &opt.Absolute, "absolute", "", def.Absolute, "Put a leading / in front of path names", "Sync")
+	// flags.BoolVarP(cmdFlags, &recurse, "recursive", "R", false, "Recurse into the listing", "")
+}
+
+// ConfigureLoggers verifies and sets up writers for log files requested via CLI flags
+func ConfigureLoggers(ctx context.Context, fdst fs.Fs, command *cobra.Command, opt *operations.LoggerOpt, flagsOpt AddLoggerFlagsOptions) (func(), error) {
+	close, err := operations.OpenReportFiles(
+		operations.ReportFile{Name: flagsOpt.Combined, Out: &opt.Combined},
+		operations.ReportFile{Name: flagsOpt.MissingOnSrc, Out: &opt.MissingOnSrc},
+		operations.ReportFile{Name: flagsOpt.MissingOnDst, Out: &opt.MissingOnDst},
+		operations.ReportFile{Name: flagsOpt.Match, Out: &opt.Match},
+		operations.ReportFile{Name: flagsOpt.Differ, Out: &opt.Differ},
+		operations.ReportFile{Name: flagsOpt.ErrFile, Out: &opt.Error},
+		operations.ReportFile{Name: flagsOpt.DestAfter, Out: &opt.DestAfter},
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	opt.Init(ctx, fdst, command.Flags())
+
+	return close, nil
+}

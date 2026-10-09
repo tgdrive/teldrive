@@ -1,0 +1,75 @@
+---
+title: Quick start
+description: Run Teldrive with PostgreSQL and the official container image.
+---
+
+import SetupGenerator from '../../../src/components/setup-generator';
+
+Requires Docker or Podman and a Telegram account.
+
+## 1. Create a directory
+
+```bash
+mkdir -p ~/teldrive
+cd ~/teldrive
+```
+
+## 2. Generate `compose.yaml`
+
+Teldrive includes public Telegram application credentials; no `api_id` or `api_hash` is required.
+
+<SetupGenerator client:load />
+
+Copy the **Compose** output to `compose.yaml`.
+
+Back up `security.data-key` and every content-encryption key. Losing them can make protected data unrecoverable.
+
+## 3. Start Teldrive
+
+Docker:
+
+```bash
+docker compose up -d
+docker compose logs -f teldrive
+```
+
+Podman:
+
+```bash
+podman compose up -d
+podman compose logs -f teldrive
+```
+
+Teldrive applies required database migrations during startup.
+
+## 4. Open the UI
+
+```text
+http://127.0.0.1:8080
+```
+
+The generated Compose file only publishes Teldrive on host loopback. Use a reverse proxy with HTTPS for remote access.
+
+Sign in with Telegram, then upload and download a small test file.
+
+## 5. Validate configuration
+
+```bash
+docker compose run --rm teldrive check
+```
+
+`check` validates configuration, database access, and required initialization without keeping the server running.
+
+## Next
+
+<Cards>
+  <Card title="Production" href="/deployment/production">
+    HTTPS, backups, access control, and upgrades.
+  </Card>
+  <Card title="Configuration" href="/configuration/overview">
+    Config files, environment variables, flags, and all settings.
+  </Card>
+  <Card title="First login" href="/getting-started/first-login">
+    Verify storage and the initial user workflow.
+  </Card>
+</Cards>

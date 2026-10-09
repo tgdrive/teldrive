@@ -1,0 +1,11 @@
+# Go writes go.mod and go.sum with lf even on windows
+go.mod text eol=lf
+go.sum text eol=lf
+
+# Ignore generated files in GitHub language statistics and diffs
+/MANUAL.* linguist-generated=true
+/rclone.1 linguist-generated=true
+
+# Don't fiddle with the line endings of test data
+**/testdata/** -text
+**/test/** -text

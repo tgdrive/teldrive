@@ -1,0 +1,64 @@
+---
+title: Release binary
+description: Install a Teldrive release archive without containers.
+---
+
+Release builds are standalone binaries for Linux, macOS, and Windows. Linux releases use `CGO_ENABLED=0`.
+
+## Install
+
+Download the archive for your OS/architecture from GitHub Releases, then on Linux:
+
+```bash
+tar -xzf teldrive-vX.Y.Z-linux-amd64.tar.gz
+sudo install -m 0755 teldrive /usr/local/bin/teldrive
+teldrive version
+```
+
+Release targets include Linux `amd64`/`arm`/`arm64`, macOS `amd64`/`arm64`, and Windows `amd64`/`arm64`.
+
+## Configure
+
+Use an explicit config path:
+
+```bash
+teldrive check --config /etc/teldrive/config.toml
+teldrive run --config /etc/teldrive/config.toml
+```
+
+See [Configuration overview](/configuration/overview) for file discovery and required settings.
+
+## systemd
+
+```ini
+[Unit]
+Description=Teldrive
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=teldrive
+Group=teldrive
+ExecStart=/usr/local/bin/teldrive run --config /etc/teldrive/config.toml
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Protect the config:
+
+```bash
+sudo chown root:teldrive /etc/teldrive/config.toml
+sudo chmod 0640 /etc/teldrive/config.toml
+```
+
+## Listener
+
+For a host with a local reverse proxy, keep the default `127.0.0.1:8080`. Use `0.0.0.0:8080` only when network exposure is intentional.
+
+See [Reverse proxy and HTTPS](/deployment/reverse-proxy).

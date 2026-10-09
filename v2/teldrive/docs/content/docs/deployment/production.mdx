@@ -1,0 +1,94 @@
+---
+title: Production checklist
+description: Minimum production hardening for Teldrive.
+---
+
+## Pin the image
+
+```yaml
+image: ghcr.io/tgdrive/teldrive:vX.Y.Z
+```
+
+## HTTPS and proxy
+
+Keep Teldrive private, terminate TLS at a reverse proxy, and configure `http.trusted-proxies` for that proxy.
+
+See [Reverse proxy & HTTPS](/deployment/reverse-proxy).
+
+## Restrict login
+
+```yaml
+security:
+  allowed-users:
+    - your_telegram_username
+```
+
+An empty list allows any Telegram user who completes login.
+
+## Protect keys
+
+Back up:
+
+```text
+security.signing-key
+security.data-key
+encryption.keys
+```
+
+Keep recovery keys separate from PostgreSQL backups.
+
+## Protect PostgreSQL
+
+- do not expose port `5432` publicly;
+- use a dedicated database/user;
+- require TLS for remote databases;
+- restrict network access;
+- monitor connection limits.
+
+See [Backup and restore](/deployment/backup-and-restore).
+
+## Telegram rate limiting
+
+```yaml
+telegram:
+  rate-limit: true
+```
+
+Tune concurrency only after measuring throughput and Telegram errors.
+
+## Logs and monitoring
+
+```yaml
+logging:
+  log-level: info
+  log-format: json
+```
+
+Monitor CPU, memory, PostgreSQL connections, transfer throughput, Telegram errors, and failed jobs.
+
+## Upgrade
+
+```bash
+docker compose pull teldrive
+docker compose run --rm teldrive check
+docker compose up -d teldrive
+docker compose logs --tail=200 teldrive
+```
+
+Back up PostgreSQL first. After upgrading, test login, listing, upload/download, file operations, shares, and tasks.
+
+Do not assume an older binary can use a schema migrated by a newer version.
+
+## Topology
+
+```text
+Internet
+   │
+TLS reverse proxy
+   │
+Teldrive ───── Telegram
+   │
+PostgreSQL
+   │
+Backups
+```

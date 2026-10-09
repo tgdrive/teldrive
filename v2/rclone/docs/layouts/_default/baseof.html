@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="description" content="{{ .Description }}">
+    <meta name="author" content="Nick Craig-Wood">
+    <meta property="og:site_name" content="Rclone" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="{{ "/img/rclone-1200x630.png" | absURL }}">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:url" content="{{ .Permalink }}" />
+    <meta property="og:title" content="{{ .Title }}" />
+    <meta property="og:description" content="{{ .Description }}" />
+    <link rel="shortcut icon" type="image/png" href="/img/rclone-32x32.png"/>
+    <script defer data-domain="rclone.org" src="https://weblog.rclone.org/js/script.js"></script>
+    <title>{{ block "title" . }}{{ .Title }}{{ end }}</title>
+    <link rel="canonical" href="{{ .Permalink }}">
+    <link href="/css/rclone.css?r={{ now.Unix }}" rel="stylesheet">
+    {{ $RSSLink := "" }}{{ with .OutputFormats.Get "RSS" }}{{ $RSSLink = .RelPermalink }}{{ end }}{{ if $RSSLink }}<link href="{{ $RSSLink }}" rel="alternate" type="application/rss+xml" title="{{ .Site.Title }}" />{{ end }}
+  </head>
+  <body>
+    {{ partial "svg-icons.html" . }}
+    {{ template "chrome/navbar.html" . }}
+    {{ $hasTOC := and (gt .WordCount 200) (not (.Params.notoc)) }}
+    <div class="container-fluid">
+      <div class="row">
+        <aside class="col-toc{{ if not $hasTOC }} col-toc-empty{{ end }}">
+          {{ template "chrome/toc.html" . }}
+        </aside>
+        <main class="col-content">
+          {{ $statusMap := dict
+            "deprecated" "This feature is currently deprecated."
+            "experimental" "This feature is currently experimental and any use is at your own risk."
+            "beta" "This feature is currently in beta must be used with care."
+          }}
+
+          {{ if .Params.versionIntroduced }}<span class="badge badge-pill badge-secondary float-right" style="margin-top: 30px; font-size: 100%" title="This feature needs Rclone {{ .Params.versionIntroduced }} or later.">added in {{ .Params.versionIntroduced }}</span>{{ end }}
+
+          {{ with .Params.status | lower }}
+            {{ $statusCode := . }}
+            {{ $statusMessage := index $statusMap $statusCode }}
+            <span class="badge badge-pill badge-danger float-right" style="margin-top: 30px; font-size: 100%" title="{{ $statusMessage }}">{{ $statusCode | title }}</span>
+          {{ end }}
+
+          {{ if .Page.File }}
+            {{ $backendName := .Page.File.TranslationBaseName }}
+            {{ partial "tier.html" (dict "name" $backendName "align" true) }}
+          {{ end }}
+
+          {{ block "main" . }}
+          {{ end }}
+        </main>
+        <aside class="col-sidebar">
+          {{ template "chrome/menu.html" . }}
+        </aside>
+      </div>
+      {{ block "footer" . }}
+      <footer>
+        <div class="row">
+          <div class="col-footer{{ if not (and (gt .WordCount 200) (not (.Params.notoc))) }} col-footer-notoc{{ end }}">
+            <div class="card card-body">
+              <p style="font-size: 90%;">
+                &copy; <a href="https://www.craig-wood.com/nick/" target="blank">Nick Craig-Wood</a> 2014-{{ now.Format "2006" }}<br>
+                {{ if .File}}{{ with $path := strings.TrimPrefix "/" .File.Path }}Source file <a href="https://github.com/rclone/rclone/blob/master/docs/content/{{ $path }}" target="blank">{{ $path }}</a>{{ end }}
+                last updated <a href="https://github.com/rclone/rclone/commit/{{ with .GitInfo }}{{ .Hash }}{{ end }}">{{ .Lastmod.Format "2006-01-02" }}</a><br>{{end}}
+                Uploaded with <a href="https://rclone.org">rclone</a>.
+                Built with <a href="https://gohugo.io/" target="blank">Hugo</a>.
+                Logo by <a href="https://twitter.com/andy23" target="blank">@andy23</a>.
+                Served by <a href="https://caddyserver.com/" target="blank">Caddy</a>.
+                Hosted at <a href="https://hetzner.cloud/?ref=62WcciVmlzHt" title="Get €⁠20 in cloud credits" target="blank">Hetzner Cloud</a>.
+              </p>
+            </div>
+          </div>
+        </div>
+      </footer>
+      {{ end }}
+    </div>
+    <script src="/js/rclone.js?r={{ now.Unix }}"></script>
+  </body>
+</html>

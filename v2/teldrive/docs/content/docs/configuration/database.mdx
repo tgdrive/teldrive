@@ -1,0 +1,71 @@
+---
+title: Database
+description: Configure PostgreSQL schema, pooling, migrations, and connectivity.
+---
+
+## Configuration
+
+```yaml
+database:
+  schema: teldrive
+  url: postgres://teldrive:password@127.0.0.1:5432/teldrive?sslmode=disable
+  application-name: teldrive-v2
+  max-connections: 25
+  min-connections: 2
+  max-connection-idle: 5m
+  max-connection-life: 30m
+  health-check-interval: 30s
+  connect-timeout: 10s
+  auto-migrate-legacy: true
+```
+
+`database.url` is required.
+
+## Schema
+
+Default: `teldrive`.
+
+Teldrive uses the configured schema for application and River/RiverPro tables. Use a different valid PostgreSQL identifier only when you intentionally need another schema.
+
+## Migrations
+
+Teldrive runs its application, River, and RiverPro migrations during initialization. Do not run migration SQL manually.
+
+`auto-migrate-legacy: true` enables automatic v1 detection/migration. See [Migrate from Teldrive v1](/deployment/v1-migration).
+
+## Pool
+
+| Setting | Default |
+| --- | ---: |
+| `max-connections` | `25` |
+| `min-connections` | `2` |
+| `max-connection-idle` | `5m` |
+| `max-connection-life` | `30m` |
+| `health-check-interval` | `30s` |
+| `connect-timeout` | `10s` |
+
+For multiple Teldrive processes, budget the sum of all process pools against PostgreSQL's connection limit.
+
+## TLS
+
+`sslmode=disable` is suitable only for trusted local/private networking. Use the TLS settings required by your remote/managed PostgreSQL provider.
+
+## Backup
+
+Use [Backup and restore](/deployment/backup-and-restore). PostgreSQL backups and `security.data-key` are both required for full recovery.
+
+## Connection failures
+
+Check:
+
+- hostname/port from Teldrive's network namespace;
+- database, user, password, and URL escaping;
+- TLS mode;
+- firewall/container network;
+- PostgreSQL readiness and connection limits.
+
+Validate with:
+
+```bash
+teldrive check
+```

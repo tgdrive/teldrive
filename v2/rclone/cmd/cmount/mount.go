@@ -1,0 +1,222 @@
+//go:build cmount && ((linux && cgo) || (darwin && cgo) || (freebsd && cgo) || (openbsd && cgo) || windows)
+
+// Package cmount implements a FUSE mounting system for rclone remotes.
+//
+// This uses the cgo based cgofuse library
+package cmount
+
+import (
+	"errors"
+	"fmt"
+	"os"
+	"runtime"
+	"strings"
+	"time"
+
+	"github.com/rclone/rclone/cmd/mountlib"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/lib/atexit"
+	"github.com/rclone/rclone/lib/buildinfo"
+	"github.com/rclone/rclone/vfs"
+	"github.com/winfsp/cgofuse/fuse"
+)
+
+func init() {
+	name := "cmount"
+	cmountOnly := runtime.GOOS != "linux" // rclone mount only works for linux
+	if cmountOnly {
+		name = "mount"
+	}
+	cmd := mountlib.NewMountCommand(name, false, mount)
+	if cmountOnly {
+		cmd.Aliases = append(cmd.Aliases, "cmount")
+	}
+	mountlib.AddRc("cmount", mount)
+	buildinfo.Tags = append(buildinfo.Tags, "cmount")
+}
+
+// mountOptions configures the options from the command line flags
+func mountOptions(VFS *vfs.VFS, device string, mountpoint string, opt *mountlib.Options) (options []string) {
+	// Options
+	options = []string{
+		"-o", fmt.Sprintf("attr_timeout=%g", time.Duration(opt.AttrTimeout).Seconds()),
+	}
+	if opt.DebugFUSE {
+		options = append(options, "-o", "debug")
+	}
+
+	if runtime.GOOS == "windows" {
+		options = append(options, "-o", "uid=-1")
+		options = append(options, "-o", "gid=-1")
+		options = append(options, "--FileSystemName=rclone")
+		if opt.VolumeName != "" {
+			if opt.NetworkMode {
+				options = append(options, "--VolumePrefix="+opt.VolumeName)
+			} else {
+				options = append(options, "-o", "volname="+opt.VolumeName)
+			}
+		}
+	} else {
+		options = append(options, "-o", "fsname="+device)
+		options = append(options, "-o", "subtype=rclone")
+		if runtime.GOOS != "openbsd" {
+			options = append(options, "-o", fmt.Sprintf("max_readahead=%d", opt.MaxReadAhead))
+			// This causes FUSE to supply O_TRUNC with the Open
+			// call which is more efficient for cmount.  However
+			// it does not work with cgofuse on Windows with
+			// WinFSP so cmount must work with or without it.
+			options = append(options, "-o", "atomic_o_trunc")
+		}
+		if opt.DaemonTimeout != 0 {
+			options = append(options, "-o", fmt.Sprintf("daemon_timeout=%d", int(time.Duration(opt.DaemonTimeout).Seconds())))
+		}
+		if opt.AllowOther {
+			options = append(options, "-o", "allow_other")
+		}
+		if opt.AllowRoot {
+			options = append(options, "-o", "allow_root")
+		}
+		if opt.DefaultPermissions {
+			options = append(options, "-o", "default_permissions")
+		}
+		if VFS.Opt.ReadOnly {
+			options = append(options, "-o", "ro")
+		}
+		//if opt.WritebackCache {
+		// FIXME? options = append(options, "-o", WritebackCache())
+		//}
+		if runtime.GOOS == "darwin" {
+			if opt.VolumeName != "" {
+				options = append(options, "-o", "volname="+opt.VolumeName)
+			}
+			if opt.NoAppleDouble {
+				options = append(options, "-o", "noappledouble")
+			}
+			if opt.NoAppleXattr {
+				options = append(options, "-o", "noapplexattr")
+			}
+		}
+	}
+	for _, option := range opt.ExtraOptions {
+		options = append(options, "-o", option)
+	}
+	options = append(options, opt.ExtraFlags...)
+	return options
+}
+
+// waitFor runs fn() until it returns true or the timeout expires
+func waitFor(fn func() bool) (ok bool) {
+	const totalWait = 10 * time.Second
+	const individualWait = 10 * time.Millisecond
+	for range int(totalWait / individualWait) {
+		ok = fn()
+		if ok {
+			return ok
+		}
+		time.Sleep(individualWait)
+	}
+	return false
+}
+
+// mount the file system
+//
+// The mount point will be ready when this returns.
+//
+// returns an error, and an error channel for the serve process to
+// report an error when fusermount is called.
+func mount(VFS *vfs.VFS, mountPath string, opt *mountlib.Options) (<-chan error, func() error, string, error) {
+	// Get mountpoint using OS specific logic
+	f := VFS.Fs()
+	mountpoint, err := getMountpoint(f, mountPath, opt)
+	if err != nil {
+		return nil, nil, "", err
+	}
+	fs.Debugf(nil, "Mounting on %q (%q)", mountpoint, opt.VolumeName)
+
+	// Create underlying FS
+	fsys := NewFS(VFS, opt)
+	host := fuse.NewFileSystemHost(fsys)
+	host.SetCapReaddirPlus(true) // only works on Windows
+	if opt.CaseInsensitive.Valid {
+		host.SetCapCaseInsensitive(opt.CaseInsensitive.Value)
+	} else {
+		host.SetCapCaseInsensitive(f.Features().CaseInsensitive)
+	}
+
+	// Create options
+	options := mountOptions(VFS, opt.DeviceName, mountpoint, opt)
+	fs.Debugf(f, "Mounting with options: %q", options)
+
+	// Serve the mount point in the background returning error to errChan
+	errChan := make(chan error, 1)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				err := fmt.Errorf("mount failed: %v", r)
+				if strings.Contains(strings.ToLower(err.Error()), "cannot find winfsp") {
+					err = fmt.Errorf("%w\nHint: Install WinFsp from https://winfsp.dev/rel/", err)
+				}
+				errChan <- err
+			}
+		}()
+		var err error
+		ok := host.Mount(mountpoint, options)
+		if !ok {
+			err = errors.New("mount failed")
+			fs.Errorf(f, "Mount failed")
+		}
+		errChan <- err
+	}()
+
+	// unmount
+	unmount := func() error {
+		var umountOK bool
+		if fsys.destroyed.Load() != 0 {
+			fs.Debugf(nil, "Not calling host.Unmount as mount already Destroyed")
+			umountOK = true
+		} else if atexit.Signalled() {
+			// If we have received a signal then FUSE will be shutting down already
+			fs.Debugf(nil, "Not calling host.Unmount as signal received")
+			umountOK = true
+		} else {
+			fs.Debugf(nil, "Calling host.Unmount")
+			umountOK = host.Unmount()
+		}
+		if umountOK {
+			fs.Debugf(nil, "Unmounted successfully")
+			if runtime.GOOS == "windows" {
+				if !waitFor(func() bool {
+					_, err := os.Stat(mountpoint)
+					return err != nil
+				}) {
+					fs.Errorf(nil, "mountpoint %q didn't disappear after unmount - continuing anyway", mountpoint)
+				}
+			}
+			return nil
+		}
+		fs.Debugf(nil, "host.Unmount failed")
+		return errors.New("host unmount failed")
+	}
+
+	// Wait for the filesystem to become ready, checking the file
+	// system didn't blow up before starting
+	select {
+	case err := <-errChan:
+		err = fmt.Errorf("mount stopped before calling Init: %w", err)
+		return nil, nil, "", err
+	case <-fsys.ready:
+	}
+
+	// Wait for the mount point to be available on Windows
+	// On Windows the Init signal comes slightly before the mount is ready
+	if runtime.GOOS == "windows" {
+		if !waitFor(func() bool {
+			_, err := os.Stat(mountpoint)
+			return err == nil
+		}) {
+			fs.Errorf(nil, "mountpoint %q didn't became available on mount - continuing anyway", mountpoint)
+		}
+	}
+
+	return errChan, unmount, mountpoint, nil
+}

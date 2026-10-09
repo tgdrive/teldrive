@@ -1,0 +1,707 @@
+// Define the internal rc functions
+
+package rc
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+	"os"
+	"os/exec"
+	"runtime"
+	"slices"
+	"strings"
+	"time"
+
+	"github.com/adrg/xdg"
+	"github.com/coreos/go-semver/semver"
+
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/config/obscure"
+	"github.com/rclone/rclone/lib/atexit"
+	"github.com/rclone/rclone/lib/buildinfo"
+	"github.com/rclone/rclone/lib/debug"
+)
+
+func init() {
+	Add(Call{
+		Path:  "rc/noopauth",
+		Fn:    rcNoop,
+		Title: "Echo the input to the output parameters requiring auth",
+		Help: `
+This echoes the input parameters to the output parameters for testing
+purposes.  It can be used to check that rclone is still alive and to
+check that parameter passing is working properly.`,
+	})
+	Add(Call{
+		Path:   "rc/noop",
+		NoAuth: true,
+		Fn:     rcNoop,
+		Title:  "Echo the input to the output parameters",
+		Help: `
+This echoes the input parameters to the output parameters for testing
+purposes.  It can be used to check that rclone is still alive and to
+check that parameter passing is working properly.`,
+	})
+}
+
+// Echo the input to the output parameters
+func rcNoop(ctx context.Context, in Params) (out Params, err error) {
+	return in, nil
+}
+
+func init() {
+	Add(Call{
+		Path:   "rc/error",
+		NoAuth: true,
+		Fn:     rcError,
+		Title:  "This returns an error",
+		Help: `
+This returns an error with the input as part of its error string.
+Useful for testing error handling.`,
+	})
+}
+
+// Return an error regardless
+func rcError(ctx context.Context, in Params) (out Params, err error) {
+	return nil, fmt.Errorf("arbitrary error on input %+v", in)
+}
+
+func init() {
+	Add(Call{
+		Path:  "rc/panic",
+		Fn:    rcPanic,
+		Title: "This returns an error by panicking",
+		Help: `
+This returns an error with the input as part of its error string.
+Useful for testing error handling.`,
+	})
+}
+
+// Return an error regardless
+func rcPanic(ctx context.Context, in Params) (out Params, err error) {
+	panic(fmt.Sprintf("arbitrary error on input %+v", in))
+}
+
+func init() {
+	Add(Call{
+		Path:  "rc/fatal",
+		Fn:    rcFatal,
+		Title: "This returns an fatal error",
+		Help: `
+This returns an error with the input as part of its error string.
+Useful for testing error handling.`,
+	})
+}
+
+// Return an error regardless
+func rcFatal(ctx context.Context, in Params) (out Params, err error) {
+	fs.Fatalf(nil, "arbitrary error on input %+v", in)
+	return nil, nil
+}
+
+func init() {
+	Add(Call{
+		Path:   "rc/list",
+		NoAuth: true,
+		Fn:     rcList,
+		Title:  "List all the registered remote control commands",
+		Help: `
+This lists all the registered remote control commands as a JSON map in
+the commands response.`,
+	})
+}
+
+// List the registered commands
+func rcList(ctx context.Context, in Params) (out Params, err error) {
+	out = make(Params)
+	out["commands"] = Calls.List()
+	return out, nil
+}
+
+func init() {
+	Add(Call{
+		Path:  "core/pid",
+		Fn:    rcPid,
+		Title: "Return PID of current process",
+		Help: `
+This returns PID of current process.
+Useful for stopping rclone process.`,
+	})
+}
+
+// Return PID of current process
+func rcPid(ctx context.Context, in Params) (out Params, err error) {
+	out = make(Params)
+	out["pid"] = os.Getpid()
+	return out, nil
+}
+
+func init() {
+	Add(Call{
+		Path:  "core/memstats",
+		Fn:    rcMemStats,
+		Title: "Returns the memory statistics",
+		Help: `
+This returns the memory statistics of the running program.  What the values mean
+are explained in the go docs: https://golang.org/pkg/runtime/#MemStats
+
+The most interesting values for most people are:
+
+- HeapAlloc - this is the amount of memory rclone is actually using
+- HeapSys - this is the amount of memory rclone has obtained from the OS
+- Sys - this is the total amount of memory requested from the OS
+   - It is virtual memory so may include unused memory
+`,
+	})
+}
+
+// Return the memory statistics
+func rcMemStats(ctx context.Context, in Params) (out Params, err error) {
+	out = make(Params)
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	out["Alloc"] = m.Alloc
+	out["TotalAlloc"] = m.TotalAlloc
+	out["Sys"] = m.Sys
+	out["Mallocs"] = m.Mallocs
+	out["Frees"] = m.Frees
+	out["HeapAlloc"] = m.HeapAlloc
+	out["HeapSys"] = m.HeapSys
+	out["HeapIdle"] = m.HeapIdle
+	out["HeapInuse"] = m.HeapInuse
+	out["HeapReleased"] = m.HeapReleased
+	out["HeapObjects"] = m.HeapObjects
+	out["StackInuse"] = m.StackInuse
+	out["StackSys"] = m.StackSys
+	out["MSpanInuse"] = m.MSpanInuse
+	out["MSpanSys"] = m.MSpanSys
+	out["MCacheInuse"] = m.MCacheInuse
+	out["MCacheSys"] = m.MCacheSys
+	out["BuckHashSys"] = m.BuckHashSys
+	out["GCSys"] = m.GCSys
+	out["OtherSys"] = m.OtherSys
+	return out, nil
+}
+
+func init() {
+	Add(Call{
+		Path:  "core/gc",
+		Fn:    rcGc,
+		Title: "Runs a garbage collection.",
+		Help: `
+This tells the go runtime to do a garbage collection run.  It isn't
+necessary to call this normally, but it can be useful for debugging
+memory problems.
+`,
+	})
+}
+
+// Do a garbage collection run
+func rcGc(ctx context.Context, in Params) (out Params, err error) {
+	runtime.GC()
+	return nil, nil
+}
+
+func init() {
+	Add(Call{
+		Path:   "core/version",
+		NoAuth: true,
+		Fn:     rcVersion,
+		Title:  "Shows the current version of rclone, Go and the OS.",
+		Help: `
+This shows the current versions of rclone, Go and the OS:
+
+- version - rclone version, e.g. "v1.71.2"
+- decomposed - version number as [major, minor, patch]
+- isGit - boolean - true if this was compiled from the git version
+- isBeta - boolean - true if this is a beta version
+- os - OS in use as according to Go GOOS (e.g. "linux")
+- osKernel - OS Kernel version (e.g. "6.8.0-86-generic (x86_64)")
+- osVersion -  OS Version (e.g. "ubuntu 24.04 (64 bit)")
+- osArch - cpu architecture in use (e.g. "arm64 (ARMv8 compatible)")
+- arch - cpu architecture in use according to Go GOARCH (e.g. "arm64")
+- goVersion - version of Go runtime in use (e.g. "go1.25.0")
+- linking - type of rclone executable (static or dynamic)
+- goTags - space separated build tags or "none"
+
+`,
+	})
+}
+
+// Return version info
+func rcVersion(ctx context.Context, in Params) (out Params, err error) {
+	version, err := semver.NewVersion(fs.Version[1:])
+	if err != nil {
+		return nil, err
+	}
+	linking, tagString := buildinfo.GetLinkingAndTags()
+	osVersion, osKernel := buildinfo.GetOSVersion()
+	if osVersion == "" {
+		osVersion = "unknown"
+	}
+	if osKernel == "" {
+		osKernel = "unknown"
+	}
+	out = Params{
+		"version":    fs.Version,
+		"decomposed": version.Slice(),
+		"isGit":      strings.HasSuffix(fs.Version, "-DEV"),
+		"isBeta":     version.PreRelease != "",
+		"os":         runtime.GOOS,
+		"osVersion":  osVersion,
+		"osKernel":   osKernel,
+		"osArch":     buildinfo.GetArch(),
+		"arch":       runtime.GOARCH,
+		"goVersion":  runtime.Version(),
+		"linking":    linking,
+		"goTags":     tagString,
+	}
+	return out, nil
+}
+
+func init() {
+	Add(Call{
+		Path:  "core/obscure",
+		Fn:    rcObscure,
+		Title: "Obscures a string passed in.",
+		Help: `
+Pass a clear string and rclone will obscure it for the config file:
+- clear - string
+
+Returns:
+- obscured - string
+`,
+	})
+}
+
+// Return obscured string
+func rcObscure(ctx context.Context, in Params) (out Params, err error) {
+	clear, err := in.GetString("clear")
+	if err != nil {
+		return nil, err
+	}
+	obscured, err := obscure.Obscure(clear)
+	if err != nil {
+		return nil, err
+	}
+	out = Params{
+		"obscured": obscured,
+	}
+	return out, nil
+}
+
+func init() {
+	Add(Call{
+		Path:  "core/quit",
+		Fn:    rcQuit,
+		Title: "Terminates the app.",
+		Help: `
+(Optional) Pass an exit code to be used for terminating the app:
+- exitCode - int
+`,
+	})
+}
+
+// Terminates app
+func rcQuit(ctx context.Context, in Params) (out Params, err error) {
+	code, err := in.GetInt64("exitCode")
+
+	if IsErrParamInvalid(err) {
+		return nil, err
+	}
+	if IsErrParamNotFound(err) {
+		code = 0
+	}
+	exitCode := int(code)
+
+	go func(exitCode int) {
+		time.Sleep(time.Millisecond * 1500)
+		atexit.Run()
+		os.Exit(exitCode)
+	}(exitCode)
+
+	return nil, nil
+}
+
+func init() {
+	Add(Call{
+		Path:  "debug/set-mutex-profile-fraction",
+		Fn:    rcSetMutexProfileFraction,
+		Title: "Set runtime.SetMutexProfileFraction for mutex profiling.",
+		Help: `
+SetMutexProfileFraction controls the fraction of mutex contention
+events that are reported in the mutex profile. On average 1/rate
+events are reported. The previous rate is returned.
+
+To turn off profiling entirely, pass rate 0. To just read the current
+rate, pass rate < 0. (For n>1 the details of sampling may change.)
+
+Once this is set you can look use this to profile the mutex contention:
+
+    go tool pprof http://localhost:5572/debug/pprof/mutex
+
+Parameters:
+
+- rate - int
+
+Results:
+
+- previousRate - int
+`,
+	})
+}
+
+func rcSetMutexProfileFraction(ctx context.Context, in Params) (out Params, err error) {
+	rate, err := in.GetInt64("rate")
+	if err != nil {
+		return nil, err
+	}
+	previousRate := runtime.SetMutexProfileFraction(int(rate))
+	out = make(Params)
+	out["previousRate"] = previousRate
+	return out, nil
+}
+
+func init() {
+	Add(Call{
+		Path:  "debug/set-block-profile-rate",
+		Fn:    rcSetBlockProfileRate,
+		Title: "Set runtime.SetBlockProfileRate for blocking profiling.",
+		Help: `
+SetBlockProfileRate controls the fraction of goroutine blocking events
+that are reported in the blocking profile. The profiler aims to sample
+an average of one blocking event per rate nanoseconds spent blocked.
+
+To include every blocking event in the profile, pass rate = 1. To turn
+off profiling entirely, pass rate <= 0.
+
+After calling this you can use this to see the blocking profile:
+
+    go tool pprof http://localhost:5572/debug/pprof/block
+
+Parameters:
+
+- rate - int
+`,
+	})
+}
+
+func rcSetBlockProfileRate(ctx context.Context, in Params) (out Params, err error) {
+	rate, err := in.GetInt64("rate")
+	if err != nil {
+		return nil, err
+	}
+	runtime.SetBlockProfileRate(int(rate))
+	return nil, nil
+}
+
+func init() {
+	Add(Call{
+		Path:  "debug/set-soft-memory-limit",
+		Fn:    rcSetSoftMemoryLimit,
+		Title: "Call runtime/debug.SetMemoryLimit for setting a soft memory limit for the runtime.",
+		Help: `
+SetMemoryLimit provides the runtime with a soft memory limit.
+
+The runtime undertakes several processes to try to respect this memory limit, including
+adjustments to the frequency of garbage collections and returning memory to the underlying
+system more aggressively. This limit will be respected even if GOGC=off (or, if SetGCPercent(-1) is executed).
+
+The input limit is provided as bytes, and includes all memory mapped, managed, and not
+released by the Go runtime. Notably, it does not account for space used by the Go binary
+and memory external to Go, such as memory managed by the underlying system on behalf of
+the process, or memory managed by non-Go code inside the same process.
+Examples of excluded memory sources include: OS kernel memory held on behalf of the process,
+memory allocated by C code, and memory mapped by syscall.Mmap (because it is not managed by the Go runtime).
+
+A zero limit or a limit that's lower than the amount of memory used by the Go runtime may cause
+the garbage collector to run nearly continuously. However, the application may still make progress.
+
+The memory limit is always respected by the Go runtime, so to effectively disable this behavior,
+set the limit very high. math.MaxInt64 is the canonical value for disabling the limit, but values
+much greater than the available memory on the underlying system work just as well.
+
+See https://go.dev/doc/gc-guide for a detailed guide explaining the soft memory limit in more detail,
+as well as a variety of common use-cases and scenarios.
+
+SetMemoryLimit returns the previously set memory limit. A negative input does not adjust the limit,
+and allows for retrieval of the currently set memory limit.
+
+Parameters:
+
+- mem-limit - int
+`,
+	})
+}
+
+func rcSetSoftMemoryLimit(ctx context.Context, in Params) (out Params, err error) {
+	memLimit, err := in.GetInt64("mem-limit")
+	if err != nil {
+		return nil, err
+	}
+	oldMemLimit := debug.SetMemoryLimit(memLimit)
+	out = Params{
+		"existing-mem-limit": oldMemLimit,
+	}
+	return out, nil
+}
+
+func init() {
+	Add(Call{
+		Path:  "debug/set-gc-percent",
+		Fn:    rcSetGCPercent,
+		Title: "Call runtime/debug.SetGCPercent for setting the garbage collection target percentage.",
+		Help: `
+SetGCPercent sets the garbage collection target percentage: a collection is triggered
+when the ratio of freshly allocated data to live data remaining after the previous collection
+reaches this percentage. SetGCPercent returns the previous setting. The initial setting is the
+value of the GOGC environment variable at startup, or 100 if the variable is not set.
+
+This setting may be effectively reduced in order to maintain a memory limit.
+A negative percentage effectively disables garbage collection, unless the memory limit is reached.
+
+See https://pkg.go.dev/runtime/debug#SetMemoryLimit for more details.
+
+Parameters:
+
+- gc-percent - int
+`,
+	})
+}
+
+func rcSetGCPercent(ctx context.Context, in Params) (out Params, err error) {
+	gcPercent, err := in.GetInt64("gc-percent")
+	if err != nil {
+		return nil, err
+	}
+	oldGCPercent := debug.SetGCPercent(int(gcPercent))
+	out = Params{
+		"existing-gc-percent": oldGCPercent,
+	}
+	return out, nil
+}
+
+func init() {
+	Add(Call{
+		Path:          "core/command",
+		Fn:            rcRunCommand,
+		NeedsRequest:  true,
+		NeedsResponse: true,
+		Title:         "Run a rclone terminal command over rc.",
+		Help: `This takes the following parameters:
+
+- command - a string with the command name.
+- arg - a list of arguments for the backend command.
+- opt - a map of string to string of options.
+- returnType - one of ("COMBINED_OUTPUT", "STREAM", "STREAM_ONLY_STDOUT", "STREAM_ONLY_STDERR").
+    - Defaults to "COMBINED_OUTPUT" if not set.
+    - The STREAM returnTypes will write the output to the body of the HTTP message.
+    - The COMBINED_OUTPUT will write the output to the "result" parameter.
+
+Returns:
+
+- result - result from the backend command.
+    - Only set when using returnType "COMBINED_OUTPUT".
+- error	 - set if rclone exits with an error code.
+- returnType - one of ("COMBINED_OUTPUT", "STREAM", "STREAM_ONLY_STDOUT", "STREAM_ONLY_STDERR").
+
+Example:
+
+    rclone rc core/command command=ls -a mydrive:/ -o max-depth=1
+    rclone rc core/command -a ls -a mydrive:/ -o max-depth=1
+
+Returns:
+
+` + "```" + `
+{
+	"error": false,
+	"result": "<Raw command line output>"
+}
+
+OR
+{
+	"error": true,
+	"result": "<Raw command line output>"
+}
+
+` + "```" + `
+`,
+	})
+}
+
+// rcRunCommand runs an rclone command with the given args and flags
+func rcRunCommand(ctx context.Context, in Params) (out Params, err error) {
+	command, err := in.GetString("command")
+	if err != nil {
+		command = ""
+	}
+
+	var opt = map[string]string{}
+	err = in.GetStructMissingOK("opt", &opt)
+	if err != nil {
+		return nil, err
+	}
+
+	var arg = []string{}
+	err = in.GetStructMissingOK("arg", &arg)
+	if err != nil {
+		return nil, err
+	}
+
+	returnType, err := in.GetString("returnType")
+	if err != nil {
+		returnType = "COMBINED_OUTPUT"
+	}
+
+	var httpResponse http.ResponseWriter
+	httpResponse, err = in.GetHTTPResponseWriter()
+	if err != nil {
+		return nil, fmt.Errorf("response object is required\n%w", err)
+	}
+
+	var allArgs = []string{}
+	if command != "" {
+		// Add the command e.g.: ls to the args
+		allArgs = append(allArgs, command)
+	}
+	// Add all from arg
+	allArgs = append(allArgs, arg...)
+
+	// Add flags to args for e.g. --max-depth 1 comes in as { max-depth 1 }.
+	// Convert it to [ max-depth, 1 ] and append to args list
+	for key, value := range opt {
+		if len(key) == 1 {
+			allArgs = append(allArgs, "-"+key)
+		} else {
+			allArgs = append(allArgs, "--"+key)
+		}
+		allArgs = append(allArgs, value)
+	}
+
+	// Get the path for the current executable which was used to run rclone.
+	ex, err := os.Executable()
+	if err != nil {
+		return nil, err
+	}
+
+	cmd := exec.CommandContext(ctx, ex, allArgs...)
+
+	if returnType == "COMBINED_OUTPUT" {
+		// Run the command and get the output for error and stdout combined.
+
+		out, err := cmd.CombinedOutput()
+
+		if err != nil {
+			return Params{
+				"result": string(out),
+				"error":  true,
+			}, nil
+		}
+		return Params{
+			"result": string(out),
+			"error":  false,
+		}, nil
+	} else if returnType == "STREAM_ONLY_STDOUT" {
+		cmd.Stdout = httpResponse
+	} else if returnType == "STREAM_ONLY_STDERR" {
+		cmd.Stderr = httpResponse
+	} else if returnType == "STREAM" {
+		cmd.Stdout = httpResponse
+		cmd.Stderr = httpResponse
+	} else {
+		return nil, fmt.Errorf("unknown returnType %q", returnType)
+	}
+
+	err = cmd.Run()
+	return nil, err
+}
+
+func init() {
+	Add(Call{
+		Path:  "core/disks",
+		Fn:    rcDisks,
+		Title: "List the local disks",
+		Help: `This does not take any parameters
+
+This call is for rclone GUI programs to enumerate local disks and
+important directories for doing transfers to and from. The list
+returned will include the root directory and the user's home directory
+and any mounted disks. The returned items should be usable directly as
+remotes.
+
+Returns:
+
+- disks
+    - This is an array of strings of local disk names
+`,
+	})
+}
+
+func mountOK(path string) bool {
+	if runtime.GOOS == "darwin" {
+		if strings.HasPrefix(path, "/Volumes/") {
+			return true
+		}
+	} else if runtime.GOOS == "windows" {
+		return true
+	} else { // Linux and all other unices
+		// Fedora/Arch/openSUSE standard
+		if strings.HasPrefix(path, "/run/media/") {
+			return true
+		}
+		// Ubuntu/Debian standard
+		if strings.HasPrefix(path, "/media/") {
+			return true
+		}
+		// Traditional unix standard
+		if strings.HasPrefix(path, "/mnt/") {
+			return true
+		}
+	}
+	return false
+}
+
+// Disks returns likely local disks and some other useful positions
+func rcDisks(ctx context.Context, in Params) (out Params, err error) {
+	disks := []string{}
+	add := func(s string) {
+		if s != "/" {
+			s, _ = strings.CutSuffix(s, "/")
+		}
+		if !slices.Contains(disks, s) {
+			disks = append(disks, s)
+		}
+	}
+
+	// Add home directory
+	home, err := os.UserHomeDir()
+	if err == nil {
+		add(home)
+	}
+
+	// Add root directory
+	if runtime.GOOS != "windows" {
+		add("/")
+	}
+
+	// Add mount points
+	for _, mount := range getMounts() {
+		if mountOK(mount) {
+			add(mount)
+		}
+	}
+
+	// Add user directories
+	add(xdg.UserDirs.Desktop)
+	add(xdg.UserDirs.Download)
+	add(xdg.UserDirs.Documents)
+	add(xdg.UserDirs.Music)
+	add(xdg.UserDirs.Pictures)
+	add(xdg.UserDirs.Videos)
+
+	out = Params{
+		"disks": disks,
+	}
+	return out, nil
+}

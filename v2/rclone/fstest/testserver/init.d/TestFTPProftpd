@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+
+set -e
+
+NAME=proftpd
+USER=rclone
+PASS=RaidedBannedPokes5
+
+. $(dirname "$0")/docker.bash
+
+start() {
+    docker run --rm -d --name $NAME \
+           -e "FTP_USERNAME=rclone" \
+           -e "FTP_PASSWORD=$PASS" \
+           hauptmedia/proftpd
+    
+    echo type=ftp
+    echo host=$(docker_ip)
+    echo user=$USER
+    echo pass=$(rclone obscure $PASS)
+    echo encoding=Asterisk,Ctl,Dot,Slash
+    echo _connect=$(docker_ip):21
+}
+
+. $(dirname "$0")/run.bash

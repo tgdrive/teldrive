@@ -1,0 +1,136 @@
+//go:build unix
+
+// Package nfsmount implements mounting functionality using serve nfs command
+//
+// This can potentially work on all unix like systems which can mount NFS.
+package nfsmount
+
+import (
+	"bytes"
+	"context"
+	"fmt"
+	"net"
+	"os/exec"
+	"runtime"
+
+	"github.com/rclone/rclone/cmd/mountlib"
+	"github.com/rclone/rclone/cmd/serve/nfs"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/config/flags"
+	"github.com/rclone/rclone/vfs"
+)
+
+var (
+	sudo      = false
+	mountPath = "/"
+)
+
+func init() {
+	name := "nfsmount"
+	cmd := mountlib.NewMountCommand(name, false, mount)
+	cmd.Annotations["versionIntroduced"] = "v1.65"
+	cmd.Annotations["status"] = "Experimental"
+	mountlib.AddRc(name, mount)
+	cmdFlags := cmd.Flags()
+	flags.BoolVarP(cmdFlags, &sudo, "sudo", "", sudo, "Use sudo to run the mount/umount commands as root.", "")
+	flags.StringVarP(cmdFlags, &mountPath, "nfs-mount-path", "", mountPath, "Subpath of the remote to mount via NFS (must be an existing directory).", "")
+	nfs.AddFlags(cmdFlags)
+}
+
+func mount(VFS *vfs.VFS, mountpoint string, opt *mountlib.Options) (asyncerrors <-chan error, unmount func() error, actualMountpoint string, err error) {
+	s, err := nfs.NewServer(context.Background(), VFS, &nfs.Opt)
+	if err != nil {
+		return
+	}
+	errChan := make(chan error, 1)
+	go func() {
+		errChan <- s.Serve()
+	}()
+	// The port is always picked at random after the NFS server has started
+	// we need to query the server for the port number so we can mount it
+	_, port, err := net.SplitHostPort(s.Addr().String())
+	if err != nil {
+		err = fmt.Errorf("cannot find port number in %s", s.Addr().String())
+		return
+	}
+
+	// Options and mount binary
+	//
+	// OpenBSD's mount_nfs(8) doesn't understand "-o mountport=" or "-o
+	// tcp" - the mountd port isn't settable that way and TCP is
+	// requested with the "-T" flag instead. "-T" is a mount_nfs(8) flag,
+	// not a generic mount(8) one, so on OpenBSD we call mount_nfs(8)
+	// directly; running it through mount(8) makes mount reject "-T" with
+	// "unknown option". FreeBSD's mount_nfs(8) accepts the same "-o
+	// port=", "-o mountport=" and "-o tcp" options as Linux, and mount(8)
+	// there forwards them, so it stays on the common path.
+	mountBin := "mount"
+	var options []string
+	if runtime.GOOS == "openbsd" {
+		mountBin = "mount_nfs"
+		options = []string{
+			"-o", fmt.Sprintf("port=%s", port),
+			"-T",
+		}
+	} else {
+		options = []string{
+			"-o", fmt.Sprintf("port=%s", port),
+			"-o", fmt.Sprintf("mountport=%s", port),
+			"-o", "tcp",
+		}
+	}
+	for _, option := range opt.ExtraOptions {
+		options = append(options, "-o", option)
+	}
+	options = append(options, opt.ExtraFlags...)
+
+	cmd := []string{}
+	if sudo {
+		cmd = append(cmd, "sudo")
+	}
+	cmd = append(cmd, mountBin)
+	cmd = append(cmd, options...)
+	cmd = append(cmd, "localhost:"+mountPath, mountpoint)
+	fs.Debugf(nil, "Running mount command: %q", cmd)
+
+	out, err := exec.Command(cmd[0], cmd[1:]...).CombinedOutput()
+	if err != nil {
+		out = bytes.TrimSpace(out)
+		err = fmt.Errorf("%s: failed to mount NFS volume: %v", out, err)
+		return
+	}
+	asyncerrors = errChan
+	unmount = func() error {
+		if s.UnmountedExternally {
+			return nil
+		}
+		var umountErr error
+		var out []byte
+		if runtime.GOOS == "darwin" {
+			out, umountErr = exec.Command("diskutil", "umount", "force", mountpoint).CombinedOutput()
+		} else {
+			cmd := []string{}
+			if sudo {
+				cmd = append(cmd, "sudo")
+			}
+			cmd = append(cmd, "umount", "-f", mountpoint)
+			out, umountErr = exec.Command(cmd[0], cmd[1:]...).CombinedOutput()
+		}
+		shutdownErr := s.Shutdown()
+		if umountErr != nil {
+			out = bytes.TrimSpace(out)
+			return fmt.Errorf("%s: failed to umount the NFS volume %e", out, umountErr)
+		} else if shutdownErr != nil {
+			return fmt.Errorf("failed to shutdown NFS server: %e", shutdownErr)
+		}
+		return nil
+	}
+
+	nfs.OnUnmountFunc = func() {
+		s.UnmountedExternally = true
+		errChan <- nil
+	}
+
+	actualMountpoint = mountpoint
+	return
+}

@@ -1,0 +1,176 @@
+---
+title: Troubleshooting
+description: Fix common startup, database, login, proxy, upload, download, and SSE problems.
+---
+
+## Start here
+
+```bash
+teldrive check --config /etc/teldrive/config.toml
+```
+
+Compose:
+
+```bash
+docker compose run --rm teldrive check
+docker compose logs --tail=300 teldrive
+```
+
+Temporary debug logging:
+
+```yaml
+logging:
+  log-level: debug
+  log-format: text
+```
+
+## Teldrive exits immediately
+
+Check the first error. Common causes:
+
+- missing/unreachable PostgreSQL;
+- signing key shorter than 32 characters;
+- invalid `security.data-key`;
+- invalid proxy/MTProxy combination;
+- invalid encryption key/version configuration.
+
+Generate a compatible data key only for a new installation:
+
+```bash
+openssl rand -base64 32
+```
+
+Do not replace a production data key; existing encrypted values depend on it.
+
+## Container is unreachable
+
+Inside a container, listen on all container interfaces:
+
+```bash
+TELDRIVE_HTTP_ADDRESS=0.0.0.0:8080
+```
+
+Publish intentionally, for example host loopback only:
+
+```yaml
+ports:
+  - "127.0.0.1:8080:8080"
+```
+
+## PostgreSQL connection failure
+
+```bash
+pg_isready -h postgres -p 5432 -U teldrive -d teldrive
+```
+
+Check host/service name, port, credentials, database, `sslmode`, networking, readiness, and connection limits. In Compose, use the PostgreSQL service name, not `localhost`.
+
+## Login fails behind HTTPS
+
+Verify:
+
+- proxy sends `X-Forwarded-Proto: https`;
+- proxy source is listed in `http.trusted-proxies`;
+- users access one canonical HTTPS origin.
+
+See [Reverse proxy and HTTPS](/deployment/reverse-proxy).
+
+## Login disappears after restart
+
+Check that these did not change:
+
+```text
+security.signing-key
+security.data-key
+```
+
+Also verify PostgreSQL data is persistent.
+
+## Live progress updates only after refresh
+
+SSE is being interrupted or buffered. Check proxy response buffering, read/idle timeouts, CDN/load-balancer timeouts, and repeated EventSource reconnects in browser developer tools.
+
+## Upload fails at a fixed duration
+
+Compare timeout limits across:
+
+```text
+client → CDN/load balancer → reverse proxy → Teldrive
+```
+
+Teldrive defaults to one-hour HTTP read/write timeouts.
+
+## Slow uploads
+
+Check CPU, network, Telegram retry/rate-limit errors, proxy overhead, and BLAKE3 hashing before increasing:
+
+```yaml
+telegram:
+  upload-threads: 8
+```
+
+Increase gradually.
+
+## Slow downloads
+
+Start from defaults:
+
+```yaml
+telegram:
+  download-read-buffers: 32
+  download-read-parallel: 4
+  download-bots: 0
+```
+
+Tune parallelism only after ruling out client/proxy/host bottlenecks. Add bots only after normal downloads work.
+
+## Proxy/MTProxy config rejected
+
+Use one proxy mode only.
+
+Standard proxy:
+
+```yaml
+telegram:
+  proxy: socks5://proxy.example.com:1080
+```
+
+MTProxy:
+
+```yaml
+telegram:
+  mtproxy:
+    address: proxy.example.com:443
+    secret: YOUR_SECRET
+```
+
+MTProxy address and secret must both be present.
+
+## Encryption errors after rotation
+
+Keep old key versions referenced by existing files:
+
+```yaml
+encryption:
+  active-key-version: 2
+  keys:
+    1: OLD_KEY
+    2: NEW_KEY
+```
+
+Test both a new upload and an old download.
+
+## Problems only with multiple instances
+
+Verify every process shares the same database/schema and security/encryption keys. Also check aggregate PostgreSQL connections, worker roles, SSE load-balancing, bot rotation backend, and version skew.
+
+## Report useful diagnostics
+
+Include:
+
+- `teldrive version`;
+- deployment method;
+- redacted relevant config;
+- first meaningful log error;
+- result of `teldrive check`;
+- exact reproduction steps.

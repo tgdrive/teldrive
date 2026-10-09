@@ -1,0 +1,96 @@
+---
+title: Security
+description: Configure authentication keys, allowed users, token lifetimes, and content encryption.
+---
+
+## Authentication keys
+
+```yaml
+security:
+  signing-key: "..."
+  data-key: "..."
+  issuer: teldrive-v2
+  allowed-users: []
+  access-token-ttl: 15m
+  refresh-token-ttl: 720h
+  login-flow-ttl: 10m
+```
+
+### `signing-key`
+
+Signs Teldrive authentication tokens. Minimum 32 characters.
+
+```bash
+openssl rand -hex 32
+```
+
+Changing it invalidates existing signed sessions.
+
+### `data-key`
+
+Encrypts sensitive PostgreSQL values such as Telegram credentials. It must be Base64 that decodes to exactly 32 bytes.
+
+```bash
+openssl rand -base64 32
+```
+
+Back it up. Data encrypted with an old key cannot be decrypted with a replacement.
+
+## Allowed users
+
+Empty allows any Telegram user who completes login:
+
+```yaml
+security:
+  allowed-users: []
+```
+
+Restrict a private server:
+
+```yaml
+security:
+  allowed-users:
+    - alice
+    - bob
+```
+
+Environment form:
+
+```bash
+TELDRIVE_SECURITY_ALLOWED_USERS=alice,bob
+```
+
+Usernames are case-insensitive and may include or omit `@`.
+
+## Token lifetimes
+
+| Setting | Default |
+| --- | ---: |
+| `access-token-ttl` | `15m` |
+| `refresh-token-ttl` | `720h` |
+| `login-flow-ttl` | `10m` |
+
+## File-content encryption
+
+`encryption.keys` is separate from `security.data-key`:
+
+```yaml
+encryption:
+  active-key-version: 1
+  keys:
+    1: "YOUR_CONTENT_KEY"
+```
+
+See [Content encryption and key rotation](/advanced/encryption).
+
+## Secret handling
+
+Protect at least:
+
+- PostgreSQL password;
+- signing/data keys;
+- content-encryption keys;
+- custom Telegram API hash, if configured;
+- proxy and bot credentials.
+
+Do not commit secrets to Git. See [Backup and restore](/deployment/backup-and-restore) for recovery requirements.

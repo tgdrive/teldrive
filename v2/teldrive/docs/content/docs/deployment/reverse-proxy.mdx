@@ -1,0 +1,94 @@
+---
+title: Reverse proxy and HTTPS
+description: Put Teldrive behind a TLS reverse proxy without breaking cookies, uploads, or SSE.
+---
+
+Keep Teldrive private and terminate TLS at the proxy:
+
+```text
+browser ──HTTPS──► proxy ──HTTP/private network──► Teldrive :8080
+```
+
+## Trusted proxies
+
+Trust only the address/CIDR of the proxy that connects directly to Teldrive:
+
+```yaml
+http:
+  trusted-proxies:
+    - 127.0.0.1
+```
+
+Teldrive accepts `X-Forwarded-Proto: https` only from trusted peers. Do not use `0.0.0.0/0` or `::/0`.
+
+## Caddy
+
+Same host:
+
+```text
+drive.example.com {
+    reverse_proxy 127.0.0.1:8080
+}
+```
+
+```yaml
+http:
+  address: 127.0.0.1:8080
+  trusted-proxies:
+    - 127.0.0.1
+```
+
+For containerized Caddy, trust the actual container-network source CIDR instead.
+
+## nginx
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name drive.example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/drive.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/drive.example.com/privkey.pem;
+
+    client_max_body_size 0;
+
+    location / {
+        proxy_pass http://127.0.0.1:8080;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_request_buffering off;
+        proxy_buffering off;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+}
+```
+
+Adjust timeouts for your deployment; file transfers and SSE require long-lived requests.
+
+## Container binding
+
+```yaml
+services:
+  teldrive:
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      TELDRIVE_HTTP_ADDRESS: 0.0.0.0:8080
+      TELDRIVE_HTTP_TRUSTED_PROXIES: 172.18.0.0/16
+```
+
+Replace the example CIDR with the network your proxy actually uses.
+
+## Verify
+
+After enabling HTTPS, test:
+
+- login and page refresh;
+- upload/download;
+- live task/progress updates;
+- no repeated SSE reconnects or cookie errors.
+
+If a CDN/load balancer sits in front of your proxy, Teldrive should still trust only its direct proxy peer; that proxy must sanitize forwarding headers.

@@ -1,0 +1,6 @@
+generator:
+  features:
+    disable:
+      # We implement every generated Handler method explicitly. Do not generate
+      # a catch-all UnimplementedHandler that can hide missing operations.
+      - "ogen/unimplemented"

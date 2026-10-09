@@ -1,0 +1,17 @@
+name: Notify users based on issue labels
+
+# Disabled
+on: workflow_dispatch
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+        - uses: jenschelkopf/issue-label-notification-action@1.3
+          with:
+             token: ${{ secrets.NOTIFY_ACTION_TOKEN }}
+             recipients: |
+                  Support Contract=@rclone/support

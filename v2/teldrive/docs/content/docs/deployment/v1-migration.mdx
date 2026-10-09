@@ -1,0 +1,78 @@
+---
+title: Migrate from Teldrive v1
+description: Migrate a legacy v1 PostgreSQL database to the v2 schema.
+---
+
+Teldrive v2 detects v1 by the legacy `public.goose_db_version` table.
+
+## Before migration
+
+1. stop v1 writes;
+2. back up PostgreSQL;
+3. keep the old binary/image and configuration;
+4. configure a stable v2 `security.data-key`.
+
+## Enable migration
+
+Default:
+
+```yaml
+database:
+  auto-migrate-legacy: true
+```
+
+Both `teldrive run` and `teldrive check` can trigger migration during initialization.
+
+Requirements:
+
+- v1 and v2 use the same PostgreSQL database;
+- final v2 schema is `teldrive`;
+- `security.data-key` is configured;
+- the database user can create/rename schemas and migrate data.
+
+## What it creates
+
+The migrator takes an advisory lock and stages the conversion in separate schemas:
+
+```text
+legacy source
+  ↓
+teldrive_v2_staging_<timestamp>
+  ↓ validate/swap
+teldrive
+
+teldrive_legacy_backup_<timestamp>
+```
+
+The legacy schema is preserved under `teldrive_legacy_backup_*` after a successful swap.
+
+## Run migration
+
+```bash
+teldrive check --config /etc/teldrive/config.toml
+```
+
+or:
+
+```bash
+docker compose run --rm teldrive check
+```
+
+Check logs for `database.legacy_migration.completed` and the reported row counts.
+
+## Verify
+
+After starting v2, verify users, channels, bots, folder structure, files, and known downloads. Keep the legacy backup schema until you also have a separate tested PostgreSQL backup.
+
+## Disable automatic migration
+
+```yaml
+database:
+  auto-migrate-legacy: false
+```
+
+With this setting, detecting v1 fails initialization instead of migrating it.
+
+## Rollback
+
+Restore the pre-migration PostgreSQL backup and old application version/configuration. Do not reuse a partially migrated database as a rollback plan.

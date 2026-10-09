@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+
+set -e
+
+NAME=smb
+USER=rclone
+PASS=GNF3Cqeu
+WORKGROUP=thepub
+PORT=28630
+
+. $(dirname "$0")/docker.bash
+
+start() {
+    docker run --rm -d --name $NAME \
+           -p 127.0.0.1:${PORT}:445 \
+           -p 127.0.0.1:${PORT}:445/udp \
+           dperson/samba \
+           -p \
+           -u "rclone;${PASS}" \
+           -w "${WORKGROUP}" \
+           -s "public;/share" \
+           -s "rclone;/rclone;yes;no;no;rclone"
+    
+    echo type=smb
+    echo host=127.0.0.1
+    echo user=$USER
+    echo port=$PORT
+    echo pass=$(rclone obscure $PASS)
+    echo domain=$WORKGROUP
+    echo _connect=127.0.0.1:${PORT}
+}
+
+. $(dirname "$0")/run.bash

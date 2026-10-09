@@ -1,0 +1,4 @@
+{
+  "title": "Operations",
+  "pages": ["health-checks", "jobs-and-queues", "troubleshooting"]
+}

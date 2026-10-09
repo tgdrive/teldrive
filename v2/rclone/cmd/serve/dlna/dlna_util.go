@@ -1,0 +1,245 @@
+package dlna
+
+import (
+	"context"
+	"crypto/md5"
+	"encoding/xml"
+	"fmt"
+	"io"
+	"maps"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"net/http/httputil"
+	"os"
+	"strings"
+
+	"github.com/anacrolix/dms/soap"
+	"github.com/anacrolix/dms/upnp"
+	"github.com/rclone/rclone/fs"
+)
+
+// Return a default "friendly name" for the server.
+func makeDefaultFriendlyName() string {
+	hostName, err := os.Hostname()
+	if err != nil {
+		hostName = ""
+	} else {
+		hostName = " (" + hostName + ")"
+	}
+	return "rclone" + hostName
+}
+
+func makeDeviceUUID(unique string) string {
+	h := md5.New()
+	if _, err := io.WriteString(h, unique); err != nil {
+		fs.Panicf(nil, "makeDeviceUUID write failed: %s", err)
+	}
+	buf := h.Sum(nil)
+	return upnp.FormatUUID(buf)
+}
+
+// Get all available active network interfaces.
+func listInterfaces() []net.Interface {
+	ifs, err := net.Interfaces()
+	if err != nil {
+		fs.Logf(nil, "list network interfaces: %v", err)
+		return []net.Interface{}
+	}
+
+	var active []net.Interface
+	for _, intf := range ifs {
+		if isAppropriatelyConfigured(intf) {
+			active = append(active, intf)
+		}
+	}
+	return active
+}
+
+func isAppropriatelyConfigured(intf net.Interface) bool {
+	return intf.Flags&net.FlagUp != 0 && intf.Flags&net.FlagMulticast != 0 && intf.MTU > 0
+}
+
+func didlLite(chardata string) string {
+	return `<DIDL-Lite` +
+		` xmlns:dc="http://purl.org/dc/elements/1.1/"` +
+		` xmlns:upnp="urn:schemas-upnp-org:metadata-1-0/upnp/"` +
+		` xmlns="urn:schemas-upnp-org:metadata-1-0/DIDL-Lite/"` +
+		` xmlns:dlna="urn:schemas-dlna-org:metadata-1-0/"` +
+		` xmlns:sec="http://www.sec.co.kr/">` +
+		chardata +
+		`</DIDL-Lite>`
+}
+
+// adjustXML applies compatibility fixes to marshaled XML for DLNA clients
+// that have strict or non-standard XML parsing requirements.
+func adjustXML(xmlData []byte) string {
+	xmlStr := string(xmlData)
+	// Samsung TV compatibility: replace numeric entities with named entities.
+	// Samsung TVs have strict XML parsers that fail on numeric entities but accept named ones.
+	// Convert the "Big 5" XML entities to ensure maximum compatibility.
+	xmlStr = strings.ReplaceAll(xmlStr, "&#34;", "&quot;") // double quotes
+	xmlStr = strings.ReplaceAll(xmlStr, "&#39;", "&apos;") // apostrophes
+	xmlStr = strings.ReplaceAll(xmlStr, "&#38;", "&amp;")  // ampersands (rarely used by Go, but just in case)
+	xmlStr = strings.ReplaceAll(xmlStr, "&#60;", "&lt;")   // less than (rarely used by Go, but just in case)
+	xmlStr = strings.ReplaceAll(xmlStr, "&#62;", "&gt;")   // greater than (rarely used by Go, but just in case)
+	return xmlStr
+}
+
+func mustMarshalXML(value any) []byte {
+	ret, err := xml.MarshalIndent(value, "", "  ")
+	if err != nil {
+		fs.Panicf(nil, "mustMarshalXML failed to marshal %v: %s", value, err)
+	}
+	// Apply XML compatibility fixes for DLNA clients
+	adjustedXML := adjustXML(ret)
+	return []byte(adjustedXML)
+}
+
+// soapArg is an ordered SOAP response argument.
+type soapArg struct {
+	name  string
+	value string
+}
+
+// soapArgs creates a list of soapArg from pairs of name, value strings.
+// Panics if an odd number of strings is provided.
+func soapArgs(nameValuePairs ...string) []soapArg {
+	if len(nameValuePairs)%2 != 0 {
+		fs.Panicf(nil, "soapArgs: odd number of arguments")
+	}
+	args := make([]soapArg, len(nameValuePairs)/2)
+	for i := range args {
+		args[i] = soapArg{
+			name:  nameValuePairs[i*2],
+			value: nameValuePairs[i*2+1],
+		}
+	}
+	return args
+}
+
+// Marshal SOAP response arguments into a response XML snippet.
+// Argument order is preserved from the input slice, which is important
+// for compatibility with strict DLNA clients like Samsung TVs that
+// expect arguments in the order defined by the service SCPD.
+func marshalSOAPResponse(sa upnp.SoapAction, args []soapArg) []byte {
+	xmlArgs := make([]soap.Arg, len(args))
+	for i, arg := range args {
+		xmlArgs[i] = soap.Arg{
+			XMLName: xml.Name{Local: arg.name},
+			Value:   arg.value,
+		}
+	}
+	return fmt.Appendf(nil, `<u:%[1]sResponse xmlns:u="%[2]s">%[3]s</u:%[1]sResponse>`,
+		sa.Action, sa.ServiceURN.String(), mustMarshalXML(xmlArgs))
+}
+
+type loggingResponseWriter struct {
+	http.ResponseWriter
+	request   *http.Request
+	committed bool
+}
+
+func (lrw *loggingResponseWriter) logRequest(code int, err any) {
+	// Choose appropriate log level based on response status code.
+	var level fs.LogLevel
+	if code < 400 && err == nil {
+		level = fs.LogLevelInfo
+	} else {
+		level = fs.LogLevelError
+	}
+
+	if err == nil {
+		err = ""
+	}
+
+	fs.LogLevelPrintf(level, lrw.request.URL, "%s %s %d %s %s",
+		lrw.request.RemoteAddr, lrw.request.Method, code,
+		lrw.request.Header.Get("SOAPACTION"), err)
+}
+
+func (lrw *loggingResponseWriter) WriteHeader(code int) {
+	lrw.committed = true
+	lrw.logRequest(code, nil)
+	lrw.ResponseWriter.WriteHeader(code)
+}
+
+// HTTP handler that logs requests and any errors or panics.
+func logging(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		lrw := &loggingResponseWriter{ResponseWriter: w, request: r}
+		defer func() {
+			err := recover()
+			if err != nil {
+				if !lrw.committed {
+					lrw.logRequest(http.StatusInternalServerError, err)
+					http.Error(w, fmt.Sprint(err), http.StatusInternalServerError)
+				} else {
+					// Too late to send the error to client, but at least log it.
+					fs.Errorf(r.URL.Path, "Recovered panic: %v", err)
+				}
+			}
+		}()
+		next.ServeHTTP(lrw, r)
+	})
+}
+
+// HTTP handler that logs complete request and response bodies for debugging.
+// Error recovery and general request logging are left to logging().
+func traceLogging(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		dump, err := httputil.DumpRequest(r, true)
+		if err != nil {
+			serveError(ctx, nil, w, "error dumping request", err)
+			return
+		}
+		fs.Debugf(nil, "%s", dump)
+
+		recorder := httptest.NewRecorder()
+		next.ServeHTTP(recorder, r)
+
+		dump, err = httputil.DumpResponse(recorder.Result(), true)
+		if err != nil {
+			// log the error but ignore it
+			fs.Errorf(nil, "error dumping response: %v", err)
+		} else {
+			fs.Debugf(nil, "%s", dump)
+		}
+
+		// copy from recorder to the real response writer
+		maps.Copy(w.Header(), recorder.Header())
+		w.WriteHeader(recorder.Code)
+		_, err = recorder.Body.WriteTo(w)
+		if err != nil {
+			// Network error
+			fs.Debugf(nil, "Error writing response: %v", err)
+		}
+	})
+}
+
+// HTTP handler that sets headers.
+func withHeader(name string, value string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set(name, value)
+		next.ServeHTTP(w, r)
+	})
+}
+
+// serveError returns an http.StatusInternalServerError and logs the error
+func serveError(ctx context.Context, what any, w http.ResponseWriter, text string, err error) {
+	err = fs.CountError(ctx, err)
+	fs.Errorf(what, "%s: %v", text, err)
+	http.Error(w, text+".", http.StatusInternalServerError)
+}
+
+// Splits a path into (root, ext) such that root + ext == path, and ext is empty
+// or begins with a period.  Extended version of path.Ext().
+func splitExt(path string) (string, string) {
+	for i := len(path) - 1; i >= 0 && path[i] != '/'; i-- {
+		if path[i] == '.' {
+			return path[:i], path[i:]
+		}
+	}
+	return path, ""
+}

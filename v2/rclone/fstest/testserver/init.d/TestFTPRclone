@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+set -e
+
+NAME=rclone-serve-ftp
+USER=rclone
+PASS=FuddleIdlingJell5
+IP=127.0.0.1
+PORT=28622
+
+start() {
+    run rclone serve ftp --user $USER --pass $PASS --addr ${IP}:${PORT} ${DATADIR}
+    
+    echo type=ftp
+    echo host=${IP}
+    echo port=$PORT
+    echo user=$USER
+    echo pass=$(rclone obscure $PASS)
+    echo _connect=${IP}:${PORT}
+}
+
+. $(dirname "$0")/rclone-serve.bash

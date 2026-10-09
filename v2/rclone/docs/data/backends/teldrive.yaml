@@ -1,0 +1,35 @@
+backend: teldrive
+name: TelDrive
+tier: Tier 4
+maintainers: External
+features_score: 0
+integration_tests: Passing
+data_integrity: Hash
+performance: High
+adoption: Some use
+docs: Full
+security: High
+virtual: false
+remote: 'TestTeldrive:'
+features:
+- About
+- CanHaveEmptyDirectories
+- ChangeNotify
+- ChunkWriterDoesntSeek
+- CleanUp
+- Command
+- Copy
+- DirCacheFlush
+- DirMove
+- ListP
+- Move
+- OpenChunkWriter
+- PublicLink
+- Purge
+- PutStream
+- PutUnchecked
+- ReadMimeType
+- WriteMimeType
+hashes:
+- teldrive
+precision: 1000000000

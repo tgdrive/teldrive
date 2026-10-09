@@ -1,0 +1,15 @@
+export const queryKeys = {
+  me: ["me"] as const,
+  files: (scope: Record<string, unknown>) => ["files", scope] as const,
+  file: (id: string) => ["file", id] as const,
+  fileShares: (id: string) => ["file-shares", id] as const,
+  uploads: (state?: string) => ["uploads", state ?? "all"] as const,
+  upload: (id: string) => ["upload", id] as const,
+  uploadParts: (id: string) => ["upload-parts", id] as const,
+  driveStatistics: ["drive-statistics"] as const,
+  categoryStatistics: ["category-statistics"] as const,
+  apiKeys: ["api-keys"] as const,
+  sessions: ["sessions"] as const,
+  channels: ["channels"] as const,
+  bots: ["bots"] as const,
+};

@@ -1,0 +1,62 @@
+---
+title: Uploads
+description: Use browser uploads, resumable sessions, and server-side imports.
+---
+
+## Browser uploads
+
+On **Files → Upload** choose files, a folder, or drag files into the browser.
+
+## Resumable uploads
+
+```yaml
+uploads:
+  session-ttl: 168h
+```
+
+Interrupted uploads can resume while the session remains valid.
+
+## Hashing
+
+```yaml
+uploads:
+  hashing-enabled: true
+```
+
+Teldrive computes BLAKE3 hashes by default. Disable only for a measured performance reason.
+
+## Background imports
+
+Allow explicit server paths:
+
+```yaml
+uploads:
+  local-import-roots:
+    - /srv/imports
+```
+
+Container mount:
+
+```yaml
+volumes:
+  - /srv/imports:/srv/imports:ro
+```
+
+Import roots are a security boundary; expose only directories Teldrive should read.
+
+## Telegram concurrency
+
+```yaml
+telegram:
+  upload-threads: 8
+```
+
+Increase gradually while monitoring throughput and Telegram errors.
+
+## Progress and failures
+
+Browser transfers appear in upload UI; background imports appear in **Tasks**.
+
+For failures, check Telegram session/channel availability, PostgreSQL, proxy timeouts, import path/mount permissions, session expiry, and concurrency settings.
+
+See [Uploads and events](/configuration/uploads-and-events).

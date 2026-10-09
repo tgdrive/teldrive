@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+#
+# Upload a release
+#
+# Needs the gh tool from https://github.com/cli/cli
+
+set -e
+
+REPO="rclone/rclone"
+
+if [ "$1" == "" ]; then
+    echo "Syntax: $0 Version"
+    exit 1
+fi
+VERSION="$1"
+ANCHOR=$(grep '^## v' docs/content/changelog.md | head -n 1 | sed 's/^## //; s/[^A-Za-z0-9-]/-/g; s/--*/-/g')
+
+cat > "/tmp/${VERSION}-release-notes" <<EOF
+This is the ${VERSION} release of rclone.
+
+Full details of the changes can be found in [the changelog](https://rclone.org/changelog/#${ANCHOR}).
+EOF
+
+echo "Making release ${VERSION} anchor ${ANCHOR} to repo ${REPO}"
+
+gh release create "${VERSION}" \
+    --repo ${REPO} \
+    --title "rclone ${VERSION}" \
+    --notes-file "/tmp/${VERSION}-release-notes" \
+    --draft=true
+
+for build in build/*; do
+    case $build in
+        *current*) continue ;;
+        *testbuilds*) continue ;;
+    esac
+    echo "Uploading ${build} "
+    gh release upload "${VERSION}" \
+        --clobber \
+        --repo ${REPO} \
+        "${build}"
+done
+
+gh release edit "${VERSION}" \
+    --repo ${REPO} \
+    --draft=false
+
+gh release view "${VERSION}" \
+    --repo ${REPO}
+
+echo "Done"

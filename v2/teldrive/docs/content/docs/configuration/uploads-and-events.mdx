@@ -1,0 +1,69 @@
+---
+title: Uploads and events
+description: Configure upload sessions, hashing, local imports, workers, and SSE events.
+---
+
+## Uploads
+
+```yaml
+uploads:
+  session-ttl: 168h
+  hashing-enabled: true
+  local-import-roots: []
+```
+
+- `session-ttl`: resumable upload lifetime; default seven days.
+- `hashing-enabled`: computes BLAKE3 hashes during uploads.
+- `local-import-roots`: absolute server paths allowed for background imports; empty disables imports.
+
+Container example:
+
+```yaml
+volumes:
+  - /srv/imports:/srv/imports:ro
+
+environment:
+  TELDRIVE_UPLOADS_LOCAL_IMPORT_ROOTS: /srv/imports
+```
+
+Only expose directories Teldrive is allowed to read.
+
+## Workers
+
+```yaml
+jobs:
+  run-workers: true
+```
+
+Set `false` only when another Teldrive process sharing the database runs workers. See [Multi-instance deployments](/advanced/multi-instance).
+
+## Live events
+
+```yaml
+events:
+  batch-size: 100
+  max-connections-per-user: 5
+  heartbeat: 20s
+  write-timeout: 10s
+  ticket-ttl: 2m
+  retention: 168h
+  cleanup-interval: 1h
+  connect-timeout: 10s
+  ping-interval: 5s
+  reconnect-min: 100ms
+  reconnect-max: 30s
+```
+
+The UI uses Server-Sent Events. Reverse proxies must allow long-lived, unbuffered responses.
+
+`max-connections-per-user` is per API instance. `retention` controls how long replayable events remain in PostgreSQL.
+
+## Transfer timeouts
+
+```yaml
+http:
+  read-timeout: 1h
+  write-timeout: 1h
+```
+
+If transfers fail at a fixed duration, compare Teldrive, proxy, load-balancer/CDN, and client timeouts before changing Telegram concurrency.

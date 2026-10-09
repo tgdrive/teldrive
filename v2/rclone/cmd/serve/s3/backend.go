@@ -1,0 +1,617 @@
+// Package s3 implements an s3 server for rclone
+package s3
+
+import (
+	"context"
+	"encoding/hex"
+	"io"
+	"maps"
+	"os"
+	"path"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/ncw/swift/v2"
+	"github.com/rclone/gofakes3"
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/operations"
+	"github.com/rclone/rclone/vfs"
+	"github.com/rclone/rclone/vfs/vfscommon"
+)
+
+var (
+	emptyPrefix = &gofakes3.Prefix{}
+)
+
+// tempObjectPrefix is reserved for serve s3's temporary objects: an object
+// whose leaf name starts with it is hidden from S3 listings.
+const tempObjectPrefix = ".rclone_temp_"
+
+// putObjectPrefix is prepended to the leaf name of the temporary object a
+// PutObject upload is written to before it is renamed into place.
+const putObjectPrefix = tempObjectPrefix + "put_"
+
+// s3Backend implements the gofacess3.Backend interface to make an S3
+// backend for gofakes3. It also implements gofakes3.MultipartBackend so that
+// multipart uploads stream straight through to the underlying Fs via
+// PutStream, instead of being buffered in memory by gofakes3.
+type s3Backend struct {
+	s    *Server
+	meta *sync.Map
+
+	// multipartUploads tracks in-flight streaming multipart uploads,
+	// keyed by gofakes3.UploadID.
+	multipartUploads sync.Map
+
+	// warnInMemoryOnce logs a single NOTICE the first time a multipart
+	// upload falls back to being buffered in memory.
+	warnInMemoryOnce sync.Once
+
+	reaperQuit chan struct{} // closed to stop the abandoned upload reaper
+	reaperStop sync.Once
+}
+
+// newBackend creates a new SimpleBucketBackend.
+func newBackend(s *Server) *s3Backend {
+	return &s3Backend{
+		s:          s,
+		meta:       new(sync.Map),
+		reaperQuit: make(chan struct{}),
+	}
+}
+
+// ListBuckets always returns the default bucket.
+func (b *s3Backend) ListBuckets(ctx context.Context) ([]gofakes3.BucketInfo, error) {
+	_vfs, err := b.s.getVFS(ctx)
+	if err != nil {
+		return nil, err
+	}
+	dirEntries, err := getDirEntries("/", _vfs)
+	if err != nil {
+		return nil, err
+	}
+	var response []gofakes3.BucketInfo
+	for _, entry := range dirEntries {
+		if entry.IsDir() {
+			response = append(response, gofakes3.BucketInfo{
+				Name:         entry.Name(),
+				CreationDate: gofakes3.NewContentTime(entry.ModTime()),
+			})
+		}
+		// FIXME: handle files in root dir
+	}
+
+	return response, nil
+}
+
+// ListBucket lists the objects in the given bucket.
+func (b *s3Backend) ListBucket(ctx context.Context, bucket string, prefix *gofakes3.Prefix, page gofakes3.ListBucketPage) (*gofakes3.ObjectList, error) {
+	_vfs, err := b.s.getVFS(ctx)
+	if err != nil {
+		return nil, err
+	}
+	_, err = _vfs.Stat(bucket)
+	if err != nil {
+		return nil, gofakes3.BucketNotFound(bucket)
+	}
+	if prefix == nil {
+		prefix = emptyPrefix
+	}
+
+	// workaround
+	if strings.TrimSpace(prefix.Prefix) == "" {
+		prefix.HasPrefix = false
+	}
+	if strings.TrimSpace(prefix.Delimiter) == "" {
+		prefix.HasDelimiter = false
+	}
+
+	response := gofakes3.NewObjectList()
+	path, remaining := prefixParser(prefix)
+
+	err = b.entryListR(_vfs, bucket, path, remaining, prefix.HasDelimiter, response)
+	if err == gofakes3.ErrNoSuchKey {
+		// AWS just returns an empty list
+		response = gofakes3.NewObjectList()
+	} else if err != nil {
+		return nil, err
+	}
+
+	return b.pager(response, page)
+}
+
+// formatHeaderTime makes an timestamp which is the same as that used by AWS.
+//
+// This is like RFC1123 always in UTC, but has GMT instead of UTC
+func formatHeaderTime(t time.Time) string {
+	return t.UTC().Format("Mon, 02 Jan 2006 15:04:05") + " GMT"
+}
+
+// HeadObject returns the fileinfo for the given object name.
+//
+// Note that the metadata is not supported yet.
+func (b *s3Backend) HeadObject(ctx context.Context, bucketName, objectName string) (*gofakes3.Object, error) {
+	_vfs, err := b.s.getVFS(ctx)
+	if err != nil {
+		return nil, err
+	}
+	_, err = _vfs.Stat(bucketName)
+	if err != nil {
+		return nil, gofakes3.BucketNotFound(bucketName)
+	}
+
+	fp, err := bucketObjectPath(bucketName, objectName)
+	if err != nil {
+		return nil, err
+	}
+	node, err := _vfs.Stat(fp)
+	if err != nil {
+		return nil, gofakes3.KeyNotFound(objectName)
+	}
+
+	if !node.IsFile() {
+		return nil, gofakes3.KeyNotFound(objectName)
+	}
+
+	// node.DirEntry() is nil while the file is still being uploaded to the
+	// backing remote (e.g. just after a multipart upload, before the VFS
+	// writeback completes). In that window the file already exists in the VFS
+	// and is returned by ListBucket, so serve its metadata from the node
+	// rather than returning a spurious 404. getFileHashByte already falls back
+	// to hashing the VFS cache when the backing object is not available yet.
+	entry := node.DirEntry()
+	size := node.Size()
+	hash := getFileHashByte(node, b.s.etagHashType)
+
+	mimeType := fs.MimeTypeFromName(objectName)
+	if fobj, ok := entry.(fs.Object); ok {
+		mimeType = fs.MimeType(context.Background(), fobj)
+	}
+
+	meta := map[string]string{
+		"Last-Modified": formatHeaderTime(node.ModTime()),
+		"Content-Type":  mimeType,
+	}
+
+	if val, ok := b.meta.Load(fp); ok {
+		metaMap := val.(map[string]string)
+		maps.Copy(meta, metaMap)
+	}
+
+	return &gofakes3.Object{
+		Name:     objectName,
+		Hash:     hash,
+		Metadata: meta,
+		Size:     size,
+		Contents: noOpReadCloser{},
+	}, nil
+}
+
+// GetObject fetches the object from the filesystem.
+func (b *s3Backend) GetObject(ctx context.Context, bucketName, objectName string, rangeRequest *gofakes3.ObjectRangeRequest) (obj *gofakes3.Object, err error) {
+	_vfs, err := b.s.getVFS(ctx)
+	if err != nil {
+		return nil, err
+	}
+	_, err = _vfs.Stat(bucketName)
+	if err != nil {
+		return nil, gofakes3.BucketNotFound(bucketName)
+	}
+
+	fp, err := bucketObjectPath(bucketName, objectName)
+	if err != nil {
+		return nil, err
+	}
+	node, err := _vfs.Stat(fp)
+	if err != nil {
+		return nil, gofakes3.KeyNotFound(objectName)
+	}
+
+	if !node.IsFile() {
+		return nil, gofakes3.KeyNotFound(objectName)
+	}
+
+	// As in HeadObject, node.DirEntry() may be nil while the file is still
+	// being written back to the backing remote. The data is readable from the
+	// VFS cache via file.Open regardless, so serve it instead of 404ing.
+	entry := node.DirEntry()
+	file := node.(*vfs.File)
+
+	size := node.Size()
+	hash := getFileHashByte(node, b.s.etagHashType)
+
+	in, err := file.Open(os.O_RDONLY)
+	if err != nil {
+		return nil, gofakes3.ErrInternal
+	}
+	defer func() {
+		// If an error occurs, the caller may not have access to Object.Body in order to close it:
+		if err != nil {
+			_ = in.Close()
+		}
+	}()
+
+	var rdr io.ReadCloser = in
+	rnge, err := rangeRequest.Range(size)
+	if err != nil {
+		return nil, err
+	}
+
+	if rnge != nil {
+		if _, err := in.Seek(rnge.Start, io.SeekStart); err != nil {
+			return nil, err
+		}
+		rdr = limitReadCloser(rdr, in.Close, rnge.Length)
+	}
+
+	mimeType := fs.MimeTypeFromName(objectName)
+	if fobj, ok := entry.(fs.Object); ok {
+		mimeType = fs.MimeType(context.Background(), fobj)
+	}
+
+	meta := map[string]string{
+		"Last-Modified": formatHeaderTime(node.ModTime()),
+		"Content-Type":  mimeType,
+	}
+
+	if val, ok := b.meta.Load(fp); ok {
+		metaMap := val.(map[string]string)
+		maps.Copy(meta, metaMap)
+	}
+
+	return &gofakes3.Object{
+		Name:     objectName,
+		Hash:     hash,
+		Metadata: meta,
+		Size:     size,
+		Range:    rnge,
+		Contents: rdr,
+	}, nil
+}
+
+// storeModtime sets both "mtime" and "X-Amz-Meta-Mtime" to val in b.meta.
+// Call this whenever modtime is updated.
+func (b *s3Backend) storeModtime(fp string, meta map[string]string, val string) {
+	meta["X-Amz-Meta-Mtime"] = val
+	meta["mtime"] = val
+	b.meta.Store(fp, meta)
+}
+
+// TouchObject creates or updates meta on specified object.
+func (b *s3Backend) TouchObject(ctx context.Context, fp string, meta map[string]string) (result gofakes3.PutObjectResult, err error) {
+	_vfs, err := b.s.getVFS(ctx)
+	if err != nil {
+		return result, err
+	}
+	_, err = _vfs.Stat(fp)
+	if err == vfs.ENOENT {
+		f, err := _vfs.Create(fp)
+		if err != nil {
+			return result, err
+		}
+		_ = f.Close()
+		return b.TouchObject(ctx, fp, meta)
+	} else if err != nil {
+		return result, err
+	}
+
+	_, err = _vfs.Stat(fp)
+	if err != nil {
+		return result, err
+	}
+
+	b.meta.Store(fp, meta)
+
+	if val, ok := meta["X-Amz-Meta-Mtime"]; ok {
+		ti, err := swift.FloatStringToTime(val)
+		if err == nil {
+			b.storeModtime(fp, meta, val)
+			return result, _vfs.Chtimes(fp, ti, ti)
+		}
+		// ignore error since the file is successfully created
+	}
+
+	if val, ok := meta["mtime"]; ok {
+		ti, err := swift.FloatStringToTime(val)
+		if err == nil {
+			b.storeModtime(fp, meta, val)
+			return result, _vfs.Chtimes(fp, ti, ti)
+		}
+		// ignore error since the file is successfully created
+	}
+
+	return result, nil
+}
+
+// PutObject creates or overwrites the object with the given name.
+//
+// A failed or interrupted upload should never disturb what is stored
+// at the key.
+func (b *s3Backend) PutObject(
+	ctx context.Context,
+	bucketName, objectName string,
+	meta map[string]string,
+	input io.Reader, size int64,
+) (result gofakes3.PutObjectResult, err error) {
+	_vfs, err := b.s.getVFS(ctx)
+	if err != nil {
+		return result, err
+	}
+	_, err = _vfs.Stat(bucketName)
+	if err != nil {
+		return result, gofakes3.BucketNotFound(bucketName)
+	}
+
+	fp, err := bucketObjectPath(bucketName, objectName)
+	if err != nil {
+		return result, err
+	}
+	objectDir := path.Dir(fp)
+	// _, err = db.fs.Stat(objectDir)
+	// if err == vfs.ENOENT {
+	// 	fs.Errorf(objectDir, "PutObject failed: path not found")
+	// 	return result, gofakes3.KeyNotFound(objectName)
+	// }
+
+	if objectDir != "." {
+		if err := mkdirRecursive(objectDir, _vfs); err != nil {
+			return result, err
+		}
+	}
+
+	// Upload via a temporary object renamed into place if needed. The handle
+	// is opened read-write, which the VFS routes through the cache - where a
+	// failed upload commits what it has on Close and can't be abandoned -
+	// from --vfs-cache-mode minimal up, not just writes.
+	fsys := _vfs.Fs()
+	tmpFp := fp
+	if (fsys.Features().PartialUploads || _vfs.Opt.CacheMode >= vfscommon.CacheModeMinimal) && operations.CanServerSideMove(fsys) {
+		tmpFp = path.Join(objectDir, putObjectPrefix+uuid.New().String())
+	}
+
+	// cleanup discards a failed upload, removing the temporary object
+	// (never the object at fp) and any stale VFS state for fp.
+	cleanup := func() {
+		if tmpFp != fp {
+			b.forgetPath(_vfs, tmpFp)
+			_ = _vfs.Remove(tmpFp)
+		} else {
+			b.forgetPath(_vfs, fp)
+		}
+	}
+
+	f, err := _vfs.Create(tmpFp)
+	if err != nil {
+		return result, err
+	}
+
+	n, err := io.Copy(f, input)
+	if err == nil && size >= 0 && n != size {
+		// The body ended cleanly but short of its declared size
+		err = gofakes3.ErrIncompleteBody
+	}
+	if err != nil {
+		// The upload from the client failed part way through - abort the
+		// write so a streaming upload fails rather than committing a
+		// truncated object.
+		if aborter, ok := f.(interface{ CloseWithError(error) error }); ok {
+			_ = aborter.CloseWithError(err)
+		} else {
+			_ = f.Close()
+		}
+		cleanup()
+		return result, err
+	}
+
+	if err := f.Close(); err != nil {
+		cleanup()
+		return result, err
+	}
+
+	// Rename the temporary object into place
+	if tmpFp != fp {
+		if err := _vfs.Rename(tmpFp, fp); err != nil {
+			cleanup()
+			return result, err
+		}
+	}
+
+	_, err = _vfs.Stat(fp)
+	if err != nil {
+		return result, err
+	}
+
+	b.meta.Store(fp, meta)
+
+	if val, ok := meta["X-Amz-Meta-Mtime"]; ok {
+		ti, err := swift.FloatStringToTime(val)
+		if err == nil {
+			b.storeModtime(fp, meta, val)
+			return result, _vfs.Chtimes(fp, ti, ti)
+		}
+		// ignore error since the file is successfully created
+	}
+
+	if val, ok := meta["mtime"]; ok {
+		ti, err := swift.FloatStringToTime(val)
+		if err == nil {
+			b.storeModtime(fp, meta, val)
+			return result, _vfs.Chtimes(fp, ti, ti)
+		}
+		// ignore error since the file is successfully created
+	}
+
+	return result, nil
+}
+
+// DeleteMulti deletes multiple objects in a single request.
+func (b *s3Backend) DeleteMulti(ctx context.Context, bucketName string, objects ...string) (result gofakes3.MultiDeleteResult, rerr error) {
+	for _, object := range objects {
+		if err := b.deleteObject(ctx, bucketName, object); err != nil {
+			fs.Errorf("serve s3", "delete object failed: %v", err)
+			result.Error = append(result.Error, gofakes3.ErrorResult{
+				Code:    gofakes3.ErrInternal,
+				Message: gofakes3.ErrInternal.Message(),
+				Key:     object,
+			})
+		} else {
+			result.Deleted = append(result.Deleted, gofakes3.ObjectID{
+				Key: object,
+			})
+		}
+	}
+
+	return result, nil
+}
+
+// DeleteObject deletes the object with the given name.
+func (b *s3Backend) DeleteObject(ctx context.Context, bucketName, objectName string) (result gofakes3.ObjectDeleteResult, rerr error) {
+	return result, b.deleteObject(ctx, bucketName, objectName)
+}
+
+// deleteObject deletes the object from the filesystem.
+func (b *s3Backend) deleteObject(ctx context.Context, bucketName, objectName string) error {
+	_vfs, err := b.s.getVFS(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = _vfs.Stat(bucketName)
+	if err != nil {
+		return gofakes3.BucketNotFound(bucketName)
+	}
+
+	fp, err := bucketObjectPath(bucketName, objectName)
+	if err != nil {
+		return err
+	}
+	// S3 does not report an error when attempting to delete a key that does not exist, so
+	// we need to skip IsNotExist errors.
+	if err := _vfs.Remove(fp); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	// FIXME: unsafe operation
+	rmdirRecursive(fp, _vfs)
+	return nil
+}
+
+// CreateBucket creates a new bucket.
+func (b *s3Backend) CreateBucket(ctx context.Context, name string) error {
+	_vfs, err := b.s.getVFS(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = _vfs.Stat(name)
+	if err != nil && err != vfs.ENOENT {
+		return gofakes3.ErrInternal
+	}
+
+	if err == nil {
+		return gofakes3.ErrBucketAlreadyExists
+	}
+
+	if err := _vfs.Mkdir(name, 0755); err != nil {
+		return gofakes3.ErrInternal
+	}
+	return nil
+}
+
+// DeleteBucket deletes the bucket with the given name.
+func (b *s3Backend) DeleteBucket(ctx context.Context, name string) error {
+	_vfs, err := b.s.getVFS(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = _vfs.Stat(name)
+	if err != nil {
+		return gofakes3.BucketNotFound(name)
+	}
+
+	if err := _vfs.Remove(name); err != nil {
+		return gofakes3.ErrBucketNotEmpty
+	}
+
+	return nil
+}
+
+// BucketExists checks if the bucket exists.
+func (b *s3Backend) BucketExists(ctx context.Context, name string) (exists bool, err error) {
+	_vfs, err := b.s.getVFS(ctx)
+	if err != nil {
+		return false, err
+	}
+	_, err = _vfs.Stat(name)
+	if err != nil {
+		return false, nil
+	}
+
+	return true, nil
+}
+
+// CopyObject copy specified object from srcKey to dstKey.
+func (b *s3Backend) CopyObject(ctx context.Context, srcBucket, srcKey, dstBucket, dstKey string, meta map[string]string) (result gofakes3.CopyObjectResult, err error) {
+	_vfs, err := b.s.getVFS(ctx)
+	if err != nil {
+		return result, err
+	}
+	fp, err := bucketObjectPath(srcBucket, srcKey)
+	if err != nil {
+		return result, err
+	}
+	if srcBucket == dstBucket && srcKey == dstKey {
+		b.meta.Store(fp, meta)
+
+		val, ok := meta["X-Amz-Meta-Mtime"]
+		if !ok {
+			if val, ok = meta["mtime"]; !ok {
+				return
+			}
+		}
+		// update modtime
+		ti, err := swift.FloatStringToTime(val)
+		if err != nil {
+			return result, nil
+		}
+		b.storeModtime(fp, meta, val)
+
+		return result, _vfs.Chtimes(fp, ti, ti)
+	}
+
+	cStat, err := _vfs.Stat(fp)
+	if err != nil {
+		return
+	}
+
+	c, err := b.GetObject(ctx, srcBucket, srcKey, nil)
+	if err != nil {
+		return
+	}
+	defer func() {
+		_ = c.Contents.Close()
+	}()
+
+	for k, v := range c.Metadata {
+		if _, found := meta[k]; !found && k != "X-Amz-Acl" {
+			meta[k] = v
+		}
+	}
+	if _, ok := meta["mtime"]; !ok {
+		meta["mtime"] = swift.TimeToFloatString(cStat.ModTime())
+	}
+
+	// PutObject rejects a body shorter than its declared size, so a copy
+	// whose source is being overwritten as it is read - its stated size no
+	// longer matching its readable bytes - fails with IncompleteBody rather
+	// than storing a mixture.
+	_, err = b.PutObject(ctx, dstBucket, dstKey, meta, c.Contents, c.Size)
+	if err != nil {
+		return
+	}
+
+	return gofakes3.CopyObjectResult{
+		ETag:         `"` + hex.EncodeToString(c.Hash) + `"`,
+		LastModified: gofakes3.NewContentTime(cStat.ModTime()),
+	}, nil
+}

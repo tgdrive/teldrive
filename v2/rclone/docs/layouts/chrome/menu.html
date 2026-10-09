@@ -1,0 +1,92 @@
+<div class="card">
+  <div class="card-header">Platinum Sponso⁠r</div>
+  <div class="card-body">
+    <a href="https://exaba.com/product/integration/rclone/?utm_source=rclone&utm_medium=referral&utm_campaign=ad&utm_content=developer&utm_term=rclone" target="_blank" rel="noopener" title="Visit our sponsor Exaba"><img src="/img/logos/exaba.svg"></a><br />
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">Gold Sponso⁠r</div>
+  <div class="card-body">
+    <a href="https://www.idrive.com/e2/?refer=rclone" target="_blank" rel="noopener" title="Visit rclone's sponsor IDrive e2"><img src="/img/logos/idrive_e2.svg"></a><br />
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">Gold Sponso⁠r</div>
+  <div class="card-body">
+    <a href="https://files.com/?utm_source=rclone&utm_medium=referral&utm_campaign=banner&utm_term=rclone" target="_blank" rel="noopener" title="Start Your Free Trial Today"><img style="max-width: 100%; min-width: 100%; height: auto;" src="/img/logos/filescom-enterprise-grade-workflows.png"></a><br />
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">Gold Sponso⁠r</div>
+  <div class="card-body">
+    <a href="https://dropbox.com" target="_blank" rel="noopener" title="Visit rclone's sponsor Dropbox"><img src="/img/logos/dropbox.svg"></a><br />
+  </div>
+</div>
+
+{{if .IsHome}}
+<div id="silver-sponsors">
+<div class="card">
+  <div class="card-header">Silver Sponso⁠r</div>
+  <div class="card-body">
+    <a href="https://rcloneview.com/?utm_source=rclone" target="_blank" rel="noopener" title="Visit rclone's sponsor RcloneView"><img src="/img/logos/rcloneview.svg"></a><br />
+  </div>
+</div>
+<div class="card">
+  <div class="card-header">Silver Sponso⁠r</div>
+  <div class="card-body">
+    <a href="https://shade.inc/" target="_blank" rel="noopener" title="Visit rclone's sponsor Shade"><img src="/img/logos/shade.svg"></a><br />
+  </div>
+</div>
+<div class="card">
+  <div class="card-header">Silver Sponso⁠r</div>
+  <div class="card-body">
+    <a href="https://rcloneui.com" target="_blank" rel="noopener" title="Visit our sponsor RcloneUI"><img src="/img/logos/rcloneui.svg"></a><br />
+  </div>
+</div>
+</div>
+<script>
+(function() {
+  var container = document.getElementById('silver-sponsors');
+  if (!container) return;
+  var cards = Array.prototype.slice.call(container.children);
+  for (var i = cards.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var tmp = cards[i]; cards[i] = cards[j]; cards[j] = tmp;
+  }
+  cards.forEach(function(c) { container.appendChild(c); });
+}());
+</script>
+{{end}}
+
+<div class="card">
+  <div class="card-header">
+    Share and Enjoy
+  </div>
+  <div class="card-body card-body-padded">
+    <div class="menu">
+      <!-- Non tracking sharing links from: https://sharingbuttons.io/ -->
+      <svg class="icon icon-fw" aria-hidden="true"><use href="#icon-twitter"/></svg> <a href="https://twitter.com/intent/tweet/?text=rclone%20-%20rsync%20for%20cloud%20storage%20from%20%40njcw&amp;url=https%3A%2F%2Frclone.org" target="_blank" rel="noopener" aria-label="Share on Twitter">Twitter</a><br />
+      <svg class="icon icon-fw" aria-hidden="true"><use href="#icon-facebook"/></svg> <a href="https://facebook.com/sharer/sharer.php?u=https%3A%2F%2Frclone.org" target="_blank" rel="noopener" aria-label="Share on Facebook">Facebook</a><br />
+      <svg class="icon icon-fw" aria-hidden="true"><use href="#icon-reddit"/></svg> <a  href="https://reddit.com/submit/?url=https%3A%2F%2Frclone.org&amp;resubmit=true&amp;title=rclone%20-%20rsync%20for%20cloud%20storage" target="_blank" rel="noopener" aria-label="Share on Reddit">Reddit</a><br />
+      <iframe src="//ghbtns.com/github-btn.html?user=rclone&amp;repo=rclone&amp;type=star&amp;count=true" allowtransparency="true" frameborder="0" scrolling="no" width="120" height="20"></iframe>
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    Links
+  </div>
+  <div class="card-body card-body-padded">
+    <div class="menu">
+      <svg class="icon icon-fw" aria-hidden="true"><use href="#icon-comments"/></svg> <a href="https://forum.rclone.org">Rclone forum</a><br />
+      <svg class="icon icon-fw" aria-hidden="true"><use href="#icon-github"/></svg> <a href="https://github.com/rclone/rclone">GitHub project</a><br />
+      <svg class="icon icon-fw" aria-hidden="true"><use href="#icon-book"/></svg> <a href="https://github.com/rclone/rclone/wiki">Rclone Wiki</a><br />
+      <svg class="icon icon-fw heart" aria-hidden="true"><use href="#icon-heart"/></svg> <a href="/sponsor/">Sponsor</a><br />
+      <svg class="icon icon-fw" aria-hidden="true"><use href="#icon-twitter"/></svg> <a href="https://twitter.com/njcw">@njcw</a>
+    </div>
+  </div>
+</div>

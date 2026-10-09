@@ -1,0 +1,21 @@
+#!/bin/sh
+# Use this script after a release to tidy the betas
+
+version="$1"
+if [ "$version" = "" ]; then
+    echo "Syntax: $0 <version, e.g. v1.42> [delete]"
+    exit 1
+fi
+dry_run="--dry-run"
+if [ "$2" = "delete" ]; then
+    dry_run=""
+else
+    echo "Running in --dry-run mode"
+    echo "Use '$0 $version delete' to actually delete files"
+fi
+
+rclone ${dry_run} -vv -P --checkers 16 --transfers 16 delete \
+       --fast-list \
+       --include "/${version}**" \
+       --include "/branch/*/${version}**" \
+       beta.rclone.org:

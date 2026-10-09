@@ -1,0 +1,5525 @@
+// Package s3 provides an interface to Amazon S3 object storage
+package s3
+
+//go:generate go run gen_setfrom.go -o setfrom.go
+
+import (
+	"context"
+	"crypto/md5"
+	"crypto/tls"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
+	"encoding/xml"
+	"errors"
+	"fmt"
+	"io"
+	"math"
+	"net/http"
+	"net/url"
+	"path"
+	"regexp"
+	"slices"
+	"sort"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	v4signer "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/aws/smithy-go"
+	"github.com/aws/smithy-go/logging"
+	"github.com/aws/smithy-go/middleware"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
+	"github.com/ncw/swift/v2"
+
+	"golang.org/x/net/http/httpguts"
+	"golang.org/x/sync/errgroup"
+
+	"github.com/rclone/rclone/fs"
+	"github.com/rclone/rclone/fs/accounting"
+	"github.com/rclone/rclone/fs/chunksize"
+	"github.com/rclone/rclone/fs/config"
+	"github.com/rclone/rclone/fs/config/configmap"
+	"github.com/rclone/rclone/fs/config/configstruct"
+	"github.com/rclone/rclone/fs/fserrors"
+	"github.com/rclone/rclone/fs/fshttp"
+	"github.com/rclone/rclone/fs/hash"
+	"github.com/rclone/rclone/fs/list"
+	"github.com/rclone/rclone/fs/operations"
+	"github.com/rclone/rclone/lib/atexit"
+	"github.com/rclone/rclone/lib/bucket"
+	"github.com/rclone/rclone/lib/encoder"
+	"github.com/rclone/rclone/lib/multipart"
+	"github.com/rclone/rclone/lib/pacer"
+	"github.com/rclone/rclone/lib/pool"
+	"github.com/rclone/rclone/lib/readers"
+	"github.com/rclone/rclone/lib/rest"
+	"github.com/rclone/rclone/lib/transferaccounter"
+	"github.com/rclone/rclone/lib/version"
+)
+
+// Register with Fs
+func init() {
+	fs.Register(addProvidersToInfo(&fs.RegInfo{
+		Name:        "s3",
+		Description: "Amazon S3 Compliant Storage Providers including ",
+		NewFs:       NewFs,
+		CommandHelp: commandHelp,
+		Config: func(ctx context.Context, name string, m configmap.Mapper, config fs.ConfigIn) (*fs.ConfigOut, error) {
+			switch config.State {
+			case "":
+				return nil, setEndpointValueForIDriveE2(m)
+			}
+			return nil, fmt.Errorf("unknown state %q", config.State)
+		},
+		MetadataInfo: &fs.MetadataInfo{
+			System: systemMetadataInfo,
+			Help:   `User metadata is stored as x-amz-meta- keys. S3 metadata keys are case insensitive and are always returned in lower case.`,
+		},
+		Options: []fs.Option{{
+			Name: fs.ConfigProvider,
+			Help: "Choose your S3 provider.",
+		}, {
+			Name:    "env_auth",
+			Help:    "Get AWS credentials from runtime (environment variables or EC2/ECS meta data if no env vars).\n\nOnly applies if access_key_id and secret_access_key is blank.",
+			Default: false,
+			Examples: []fs.OptionExample{{
+				Value: "false",
+				Help:  "Enter AWS credentials in the next step.",
+			}, {
+				Value: "true",
+				Help:  "Get AWS credentials from the environment (env vars or IAM).",
+			}},
+		}, {
+			Name:      "access_key_id",
+			Help:      "AWS Access Key ID.\n\nLeave blank for anonymous access or runtime credentials.",
+			Sensitive: true,
+		}, {
+			Name:      "secret_access_key",
+			Help:      "AWS Secret Access Key (password).\n\nLeave blank for anonymous access or runtime credentials.",
+			Sensitive: true,
+		}, {
+			Name: "region",
+			Help: "Region to connect to.\n\nLeave blank if you are using an S3 clone and you don't have a region.",
+		}, {
+			Name: "endpoint",
+			Help: "Endpoint for S3 API.\n\nRequired when using an S3 clone.",
+		}, {
+			Name: "location_constraint",
+			Help: "Location constraint - must be set to match the Region.\n\nLeave blank if not sure. Used when creating buckets only.",
+		}, {
+			Name: "acl",
+			Help: `Canned ACL used when creating buckets and storing or copying objects.
+
+This ACL is used for creating objects and if bucket_acl isn't set, for creating buckets too.
+
+For more info visit https://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html#canned-acl
+
+Note that this ACL is applied when server-side copying objects as S3
+doesn't copy the ACL from the source but rather writes a fresh one.
+
+If the acl is an empty string then no X-Amz-Acl: header is added and
+the default (private) will be used.
+`,
+		}, {
+			Name: "bucket_acl",
+			Help: `Canned ACL used when creating buckets.
+
+For more info visit https://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html#canned-acl
+
+Note that this ACL is applied when only when creating buckets.  If it
+isn't set then "acl" is used instead.
+
+If the "acl" and "bucket_acl" are empty strings then no X-Amz-Acl:
+header is added and the default (private) will be used.
+`,
+			Advanced: true,
+			Examples: []fs.OptionExample{{
+				Value: "private",
+				Help:  "Owner gets FULL_CONTROL.\nNo one else has access rights (default).",
+			}, {
+				Value: "public-read",
+				Help:  "Owner gets FULL_CONTROL.\nThe AllUsers group gets READ access.",
+			}, {
+				Value: "public-read-write",
+				Help:  "Owner gets FULL_CONTROL.\nThe AllUsers group gets READ and WRITE access.\nGranting this on a bucket is generally not recommended.",
+			}, {
+				Value: "authenticated-read",
+				Help:  "Owner gets FULL_CONTROL.\nThe AuthenticatedUsers group gets READ access.",
+			}},
+		}, {
+			Name:     "requester_pays",
+			Help:     "Enables requester pays option when interacting with S3 bucket.",
+			Default:  false,
+			Advanced: true,
+		}, {
+			Name: "server_side_encryption",
+			Help: "The server-side encryption algorithm used when storing this object in S3.",
+		}, {
+			Name:     "sse_customer_algorithm",
+			Help:     "If using SSE-C, the server-side encryption algorithm used when storing this object in S3.",
+			Advanced: true,
+			Examples: []fs.OptionExample{{
+				Value: "",
+				Help:  "None",
+			}, {
+				Value: "AES256",
+				Help:  "AES256",
+			}},
+		}, {
+			Name: "sse_kms_key_id",
+			Help: "If using KMS ID you must provide the ARN of Key.",
+			Examples: []fs.OptionExample{{
+				Value: "",
+				Help:  "None",
+			}, {
+				Value: "arn:aws:kms:us-east-1:*",
+				Help:  "arn:aws:kms:*",
+			}},
+			Sensitive: true,
+		}, {
+			Name: "sse_customer_key",
+			Help: `To use SSE-C you may provide the secret encryption key used to encrypt/decrypt your data.
+
+Alternatively you can provide --sse-customer-key-base64.`,
+			Advanced: true,
+			Examples: []fs.OptionExample{{
+				Value: "",
+				Help:  "None",
+			}},
+			Sensitive: true,
+		}, {
+			Name: "sse_customer_key_base64",
+			Help: `If using SSE-C you must provide the secret encryption key encoded in base64 format to encrypt/decrypt your data.
+
+Alternatively you can provide --sse-customer-key.`,
+			Advanced: true,
+			Examples: []fs.OptionExample{{
+				Value: "",
+				Help:  "None",
+			}},
+			Sensitive: true,
+		}, {
+			Name: "sse_customer_key_md5",
+			Help: `If using SSE-C you may provide the secret encryption key MD5 checksum (optional).
+
+If you leave it blank, this is calculated automatically from the sse_customer_key provided.
+`,
+			Advanced: true,
+			Examples: []fs.OptionExample{{
+				Value: "",
+				Help:  "None",
+			}},
+			Sensitive: true,
+		}, {
+			Name: "storage_class",
+			Help: "The storage class to use when storing new objects in S3.",
+		}, {
+			Name: "upload_cutoff",
+			Help: `Cutoff for switching to chunked upload.
+
+Any files larger than this will be uploaded in chunks of chunk_size.
+The minimum is 0 and the maximum is 5 GiB.`,
+			Default:  defaultUploadCutoff,
+			Advanced: true,
+		}, {
+			Name: "chunk_size",
+			Help: `Chunk size to use for uploading.
+
+When uploading files larger than upload_cutoff or files with unknown
+size (e.g. from "rclone rcat" or uploaded with "rclone mount" or google
+photos or google docs) they will be uploaded as multipart uploads
+using this chunk size.
+
+Note that "--s3-upload-concurrency" chunks of this size are buffered
+in memory per transfer.
+
+If you are transferring large files over high-speed links and you have
+enough memory, then increasing this will speed up the transfers.
+
+Rclone will automatically increase the chunk size when uploading a
+large file of known size to stay below the 10,000 chunks limit.
+
+Files of unknown size are uploaded with the configured
+chunk_size. Since the default chunk size is 5 MiB and there can be at
+most 10,000 chunks, this means that by default the maximum size of
+a file you can stream upload is 48 GiB.  If you wish to stream upload
+larger files then you will need to increase chunk_size.
+
+Increasing the chunk size decreases the accuracy of the progress
+statistics displayed with "-P" flag. Rclone treats chunk as sent when
+it's buffered by the AWS SDK, when in fact it may still be uploading.
+A bigger chunk size means a bigger AWS SDK buffer and progress
+reporting more deviating from the truth.
+`,
+			Default:  minChunkSize,
+			Advanced: true,
+		}, {
+			Name: "max_upload_parts",
+			Help: `Maximum number of parts in a multipart upload.
+
+This option defines the maximum number of multipart chunks to use
+when doing a multipart upload.
+
+This can be useful if a service does not support the AWS S3
+specification of 10,000 chunks.
+
+Rclone will automatically increase the chunk size when uploading a
+large file of a known size to stay below this number of chunks limit.
+`,
+			Default:  maxUploadParts,
+			Advanced: true,
+		}, {
+			Name: "copy_cutoff",
+			Help: `Cutoff for switching to multipart copy.
+
+Any files larger than this that need to be server-side copied will be
+copied in chunks of this size.
+
+The minimum is 1 byte and the maximum is 5 GiB.`,
+			Default:  fs.SizeSuffix(maxSizeForCopy),
+			Advanced: true,
+		}, {
+			Name: "disable_checksum",
+			Help: `Don't store MD5 checksum with object metadata.
+
+Normally rclone will calculate the MD5 checksum of the input before
+uploading it so it can add it to metadata on the object. This is great
+for data integrity checking but can cause long delays for large files
+to start uploading.`,
+			Default:  false,
+			Advanced: true,
+		}, {
+			Name: "shared_credentials_file",
+			Help: `Path to the shared credentials file.
+
+If env_auth = true then rclone can use a shared credentials file.
+
+If this variable is empty rclone will look for the
+"AWS_SHARED_CREDENTIALS_FILE" env variable. If the env value is empty
+it will default to the current user's home directory.
+
+    Linux/OSX: "$HOME/.aws/credentials"
+    Windows:   "%USERPROFILE%\.aws\credentials"
+`,
+			Advanced: true,
+		}, {
+			Name: "profile",
+			Help: `Profile to use in the shared credentials file.
+
+If env_auth = true then rclone can use a shared credentials file. This
+variable controls which profile is used in that file.
+
+If empty it will default to the environment variable "AWS_PROFILE" or
+"default" if that environment variable is also not set.
+`,
+			Advanced: true,
+		}, {
+			Name:      "session_token",
+			Help:      "An AWS session token.",
+			Advanced:  true,
+			Sensitive: true,
+		}, {
+			Name: "role_arn",
+			Help: `ARN of the IAM role to assume.
+			
+Leave blank if not using assume role.`,
+			Advanced: true,
+		}, {
+			Name: "role_session_name",
+			Help: `Session name for assumed role.
+			
+If empty, a session name will be generated automatically.`,
+			Advanced: true,
+		}, {
+			Name: "role_session_duration",
+			Help: `Session duration for assumed role.
+			
+If empty, the default session duration will be used.`,
+			Advanced: true,
+		}, {
+			Name: "role_external_id",
+			Help: `External ID for assumed role.
+			
+Leave blank if not using an external ID.`,
+			Advanced: true,
+		}, {
+			Name: "upload_concurrency",
+			Help: `Concurrency for multipart uploads and copies.
+
+This is the number of chunks of the same file that are uploaded
+concurrently for multipart uploads and copies.
+
+If you are uploading small numbers of large files over high-speed links
+and these uploads do not fully utilize your bandwidth, then increasing
+this may help to speed up the transfers.`,
+			Default:  4,
+			Advanced: true,
+		}, {
+			Name: "force_path_style",
+			Help: `If true use path style access if false use virtual hosted style.
+
+If this is true (the default) then rclone will use path style access,
+if false then rclone will use virtual path style. See [the AWS S3
+docs](https://docs.aws.amazon.com/AmazonS3/latest/userguide/VirtualHosting.html)
+for more info.
+
+Some providers (e.g. AWS, Aliyun OSS, Netease COS, or Tencent COS) require this set to
+false - rclone will do this automatically based on the provider
+setting.
+
+Note that if your bucket isn't a valid DNS name, i.e. has '.' or '_' in,
+you'll need to set this to true.
+`,
+			Default:  true,
+			Advanced: true,
+		}, {
+			Name: "v2_auth",
+			Help: `If true use v2 authentication.
+
+If this is false (the default) then rclone will use v4 authentication.
+If it is set then rclone will use v2 authentication.
+
+Use this only if v4 signatures don't work, e.g. pre Jewel/v10 CEPH.`,
+			Default:  false,
+			Advanced: true,
+		}, {
+			Name: "use_dual_stack",
+			Help: `If true use AWS S3 dual-stack endpoint (IPv6 support).
+
+See [AWS Docs on Dualstack Endpoints](https://docs.aws.amazon.com/AmazonS3/latest/userguide/dual-stack-endpoints.html)`,
+			Default:  false,
+			Advanced: true,
+		}, {
+			Name: "use_accelerate_endpoint",
+			Help: `If true use the AWS S3 accelerated endpoint.
+
+See: [AWS S3 Transfer acceleration](https://docs.aws.amazon.com/AmazonS3/latest/dev/transfer-acceleration-examples.html)`,
+			Default:  false,
+			Advanced: true,
+		}, {
+			Name:     "use_arn_region",
+			Help:     `If true, enables arn region support for the service.`,
+			Default:  false,
+			Advanced: true,
+		}, {
+			Name: "leave_parts_on_error",
+			Help: `If true avoid calling abort upload on a failure, leaving all successfully uploaded parts on S3 for manual recovery.
+
+It should be set to true for resuming uploads across different sessions.
+
+WARNING: Storing parts of an incomplete multipart upload counts towards space usage on S3 and will add additional costs if not cleaned up.
+`,
+			Default:  false,
+			Advanced: true,
+		}, {
+			Name: "list_chunk",
+			Help: `Size of listing chunk (response list for each ListObject S3 request).
+
+This option is also known as "MaxKeys", "max-items", or "page-size" from the AWS S3 specification.
+Most services truncate the response list to 1000 objects even if requested more than that.
+In AWS S3 this is a global maximum and cannot be changed, see [AWS S3](https://docs.aws.amazon.com/cli/latest/reference/s3/ls.html).
+In Ceph, this can be increased with the "rgw list buckets max chunk" option.
+`,
+			Default:  1000,
+			Advanced: true,
+		}, {
+			Name: "list_version",
+			Help: `Version of ListObjects to use: 1,2 or 0 for auto.
+
+When S3 originally launched it only provided the ListObjects call to
+enumerate objects in a bucket.
+
+However in May 2016 the ListObjectsV2 call was introduced. This is
+much higher performance and should be used if at all possible.
+
+If set to the default, 0, rclone will guess according to the provider
+set which list objects method to call. If it guesses wrong, then it
+may be set manually here.
+`,
+			Default:  0,
+			Advanced: true,
+		}, {
+			Name: "list_url_encode",
+			Help: `Whether to url encode listings: true/false/unset
+
+Some providers support URL encoding listings and where this is
+available this is more reliable when using control characters in file
+names. If this is set to unset (the default) then rclone will choose
+according to the provider setting what to apply, but you can override
+rclone's choice here.
+`,
+			Default:  fs.Tristate{},
+			Advanced: true,
+		}, {
+			Name: "no_check_bucket",
+			Help: `If set, don't attempt to check the bucket exists or create it.
+
+This can be useful when trying to minimise the number of transactions
+rclone does if you know the bucket exists already.
+
+It can also be needed if the user you are using does not have bucket
+creation permissions. Before v1.52.0 this would have passed silently
+due to a bug.
+`,
+			Default:  false,
+			Advanced: true,
+		}, {
+			Name: "no_head",
+			Help: `If set, don't HEAD uploaded objects to check integrity.
+
+This can be useful when trying to minimise the number of transactions
+rclone does.
+
+Setting it means that if rclone receives a 200 OK message after
+uploading an object with PUT then it will assume that it got uploaded
+properly.
+
+In particular it will assume:
+
+- the metadata, including modtime, storage class and content type was as uploaded
+- the size was as uploaded
+
+It reads the following items from the response for a single part PUT:
+
+- the MD5SUM
+- The uploaded date
+
+For multipart uploads these items aren't read.
+
+If an source object of unknown length is uploaded then rclone **will** do a
+HEAD request.
+
+Setting this flag increases the chance for undetected upload failures,
+in particular an incorrect size, so it isn't recommended for normal
+operation. In practice the chance of an undetected upload failure is
+very small even with this flag.
+`,
+			Default:  false,
+			Advanced: true,
+		}, {
+			Name:     "no_head_object",
+			Help:     `If set, do not do HEAD before GET when getting objects.`,
+			Default:  false,
+			Advanced: true,
+		}, {
+			Name:     config.ConfigEncoding,
+			Help:     config.ConfigEncodingHelp,
+			Advanced: true,
+			// Any UTF-8 character is valid in a key, however it can't handle
+			// invalid UTF-8 and / have a special meaning.
+			//
+			// The SDK can't seem to handle uploading files called '.'
+			//
+			// FIXME would be nice to add
+			// - initial / encoding
+			// - doubled / encoding
+			// - trailing / encoding
+			// so that AWS keys are always valid file names
+			Default: encoder.EncodeInvalidUtf8 |
+				encoder.EncodeSlash |
+				encoder.EncodeDot,
+		}, {
+			Name:     "memory_pool_flush_time",
+			Default:  fs.Duration(time.Minute),
+			Advanced: true,
+			Hide:     fs.OptionHideBoth,
+			Help:     `How often internal memory buffer pools will be flushed. (no longer used)`,
+		}, {
+			Name:     "memory_pool_use_mmap",
+			Default:  false,
+			Advanced: true,
+			Hide:     fs.OptionHideBoth,
+			Help:     `Whether to use mmap buffers in internal memory pool. (no longer used)`,
+		}, {
+			Name:     "disable_http2",
+			Default:  false,
+			Advanced: true,
+			Help: `Disable usage of http2 for S3 backends.
+
+There is currently an unsolved issue with the s3 (specifically minio) backend
+and HTTP/2.  HTTP/2 is enabled by default for the s3 backend but can be
+disabled here.  When the issue is solved this flag will be removed.
+
+See: https://github.com/rclone/rclone/issues/4673, https://github.com/rclone/rclone/issues/3631
+
+`,
+		}, {
+			Name: "download_url",
+			Help: `Custom endpoint for downloads.
+This is usually set to a CloudFront CDN URL as AWS S3 offers
+cheaper egress for data downloaded through the CloudFront network.`,
+			Advanced: true,
+		}, {
+			Name:     "directory_markers",
+			Default:  false,
+			Advanced: true,
+			Help: `Upload an empty object with a trailing slash when a new directory is created
+
+Empty folders are unsupported for bucket based remotes, this option creates an empty
+object ending with "/", to persist the folder.
+`,
+		}, {
+			Name: "use_multipart_etag",
+			Help: `Whether to use ETag in multipart uploads for verification
+
+This should be true, false or left unset to use the default for the provider.
+`,
+			Default:  fs.Tristate{},
+			Advanced: true,
+		}, {
+			Name: "use_unsigned_payload",
+			Help: `Whether to use an unsigned payload in PutObject
+
+Rclone has to avoid the AWS SDK seeking the body when calling
+PutObject. The AWS provider can add checksums in the trailer to avoid
+seeking but other providers can't.
+
+This should be true, false or left unset to use the default for the provider.
+`,
+			Default:  fs.Tristate{},
+			Advanced: true,
+		}, {
+			Name: "use_presigned_request",
+			Help: `Whether to use a presigned request or PutObject for single part uploads
+
+If this is false rclone will use PutObject from the AWS SDK to upload
+an object.
+
+Versions of rclone < 1.59 use presigned requests to upload a single
+part object and setting this flag to true will re-enable that
+functionality. This shouldn't be necessary except in exceptional
+circumstances or for testing.
+`,
+			Default:  false,
+			Advanced: true,
+		}, {
+			Name: "use_data_integrity_protections",
+			Help: `If true use AWS S3 data integrity protections.
+
+See [AWS Docs on Data Integrity Protections](https://docs.aws.amazon.com/sdkref/latest/guide/feature-dataintegrity.html)`,
+			Default:  fs.Tristate{},
+			Advanced: true,
+		}, {
+			Name:     "versions",
+			Help:     "Include old versions in directory listings.",
+			Default:  false,
+			Advanced: true,
+		}, {
+			Name: "version_at",
+			Help: `Show file versions as they were at the specified time.
+
+The parameter should be a date, "2006-01-02", datetime "2006-01-02
+15:04:05" or a duration for that long ago, eg "100d" or "1h".
+
+Note that when using this no file write operations are permitted,
+so you can't upload files or delete them.
+
+See [the time option docs](/docs/#time-options) for valid formats.
+`,
+			Default:  fs.Time{},
+			Advanced: true,
+		}, {
+			Name: "version_deleted",
+			Help: `Show deleted file markers when using versions.
+
+This shows deleted file markers in the listing when using versions. These will appear
+as 0 size files. The only operation which can be performed on them is deletion.
+
+Deleting a delete marker will reveal the previous version.
+
+Deleted files will always show with a timestamp.
+`,
+			Default:  false,
+			Advanced: true,
+		}, {
+			Name: "decompress",
+			Help: `If set this will decompress gzip encoded objects.
+
+It is possible to upload objects to S3 with "Content-Encoding: gzip"
+set. Normally rclone will download these files as compressed objects.
+
+If this flag is set then rclone will decompress these files with
+"Content-Encoding: gzip" as they are received. This means that rclone
+can't check the size and hash but the file contents will be decompressed.
+`,
+			Advanced: true,
+			Default:  false,
+		}, {
+			Name: "might_gzip",
+			Help: strings.ReplaceAll(`Set this if the backend might gzip objects.
+
+Normally providers will not alter objects when they are downloaded. If
+an object was not uploaded with |Content-Encoding: gzip| then it won't
+be set on download.
+
+However some providers may gzip objects even if they weren't uploaded
+with |Content-Encoding: gzip| (eg Cloudflare).
+
+A symptom of this would be receiving errors like
+
+    ERROR corrupted on transfer: sizes differ NNN vs MMM
+
+If you set this flag and rclone downloads an object with
+Content-Encoding: gzip set and chunked transfer encoding, then rclone
+will decompress the object on the fly.
+
+If this is set to unset (the default) then rclone will choose
+according to the provider setting what to apply, but you can override
+rclone's choice here.
+`, "|", "`"),
+			Default:  fs.Tristate{},
+			Advanced: true,
+		}, {
+			Name: "use_accept_encoding_gzip",
+			Help: strings.ReplaceAll(`Whether to send |Accept-Encoding: gzip| header.
+
+By default, rclone will append |Accept-Encoding: gzip| to the request to download
+compressed objects whenever possible.
+
+However some providers such as Google Cloud Storage may alter the HTTP headers, breaking
+the signature of the request.
+
+A symptom of this would be receiving errors like
+
+	SignatureDoesNotMatch: The request signature we calculated does not match the signature you provided.
+
+In this case, you might want to try disabling this option.
+`, "|", "`"),
+			Default:  fs.Tristate{},
+			Advanced: true,
+		}, {
+			Name:     "no_system_metadata",
+			Help:     `Suppress setting and reading of system metadata`,
+			Advanced: true,
+			Default:  false,
+		}, {
+			Name:     "sts_endpoint",
+			Help:     "Endpoint for STS (deprecated).\n\nLeave blank if using AWS to use the default endpoint for the region.",
+			Advanced: true,
+			Hide:     fs.OptionHideBoth,
+		}, {
+			Name: "use_already_exists",
+			Help: strings.ReplaceAll(`Set if rclone should report BucketAlreadyExists errors on bucket creation.
+
+At some point during the evolution of the s3 protocol, AWS started
+returning an |AlreadyOwnedByYou| error when attempting to create a
+bucket that the user already owned, rather than a
+|BucketAlreadyExists| error.
+
+Unfortunately exactly what has been implemented by s3 clones is a
+little inconsistent, some return |AlreadyOwnedByYou|, some return
+|BucketAlreadyExists| and some return no error at all.
+
+This is important to rclone because it ensures the bucket exists by
+creating it on quite a lot of operations (unless
+|--s3-no-check-bucket| is used).
+
+If rclone knows the provider can return |AlreadyOwnedByYou| or returns
+no error then it can report |BucketAlreadyExists| errors when the user
+attempts to create a bucket not owned by them. Otherwise rclone
+ignores the |BucketAlreadyExists| error which can lead to confusion.
+
+This should be automatically set correctly for all providers rclone
+knows about - please make a bug report if not.
+`, "|", "`"),
+			Default:  fs.Tristate{},
+			Advanced: true,
+		}, {
+			Name: "use_multipart_uploads",
+			Help: `Set if rclone should use multipart uploads.
+
+You can change this if you want to disable the use of multipart uploads.
+This shouldn't be necessary in normal operation.
+
+This should be automatically set correctly for all providers rclone
+knows about - please make a bug report if not.
+`,
+			Default:  fs.Tristate{},
+			Advanced: true,
+		}, {
+			Name: "list_versions_oldest_first",
+			Help: `Set if the backend returns object versions oldest first.
+
+The S3 standard returns object versions newest first. Some backends
+(e.g. Hitachi HCP) return them oldest first instead.
+
+Set this quirk if --s3-version-at or --s3-versions produce incorrect
+results with your backend.
+
+This should be automatically set correctly for all providers rclone
+knows about - please make a bug report if not.
+`,
+			Default:  fs.Tristate{},
+			Advanced: true,
+		}, {
+			Name: "use_x_id",
+			Help: `Set if rclone should add x-id URL parameters.
+
+You can change this if you want to disable the AWS SDK from
+adding x-id URL parameters.
+
+This shouldn't be necessary in normal operation.
+
+This should be automatically set correctly for all providers rclone
+knows about - please make a bug report if not.
+`,
+			Default:  fs.Tristate{},
+			Advanced: true,
+		}, {
+			Name: "sign_accept_encoding",
+			Help: `Set if rclone should include Accept-Encoding as part of the signature.
+
+You can change this if you want to stop rclone including
+Accept-Encoding as part of the signature.
+
+This shouldn't be necessary in normal operation.
+
+This should be automatically set correctly for all providers rclone
+knows about - please make a bug report if not.
+`,
+			Default:  fs.Tristate{},
+			Advanced: true,
+		}, {
+			Name: "directory_bucket",
+			Help: strings.ReplaceAll(`Set to use AWS Directory Buckets
+
+If you are using an AWS Directory Bucket then set this flag.
+
+This will ensure no |Content-Md5| headers are sent and ensure |ETag|
+headers are not interpreted as MD5 sums. |X-Amz-Meta-Md5chksum| will
+be set on all objects whether single or multipart uploaded.
+
+This also sets |no_check_bucket = true|.
+
+Note that Directory Buckets do not support:
+
+- Versioning
+- |Content-Encoding: gzip|
+
+Rclone limitations with Directory Buckets:
+
+- rclone does not support creating Directory Buckets with |rclone mkdir|
+- ... or removing them with |rclone rmdir| yet
+- Directory Buckets do not appear when doing |rclone lsf| at the top level.
+- Rclone can't remove auto created directories yet. In theory this should
+  work with |directory_markers = true| but it doesn't.
+- Directories don't seem to appear in recursive (ListR) listings.
+`, "|", "`"),
+			Default:  false,
+			Advanced: true,
+		}, {
+			Name: "sdk_log_mode",
+			Help: strings.ReplaceAll(`Set to debug the SDK
+
+This can be set to a comma separated list of the following functions:
+
+- |Signing|
+- |Retries|
+- |Request|
+- |RequestWithBody|
+- |Response|
+- |ResponseWithBody|
+- |DeprecatedUsage|
+- |RequestEventMessage|
+- |ResponseEventMessage|
+
+Use |Off| to disable and |All| to set all log levels. You will need to
+use |-vv| to see the debug level logs.
+`, "|", "`"),
+			Default:  sdkLogMode(0),
+			Advanced: true,
+		}, {
+			Name: "ibm_api_key",
+			Help: "IBM API Key to be used to obtain IAM token",
+		}, {
+			Name: "ibm_resource_instance_id",
+			Help: "IBM service instance id",
+		}, {
+			Name:     "ibm_iam_endpoint",
+			Help:     "IBM IAM Endpoint to use for authentication.\n\nLeave blank to use the default public endpoint.",
+			Advanced: true,
+		}, {
+			Name: "object_lock_mode",
+			Help: `Object Lock mode to apply when uploading or copying objects.
+
+Set this to apply Object Lock retention mode to objects.
+If not set, no Object Lock mode is applied (even with --metadata).
+
+Note: To enable Object Lock retention, you must set BOTH object_lock_mode
+AND object_lock_retain_until_date. Setting only one has no effect.
+
+- GOVERNANCE: Set Object Lock mode to GOVERNANCE
+- COMPLIANCE: Set Object Lock mode to COMPLIANCE
+- copy: Copy the mode from the source object (requires --metadata)
+
+See: https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html`,
+			Advanced: true,
+			Examples: []fs.OptionExample{{
+				Value: "GOVERNANCE",
+				Help:  "Set Object Lock mode to GOVERNANCE",
+			}, {
+				Value: "COMPLIANCE",
+				Help:  "Set Object Lock mode to COMPLIANCE",
+			}, {
+				Value: "copy",
+				Help:  "Copy from source object (requires --metadata)",
+			}},
+		}, {
+			Name: "object_lock_retain_until_date",
+			Help: `Object Lock retention until date to apply when uploading or copying objects.
+
+Set this to apply Object Lock retention date to objects.
+If not set, no retention date is applied (even with --metadata).
+
+Note: To enable Object Lock retention, you must set BOTH object_lock_mode
+AND object_lock_retain_until_date. Setting only one has no effect.
+
+Accepts:
+- RFC 3339 format: 2030-01-02T15:04:05Z
+- Duration from now: 365d, 1y, 6M (days, years, months)
+- copy: Copy the date from the source object (requires --metadata)
+
+See: https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html`,
+			Advanced: true,
+			Examples: []fs.OptionExample{{
+				Value: "copy",
+				Help:  "Copy from source object (requires --metadata)",
+			}, {
+				Value: "2030-01-01T00:00:00Z",
+				Help:  "Set specific date (RFC 3339 format)",
+			}, {
+				Value: "365d",
+				Help:  "Set retention for 365 days from now",
+			}, {
+				Value: "1y",
+				Help:  "Set retention for 1 year from now",
+			}},
+		}, {
+			Name: "object_lock_legal_hold_status",
+			Help: `Object Lock legal hold status to apply when uploading or copying objects.
+
+Set this to apply Object Lock legal hold to objects.
+If not set, no legal hold is applied (even with --metadata).
+
+Note: Legal hold is independent of retention and can be set separately.
+
+- ON: Enable legal hold
+- OFF: Disable legal hold
+- copy: Copy the legal hold status from the source object (requires --metadata)
+
+See: https://docs.aws.amazon.com/AmazonS3/latest/userguide/object-lock.html`,
+			Advanced: true,
+			Examples: []fs.OptionExample{{
+				Value: "ON",
+				Help:  "Enable legal hold",
+			}, {
+				Value: "OFF",
+				Help:  "Disable legal hold",
+			}, {
+				Value: "copy",
+				Help:  "Copy from source object (requires --metadata)",
+			}},
+		}, {
+			Name:     "bypass_governance_retention",
+			Help:     `Allow deleting or modifying objects locked with GOVERNANCE mode.`,
+			Default:  false,
+			Advanced: true,
+		}, {
+			Name:    "bucket_object_lock_enabled",
+			Help:    `Enable Object Lock when creating new buckets.`,
+			Default: false,
+		}, {
+			Name: "object_lock_set_after_upload",
+			Help: `Set Object Lock via separate API calls after upload.
+
+Use this for S3-compatible providers that don't support setting Object Lock
+headers during PUT operations. When enabled, Object Lock is set via separate
+PutObjectRetention and PutObjectLegalHold API calls after the upload completes.
+
+This adds extra API calls per object, so only enable if your provider requires it.`,
+			Default:  false,
+			Advanced: true,
+		}, {
+			Name: "object_lock_supported",
+			Help: `Whether the provider supports S3 Object Lock.
+
+This should be true, false or left unset to use the default for the provider.
+
+Set to false for providers that don't fully support the S3 Object Lock API
+(e.g. GCS which uses non-standard headers for bypass governance retention
+and doesn't implement Legal Hold via the S3 API).
+`,
+			Default:  fs.Tristate{},
+			Advanced: true,
+		},
+		}}))
+}
+
+// Constants
+const (
+	metaMtime   = "mtime"     // the meta key to store mtime in - e.g. X-Amz-Meta-Mtime
+	metaMD5Hash = "md5chksum" // the meta key to store md5hash in
+	// The maximum size of object we can COPY - this should be 5 GiB but is < 5 GB for b2 compatibility
+	// See https://forum.rclone.org/t/copying-files-within-a-b2-bucket/16680/76
+	maxSizeForCopy      = 4768 * 1024 * 1024
+	maxUploadParts      = 10000 // maximum allowed number of parts in a multi-part upload
+	minChunkSize        = fs.SizeSuffix(1024 * 1024 * 5)
+	defaultUploadCutoff = fs.SizeSuffix(200 * 1024 * 1024)
+	maxUploadCutoff     = fs.SizeSuffix(5 * 1024 * 1024 * 1024)
+	minSleep            = 10 * time.Millisecond           // In case of error, start at 10ms sleep.
+	maxExpireDuration   = fs.Duration(7 * 24 * time.Hour) // max expiry is 1 week
+)
+
+type (
+	sdkLogMode        = fs.Bits[sdkLogModeChoices]
+	sdkLogModeChoices struct{}
+)
+
+func (sdkLogModeChoices) Choices() []fs.BitsChoicesInfo {
+	return []fs.BitsChoicesInfo{
+		{Bit: uint64(0), Name: "Off"},
+		{Bit: uint64(aws.LogSigning), Name: "Signing"},
+		{Bit: uint64(aws.LogRetries), Name: "Retries"},
+		{Bit: uint64(aws.LogRequest), Name: "Request"},
+		{Bit: uint64(aws.LogRequestWithBody), Name: "RequestWithBody"},
+		{Bit: uint64(aws.LogResponse), Name: "Response"},
+		{Bit: uint64(aws.LogResponseWithBody), Name: "ResponseWithBody"},
+		{Bit: uint64(aws.LogDeprecatedUsage), Name: "DeprecatedUsage"},
+		{Bit: uint64(aws.LogRequestEventMessage), Name: "RequestEventMessage"},
+		{Bit: uint64(aws.LogResponseEventMessage), Name: "ResponseEventMessage"},
+		{Bit: math.MaxUint64, Name: "All"},
+	}
+}
+
+// globals
+var (
+	errNotWithVersionAt = errors.New("can't modify or delete files in --s3-version-at mode")
+)
+
+// system metadata keys which this backend owns
+var systemMetadataInfo = map[string]fs.MetadataHelp{
+	"cache-control": {
+		Help:    "Cache-Control header",
+		Type:    "string",
+		Example: "no-cache",
+	},
+	"content-disposition": {
+		Help:    "Content-Disposition header",
+		Type:    "string",
+		Example: "inline",
+	},
+	"content-encoding": {
+		Help:    "Content-Encoding header",
+		Type:    "string",
+		Example: "gzip",
+	},
+	"content-language": {
+		Help:    "Content-Language header",
+		Type:    "string",
+		Example: "en-US",
+	},
+	"content-type": {
+		Help:    "Content-Type header",
+		Type:    "string",
+		Example: "text/plain",
+	},
+	// "tagging": {
+	// 	Help:    "x-amz-tagging header",
+	// 	Type:    "string",
+	// 	Example: "tag1=value1&tag2=value2",
+	// },
+	"tier": {
+		Help:     "Tier of the object",
+		Type:     "string",
+		Example:  "GLACIER",
+		ReadOnly: true,
+	},
+	"mtime": {
+		Help:    "Time of last modification, read from rclone metadata",
+		Type:    "RFC 3339",
+		Example: "2006-01-02T15:04:05.999999999Z07:00",
+	},
+	"btime": {
+		Help:     "Time of file birth (creation) read from Last-Modified header",
+		Type:     "RFC 3339",
+		Example:  "2006-01-02T15:04:05.999999999Z07:00",
+		ReadOnly: true,
+	},
+	"object-lock-mode": {
+		Help:    "Object Lock mode: GOVERNANCE or COMPLIANCE",
+		Type:    "string",
+		Example: "GOVERNANCE",
+	},
+	"object-lock-retain-until-date": {
+		Help:    "Object Lock retention until date",
+		Type:    "RFC 3339",
+		Example: "2030-01-02T15:04:05Z",
+	},
+	"object-lock-legal-hold-status": {
+		Help:    "Object Lock legal hold status: ON or OFF",
+		Type:    "string",
+		Example: "OFF",
+	},
+}
+
+// Options defines the configuration for this backend
+type Options struct {
+	Provider                    string               `config:"provider"`
+	EnvAuth                     bool                 `config:"env_auth"`
+	AccessKeyID                 string               `config:"access_key_id"`
+	SecretAccessKey             string               `config:"secret_access_key"`
+	Region                      string               `config:"region"`
+	Endpoint                    string               `config:"endpoint"`
+	STSEndpoint                 string               `config:"sts_endpoint"`
+	UseDualStack                bool                 `config:"use_dual_stack"`
+	LocationConstraint          string               `config:"location_constraint"`
+	ACL                         string               `config:"acl"`
+	BucketACL                   string               `config:"bucket_acl"`
+	RequesterPays               bool                 `config:"requester_pays"`
+	ServerSideEncryption        string               `config:"server_side_encryption"`
+	SSEKMSKeyID                 string               `config:"sse_kms_key_id"`
+	SSECustomerAlgorithm        string               `config:"sse_customer_algorithm"`
+	SSECustomerKey              string               `config:"sse_customer_key"`
+	SSECustomerKeyBase64        string               `config:"sse_customer_key_base64"`
+	SSECustomerKeyMD5           string               `config:"sse_customer_key_md5"`
+	StorageClass                string               `config:"storage_class"`
+	UploadCutoff                fs.SizeSuffix        `config:"upload_cutoff"`
+	CopyCutoff                  fs.SizeSuffix        `config:"copy_cutoff"`
+	ChunkSize                   fs.SizeSuffix        `config:"chunk_size"`
+	MaxUploadParts              int                  `config:"max_upload_parts"`
+	DisableChecksum             bool                 `config:"disable_checksum"`
+	SharedCredentialsFile       string               `config:"shared_credentials_file"`
+	Profile                     string               `config:"profile"`
+	SessionToken                string               `config:"session_token"`
+	RoleARN                     string               `config:"role_arn"`
+	RoleSessionName             string               `config:"role_session_name"`
+	RoleSessionDuration         fs.Duration          `config:"role_session_duration"`
+	RoleExternalID              string               `config:"role_external_id"`
+	UploadConcurrency           int                  `config:"upload_concurrency"`
+	ForcePathStyle              bool                 `config:"force_path_style"`
+	V2Auth                      bool                 `config:"v2_auth"`
+	UseAccelerateEndpoint       bool                 `config:"use_accelerate_endpoint"`
+	UseARNRegion                bool                 `config:"use_arn_region"`
+	LeavePartsOnError           bool                 `config:"leave_parts_on_error"`
+	ListChunk                   int32                `config:"list_chunk"`
+	ListVersion                 int                  `config:"list_version"`
+	ListURLEncode               fs.Tristate          `config:"list_url_encode"`
+	NoCheckBucket               bool                 `config:"no_check_bucket"`
+	NoHead                      bool                 `config:"no_head"`
+	NoHeadObject                bool                 `config:"no_head_object"`
+	Enc                         encoder.MultiEncoder `config:"encoding"`
+	DisableHTTP2                bool                 `config:"disable_http2"`
+	DownloadURL                 string               `config:"download_url"`
+	DirectoryMarkers            bool                 `config:"directory_markers"`
+	UseMultipartEtag            fs.Tristate          `config:"use_multipart_etag"`
+	UsePresignedRequest         bool                 `config:"use_presigned_request"`
+	UseDataIntegrityProtections fs.Tristate          `config:"use_data_integrity_protections"`
+	Versions                    bool                 `config:"versions"`
+	VersionAt                   fs.Time              `config:"version_at"`
+	VersionDeleted              bool                 `config:"version_deleted"`
+	Decompress                  bool                 `config:"decompress"`
+	MightGzip                   fs.Tristate          `config:"might_gzip"`
+	UseAcceptEncodingGzip       fs.Tristate          `config:"use_accept_encoding_gzip"`
+	NoSystemMetadata            bool                 `config:"no_system_metadata"`
+	UseAlreadyExists            fs.Tristate          `config:"use_already_exists"`
+	UseMultipartUploads         fs.Tristate          `config:"use_multipart_uploads"`
+	UseUnsignedPayload          fs.Tristate          `config:"use_unsigned_payload"`
+	SDKLogMode                  sdkLogMode           `config:"sdk_log_mode"`
+	DirectoryBucket             bool                 `config:"directory_bucket"`
+	IBMAPIKey                   string               `config:"ibm_api_key"`
+	IBMInstanceID               string               `config:"ibm_resource_instance_id"`
+	IBMIAMEndpoint              string               `config:"ibm_iam_endpoint"`
+	ListVersionsOldestFirst     fs.Tristate          `config:"list_versions_oldest_first"`
+	UseXID                      fs.Tristate          `config:"use_x_id"`
+	SignAcceptEncoding          fs.Tristate          `config:"sign_accept_encoding"`
+	ObjectLockMode              string               `config:"object_lock_mode"`
+	ObjectLockRetainUntilDate   string               `config:"object_lock_retain_until_date"`
+	ObjectLockLegalHoldStatus   string               `config:"object_lock_legal_hold_status"`
+	BypassGovernanceRetention   bool                 `config:"bypass_governance_retention"`
+	BucketObjectLockEnabled     bool                 `config:"bucket_object_lock_enabled"`
+	ObjectLockSetAfterUpload    bool                 `config:"object_lock_set_after_upload"`
+	ObjectLockSupported         fs.Tristate          `config:"object_lock_supported"`
+}
+
+// Fs represents a remote s3 server
+type Fs struct {
+	name           string          // the name of the remote
+	root           string          // root of the bucket - ignore all objects above this
+	opt            Options         // parsed options
+	ci             *fs.ConfigInfo  // global config
+	ctx            context.Context // global context for reading config
+	features       *fs.Features    // optional features
+	c              *s3.Client      // the connection to the s3 server
+	rootBucket     string          // bucket part of root (if any)
+	rootDirectory  string          // directory part of root (if any)
+	cache          *bucket.Cache   // cache for bucket creation status
+	pacer          *fs.Pacer       // To pace the API calls
+	srv            *http.Client    // a plain http client
+	srvRest        *rest.Client    // the rest connection to the server
+	etagIsNotMD5   bool            // if set ETags are not MD5s
+	versioningMu   sync.Mutex
+	versioning     fs.Tristate // if set bucket is using versions
+	warnCompressed sync.Once   // warn once about compressed files
+}
+
+// Object describes a s3 object
+type Object struct {
+	// Will definitely have everything but meta which may be nil
+	//
+	// List will read everything but meta & mimeType - to fill
+	// that in you need to call readMetaData
+	fs           *Fs               // what this object is part of
+	remote       string            // The remote path
+	md5          string            // md5sum of the object
+	bytes        int64             // size of the object
+	lastModified time.Time         // Last modified
+	meta         map[string]string // The object metadata if known - may be nil - with lower case keys
+	mimeType     string            // MimeType of object - may be ""
+	versionID    *string           // If present this points to an object version
+
+	// Metadata as pointers to strings as they often won't be present
+	storageClass       *string // e.g. GLACIER
+	cacheControl       *string // Cache-Control: header
+	contentDisposition *string // Content-Disposition: header
+	contentEncoding    *string // Content-Encoding: header
+	contentLanguage    *string // Content-Language: header
+
+	// Object Lock metadata
+	objectLockMode            *string    // Object Lock mode: GOVERNANCE or COMPLIANCE
+	objectLockRetainUntilDate *time.Time // Object Lock retention until date
+	objectLockLegalHoldStatus *string    // Object Lock legal hold: ON or OFF
+}
+
+// safely dereference the pointer, returning a zero T if nil
+func deref[T any](p *T) T {
+	if p == nil {
+		var zero T
+		return zero
+	}
+	return *p
+}
+
+// gets an http status code from err or returns -1
+func getHTTPStatusCode(err error) int {
+	var httpErr interface{ HTTPStatusCode() int }
+	if errors.As(err, &httpErr) {
+		return httpErr.HTTPStatusCode()
+	}
+	return -1
+}
+
+// parseRetainUntilDate parses a retain until date from a string.
+// It accepts RFC 3339 format or duration strings like "365d", "1y", "6m".
+func parseRetainUntilDate(s string) (time.Time, error) {
+	// First try RFC 3339 format
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return t, nil
+	}
+	// Try as a duration from now
+	d, err := fs.ParseDuration(s)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("can't parse %q as RFC 3339 date or duration: %w", s, err)
+	}
+	return time.Now().Add(d), nil
+}
+
+// ------------------------------------------------------------
+
+// Name of the remote (as passed into NewFs)
+func (f *Fs) Name() string {
+	return f.name
+}
+
+// Root of the remote (as passed into NewFs)
+func (f *Fs) Root() string {
+	return f.root
+}
+
+// String converts this Fs to a string
+func (f *Fs) String() string {
+	if f.rootBucket == "" {
+		return "S3 root"
+	}
+	if f.rootDirectory == "" {
+		return fmt.Sprintf("S3 bucket %s", f.rootBucket)
+	}
+	return fmt.Sprintf("S3 bucket %s path %s", f.rootBucket, f.rootDirectory)
+}
+
+// Features returns the optional features of this Fs
+func (f *Fs) Features() *fs.Features {
+	return f.features
+}
+
+// retryErrorCodes is a slice of error codes that we will retry
+// See: https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html
+var retryErrorCodes = []int{
+	429, // Too Many Requests
+	500, // Internal Server Error - "We encountered an internal error. Please try again."
+	503, // Service Unavailable/Slow Down - "Reduce your request rate"
+}
+
+// S3 is pretty resilient, and the built in retry handling is probably sufficient
+// as it should notice closed connections and timeouts which are the most likely
+// sort of failure modes
+func (f *Fs) shouldRetry(ctx context.Context, err error) (bool, error) {
+	if fserrors.ContextError(ctx, &err) {
+		return false, err
+	}
+	// https://github.com/aws/aws-sdk-go-v2/blob/main/CHANGELOG.md#error-handling
+	// If this is an awserr object, try and extract more useful information to determine if we should retry
+	if awsError, ok := errors.AsType[smithy.APIError](err); ok {
+		// Simple case, check the original embedded error in case it's generically retryable
+		if fserrors.ShouldRetry(awsError) {
+			return true, err
+		}
+		// If it is a timeout then we want to retry that
+		if awsError.ErrorCode() == "RequestTimeout" {
+			return true, err
+		}
+	}
+	// Check http status code if available
+	if httpStatusCode := getHTTPStatusCode(err); httpStatusCode > 0 {
+		// 301 if wrong region for bucket - can only update if running from a bucket
+		if f.rootBucket != "" {
+			if httpStatusCode == http.StatusMovedPermanently {
+				urfbErr := f.updateRegionForBucket(ctx, f.rootBucket)
+				if urfbErr != nil {
+					fs.Errorf(f, "Failed to update region for bucket: %v", urfbErr)
+					return false, err
+				}
+				return true, err
+			}
+		}
+		if slices.Contains(retryErrorCodes, httpStatusCode) {
+			return true, err
+		}
+	}
+	// Ok, not an awserr, check for generic failure conditions
+	return fserrors.ShouldRetry(err), err
+}
+
+// parsePath parses a remote 'url'
+func parsePath(path string) (root string) {
+	root = strings.Trim(path, "/")
+	return
+}
+
+// split returns bucket and bucketPath from the rootRelativePath
+// relative to f.root
+func (f *Fs) split(rootRelativePath string) (bucketName, bucketPath string) {
+	bucketName, bucketPath = bucket.Split(bucket.Join(f.root, rootRelativePath))
+	if f.opt.DirectoryMarkers && strings.HasSuffix(bucketPath, "//") {
+		bucketPath = bucketPath[:len(bucketPath)-1]
+	}
+	return f.opt.Enc.FromStandardName(bucketName), f.opt.Enc.FromStandardPath(bucketPath)
+}
+
+// split returns bucket and bucketPath from the object
+func (o *Object) split() (bucket, bucketPath string) {
+	bucket, bucketPath = o.fs.split(o.remote)
+	// If there is an object version, then the path may have a
+	// version suffix, if so remove it.
+	//
+	// If we are unlucky enough to have a file name with a valid
+	// version path where this wasn't required (eg using
+	// --s3-version-at) then this will go wrong.
+	if o.versionID != nil {
+		_, bucketPath = version.Remove(bucketPath)
+	}
+	return bucket, bucketPath
+}
+
+// getClient makes an http client according to the options
+func getClient(ctx context.Context, opt *Options) *http.Client {
+	// TODO: Do we need cookies too?
+	t := fshttp.NewTransportCustom(ctx, func(t *http.Transport) {
+		if opt.DisableHTTP2 {
+			t.TLSNextProto = map[string]func(string, *tls.Conn) http.RoundTripper{}
+		}
+	})
+	return &http.Client{
+		Transport:     t,
+		CheckRedirect: s3CheckRedirect,
+	}
+}
+
+// s3RedirectSecretHeaders are the request headers carrying origin-bound
+// secrets that must not be forwarded when a redirect crosses a host or
+// downgrades the scheme. Go strips Authorization on a hostname change but not
+// on a scheme downgrade, and has no knowledge that the SSE-C headers hold raw
+// encryption keys, so we strip them all ourselves.
+var s3RedirectSecretHeaders = []string{
+	"X-Amz-Security-Token",  // AWS STS session token
+	"X-Amz-S3session-Token", // S3 Express (directory bucket) session token
+	"Authorization",         // e.g. IBM IAM bearer token
+	"ibm-service-instance-id",
+	"X-Amz-Server-Side-Encryption-Customer-Algorithm",
+	"X-Amz-Server-Side-Encryption-Customer-Key",
+	"X-Amz-Server-Side-Encryption-Customer-Key-Md5",
+	"X-Amz-Copy-Source-Server-Side-Encryption-Customer-Algorithm",
+	"X-Amz-Copy-Source-Server-Side-Encryption-Customer-Key",
+	"X-Amz-Copy-Source-Server-Side-Encryption-Customer-Key-Md5",
+	"Referer", // may be a presigned request
+}
+
+func s3CheckRedirect(req *http.Request, via []*http.Request) error {
+	if len(via) >= 10 {
+		return errors.New("stopped after 10 redirects")
+	}
+	// Never follow a redirect that downgrades the transport from HTTPS to
+	// HTTP. An S3 endpoint has no legitimate reason to do this, and replaying
+	// the request over plaintext would expose whatever credential it carries.
+	if via[len(via)-1].URL.Scheme == "https" && req.URL.Scheme == "http" {
+		return fmt.Errorf("refusing to follow insecure redirect from HTTPS to HTTP: %s", req.URL.Redacted())
+	}
+	if s3RedirectCrossesHost(req, via) {
+		for _, header := range s3RedirectSecretHeaders {
+			req.Header.Del(header)
+		}
+	}
+	return nil
+}
+
+func s3RedirectCrossesHost(req *http.Request, via []*http.Request) bool {
+	if len(via) == 0 {
+		return false
+	}
+	scheme, host := via[0].URL.Scheme, via[0].URL.Host
+	for _, redirect := range via[1:] {
+		if redirect.URL.Host != host || redirect.URL.Scheme != scheme {
+			return true
+		}
+	}
+	return host != req.URL.Host || scheme != req.URL.Scheme
+}
+
+// Fixup the request if needed.
+//
+// Google Cloud Storage alters the Accept-Encoding header, which
+// breaks the v2 request signature. This is set with opt.SignAcceptEncoding.
+//
+// It also doesn't like the x-id URL parameter SDKv2 puts in so we
+// remove that too. This is set with opt.UseXID.Value.
+//
+// See https://github.com/aws/aws-sdk-go-v2/issues/1816.
+// Adapted from: https://github.com/aws/aws-sdk-go-v2/issues/1816#issuecomment-1927281540
+func fixupRequest(o *s3.Options, opt *Options) {
+	type ignoredHeadersKey struct{}
+	headers := []string{"Accept-Encoding"}
+
+	fixup := middleware.FinalizeMiddlewareFunc(
+		"FixupRequest",
+		func(ctx context.Context, in middleware.FinalizeInput, next middleware.FinalizeHandler) (out middleware.FinalizeOutput, metadata middleware.Metadata, err error) {
+			req, ok := in.Request.(*smithyhttp.Request)
+			if !ok {
+				return out, metadata, fmt.Errorf("fixupRequest: unexpected request middleware type %T", in.Request)
+			}
+
+			if !opt.SignAcceptEncoding.Value {
+				// Delete headers from being signed - will restore later
+				ignored := make(map[string]string, len(headers))
+				for _, h := range headers {
+					ignored[h] = req.Header.Get(h)
+					req.Header.Del(h)
+				}
+
+				// Store ignored on context
+				ctx = middleware.WithStackValue(ctx, ignoredHeadersKey{}, ignored)
+			}
+
+			if !opt.UseXID.Value {
+				// Remove x-id
+				if query := req.URL.Query(); query.Has("x-id") {
+					query.Del("x-id")
+					req.URL.RawQuery = query.Encode()
+				}
+			}
+
+			return next.HandleFinalize(ctx, in)
+		},
+	)
+
+	// Restore headers if necessary
+	restore := middleware.FinalizeMiddlewareFunc(
+		"FixupRequestRestoreHeaders",
+		func(ctx context.Context, in middleware.FinalizeInput, next middleware.FinalizeHandler) (out middleware.FinalizeOutput, metadata middleware.Metadata, err error) {
+			req, ok := in.Request.(*smithyhttp.Request)
+			if !ok {
+				return out, metadata, fmt.Errorf("fixupRequest: unexpected request middleware type %T", in.Request)
+			}
+
+			if !opt.SignAcceptEncoding.Value {
+				// Restore ignored from ctx
+				ignored, _ := middleware.GetStackValue(ctx, ignoredHeadersKey{}).(map[string]string)
+				for k, v := range ignored {
+					req.Header.Set(k, v)
+				}
+			}
+
+			return next.HandleFinalize(ctx, in)
+		},
+	)
+
+	o.APIOptions = append(o.APIOptions, func(stack *middleware.Stack) error {
+		if err := stack.Finalize.Insert(fixup, "Signing", middleware.Before); err != nil {
+			return err
+		}
+		if err := stack.Finalize.Insert(restore, "Signing", middleware.After); err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+// A logger for the S3 SDK
+type s3logger struct{}
+
+// Logf is expected to support the standard fmt package "verbs".
+func (s3logger) Logf(classification logging.Classification, format string, v ...any) {
+	switch classification {
+	default:
+	case logging.Debug:
+		fs.Debugf("S3 SDK", format, v...)
+	case logging.Warn:
+		fs.Infof("S3 SDK", format, v...)
+	}
+}
+
+// s3Connection makes a connection to s3
+func s3Connection(ctx context.Context, opt *Options, client *http.Client) (s3Client *s3.Client, provider *Provider, err error) {
+	ci := fs.GetConfig(ctx)
+	var awsConfig aws.Config
+	// Make the default static auth
+	v := aws.Credentials{
+		AccessKeyID:     opt.AccessKeyID,
+		SecretAccessKey: opt.SecretAccessKey,
+		SessionToken:    opt.SessionToken,
+	}
+	awsConfig.Credentials = &credentials.StaticCredentialsProvider{Value: v}
+
+	// Try to fill in the config from the environment if env_auth=true
+	if opt.EnvAuth && opt.AccessKeyID == "" && opt.SecretAccessKey == "" {
+
+		configOpts := []func(*awsconfig.LoadOptions) error{}
+		// Set the name of the profile if supplied
+		if opt.Profile != "" {
+			configOpts = append(configOpts, awsconfig.WithSharedConfigProfile(opt.Profile))
+		}
+		// Set the shared config file if supplied
+		if opt.SharedCredentialsFile != "" {
+			configOpts = append(configOpts, awsconfig.WithSharedConfigFiles([]string{opt.SharedCredentialsFile}))
+		}
+		awsConfig, err = awsconfig.LoadDefaultConfig(ctx, configOpts...)
+		if err != nil {
+			return nil, nil, fmt.Errorf("couldn't load configuration with env_auth=true: %w", err)
+		}
+
+	} else {
+		switch {
+		case opt.Provider == "IBMCOS" && opt.V2Auth:
+			awsConfig.Credentials = &NoOpCredentialsProvider{}
+			fs.Debugf(nil, "Using IBM IAM")
+		case opt.AccessKeyID == "" && opt.SecretAccessKey == "":
+			// if no access key/secret and iam is explicitly disabled then fall back to anon interaction
+			awsConfig.Credentials = aws.AnonymousCredentials{}
+			fs.Debugf(nil, "Using anonymous credentials - did you mean to set env_auth=true?")
+		case opt.AccessKeyID == "":
+			return nil, nil, errors.New("access_key_id not found")
+		case opt.SecretAccessKey == "":
+			return nil, nil, errors.New("secret_access_key not found")
+		default:
+			// static credentials are already set
+		}
+	}
+
+	if opt.Region == "" {
+		opt.Region = "us-east-1"
+	}
+
+	// Handle assume role if RoleARN is specified
+	if opt.RoleARN != "" {
+		fs.Debugf(nil, "Using assume role with ARN: %s", opt.RoleARN)
+
+		// Set region for the config before creating STS client
+		awsConfig.Region = opt.Region
+
+		// Create STS client using the base credentials
+		stsClient := sts.NewFromConfig(awsConfig)
+
+		// Configure AssumeRole options
+		assumeRoleOptions := func(aro *stscreds.AssumeRoleOptions) {
+			// Set session name if provided, otherwise use a default
+			if opt.RoleSessionName != "" {
+				aro.RoleSessionName = opt.RoleSessionName
+			}
+			if opt.RoleSessionDuration != 0 {
+				aro.Duration = time.Duration(opt.RoleSessionDuration)
+			}
+			if opt.RoleExternalID != "" {
+				aro.ExternalID = &opt.RoleExternalID
+			}
+		}
+
+		// Create AssumeRole credentials provider, wrapped in a
+		// CredentialsCache so we don't call AssumeRole on every
+		// request.
+		awsConfig.Credentials = aws.NewCredentialsCache(stscreds.NewAssumeRoleProvider(stsClient, opt.RoleARN, assumeRoleOptions))
+	}
+
+	provider = loadProvider(opt.Provider)
+	if provider == nil {
+		fs.Logf("s3", "s3 provider %q not known - please set correctly", opt.Provider)
+		provider = loadProvider("Other")
+	}
+
+	setQuirks(opt, provider)
+	awsConfig.RetryMaxAttempts = ci.LowLevelRetries
+	awsConfig.HTTPClient = client
+
+	options := []func(*s3.Options){}
+	options = append(options, func(s3Opt *s3.Options) {
+		s3Opt.UsePathStyle = opt.ForcePathStyle
+		s3Opt.UseAccelerate = opt.UseAccelerateEndpoint
+		s3Opt.UseARNRegion = opt.UseARNRegion
+		// FIXME maybe this should be a tristate so can default to DualStackEndpointStateUnset?
+		if opt.UseDualStack {
+			s3Opt.EndpointOptions.UseDualStackEndpoint = aws.DualStackEndpointStateEnabled
+		} else {
+			s3Opt.EndpointOptions.UseDualStackEndpoint = aws.DualStackEndpointStateDisabled
+		}
+		if !opt.UseDataIntegrityProtections.Value {
+			s3Opt.RequestChecksumCalculation = aws.RequestChecksumCalculationWhenRequired
+			s3Opt.ResponseChecksumValidation = aws.ResponseChecksumValidationWhenRequired
+		}
+		// FIXME not ported from SDK v1 - not sure what this does
+		// s3Opt.UsEast1RegionalEndpoint = endpoints.RegionalS3UsEast1Endpoint
+	})
+
+	if opt.Region != "" {
+		awsConfig.Region = opt.Region
+	}
+	if opt.STSEndpoint != "" {
+		// FIXME not sure if anyone is using this
+		// Haven't figured out how to do it with the v2 SDK
+		return nil, nil, errors.New("--s3-sts-endpoint is no longer supported with the v2 SDK - please make an issue")
+	}
+	if opt.Endpoint != "" {
+		if !strings.HasPrefix(opt.Endpoint, "http") {
+			opt.Endpoint = "https://" + opt.Endpoint
+		}
+		options = append(options, func(s3Opt *s3.Options) {
+			s3Opt.BaseEndpoint = &opt.Endpoint
+		})
+	}
+
+	if opt.V2Auth || opt.Region == "other-v2-signature" {
+		fs.Debugf(nil, "Using v2 auth")
+		if opt.Provider == "IBMCOS" && opt.IBMAPIKey != "" && opt.IBMInstanceID != "" {
+			options = append(options, func(s3Opt *s3.Options) {
+				s3Opt.HTTPSignerV4 = &IbmIamSigner{APIKey: opt.IBMAPIKey, InstanceID: opt.IBMInstanceID, IAMEndpoint: opt.IBMIAMEndpoint}
+			})
+		} else {
+			options = append(options, func(s3Opt *s3.Options) {
+				s3Opt.HTTPSignerV4 = &v2Signer{opt: opt}
+			})
+		}
+	}
+
+	// Fixup the request if needed
+	if !opt.UseXID.Value || !opt.SignAcceptEncoding.Value {
+		options = append(options, func(o *s3.Options) {
+			fixupRequest(o, opt)
+		})
+	}
+
+	// Enable SDK logging if requested
+	if opt.SDKLogMode != 0 {
+		awsConfig.ClientLogMode = aws.ClientLogMode(opt.SDKLogMode)
+		awsConfig.Logger = s3logger{}
+	}
+
+	c := s3.NewFromConfig(awsConfig, options...)
+	return c, provider, nil
+}
+
+func checkUploadChunkSize(cs fs.SizeSuffix) error {
+	if cs < minChunkSize {
+		return fmt.Errorf("%s is less than %s", cs, minChunkSize)
+	}
+	return nil
+}
+
+func (f *Fs) setUploadChunkSize(cs fs.SizeSuffix) (old fs.SizeSuffix, err error) {
+	err = checkUploadChunkSize(cs)
+	if err == nil {
+		old, f.opt.ChunkSize = f.opt.ChunkSize, cs
+	}
+	return
+}
+
+func checkCopyCutoff(cs fs.SizeSuffix) error {
+	minCopySize := fs.SizeSuffixBase
+	if cs < minCopySize {
+		return fmt.Errorf("value is too small (%v is less than %v)", cs, minCopySize)
+	}
+	return nil
+}
+
+func checkUploadCutoff(cs fs.SizeSuffix) error {
+	if cs > maxUploadCutoff {
+		return fmt.Errorf("%s is greater than %s", cs, maxUploadCutoff)
+	}
+	return nil
+}
+
+func (f *Fs) setUploadCutoff(cs fs.SizeSuffix) (old fs.SizeSuffix, err error) {
+	if f.opt.Provider != "Rclone" {
+		err = checkUploadCutoff(cs)
+	}
+	if err == nil {
+		old, f.opt.UploadCutoff = f.opt.UploadCutoff, cs
+	}
+	return
+}
+
+func (f *Fs) setCopyCutoff(cs fs.SizeSuffix) (old fs.SizeSuffix, err error) {
+	if f.opt.CopyCutoff == math.MaxInt64 {
+		return f.opt.CopyCutoff, fmt.Errorf("--s3-copy-cutoff not supported: %w", fs.ErrorNotImplemented)
+	}
+	err = checkUploadChunkSize(cs)
+	if err == nil {
+		old, f.opt.CopyCutoff = f.opt.CopyCutoff, cs
+	}
+	return
+}
+
+// setEndpointValueForIDriveE2 gets user region endpoint against the Access Key details by calling the API
+func setEndpointValueForIDriveE2(m configmap.Mapper) (err error) {
+	value, ok := m.Get(fs.ConfigProvider)
+	if !ok || value != "IDrive" {
+		return
+	}
+	value, ok = m.Get("access_key_id")
+	if !ok || value == "" {
+		return
+	}
+	// Reuse the S3 redirect policy so this bootstrap call, which posts the
+	// access key ID, won't be redirected from HTTPS to plaintext HTTP.
+	client := &http.Client{Timeout: time.Second * 3, CheckRedirect: s3CheckRedirect}
+	// API to get user region endpoint against the Access Key details: https://www.idrive.com/e2/guides/get_region_endpoint
+	resp, err := client.Post("https://api.idrivee2.com/api/service/get_region_end_point",
+		"application/json",
+		strings.NewReader(`{"access_key": `+strconv.Quote(value)+`}`))
+	if err != nil {
+		return
+	}
+	defer fs.CheckClose(resp.Body, &err)
+	decoder := json.NewDecoder(resp.Body)
+	var data = &struct {
+		RespCode   int    `json:"resp_code"`
+		RespMsg    string `json:"resp_msg"`
+		DomainName string `json:"domain_name"`
+	}{}
+	if err = decoder.Decode(data); err == nil && data.RespCode == 0 {
+		m.Set("endpoint", data.DomainName)
+	}
+	return
+}
+
+// Set the provider quirks
+//
+// There should be no testing against opt.Provider anywhere in the
+// code except in here to localise the setting of the quirks.
+//
+// Run the integration tests to check you have the quirks correct.
+//
+//	go test -v -remote NewS3Provider:
+func setQuirks(opt *Options, provider *Provider) {
+	// Set tristate to the ultimate default value or the override
+	// in provider.Quirks. Pass in the ultimate default as value.
+	set := func(tristate *fs.Tristate, value bool, override *bool) {
+		if override != nil {
+			value = *override
+		}
+		if !tristate.Valid {
+			tristate.Valid = true
+			tristate.Value = value
+		}
+	}
+
+	// Set Path Style vs Virtual Host style
+	var virtualHostStyle = true // Default use bucket.provider.com instead of putting the bucket in the URL
+	if provider.Quirks.ForcePathStyle != nil {
+		// "don't force path style" so inverted
+		virtualHostStyle = !*provider.Quirks.ForcePathStyle
+	}
+	if virtualHostStyle || opt.UseAccelerateEndpoint {
+		opt.ForcePathStyle = false
+	}
+
+	// Set the correct list version if not manually set
+	if opt.ListVersion == 0 {
+		if provider.Quirks.ListVersion != nil {
+			opt.ListVersion = *provider.Quirks.ListVersion
+		} else {
+			opt.ListVersion = 2
+		}
+	}
+
+	// Set the copy cutoff if not manually set
+	// Check equality with strings as config values get round tripped via strings
+	if opt.CopyCutoff.String() == fs.SizeSuffix(maxSizeForCopy).String() {
+		if provider.Quirks.CopyCutoff != nil {
+			opt.CopyCutoff = fs.SizeSuffix(*provider.Quirks.CopyCutoff)
+		}
+	}
+
+	// Clip the max upload parts to the quirk
+	if provider.Quirks.MaxUploadParts != nil {
+		opt.MaxUploadParts = min(opt.MaxUploadParts, *provider.Quirks.MaxUploadParts)
+	}
+
+	// Clip the chunk size to the quirk
+	if provider.Quirks.MinChunkSize != nil {
+		opt.ChunkSize = max(opt.ChunkSize, fs.SizeSuffix(*provider.Quirks.MinChunkSize))
+	}
+
+	// Set new style Tristate quirks
+	set(&opt.ListURLEncode, true, provider.Quirks.ListURLEncode)
+	set(&opt.UseMultipartEtag, true, provider.Quirks.UseMultipartEtag)
+	set(&opt.UseAcceptEncodingGzip, true, provider.Quirks.UseAcceptEncodingGzip)
+	set(&opt.UseDataIntegrityProtections, false, provider.Quirks.UseDataIntegrityProtections)
+	set(&opt.MightGzip, true, provider.Quirks.MightGzip)
+	set(&opt.UseAlreadyExists, true, provider.Quirks.UseAlreadyExists)
+	set(&opt.UseMultipartUploads, true, provider.Quirks.UseMultipartUploads)
+	if !opt.UseMultipartUploads.Value {
+		opt.UploadCutoff = math.MaxInt64
+	}
+	set(&opt.UseUnsignedPayload, true, provider.Quirks.UseUnsignedPayload)
+	set(&opt.UseXID, true, provider.Quirks.UseXID)
+	set(&opt.SignAcceptEncoding, true, provider.Quirks.SignAcceptEncoding)
+	set(&opt.ObjectLockSupported, true, provider.Quirks.ObjectLockSupported)
+	set(&opt.ListVersionsOldestFirst, false, provider.Quirks.ListVersionsOldestFirst)
+}
+
+// setRoot changes the root of the Fs
+func (f *Fs) setRoot(root string) {
+	f.root = parsePath(root)
+	f.rootBucket, f.rootDirectory = bucket.Split(f.root)
+}
+
+// NewFs constructs an Fs from the path, bucket:path
+func NewFs(ctx context.Context, name, root string, m configmap.Mapper) (fs.Fs, error) {
+	// Parse config into Options struct
+	opt := new(Options)
+	err := configstruct.Set(m, opt)
+	if err != nil {
+		return nil, err
+	}
+	err = checkUploadChunkSize(opt.ChunkSize)
+	if err != nil {
+		return nil, fmt.Errorf("s3: chunk size: %w", err)
+	}
+	err = checkUploadCutoff(opt.UploadCutoff)
+	if err != nil {
+		return nil, fmt.Errorf("s3: upload cutoff: %w", err)
+	}
+	err = checkCopyCutoff(opt.CopyCutoff)
+	if err != nil {
+		return nil, fmt.Errorf("s3: --s3-copy-cutoff: %w", err)
+	}
+	if opt.Versions && opt.VersionAt.IsSet() {
+		return nil, errors.New("s3: can't use --s3-versions and --s3-version-at at the same time")
+	}
+	if opt.BucketACL == "" {
+		opt.BucketACL = opt.ACL
+	}
+	if opt.SSECustomerKeyBase64 != "" && opt.SSECustomerKey != "" {
+		return nil, errors.New("s3: can't use sse_customer_key and sse_customer_key_base64 at the same time")
+	} else if opt.SSECustomerKeyBase64 != "" {
+		// Decode the base64-encoded key and store it in the SSECustomerKey field
+		decoded, err := base64.StdEncoding.DecodeString(opt.SSECustomerKeyBase64)
+		if err != nil {
+			return nil, fmt.Errorf("s3: Could not decode sse_customer_key_base64: %w", err)
+		}
+		opt.SSECustomerKey = string(decoded)
+	} else {
+		// Encode the raw key as base64
+		opt.SSECustomerKeyBase64 = base64.StdEncoding.EncodeToString([]byte(opt.SSECustomerKey))
+	}
+	if opt.SSECustomerKey != "" && opt.SSECustomerKeyMD5 == "" {
+		// calculate CustomerKeyMD5 if not supplied
+		md5sumBinary := md5.Sum([]byte(opt.SSECustomerKey))
+		opt.SSECustomerKeyMD5 = base64.StdEncoding.EncodeToString(md5sumBinary[:])
+	}
+	srv := getClient(ctx, opt)
+	c, provider, err := s3Connection(ctx, opt, srv)
+	if err != nil {
+		return nil, err
+	}
+
+	ci := fs.GetConfig(ctx)
+	pc := fs.NewPacer(ctx, pacer.NewS3(pacer.MinSleep(minSleep)))
+	// Set pacer retries to 2 (1 try and 1 retry) because we are
+	// relying on SDK retry mechanism, but we allow 2 attempts to
+	// retry directory listings after XMLSyntaxError
+	pc.SetRetries(2)
+
+	f := &Fs{
+		name:    name,
+		opt:     *opt,
+		ci:      ci,
+		ctx:     ctx,
+		c:       c,
+		pacer:   pc,
+		cache:   bucket.NewCache(),
+		srv:     srv,
+		srvRest: rest.NewClient(fshttp.NewClient(ctx)),
+	}
+	if opt.ServerSideEncryption == "aws:kms" || opt.SSECustomerAlgorithm != "" {
+		// From: https://docs.aws.amazon.com/AmazonS3/latest/API/RESTCommonResponseHeaders.html
+		//
+		// Objects encrypted by SSE-S3 or plaintext have ETags that are an MD5
+		// digest of their data.
+		//
+		// Objects encrypted by SSE-C or SSE-KMS have ETags that are not an
+		// MD5 digest of their object data.
+		f.etagIsNotMD5 = true
+	}
+	if provider.Quirks.EtagIsNotMD5 != nil && *provider.Quirks.EtagIsNotMD5 {
+		// Provider always returns ETags that are not MD5 (e.g., mandatory encryption)
+		f.etagIsNotMD5 = true
+	}
+	if opt.DirectoryBucket {
+		// Objects uploaded to directory buckets appear to have random ETags
+		//
+		// This doesn't appear to be documented
+		f.etagIsNotMD5 = true
+		// The normal API doesn't work for creating directory buckets, so don't try
+		f.opt.NoCheckBucket = true
+	}
+	f.setRoot(root)
+	f.features = (&fs.Features{
+		ReadMimeType:      true,
+		WriteMimeType:     true,
+		ReadMetadata:      true,
+		WriteMetadata:     true,
+		UserMetadata:      true,
+		BucketBased:       true,
+		BucketBasedRootOK: true,
+		SetTier:           provider.StorageClass.Len() > 0,
+		GetTier:           provider.StorageClass.Len() > 0,
+		SlowModTime:       true,
+	}).Fill(ctx, f)
+	if opt.Provider == "AWS" {
+		f.features.DoubleSlash = true
+	}
+	if opt.Provider == "Fastly" {
+		f.features.Copy = nil
+	}
+	if opt.Provider == "Rabata" {
+		f.features.Copy = nil
+	}
+	if opt.Provider == "TencentCOS" && strings.Contains(opt.Endpoint, "cos.accelerate.myqcloud.com") {
+		// Global Acceleration endpoint does not support bucket creation.
+		f.opt.NoCheckBucket = true
+	}
+	if opt.DirectoryMarkers {
+		f.features.CanHaveEmptyDirectories = true
+	}
+	// f.listMultipartUploads()
+	if !opt.UseMultipartUploads.Value {
+		fs.Debugf(f, "Disabling multipart uploads")
+		f.features.OpenChunkWriter = nil
+	}
+
+	if f.rootBucket != "" && f.rootDirectory != "" && !opt.NoHeadObject && !strings.HasSuffix(root, "/") {
+		// Check to see if the (bucket,directory) is actually an existing file
+		oldRoot := f.root
+		newRoot, leaf := path.Split(oldRoot)
+		f.setRoot(newRoot)
+		_, err := f.NewObject(ctx, leaf)
+		switch {
+		case err == nil:
+			// It is a file so return an fs which points to the parent
+			return f, fs.ErrorIsFile
+		case errors.Is(err, fs.ErrorObjectNotFound):
+			// File doesn't exist or is a directory so return old f
+			f.setRoot(oldRoot)
+			return f, nil
+		default:
+			// We couldn't HEAD the object so now attempt to list it
+			hasChildren, listErr := f.hasChildren(ctx, leaf)
+			if listErr != nil {
+				fs.Debugf(f, "Couldn't check %q for children after HEAD failed (%v): %v", oldRoot, err, listErr)
+			}
+			// If it listed and has children it must be a directory
+			if hasChildren {
+				f.setRoot(oldRoot)
+				return f, nil
+			}
+			// If it has no children it is either a file or an empty directory. We can't
+			// tell these two cases apart. We choose file which is more likely, and
+			// return an fs which points to the parent.
+			return f, fs.ErrorIsFile
+		}
+	}
+	return f, nil
+}
+
+// hasChildren reports whether the directory dir contains any objects.
+func (f *Fs) hasChildren(ctx context.Context, dir string) (found bool, err error) {
+	bucket, directory := f.split(dir)
+	err = f.list(ctx, listOpt{
+		bucket:    bucket,
+		directory: directory,
+		prefix:    f.rootDirectory,
+		recurse:   true,
+	}, func(remote string, object *types.Object, versionID *string, isDirectory bool) error {
+		found = true
+		return errEndList // stop after the first object
+	})
+	if err != nil && err != fs.ErrorDirNotFound {
+		return false, err
+	}
+	return found, nil
+}
+
+// getMetaDataListing gets the metadata from the object unconditionally from the listing
+//
+// This is needed to find versioned objects from their paths.
+//
+// It may return info == nil and err == nil if a HEAD would be more appropriate
+func (f *Fs) getMetaDataListing(ctx context.Context, wantRemote string) (info *types.Object, versionID *string, err error) {
+	bucket, bucketPath := f.split(wantRemote)
+
+	// Strip the version string off if using versions
+	if f.opt.Versions {
+		var timestamp time.Time
+		timestamp, bucketPath = version.Remove(bucketPath)
+		// If the path had no version string return no info, to force caller to look it up
+		if timestamp.IsZero() {
+			return nil, nil, nil
+		}
+	}
+
+	err = f.list(ctx, listOpt{
+		bucket:       bucket,
+		directory:    bucketPath,
+		prefix:       f.rootDirectory,
+		recurse:      true,
+		withVersions: f.opt.Versions,
+		findFile:     true,
+		versionAt:    f.opt.VersionAt,
+		hidden:       f.opt.VersionDeleted,
+	}, func(gotRemote string, object *types.Object, objectVersionID *string, isDirectory bool) error {
+		if isDirectory {
+			return nil
+		}
+		if wantRemote != gotRemote {
+			return nil
+		}
+		info = object
+		versionID = objectVersionID
+		return errEndList // read only 1 item
+	})
+	if err != nil {
+		if err == fs.ErrorDirNotFound {
+			return nil, nil, fs.ErrorObjectNotFound
+		}
+		return nil, nil, err
+	}
+	if info == nil {
+		return nil, nil, fs.ErrorObjectNotFound
+	}
+	return info, versionID, nil
+}
+
+// stringClone clones the string s into new memory. This is useful to
+// stop us keeping references to small strings carved out of large XML
+// responses.
+func stringClone(s string) *string {
+	var sNew = strings.Clone(s)
+	return &sNew
+}
+
+// stringClonePointer clones the string pointed to by sp into new
+// memory. This is useful to stop us keeping references to small
+// strings carved out of large XML responses.
+func stringClonePointer(sp *string) *string {
+	if sp == nil {
+		return nil
+	}
+	var s = strings.Clone(*sp)
+	return &s
+}
+
+// Return an Object from a path
+//
+// If it can't be found it returns the error ErrorObjectNotFound.
+func (f *Fs) newObjectWithInfo(ctx context.Context, remote string, info *types.Object, versionID *string) (obj fs.Object, err error) {
+	o := &Object{
+		fs:     f,
+		remote: remote,
+	}
+	if info == nil && ((f.opt.Versions && version.Match(remote)) || f.opt.VersionAt.IsSet()) {
+		// If versions, have to read the listing to find the correct version ID
+		info, versionID, err = f.getMetaDataListing(ctx, remote)
+		if err != nil {
+			return nil, err
+		}
+	}
+	if info != nil {
+		// Set info but not meta
+		if info.LastModified == nil {
+			fs.Logf(o, "Failed to read last modified")
+			o.lastModified = time.Now()
+		} else {
+			o.lastModified = *info.LastModified
+		}
+		o.setMD5FromEtag(deref(info.ETag))
+		o.bytes = deref(info.Size)
+		o.storageClass = stringClone(string(info.StorageClass))
+		o.versionID = stringClonePointer(versionID)
+		// If is delete marker, show that metadata has been read as there is none to read
+		if info.Size == isDeleteMarker {
+			o.meta = map[string]string{}
+		}
+	} else if !o.fs.opt.NoHeadObject {
+		err := o.readMetaData(ctx) // reads info and meta, returning an error
+		if err != nil {
+			return nil, err
+		}
+	}
+	return o, nil
+}
+
+// NewObject finds the Object at remote.  If it can't be found
+// it returns the error fs.ErrorObjectNotFound.
+func (f *Fs) NewObject(ctx context.Context, remote string) (fs.Object, error) {
+	return f.newObjectWithInfo(ctx, remote, nil, nil)
+}
+
+// Gets the bucket location
+func (f *Fs) getBucketLocation(ctx context.Context, bucket string) (string, error) {
+	region, err := manager.GetBucketRegion(ctx, f.c, bucket)
+	if err != nil {
+		return "", err
+	}
+	return region, nil
+}
+
+// Updates the region for the bucket by reading the region from the
+// bucket then updating the session.
+func (f *Fs) updateRegionForBucket(ctx context.Context, bucket string) error {
+	region, err := f.getBucketLocation(ctx, bucket)
+	if err != nil {
+		return fmt.Errorf("reading bucket location failed: %w", err)
+	}
+	if f.opt.Endpoint != "" {
+		return fmt.Errorf("can't set region to %q as endpoint is set", region)
+	}
+	if f.opt.Region == region {
+		return fmt.Errorf("region is already %q - not updating", region)
+	}
+
+	// Make a new session with the new region
+	oldRegion := f.opt.Region
+	f.opt.Region = region
+	c, _, err := s3Connection(f.ctx, &f.opt, f.srv)
+	if err != nil {
+		return fmt.Errorf("creating new session failed: %w", err)
+	}
+	f.c = c
+
+	fs.Logf(f, "Switched region to %q from %q", region, oldRegion)
+	return nil
+}
+
+// Common interface for bucket listers
+type bucketLister interface {
+	List(ctx context.Context) (resp *s3.ListObjectsV2Output, versionIDs []*string, err error)
+	URLEncodeListings(bool)
+}
+
+// V1 bucket lister
+type v1List struct {
+	f   *Fs
+	req s3.ListObjectsInput
+}
+
+// Create a new V1 bucket lister
+func (f *Fs) newV1List(req *s3.ListObjectsV2Input) bucketLister {
+	l := &v1List{
+		f: f,
+	}
+	// Convert v2 req into v1 req
+	//structs.SetFrom(&l.req, req)
+	setFrom_s3ListObjectsInput_s3ListObjectsV2Input(&l.req, req)
+	return l
+}
+
+// List a bucket with V1 listing
+func (ls *v1List) List(ctx context.Context) (resp *s3.ListObjectsV2Output, versionIDs []*string, err error) {
+	respv1, err := ls.f.c.ListObjects(ctx, &ls.req)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Set up the request for next time
+	ls.req.Marker = respv1.NextMarker
+	if deref(respv1.IsTruncated) && ls.req.Marker == nil {
+		if len(respv1.Contents) == 0 {
+			return nil, nil, errors.New("s3 protocol error: received listing v1 with IsTruncated set, no NextMarker and no Contents")
+		}
+		// Use the last Key received if no NextMarker and isTruncated
+		ls.req.Marker = respv1.Contents[len(respv1.Contents)-1].Key
+
+	}
+
+	// If we are URL encoding then must decode the marker
+	if ls.req.Marker != nil && ls.req.EncodingType == types.EncodingTypeUrl {
+		*ls.req.Marker, err = url.QueryUnescape(*ls.req.Marker)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to URL decode Marker %q: %w", *ls.req.Marker, err)
+		}
+	}
+
+	// convert v1 resp into v2 resp
+	resp = new(s3.ListObjectsV2Output)
+	//structs.SetFrom(resp, respv1)
+	setFrom_s3ListObjectsV2Output_s3ListObjectsOutput(resp, respv1)
+
+	return resp, nil, nil
+}
+
+// URL Encode the listings
+func (ls *v1List) URLEncodeListings(encode bool) {
+	if encode {
+		ls.req.EncodingType = types.EncodingTypeUrl
+	} else {
+		ls.req.EncodingType = types.EncodingType("")
+	}
+}
+
+// V2 bucket lister
+type v2List struct {
+	f   *Fs
+	req s3.ListObjectsV2Input
+}
+
+// Create a new V2 bucket lister
+func (f *Fs) newV2List(req *s3.ListObjectsV2Input) bucketLister {
+	return &v2List{
+		f:   f,
+		req: *req,
+	}
+}
+
+// Do a V2 listing
+func (ls *v2List) List(ctx context.Context) (resp *s3.ListObjectsV2Output, versionIDs []*string, err error) {
+	resp, err = ls.f.c.ListObjectsV2(ctx, &ls.req)
+	if err != nil {
+		return nil, nil, err
+	}
+	if deref(resp.IsTruncated) && (resp.NextContinuationToken == nil || *resp.NextContinuationToken == "") {
+		return nil, nil, errors.New("s3 protocol error: received listing v2 with IsTruncated set and no NextContinuationToken. Should you be using `--s3-list-version 1`?")
+	}
+	ls.req.ContinuationToken = resp.NextContinuationToken
+	return resp, nil, nil
+}
+
+// URL Encode the listings
+func (ls *v2List) URLEncodeListings(encode bool) {
+	if encode {
+		ls.req.EncodingType = types.EncodingTypeUrl
+	} else {
+		ls.req.EncodingType = types.EncodingType("")
+	}
+}
+
+// Versions bucket lister
+type versionsList struct {
+	f              *Fs
+	req            s3.ListObjectVersionsInput
+	versionAt      time.Time // set if we want only versions before this
+	usingVersionAt bool      // set if we need to use versionAt
+	hidden         bool      // set to see hidden versions
+	lastKeySent    string    // last Key sent to the receiving function
+}
+
+// Create a new Versions bucket lister
+func (f *Fs) newVersionsList(req *s3.ListObjectsV2Input, hidden bool, versionAt time.Time) bucketLister {
+	l := &versionsList{
+		f:              f,
+		versionAt:      versionAt,
+		usingVersionAt: !versionAt.IsZero(),
+		hidden:         hidden,
+	}
+	// Convert v2 req into withVersions req
+	//structs.SetFrom(&l.req, req)
+	setFrom_s3ListObjectVersionsInput_s3ListObjectsV2Input(&l.req, req)
+	return l
+}
+
+// Any types.Object or types.ObjectVersion with this as their Size are delete markers
+var isDeleteMarker = new(int64)
+
+// Compare two types.ObjectVersions, sorted alphabetically by key with
+// the newest first if the Keys match or the one with IsLatest set if
+// everything matches.
+func versionLess(a, b *types.ObjectVersion) bool {
+	if a == nil || a.Key == nil || a.LastModified == nil {
+		return true
+	}
+	if b == nil || b.Key == nil || b.LastModified == nil {
+		return false
+	}
+	if *a.Key < *b.Key {
+		return true
+	}
+	if *a.Key > *b.Key {
+		return false
+	}
+	dt := a.LastModified.Sub(*b.LastModified)
+	if dt > 0 {
+		return true
+	}
+	if dt < 0 {
+		return false
+	}
+	if deref(a.IsLatest) {
+		return true
+	}
+	return false
+}
+
+// Merge the DeleteMarkers into the Versions.
+//
+// These are delivered by S3 sorted by key then by LastUpdated
+// newest first but annoyingly the SDK splits them up into two
+// so we need to merge them back again
+//
+// We do this by converting the s3.DeleteEntry into
+// types.ObjectVersion with Size = isDeleteMarker to tell them apart
+//
+// We then merge them back into the Versions in the correct order
+func mergeDeleteMarkers(oldVersions []types.ObjectVersion, deleteMarkers []types.DeleteMarkerEntry) (newVersions []types.ObjectVersion) {
+	newVersions = make([]types.ObjectVersion, 0, len(oldVersions)+len(deleteMarkers))
+	for _, deleteMarker := range deleteMarkers {
+		var obj types.ObjectVersion
+		//structs.SetFrom(obj, deleteMarker)
+		setFrom_typesObjectVersion_typesDeleteMarkerEntry(&obj, &deleteMarker)
+		obj.Size = isDeleteMarker
+		for len(oldVersions) > 0 && versionLess(&oldVersions[0], &obj) {
+			newVersions = append(newVersions, oldVersions[0])
+			oldVersions = oldVersions[1:]
+		}
+		newVersions = append(newVersions, obj)
+	}
+	// Merge any remaining versions
+	newVersions = append(newVersions, oldVersions...)
+	return newVersions
+}
+
+// List a bucket with versions
+func (ls *versionsList) List(ctx context.Context) (resp *s3.ListObjectsV2Output, versionIDs []*string, err error) {
+	respVersions, err := ls.f.c.ListObjectVersions(ctx, &ls.req)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// Set up the request for next time
+	ls.req.KeyMarker = respVersions.NextKeyMarker
+	ls.req.VersionIdMarker = respVersions.NextVersionIdMarker
+	if deref(respVersions.IsTruncated) && ls.req.KeyMarker == nil {
+		return nil, nil, errors.New("s3 protocol error: received versions listing with IsTruncated set with no NextKeyMarker")
+	}
+
+	// If we are URL encoding then must decode the marker
+	if ls.req.KeyMarker != nil && ls.req.EncodingType == types.EncodingTypeUrl {
+		*ls.req.KeyMarker, err = url.QueryUnescape(*ls.req.KeyMarker)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to URL decode KeyMarker %q: %w", *ls.req.KeyMarker, err)
+		}
+	}
+
+	// convert Versions resp into v2 resp
+	resp = new(s3.ListObjectsV2Output)
+	//structs.SetFrom(resp, respVersions)
+	setFrom_s3ListObjectsV2Output_s3ListObjectVersionsOutput(resp, respVersions)
+
+	// Some backends (e.g. Hitachi HCP) return versions oldest first instead
+	// of newest first. Reverse both lists so mergeDeleteMarkers works correctly.
+	if ls.f.opt.ListVersionsOldestFirst.Value {
+		slices.Reverse(respVersions.Versions)
+		slices.Reverse(respVersions.DeleteMarkers)
+	}
+
+	// Merge in delete Markers as types.ObjectVersion if we need them
+	if ls.hidden || ls.usingVersionAt {
+		respVersions.Versions = mergeDeleteMarkers(respVersions.Versions, respVersions.DeleteMarkers)
+	}
+
+	// Convert the Versions and the DeleteMarkers into an array of types.Object
+	//
+	// These are returned in the order that they are stored with the most recent first.
+	// With the annoyance that the Versions and DeleteMarkers are split into two
+	objs := make([]types.Object, 0, len(respVersions.Versions))
+	for _, objVersion := range respVersions.Versions {
+		if ls.usingVersionAt {
+			if objVersion.LastModified.After(ls.versionAt) {
+				// Ignore versions that were created after the specified time
+				continue
+			}
+			if *objVersion.Key == ls.lastKeySent {
+				// Ignore versions before the already returned version
+				continue
+			}
+		}
+		ls.lastKeySent = *objVersion.Key
+		// Don't send delete markers if we don't want hidden things
+		if !ls.hidden && objVersion.Size == isDeleteMarker {
+			continue
+		}
+		var obj types.Object
+		//structs.SetFrom(obj, objVersion)
+		setFrom_typesObject_typesObjectVersion(&obj, &objVersion)
+		// Adjust the file names
+		if !ls.usingVersionAt && (!deref(objVersion.IsLatest) || objVersion.Size == isDeleteMarker) {
+			if obj.Key != nil && objVersion.LastModified != nil {
+				*obj.Key = version.Add(*obj.Key, *objVersion.LastModified)
+			}
+		}
+		objs = append(objs, obj)
+		versionIDs = append(versionIDs, objVersion.VersionId)
+	}
+
+	resp.Contents = objs
+	return resp, versionIDs, nil
+}
+
+// URL Encode the listings
+func (ls *versionsList) URLEncodeListings(encode bool) {
+	if encode {
+		ls.req.EncodingType = types.EncodingTypeUrl
+	} else {
+		ls.req.EncodingType = types.EncodingType("")
+	}
+}
+
+// listFn is called from list to handle an object.
+type listFn func(remote string, object *types.Object, versionID *string, isDirectory bool) error
+
+// errEndList is a sentinel used to end the list iteration now.
+// listFn should return it to end the iteration with no errors.
+var errEndList = errors.New("end list")
+
+// list options
+type listOpt struct {
+	bucket        string  // bucket to list
+	directory     string  // directory with bucket
+	prefix        string  // prefix to remove from listing
+	addBucket     bool    // if set, the bucket is added to the start of the remote
+	recurse       bool    // if set, recurse to read sub directories
+	withVersions  bool    // if set, versions are produced
+	hidden        bool    // if set, return delete markers as objects with size == isDeleteMarker
+	findFile      bool    // if set, it will look for files called (bucket, directory)
+	versionAt     fs.Time // if set only show versions <= this time
+	noSkipMarkers bool    // if set return dir marker objects
+	restoreStatus bool    // if set return restore status in listing too
+}
+
+// list lists the objects into the function supplied with the opt
+// supplied.
+func (f *Fs) list(ctx context.Context, opt listOpt, fn listFn) error {
+	if opt.prefix != "" {
+		opt.prefix += "/"
+	}
+	if !opt.findFile {
+		if opt.directory != "" && (opt.prefix == "" && !bucket.IsAllSlashes(opt.directory) || opt.prefix != "" && !strings.HasSuffix(opt.directory, "/")) {
+			opt.directory += "/"
+		}
+	}
+	// Use nil delimiter for recursive listings to omit the parameter
+	// entirely. Some S3-compatible servers reject an empty delimiter.
+	var delimiter *string
+	if !opt.recurse {
+		delimiter = aws.String("/")
+	}
+	// URL encode the listings so we can use control characters in object names
+	// See: https://github.com/aws/aws-sdk-go/issues/1914
+	//
+	// However this doesn't work perfectly under Ceph (and hence DigitalOcean/Dreamhost) because
+	// it doesn't encode CommonPrefixes.
+	// See: https://tracker.ceph.com/issues/41870
+	//
+	// This does not work under IBM COS also: See https://github.com/rclone/rclone/issues/3345
+	// though maybe it does on some versions.
+	//
+	// This does work with minio but was only added relatively recently
+	// https://github.com/minio/minio/pull/7265
+	//
+	// So we enable only on providers we know supports it properly, all others can retry when a
+	// XML Syntax error is detected.
+	urlEncodeListings := f.opt.ListURLEncode.Value
+	req := s3.ListObjectsV2Input{
+		Bucket:    &opt.bucket,
+		Delimiter: delimiter,
+		Prefix:    &opt.directory,
+		MaxKeys:   &f.opt.ListChunk,
+	}
+	if opt.restoreStatus {
+		req.OptionalObjectAttributes = []types.OptionalObjectAttributes{types.OptionalObjectAttributesRestoreStatus}
+	}
+	if f.opt.RequesterPays {
+		req.RequestPayer = types.RequestPayerRequester
+	}
+	var listBucket bucketLister
+	switch {
+	case opt.withVersions || opt.versionAt.IsSet():
+		listBucket = f.newVersionsList(&req, opt.hidden, time.Time(opt.versionAt))
+	case f.opt.ListVersion == 1:
+		listBucket = f.newV1List(&req)
+	default:
+		listBucket = f.newV2List(&req)
+	}
+	foundItems := 0
+	for {
+		var resp *s3.ListObjectsV2Output
+		var err error
+		var versionIDs []*string
+		err = f.pacer.Call(func() (bool, error) {
+
+			listBucket.URLEncodeListings(urlEncodeListings)
+			resp, versionIDs, err = listBucket.List(ctx)
+			if err != nil && !urlEncodeListings {
+				if _, ok := errors.AsType[*xml.SyntaxError](err); ok {
+					// Retry the listing with URL encoding as there were characters that XML can't encode
+					urlEncodeListings = true
+					fs.Debugf(f, "Retrying listing because of characters which can't be XML encoded")
+					return true, err
+				}
+			}
+			return f.shouldRetry(ctx, err)
+		})
+		if err != nil {
+			if getHTTPStatusCode(err) == http.StatusNotFound {
+				err = fs.ErrorDirNotFound
+			}
+			if f.rootBucket == "" {
+				// if listing from the root ignore wrong region requests returning
+				// empty directory
+				// 301 if wrong region for bucket
+				if getHTTPStatusCode(err) == http.StatusMovedPermanently {
+					fs.Errorf(f, "Can't change region for bucket %q with no bucket specified", opt.bucket)
+					return nil
+				}
+			}
+			return err
+		}
+		if !opt.recurse {
+			foundItems += len(resp.CommonPrefixes)
+			for _, commonPrefix := range resp.CommonPrefixes {
+				if commonPrefix.Prefix == nil {
+					fs.Logf(f, "Nil common prefix received")
+					continue
+				}
+				remote := *commonPrefix.Prefix
+				if urlEncodeListings {
+					remote, err = url.QueryUnescape(remote)
+					if err != nil {
+						fs.Logf(f, "failed to URL decode %q in listing common prefix: %v", *commonPrefix.Prefix, err)
+						continue
+					}
+				}
+				remote = f.opt.Enc.ToStandardPath(remote)
+				if !strings.HasPrefix(remote, opt.prefix) {
+					fs.Logf(f, "Odd directory name received %q", remote)
+					continue
+				}
+				remote = remote[len(opt.prefix):]
+				// Trim one slash off the remote name
+				remote, _ = strings.CutSuffix(remote, "/")
+				if remote == "" || bucket.IsAllSlashes(remote) {
+					remote += "/"
+				}
+				if opt.addBucket {
+					remote = bucket.Join(opt.bucket, remote)
+				}
+				err = fn(remote, &types.Object{Key: &remote}, nil, true)
+				if err != nil {
+					if err == errEndList {
+						return nil
+					}
+					return err
+				}
+			}
+		}
+		foundItems += len(resp.Contents)
+		for i, object := range resp.Contents {
+			remote := *stringClone(deref(object.Key))
+			if urlEncodeListings {
+				remote, err = url.QueryUnescape(remote)
+				if err != nil {
+					fs.Logf(f, "failed to URL decode %q in listing: %v", deref(object.Key), err)
+					continue
+				}
+			}
+			remote = f.opt.Enc.ToStandardPath(remote)
+			if !strings.HasPrefix(remote, opt.prefix) {
+				fs.Logf(f, "Odd name received %q", remote)
+				continue
+			}
+			isDirectory := (remote == "" || strings.HasSuffix(remote, "/")) && object.Size != nil && *object.Size == 0
+			// is this a directory marker?
+			if isDirectory {
+				if opt.noSkipMarkers {
+					// process directory markers as files
+					isDirectory = false
+				} else if remote == f.opt.Enc.ToStandardPath(opt.directory) {
+					// Don't insert the root directory
+					continue
+				}
+			}
+			remote = remote[len(opt.prefix):]
+			if isDirectory {
+				// process directory markers as directories
+				remote, _ = strings.CutSuffix(remote, "/")
+			}
+			if opt.addBucket {
+				remote = bucket.Join(opt.bucket, remote)
+			}
+			if versionIDs != nil {
+				err = fn(remote, &object, versionIDs[i], isDirectory)
+			} else {
+				err = fn(remote, &object, nil, isDirectory)
+			}
+			if err != nil {
+				if err == errEndList {
+					return nil
+				}
+				return err
+			}
+		}
+		if !deref(resp.IsTruncated) {
+			break
+		}
+	}
+	if f.opt.DirectoryMarkers && foundItems == 0 && opt.directory != "" {
+		// Determine whether the directory exists or not by whether it has a marker
+		req := s3.HeadObjectInput{
+			Bucket: &opt.bucket,
+			Key:    &opt.directory,
+		}
+		_, err := f.headObject(ctx, &req)
+		if err != nil {
+			if err == fs.ErrorObjectNotFound {
+				return fs.ErrorDirNotFound
+			}
+			return err
+		}
+	}
+	return nil
+}
+
+// Convert a list item into a DirEntry
+func (f *Fs) itemToDirEntry(ctx context.Context, remote string, object *types.Object, versionID *string, isDirectory bool) (fs.DirEntry, error) {
+	if isDirectory {
+		size := int64(0)
+		if object.Size != nil {
+			size = *object.Size
+		}
+		d := fs.NewDir(remote, time.Time{}).SetSize(size)
+		return d, nil
+	}
+	o, err := f.newObjectWithInfo(ctx, remote, object, versionID)
+	if err != nil {
+		return nil, err
+	}
+	return o, nil
+}
+
+// listDir lists files and directories to out
+func (f *Fs) listDir(ctx context.Context, bucket, directory, prefix string, addBucket bool, callback func(fs.DirEntry) error) (err error) {
+	// List the objects and directories
+	err = f.list(ctx, listOpt{
+		bucket:       bucket,
+		directory:    directory,
+		prefix:       prefix,
+		addBucket:    addBucket,
+		withVersions: f.opt.Versions,
+		versionAt:    f.opt.VersionAt,
+		hidden:       f.opt.VersionDeleted,
+	}, func(remote string, object *types.Object, versionID *string, isDirectory bool) error {
+		entry, err := f.itemToDirEntry(ctx, remote, object, versionID, isDirectory)
+		if err != nil {
+			return err
+		}
+		if entry != nil {
+			return callback(entry)
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	// bucket must be present if listing succeeded
+	f.cache.MarkOK(bucket)
+	return nil
+}
+
+// listBuckets lists the buckets to out
+func (f *Fs) listBuckets(ctx context.Context) (entries fs.DirEntries, err error) {
+	req := s3.ListBucketsInput{}
+	var resp *s3.ListBucketsOutput
+	err = f.pacer.Call(func() (bool, error) {
+		resp, err = f.c.ListBuckets(ctx, &req)
+		return f.shouldRetry(ctx, err)
+	})
+	if err != nil {
+		return nil, err
+	}
+	for _, bucket := range resp.Buckets {
+		bucketName := f.opt.Enc.ToStandardName(deref(bucket.Name))
+		f.cache.MarkOK(bucketName)
+		d := fs.NewDir(bucketName, deref(bucket.CreationDate))
+		entries = append(entries, d)
+	}
+	return entries, nil
+}
+
+// List the objects and directories in dir into entries.  The
+// entries can be returned in any order but should be for a
+// complete directory.
+//
+// dir should be "" to list the root, and should not have
+// trailing slashes.
+//
+// This should return ErrDirNotFound if the directory isn't
+// found.
+func (f *Fs) List(ctx context.Context, dir string) (entries fs.DirEntries, err error) {
+	return list.WithListP(ctx, dir, f)
+}
+
+// ListP lists the objects and directories of the Fs starting
+// from dir non recursively into out.
+//
+// dir should be "" to start from the root, and should not
+// have trailing slashes.
+//
+// This should return ErrDirNotFound if the directory isn't
+// found.
+//
+// It should call callback for each tranche of entries read.
+// These need not be returned in any particular order.  If
+// callback returns an error then the listing will stop
+// immediately.
+func (f *Fs) ListP(ctx context.Context, dir string, callback fs.ListRCallback) error {
+	list := list.NewHelper(callback)
+	bucket, directory := f.split(dir)
+	if bucket == "" {
+		if directory != "" {
+			return fs.ErrorListBucketRequired
+		}
+		entries, err := f.listBuckets(ctx)
+		if err != nil {
+			return err
+		}
+		for _, entry := range entries {
+			err = list.Add(entry)
+			if err != nil {
+				return err
+			}
+		}
+	} else {
+		err := f.listDir(ctx, bucket, directory, f.rootDirectory, f.rootBucket == "", list.Add)
+		if err != nil {
+			return err
+		}
+	}
+	return list.Flush()
+}
+
+// ListR lists the objects and directories of the Fs starting
+// from dir recursively into out.
+//
+// dir should be "" to start from the root, and should not
+// have trailing slashes.
+//
+// This should return ErrDirNotFound if the directory isn't
+// found.
+//
+// It should call callback for each tranche of entries read.
+// These need not be returned in any particular order.  If
+// callback returns an error then the listing will stop
+// immediately.
+//
+// Don't implement this unless you have a more efficient way
+// of listing recursively than doing a directory traversal.
+func (f *Fs) ListR(ctx context.Context, dir string, callback fs.ListRCallback) (err error) {
+	bucket, directory := f.split(dir)
+	list := list.NewHelper(callback)
+	listR := func(bucket, directory, prefix string, addBucket bool) error {
+		return f.list(ctx, listOpt{
+			bucket:       bucket,
+			directory:    directory,
+			prefix:       prefix,
+			addBucket:    addBucket,
+			recurse:      true,
+			withVersions: f.opt.Versions,
+			versionAt:    f.opt.VersionAt,
+			hidden:       f.opt.VersionDeleted,
+		}, func(remote string, object *types.Object, versionID *string, isDirectory bool) error {
+			entry, err := f.itemToDirEntry(ctx, remote, object, versionID, isDirectory)
+			if err != nil {
+				return err
+			}
+			return list.Add(entry)
+		})
+	}
+	if bucket == "" {
+		entries, err := f.listBuckets(ctx)
+		if err != nil {
+			return err
+		}
+		for _, entry := range entries {
+			err = list.Add(entry)
+			if err != nil {
+				return err
+			}
+			bucket := entry.Remote()
+			err = listR(bucket, "", f.rootDirectory, true)
+			if err != nil {
+				return err
+			}
+			// bucket must be present if listing succeeded
+			f.cache.MarkOK(bucket)
+		}
+	} else {
+		err = listR(bucket, directory, f.rootDirectory, f.rootBucket == "")
+		if err != nil {
+			return err
+		}
+		// bucket must be present if listing succeeded
+		f.cache.MarkOK(bucket)
+	}
+	return list.Flush()
+}
+
+// Put the Object into the bucket
+func (f *Fs) Put(ctx context.Context, in io.Reader, src fs.ObjectInfo, options ...fs.OpenOption) (fs.Object, error) {
+	// Temporary Object under construction
+	fs := &Object{
+		fs:     f,
+		remote: src.Remote(),
+	}
+	return fs, fs.Update(ctx, in, src, options...)
+}
+
+// PutStream uploads to the remote path with the modTime given of indeterminate size
+func (f *Fs) PutStream(ctx context.Context, in io.Reader, src fs.ObjectInfo, options ...fs.OpenOption) (fs.Object, error) {
+	return f.Put(ctx, in, src, options...)
+}
+
+// Check if the bucket exists
+//
+// NB this can return incorrect results if called immediately after bucket deletion
+func (f *Fs) bucketExists(ctx context.Context, bucket string) (bool, error) {
+	req := s3.HeadBucketInput{
+		Bucket: &bucket,
+	}
+	err := f.pacer.Call(func() (bool, error) {
+		_, err := f.c.HeadBucket(ctx, &req)
+		return f.shouldRetry(ctx, err)
+	})
+	if err == nil {
+		return true, nil
+	}
+	if getHTTPStatusCode(err) == http.StatusNotFound {
+		return false, nil
+	}
+	return false, err
+}
+
+// Create directory marker file and parents
+func (f *Fs) createDirectoryMarker(ctx context.Context, bucket, dir string) error {
+	if !f.opt.DirectoryMarkers || bucket == "" {
+		return nil
+	}
+
+	// Object to be uploaded
+	o := &Object{
+		fs: f,
+		meta: map[string]string{
+			metaMtime: swift.TimeToFloatString(time.Now()),
+		},
+	}
+
+	for {
+		_, bucketPath := f.split(dir)
+		// Don't create the directory marker if it is the bucket or at the very root
+		if bucketPath == "" {
+			break
+		}
+		o.remote = dir + "/"
+
+		// Check to see if object already exists
+		_, err := o.headObject(ctx)
+		if err == nil {
+			return nil
+		}
+
+		// Upload it if not
+		fs.Debugf(o, "Creating directory marker")
+		content := io.Reader(strings.NewReader(""))
+		err = o.Update(ctx, content, o)
+		if err != nil {
+			return fmt.Errorf("creating directory marker failed: %w", err)
+		}
+
+		// Now check parent directory exists
+		dir = path.Dir(dir)
+		if dir == "/" || dir == "." {
+			break
+		}
+	}
+
+	return nil
+}
+
+// Mkdir creates the bucket if it doesn't exist
+func (f *Fs) Mkdir(ctx context.Context, dir string) error {
+	bucket, _ := f.split(dir)
+	e := f.makeBucket(ctx, bucket)
+	if e != nil {
+		return e
+	}
+	return f.createDirectoryMarker(ctx, bucket, dir)
+}
+
+// mkdirParent creates the parent bucket/directory if it doesn't exist
+func (f *Fs) mkdirParent(ctx context.Context, remote string) error {
+	remote, _ = strings.CutSuffix(remote, "/")
+	dir := path.Dir(remote)
+	if dir == "/" || dir == "." {
+		dir = ""
+	}
+	return f.Mkdir(ctx, dir)
+}
+
+// makeBucket creates the bucket if it doesn't exist
+func (f *Fs) makeBucket(ctx context.Context, bucket string) error {
+	if f.opt.NoCheckBucket {
+		return nil
+	}
+	return f.cache.Create(bucket, func() error {
+		req := s3.CreateBucketInput{
+			Bucket:                     &bucket,
+			ACL:                        types.BucketCannedACL(f.opt.BucketACL),
+			ObjectLockEnabledForBucket: &f.opt.BucketObjectLockEnabled,
+		}
+		if f.opt.LocationConstraint != "" {
+			req.CreateBucketConfiguration = &types.CreateBucketConfiguration{
+				LocationConstraint: types.BucketLocationConstraint(f.opt.LocationConstraint),
+			}
+		}
+		err := f.pacer.Call(func() (bool, error) {
+			_, err := f.c.CreateBucket(ctx, &req)
+			return f.shouldRetry(ctx, err)
+		})
+		if err == nil {
+			fs.Infof(f, "Bucket %q created with ACL %q", bucket, f.opt.BucketACL)
+		}
+		if awsErr, ok := errors.AsType[smithy.APIError](err); ok {
+			switch awsErr.ErrorCode() {
+			case "BucketAlreadyOwnedByYou":
+				err = nil
+			case "BucketAlreadyExists", "BucketNameUnavailable":
+				if f.opt.UseAlreadyExists.Value {
+					// We can trust BucketAlreadyExists to mean not owned by us, so make it non retriable
+					err = fserrors.NoRetryError(err)
+				} else {
+					// We can't trust BucketAlreadyExists to mean not owned by us, so ignore it
+					err = nil
+				}
+			}
+		}
+		return err
+	}, func() (bool, error) {
+		return f.bucketExists(ctx, bucket)
+	})
+}
+
+// Rmdir deletes the bucket if the fs is at the root
+//
+// Returns an error if it isn't empty
+func (f *Fs) Rmdir(ctx context.Context, dir string) error {
+	bucket, directory := f.split(dir)
+	// Remove directory marker file
+	if f.opt.DirectoryMarkers && bucket != "" && dir != "" {
+		o := &Object{
+			fs:     f,
+			remote: dir + "/",
+		}
+		fs.Debugf(o, "Removing directory marker")
+		err := o.Remove(ctx)
+		if err != nil {
+			return fmt.Errorf("removing directory marker failed: %w", err)
+		}
+	}
+	if bucket == "" || directory != "" {
+		return nil
+	}
+	return f.cache.Remove(bucket, func() error {
+		req := s3.DeleteBucketInput{
+			Bucket: &bucket,
+		}
+		err := f.pacer.Call(func() (bool, error) {
+			_, err := f.c.DeleteBucket(ctx, &req)
+			return f.shouldRetry(ctx, err)
+		})
+		if err == nil {
+			fs.Infof(f, "Bucket %q deleted", bucket)
+		}
+		return err
+	})
+}
+
+// Precision of the remote
+func (f *Fs) Precision() time.Duration {
+	return time.Nanosecond
+}
+
+// pathEscape escapes s as for a URL path.  It uses rest.URLPathEscape
+// but also escapes '+' for S3 and Digital Ocean spaces compatibility
+func pathEscape(s string) string {
+	return strings.ReplaceAll(rest.URLPathEscape(s), "+", "%2B")
+}
+
+// copy does a server-side copy
+//
+// It adds the boiler plate to the req passed in and calls the s3
+// method
+func (f *Fs) copy(ctx context.Context, req *s3.CopyObjectInput, dstBucket, dstPath, srcBucket, srcPath string, src *Object) error {
+	req.Bucket = &dstBucket
+	req.ACL = types.ObjectCannedACL(f.opt.ACL)
+	req.Key = &dstPath
+	source := pathEscape(bucket.Join(srcBucket, srcPath))
+	if src.versionID != nil {
+		source += fmt.Sprintf("?versionId=%s", *src.versionID)
+	}
+	req.CopySource = &source
+	if f.opt.RequesterPays {
+		req.RequestPayer = types.RequestPayerRequester
+	}
+	if f.opt.ServerSideEncryption != "" {
+		req.ServerSideEncryption = types.ServerSideEncryption(f.opt.ServerSideEncryption)
+	}
+	if f.opt.SSECustomerAlgorithm != "" {
+		req.SSECustomerAlgorithm = &f.opt.SSECustomerAlgorithm
+		req.CopySourceSSECustomerAlgorithm = &f.opt.SSECustomerAlgorithm
+	}
+	if f.opt.SSECustomerKeyBase64 != "" {
+		req.SSECustomerKey = &f.opt.SSECustomerKeyBase64
+		req.CopySourceSSECustomerKey = &f.opt.SSECustomerKeyBase64
+	}
+	if f.opt.SSECustomerKeyMD5 != "" {
+		req.SSECustomerKeyMD5 = &f.opt.SSECustomerKeyMD5
+		req.CopySourceSSECustomerKeyMD5 = &f.opt.SSECustomerKeyMD5
+	}
+	if f.opt.SSEKMSKeyID != "" {
+		req.SSEKMSKeyId = &f.opt.SSEKMSKeyID
+	}
+	if req.StorageClass == types.StorageClass("") && f.opt.StorageClass != "" {
+		req.StorageClass = types.StorageClass(f.opt.StorageClass)
+	}
+
+	// Apply Object Lock options via headers (unless ObjectLockSetAfterUpload is set)
+	// "copy" means: keep the value from source (passed via req from prepareUpload/setFrom functions)
+	if !f.opt.ObjectLockSetAfterUpload {
+		if f.opt.ObjectLockMode != "" && !strings.EqualFold(f.opt.ObjectLockMode, "copy") {
+			req.ObjectLockMode = types.ObjectLockMode(strings.ToUpper(f.opt.ObjectLockMode))
+		}
+		if f.opt.ObjectLockRetainUntilDate != "" && !strings.EqualFold(f.opt.ObjectLockRetainUntilDate, "copy") {
+			retainDate, err := parseRetainUntilDate(f.opt.ObjectLockRetainUntilDate)
+			if err != nil {
+				return fmt.Errorf("invalid object_lock_retain_until_date: %w", err)
+			}
+			req.ObjectLockRetainUntilDate = &retainDate
+		}
+		if f.opt.ObjectLockLegalHoldStatus != "" && !strings.EqualFold(f.opt.ObjectLockLegalHoldStatus, "copy") {
+			req.ObjectLockLegalHoldStatus = types.ObjectLockLegalHoldStatus(strings.ToUpper(f.opt.ObjectLockLegalHoldStatus))
+		}
+	}
+
+	if src.bytes >= int64(f.opt.CopyCutoff) {
+		return f.copyMultipart(ctx, req, dstBucket, dstPath, srcBucket, srcPath, src)
+	}
+	return f.pacer.Call(func() (bool, error) {
+		_, err := f.c.CopyObject(ctx, req)
+		return f.shouldRetry(ctx, err)
+	})
+}
+
+func calculateRange(partSize, partIndex, numParts, totalSize int64) string {
+	start := partIndex * partSize
+	var ends string
+	if partIndex == numParts-1 {
+		if totalSize >= 1 {
+			ends = strconv.FormatInt(totalSize-1, 10)
+		}
+	} else {
+		ends = strconv.FormatInt(start+partSize-1, 10)
+	}
+	return fmt.Sprintf("bytes=%v-%v", start, ends)
+}
+
+func (f *Fs) copyMultipart(ctx context.Context, copyReq *s3.CopyObjectInput, dstBucket, dstPath, srcBucket, srcPath string, src *Object) (err error) {
+	info, err := src.headObject(ctx)
+	if err != nil {
+		return err
+	}
+
+	req := &s3.CreateMultipartUploadInput{}
+
+	// Fill in the request from the head info
+	//structs.SetFrom(req, info)
+	setFrom_s3CreateMultipartUploadInput_s3HeadObjectOutput(req, info)
+
+	// If copy metadata was set then set the Metadata to that read
+	// from the head request
+	if copyReq.MetadataDirective == types.MetadataDirectiveCopy {
+		copyReq.Metadata = info.Metadata
+	}
+
+	// Overwrite any from the copyReq
+	//structs.SetFrom(req, copyReq)
+	setFrom_s3CreateMultipartUploadInput_s3CopyObjectInput(req, copyReq)
+
+	req.Bucket = &dstBucket
+	req.Key = &dstPath
+
+	var cout *s3.CreateMultipartUploadOutput
+	if err := f.pacer.Call(func() (bool, error) {
+		var err error
+		cout, err = f.c.CreateMultipartUpload(ctx, req)
+		return f.shouldRetry(ctx, err)
+	}); err != nil {
+		return err
+	}
+	uid := cout.UploadId
+
+	defer atexit.OnError(&err, func() {
+		// Try to abort the upload, but ignore the error.
+		fs.Debugf(src, "Cancelling multipart copy")
+		_ = f.pacer.Call(func() (bool, error) {
+			_, err := f.c.AbortMultipartUpload(context.Background(), &s3.AbortMultipartUploadInput{
+				Bucket:       &dstBucket,
+				Key:          &dstPath,
+				UploadId:     uid,
+				RequestPayer: req.RequestPayer,
+			})
+			return f.shouldRetry(ctx, err)
+		})
+	})()
+
+	srcSize := src.bytes
+	partSize := int64(f.opt.CopyCutoff)
+	numParts := (srcSize-1)/partSize + 1
+
+	fs.Debugf(src, "Starting  multipart copy with %d parts", numParts)
+	account := transferaccounter.Get(ctx)
+	account.Start()
+
+	var (
+		parts   = make([]types.CompletedPart, numParts)
+		g, gCtx = errgroup.WithContext(ctx)
+	)
+	g.SetLimit(f.opt.UploadConcurrency)
+	for partNum := int32(1); int64(partNum) <= numParts; partNum++ {
+		// Fail fast, in case an errgroup managed function returns an error
+		// gCtx is cancelled. There is no point in uploading all the other parts.
+		if gCtx.Err() != nil {
+			break
+		}
+		partNum := partNum // for closure
+		g.Go(func() error {
+			var uout *s3.UploadPartCopyOutput
+			uploadPartReq := &s3.UploadPartCopyInput{}
+			//structs.SetFrom(uploadPartReq, copyReq)
+			setFrom_s3UploadPartCopyInput_s3CopyObjectInput(uploadPartReq, copyReq)
+			uploadPartReq.Bucket = &dstBucket
+			uploadPartReq.Key = &dstPath
+			uploadPartReq.PartNumber = &partNum
+			uploadPartReq.UploadId = uid
+			uploadPartReq.CopySourceRange = aws.String(calculateRange(partSize, int64(partNum-1), numParts, srcSize))
+			err := f.pacer.Call(func() (bool, error) {
+				uout, err = f.c.UploadPartCopy(gCtx, uploadPartReq)
+				return f.shouldRetry(gCtx, err)
+			})
+			if err != nil {
+				return err
+			}
+			parts[partNum-1] = types.CompletedPart{
+				PartNumber: &partNum,
+				ETag:       uout.CopyPartResult.ETag,
+			}
+			copied := partSize
+			if int64(partNum) == numParts {
+				copied = srcSize - (numParts-1)*partSize
+			}
+			account.Add(copied)
+			return nil
+		})
+	}
+
+	err = g.Wait()
+	if err != nil {
+		return err
+	}
+
+	return f.pacer.Call(func() (bool, error) {
+		_, err := f.c.CompleteMultipartUpload(ctx, &s3.CompleteMultipartUploadInput{
+			Bucket: &dstBucket,
+			Key:    &dstPath,
+			MultipartUpload: &types.CompletedMultipartUpload{
+				Parts: parts,
+			},
+			RequestPayer:         req.RequestPayer,
+			SSECustomerAlgorithm: req.SSECustomerAlgorithm,
+			SSECustomerKey:       req.SSECustomerKey,
+			SSECustomerKeyMD5:    req.SSECustomerKeyMD5,
+			UploadId:             uid,
+			IfMatch:              copyReq.IfMatch,
+			IfNoneMatch:          copyReq.IfNoneMatch,
+		})
+		return f.shouldRetry(ctx, err)
+	})
+}
+
+// Copy src to this remote using server-side copy operations.
+//
+// This is stored with the remote path given.
+//
+// It returns the destination Object and a possible error.
+//
+// Will only be called if src.Fs().Name() == f.Name()
+//
+// If it isn't possible then return fs.ErrorCantCopy
+func (f *Fs) Copy(ctx context.Context, src fs.Object, remote string) (fs.Object, error) {
+	if f.opt.VersionAt.IsSet() {
+		return nil, errNotWithVersionAt
+	}
+	dstBucket, dstPath := f.split(remote)
+	err := f.mkdirParent(ctx, remote)
+	if err != nil {
+		return nil, err
+	}
+	srcObj, ok := src.(*Object)
+	if !ok {
+		fs.Debugf(src, "Can't copy - not same remote type")
+		return nil, fs.ErrorCantCopy
+	}
+
+	srcBucket, srcPath := srcObj.split()
+	req := s3.CopyObjectInput{
+		MetadataDirective: types.MetadataDirectiveCopy,
+	}
+	if srcObj.storageClass != nil {
+		req.StorageClass = types.StorageClass(*srcObj.storageClass)
+	}
+	// Build upload options including headers and metadata
+	ci := fs.GetConfig(ctx)
+	uploadOptions := fs.MetadataAsOpenOptions(ctx)
+	for _, option := range ci.UploadHeaders {
+		uploadOptions = append(uploadOptions, option)
+	}
+
+	ui, err := srcObj.prepareUpload(ctx, src, uploadOptions, true)
+	if err != nil {
+		return nil, fmt.Errorf("failed to prepare upload: %w", err)
+	}
+
+	setFrom_s3CopyObjectInput_s3PutObjectInput(&req, ui.req)
+	// Use REPLACE directive if metadata is being modified, otherwise S3 ignores our values
+	// This is needed when:
+	// 1. --metadata flag is set
+	// 2. Any Object Lock option is set (to override or explicitly copy)
+	needsReplace := ci.Metadata ||
+		f.opt.ObjectLockMode != "" ||
+		f.opt.ObjectLockRetainUntilDate != "" ||
+		f.opt.ObjectLockLegalHoldStatus != ""
+	if needsReplace {
+		req.MetadataDirective = types.MetadataDirectiveReplace
+	}
+
+	err = f.copy(ctx, &req, dstBucket, dstPath, srcBucket, srcPath, srcObj)
+	if err != nil {
+		return nil, err
+	}
+	dstObj, err := f.NewObject(ctx, remote)
+	if err != nil {
+		return nil, err
+	}
+
+	// With NoHeadObject no metadata was read for the new object, so carry
+	// the size and MD5 over from the source as a server-side copy produces
+	// an object with identical content.
+	if f.opt.NoHeadObject {
+		if dstObject, ok := dstObj.(*Object); ok {
+			dstObject.bytes = srcObj.bytes
+			dstObject.md5 = srcObj.md5
+		}
+	}
+
+	// Set Object Lock via separate API calls if requested
+	if f.opt.ObjectLockSetAfterUpload {
+		if dstObject, ok := dstObj.(*Object); ok {
+			if err := dstObject.setObjectLockAfterUpload(ctx, srcObj); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return dstObj, nil
+}
+
+// Hashes returns the supported hash sets.
+func (f *Fs) Hashes() hash.Set {
+	return hash.Set(hash.MD5)
+}
+
+// PublicLink generates a public link to the remote path (usually readable by anyone)
+func (f *Fs) PublicLink(ctx context.Context, remote string, expire fs.Duration, unlink bool) (link string, err error) {
+	return f.publicLink(ctx, remote, expire, &s3.GetObjectInput{})
+}
+
+func (f *Fs) publicLink(ctx context.Context, remote string, expire fs.Duration, req *s3.GetObjectInput) (link string, err error) {
+	if strings.HasSuffix(remote, "/") {
+		return "", fs.ErrorCantShareDirectories
+	}
+	obj, err := f.NewObject(ctx, remote)
+	if err != nil {
+		return "", err
+	}
+	o := obj.(*Object)
+	if expire > maxExpireDuration {
+		fs.Logf(f, "Public Link: Reducing expiry to %v as %v is greater than the max time allowed", maxExpireDuration, expire)
+		expire = maxExpireDuration
+	}
+	bucket, bucketPath := f.split(remote)
+	req.Bucket = &bucket
+	req.Key = &bucketPath
+	req.VersionId = o.versionID
+	httpReq, err := s3.NewPresignClient(f.c).PresignGetObject(ctx, req, s3.WithPresignExpires(time.Duration(expire)))
+	if err != nil {
+		return "", err
+	}
+	return httpReq.URL, nil
+}
+
+var commandHelp = []fs.CommandHelp{{
+	Name:  "link",
+	Short: "Generate a signed link with response header overrides.",
+	Long: `This command generates a signed download link for one file, with optional
+overrides for the HTTP response headers. Pass the file path as a separate
+argument, relative to the remote path.
+
+Usage examples:
+
+` + "```console" + `
+rclone backend link s3:bucket path/to/file -o expire=1h
+rclone backend link s3:bucket path/to/file -o response-expires="Thu, 01 Jan 1970 00:00:00 GMT"
+rclone backend link s3:bucket path/to/file -o response-content-disposition='attachment; filename="download.txt"'
+` + "```" + `
+
+The link expires after 7 days by default. Use ` + "`-o expire=1h`" + ` to change
+its lifetime. Durations must be at least 1 second; values above 7 days are
+limited to 7 days, as with ` + "`rclone link`" + `.
+
+The ` + "`response-expires`" + ` option sets the HTTP Expires response header,
+not the lifetime of the signed link. It must be an HTTP date, such as
+` + "`Thu, 01 Jan 1970 00:00:00 GMT`" + `.
+
+The overrides are included in the signature and must not be changed in the
+returned URL. They do not modify the object's stored metadata.`,
+	Opts: map[string]string{
+		"expire":                       "How long the link will be valid (default 7d, maximum 7d).",
+		"response-cache-control":       "Set the Cache-Control response header.",
+		"response-content-disposition": "Set the Content-Disposition response header.",
+		"response-content-encoding":    "Set the Content-Encoding response header.",
+		"response-content-language":    "Set the Content-Language response header.",
+		"response-content-type":        "Set the Content-Type response header.",
+		"response-expires":             "Set the Expires response header to an HTTP date.",
+	},
+}, {
+	Name:  "restore",
+	Short: "Restore objects from GLACIER or INTELLIGENT-TIERING archive tier.",
+	Long: `This command can be used to restore one or more objects from GLACIER to normal
+storage or from INTELLIGENT-TIERING Archive Access / Deep Archive Access tier
+to the Frequent Access tier.
+
+Usage examples:
+
+` + "```console" + `
+rclone backend restore s3:bucket/path/to/ --include /object -o priority=PRIORITY -o lifetime=DAYS
+rclone backend restore s3:bucket/path/to/directory -o priority=PRIORITY -o lifetime=DAYS
+rclone backend restore s3:bucket -o priority=PRIORITY -o lifetime=DAYS
+rclone backend restore s3:bucket/path/to/directory -o priority=PRIORITY
+` + "```" + `
+
+This flag also obeys the filters. Test first with --interactive/-i or --dry-run
+flags.
+
+` + "```console" + `
+rclone --interactive backend restore --include "*.txt" s3:bucket/path -o priority=Standard -o lifetime=1
+` + "```" + `
+
+All the objects shown will be marked for restore, then:
+
+` + "```console" + `
+rclone backend restore --include "*.txt" s3:bucket/path -o priority=Standard -o lifetime=1
+` + "```" + `
+
+It returns a list of status dictionaries with Remote and Status
+keys. The Status will be OK if it was successful or an error message
+if not.
+
+` + "```json" + `
+[
+    {
+        "Status": "OK",
+        "Remote": "test.txt"
+    },
+    {
+        "Status": "OK",
+        "Remote": "test/file4.txt"
+    }
+]
+` + "```",
+	Opts: map[string]string{
+		"priority": "Priority of restore: Standard|Expedited|Bulk",
+		"lifetime": `Lifetime of the active copy in days, ignored for INTELLIGENT-TIERING
+storage.`,
+		"description": "The optional description for the job.",
+	},
+}, {
+	Name:  "restore-status",
+	Short: "Show the status for objects being restored from GLACIER or INTELLIGENT-TIERING.",
+	Long: `This command can be used to show the status for objects being restored from
+GLACIER to normal storage or from INTELLIGENT-TIERING Archive Access / Deep
+Archive Access tier to the Frequent Access tier.
+
+Usage examples:
+
+` + "```console" + `
+rclone backend restore-status s3:bucket/path/to/object
+rclone backend restore-status s3:bucket/path/to/directory
+rclone backend restore-status -o all s3:bucket/path/to/directory
+` + "```" + `
+
+This command does not obey the filters.
+
+It returns a list of status dictionaries:
+
+` + "```json" + `
+[
+    {
+        "Remote": "file.txt",
+        "VersionID": null,
+        "RestoreStatus": {
+            "IsRestoreInProgress": true,
+            "RestoreExpiryDate": "2023-09-06T12:29:19+01:00"
+        },
+        "StorageClass": "GLACIER"
+    },
+    {
+        "Remote": "test.pdf",
+        "VersionID": null,
+        "RestoreStatus": {
+            "IsRestoreInProgress": false,
+            "RestoreExpiryDate": "2023-09-06T12:29:19+01:00"
+        },
+        "StorageClass": "DEEP_ARCHIVE"
+    },
+    {
+        "Remote": "test.gz",
+        "VersionID": null,
+        "RestoreStatus": {
+            "IsRestoreInProgress": true,
+            "RestoreExpiryDate": "null"
+        },
+        "StorageClass": "INTELLIGENT_TIERING"
+    }
+]
+` + "```",
+	Opts: map[string]string{
+		"all": "If set then show all objects, not just ones with restore status.",
+	},
+}, {
+	Name:  "list-multipart-uploads",
+	Short: "List the unfinished multipart uploads.",
+	Long: `This command lists the unfinished multipart uploads in JSON format.
+
+Usage examples:
+
+` + "```console" + `
+rclone backend list-multipart s3:bucket/path/to/object
+` + "```" + `
+
+It returns a dictionary of buckets with values as lists of unfinished
+multipart uploads.
+
+You can call it with no bucket in which case it lists all bucket, with
+a bucket or with a bucket and path.
+
+` + "```json" + `
+{
+    "rclone": [
+        {
+            "Initiated": "2020-06-26T14:20:36Z",
+            "Initiator": {
+                "DisplayName": "XXX",
+                "ID": "arn:aws:iam::XXX:user/XXX"
+            },
+            "Key": "KEY",
+            "Owner": {
+                "DisplayName": null,
+                "ID": "XXX"
+            },
+            "StorageClass": "STANDARD",
+            "UploadId": "XXX"
+        }
+    ],
+    "rclone-1000files": [],
+    "rclone-dst": []
+}
+` + "```",
+}, {
+	Name:  "cleanup",
+	Short: "Remove unfinished multipart uploads.",
+	Long: `This command removes unfinished multipart uploads of age greater than
+max-age which defaults to 24 hours.
+
+Note that you can use --interactive/-i or --dry-run with this command to see
+what it would do.
+
+Usage examples:
+
+` + "```console" + `
+rclone backend cleanup s3:bucket/path/to/object
+rclone backend cleanup -o max-age=7w s3:bucket/path/to/object
+` + "```" + `
+
+Durations are parsed as per the rest of rclone, 2h, 7d, 7w etc.`,
+	Opts: map[string]string{
+		"max-age": "Max age of upload to delete.",
+	},
+}, {
+	Name:  "cleanup-hidden",
+	Short: "Remove old versions of files.",
+	Long: `This command removes any old hidden versions of files
+on a versions enabled bucket.
+
+Note that you can use --interactive/-i or --dry-run with this command to see
+what it would do.
+
+Usage example:
+
+` + "```console" + `
+rclone backend cleanup-hidden s3:bucket/path/to/dir
+` + "```",
+}, {
+	Name:  "versioning",
+	Short: "Set/get versioning support for a bucket.",
+	Long: `This command sets versioning support if a parameter is
+passed and then returns the current versioning status for the bucket
+supplied.
+
+Usage examples:
+
+` + "```console" + `
+rclone backend versioning s3:bucket # read status only
+rclone backend versioning s3:bucket Enabled
+rclone backend versioning s3:bucket Suspended
+` + "```" + `
+
+It may return "Enabled", "Suspended" or "Unversioned". Note that once
+versioning has been enabled the status can't be set back to "Unversioned".`,
+}, {
+	Name:  "set",
+	Short: "Set command for updating the config parameters.",
+	Long: `This set command can be used to update the config parameters
+for a running s3 backend.
+
+Usage examples:
+
+` + "```console" + `
+rclone backend set s3: [-o opt_name=opt_value] [-o opt_name2=opt_value2]
+rclone rc backend/command command=set fs=s3: [-o opt_name=opt_value] [-o opt_name2=opt_value2]
+rclone rc backend/command command=set fs=s3: -o session_token=X -o access_key_id=X -o secret_access_key=X
+` + "```" + `
+
+The option keys are named as they are in the config file.
+
+This rebuilds the connection to the s3 backend when it is called with
+the new parameters. Only new parameters need be passed as the values
+will default to those currently in use.
+
+It doesn't return anything.`,
+}}
+
+// Command the backend to run a named command
+//
+// The command run is name
+// args may be used to read arguments from
+// opts may be used to read optional arguments from
+//
+// The result should be capable of being JSON encoded
+// If it is a string or a []string it will be shown to the user
+// otherwise it will be JSON encoded and shown to the user like that
+func (f *Fs) Command(ctx context.Context, name string, arg []string, opt map[string]string) (out any, err error) {
+	switch name {
+	case "link":
+		if len(arg) != 1 || arg[0] == "" {
+			return nil, errors.New("link requires exactly one file path argument")
+		}
+		req := s3.GetObjectInput{}
+		expire := maxExpireDuration
+		for key, value := range opt {
+			switch key {
+			case "expire":
+				duration, err := fs.ParseDuration(value)
+				if err != nil {
+					return nil, fmt.Errorf("invalid expire: %w", err)
+				}
+				if duration < time.Second {
+					return nil, errors.New("expire must be at least 1 second")
+				}
+				expire = fs.Duration(duration)
+			case "response-cache-control":
+				req.ResponseCacheControl = aws.String(value)
+			case "response-content-disposition":
+				req.ResponseContentDisposition = aws.String(value)
+			case "response-content-encoding":
+				req.ResponseContentEncoding = aws.String(value)
+			case "response-content-language":
+				req.ResponseContentLanguage = aws.String(value)
+			case "response-content-type":
+				req.ResponseContentType = aws.String(value)
+			case "response-expires":
+				date, err := http.ParseTime(value)
+				if err != nil {
+					return nil, fmt.Errorf("invalid response-expires: %w", err)
+				}
+				req.ResponseExpires = &date
+			default:
+				return nil, fmt.Errorf("unknown link option %q", key)
+			}
+		}
+		return f.publicLink(ctx, arg[0], expire, &req)
+	case "restore":
+		req := s3.RestoreObjectInput{
+			//Bucket:         &f.rootBucket,
+			//Key:            &encodedDirectory,
+			RestoreRequest: &types.RestoreRequest{},
+		}
+		if lifetime := opt["lifetime"]; lifetime != "" {
+			ilifetime, err := strconv.ParseInt(lifetime, 10, 32)
+			if err != nil {
+				return nil, fmt.Errorf("bad lifetime: %w", err)
+			}
+			ilifetime32 := int32(ilifetime)
+			req.RestoreRequest.Days = &ilifetime32
+		}
+		if priority := opt["priority"]; priority != "" {
+			req.RestoreRequest.GlacierJobParameters = &types.GlacierJobParameters{
+				Tier: types.Tier(priority),
+			}
+		}
+		if description := opt["description"]; description != "" {
+			req.RestoreRequest.Description = &description
+		}
+		type status struct {
+			Status string
+			Remote string
+		}
+		var (
+			outMu sync.Mutex
+			out   = []status{}
+		)
+		err = operations.ListFn(ctx, f, func(obj fs.Object) {
+			// Remember this is run --checkers times concurrently
+			o, ok := obj.(*Object)
+			st := status{Status: "OK", Remote: obj.Remote()}
+			defer func() {
+				outMu.Lock()
+				out = append(out, st)
+				outMu.Unlock()
+			}()
+			if operations.SkipDestructive(ctx, obj, "restore") {
+				return
+			}
+			if !ok {
+				st.Status = "Not an S3 object"
+				return
+			}
+			if o.storageClass == nil || (*o.storageClass != "GLACIER" && *o.storageClass != "DEEP_ARCHIVE" && *o.storageClass != "INTELLIGENT_TIERING") {
+				st.Status = "Not GLACIER or DEEP_ARCHIVE or INTELLIGENT_TIERING storage class"
+				return
+			}
+			bucket, bucketPath := o.split()
+			reqCopy := req
+			if *o.storageClass == "INTELLIGENT_TIERING" {
+				reqCopy.RestoreRequest.Days = nil
+			}
+			reqCopy.Bucket = &bucket
+			reqCopy.Key = &bucketPath
+			reqCopy.VersionId = o.versionID
+			err = f.pacer.Call(func() (bool, error) {
+				_, err = f.c.RestoreObject(ctx, &reqCopy)
+				return f.shouldRetry(ctx, err)
+			})
+			if err != nil {
+				st.Status = err.Error()
+			}
+		})
+		if err != nil {
+			return out, err
+		}
+		return out, nil
+	case "restore-status":
+		_, all := opt["all"]
+		return f.restoreStatus(ctx, all)
+	case "list-multipart-uploads":
+		return f.listMultipartUploadsAll(ctx)
+	case "cleanup":
+		maxAge := 24 * time.Hour
+		if opt["max-age"] != "" {
+			maxAge, err = fs.ParseDuration(opt["max-age"])
+			if err != nil {
+				return nil, fmt.Errorf("bad max-age: %w", err)
+			}
+		}
+		return nil, f.cleanUp(ctx, maxAge)
+	case "cleanup-hidden":
+		return nil, f.CleanUpHidden(ctx)
+	case "versioning":
+		return f.setGetVersioning(ctx, arg...)
+	case "set":
+		newOpt := f.opt
+		err := configstruct.Set(configmap.Simple(opt), &newOpt)
+		if err != nil {
+			return nil, fmt.Errorf("reading config: %w", err)
+		}
+		c, _, err := s3Connection(f.ctx, &newOpt, f.srv)
+		if err != nil {
+			return nil, fmt.Errorf("updating session: %w", err)
+		}
+		f.c = c
+		f.opt = newOpt
+		keys := []string{}
+		for k := range opt {
+			keys = append(keys, k)
+		}
+		fs.Logf(f, "Updated config values: %s", strings.Join(keys, ", "))
+		return nil, nil
+	default:
+		return nil, fs.ErrorCommandNotFound
+	}
+}
+
+// Returned from "restore-status"
+type restoreStatusOut struct {
+	Remote        string
+	VersionID     *string
+	RestoreStatus *types.RestoreStatus
+	StorageClass  types.ObjectStorageClass
+}
+
+// Recursively enumerate the current fs to find objects with a restore status
+func (f *Fs) restoreStatus(ctx context.Context, all bool) (out []restoreStatusOut, err error) {
+	fs.Debugf(f, "all = %v", all)
+	bucket, directory := f.split("")
+	out = []restoreStatusOut{}
+	err = f.list(ctx, listOpt{
+		bucket:        bucket,
+		directory:     directory,
+		prefix:        f.rootDirectory,
+		addBucket:     f.rootBucket == "",
+		recurse:       true,
+		withVersions:  f.opt.Versions,
+		versionAt:     f.opt.VersionAt,
+		hidden:        f.opt.VersionDeleted,
+		restoreStatus: true,
+	}, func(remote string, object *types.Object, versionID *string, isDirectory bool) error {
+		entry, err := f.itemToDirEntry(ctx, remote, object, versionID, isDirectory)
+		if err != nil {
+			return err
+		}
+		if entry != nil {
+			if o, ok := entry.(*Object); ok && (all || object.RestoreStatus != nil) {
+				out = append(out, restoreStatusOut{
+					Remote:        o.remote,
+					VersionID:     o.versionID,
+					RestoreStatus: object.RestoreStatus,
+					StorageClass:  object.StorageClass,
+				})
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	// bucket must be present if listing succeeded
+	f.cache.MarkOK(bucket)
+	return out, nil
+}
+
+// listMultipartUploads lists all outstanding multipart uploads for (bucket, key)
+//
+// Note that rather lazily we treat key as a prefix so it matches
+// directories and objects. This could surprise the user if they ask
+// for "dir" and it returns "dirKey"
+func (f *Fs) listMultipartUploads(ctx context.Context, bucket, key string) (uploads []types.MultipartUpload, err error) {
+	var (
+		keyMarker      *string
+		uploadIDMarker *string
+	)
+	uploads = []types.MultipartUpload{}
+	for {
+		req := s3.ListMultipartUploadsInput{
+			Bucket:         &bucket,
+			MaxUploads:     &f.opt.ListChunk,
+			KeyMarker:      keyMarker,
+			UploadIdMarker: uploadIDMarker,
+			Prefix:         &key,
+		}
+		var resp *s3.ListMultipartUploadsOutput
+		err = f.pacer.Call(func() (bool, error) {
+			resp, err = f.c.ListMultipartUploads(ctx, &req)
+			return f.shouldRetry(ctx, err)
+		})
+		if err != nil {
+			return nil, fmt.Errorf("list multipart uploads bucket %q key %q: %w", bucket, key, err)
+		}
+		uploads = append(uploads, resp.Uploads...)
+		if !deref(resp.IsTruncated) {
+			break
+		}
+		keyMarker = resp.NextKeyMarker
+		uploadIDMarker = resp.NextUploadIdMarker
+	}
+	return uploads, nil
+}
+
+func (f *Fs) listMultipartUploadsAll(ctx context.Context) (uploadsMap map[string][]types.MultipartUpload, err error) {
+	uploadsMap = make(map[string][]types.MultipartUpload)
+	bucket, directory := f.split("")
+	if bucket != "" {
+		uploads, err := f.listMultipartUploads(ctx, bucket, directory)
+		if err != nil {
+			return uploadsMap, err
+		}
+		uploadsMap[bucket] = uploads
+		return uploadsMap, nil
+	}
+	entries, err := f.listBuckets(ctx)
+	if err != nil {
+		return uploadsMap, err
+	}
+	for _, entry := range entries {
+		bucket := entry.Remote()
+		uploads, listErr := f.listMultipartUploads(ctx, bucket, "")
+		if listErr != nil {
+			err = listErr
+			fs.Errorf(f, "%v", err)
+		}
+		uploadsMap[bucket] = uploads
+	}
+	return uploadsMap, err
+}
+
+// cleanUpBucket removes all pending multipart uploads for a given bucket over the age of maxAge
+func (f *Fs) cleanUpBucket(ctx context.Context, bucket string, maxAge time.Duration, uploads []types.MultipartUpload) (err error) {
+	fs.Infof(f, "cleaning bucket %q of pending multipart uploads older than %v", bucket, maxAge)
+	for _, upload := range uploads {
+		if upload.Initiated != nil && upload.Key != nil && upload.UploadId != nil {
+			age := time.Since(*upload.Initiated)
+			what := fmt.Sprintf("pending multipart upload for bucket %q key %q dated %v (%v ago)", bucket, *upload.Key, upload.Initiated, age)
+			if age > maxAge {
+				fs.Infof(f, "removing %s", what)
+				if operations.SkipDestructive(ctx, what, "remove pending upload") {
+					continue
+				}
+				req := s3.AbortMultipartUploadInput{
+					Bucket:   &bucket,
+					UploadId: upload.UploadId,
+					Key:      upload.Key,
+				}
+				_, abortErr := f.c.AbortMultipartUpload(ctx, &req)
+				if abortErr != nil {
+					err = fmt.Errorf("failed to remove %s: %w", what, abortErr)
+					fs.Errorf(f, "%v", err)
+				}
+			} else {
+				fs.Debugf(f, "ignoring %s", what)
+			}
+		}
+	}
+	return err
+}
+
+// CleanUp removes all pending multipart uploads
+func (f *Fs) cleanUp(ctx context.Context, maxAge time.Duration) (err error) {
+	uploadsMap, err := f.listMultipartUploadsAll(ctx)
+	if err != nil {
+		return err
+	}
+	for bucket, uploads := range uploadsMap {
+		cleanErr := f.cleanUpBucket(ctx, bucket, maxAge, uploads)
+		if err != nil {
+			fs.Errorf(f, "Failed to cleanup bucket %q: %v", bucket, cleanErr)
+			err = cleanErr
+		}
+	}
+	return err
+}
+
+// Read whether the bucket is versioned or not
+func (f *Fs) isVersioned(ctx context.Context) bool {
+	f.versioningMu.Lock()
+	defer f.versioningMu.Unlock()
+	if !f.versioning.Valid {
+		_, _ = f.setGetVersioning(ctx)
+		fs.Debugf(f, "bucket is versioned: %v", f.versioning.Value)
+	}
+	return f.versioning.Value
+}
+
+// Set or get bucket versioning.
+//
+// Pass no arguments to get, or pass "Enabled" or "Suspended"
+//
+// Updates f.versioning
+func (f *Fs) setGetVersioning(ctx context.Context, arg ...string) (status types.BucketVersioningStatus, err error) {
+	if len(arg) > 1 {
+		return "", errors.New("too many arguments")
+	}
+	if f.rootBucket == "" {
+		return "", errors.New("need a bucket")
+	}
+	if len(arg) == 1 {
+		var versioning = types.VersioningConfiguration{
+			Status: types.BucketVersioningStatus(arg[0]),
+		}
+		// Disabled is indicated by the parameter missing
+		if versioning.Status == types.BucketVersioningStatus("Disabled") {
+			versioning.Status = types.BucketVersioningStatus("")
+		}
+		req := s3.PutBucketVersioningInput{
+			Bucket:                  &f.rootBucket,
+			VersioningConfiguration: &versioning,
+		}
+		err := f.pacer.Call(func() (bool, error) {
+			_, err = f.c.PutBucketVersioning(ctx, &req)
+			return f.shouldRetry(ctx, err)
+		})
+		if err != nil {
+			return "", err
+		}
+	}
+	req := s3.GetBucketVersioningInput{
+		Bucket: &f.rootBucket,
+	}
+	var resp *s3.GetBucketVersioningOutput
+	err = f.pacer.Call(func() (bool, error) {
+		resp, err = f.c.GetBucketVersioning(ctx, &req)
+		return f.shouldRetry(ctx, err)
+	})
+	f.versioning.Valid = true
+	f.versioning.Value = false
+	if err != nil {
+		fs.Errorf(f, "Failed to read versioning status, assuming unversioned: %v", err)
+		return "", err
+	}
+	if len(resp.Status) == 0 {
+		return "Unversioned", err
+	}
+	f.versioning.Value = true
+	return resp.Status, err
+}
+
+// CleanUp removes all pending multipart uploads older than 24 hours
+func (f *Fs) CleanUp(ctx context.Context) (err error) {
+	return f.cleanUp(ctx, 24*time.Hour)
+}
+
+// purge deletes all the files and directories
+//
+// if oldOnly is true then it deletes only non current files.
+//
+// Implemented here so we can make sure we delete old versions.
+func (f *Fs) purge(ctx context.Context, dir string, oldOnly bool) error {
+	if f.opt.VersionAt.IsSet() {
+		return errNotWithVersionAt
+	}
+	bucket, directory := f.split(dir)
+	if bucket == "" {
+		return errors.New("can't purge from root")
+	}
+	// If the user explicitly set --s3-versions, trust that the bucket is
+	// versioned even if GetBucketVersioning fails (e.g. missing permission).
+	versioned := f.opt.Versions || f.isVersioned(ctx)
+	if !versioned && oldOnly {
+		fs.Infof(f, "bucket is not versioned so not removing old versions")
+		return nil
+	}
+	var errReturn error
+	var checkErrMutex sync.Mutex
+	var checkErr = func(err error) {
+		if err == nil {
+			return
+		}
+		checkErrMutex.Lock()
+		defer checkErrMutex.Unlock()
+		if errReturn == nil {
+			errReturn = err
+		}
+	}
+
+	// Delete Config.Transfers in parallel
+	delChan := make(fs.ObjectsChan, f.ci.Transfers)
+	delErr := make(chan error, 1)
+	go func() {
+		delErr <- operations.DeleteFiles(ctx, delChan)
+	}()
+	checkErr(f.list(ctx, listOpt{
+		bucket:        bucket,
+		directory:     directory,
+		prefix:        f.rootDirectory,
+		addBucket:     f.rootBucket == "",
+		recurse:       true,
+		withVersions:  versioned,
+		hidden:        true,
+		noSkipMarkers: true,
+	}, func(remote string, object *types.Object, versionID *string, isDirectory bool) error {
+		if isDirectory {
+			return nil
+		}
+		// If the root is a dirmarker it will have lost its trailing /
+		if remote == "" {
+			remote = "/"
+		}
+		oi, err := f.newObjectWithInfo(ctx, remote, object, versionID)
+		if err != nil {
+			fs.Errorf(object, "Can't create object %+v", err)
+			return nil
+		}
+		tr := accounting.Stats(ctx).NewCheckingTransfer(oi, "checking")
+		// Work out whether the file is the current version or not
+		isCurrentVersion := !versioned || !version.Match(remote)
+		fs.Debugf(nil, "%q version %v", remote, version.Match(remote))
+		if oldOnly && isCurrentVersion {
+			// Check current version of the file
+			if object.Size == isDeleteMarker {
+				fs.Debugf(remote, "Deleting current version (id %q) as it is a delete marker", deref(versionID))
+				delChan <- oi
+			} else {
+				fs.Debugf(remote, "Not deleting current version %q", deref(versionID))
+			}
+		} else {
+			if object.Size == isDeleteMarker {
+				fs.Debugf(remote, "Deleting delete marker (id %q)", deref(versionID))
+			} else {
+				fs.Debugf(remote, "Deleting (id %q)", deref(versionID))
+			}
+			delChan <- oi
+		}
+		tr.Done(ctx, nil)
+		return nil
+	}))
+	close(delChan)
+	checkErr(<-delErr)
+
+	if !oldOnly {
+		checkErr(f.Rmdir(ctx, dir))
+	}
+	return errReturn
+}
+
+// Purge deletes all the files and directories including the old versions.
+func (f *Fs) Purge(ctx context.Context, dir string) error {
+	return f.purge(ctx, dir, false)
+}
+
+// CleanUpHidden deletes all the hidden files.
+func (f *Fs) CleanUpHidden(ctx context.Context) error {
+	return f.purge(ctx, "", true)
+}
+
+// ------------------------------------------------------------
+
+// Fs returns the parent Fs
+func (o *Object) Fs() fs.Info {
+	return o.fs
+}
+
+// Return a string version
+func (o *Object) String() string {
+	if o == nil {
+		return "<nil>"
+	}
+	return o.remote
+}
+
+// Remote returns the remote path
+func (o *Object) Remote() string {
+	return o.remote
+}
+
+var matchMd5 = regexp.MustCompile(`^[0-9a-f]{32}$`)
+
+// Set the MD5 from the etag
+func (o *Object) setMD5FromEtag(etag string) {
+	if o.fs.etagIsNotMD5 {
+		o.md5 = ""
+		return
+	}
+	if etag == "" {
+		o.md5 = ""
+		return
+	}
+	hash := strings.Trim(strings.ToLower(etag), `"`)
+	// Check the etag is a valid md5sum
+	if !matchMd5.MatchString(hash) {
+		o.md5 = ""
+		return
+	}
+	o.md5 = hash
+}
+
+// Hash returns the Md5sum of an object returning a lowercase hex string
+func (o *Object) Hash(ctx context.Context, t hash.Type) (string, error) {
+	if t != hash.MD5 {
+		return "", hash.ErrUnsupported
+	}
+	// If decompressing, erase the hash
+	if o.bytes < 0 {
+		return "", nil
+	}
+	// If we haven't got an MD5, then check the metadata
+	if o.md5 == "" {
+		err := o.readMetaData(ctx)
+		if err != nil {
+			return "", err
+		}
+	}
+	return o.md5, nil
+}
+
+// Size returns the size of an object in bytes
+func (o *Object) Size() int64 {
+	return o.bytes
+}
+
+func (o *Object) headObject(ctx context.Context) (resp *s3.HeadObjectOutput, err error) {
+	bucket, bucketPath := o.split()
+	req := s3.HeadObjectInput{
+		Bucket:    &bucket,
+		Key:       &bucketPath,
+		VersionId: o.versionID,
+	}
+	return o.fs.headObject(ctx, &req)
+}
+
+func (f *Fs) headObject(ctx context.Context, req *s3.HeadObjectInput) (resp *s3.HeadObjectOutput, err error) {
+	if f.opt.RequesterPays {
+		req.RequestPayer = types.RequestPayerRequester
+	}
+	if f.opt.SSECustomerAlgorithm != "" {
+		req.SSECustomerAlgorithm = &f.opt.SSECustomerAlgorithm
+	}
+	if f.opt.SSECustomerKeyBase64 != "" {
+		req.SSECustomerKey = &f.opt.SSECustomerKeyBase64
+	}
+	if f.opt.SSECustomerKeyMD5 != "" {
+		req.SSECustomerKeyMD5 = &f.opt.SSECustomerKeyMD5
+	}
+	err = f.pacer.Call(func() (bool, error) {
+		var err error
+		resp, err = f.c.HeadObject(ctx, req)
+		return f.shouldRetry(ctx, err)
+	})
+	if err != nil {
+		if statusCode := getHTTPStatusCode(err); statusCode == http.StatusNotFound || statusCode == http.StatusMethodNotAllowed {
+			return nil, fs.ErrorObjectNotFound
+		}
+		return nil, err
+	}
+	if req.Bucket != nil {
+		f.cache.MarkOK(*req.Bucket)
+	}
+	return resp, nil
+}
+
+// readMetaData gets the metadata if it hasn't already been fetched
+//
+// it also sets the info
+func (o *Object) readMetaData(ctx context.Context) (err error) {
+	if o.meta != nil {
+		return nil
+	}
+	resp, err := o.headObject(ctx)
+	if err != nil {
+		return err
+	}
+	o.setMetaData(resp)
+	// resp.ETag, resp.ContentLength, resp.LastModified, resp.Metadata, resp.ContentType, resp.StorageClass)
+	return nil
+}
+
+// Convert S3 metadata into a map[string]string while lowercasing the
+// keys
+func s3MetadataToMap(s3Meta map[string]string) map[string]string {
+	meta := make(map[string]string, len(s3Meta))
+	for k, v := range s3Meta {
+		meta[strings.ToLower(k)] = *stringClone(v)
+	}
+	return meta
+}
+
+// Convert our metadata back into S3 metadata
+func mapToS3Metadata(meta map[string]string) map[string]string {
+	return meta
+}
+
+func (o *Object) setMetaData(resp *s3.HeadObjectOutput) {
+	// Ignore missing Content-Length assuming it is 0
+	// Some versions of ceph do this due their apache proxies
+	if resp.ContentLength != nil {
+		o.bytes = *resp.ContentLength
+	}
+	o.setMD5FromEtag(deref(resp.ETag))
+	o.meta = s3MetadataToMap(resp.Metadata)
+	// Read MD5 from metadata if present
+	if md5sumBase64, ok := o.meta[metaMD5Hash]; ok {
+		md5sumBytes, err := base64.StdEncoding.DecodeString(md5sumBase64)
+		if err != nil {
+			fs.Debugf(o, "Failed to read md5sum from metadata %q: %v", md5sumBase64, err)
+		} else if len(md5sumBytes) != 16 {
+			fs.Debugf(o, "Failed to read md5sum from metadata %q: wrong length", md5sumBase64)
+		} else {
+			o.md5 = hex.EncodeToString(md5sumBytes)
+		}
+	}
+	if resp.LastModified == nil {
+		o.lastModified = time.Now()
+		fs.Logf(o, "Failed to read last modified")
+	} else {
+		// Try to keep the maximum precision in lastModified. If we read
+		// it from listings then it may have millisecond precision, but
+		// if we read it from a HEAD/GET request then it will have
+		// second precision.
+		equalToWithinOneSecond := o.lastModified.Truncate(time.Second).Equal(resp.LastModified.Truncate(time.Second))
+		newHasNs := resp.LastModified.Nanosecond() != 0
+		if !equalToWithinOneSecond || newHasNs {
+			o.lastModified = *resp.LastModified
+		}
+	}
+	o.mimeType = strings.Clone(deref(resp.ContentType))
+
+	// Set system metadata
+	o.storageClass = stringClone(string(resp.StorageClass))
+	o.cacheControl = stringClonePointer(resp.CacheControl)
+	o.contentDisposition = stringClonePointer(resp.ContentDisposition)
+	o.contentEncoding = stringClonePointer(removeAWSChunked(resp.ContentEncoding))
+	o.contentLanguage = stringClonePointer(resp.ContentLanguage)
+
+	// Set Object Lock metadata
+	if resp.ObjectLockMode != "" {
+		mode := string(resp.ObjectLockMode)
+		o.objectLockMode = &mode
+	}
+	if resp.ObjectLockRetainUntilDate != nil {
+		o.objectLockRetainUntilDate = resp.ObjectLockRetainUntilDate
+	}
+	if resp.ObjectLockLegalHoldStatus != "" {
+		status := string(resp.ObjectLockLegalHoldStatus)
+		o.objectLockLegalHoldStatus = &status
+	}
+
+	// If decompressing then size and md5sum are unknown
+	if o.fs.opt.Decompress && deref(o.contentEncoding) == "gzip" {
+		o.bytes = -1
+		o.md5 = ""
+	}
+}
+
+// ModTime returns the modification time of the object
+//
+// It attempts to read the objects mtime and if that isn't present the
+// LastModified returned in the http headers
+func (o *Object) ModTime(ctx context.Context) time.Time {
+	if o.fs.ci.UseServerModTime {
+		return o.lastModified
+	}
+	err := o.readMetaData(ctx)
+	if err != nil {
+		fs.Logf(o, "Failed to read metadata: %v", err)
+		return time.Now()
+	}
+	// read mtime out of metadata if available
+	d, ok := o.meta[metaMtime]
+	if !ok {
+		// fs.Debugf(o, "No metadata")
+		return o.lastModified
+	}
+	modTime, err := swift.FloatStringToTime(d)
+	if err != nil {
+		fs.Logf(o, "Failed to read mtime from object: %v", err)
+		return o.lastModified
+	}
+	return modTime
+}
+
+// SetModTime sets the modification time of the local fs object
+func (o *Object) SetModTime(ctx context.Context, modTime time.Time) error {
+	if o.fs.opt.Provider == "Rabata" {
+		// Rabata does not support copying objects
+		return fs.ErrorCantSetModTime
+	}
+	err := o.readMetaData(ctx)
+	if err != nil {
+		return err
+	}
+	o.meta[metaMtime] = swift.TimeToFloatString(modTime)
+
+	// Can't update metadata here, so return this error to force a recopy
+	if o.storageClass != nil && (*o.storageClass == "GLACIER" || *o.storageClass == "DEEP_ARCHIVE") {
+		return fs.ErrorCantSetModTime
+	}
+
+	// Copy the object to itself to update the metadata
+	bucket, bucketPath := o.split()
+	req := s3.CopyObjectInput{
+		ContentType:       aws.String(fs.MimeType(ctx, o)), // Guess the content type
+		Metadata:          mapToS3Metadata(o.meta),
+		MetadataDirective: types.MetadataDirectiveReplace, // replace metadata with that passed in
+	}
+	if o.fs.opt.RequesterPays {
+		req.RequestPayer = types.RequestPayerRequester
+	}
+	return o.fs.copy(ctx, &req, bucket, bucketPath, bucket, bucketPath, o)
+}
+
+// Storable raturns a boolean indicating if this object is storable
+func (o *Object) Storable() bool {
+	return true
+}
+
+// removeAWSChunked removes the "aws-chunked" content-coding from a
+// Content-Encoding field value (RFC 9110). Comparison is case-insensitive.
+// Returns nil if encoding is empty after removal.
+func removeAWSChunked(pv *string) *string {
+	if pv == nil {
+		return nil
+	}
+	v := *pv
+	if v == "" {
+		return nil
+	}
+	if !strings.Contains(strings.ToLower(v), "aws-chunked") {
+		return pv
+	}
+	parts := strings.Split(v, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		tok := strings.TrimSpace(p)
+		if tok == "" || strings.EqualFold(tok, "aws-chunked") {
+			continue
+		}
+		out = append(out, tok)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	v = strings.Join(out, ",")
+	return &v
+}
+
+func (o *Object) downloadFromURL(ctx context.Context, bucketPath string, options ...fs.OpenOption) (in io.ReadCloser, err error) {
+	url := o.fs.opt.DownloadURL + bucketPath
+	var resp *http.Response
+	opts := rest.Opts{
+		Method:  "GET",
+		RootURL: url,
+		Options: options,
+	}
+	err = o.fs.pacer.Call(func() (bool, error) {
+		resp, err = o.fs.srvRest.Call(ctx, &opts)
+		return o.fs.shouldRetry(ctx, err)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	contentLength := rest.ParseSizeFromHeaders(resp.Header)
+	if contentLength < 0 {
+		fs.Debugf(o, "Failed to parse file size from headers")
+	}
+
+	lastModified, err := http.ParseTime(resp.Header.Get("Last-Modified"))
+	if err != nil {
+		fs.Debugf(o, "Failed to parse last modified from string %s, %v", resp.Header.Get("Last-Modified"), err)
+	}
+
+	metaData := make(map[string]string)
+	for key, value := range resp.Header {
+		key = strings.ToLower(key)
+		if after, ok := strings.CutPrefix(key, "x-amz-meta-"); ok {
+			metaKey := after
+			metaData[metaKey] = value[0]
+		}
+	}
+
+	header := func(k string) *string {
+		v := resp.Header.Get(k)
+		if v == "" {
+			return nil
+		}
+		return &v
+	}
+
+	var head = s3.HeadObjectOutput{
+		ETag:               header("Etag"),
+		ContentLength:      &contentLength,
+		LastModified:       &lastModified,
+		Metadata:           metaData,
+		CacheControl:       header("Cache-Control"),
+		ContentDisposition: header("Content-Disposition"),
+		ContentEncoding:    header("Content-Encoding"),
+		ContentLanguage:    header("Content-Language"),
+		ContentType:        header("Content-Type"),
+		StorageClass:       types.StorageClass(deref(header("X-Amz-Storage-Class"))),
+	}
+	o.setMetaData(&head)
+	return resp.Body, err
+}
+
+// middleware to stop the SDK adding `Accept-Encoding: identity`
+func removeDisableGzip() func(*middleware.Stack) error {
+	return func(stack *middleware.Stack) error {
+		_, err := stack.Finalize.Remove("DisableAcceptEncodingGzip")
+		return err
+	}
+}
+
+// middleware to set Accept-Encoding to how we want it
+//
+// This make sure we download compressed files as-is from all platforms
+func (f *Fs) acceptEncoding() (APIOptions []func(*middleware.Stack) error) {
+	APIOptions = append(APIOptions, removeDisableGzip())
+	if f.opt.UseAcceptEncodingGzip.Value {
+		APIOptions = append(APIOptions, smithyhttp.AddHeaderValue("Accept-Encoding", "gzip"))
+	}
+	return APIOptions
+}
+
+// Open an object for read
+func (o *Object) Open(ctx context.Context, options ...fs.OpenOption) (in io.ReadCloser, err error) {
+	bucket, bucketPath := o.split()
+
+	if o.fs.opt.DownloadURL != "" {
+		return o.downloadFromURL(ctx, bucketPath, options...)
+	}
+
+	req := s3.GetObjectInput{
+		Bucket:    &bucket,
+		Key:       &bucketPath,
+		VersionId: o.versionID,
+	}
+	if o.fs.opt.RequesterPays {
+		req.RequestPayer = types.RequestPayerRequester
+	}
+	if o.fs.opt.SSECustomerAlgorithm != "" {
+		req.SSECustomerAlgorithm = &o.fs.opt.SSECustomerAlgorithm
+	}
+	if o.fs.opt.SSECustomerKeyBase64 != "" {
+		req.SSECustomerKey = &o.fs.opt.SSECustomerKeyBase64
+	}
+	if o.fs.opt.SSECustomerKeyMD5 != "" {
+		req.SSECustomerKeyMD5 = &o.fs.opt.SSECustomerKeyMD5
+	}
+	// httpReq, err := s3.NewPresignClient(o.fs.c).PresignGetObject(ctx, &req)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	fs.FixRangeOption(options, o.bytes)
+
+	var APIOptions []func(*middleware.Stack) error
+
+	// Set the SDK to always download compressed files as-is
+	APIOptions = append(APIOptions, o.fs.acceptEncoding()...)
+
+	for _, option := range options {
+		switch option.(type) {
+		case *fs.RangeOption, *fs.SeekOption:
+			_, value := option.Header()
+			req.Range = &value
+		case *fs.HTTPOption:
+			key, value := option.Header()
+			APIOptions = append(APIOptions, smithyhttp.AddHeaderValue(key, value))
+		default:
+			if option.Mandatory() {
+				fs.Logf(o, "Unsupported mandatory option: %v", option)
+			}
+		}
+	}
+
+	var resp *s3.GetObjectOutput
+	err = o.fs.pacer.Call(func() (bool, error) {
+		var err error
+		resp, err = o.fs.c.GetObject(ctx, &req, s3.WithAPIOptions(APIOptions...))
+		return o.fs.shouldRetry(ctx, err)
+	})
+	if awsError, ok := errors.AsType[smithy.APIError](err); ok {
+		if awsError.ErrorCode() == "InvalidObjectState" {
+			return nil, fmt.Errorf("Object in GLACIER, restore first: bucket=%q, key=%q", bucket, bucketPath)
+		}
+	}
+	if err != nil {
+		if statusCode := getHTTPStatusCode(err); statusCode == http.StatusNotFound || statusCode == http.StatusMethodNotAllowed {
+			return nil, fs.ErrorObjectNotFound
+		}
+		return nil, err
+	}
+
+	// read size from ContentLength or ContentRange
+	size := resp.ContentLength
+	if resp.ContentRange != nil {
+		var contentRange = *resp.ContentRange
+		slash := strings.IndexRune(contentRange, '/')
+		if slash >= 0 {
+			i, err := strconv.ParseInt(contentRange[slash+1:], 10, 64)
+			if err == nil {
+				size = &i
+			} else {
+				fs.Debugf(o, "Failed to find parse integer from in %q: %v", contentRange, err)
+			}
+		} else {
+			fs.Debugf(o, "Failed to find length in %q", contentRange)
+		}
+	}
+	var head s3.HeadObjectOutput
+	//structs.SetFrom(&head, resp)
+	setFrom_s3HeadObjectOutput_s3GetObjectOutput(&head, resp)
+	head.ContentLength = size
+	o.setMetaData(&head)
+
+	// Decompress body if necessary
+	if deref(removeAWSChunked(resp.ContentEncoding)) == "gzip" {
+		if o.fs.opt.Decompress || (resp.ContentLength == nil && o.fs.opt.MightGzip.Value) {
+			return readers.NewGzipReader(resp.Body)
+		}
+		o.fs.warnCompressed.Do(func() {
+			fs.Logf(o, "Not decompressing 'Content-Encoding: gzip' compressed file. Use --s3-decompress to override")
+		})
+	}
+
+	return resp.Body, nil
+}
+
+var warnStreamUpload sync.Once
+
+// state of ChunkWriter
+type s3ChunkWriter struct {
+	chunkSize            int64
+	size                 int64
+	f                    *Fs
+	bucket               *string
+	key                  *string
+	uploadID             *string
+	multiPartUploadInput *s3.CreateMultipartUploadInput
+	completedPartsMu     sync.Mutex
+	completedParts       []types.CompletedPart
+	eTag                 string
+	versionID            string
+	md5sMu               sync.Mutex
+	md5s                 []byte
+	ui                   uploadInfo
+	o                    *Object
+}
+
+// OpenChunkWriter returns the chunk size and a ChunkWriter
+//
+// Pass in the remote and the src object
+// You can also use options to hint at the desired chunk size
+func (f *Fs) OpenChunkWriter(ctx context.Context, remote string, src fs.ObjectInfo, options ...fs.OpenOption) (info fs.ChunkWriterInfo, writer fs.ChunkWriter, err error) {
+	// Temporary Object under construction
+	o := &Object{
+		fs:     f,
+		remote: remote,
+	}
+	ui, err := o.prepareUpload(ctx, src, options, false)
+	if err != nil {
+		return info, nil, fmt.Errorf("failed to prepare upload: %w", err)
+	}
+
+	//structs.SetFrom(&mReq, req)
+	var mReq s3.CreateMultipartUploadInput
+	setFrom_s3CreateMultipartUploadInput_s3PutObjectInput(&mReq, ui.req)
+
+	uploadParts := f.opt.MaxUploadParts
+	if uploadParts < 1 {
+		uploadParts = 1
+	} else if uploadParts > maxUploadParts {
+		uploadParts = maxUploadParts
+	}
+	size := src.Size()
+
+	// calculate size of parts
+	chunkSize := f.opt.ChunkSize
+
+	// size can be -1 here meaning we don't know the size of the incoming file. We use ChunkSize
+	// buffers here (default 5 MiB). With a maximum number of parts (10,000) this will be a file of
+	// 48 GiB which seems like a not too unreasonable limit.
+	if size == -1 {
+		warnStreamUpload.Do(func() {
+			fs.Logf(f, "Streaming uploads using chunk size %v will have maximum file size of %v",
+				f.opt.ChunkSize, fs.SizeSuffix(int64(chunkSize)*int64(uploadParts)))
+		})
+	} else {
+		chunkSize = chunksize.Calculator(src, size, uploadParts, chunkSize)
+	}
+
+	var mOut *s3.CreateMultipartUploadOutput
+	err = f.pacer.Call(func() (bool, error) {
+		mOut, err = f.c.CreateMultipartUpload(ctx, &mReq)
+		if err == nil {
+			if mOut == nil {
+				err = fserrors.RetryErrorf("internal error: no info from multipart upload")
+			} else if mOut.UploadId == nil {
+				err = fserrors.RetryErrorf("internal error: no UploadId in multipart upload: %#v", *mOut)
+			}
+		}
+		return f.shouldRetry(ctx, err)
+	})
+	if err != nil {
+		return info, nil, fmt.Errorf("create multipart upload failed: %w", err)
+	}
+
+	chunkWriter := &s3ChunkWriter{
+		chunkSize:            int64(chunkSize),
+		size:                 size,
+		f:                    f,
+		bucket:               ui.req.Bucket,
+		key:                  ui.req.Key,
+		uploadID:             mOut.UploadId,
+		multiPartUploadInput: &mReq,
+		completedParts:       make([]types.CompletedPart, 0),
+		ui:                   ui,
+		o:                    o,
+	}
+	info = fs.ChunkWriterInfo{
+		ChunkSize:         int64(chunkSize),
+		Concurrency:       o.fs.opt.UploadConcurrency,
+		LeavePartsOnError: o.fs.opt.LeavePartsOnError,
+	}
+	fs.Debugf(o, "open chunk writer: started multipart upload: %v", *mOut.UploadId)
+	return info, chunkWriter, err
+}
+
+// add a part number and etag to the completed parts
+func (w *s3ChunkWriter) addCompletedPart(partNum *int32, eTag *string) {
+	w.completedPartsMu.Lock()
+	defer w.completedPartsMu.Unlock()
+	w.completedParts = append(w.completedParts, types.CompletedPart{
+		PartNumber: partNum,
+		ETag:       eTag,
+	})
+}
+
+// addMd5 adds a binary md5 to the md5 calculated so far
+func (w *s3ChunkWriter) addMd5(md5binary *[]byte, chunkNumber int64) {
+	w.md5sMu.Lock()
+	defer w.md5sMu.Unlock()
+	start := chunkNumber * md5.Size
+	end := start + md5.Size
+	if extend := end - int64(len(w.md5s)); extend > 0 {
+		w.md5s = append(w.md5s, make([]byte, extend)...)
+	}
+	copy(w.md5s[start:end], (*md5binary))
+}
+
+// WriteChunk will write chunk number with reader bytes, where chunk number >= 0
+func (w *s3ChunkWriter) WriteChunk(ctx context.Context, chunkNumber int, reader io.ReadSeeker) (int64, error) {
+	if chunkNumber < 0 {
+		err := fmt.Errorf("invalid chunk number provided: %v", chunkNumber)
+		return -1, err
+	}
+	// Only account after the checksum reads have been done
+	if do, ok := reader.(pool.DelayAccountinger); ok {
+		// To figure out this number, do a transfer and if the accounted size is 0 or a
+		// multiple of what it should be, increase or decrease this number.
+		//
+		// For transfers over https the SDK does not sign the body whereas over http it does
+		if len(w.f.opt.Endpoint) >= 5 && strings.EqualFold(w.f.opt.Endpoint[:5], "http:") {
+			do.DelayAccounting(3)
+		} else {
+			do.DelayAccounting(2)
+		}
+	}
+
+	// create checksum of buffer for integrity checking
+	// currently there is no way to calculate the md5 without reading the chunk a 2nd time (1st read is in uploadMultipart)
+	// possible in AWS SDK v2 with trailers?
+	m := md5.New()
+	currentChunkSize, err := io.Copy(m, reader)
+	if err != nil {
+		return -1, err
+	}
+	// If no data read and not the first chunk, don't write the chunk
+	if currentChunkSize == 0 && chunkNumber != 0 {
+		return 0, nil
+	}
+	md5sumBinary := m.Sum([]byte{})
+	w.addMd5(&md5sumBinary, int64(chunkNumber))
+	md5sum := base64.StdEncoding.EncodeToString(md5sumBinary)
+
+	// S3 requires 1 <= PartNumber <= 10000
+	s3PartNumber := aws.Int32(int32(chunkNumber + 1))
+	uploadPartReq := &s3.UploadPartInput{
+		Body:                 reader,
+		Bucket:               w.bucket,
+		Key:                  w.key,
+		PartNumber:           s3PartNumber,
+		UploadId:             w.uploadID,
+		ContentMD5:           &md5sum,
+		ContentLength:        aws.Int64(currentChunkSize),
+		RequestPayer:         w.multiPartUploadInput.RequestPayer,
+		SSECustomerAlgorithm: w.multiPartUploadInput.SSECustomerAlgorithm,
+		SSECustomerKey:       w.multiPartUploadInput.SSECustomerKey,
+		SSECustomerKeyMD5:    w.multiPartUploadInput.SSECustomerKeyMD5,
+	}
+	if w.f.opt.DirectoryBucket {
+		// Directory buckets do not support "Content-Md5" header
+		uploadPartReq.ContentMD5 = nil
+	}
+	var uout *s3.UploadPartOutput
+	err = w.f.pacer.Call(func() (bool, error) {
+		// rewind the reader on retry and after reading md5
+		_, err = reader.Seek(0, io.SeekStart)
+		if err != nil {
+			return false, err
+		}
+		uout, err = w.f.c.UploadPart(ctx, uploadPartReq)
+		if err != nil {
+			if chunkNumber <= 8 {
+				return w.f.shouldRetry(ctx, err)
+			}
+			if fserrors.ContextError(ctx, &err) {
+				return false, err
+			}
+			// retry all chunks once have done the first few
+			return true, err
+		}
+		if uout == nil || uout.ETag == nil {
+			// A successful UploadPart without an ETag header is unusable: the
+			// part ETag is required by CompleteMultipartUpload. Proxies and
+			// load balancers have been observed emitting empty 200 responses
+			// under load - see #9822. Treat it as a retryable error so the
+			// pacer retries this chunk, instead of dereferencing a nil ETag
+			// in the debug log below or completing the upload with a broken
+			// part list.
+			return true, fmt.Errorf("UploadPart response for chunk %d has no ETag", chunkNumber+1)
+		}
+		return false, nil
+	})
+	if err != nil {
+		return -1, fmt.Errorf("failed to upload chunk %d with %v bytes: %w", chunkNumber+1, currentChunkSize, err)
+	}
+
+	w.addCompletedPart(s3PartNumber, uout.ETag)
+
+	fs.Debugf(w.o, "multipart upload wrote chunk %d with %v bytes and etag %v", chunkNumber+1, currentChunkSize, *uout.ETag)
+	return currentChunkSize, err
+}
+
+// Abort the multipart upload
+func (w *s3ChunkWriter) Abort(ctx context.Context) error {
+	err := w.f.pacer.Call(func() (bool, error) {
+		_, err := w.f.c.AbortMultipartUpload(context.Background(), &s3.AbortMultipartUploadInput{
+			Bucket:       w.bucket,
+			Key:          w.key,
+			UploadId:     w.uploadID,
+			RequestPayer: w.multiPartUploadInput.RequestPayer,
+		})
+		return w.f.shouldRetry(ctx, err)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to abort multipart upload %q: %w", *w.uploadID, err)
+	}
+	fs.Debugf(w.o, "multipart upload %q aborted", *w.uploadID)
+	return err
+}
+
+// Close and finalise the multipart upload
+func (w *s3ChunkWriter) Close(ctx context.Context) (err error) {
+	// sort the completed parts by part number
+	sort.Slice(w.completedParts, func(i, j int) bool {
+		return *w.completedParts[i].PartNumber < *w.completedParts[j].PartNumber
+	})
+	var resp *s3.CompleteMultipartUploadOutput
+	err = w.f.pacer.Call(func() (bool, error) {
+		resp, err = w.f.c.CompleteMultipartUpload(ctx, &s3.CompleteMultipartUploadInput{
+			Bucket: w.bucket,
+			Key:    w.key,
+			MultipartUpload: &types.CompletedMultipartUpload{
+				Parts: w.completedParts,
+			},
+			RequestPayer:         w.multiPartUploadInput.RequestPayer,
+			SSECustomerAlgorithm: w.multiPartUploadInput.SSECustomerAlgorithm,
+			SSECustomerKey:       w.multiPartUploadInput.SSECustomerKey,
+			SSECustomerKeyMD5:    w.multiPartUploadInput.SSECustomerKeyMD5,
+			UploadId:             w.uploadID,
+			IfMatch:              w.ui.req.IfMatch,
+			IfNoneMatch:          w.ui.req.IfNoneMatch,
+		})
+		return w.f.shouldRetry(ctx, err)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to complete multipart upload %q: %w", *w.uploadID, err)
+	}
+	if resp != nil {
+		if resp.ETag != nil {
+			w.eTag = *resp.ETag
+		}
+		if resp.VersionId != nil {
+			w.versionID = *resp.VersionId
+		}
+	}
+	fs.Debugf(w.o, "multipart upload %q finished", *w.uploadID)
+	return err
+}
+
+func (o *Object) uploadMultipart(ctx context.Context, src fs.ObjectInfo, in io.Reader, options ...fs.OpenOption) (wantETag, gotETag string, versionID *string, ui uploadInfo, err error) {
+	chunkWriter, err := multipart.UploadMultipart(ctx, src, in, multipart.UploadMultipartOptions{
+		Open:        o.fs,
+		OpenOptions: options,
+	})
+	if err != nil {
+		return wantETag, gotETag, versionID, ui, err
+	}
+
+	s3cw := chunkWriter.(*s3ChunkWriter)
+	gotETag = *stringClone(s3cw.eTag)
+	versionID = stringClone(s3cw.versionID)
+
+	hashOfHashes := md5.Sum(s3cw.md5s)
+	wantETag = fmt.Sprintf("%s-%d", hex.EncodeToString(hashOfHashes[:]), len(s3cw.completedParts))
+
+	return wantETag, gotETag, versionID, s3cw.ui, nil
+}
+
+// bufferForObjectLockMD5 buffers the body and computes Content-MD5 when
+// Object Lock parameters are set on the request and Content-MD5 isn't
+// already known from the source. AWS S3 requires Content-MD5 for
+// PutObject with Object Lock params and cannot compute it automatically
+// from a non-seekable io.Reader.
+// See: https://github.com/aws/aws-sdk-go-v2/discussions/2960
+//
+// The returned body must not be closed by the transport and cleanup must
+// be called once the upload has finished with it.
+func bufferForObjectLockMD5(req *s3.PutObjectInput, in io.Reader) (body io.Reader, cleanup func(), err error) {
+	cleanup = func() {}
+	if req.ContentMD5 != nil || (req.ObjectLockMode == "" && req.ObjectLockRetainUntilDate == nil && req.ObjectLockLegalHoldStatus == "") {
+		return in, cleanup, nil
+	}
+	rw := multipart.NewRW()
+	cleanup = func() {
+		_ = rw.Close()
+	}
+	hasher := md5.New()
+	if _, err = io.Copy(rw, io.TeeReader(in, hasher)); err != nil {
+		return nil, cleanup, fmt.Errorf("failed to read body for Content-MD5: %w", err)
+	}
+	md5base64 := base64.StdEncoding.EncodeToString(hasher.Sum(nil))
+	req.ContentMD5 = &md5base64
+	return rw, cleanup, nil
+}
+
+// Upload a single part using PutObject
+func (o *Object) uploadSinglepartPutObject(ctx context.Context, req *s3.PutObjectInput, size int64, in io.Reader) (etag string, lastModified time.Time, versionID *string, err error) {
+	in, cleanup, err := bufferForObjectLockMD5(req, in)
+	defer cleanup()
+	if err != nil {
+		return etag, lastModified, nil, err
+	}
+	req.Body = io.NopCloser(in)
+	var options = []func(*s3.Options){}
+	if o.fs.opt.UseUnsignedPayload.Value {
+		options = append(options, s3.WithAPIOptions(
+			// avoids operation error S3: PutObject, failed to compute payload hash: failed to seek body to start, request stream is not seekable
+			v4signer.SwapComputePayloadSHA256ForUnsignedPayloadMiddleware,
+		))
+	}
+	// Can't retry single part uploads as only have an io.Reader
+	options = append(options, func(s3opt *s3.Options) {
+		s3opt.RetryMaxAttempts = 1
+	})
+	var resp *s3.PutObjectOutput
+	err = o.fs.pacer.CallNoRetry(func() (bool, error) {
+		resp, err = o.fs.c.PutObject(ctx, req, options...)
+		return o.fs.shouldRetry(ctx, err)
+	})
+	if err != nil {
+		return etag, lastModified, nil, err
+	}
+	lastModified = time.Now()
+	if resp != nil {
+		etag = *stringClone(deref(resp.ETag))
+		versionID = stringClonePointer(resp.VersionId)
+	}
+	return etag, lastModified, versionID, nil
+}
+
+// Upload a single part using a presigned request
+func (o *Object) uploadSinglepartPresignedRequest(ctx context.Context, req *s3.PutObjectInput, size int64, in io.Reader) (etag string, lastModified time.Time, versionID *string, err error) {
+	// Content-MD5 must be set before signing so it's included in the presigned URL.
+	in, cleanup, err := bufferForObjectLockMD5(req, in)
+	defer cleanup()
+	if err != nil {
+		return etag, lastModified, nil, err
+	}
+	// Create the presigned request
+	putReq, err := s3.NewPresignClient(o.fs.c).PresignPutObject(ctx, req, s3.WithPresignExpires(15*time.Minute))
+	if err != nil {
+		return etag, lastModified, nil, fmt.Errorf("s3 upload: sign request: %w", err)
+	}
+
+	// Set request to nil if empty so as not to make chunked encoding
+	if size == 0 {
+		in = nil
+	}
+
+	// create the vanilla http request, making sure the transport can't
+	// close a pooled body
+	httpReq, err := http.NewRequestWithContext(ctx, "PUT", putReq.URL, readers.NoCloser(in))
+	if err != nil {
+		return etag, lastModified, nil, fmt.Errorf("s3 upload: new request: %w", err)
+	}
+
+	// set the headers we signed and the length
+	httpReq.Header = putReq.SignedHeader
+	httpReq.ContentLength = size
+	// let the client resend a seekable body when following a redirect
+	if seeker, ok := in.(io.Seeker); ok {
+		httpReq.GetBody = func() (io.ReadCloser, error) {
+			_, err := seeker.Seek(0, io.SeekStart)
+			return io.NopCloser(readers.NoCloser(in)), err
+		}
+	}
+
+	var resp *http.Response
+	err = o.fs.pacer.CallNoRetry(func() (bool, error) {
+		var err error
+		resp, err = o.fs.srv.Do(httpReq)
+		if err != nil {
+			return o.fs.shouldRetry(ctx, err)
+		}
+		body, err := rest.ReadBody(resp)
+		if err != nil {
+			return o.fs.shouldRetry(ctx, err)
+		}
+		if resp.StatusCode >= 200 && resp.StatusCode < 299 {
+			return false, nil
+		}
+		err = fmt.Errorf("s3 upload: %s: %s", resp.Status, body)
+		return fserrors.ShouldRetryHTTP(resp, retryErrorCodes), err
+	})
+	if err != nil {
+		return etag, lastModified, nil, err
+	}
+	if resp != nil {
+		if date, err := http.ParseTime(resp.Header.Get("Date")); err != nil {
+			lastModified = date
+		}
+		etag = *stringClone(resp.Header.Get("Etag"))
+		vID := *stringClone(resp.Header.Get("x-amz-version-id"))
+		if vID != "" {
+			versionID = &vID
+		}
+	}
+	return etag, lastModified, versionID, nil
+}
+
+// Info needed for an upload
+type uploadInfo struct {
+	req       *s3.PutObjectInput
+	md5sumHex string
+}
+
+// Prepare object for being uploaded
+//
+// If noHash is true the md5sum will not be calculated
+func (o *Object) prepareUpload(ctx context.Context, src fs.ObjectInfo, options []fs.OpenOption, noHash bool) (ui uploadInfo, err error) {
+	bucket, bucketPath := o.split()
+	// Create parent dir/bucket if not saving directory marker
+	if !strings.HasSuffix(o.remote, "/") {
+		err := o.fs.mkdirParent(ctx, o.remote)
+		if err != nil {
+			return ui, err
+		}
+	}
+	modTime := src.ModTime(ctx)
+
+	ui.req = &s3.PutObjectInput{
+		Bucket: &bucket,
+		ACL:    types.ObjectCannedACL(o.fs.opt.ACL),
+		Key:    &bucketPath,
+	}
+	if tierObj, ok := src.(fs.GetTierer); ok {
+		tier := tierObj.GetTier()
+		if tier != "" {
+			ui.req.StorageClass = types.StorageClass(strings.ToUpper(tier))
+		}
+	}
+	// Fetch metadata if --metadata is in use
+	meta, err := fs.GetMetadataOptions(ctx, o.fs, src, options)
+	if err != nil {
+		return ui, fmt.Errorf("failed to read metadata from source object: %w", err)
+	}
+	ui.req.Metadata = make(map[string]string, len(meta)+2)
+	// merge metadata into request and user metadata
+	for k, v := range meta {
+		pv := aws.String(v)
+		k = strings.ToLower(k)
+		if o.fs.opt.NoSystemMetadata {
+			ui.req.Metadata[k] = v
+			continue
+		}
+		switch k {
+		case "cache-control":
+			ui.req.CacheControl = pv
+		case "content-disposition":
+			ui.req.ContentDisposition = pv
+		case "content-encoding":
+			ui.req.ContentEncoding = removeAWSChunked(pv)
+		case "content-language":
+			ui.req.ContentLanguage = pv
+		case "content-type":
+			ui.req.ContentType = pv
+		case "x-amz-tagging":
+			ui.req.Tagging = pv
+		case "tier":
+			// ignore
+		case "mtime":
+			// mtime in meta overrides source ModTime
+			metaModTime, err := time.Parse(time.RFC3339Nano, v)
+			if err != nil {
+				fs.Debugf(o, "failed to parse metadata %s: %q: %v", k, v, err)
+			} else {
+				modTime = metaModTime
+			}
+		case "btime":
+			// write as metadata since we can't set it
+			ui.req.Metadata[k] = v
+		case "object-lock-mode":
+			// Only apply if option is set to "copy" and not using after-upload API
+			if strings.EqualFold(o.fs.opt.ObjectLockMode, "copy") && !o.fs.opt.ObjectLockSetAfterUpload {
+				ui.req.ObjectLockMode = types.ObjectLockMode(v)
+			}
+		case "object-lock-retain-until-date":
+			// Only apply if option is set to "copy" and not using after-upload API
+			if strings.EqualFold(o.fs.opt.ObjectLockRetainUntilDate, "copy") && !o.fs.opt.ObjectLockSetAfterUpload {
+				retainDate, err := time.Parse(time.RFC3339, v)
+				if err != nil {
+					fs.Debugf(o, "failed to parse object-lock-retain-until-date %q: %v", v, err)
+				} else {
+					ui.req.ObjectLockRetainUntilDate = &retainDate
+				}
+			}
+		case "object-lock-legal-hold-status":
+			// Only apply if option is set to "copy" and not using after-upload API
+			if strings.EqualFold(o.fs.opt.ObjectLockLegalHoldStatus, "copy") && !o.fs.opt.ObjectLockSetAfterUpload {
+				ui.req.ObjectLockLegalHoldStatus = types.ObjectLockLegalHoldStatus(v)
+			}
+		default:
+			ui.req.Metadata[k] = v
+		}
+	}
+
+	// Set the mtime in the meta data
+	ui.req.Metadata[metaMtime] = swift.TimeToFloatString(modTime)
+
+	// read the md5sum if available
+	// - for non multipart
+	//    - so we can add a ContentMD5
+	//    - so we can add the md5sum in the metadata as metaMD5Hash if using SSE/SSE-C
+	// - for multipart provided checksums aren't disabled
+	//    - so we can add the md5sum in the metadata as metaMD5Hash
+	var md5sumBase64 string
+	size := src.Size()
+	multipart := size < 0 || size >= int64(o.fs.opt.UploadCutoff)
+	if !noHash && (!multipart || !o.fs.opt.DisableChecksum) {
+		ui.md5sumHex, err = src.Hash(ctx, hash.MD5)
+		if err == nil && matchMd5.MatchString(ui.md5sumHex) {
+			hashBytes, err := hex.DecodeString(ui.md5sumHex)
+			if err == nil {
+				md5sumBase64 = base64.StdEncoding.EncodeToString(hashBytes)
+				if (multipart || o.fs.etagIsNotMD5) && !o.fs.opt.DisableChecksum {
+					// Set the md5sum as metadata on the object if
+					// - a multipart upload
+					// - the Etag is not an MD5, eg when using SSE/SSE-C or directory buckets
+					// provided checksums aren't disabled
+					ui.req.Metadata[metaMD5Hash] = md5sumBase64
+				}
+			}
+		}
+	}
+
+	// Set the content type if it isn't set already
+	if ui.req.ContentType == nil {
+		ui.req.ContentType = aws.String(fs.MimeType(ctx, src))
+	}
+	if size >= 0 {
+		ui.req.ContentLength = &size
+	}
+	if md5sumBase64 != "" && !o.fs.opt.DirectoryBucket {
+		ui.req.ContentMD5 = &md5sumBase64
+	}
+	if o.fs.opt.RequesterPays {
+		ui.req.RequestPayer = types.RequestPayerRequester
+	}
+	if o.fs.opt.ServerSideEncryption != "" {
+		ui.req.ServerSideEncryption = types.ServerSideEncryption(o.fs.opt.ServerSideEncryption)
+	}
+	if o.fs.opt.SSECustomerAlgorithm != "" {
+		ui.req.SSECustomerAlgorithm = &o.fs.opt.SSECustomerAlgorithm
+	}
+	if o.fs.opt.SSECustomerKeyBase64 != "" {
+		ui.req.SSECustomerKey = &o.fs.opt.SSECustomerKeyBase64
+	}
+	if o.fs.opt.SSECustomerKeyMD5 != "" {
+		ui.req.SSECustomerKeyMD5 = &o.fs.opt.SSECustomerKeyMD5
+	}
+	if o.fs.opt.SSEKMSKeyID != "" {
+		ui.req.SSEKMSKeyId = &o.fs.opt.SSEKMSKeyID
+	}
+	if o.fs.opt.StorageClass != "" {
+		ui.req.StorageClass = types.StorageClass(o.fs.opt.StorageClass)
+	}
+
+	// Apply Object Lock options via headers (unless ObjectLockSetAfterUpload is set)
+	// "copy" means: keep the value from metadata (already applied above in the switch)
+	if !o.fs.opt.ObjectLockSetAfterUpload {
+		if o.fs.opt.ObjectLockMode != "" && !strings.EqualFold(o.fs.opt.ObjectLockMode, "copy") {
+			ui.req.ObjectLockMode = types.ObjectLockMode(strings.ToUpper(o.fs.opt.ObjectLockMode))
+		}
+		if o.fs.opt.ObjectLockRetainUntilDate != "" && !strings.EqualFold(o.fs.opt.ObjectLockRetainUntilDate, "copy") {
+			retainDate, err := parseRetainUntilDate(o.fs.opt.ObjectLockRetainUntilDate)
+			if err != nil {
+				return ui, fmt.Errorf("invalid object_lock_retain_until_date %q: %w", o.fs.opt.ObjectLockRetainUntilDate, err)
+			}
+			ui.req.ObjectLockRetainUntilDate = &retainDate
+		}
+		if o.fs.opt.ObjectLockLegalHoldStatus != "" && !strings.EqualFold(o.fs.opt.ObjectLockLegalHoldStatus, "copy") {
+			ui.req.ObjectLockLegalHoldStatus = types.ObjectLockLegalHoldStatus(strings.ToUpper(o.fs.opt.ObjectLockLegalHoldStatus))
+		}
+	}
+
+	// Apply upload options
+	for _, option := range options {
+		key, value := option.Header()
+		lowerKey := strings.ToLower(key)
+		switch lowerKey {
+		case "":
+			// ignore
+		case "cache-control":
+			ui.req.CacheControl = aws.String(value)
+		case "content-disposition":
+			ui.req.ContentDisposition = aws.String(value)
+		case "content-encoding":
+			ui.req.ContentEncoding = removeAWSChunked(aws.String(value))
+		case "content-language":
+			ui.req.ContentLanguage = aws.String(value)
+		case "content-type":
+			ui.req.ContentType = aws.String(value)
+		case "if-match":
+			ui.req.IfMatch = aws.String(value)
+		case "if-none-match":
+			ui.req.IfNoneMatch = aws.String(value)
+		case "x-amz-tagging":
+			ui.req.Tagging = aws.String(value)
+		default:
+			const amzMetaPrefix = "x-amz-meta-"
+			if strings.HasPrefix(lowerKey, amzMetaPrefix) {
+				metaKey := lowerKey[len(amzMetaPrefix):]
+				ui.req.Metadata[metaKey] = value
+			} else {
+				fs.Errorf(o, "Don't know how to set key %q on upload", key)
+			}
+		}
+	}
+
+	// Check metadata keys and values are valid
+	for key, value := range ui.req.Metadata {
+		if !httpguts.ValidHeaderFieldName(key) {
+			fs.Errorf(o, "Dropping invalid metadata key %q", key)
+			delete(ui.req.Metadata, key)
+		} else if !httpguts.ValidHeaderFieldValue(value) {
+			fs.Errorf(o, "Dropping invalid metadata value %q for key %q", value, key)
+			delete(ui.req.Metadata, key)
+		}
+	}
+
+	return ui, nil
+}
+
+// Update the Object from in with modTime and size
+func (o *Object) Update(ctx context.Context, in io.Reader, src fs.ObjectInfo, options ...fs.OpenOption) error {
+	if o.fs.opt.VersionAt.IsSet() {
+		return errNotWithVersionAt
+	}
+	size := src.Size()
+	multipart := size < 0 || size >= int64(o.fs.opt.UploadCutoff)
+
+	var wantETag string        // Multipart upload Etag to check
+	var gotETag string         // Etag we got from the upload
+	var lastModified time.Time // Time we got from the upload
+	var versionID *string      // versionID we got from the upload
+	var err error
+	var ui uploadInfo
+	if multipart {
+		wantETag, gotETag, versionID, ui, err = o.uploadMultipart(ctx, src, in, options...)
+	} else {
+		ui, err = o.prepareUpload(ctx, src, options, false)
+		if err != nil {
+			return fmt.Errorf("failed to prepare upload: %w", err)
+		}
+
+		if o.fs.opt.UsePresignedRequest {
+			gotETag, lastModified, versionID, err = o.uploadSinglepartPresignedRequest(ctx, ui.req, size, in)
+		} else {
+			gotETag, lastModified, versionID, err = o.uploadSinglepartPutObject(ctx, ui.req, size, in)
+		}
+	}
+	if err != nil {
+		return err
+	}
+	// Only record versionID if we are using --s3-versions or --s3-version-at
+	if o.fs.opt.Versions || o.fs.opt.VersionAt.IsSet() {
+		o.versionID = versionID
+	} else {
+		o.versionID = nil
+	}
+
+	// User requested we don't HEAD the object after uploading it
+	// so make up the object as best we can assuming it got
+	// uploaded properly. If size < 0 then we need to do the HEAD.
+	var head *s3.HeadObjectOutput
+	if o.fs.opt.NoHead && size >= 0 {
+		head = new(s3.HeadObjectOutput)
+		//structs.SetFrom(head, &req)
+		setFrom_s3HeadObjectOutput_s3PutObjectInput(head, ui.req)
+		head.ETag = &ui.md5sumHex // doesn't matter quotes are missing
+		head.ContentLength = &size
+		// We get etag back from single and multipart upload so fill it in here
+		if gotETag != "" {
+			head.ETag = &gotETag
+		}
+		if lastModified.IsZero() {
+			lastModified = time.Now()
+		}
+		head.LastModified = &lastModified
+		head.VersionId = versionID
+	} else {
+		// Read the metadata from the newly created object
+		o.meta = nil // wipe old metadata
+		head, err = o.headObject(ctx)
+		if err != nil {
+			return err
+		}
+	}
+	o.setMetaData(head)
+
+	// Check multipart upload ETag if required
+	if o.fs.opt.UseMultipartEtag.Value && !o.fs.etagIsNotMD5 && wantETag != "" && head.ETag != nil && *head.ETag != "" {
+		gotETag := strings.Trim(strings.ToLower(*head.ETag), `"`)
+		if wantETag != gotETag {
+			return fmt.Errorf("multipart upload corrupted: Etag differ: expecting %s but got %s", wantETag, gotETag)
+		}
+		fs.Debugf(o, "Multipart upload Etag: %s OK", wantETag)
+	}
+
+	// Set Object Lock via separate API calls if requested
+	if o.fs.opt.ObjectLockSetAfterUpload {
+		if err := o.setObjectLockAfterUpload(ctx, src); err != nil {
+			return err
+		}
+	}
+
+	return err
+}
+
+// Remove an object
+func (o *Object) Remove(ctx context.Context) error {
+	if o.fs.opt.VersionAt.IsSet() {
+		return errNotWithVersionAt
+	}
+	bucket, bucketPath := o.split()
+	req := s3.DeleteObjectInput{
+		Bucket:    &bucket,
+		Key:       &bucketPath,
+		VersionId: o.versionID,
+	}
+	if o.fs.opt.RequesterPays {
+		req.RequestPayer = types.RequestPayerRequester
+	}
+	if o.fs.opt.BypassGovernanceRetention {
+		req.BypassGovernanceRetention = &o.fs.opt.BypassGovernanceRetention
+	}
+	err := o.fs.pacer.Call(func() (bool, error) {
+		_, err := o.fs.c.DeleteObject(ctx, &req)
+		return o.fs.shouldRetry(ctx, err)
+	})
+	return err
+}
+
+// setObjectRetention sets Object Lock retention on an object via PutObjectRetention API
+//
+// Note: We use smithyhttp.AddContentChecksumMiddleware to ensure Content-MD5 is
+// calculated for the request body. The AWS SDK v2 switched from MD5 to CRC32 as
+// the default checksum algorithm, but some S3-compatible providers (e.g. MinIO)
+// still require Content-MD5 for PutObjectRetention requests.
+// See: https://github.com/aws/aws-sdk-go-v2/discussions/2960
+func (o *Object) setObjectRetention(ctx context.Context, mode types.ObjectLockRetentionMode, retainUntilDate time.Time) error {
+	bucket, bucketPath := o.split()
+	req := s3.PutObjectRetentionInput{
+		Bucket:    &bucket,
+		Key:       &bucketPath,
+		VersionId: o.versionID,
+		Retention: &types.ObjectLockRetention{
+			Mode:            mode,
+			RetainUntilDate: &retainUntilDate,
+		},
+	}
+	if o.fs.opt.RequesterPays {
+		req.RequestPayer = types.RequestPayerRequester
+	}
+	if o.fs.opt.BypassGovernanceRetention {
+		req.BypassGovernanceRetention = &o.fs.opt.BypassGovernanceRetention
+	}
+	return o.fs.pacer.Call(func() (bool, error) {
+		_, err := o.fs.c.PutObjectRetention(ctx, &req,
+			s3.WithAPIOptions(smithyhttp.AddContentChecksumMiddleware))
+		return o.fs.shouldRetry(ctx, err)
+	})
+}
+
+// setObjectLegalHold sets Object Lock legal hold on an object via PutObjectLegalHold API
+//
+// Note: We use smithyhttp.AddContentChecksumMiddleware to ensure Content-MD5 is
+// calculated for the request body. The AWS SDK v2 switched from MD5 to CRC32 as
+// the default checksum algorithm, but some S3-compatible providers (e.g. MinIO)
+// still require Content-MD5 for PutObjectLegalHold requests.
+// See: https://github.com/aws/aws-sdk-go-v2/discussions/2960
+func (o *Object) setObjectLegalHold(ctx context.Context, status types.ObjectLockLegalHoldStatus) error {
+	bucket, bucketPath := o.split()
+	req := s3.PutObjectLegalHoldInput{
+		Bucket:    &bucket,
+		Key:       &bucketPath,
+		VersionId: o.versionID,
+		LegalHold: &types.ObjectLockLegalHold{
+			Status: status,
+		},
+	}
+	if o.fs.opt.RequesterPays {
+		req.RequestPayer = types.RequestPayerRequester
+	}
+	return o.fs.pacer.Call(func() (bool, error) {
+		_, err := o.fs.c.PutObjectLegalHold(ctx, &req,
+			s3.WithAPIOptions(smithyhttp.AddContentChecksumMiddleware))
+		return o.fs.shouldRetry(ctx, err)
+	})
+}
+
+// setObjectLockAfterUpload sets Object Lock via separate API calls after upload
+// This is for S3 providers that don't support Object Lock headers during PUT
+func (o *Object) setObjectLockAfterUpload(ctx context.Context, src fs.ObjectInfo) error {
+	// Determine the mode
+	var mode types.ObjectLockRetentionMode
+	modeOpt := o.fs.opt.ObjectLockMode
+	if strings.EqualFold(modeOpt, "copy") {
+		if srcObj, ok := src.(*Object); ok && srcObj.objectLockMode != nil {
+			mode = types.ObjectLockRetentionMode(*srcObj.objectLockMode)
+		}
+	} else if modeOpt != "" {
+		mode = types.ObjectLockRetentionMode(strings.ToUpper(modeOpt))
+	}
+
+	// Determine the retain until date
+	var retainUntilDate time.Time
+	dateOpt := o.fs.opt.ObjectLockRetainUntilDate
+	if strings.EqualFold(dateOpt, "copy") {
+		if srcObj, ok := src.(*Object); ok && srcObj.objectLockRetainUntilDate != nil {
+			retainUntilDate = *srcObj.objectLockRetainUntilDate
+		}
+	} else if dateOpt != "" {
+		var err error
+		retainUntilDate, err = parseRetainUntilDate(dateOpt)
+		if err != nil {
+			return fmt.Errorf("invalid object_lock_retain_until_date %q: %w", dateOpt, err)
+		}
+	}
+
+	// Set retention if both mode and date are set
+	if mode != "" && !retainUntilDate.IsZero() {
+		if err := o.setObjectRetention(ctx, mode, retainUntilDate); err != nil {
+			return fmt.Errorf("failed to set object retention: %w", err)
+		}
+	}
+
+	// Determine and set legal hold
+	var legalHold types.ObjectLockLegalHoldStatus
+	legalHoldOpt := o.fs.opt.ObjectLockLegalHoldStatus
+	if strings.EqualFold(legalHoldOpt, "copy") {
+		if srcObj, ok := src.(*Object); ok && srcObj.objectLockLegalHoldStatus != nil {
+			legalHold = types.ObjectLockLegalHoldStatus(*srcObj.objectLockLegalHoldStatus)
+		}
+	} else if legalHoldOpt != "" {
+		legalHold = types.ObjectLockLegalHoldStatus(strings.ToUpper(legalHoldOpt))
+	}
+
+	if legalHold != "" {
+		if err := o.setObjectLegalHold(ctx, legalHold); err != nil {
+			return fmt.Errorf("failed to set legal hold: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// MimeType of an Object if known, "" otherwise
+func (o *Object) MimeType(ctx context.Context) string {
+	err := o.readMetaData(ctx)
+	if err != nil {
+		fs.Logf(o, "Failed to read metadata: %v", err)
+		return ""
+	}
+	return o.mimeType
+}
+
+// SetTier performs changing storage class
+func (o *Object) SetTier(tier string) (err error) {
+	ctx := context.TODO()
+	tier = strings.ToUpper(tier)
+	bucket, bucketPath := o.split()
+	req := s3.CopyObjectInput{
+		MetadataDirective: types.MetadataDirectiveCopy,
+		StorageClass:      types.StorageClass(tier),
+	}
+	err = o.fs.copy(ctx, &req, bucket, bucketPath, bucket, bucketPath, o)
+	if err != nil {
+		return err
+	}
+	o.storageClass = &tier
+	return err
+}
+
+// GetTier returns storage class as string
+func (o *Object) GetTier() string {
+	if o.storageClass == nil || *o.storageClass == "" {
+		return "STANDARD"
+	}
+	return *o.storageClass
+}
+
+// Metadata returns metadata for an object
+//
+// It should return nil if there is no Metadata
+func (o *Object) Metadata(ctx context.Context) (metadata fs.Metadata, err error) {
+	err = o.readMetaData(ctx)
+	if err != nil {
+		return nil, err
+	}
+	metadata = make(fs.Metadata, len(o.meta)+10)
+	for k, v := range o.meta {
+		switch k {
+		case metaMtime:
+			if modTime, err := swift.FloatStringToTime(v); err == nil {
+				metadata["mtime"] = modTime.Format(time.RFC3339Nano)
+			}
+		case metaMD5Hash:
+			// don't write hash metadata
+		default:
+			metadata[k] = v
+		}
+	}
+	if o.mimeType != "" {
+		metadata["content-type"] = o.mimeType
+	}
+	// metadata["x-amz-tagging"] = ""
+	if !o.lastModified.IsZero() {
+		metadata["btime"] = o.lastModified.Format(time.RFC3339Nano)
+	}
+
+	// Set system metadata
+	setMetadata := func(k string, v *string) {
+		if o.fs.opt.NoSystemMetadata {
+			return
+		}
+		if v == nil || *v == "" {
+			return
+		}
+		metadata[k] = *v
+	}
+	setMetadata("cache-control", o.cacheControl)
+	setMetadata("content-disposition", o.contentDisposition)
+	setMetadata("content-encoding", o.contentEncoding)
+	setMetadata("content-language", o.contentLanguage)
+
+	// Set Object Lock metadata
+	setMetadata("object-lock-mode", o.objectLockMode)
+	if o.objectLockRetainUntilDate != nil {
+		formatted := o.objectLockRetainUntilDate.Format(time.RFC3339)
+		setMetadata("object-lock-retain-until-date", &formatted)
+	}
+	setMetadata("object-lock-legal-hold-status", o.objectLockLegalHoldStatus)
+
+	metadata["tier"] = o.GetTier()
+
+	return metadata, nil
+}
+
+// Check the interfaces are satisfied
+var (
+	_ fs.Fs              = &Fs{}
+	_ fs.Purger          = &Fs{}
+	_ fs.Copier          = &Fs{}
+	_ fs.PutStreamer     = &Fs{}
+	_ fs.ListRer         = &Fs{}
+	_ fs.ListPer         = &Fs{}
+	_ fs.Commander       = &Fs{}
+	_ fs.CleanUpper      = &Fs{}
+	_ fs.OpenChunkWriter = &Fs{}
+	_ fs.Object          = &Object{}
+	_ fs.MimeTyper       = &Object{}
+	_ fs.GetTierer       = &Object{}
+	_ fs.SetTierer       = &Object{}
+	_ fs.Metadataer      = &Object{}
+)

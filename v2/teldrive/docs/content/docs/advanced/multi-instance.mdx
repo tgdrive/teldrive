@@ -1,0 +1,92 @@
+---
+title: Multi-instance deployments
+description: Run multiple Teldrive API and worker processes against shared PostgreSQL.
+---
+
+Use multiple instances only for a measured availability or capacity requirement.
+
+## Shared configuration
+
+Every instance must share:
+
+- PostgreSQL database and schema;
+- `security.signing-key`;
+- `security.data-key`;
+- `encryption.keys` and active version;
+- Telegram application identity.
+
+## Worker roles
+
+Default API + worker process:
+
+```yaml
+jobs:
+  run-workers: true
+```
+
+API-only process:
+
+```yaml
+jobs:
+  run-workers: false
+```
+
+At least one instance must keep workers enabled.
+
+```text
+load balancer ──► API 1 (workers off)
+              ├► API 2 (workers off)
+              └► Worker (workers on)
+                      │
+                      ▼
+                PostgreSQL
+```
+
+## PostgreSQL pools
+
+Each process owns a pool. Budget the aggregate maximum, not just one instance:
+
+```yaml
+database:
+  max-connections: 10
+  min-connections: 1
+```
+
+## Bot rotation
+
+Single instance:
+
+```yaml
+telegram:
+  bot-rotation-backend: memory
+```
+
+Multiple coordinated instances:
+
+```yaml
+telegram:
+  bot-rotation-backend: database
+```
+
+## SSE
+
+`events.max-connections-per-user` is per API instance. The load balancer and proxy must support long-lived SSE connections on every instance.
+
+## Encryption-key rollout
+
+For a new content key:
+
+1. distribute the new key version to every instance;
+2. verify all instances start;
+3. switch the active version everywhere;
+4. retain old key versions for old files.
+
+## Upgrades
+
+Back up PostgreSQL before migrations. Avoid prolonged mixed-version deployments unless the release explicitly supports them.
+
+See [Upgrading](/deployment/upgrading).
+
+## Before scaling
+
+Multiple instances do not fix Telegram rate limits, proxy buffering, slow clients, an undersized PostgreSQL server, or excessive per-instance concurrency. Measure the bottleneck first.

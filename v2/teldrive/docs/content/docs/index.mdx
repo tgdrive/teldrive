@@ -1,0 +1,38 @@
+---
+title: Teldrive
+description: Self-hosted Telegram-backed cloud storage with a web UI, API, and rclone support.
+---
+
+Teldrive stores metadata in PostgreSQL and file payloads in Telegram.
+
+<ButtonLink href="/getting-started/quick-start">Quick start →</ButtonLink>
+
+<Cards>
+  <Card title="Quick start" href="/getting-started/quick-start">
+    Run Teldrive with PostgreSQL and the official container image.
+  </Card>
+  <Card title="Production" href="/deployment/production">
+    HTTPS, access control, backups, and upgrades.
+  </Card>
+  <Card title="Configuration" href="/configuration/overview">
+    Files, environment variables, flags, and settings.
+  </Card>
+  <Card title="Using Teldrive" href="/using/files-and-folders">
+    Files, uploads, sharing, channels, bots, and tasks.
+  </Card>
+  <Card title="Rclone" href="/rclone/setup">
+    Configure the native rclone backend.
+  </Card>
+  <Card title="API Reference" href="/api/">
+    OpenAPI-backed Scalar reference.
+  </Card>
+</Cards>
+
+## Requirements
+
+- PostgreSQL with persistent storage
+- Telegram account and outbound Telegram access
+- `security.signing-key`
+- `security.data-key`
+
+For internet-facing deployments, use HTTPS and keep PostgreSQL private.

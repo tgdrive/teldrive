@@ -1,0 +1,63 @@
+---
+title: Health checks
+description: Use Teldrive liveness and readiness endpoints.
+---
+
+```text
+GET /health/live
+GET /health/ready
+```
+
+## Liveness
+
+`/health/live` returns `200` when the process can serve HTTP:
+
+```json
+{
+  "status": "ok",
+  "version": "vX.Y.Z"
+}
+```
+
+Use it for process restart decisions.
+
+## Readiness
+
+`/health/ready` returns `200` when Teldrive is ready for application traffic and `503` when required runtime/database state is unavailable.
+
+Use it for load-balancer routing.
+
+## Test
+
+```bash
+curl -fsS http://127.0.0.1:8080/health/live
+curl -fsS http://127.0.0.1:8080/health/ready
+```
+
+For public deployments, also test the HTTPS path:
+
+```bash
+curl -fsS https://drive.example.com/health/ready
+```
+
+## Kubernetes
+
+```yaml
+livenessProbe:
+  httpGet:
+    path: /health/live
+    port: 8080
+  periodSeconds: 20
+
+readinessProbe:
+  httpGet:
+    path: /health/ready
+    port: 8080
+  periodSeconds: 10
+```
+
+## Container note
+
+The official runtime image is distroless and has no shell, `curl`, or `wget`. Use orchestrator-native HTTP probes or an external monitor.
+
+Alert on sustained readiness failures, restart loops, or disagreement between local and public HTTPS checks.

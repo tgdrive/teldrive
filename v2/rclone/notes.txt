@@ -1,0 +1,41 @@
+Change lsd command so it doesn't show -1
+  * Make sure all Fses show -1 for objects Zero for dates, etc.
+  * Make test?
+
+Put the TestRemote names into the Fs description
+Make fs/test_all.go use the TestRemote name automatically
+
+Get rid of Storable?
+
+Todo
+  * FIXME: More -dry-run checks for object transfer
+  * Might be quicker to check md5sums first? for swift <-> swift certainly, and maybe for small files
+  * FIXME Make NewFs to return err.IsAnObject so can put the LimitedFs
+    creation in common code? Or try for as much as possible?
+  * FIXME Account all the transactions (ls, etc.) using a different
+    Roundtripper wrapper which wraps the transactions?
+
+Ideas
+  * could do encryption - put IV into metadata?
+  * optimise remote copy container to another container using remote
+    copy if local is same as remote - use an optional Copier interface
+  * support
+      * sftp
+      * scp
+      * rsync over ssh
+  * control times sync (which is slow with some remotes) with -a --archive flag?
+  * Copy a glob pattern - could do with LimitedFs
+
+Make an encryption layer.
+
+This would layer over the source FS to
+    * decrypt all gets
+    * encrypt all puts
+    * encrypt file names in list
+    * decrypt them in list
+
+Would like to be able to see unencrypted file names in remote though? How?  Or is that two encryption layers..?
+
+Bugs
+  * Non verbose - not sure number transferred got counted up? CHECK
+  * When doing copy it recurses the whole of the destination FS which isn't necessary

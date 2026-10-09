@@ -1,0 +1,41 @@
+{
+  "indexes": {
+    "tag": "tags",
+    "group": "groups",
+    "menu": "menu"
+  },
+  "baseurl": "https://rclone.org",
+  "title": "rclone - rsync for cloud storage",
+  "description": "rclone - rsync for cloud storage: google drive, s3, gcs, azure, dropbox, box...",
+  "canonifyurls": false,
+  "disableKinds": [
+    "taxonomy"
+  ],
+  "ignoreFiles": [
+    "~$",
+    "^\\.",
+    "\\.go$"
+  ],
+  "enableGitInfo": true,
+  "markup": {
+    "tableOfContents": {
+      "endLevel": 3,
+      "ordered": false,
+      "startLevel": 2
+    },
+    "goldmark": {
+      "extensions": {
+        "typographer": false
+      },
+      "parser": {
+        "autoHeadingIDType": "blackfriday"
+      },
+      "renderer": {
+        "unsafe": false
+      }
+    },
+    "highlight": {
+      "noClasses": false
+    }
+  }
+}

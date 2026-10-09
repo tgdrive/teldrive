@@ -1,0 +1,76 @@
+---
+title: Configuration overview
+description: Config files, environment variables, and CLI flags.
+---
+
+## Precedence
+
+```text
+built-in defaults < config file < TELDRIVE_* environment < explicit CLI flags
+```
+
+## Config files
+
+Without `--config`, Teldrive checks:
+
+```text
+~/.teldrive/config.toml
+~/.teldrive/config.yaml
+~/.teldrive/config.yml
+./config.toml
+./config.yaml
+./config.yml
+```
+
+Explicit path:
+
+```bash
+teldrive run --config /etc/teldrive/config.toml
+```
+
+Supported formats: TOML, YAML, YML.
+
+## Name mapping
+
+```text
+telegram.upload-threads
+TELDRIVE_TELEGRAM_UPLOAD_THREADS
+--telegram-upload-threads
+```
+
+Environment names use `TELDRIVE_` + uppercase/underscores. CLI flags flatten nested keys with hyphens.
+
+## Required values
+
+```yaml
+database:
+  url: postgres://...
+
+security:
+  signing-key: YOUR_SIGNING_KEY
+  data-key: YOUR_DATA_KEY
+```
+
+`security.data-key` must decode to exactly 32 bytes. The Quick Start generator creates compatible values.
+
+## Validate
+
+```bash
+teldrive check --config /etc/teldrive/config.toml
+```
+
+Compose:
+
+```bash
+docker compose run --rm teldrive check
+```
+
+## Guides
+
+<Cards>
+  <Card title="Database" href="/configuration/database">PostgreSQL, schema, pool, migrations.</Card>
+  <Card title="Security" href="/configuration/security">Keys, access control, token lifetimes.</Card>
+  <Card title="Telegram" href="/configuration/telegram">Concurrency, channels, proxies, clients.</Card>
+  <Card title="Uploads & events" href="/configuration/uploads-and-events">Uploads, hashing, SSE, workers.</Card>
+  <Card title="Full reference" href="/configuration/reference">Every config key, env var, flag, and default.</Card>
+</Cards>

@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+
+set -e
+
+NAME=owncloud
+USER=rclone
+PASS=HarperGrayerFewest5
+PORT=38081
+
+. $(dirname "$0")/docker.bash
+
+start() {
+    docker run --rm -d --name $NAME \
+           -e "OWNCLOUD_DOMAIN=localhost:8080" \
+           -e "OWNCLOUD_DB_TYPE=sqlite" \
+           -e "OWNCLOUD_DB_NAME=owncloud.db" \
+           -e "OWNCLOUD_ADMIN_USERNAME=$USER" \
+           -e "OWNCLOUD_ADMIN_PASSWORD=$PASS" \
+           -e "OWNCLOUD_MYSQL_UTF8MB4=true" \
+           -e "OWNCLOUD_REDIS_ENABLED=false" \
+           -e "OWNCLOUD_TRUSTED_DOMAINS=127.0.0.1" \
+           -p 127.0.0.1:${PORT}:8080 \
+           owncloud/server
+    
+    echo type=webdav
+    echo url=http://127.0.0.1:${PORT}/remote.php/webdav/
+    echo user=$USER
+    echo pass=$(rclone obscure $PASS)
+    echo vendor=owncloud
+    echo _connect=127.0.0.1:${PORT}
+}
+
+. $(dirname "$0")/run.bash

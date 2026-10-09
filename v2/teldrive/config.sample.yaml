@@ -1,0 +1,95 @@
+http:
+  address: 127.0.0.1:8080
+  read-header-timeout: 10s
+  read-timeout: 1h
+  write-timeout: 1h
+  idle-timeout: 2m
+  shutdown-timeout: 10s
+  # Trust forwarding headers only from these proxy IP addresses or CIDRs.
+  trusted-proxies: []
+
+database:
+  schema: teldrive
+  url: postgres://postgres:postgres@127.0.0.1:5432/teldrive?sslmode=disable
+  application-name: teldrive-v2
+  max-connections: 25
+  min-connections: 2
+  max-connection-idle: 5m
+  max-connection-life: 30m
+  health-check-interval: 30s
+  connect-timeout: 10s
+  auto-migrate-legacy: true
+
+telegram:
+  # Use filesystem for local/offline testing. Remote mode requires app-id/app-hash.
+  backend: remote
+  local-root: ./var/local-telegram
+  app-id: 2496
+  app-hash: 8da85b0d5bfe62527e5b244c209159c3
+  device-model: Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/116.0
+  system-version: Win32
+  app-version: 6.1.4 K
+  language-code: en
+  system-language-code: en-US
+  language-pack: webk
+  dial-timeout: 10s
+  reconnect-timeout: 5m
+  max-retries: 10
+  rate-limit: true
+  rate-interval: 50ms
+  rate-burst: 10
+  proxy: ""
+  mtproxy:
+    address: ""
+    secret: ""
+  upload-threads: 8
+  download-bots: 0
+  # Keep this disabled to preserve request-scoped Telegram clients.
+  download-client-pool: false
+  download-read-buffers: 32
+  download-read-parallel: 4
+  randomize-part-names: true
+  auto-channel-create: true
+  bot-rotation-backend: memory
+  channel-part-limit: 500000
+  channel-name-prefix: teldrive
+
+encryption:
+  active-key-version: 0
+  keys: ""
+
+security:
+  signing-key: ""
+  data-key: ""
+  issuer: teldrive-v2
+  allowed-users: []
+  access-token-ttl: 15m
+  refresh-token-ttl: 720h
+  login-flow-ttl: 10m
+
+uploads:
+  session-ttl: 168h
+  # Disable to skip automatic BLAKE3 hashing during uploads. Client-supplied checksums still require verification.
+  hashing-enabled: true
+  local-import-roots: []
+
+cache:
+  memory:
+    size: 5MB
+
+events:
+  batch-size: 100
+  max-connections-per-user: 5
+  heartbeat: 20s
+  write-timeout: 10s
+  ticket-ttl: 2m
+  retention: 168h
+  cleanup-interval: 1h
+  connect-timeout: 10s
+  ping-interval: 5s
+  reconnect-min: 100ms
+  reconnect-max: 30s
+
+logging:
+  log-level: info
+  log-format: json
