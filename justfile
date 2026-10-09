@@ -81,11 +81,17 @@ build: generate-ui
 nix-generate:
     go run ./internal/tools/nixconfig
 
-# NOTE: foliate-js must stay an https tarball URL for the pinned commit —
-# bun2nix 2.x cannot parse bun 1.4's 4-tuple `github:` lock entries, and the
-# npm `foliate-js` tag is older than the pinned commit. Keep lockfileVersion 1.
-update-bun-nix:
-    nix run .#bun2nix -- -l {{ui_dir}}/bun.lock -o {{ui_dir}}/bun.nix
+# Re-pin the UI node_modules fixed-output hash after package.json/bun.lock changes.
+update-ui-deps-hash:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    out=$(nix build .#teldrive 2>&1 || true)
+    echo "$out"
+    got=$(echo "$out" | grep -oP 'got:\s+\Ksha256-[A-Za-z0-9+/=]+' | head -n1 || true)
+    if [ -n "$got" ]; then
+      sed -i "s|outputHash = \"sha256-[^\"]*\";|outputHash = \"${got}\";|" nix/ui.nix
+      echo "patched nix/ui.nix to $got — re-run nix build .#teldrive"
+    fi
 
 # Fast re-pin of the Go vendor hash without a full `nix build`.
 # Uses the nixpkgs-provided toolchain so the pinned hash always matches
