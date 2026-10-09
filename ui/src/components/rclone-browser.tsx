@@ -331,23 +331,22 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
                   />
                 </div>
                 {pending ? <Spinner aria-label="Consultando rclone" /> : null}
-                <ul
-                  aria-label="Archivos de rclone"
-                  className="max-h-96 overflow-y-auto"
-                >
+                <ul aria-label="Archivos de rclone" className="max-h-96 overflow-y-auto">
                   {filtered.slice(page * 100, (page + 1) * 100).map((entry) => (
                     <li
                       key={entry.Path}
                       className={`flex items-center gap-2 border-b border-border py-2 ${selected?.Path === entry.Path ? "bg-accent/10" : ""}`}
                     >
-                      <input
-                        type="radio"
-                        name="rclone-selection"
-                        aria-label={`Seleccionar ${entry.Name}`}
-                        checked={selected?.Path === entry.Path}
-                        onChange={() => setSelected(entry)}
-                        className="m-2 size-5"
-                      />
+                      <label className="flex size-11 shrink-0 cursor-pointer items-center justify-center">
+                        <input
+                          type="radio"
+                          name="rclone-selection"
+                          aria-label={`Seleccionar ${entry.Name}`}
+                          checked={selected?.Path === entry.Path}
+                          onChange={() => setSelected(entry)}
+                          className="size-5"
+                        />
+                      </label>
                       <Button
                         variant="ghost"
                         className="h-auto min-w-0 flex-1 justify-start whitespace-normal text-left"

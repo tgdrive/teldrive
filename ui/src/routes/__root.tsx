@@ -49,6 +49,7 @@ const mainNav = [
   { label: "Compartido conmigo", icon: FolderIcon, path: "/shared-with-me" },
   { label: "Almacenamiento", icon: StorageIcon, path: "/storage" },
   { label: "Tareas", icon: TasksIcon, path: "/tasks", capability: "system.manageJobs" },
+  { label: "Spam", icon: GridIcon, path: "/spam" },
   { label: "Papelera", icon: GridIcon, path: "/trash" },
 ] as const;
 
@@ -124,7 +125,13 @@ function Sidebar({
         }}
         onClick={() => onNavigate?.()}
       >
-        {item.path === "/storage" ? <span className="shrink-0" aria-hidden="true">☁️</span> : <item.icon className="size-4 shrink-0" />}
+        {item.path === "/storage" ? (
+          <span className="shrink-0" aria-hidden="true">
+            ☁️
+          </span>
+        ) : (
+          <item.icon className="size-4 shrink-0" />
+        )}
         <span
           className={cn(
             "overflow-hidden whitespace-nowrap transition-[width,opacity,margin] duration-200",
@@ -164,7 +171,12 @@ function Sidebar({
 
       <Separator className="mx-3 w-auto" />
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-        {visibleMainNav.map(item => <div key={item.path}>{renderItem(item)}{item.path === "/storage" && (!collapsed || mobile) ? <StorageSummary /> : null}</div>)}
+        {visibleMainNav.map((item) => (
+          <div key={item.path}>
+            {renderItem(item)}
+            {item.path === "/storage" && (!collapsed || mobile) ? <StorageSummary /> : null}
+          </div>
+        ))}
       </nav>
       <div className="border-t border-border px-3 py-3">
         <Dropdown isOpen={accountMenuOpen} onOpenChange={setAccountMenuOpen}>
@@ -302,7 +314,11 @@ function TopBar({
         className="size-9 rounded-xl"
         onPress={desktop ? onToggleSidebar : onOpenMobile}
         aria-label={
-          desktop ? (collapsed ? "Expandir menú lateral" : "Contraer menú lateral") : "Abrir navegación"
+          desktop
+            ? collapsed
+              ? "Expandir menú lateral"
+              : "Contraer menú lateral"
+            : "Abrir navegación"
         }
       >
         {desktop ? (
@@ -320,7 +336,10 @@ function TopBar({
         <p className="truncate text-sm font-semibold sm:text-base">{title}</p>
       </div>
 
-      <search aria-label="Buscar en la unidad" className="flex min-w-0 flex-1 items-center md:max-w-md">
+      <search
+        aria-label="Buscar en la unidad"
+        className="flex min-w-0 flex-1 items-center md:max-w-md"
+      >
         <form
           className="w-full"
           onSubmit={(event) => {

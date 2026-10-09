@@ -402,7 +402,7 @@ func (s *Service) Restore(ctx context.Context, userID int64, fileID uuid.UUID) (
 		file, err := s.queries.GetFileForUser(ctx, sqlcgen.GetFileForUserParams{
 			FileID: dbtypes.UUID(fileID), UserID: userID,
 		})
-		if err == nil && file.Status == sqlcgen.FileStatusTrashed {
+		if err == nil && (file.Status == sqlcgen.FileStatusTrashed || file.Status == sqlcgen.FileStatusSpam) {
 			return nil, ErrConflict
 		}
 		if err != nil && !errors.Is(err, pgx.ErrNoRows) {

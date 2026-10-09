@@ -134,14 +134,14 @@ export function SearchControls({
                     value={draft.updatedAfter?.slice(0, 10) ?? ""}
                     onChange={(value) => setFilter("updatedAfter", searchDate(value))}
                   >
-                    <Label className="text-xs">Modified after</Label>
+                    <Label className="text-xs">Modificado después de</Label>
                     <Input type="date" />
                   </TextField>
                   <TextField
                     value={draft.updatedBefore?.slice(0, 10) ?? ""}
                     onChange={(value) => setFilter("updatedBefore", searchDate(value))}
                   >
-                    <Label className="text-xs">Modified before</Label>
+                    <Label className="text-xs">Modificado antes de</Label>
                     <Input type="date" />
                   </TextField>
                 </div>

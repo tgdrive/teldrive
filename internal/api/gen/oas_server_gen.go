@@ -25,6 +25,12 @@ type Handler interface {
 	//
 	// POST /v1/files/bulk/move
 	BulkMoveFiles(ctx context.Context, req *FileBulkMoveRequest, params BulkMoveFilesParams) (BulkMoveFilesRes, error)
+	// BulkSpamFiles implements bulkSpamFiles operation.
+	//
+	// Quarantine owned files and folders and revoke their sharing.
+	//
+	// POST /v1/files/bulk/spam
+	BulkSpamFiles(ctx context.Context, req *FileBulkTrashRequest, params BulkSpamFilesParams) (BulkSpamFilesRes, error)
 	// BulkTrashFiles implements bulkTrashFiles operation.
 	//
 	// Transactionally move multiple files or folders to trash.
@@ -110,6 +116,14 @@ type Handler interface {
 	//
 	// POST /v1/periodic-jobs
 	CreatePeriodicJob(ctx context.Context, req *PeriodicJobCreate) (CreatePeriodicJobRes, error)
+	// CreatePlayback implements createPlayback operation.
+	//
+	// POST /v1/files/{fileId}/playback
+	CreatePlayback(ctx context.Context, params CreatePlaybackParams) (CreatePlaybackRes, error)
+	// CreatePublicPlayback implements createPublicPlayback operation.
+	//
+	// POST /v1/public/shares/{token}/files/{fileId}/playback
+	CreatePublicPlayback(ctx context.Context, params CreatePublicPlaybackParams) (CreatePublicPlaybackRes, error)
 	// CreatePublicShareFolder implements createPublicShareFolder operation.
 	//
 	// POST /v1/public/shares/{token}/folders
@@ -162,6 +176,10 @@ type Handler interface {
 	//
 	// GET /v1/channels/discover
 	DiscoverChannels(ctx context.Context) (DiscoverChannelsRes, error)
+	// DismissIncomingSpam implements dismissIncomingSpam operation.
+	//
+	// DELETE /v1/shared/spam/{fileId}/dismiss
+	DismissIncomingSpam(ctx context.Context, params DismissIncomingSpamParams) (DismissIncomingSpamRes, error)
 	// GetCurrentUser implements getCurrentUser operation.
 	//
 	// Return the authenticated user profile.
@@ -302,6 +320,10 @@ type Handler interface {
 	//
 	// GET /v1/files
 	ListFiles(ctx context.Context, params ListFilesParams) (ListFilesRes, error)
+	// ListIncomingSpam implements listIncomingSpam operation.
+	//
+	// GET /v1/shared/spam
+	ListIncomingSpam(ctx context.Context) (ListIncomingSpamRes, error)
 	// ListJobQueues implements listJobQueues operation.
 	//
 	// GET /v1/jobs/queues
@@ -358,6 +380,10 @@ type Handler interface {
 	//
 	// POST /v1/auth/logout
 	LogoutSession(ctx context.Context) (LogoutSessionRes, error)
+	// MarkIncomingSpam implements markIncomingSpam operation.
+	//
+	// POST /v1/shared/spam/{fileId}
+	MarkIncomingSpam(ctx context.Context, params MarkIncomingSpamParams) (MarkIncomingSpamRes, error)
 	// MoveFile implements moveFile operation.
 	//
 	// Move a file or folder using metadata only.
@@ -421,6 +447,10 @@ type Handler interface {
 	//
 	// POST /v1/files/{fileId}/restore
 	RestoreFile(ctx context.Context, params RestoreFileParams) (RestoreFileRes, error)
+	// RestoreIncomingSpam implements restoreIncomingSpam operation.
+	//
+	// DELETE /v1/shared/spam/{fileId}
+	RestoreIncomingSpam(ctx context.Context, params RestoreIncomingSpamParams) (RestoreIncomingSpamRes, error)
 	// ResumeJobQueue implements resumeJobQueue operation.
 	//
 	// POST /v1/jobs/queues/{queue}/resume
@@ -574,6 +604,10 @@ type RawHandler interface {
 	//
 	// GET /v1/events
 	StreamEvents(ctx context.Context, params StreamEventsParams, w http.ResponseWriter) error
+	// StreamPlayback implements streamPlayback operation.
+	//
+	// GET /v1/playback
+	StreamPlayback(ctx context.Context, params StreamPlaybackParams, w http.ResponseWriter) error
 }
 
 // Server implements http server based on OpenAPI v3 specification and

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="app_title">☁ Teldrive</string>
+  <string name="allow_local_http">Permitir HTTP en mi red local</string>
+</resources>

@@ -12,7 +12,7 @@ using System.Text.Json;
 
 namespace Teldrive.Desktop;
 
-public sealed record DesktopState(int HttpPort, bool LocalDatabase, string DatabaseUrl, int DatabasePort, string DatabasePassword, string AllowedUser = "");
+public sealed record DesktopState(int HttpPort, bool LocalDatabase, string DatabaseUrl, int DatabasePort, string DatabasePassword, string AllowedUser = "", string HttpHost = "127.0.0.1");
 
 public sealed class RuntimeSession : IAsyncDisposable
 {
@@ -20,7 +20,7 @@ public sealed class RuntimeSession : IAsyncDisposable
     public string Components { get; private set; } = "";
     public string ConfigPath => Path.Combine(DataRoot, "config.toml");
     public DesktopState? State { get; private set; }
-    public Uri? ServerUri => State is null ? null : new Uri($"http://127.0.0.1:{State.HttpPort}");
+    public Uri? ServerUri => State is null ? null : new UriBuilder("http", State.HttpHost, State.HttpPort).Uri;
     public bool Running => server is { HasExited: false };
     public event Action<string>? Activity;
     private Process? server;
@@ -191,18 +191,36 @@ public sealed class RuntimeSession : IAsyncDisposable
     public async Task SaveConfigAsync(string config)
     {
         await ValidateConfigAsync(config);
-        var temporary = ConfigPath + ".new";
-        await File.WriteAllTextAsync(temporary, config);
-        File.Move(temporary, ConfigPath, true);
-        await ReadHttpPortAsync(ConfigPath);
+        var temporary = ConfigPath + ".new.toml";
+        try {
+            await File.WriteAllTextAsync(temporary, config);
+            var endpoint = await ReadDesktopEndpointAsync(temporary);
+            File.Move(temporary, ConfigPath, true);
+            await SetDesktopEndpointAsync(endpoint);
+        } finally { File.Delete(temporary); }
         Log("Configuración guardada y validada.");
     }
     private async Task ReadHttpPortAsync(string path)
+        => await SetDesktopEndpointAsync(await ReadDesktopEndpointAsync(path));
+
+    private sealed record DesktopEndpoint(Uri Http, bool LocalDatabase);
+    private async Task<DesktopEndpoint> ReadDesktopEndpointAsync(string path)
     {
         using var data = JsonDocument.Parse(await RunAsync(Binary("teldrive.exe"), "check", "--config", path, "--desktop-info"));
         var address = data.RootElement.GetProperty("address").GetString();
-        if (!Uri.TryCreate("http://" + address, UriKind.Absolute, out var endpoint) || endpoint.Port is < 1 or > 65535) throw new IOException("La dirección HTTP configurada no es válida para Desktop.");
-        if (State is not null && State.HttpPort != endpoint.Port) { State = State with {HttpPort = endpoint.Port}; await File.WriteAllTextAsync(Path.Combine(DataRoot, "desktop.json"), JsonSerializer.Serialize(State)); }
+        if (!Uri.TryCreate("http://" + address, UriKind.Absolute, out var endpoint) || endpoint.Port is < 1 or > 65535 || endpoint.UserInfo.Length > 0 || endpoint.AbsolutePath != "/") throw new IOException("La dirección HTTP configurada no es válida para Desktop.");
+        var localDatabase = State?.LocalDatabase ?? false;
+        if (data.RootElement.TryGetProperty("databaseAddress", out var databaseAddress)) {
+            localDatabase = State is not null && Uri.TryCreate("http://" + databaseAddress.GetString(), UriKind.Absolute, out var database) && database.IsLoopback && database.Port == State.DatabasePort;
+        }
+        if (endpoint.Host is "0.0.0.0" or "[::]") return new DesktopEndpoint(new UriBuilder("http", "127.0.0.1", endpoint.Port).Uri, localDatabase);
+        if (!endpoint.IsLoopback) throw new IOException("Desktop requiere una dirección local: 127.0.0.1, localhost, [::1], 0.0.0.0 o [::].");
+        return new DesktopEndpoint(endpoint, localDatabase);
+    }
+    private async Task SetDesktopEndpointAsync(DesktopEndpoint info)
+    {
+        var endpoint = info.Http;
+        if (State is not null && (State.HttpPort != endpoint.Port || State.HttpHost != endpoint.Host || State.LocalDatabase != info.LocalDatabase)) { State = State with {HttpPort = endpoint.Port, HttpHost = endpoint.Host, LocalDatabase = info.LocalDatabase}; await File.WriteAllTextAsync(Path.Combine(DataRoot, "desktop.json"), JsonSerializer.Serialize(State)); }
     }
 
     public async Task StopAsync()

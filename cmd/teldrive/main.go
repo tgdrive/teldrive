@@ -6,11 +6,14 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"os/signal"
 	"runtime/debug"
+	"strconv"
 	"syscall"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/spf13/cobra"
 
 	"github.com/tgdrive/teldrive/v2/internal/app"
@@ -92,9 +95,14 @@ func newCheckCommand() *cobra.Command {
 				return err
 			}
 			if desktopInfo {
+				connection, err := pgxpool.ParseConfig(cfg.Database.URL)
+				if err != nil {
+					return fmt.Errorf("invalid database URL")
+				}
 				return json.NewEncoder(cmd.OutOrStdout()).Encode(struct {
-					Address string `json:"address"`
-				}{Address: cfg.HTTP.Address})
+					Address         string `json:"address"`
+					DatabaseAddress string `json:"databaseAddress"`
+				}{Address: cfg.HTTP.Address, DatabaseAddress: net.JoinHostPort(connection.ConnConfig.Host, strconv.Itoa(int(connection.ConnConfig.Port)))})
 			}
 			if validateOnly {
 				fmt.Fprintln(cmd.OutOrStdout(), "Configuración válida")

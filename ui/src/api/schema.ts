@@ -4,6 +4,54 @@
  */
 
 export interface paths {
+    "/v1/files/{fileId}/playback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["createPlayback"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/public/shares/{token}/files/{fileId}/playback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["createPublicPlayback"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/playback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["streamPlayback"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health/live": {
         parameters: {
             query?: never;
@@ -741,6 +789,23 @@ export interface paths {
         put?: never;
         /** @description Transactionally move multiple files or folders. */
         post: operations["bulkMoveFiles"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/files/bulk/spam": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Quarantine owned files and folders and revoke their sharing. */
+        post: operations["bulkSpamFiles"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1487,14 +1552,65 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/shared/spam": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listIncomingSpam"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/shared/spam/{fileId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["markIncomingSpam"];
+        delete: operations["restoreIncomingSpam"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/shared/spam/{fileId}/dismiss": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete: operations["dismissIncomingSpam"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        HealthStatus: {
-            /** @enum {string} */
-            status: "ok" | "degraded";
-            version: string;
+        /** Format: uuid */
+        Uuid: string;
+        PlaybackSession: {
+            ticket: string;
+            /** Format: date-time */
+            expiresAt: string;
+            conversionAvailable: boolean;
         };
         ErrorDetail: {
             /** @description Stable machine-readable error code. */
@@ -1509,8 +1625,12 @@ export interface components {
         ErrorEnvelope: {
             error: components["schemas"]["ErrorDetail"];
         };
-        /** Format: uuid */
-        Uuid: string;
+        ETag: string;
+        HealthStatus: {
+            /** @enum {string} */
+            status: "ok" | "degraded";
+            version: string;
+        };
         TelegramLoginStartResponse: {
             flowId: components["schemas"]["Uuid"];
             /** Format: date-time */
@@ -1573,7 +1693,6 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
         };
-        ETag: string;
         UserSearchResult: {
             /** Format: int64 */
             userId: number;
@@ -1688,7 +1807,7 @@ export interface components {
         /** @enum {string} */
         FileKind: "file" | "folder";
         /** @enum {string} */
-        FileStatus: "active" | "trashed" | "deletion_pending";
+        FileStatus: "active" | "trashed" | "spam" | "deletion_pending";
         /** @enum {string} */
         FileSearchType: "text" | "regex";
         /** @enum {string} */
@@ -2204,6 +2323,8 @@ export interface components {
             /** Format: int64 */
             trashedFiles: number;
             /** Format: int64 */
+            spamBytes: number;
+            /** Format: int64 */
             trashBytes: number;
         };
         StorageGrowthPoint: {
@@ -2258,6 +2379,11 @@ export interface components {
     };
     responses: never;
     parameters: {
+        SharePasswordHeader: string;
+        "FileContentRequestOptions.range": string;
+        "FileContentRequestOptions.ifNoneMatch": components["schemas"]["ETag"];
+        /** @description Force a browser download instead of inline display. */
+        "FileContentRequestOptions.download": "1";
         /** @description Stable UUID generated by the caller for safe request retries. */
         IdempotencyHeader: components["schemas"]["Uuid"];
         RefreshCookie: string;
@@ -2278,14 +2404,9 @@ export interface components {
         "FileListQuery.sort": components["schemas"]["FileSort"];
         "FileListQuery.order": components["schemas"]["SortOrder"];
         OptionalIfMatchHeader: components["schemas"]["ETag"];
-        "FileContentRequestOptions.range": string;
-        "FileContentRequestOptions.ifNoneMatch": components["schemas"]["ETag"];
-        /** @description Force a browser download instead of inline display. */
-        "FileContentRequestOptions.download": "1";
         "UploadPartHeaders.contentLength": number;
         /** @description BLAKE3 checksum of the plaintext part. */
         "UploadPartHeaders.checksum": components["schemas"]["Checksum"];
-        SharePasswordHeader: string;
         /** @description Folder path relative to the shared folder root. */
         "PublicShareListQuery.path": string;
         "PublicShareListQuery.search": string;
@@ -2300,6 +2421,217 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    createPlayback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                fileId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded and a new resource has been created as a result. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaybackSession"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Client error */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    createPublicPlayback: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Share-Password"?: components["parameters"]["SharePasswordHeader"];
+            };
+            path: {
+                token: string;
+                fileId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded and a new resource has been created as a result. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaybackSession"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Client error */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    streamPlayback: {
+        parameters: {
+            query: {
+                ticket: string;
+                mode?: "original" | "audio" | "video";
+                start?: number;
+                /** @description Force a browser download instead of inline display. */
+                download?: components["parameters"]["FileContentRequestOptions.download"];
+            };
+            header?: {
+                Range?: components["parameters"]["FileContentRequestOptions.range"];
+                "If-None-Match"?: components["parameters"]["FileContentRequestOptions.ifNoneMatch"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    "Content-Length": number;
+                    "Accept-Ranges": "bytes";
+                    Etag: components["schemas"]["ETag"];
+                    "Last-Modified": string;
+                    "Content-Disposition": string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            /** @description Successful */
+            206: {
+                headers: {
+                    "Content-Length": number;
+                    "Content-Range": string;
+                    "Accept-Ranges": "bytes";
+                    Etag: components["schemas"]["ETag"];
+                    "Last-Modified": string;
+                    "Content-Disposition": string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            /** @description The client has made a conditional request and the resource has not been modified. */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Client error */
+            416: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Client error */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Service unavailable. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     healthLive: {
         parameters: {
             query?: never;
@@ -5006,6 +5338,69 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["FileBulkMoveRequest"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileBulkResult"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The request conflicts with the current state of the server. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    bulkSpamFiles: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable UUID generated by the caller for safe request retries. */
+                "Idempotency-Key": components["parameters"]["IdempotencyHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FileBulkTrashRequest"];
             };
         };
         responses: {
@@ -8497,6 +8892,131 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["StorageDashboard"];
                 };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listIncomingSpam: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FileEntry"][];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    markIncomingSpam: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                fileId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description There is no content to send for this request, but the headers may be useful. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    restoreIncomingSpam: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                fileId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description There is no content to send for this request, but the headers may be useful. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    dismissIncomingSpam: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                fileId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description There is no content to send for this request, but the headers may be useful. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Access is unauthorized. */
             401: {

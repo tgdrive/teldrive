@@ -4,7 +4,8 @@ SELECT
     count(*) FILTER (WHERE f.kind = 'file' AND f.status = 'active')::bigint AS active_files,
     count(*) FILTER (WHERE f.kind = 'folder' AND f.status = 'active')::bigint AS active_folders,
     count(*) FILTER (WHERE f.kind = 'file' AND f.status = 'trashed')::bigint AS trashed_files,
-    COALESCE(sum(f.size) FILTER (WHERE f.kind = 'file' AND f.status = 'trashed'), 0)::bigint AS trash_bytes
+    COALESCE(sum(f.size) FILTER (WHERE f.kind = 'file' AND f.status = 'trashed'), 0)::bigint AS trash_bytes,
+    COALESCE(sum(f.size) FILTER (WHERE f.kind = 'file' AND f.status = 'spam'), 0)::bigint AS spam_bytes
 FROM /* TEMPLATE: schema */files f
 WHERE f.user_id = sqlc.arg(user_id);
 

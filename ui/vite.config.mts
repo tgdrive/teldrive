@@ -79,6 +79,13 @@ export default defineConfig(() => {
     : backendAddress;
 
   return {
+    define: {
+      __TELDRIVE_BUILD__: JSON.stringify({
+        version: process.env.TELDRIVE_UI_VERSION ?? "v2.0.0-drive-es.1",
+        commit: process.env.TELDRIVE_UI_COMMIT ?? "desarrollo",
+        date: process.env.TELDRIVE_UI_BUILD_DATE ?? new Date().toISOString(),
+      }),
+    },
     plugins: [
       pdfJsAssets(),
       tanstackRouter(),
@@ -106,7 +113,7 @@ export default defineConfig(() => {
       exclude: ["foliate-js"],
     },
     server: {
-      watch: { ignored: ["**/touch-test-results/**", "**/test-results/**", "**/playwright-report/**"] },
+      watch: { ignored: ["**/*test-results*/**", "**/playwright-report/**", "**/*-snapshots/**"] },
       cors: true,
       proxy: {
         "/api": {

@@ -3,6 +3,7 @@ import { getOpenAPI3 } from "@typespec/openapi3";
 import { stringify } from "yaml";
 
 const rawResponseMedia = new Map([
+  ["streamPlayback", [["200", "application/octet-stream"], ["206", "application/octet-stream"]]],
   ["downloadFile", [["200", "application/octet-stream"], ["206", "application/octet-stream"]]],
   ["downloadPublicShare", [["200", "application/octet-stream"], ["206", "application/octet-stream"]]],
   ["downloadPublicShareFile", [["200", "application/octet-stream"], ["206", "application/octet-stream"]]],

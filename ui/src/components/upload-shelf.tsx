@@ -3,6 +3,7 @@ import { type CSSProperties, useState } from "react";
 import { Button as AriaButton, Tree, TreeItem, TreeItemContent } from "react-aria-components";
 import { type UploadTask, useUploadStore } from "@/features/uploads/store";
 import { FileTypeIcon } from "@/features/files/file-type-icon";
+import { taskStatusLabel } from "@/components/task-status-chip";
 import UploadIcon from "~icons/gravity-ui/arrow-up-from-line";
 import ChevronDownIcon from "~icons/gravity-ui/chevron-down";
 import ChevronRightIcon from "~icons/gravity-ui/chevron-right";
@@ -198,7 +199,7 @@ function UploadTreeItem({ node, root = false }: { node: UploadNode; root?: boole
               <span className="truncate text-sm font-medium">{node.name}</span>
               {node.task ? (
                 <Chip size="sm" variant="tertiary" className="capitalize">
-                  {node.task.status.replace("_", " ")}
+                  {taskStatusLabel(node.task.status)}
                 </Chip>
               ) : null}
             </span>

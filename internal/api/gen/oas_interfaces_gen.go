@@ -13,6 +13,10 @@ type BulkMoveFilesRes interface {
 	bulkMoveFilesRes()
 }
 
+type BulkSpamFilesRes interface {
+	bulkSpamFilesRes()
+}
+
 type BulkTrashFilesRes interface {
 	bulkTrashFilesRes()
 }
@@ -81,6 +85,14 @@ type CreatePeriodicJobRes interface {
 	createPeriodicJobRes()
 }
 
+type CreatePlaybackRes interface {
+	createPlaybackRes()
+}
+
+type CreatePublicPlaybackRes interface {
+	createPublicPlaybackRes()
+}
+
 type CreatePublicShareFolderRes interface {
 	createPublicShareFolderRes()
 }
@@ -123,6 +135,10 @@ type DeletePeriodicJobRes interface {
 
 type DiscoverChannelsRes interface {
 	discoverChannelsRes()
+}
+
+type DismissIncomingSpamRes interface {
+	dismissIncomingSpamRes()
 }
 
 type DownloadFileLegacyRes interface {
@@ -257,6 +273,10 @@ type ListFilesRes interface {
 	listFilesRes()
 }
 
+type ListIncomingSpamRes interface {
+	listIncomingSpamRes()
+}
+
 type ListJobQueuesRes interface {
 	listJobQueuesRes()
 }
@@ -299,6 +319,10 @@ type LogoutCookieSessionRes interface {
 
 type LogoutSessionRes interface {
 	logoutSessionRes()
+}
+
+type MarkIncomingSpamRes interface {
+	markIncomingSpamRes()
 }
 
 type MoveFileRes interface {
@@ -349,6 +373,10 @@ type RestoreFileRes interface {
 	restoreFileRes()
 }
 
+type RestoreIncomingSpamRes interface {
+	restoreIncomingSpamRes()
+}
+
 type ResumeJobQueueRes interface {
 	resumeJobQueueRes()
 }
@@ -391,6 +419,10 @@ type SelectChannelRes interface {
 
 type StreamEventsRes interface {
 	streamEventsRes()
+}
+
+type StreamPlaybackRes interface {
+	streamPlaybackRes()
 }
 
 type SyncChannelsRes interface {

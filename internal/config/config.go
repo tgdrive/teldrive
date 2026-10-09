@@ -116,7 +116,15 @@ type Cache struct {
 	Memory MemoryCache `koanf:"memory"`
 }
 
+type Media struct {
+	Enabled       bool          `koanf:"enabled" default:"true" description:"Enable compatible multimedia playback with FFmpeg"`
+	FFmpegPath    string        `koanf:"ffmpeg-path" default:"ffmpeg" description:"FFmpeg executable path"`
+	MaxConcurrent int           `koanf:"max-concurrent" default:"2" validate:"min=1,max=8" description:"Maximum simultaneous media conversions"`
+	Timeout       time.Duration `koanf:"timeout" default:"2h" validate:"gt=0" description:"Maximum conversion duration"`
+}
+
 type Config struct {
+	Media      Media           `koanf:"media"`
 	HTTP       HTTP            `koanf:"http"`
 	Database   database.Config `koanf:"database"`
 	Telegram   Telegram        `koanf:"telegram"`

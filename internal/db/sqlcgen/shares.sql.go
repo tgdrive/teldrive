@@ -532,6 +532,7 @@ WHERE g.grantee_id = $1
   AND g.revoked_at IS NULL
   AND (g.expires_at IS NULL OR g.expires_at > now())
   AND f.status = 'active'
+  AND NOT EXISTS (SELECT 1 FROM /* TEMPLATE: schema */incoming_spam spam WHERE spam.file_id=f.id AND spam.grantee_id=g.grantee_id)
 ORDER BY g.updated_at DESC, g.id DESC
 LIMIT $2
 `
@@ -650,6 +651,7 @@ WITH RECURSIVE params AS (
     AND access_grant.revoked_at IS NULL
     AND (access_grant.expires_at IS NULL OR access_grant.expires_at > now())
     AND (NOT params.require_edit OR access_grant.permission = 'edit')
+    AND NOT EXISTS (SELECT 1 FROM ancestors blocked JOIN /* TEMPLATE: schema */incoming_spam spam ON spam.file_id=blocked.ancestor_file_id AND spam.grantee_id=params.actor_id WHERE blocked.target_file_id=ancestors.target_file_id)
 )
 SELECT DISTINCT ON (target_file_id)
        target_file_id, owner_id, root_file_id, permission, owned

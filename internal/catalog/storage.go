@@ -19,6 +19,7 @@ type StorageDashboard struct {
 }
 
 type StorageSummary struct {
+	SpamBytes     int64
 	LogicalBytes  int64
 	ActiveFiles   int64
 	ActiveFolders int64
@@ -91,15 +92,15 @@ func (s *Service) StorageDashboard(ctx context.Context, userID int64) (StorageDa
 
 	result := StorageDashboard{
 		Summary: StorageSummary{
-			LogicalBytes: totals.LogicalBytes,
-			ActiveFiles:  totals.ActiveFiles, ActiveFolders: totals.ActiveFolders,
+			SpamBytes: totals.SpamBytes, LogicalBytes: totals.LogicalBytes,
+			ActiveFiles: totals.ActiveFiles, ActiveFolders: totals.ActiveFolders,
 			TrashedFiles: totals.TrashedFiles, TrashBytes: totals.TrashBytes,
 		},
 		Categories: categories,
 		Cleanup: StorageCleanupStatistics{
 			TrashBytes: cleanup.TrashBytes, StaleUploadBytes: cleanup.StaleUploadBytes,
 			StaleUploads:          cleanup.StaleUploads,
-			TotalReclaimableBytes: cleanup.TrashBytes + cleanup.StaleUploadBytes,
+			TotalReclaimableBytes: cleanup.TrashBytes + totals.SpamBytes + cleanup.StaleUploadBytes,
 		},
 		Growth:   make([]StorageGrowthPoint, 0, len(growthRows)),
 		Channels: make([]StorageChannelStatistic, 0, len(channelRows)),

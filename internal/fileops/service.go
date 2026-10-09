@@ -522,7 +522,7 @@ func (s *Service) PurgeMany(ctx context.Context, userID int64, rootIDs []uuid.UU
 		if !ok {
 			return ErrNotFound
 		}
-		if status != sqlcgen.FileStatusTrashed && status != sqlcgen.FileStatusDeletionPending {
+		if status != sqlcgen.FileStatusTrashed && status != sqlcgen.FileStatusSpam && status != sqlcgen.FileStatusDeletionPending {
 			return ErrNotTrashed
 		}
 	}

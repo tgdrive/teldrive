@@ -109,7 +109,9 @@ export function TaskLauncher({ onQueued, onClose }: { onQueued: () => void; onCl
           <div className="flex items-start justify-between border-border border-b px-5 py-4 sm:px-6">
             <div>
               <h2 className="text-lg font-semibold">Nueva tarea</h2>
-              <p className="mt-0.5 text-xs text-muted">Elige una tarea y configura sus parámetros.</p>
+              <p className="mt-0.5 text-xs text-muted">
+                Elige una tarea y configura sus parámetros.
+              </p>
             </div>
             <Button
               isIconOnly
@@ -256,7 +258,7 @@ export function TaskLauncher({ onQueued, onClose }: { onQueued: () => void; onCl
               Cancelar
             </Button>
             <form.SubmitButton variant="primary">
-              Cola {selected.label.toLowerCase()}
+              Programar {selected.label.toLowerCase()}
             </form.SubmitButton>
           </div>
         </form>

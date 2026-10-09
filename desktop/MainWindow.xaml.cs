@@ -43,8 +43,13 @@ public partial class MainWindow : Window
                     await Task.Delay(500);
                 }
                 if (!rendered) throw new IOException("El servidor respondió, pero la pantalla de inicio de sesión no se mostró.");
+                var originalConfig = await File.ReadAllTextAsync(runtime.ConfigPath);
+                var rejected = false;
+                try { await runtime.SaveConfigAsync(originalConfig.Replace($"127.0.0.1:{port}", $"203.0.113.2:{port}")); }
+                catch (IOException) { rejected = true; }
+                if (!rejected || await File.ReadAllTextAsync(runtime.ConfigPath) != originalConfig || runtime.ServerUri!.Port != port) throw new IOException("Una dirección no local modificó la configuración válida.");
                 await runtime.StopAsync();
-                await File.WriteAllTextAsync(Path.Combine(runtime.DataRoot, "server-smoke-test.json"), JsonSerializer.Serialize(new {success=true, postgresql=true, migrations=true, loginUi=true, stopped=!runtime.Running, port}));
+                await File.WriteAllTextAsync(Path.Combine(runtime.DataRoot, "server-smoke-test.json"), JsonSerializer.Serialize(new {success=true, postgresql=true, migrations=true, loginUi=true, rejectedNonLocalAddress=rejected, stopped=!runtime.Running, port}));
                 Close(); return;
             }
             RefreshConfiguration();

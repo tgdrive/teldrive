@@ -87,7 +87,9 @@ function TaskDetailPage() {
     setDeleting(false);
     if (error) {
       toast.error(
-        ACTIVE_STATES.includes(task.status) ? "No se pudo cancelar la tarea" : "No se pudo eliminar la tarea",
+        ACTIVE_STATES.includes(task.status)
+          ? "No se pudo cancelar la tarea"
+          : "No se pudo eliminar la tarea",
       );
       return;
     }
@@ -204,7 +206,7 @@ function TaskDetailPage() {
         <JsonPanel
           title="Resultado"
           value={task.output}
-          empty="No output was recorded."
+          empty="No se registró ningún resultado."
           downloadName={`task-${task.id}-output.json`}
         />
       </div>
@@ -217,7 +219,9 @@ function TaskDetailPage() {
         <div className="flex items-center justify-between border-border border-b px-5 py-4">
           <div>
             <h2 className="text-sm font-semibold">Intentos</h2>
-            <p className="mt-1 text-xs text-muted">Historial de ejecución y errores registrados por River.</p>
+            <p className="mt-1 text-xs text-muted">
+              Historial de ejecución y errores registrados por River.
+            </p>
           </div>
           <Chip size="sm" variant="tertiary">
             {Math.max(task.attempt ?? 0, errors.length)}

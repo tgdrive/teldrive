@@ -15,7 +15,7 @@ const fileListSchema = z
           id: z.string().uuid(),
           name: z.string(),
           kind: z.enum(["file", "folder"]),
-          status: z.enum(["active", "trashed", "deletion_pending"]),
+          status: z.enum(["active", "trashed", "spam", "deletion_pending"]),
         })
         .passthrough(),
     ),

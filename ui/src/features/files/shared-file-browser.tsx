@@ -385,6 +385,27 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
                       <TrashIcon className="size-4" />
                     </Button>
                   ) : null}
+                  {mode === "with-me" && atRoot ? (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onPress={async () => {
+                        try {
+                          for (const file of selectedFiles)
+                            await fetchClient.POST("/v1/shared/spam/{fileId}", {
+                              params: { path: { fileId: file.id } },
+                            });
+                          setSelectedKeys(new Set());
+                          await refreshRoots();
+                          toast.success("Elementos enviados a Spam");
+                        } catch (cause) {
+                          toast.error(userMessage(cause));
+                        }
+                      }}
+                    >
+                      Marcar como spam
+                    </Button>
+                  ) : null}
                   <Button
                     isIconOnly
                     size="sm"
@@ -428,7 +449,7 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
         }
       >
         <TextField value={folderName} onChange={setFolderName}>
-          <Label>Name</Label>
+          <Label>Nombre</Label>
           <Input autoFocus />
         </TextField>
       </AppDialog>
@@ -455,7 +476,7 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
         }
       >
         <TextField value={renameName} onChange={setRenameName}>
-          <Label>Name</Label>
+          <Label>Nombre</Label>
           <Input autoFocus />
         </TextField>
       </AppDialog>

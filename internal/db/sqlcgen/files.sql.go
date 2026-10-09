@@ -646,7 +646,7 @@ WHERE files.user_id = $1
   AND (
     files.parent_id IS NOT DISTINCT FROM $2::uuid
     OR (
-      $3::/* TEMPLATE: schema */file_status = 'trashed'
+      $3::/* TEMPLATE: schema */file_status IN ('trashed', 'spam')
       AND $2::uuid IS NULL
       AND files.parent_id IS NOT NULL
       AND NOT EXISTS (
@@ -654,7 +654,7 @@ WHERE files.user_id = $1
         FROM /* TEMPLATE: schema */files parent
         WHERE parent.id = files.parent_id
           AND parent.user_id = files.user_id
-          AND parent.status = 'trashed'
+          AND parent.status = $3::/* TEMPLATE: schema */file_status
       )
     )
   )
@@ -760,7 +760,7 @@ WHERE f.user_id = $1
     ($2::text = 'folder' AND f.parent_id IS NOT DISTINCT FROM $3::uuid)
     OR ($2::text <> 'folder' AND f.id IN (SELECT id FROM scope_files))
     OR (
-      $4::/* TEMPLATE: schema */file_status = 'trashed'
+      $4::/* TEMPLATE: schema */file_status IN ('trashed', 'spam')
       AND $3::uuid IS NULL
       AND f.parent_id IS NOT NULL
       AND NOT EXISTS (
@@ -768,7 +768,7 @@ WHERE f.user_id = $1
         FROM /* TEMPLATE: schema */files parent
         WHERE parent.id = f.parent_id
           AND parent.user_id = f.user_id
-          AND parent.status = 'trashed'
+          AND parent.status = $4::/* TEMPLATE: schema */file_status
       )
     )
   )
@@ -1502,7 +1502,7 @@ WITH RECURSIVE target AS (
   FROM /* TEMPLATE: schema */files root
   WHERE root.id = $2
     AND root.user_id = $1
-    AND root.status = 'trashed'
+    AND root.status IN ('trashed', 'spam')
   UNION ALL
   SELECT child.id
   FROM /* TEMPLATE: schema */files child
@@ -1626,11 +1626,11 @@ func (q *Queries) ResolveActiveChildFolder(ctx context.Context, arg ResolveActiv
 
 const restoreFileSubtree = `-- name: RestoreFileSubtree :many
 WITH RECURSIVE target AS (
-  SELECT root.id
+  SELECT root.id, root.status
   FROM /* TEMPLATE: schema */files root
   WHERE root.id = $2
     AND root.user_id = $1
-    AND root.status = 'trashed'
+    AND root.status IN ('trashed', 'spam')
     AND (
       root.parent_id IS NULL
       OR EXISTS (
@@ -1642,11 +1642,11 @@ WITH RECURSIVE target AS (
       )
     )
   UNION ALL
-  SELECT child.id
+  SELECT child.id, child.status
   FROM /* TEMPLATE: schema */files child
   JOIN target parent ON child.parent_id = parent.id
   WHERE child.user_id = $1
-    AND child.status = 'trashed'
+    AND child.status = parent.status
 )
 UPDATE /* TEMPLATE: schema */files AS target_file
 SET status = 'active',
@@ -1701,6 +1701,27 @@ func (q *Queries) RestoreFileSubtree(ctx context.Context, arg RestoreFileSubtree
 	return items, nil
 }
 
+const revokeAccessForFileSubtrees = `-- name: RevokeAccessForFileSubtrees :exec
+WITH RECURSIVE target AS (
+  SELECT root.id FROM /* TEMPLATE: schema */files root WHERE root.user_id = $1 AND root.id = ANY($2::uuid[])
+  UNION
+  SELECT child.id FROM /* TEMPLATE: schema */files child JOIN target parent ON child.parent_id = parent.id WHERE child.user_id = $1
+)
+UPDATE /* TEMPLATE: schema */file_access_grants
+SET revoked_at = COALESCE(revoked_at, now()), updated_at = now()
+WHERE file_id IN (SELECT id FROM target) AND revoked_at IS NULL
+`
+
+type RevokeAccessForFileSubtreesParams struct {
+	UserID  int64         `json:"user_id"`
+	FileIds []pgtype.UUID `json:"file_ids"`
+}
+
+func (q *Queries) RevokeAccessForFileSubtrees(ctx context.Context, arg RevokeAccessForFileSubtreesParams) error {
+	_, err := q.db.Exec(ctx, revokeAccessForFileSubtrees, arg.UserID, arg.FileIds)
+	return err
+}
+
 const revokeSharesForFileSubtree = `-- name: RevokeSharesForFileSubtree :exec
 WITH RECURSIVE target AS (
   SELECT root.id FROM /* TEMPLATE: schema */files root WHERE root.id = $2 AND root.user_id = $1
@@ -1745,6 +1766,73 @@ type RevokeSharesForFileSubtreesParams struct {
 func (q *Queries) RevokeSharesForFileSubtrees(ctx context.Context, arg RevokeSharesForFileSubtreesParams) error {
 	_, err := q.db.Exec(ctx, revokeSharesForFileSubtrees, arg.UserID, arg.FileIds)
 	return err
+}
+
+const spamFileSubtrees = `-- name: SpamFileSubtrees :many
+WITH RECURSIVE target AS (
+  SELECT root.id
+  FROM /* TEMPLATE: schema */files root
+  WHERE root.user_id = $1
+    AND root.id = ANY($2::uuid[])
+    AND root.status = 'active'
+  UNION
+  SELECT child.id
+  FROM /* TEMPLATE: schema */files child
+  JOIN target parent ON child.parent_id = parent.id
+  WHERE child.user_id = $1
+    AND child.status = 'active'
+)
+UPDATE /* TEMPLATE: schema */files AS target_file
+SET status = 'spam',
+    deleted_at = now(),
+    generation = target_file.generation + 1,
+    updated_at = now()
+WHERE target_file.user_id = $1
+  AND target_file.id IN (SELECT target.id FROM target)
+RETURNING target_file.id, target_file.user_id, target_file.parent_id, target_file.name, target_file.kind, target_file.mime_type, target_file.size, target_file.hash_algorithm, target_file.hash_value, target_file.encryption, target_file.encryption_key_version, target_file.status, target_file.mod_time, target_file.generation, target_file.created_at, target_file.updated_at, target_file.deleted_at
+`
+
+type SpamFileSubtreesParams struct {
+	UserID  int64         `json:"user_id"`
+	FileIds []pgtype.UUID `json:"file_ids"`
+}
+
+func (q *Queries) SpamFileSubtrees(ctx context.Context, arg SpamFileSubtreesParams) ([]*File, error) {
+	rows, err := q.db.Query(ctx, spamFileSubtrees, arg.UserID, arg.FileIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*File{}
+	for rows.Next() {
+		var i File
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.ParentID,
+			&i.Name,
+			&i.Kind,
+			&i.MimeType,
+			&i.Size,
+			&i.HashAlgorithm,
+			&i.HashValue,
+			&i.Encryption,
+			&i.EncryptionKeyVersion,
+			&i.Status,
+			&i.ModTime,
+			&i.Generation,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const sumFilePartSizes = `-- name: SumFilePartSizes :one

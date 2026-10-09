@@ -9,7 +9,7 @@ type FixtureFile = {
   parentId?: string;
   name: string;
   kind: "file" | "folder";
-  status: "active" | "trashed";
+  status: "active" | "trashed" | "spam";
   generation: number;
   mimeType?: string;
   size?: number;
@@ -114,7 +114,7 @@ export async function installFileApi(page: Page) {
       const searchType = url.searchParams.get("searchType");
       const items = [...files.values()].filter(
         (entry) =>
-          entry.status === "active" &&
+          entry.status === (url.searchParams.get("status") ?? "active") &&
           entry.parentId === parentId &&
           (!search ||
             (searchType === "regex"
@@ -195,11 +195,19 @@ export async function installFileApi(page: Page) {
       }
       if (method === "DELETE") return route.fulfill({ status: 204 });
     }
-    if (path === "/v1/files/bulk/trash" && method === "POST") {
+    if (path === "/v1/shared/spam" && method === "GET") return route.fulfill({json:[]});
+    const restoring = path.match(/^\/v1\/files\/([^/]+)\/restore$/);
+    if (restoring && method === "POST") {
+      const entry = files.get(restoring[1]);
+      if (!entry) return route.fulfill({status:404});
+      const restored = {...entry,status:"active" as const}; files.set(entry.id,restored);
+      return route.fulfill({json:restored});
+    }
+    if ((path === "/v1/files/bulk/trash" || path === "/v1/files/bulk/spam") && method === "POST") {
       const body = request.postDataJSON() as { fileIds: string[] };
       for (const id of body.fileIds) {
         const entry = files.get(id);
-        if (entry) files.set(id, { ...entry, status: "trashed" });
+        if (entry) files.set(id, { ...entry, status: path.endsWith("spam") ? "spam" : "trashed" });
       }
       return route.fulfill({ json: { items: body.fileIds } });
     }

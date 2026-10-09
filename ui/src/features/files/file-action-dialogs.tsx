@@ -87,7 +87,7 @@ export function FileActionDialogs({
           onOpenChange={(open) => {
             if (!open) destinationAction.onClose();
           }}
-          title={`${destinationAction.mode === "move" ? "Move" : "Copiar"} ${destinationAction.count} elemento${destinationAction.count === 1 ? "" : "s"}`}
+          title={`${destinationAction.mode === "move" ? "Mover" : "Copiar"} ${destinationAction.count} elemento${destinationAction.count === 1 ? "" : "s"}`}
           description="Elige la carpeta de destino."
           isDismissable={!pending}
           isCloseDisabled={pending}

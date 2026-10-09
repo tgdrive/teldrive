@@ -10,10 +10,10 @@ Introduce la raíz de tu servidor (`https://teldrive.tudominio.com`). La app ini
 
 ## Android (8.0 o posterior)
 
-Con JDK 21, Android SDK 36 y Gradle 8.11.1, ejecuta en `android`:
+Con JDK 17 o 21, Android SDK 36 y Gradle 8.11.1, ejecuta en `android`:
 
 ```sh
-gradle assembleRelease lintRelease
+gradle assembleRelease lintRelease testReleaseUnitTest
 ```
 
 Para firmar tu APK crea un almacén privado y un `signing.properties` excluido de Git con `storeFile`, `storePassword`, `keyAlias` y `keyPassword`. Conserva la misma clave para instalar actualizaciones. Sin esos datos Gradle produce un APK sin firma.
