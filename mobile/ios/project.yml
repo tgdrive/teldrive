@@ -1,0 +1,45 @@
+name: Teldrive
+options:
+  bundleIdPrefix: io.webr0m
+  deploymentTarget:
+    iOS: '17.0'
+targets:
+  Teldrive:
+    type: application
+    platform: iOS
+    sources: [Teldrive]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: io.webr0m.teldrive
+        INFOPLIST_FILE: Teldrive/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        SWIFT_VERSION: '5.0'
+        TARGETED_DEVICE_FAMILY: '1,2'
+        CODE_SIGN_STYLE: Automatic
+        MARKETING_VERSION: '2.0.0'
+        CURRENT_PROJECT_VERSION: '200001'
+  TeldriveTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [Tests]
+    dependencies: [{target: Teldrive}]
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: '5.0'
+  TeldriveUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources: [UITests]
+    dependencies: [{target: Teldrive}]
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: '5.0'
+schemes:
+  Teldrive:
+    build:
+      targets:
+        Teldrive: all
+    test:
+      targets: [TeldriveTests, TeldriveUITests]

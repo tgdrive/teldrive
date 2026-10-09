@@ -59,7 +59,7 @@ export function FilePreviewDialog({
         <Modal.Container size="full" scroll="inside" className="h-dvh max-h-dvh p-0">
           <Modal.Dialog className="h-dvh max-h-dvh w-screen max-w-none overflow-hidden rounded-none bg-background p-0 text-foreground">
             <Modal.Heading className="sr-only">{file.name}</Modal.Heading>
-            <Suspense fallback={<ViewerLoading label="Loading PDF engine" />}>
+            <Suspense fallback={<ViewerLoading label="Cargando motor de PDF" />}>
               <PdfReader
                 key={file.id}
                 file={file}
@@ -85,7 +85,7 @@ export function FilePreviewDialog({
         <Modal.Container size="full" scroll="inside" className="h-dvh max-h-dvh p-0">
           <Modal.Dialog className="h-dvh max-h-dvh w-screen max-w-none overflow-hidden rounded-none bg-background p-0 text-foreground">
             <Modal.Heading className="sr-only">{file.name}</Modal.Heading>
-            <Suspense fallback={<ViewerLoading label="Loading EPUB reader" />}>
+            <Suspense fallback={<ViewerLoading label="Cargando lector de EPUB" />}>
               <EpubReader
                 key={file.id}
                 file={file}
@@ -121,7 +121,7 @@ export function FilePreviewDialog({
               isIconOnly
               variant="ghost"
               size="sm"
-              aria-label="Close viewer"
+              aria-label="Cerrar visor"
               onPress={() => changeOpen(false)}
             >
               <CloseIcon className="size-5" />
@@ -140,7 +140,7 @@ export function FilePreviewDialog({
               onPress={() => startFileDownload(file)}
             >
               <DownloadIcon className="size-4" />
-              <span className="hidden sm:inline">Download</span>
+              <span className="hidden sm:inline">Descargar</span>
             </Button>
           </Modal.Header>
           <Modal.Body
@@ -153,7 +153,7 @@ export function FilePreviewDialog({
           >
             {kind === "image" ? <ImageViewer file={file} url={contentUrl} /> : null}
             {kind === "video" ? (
-              <Suspense fallback={<ViewerLoading label="Loading video player" />}>
+              <Suspense fallback={<ViewerLoading label="Cargando reproductor de vídeo" />}>
                 <VideoViewer file={file} url={contentUrl} />
               </Suspense>
             ) : null}
@@ -183,7 +183,7 @@ function ImageViewer({ file, url }: { file: FileEntry; url: string }) {
           isIconOnly
           size="sm"
           variant="ghost"
-          aria-label="Zoom out"
+          aria-label="Alejar"
           onPress={() => setZoom((value) => Math.max(0.25, value - 0.25))}
         >
           <ZoomOutIcon className="size-4" />
@@ -195,7 +195,7 @@ function ImageViewer({ file, url }: { file: FileEntry; url: string }) {
           isIconOnly
           size="sm"
           variant="ghost"
-          aria-label="Zoom in"
+          aria-label="Acercar"
           onPress={() => setZoom((value) => Math.min(5, value + 0.25))}
         >
           <ZoomInIcon className="size-4" />
@@ -204,7 +204,7 @@ function ImageViewer({ file, url }: { file: FileEntry; url: string }) {
           isIconOnly
           size="sm"
           variant="ghost"
-          aria-label="Rotate image"
+          aria-label="Girar imagen"
           onPress={() => setRotation((value) => value + 90)}
         >
           <RotateIcon className="size-4" />
@@ -239,12 +239,12 @@ function TextViewer({ url }: { url: string }) {
       .then((value) => setText(value.slice(0, 1_000_000)))
       .catch((reason: unknown) => {
         if (!controller.signal.aborted)
-          setError(reason instanceof Error ? reason.message : "Preview failed");
+          setError(reason instanceof Error ? reason.message : "La vista previa falló");
       });
     return () => controller.abort();
   }, [url]);
   if (error) return <ViewerError message={error} />;
-  if (text === undefined) return <ViewerLoading label="Loading document" />;
+  if (text === undefined) return <ViewerLoading label="Cargando documento" />;
   return (
     <div className="h-full overflow-auto p-4 sm:p-8">
       <pre className="mx-auto min-h-full max-w-5xl whitespace-pre-wrap rounded-2xl border border-border bg-surface p-5 font-mono text-xs leading-6 shadow-xl sm:p-8">
@@ -267,7 +267,7 @@ function ViewerError({ message }: { message: string }) {
   return (
     <div className="grid h-full place-items-center p-6 text-center">
       <div>
-        <p className="font-semibold">Unable to open this file</p>
+        <p className="font-semibold">No se pudo abrir este archivo</p>
         <p className="mt-2 max-w-lg text-sm text-muted">{message}</p>
       </div>
     </div>
@@ -282,12 +282,12 @@ function viewerKind(file: FileEntry): ViewerKind | undefined {
 }
 function formatLabel(kind: ViewerKind) {
   return {
-    image: "Image",
-    video: "Video",
+    image: "Imagen",
+    video: "Vídeo",
     audio: "Audio",
-    pdf: "PDF document",
-    ebook: "Ebook",
-    text: "Text document",
+    pdf: "Documento PDF",
+    ebook: "Libro electrónico",
+    text: "Documento de texto",
   }[kind];
 }
 function formatBytes(value: number) {

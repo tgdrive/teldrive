@@ -80,7 +80,7 @@ export async function unwrap<T>(result: ApiResult<T> | Promise<ApiResult<T>>): P
     throw new ApiError({
       status: response.status,
       code: "invalid_response",
-      message: "The server returned an incomplete response.",
+      message: "El servidor devolvió una respuesta incompleta.",
     });
   }
   return data as T;
@@ -91,7 +91,7 @@ export function isUnauthorized(error: unknown) {
 }
 
 export function invalidResponse(
-  message = "The server returned data that does not match the current OpenAPI contract.",
+  message = "La respuesta del servidor no coincide con el contrato actual de la API.",
 ) {
   return new ApiError({ status: 200, code: "invalid_response", message });
 }
@@ -100,32 +100,32 @@ export function userMessage(error: unknown): string {
   const normalized = normalizeApiError(error);
   switch (normalized.status) {
     case 0:
-      return "Teldrive could not reach the server. Check your connection and try again.";
+      return "No se pudo conectar con el servidor. Comprueba la conexión y vuelve a intentarlo.";
     case 400:
-      return normalized.message || "The request was not valid.";
+      return normalized.message || "La solicitud no era válida.";
     case 401:
-      return "Your sign-in has expired. Sign in again to continue.";
+      return "Tu sesión ha vencido. Inicia sesión de nuevo para continuar.";
     case 403:
-      return "You do not have permission to perform this action.";
+      return "No tienes permiso para realizar esta acción.";
     case 404:
-      return "The requested item no longer exists.";
+      return "El elemento solicitado ya no existe.";
     case 409:
-      return normalized.message || "That change conflicts with an existing item.";
+      return normalized.message || "El cambio entra en conflicto con un elemento existente.";
     case 410:
-      return "This upload or share has expired.";
+      return "Esta subida o enlace compartido ha vencido.";
     case 412:
-      return "This item changed on another device. Refresh before trying again.";
+      return "Este elemento cambió en otro dispositivo. Actualiza antes de reintentarlo.";
     case 413:
-      return "The selected file is larger than the server allows.";
+      return "El archivo seleccionado supera el tamaño permitido por el servidor.";
     case 416:
-      return "The requested file range is not available.";
+      return "El intervalo solicitado del archivo no está disponible.";
     case 422:
-      return normalized.message || "Some values need to be corrected.";
+      return normalized.message || "Revisa los valores señalados.";
     case 429:
-      return "Teldrive is receiving too many requests. Try again shortly.";
+      return "Teldrive está recibiendo demasiadas solicitudes. Reintenta en unos momentos.";
     default:
       return normalized.status >= 500
-        ? "Teldrive encountered a server error. Your data was not changed."
+        ? "El servidor devolvió un error. Tus datos no se modificaron."
         : normalized.message;
   }
 }

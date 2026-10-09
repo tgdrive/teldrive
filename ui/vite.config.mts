@@ -106,6 +106,7 @@ export default defineConfig(() => {
       exclude: ["foliate-js"],
     },
     server: {
+      watch: { ignored: ["**/touch-test-results/**", "**/test-results/**", "**/playwright-report/**"] },
       cors: true,
       proxy: {
         "/api": {

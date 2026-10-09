@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -79,6 +80,8 @@ func newRunCommand() *cobra.Command {
 
 func newCheckCommand() *cobra.Command {
 	loader := config.NewLoader()
+	var validateOnly bool
+	var desktopInfo bool
 	cmd := &cobra.Command{
 		Use:   "check",
 		Short: "Validate configuration and initialize dependencies",
@@ -87,6 +90,15 @@ func newCheckCommand() *cobra.Command {
 			cfg, err := loader.Load(cmd.Flags())
 			if err != nil {
 				return err
+			}
+			if desktopInfo {
+				return json.NewEncoder(cmd.OutOrStdout()).Encode(struct {
+					Address string `json:"address"`
+				}{Address: cfg.HTTP.Address})
+			}
+			if validateOnly {
+				fmt.Fprintln(cmd.OutOrStdout(), "Configuración válida")
+				return nil
 			}
 			logger, err := logging.NewLogger(os.Stdout, cfg.Logging.LogLevel, cfg.Logging.LogFormat)
 			if err != nil {
@@ -105,6 +117,8 @@ func newCheckCommand() *cobra.Command {
 		},
 	}
 	loader.RegisterFlags(cmd.Flags())
+	cmd.Flags().BoolVar(&validateOnly, "validate-only", false, "Validate configuration without initializing services or migrating the database")
+	cmd.Flags().BoolVar(&desktopInfo, "desktop-info", false, "Validate configuration and print the HTTP listen address as JSON without secrets or service initialization")
 	return cmd
 }
 

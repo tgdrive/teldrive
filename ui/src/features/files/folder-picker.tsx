@@ -10,7 +10,7 @@ export function FolderPicker({
   initialPath = "/",
   initialParentId,
   onConfirm,
-  confirmLabel = "Move here",
+  confirmLabel = "Mover aquí",
   isDisabled = false,
   requireFolder = false,
 }: {
@@ -36,14 +36,14 @@ export function FolderPicker({
   return (
     <div className="grid gap-3">
       <nav
-        aria-label="Destination folder"
+        aria-label="Carpeta de destino"
         className="flex min-w-0 items-center gap-1 overflow-x-auto text-sm"
       >
         <Button
           isIconOnly
           size="sm"
           variant="ghost"
-          aria-label="Drive root"
+          aria-label="Raíz de la unidad"
           onPress={() => openPath("/")}
         >
           <HomeIcon className="size-4" />
@@ -73,14 +73,14 @@ export function FolderPicker({
           </div>
         ) : folders.isError ? (
           <div className="grid min-h-56 place-items-center gap-3 p-6 text-center">
-            <p className="text-sm text-danger">Folders could not be loaded.</p>
+            <p className="text-sm text-danger">No se pudieron cargar las carpetas.</p>
             <Button size="sm" onPress={() => void folders.refetch()}>
-              Retry
+              Reintentar
             </Button>
           </div>
         ) : (
           <GridList
-            aria-label="Folders"
+            aria-label="Carpetas"
             items={folders.data?.items ?? []}
             selectionMode="none"
             renderEmptyState={() => (

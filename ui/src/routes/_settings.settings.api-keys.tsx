@@ -22,7 +22,7 @@ export const Route = createFileRoute("/_settings/settings/api-keys")({
 });
 
 function formatDate(value?: string | null) {
-  return value ? new Date(value).toLocaleString() : "never";
+  return value ? new Date(value).toLocaleString("es") : "Sin vencimiento";
 }
 
 function ApiKeysSettings() {
@@ -40,10 +40,10 @@ function ApiKeysSettings() {
     onSuccess: () => {
       setRevokeKey(null);
       void refresh();
-      toast.success("API key revoked");
+      toast.success("Clave de API revocada");
     },
     onError: (error) => {
-      toast.error("API key could not be revoked", { description: userMessage(error) });
+      toast.error("No se pudo revocar la clave de API", { description: userMessage(error) });
     },
   });
   const refresh = () =>
@@ -54,20 +54,20 @@ function ApiKeysSettings() {
   return (
     <div className="space-y-6">
       <SettingsPageHeader
-        title="API keys"
-        description="Credentials for rclone and external API clients. They cannot sign in to this browser UI."
+        title="Claves de API"
+        description="Credenciales para rclone y clientes externos. El acceso a esta interfaz utiliza tu sesión de Telegram."
       />
       <SettingsSection
-        title="Create API key"
-        description="The secret is shown once. Store it in a password manager."
+        title="Crear clave de API"
+        description="La clave se muestra una sola vez. Guárdala en tu gestor de contraseñas."
       >
         <SettingsRow
-          label="Key name"
-          description="Use a name that identifies the client or machine."
+          label="Nombre de la clave"
+          description="Elige un nombre que identifique el cliente o equipo."
         >
           <div className="flex gap-2">
             <TextField className="min-w-0 flex-1">
-              <Label className="sr-only">Key name</Label>
+              <Label className="sr-only">Nombre de la clave</Label>
               <Input
                 value={name}
                 onChange={(event) => setName(event.currentTarget.value)}
@@ -86,29 +86,29 @@ function ApiKeysSettings() {
                   setName("");
                   await refresh();
                 } catch (error) {
-                  toast.error("API key could not be created", { description: userMessage(error) });
+                  toast.error("No se pudo crear la clave de API", { description: userMessage(error) });
                 }
               }}
               isDisabled={!name.trim() || create.isPending}
             >
-              Create
+              Crear
             </Button>
           </div>
         </SettingsRow>
         {created ? (
           <SettingsRow
             label="New API key secret"
-            description="Copy this value now. It cannot be retrieved later."
+            description="Copia esta clave ahora. No podrás consultarla de nuevo."
           >
             <div className="flex gap-2">
               <Input readOnly value={created.secret} className="min-w-0 flex-1 font-mono" />
               <Button
                 isIconOnly
                 variant="secondary"
-                aria-label="Copy API key"
+                aria-label="Copiar clave de API"
                 onPress={() => {
                   void navigator.clipboard.writeText(created.secret);
-                  toast.success("API key copied");
+                  toast.success("Clave de API copiada");
                 }}
               >
                 <CopyIcon className="size-4" />
@@ -118,15 +118,15 @@ function ApiKeysSettings() {
         ) : null}
       </SettingsSection>
       <SettingsSection
-        title="Existing API keys"
-        description="Revoke credentials that are no longer in use."
+        title="Claves de API existentes"
+        description="Revoca las credenciales que ya no utilices."
       >
         {query.data.items.length ? (
           query.data.items.map((item) => (
             <SettingsRow
               key={item.id}
               label={item.name}
-              description={`Created ${formatDate(item.createdAt)} · last used ${formatDate(item.lastUsedAt)}`}
+              description={`Creada ${formatDate(item.createdAt)} · last used ${formatDate(item.lastUsedAt)}`}
             >
               <div className="flex justify-end">
                 <Button
@@ -151,9 +151,9 @@ function ApiKeysSettings() {
         onOpenChange={(open) => {
           if (!open && !revoke.isPending) setRevokeKey(null);
         }}
-        title="Revoke API key?"
+        title="¿Revocar la clave de API?"
         message={`Applications using “${revokeKey?.name ?? ""}” will lose access immediately.`}
-        confirmLabel="Revoke key"
+        confirmLabel="Revocar clave"
         isPending={revoke.isPending}
         onConfirm={() => {
           if (revokeKey) {

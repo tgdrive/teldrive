@@ -34,41 +34,41 @@ function SessionsSettings() {
     onSuccess: () => {
       setRevokeSessionId(null);
       void refresh();
-      toast.success("Session revoked");
+      toast.success("Sesión revocada");
     },
     onError: (error) => {
-      toast.error("Session could not be revoked", { description: userMessage(error) });
+      toast.error("No se pudo revocar la sesión", { description: userMessage(error) });
     },
   });
 
   return (
     <div className="space-y-6">
       <SettingsPageHeader
-        title="Sessions"
-        description="Sessions currently authorized for this account."
+        title="Sesiones"
+        description="Sesiones autorizadas actualmente para esta cuenta."
       />
       <SettingsSection
-        title="Active sessions"
-        description="Revoke any session you no longer recognize or use."
+        title="Sesiones activas"
+        description="Revoca las sesiones que no reconozcas o ya no utilices."
       >
         {query.data.items.length ? (
           query.data.items.map((session) => (
             <SettingsRow
               key={session.id}
-              label={session.current ? "Current session" : "Teldrive session"}
-              description={`Created ${new Date(session.createdAt).toLocaleString()} · expires ${new Date(session.expiresAt).toLocaleString()}`}
+              label={session.current ? "Sesión actual" : "Teldrive session"}
+              description={`Creada ${new Date(session.createdAt).toLocaleString()} · vence ${new Date(session.expiresAt).toLocaleString()}`}
             >
               <div className="flex items-center justify-end gap-2">
                 {session.current ? (
                   <Chip color="success" variant="tertiary">
-                    Current
+                    Actual
                   </Chip>
                 ) : (
                   <Button
                     isIconOnly
                     size="sm"
                     variant="ghost"
-                    aria-label="Revoke session"
+                    aria-label="Revocar sesión"
                     isDisabled={revoke.isPending && revokeSessionId === session.id}
                     onPress={() => setRevokeSessionId(session.id)}
                   >
@@ -79,7 +79,7 @@ function SessionsSettings() {
             </SettingsRow>
           ))
         ) : (
-          <div className="px-5 py-8 text-sm text-muted">No sessions found.</div>
+          <div className="px-5 py-8 text-sm text-muted">No se encontraron sesiones.</div>
         )}
       </SettingsSection>
       <ConfirmDialog
@@ -87,9 +87,9 @@ function SessionsSettings() {
         onOpenChange={(open) => {
           if (!open && !revoke.isPending) setRevokeSessionId(null);
         }}
-        title="Revoke session?"
-        message="This client will need to sign in again."
-        confirmLabel="Revoke session"
+        title="¿Revocar la sesión?"
+        message="Este cliente tendrá que iniciar sesión de nuevo."
+        confirmLabel="Revocar sesión"
         isPending={revoke.isPending}
         onConfirm={() => {
           if (revokeSessionId) {

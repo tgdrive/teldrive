@@ -37,10 +37,10 @@ function ChannelsSettings() {
     onSuccess: () => {
       setDeleteChannel(null);
       void refresh();
-      toast.success("Storage channel deleted");
+      toast.success("Canal de almacenamiento eliminado");
     },
     onError: (error) => {
-      toast.error("Storage channel could not be deleted", { description: userMessage(error) });
+      toast.error("No se pudo eliminar el canal de almacenamiento", { description: userMessage(error) });
     },
   });
   const refresh = () =>
@@ -51,8 +51,8 @@ function ChannelsSettings() {
   return (
     <div className="space-y-6">
       <SettingsPageHeader
-        title="Storage channels"
-        description="Telegram channels used to store encrypted file parts."
+        title="Canales de almacenamiento"
+        description="Canales de Telegram utilizados para almacenar fragmentos cifrados."
         actions={
           <Button
             variant="secondary"
@@ -62,29 +62,29 @@ function ChannelsSettings() {
                   params: { header: { "Idempotency-Key": newIdempotencyKey() } },
                 });
                 await refresh();
-                toast.success("Channels synchronized");
+                toast.success("Canales sincronizados");
               } catch (error) {
-                toast.error("Channel sync failed", { description: userMessage(error) });
+                toast.error("No se pudieron sincronizar los canales", { description: userMessage(error) });
               }
             }}
             isDisabled={sync.isPending}
           >
             <RefreshIcon className="size-4" />
-            Discover and sync
+            Buscar y sincronizar
           </Button>
         }
       />
       <SettingsSection
-        title="Create channel"
-        description="Teldrive will create and configure a Telegram storage channel."
+        title="Crear canal"
+        description="Teldrive creará y configurará un canal de almacenamiento en Telegram."
       >
         <SettingsRow
-          label="Channel name"
-          description="Use a recognizable name for this storage target."
+          label="Nombre del canal"
+          description="Usa un nombre que permita identificar este canal."
         >
           <div className="flex gap-2">
             <TextField className="min-w-0 flex-1">
-              <Label className="sr-only">Channel name</Label>
+              <Label className="sr-only">Nombre del canal</Label>
               <Input
                 value={name}
                 onChange={(event) => setName(event.currentTarget.value)}
@@ -101,34 +101,34 @@ function ChannelsSettings() {
                   });
                   setName("");
                   await refresh();
-                  toast.success("Storage channel created");
+                  toast.success("Canal de almacenamiento creado");
                 } catch (error) {
-                  toast.error("Channel could not be created", { description: userMessage(error) });
+                  toast.error("No se pudo crear el canal", { description: userMessage(error) });
                 }
               }}
               isDisabled={!name.trim() || create.isPending}
             >
-              Create
+              Crear
             </Button>
           </div>
         </SettingsRow>
       </SettingsSection>
       <SettingsSection
-        title="Configured channels"
-        description="Choose the active channel or remove unused empty channels."
+        title="Canales configurados"
+        description="Elige el canal activo o elimina los canales vacíos que no utilices."
       >
         {query.data.items.length ? (
           query.data.items.map((channel) => (
             <SettingsRow
               key={channel.id}
               label={channel.name}
-              description={`Channel ${channel.id}`}
+              description={`Canal ${channel.id}`}
             >
               <div className="flex items-center justify-end gap-2">
                 {channel.selected ? (
                   <Chip color="success" variant="tertiary">
                     <CheckIcon className="size-3" />
-                    Selected
+                    Seleccionado
                   </Chip>
                 ) : (
                   <Button
@@ -139,14 +139,14 @@ function ChannelsSettings() {
                       await refresh();
                     }}
                   >
-                    Use channel
+                    Usar canal
                   </Button>
                 )}
                 <Button
                   isIconOnly
                   size="sm"
                   variant="ghost"
-                  aria-label={`Delete ${channel.name}`}
+                  aria-label={`Eliminar ${channel.name}`}
                   isDisabled={remove.isPending && deleteChannel?.id === channel.id}
                   onPress={() => setDeleteChannel({ id: channel.id, name: channel.name })}
                 >
@@ -156,7 +156,7 @@ function ChannelsSettings() {
             </SettingsRow>
           ))
         ) : (
-          <div className="px-5 py-8 text-sm text-muted">No storage channels are configured.</div>
+          <div className="px-5 py-8 text-sm text-muted">No hay canales de almacenamiento configurados.</div>
         )}
       </SettingsSection>
       <ConfirmDialog
@@ -164,9 +164,9 @@ function ChannelsSettings() {
         onOpenChange={(open) => {
           if (!open && !remove.isPending) setDeleteChannel(null);
         }}
-        title="Delete storage channel?"
-        message={`“${deleteChannel?.name ?? ""}” can only be deleted when no files reference it.`}
-        confirmLabel="Delete channel"
+        title="¿Eliminar este canal de almacenamiento?"
+        message={`“${deleteChannel?.name ?? ""}” solo se puede eliminar si no contiene archivos.`}
+        confirmLabel="Eliminar canal"
         isPending={remove.isPending}
         onConfirm={() => {
           if (deleteChannel) {

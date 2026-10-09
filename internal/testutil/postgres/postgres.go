@@ -64,6 +64,15 @@ func New(t testing.TB) *Database {
 		admin.Close(context.Background())
 		t.Fatalf("migrate test database: %v", err)
 	}
+	// Fixtures use unqualified table names; migrations create them in teldrive.
+	target, err := url.Parse(targetURL)
+	if err != nil {
+		t.Fatalf("parse migrated test database URL: %v", err)
+	}
+	params := target.Query()
+	params.Set("search_path", database.DefaultSchema+",public")
+	target.RawQuery = params.Encode()
+	targetURL = target.String()
 
 	pool, err := database.Open(ctx, database.Config{
 		URL:             targetURL,

@@ -1,5 +1,11 @@
 @import "tailwindcss";
 @import "@heroui/styles";
+@source not "../../touch-test-results";
+@source not "../../test-results";
+@source not "../../playwright-report";
+
+html[data-density="compact"] td { padding-top: 0.35rem; padding-bottom: 0.35rem; }
+html[data-density="compact"] [role="row"] { min-height: 2.25rem; }
 
 /* ─── Font ─── */
 @font-face {
@@ -319,5 +325,30 @@ foliate-view::part(foot) {
         @apply bg-default-hover/50;
       }
     }
+  }
+}
+@media (pointer: coarse) {
+  button, [role="button"], [role="menuitem"], [role="option"] {
+    min-height: 44px;
+    min-width: 44px;
+    touch-action: manipulation;
+  }
+  label:has(input[type="checkbox"]) {
+    min-height: 44px;
+    min-width: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
+  .touch-action-toolbar {
+    flex-wrap: wrap;
+    justify-content: center;
+    border-radius: 1rem;
+    overflow: visible;
+    margin-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .file-browser-header { flex-wrap: wrap; }
+  .file-browser-controls { flex-basis: 100%; justify-content: flex-end; flex-wrap: wrap; }
+  [role="grid"]:has([aria-selected="true"]) {
+    padding-bottom: calc(14rem + env(safe-area-inset-bottom, 0px));
   }
 }

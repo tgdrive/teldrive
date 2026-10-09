@@ -8,7 +8,7 @@ const trashedId = "33333333-3333-4333-8333-333333333333";
 const activeFiles = [
   {
     id: folderId,
-    name: "Documents",
+    name: "Documentos",
     kind: "folder",
     encryption: true,
     status: "active",
@@ -232,8 +232,8 @@ async function installApi(page: Page) {
       status: jobState,
       type: "teldrive_upload_cleanup",
       queue: "maintenance",
-      description: "Clean stale uploads",
-      message: jobState === "running" ? "Scanning stale uploads" : "Task cancelled",
+      description: "Limpiar subidas abandonadas",
+      message: jobState === "running" ? "Buscando subidas abandonadas" : "Tarea cancelada",
       progress: jobState === "running" ? 35 : 35,
       attempt: 1,
       maxAttempts: 10,
@@ -339,8 +339,8 @@ async function installApi(page: Page) {
           templates: [
             {
               kind: "teldrive_upload_cleanup",
-              label: "Upload cleanup",
-              description: "Clean stale multipart uploads.",
+              label: "Limpieza de subidas",
+              description: "Limpia las subidas por fragmentos abandonadas.",
               defaultId: "teldrive-upload-cleanup",
               defaultArgs: { batchSize: 100 },
               defaultQueue: "maintenance",
@@ -479,7 +479,7 @@ test("files renders, selects, previews, and exposes actions", async ({ page, isM
   );
   const errors = collectRuntimeErrors(page);
   await page.goto("/files");
-  await expect(page.getByRole("heading", { name: "Files" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Archivos" })).toBeVisible();
   await expect(page.getByText("fixture.txt", { exact: true })).toBeVisible();
   await page.getByText("fixture.txt", { exact: true }).click();
   await expect(page.getByRole("heading", { name: "fixture.txt" })).toBeVisible();
@@ -490,7 +490,7 @@ test("files renders, selects, previews, and exposes actions", async ({ page, isM
 test("files loads additional cursor pages while virtualized", async ({ page, isMobile }) => {
   test.skip(isMobile, "desktop covers the scroll-driven virtualizer sentinel");
   await page.goto("/files?path=%2F&query=load-more&view=list");
-  const list = page.getByRole("grid", { name: "Files and folders" });
+  const list = page.getByRole("grid", { name: "Archivos y carpetas" });
   await expect(list).toBeVisible();
   await expect(page.getByText("load-more-001.txt", { exact: true })).toBeVisible();
   await list.evaluate((element) => {
@@ -502,40 +502,40 @@ test("files loads additional cursor pages while virtualized", async ({ page, isM
 });
 test("tasks uses RiverPro job data", async ({ page }) => {
   await page.goto("/tasks");
-  await expect(page.getByRole("heading", { name: "Tasks" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Tareas" })).toBeVisible();
   await expect(page.getByRole("link", { name: "teldrive_upload_cleanup #42" })).toBeVisible();
   await expect(page.getByText("maintenance queue", { exact: true })).toBeVisible();
 });
 
 test("storage dashboard shows usage, distribution, cleanup, and activity", async ({ page }) => {
   await page.goto("/storage");
-  await expect(page.getByRole("heading", { name: "Storage", exact: true })).toBeVisible();
-  await expect(page.getByText("Storage growth", { exact: true })).toBeVisible();
-  await expect(page.getByText("Storage composition", { exact: true })).toBeVisible();
-  await expect(page.getByText("Telegram channel distribution", { exact: true })).toBeVisible();
-  await expect(page.getByText("Cleanup opportunities", { exact: true })).toBeVisible();
-  await expect(page.getByText("Recent storage activity", { exact: true })).toBeVisible();
-  await expect(page.getByText("Data health", { exact: true })).toHaveCount(0);
-  await expect(page.getByText("Upload health", { exact: true })).toHaveCount(0);
-  await expect(page.getByText("Largest items", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Almacenamiento", exact: true })).toBeVisible();
+  await expect(page.getByText("Crecimiento del almacenamiento", { exact: true })).toBeVisible();
+  await expect(page.getByText("Composición del almacenamiento", { exact: true })).toBeVisible();
+  await expect(page.getByText("Distribución entre canales de Telegram", { exact: true })).toBeVisible();
+  await expect(page.getByText("Opciones para liberar espacio", { exact: true })).toBeVisible();
+  await expect(page.getByText("Actividad reciente del almacenamiento", { exact: true })).toBeVisible();
+  await expect(page.getByText("Integridad de los datos", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Estado de subidas", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Elementos más grandes", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Maintenance jobs", { exact: true })).toHaveCount(0);
 });
 
 test("settings exposes all Teldrive areas", async ({ page, isMobile }) => {
   await page.goto("/settings");
-  await expect(page.getByRole("heading", { name: "Account" })).toBeVisible();
-  if (isMobile) await page.getByRole("button", { name: "Open settings navigation" }).click();
+  await expect(page.getByRole("heading", { name: "Cuenta" })).toBeVisible();
+  if (isMobile) await page.getByRole("button", { name: "Abrir menú de configuración" }).click();
   const navigation = page.locator('nav[aria-label="Settings navigation"]:visible');
   await expect(navigation).toBeVisible();
   for (const label of [
-    "Overview",
-    "Channels",
+    "Resumen",
+    "Canales",
     "Bots",
-    "Sessions",
-    "API keys",
-    "Uploads",
-    "Periodic Jobs",
-    "Appearance",
+    "Sesiones",
+    "Claves de API",
+    "Subidas",
+    "Tareas periódicas",
+    "Apariencia",
   ]) {
     await expect(navigation.getByRole("link", { name: label, exact: true }).first()).toBeVisible();
   }
@@ -543,16 +543,16 @@ test("settings exposes all Teldrive areas", async ({ page, isMobile }) => {
 
 test("task detail is the exact detail surface", async ({ page }) => {
   await page.goto("/tasks/42");
-  await expect(page.getByRole("heading", { name: "Clean stale uploads" })).toBeVisible();
-  await expect(page.getByText("Arguments", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Limpiar subidas abandonadas" })).toBeVisible();
+  await expect(page.getByText("Parámetros", { exact: true })).toBeVisible();
   await expect(page.getByText("Metadata", { exact: true })).toBeVisible();
-  await expect(page.getByText("Attempts", { exact: true })).toBeVisible();
+  await expect(page.getByText("Intentos", { exact: true })).toBeVisible();
 });
 
 test("periodic jobs appears in settings with the editor", async ({ page }) => {
   await page.goto("/settings/periodic-jobs");
-  await expect(page.locator("h1").filter({ hasText: "Periodic Jobs" })).toBeVisible();
-  await page.getByRole("button", { name: "Add periodic job" }).click();
+  await expect(page.locator("h1").filter({ hasText: "Tareas periódicas" })).toBeVisible();
+  await page.getByRole("button", { name: "Añadir tarea periódica" }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
 });
 
@@ -598,22 +598,22 @@ test("periodic job controls are icon buttons with row-scoped pending state", asy
 test("task launcher queues a Teldrive River job", async ({ page, isMobile }) => {
   test.skip(isMobile, "desktop task launcher interaction");
   await page.goto("/tasks");
-  await page.getByRole("button", { name: "New task" }).click();
-  await expect(page.getByRole("heading", { name: "New task" })).toBeVisible();
+  await page.getByRole("button", { name: "Nueva tarea" }).click();
+  await expect(page.getByRole("heading", { name: "Nueva tarea" })).toBeVisible();
   const queued = page.waitForRequest(
     (request) => request.method() === "POST" && request.url().endsWith("/api/v1/jobs"),
   );
   await page.getByRole("button", { name: "Queue clean stale uploads" }).click();
   await queued;
-  await expect(page.getByRole("heading", { name: "New task" })).toBeHidden();
+  await expect(page.getByRole("heading", { name: "Nueva tarea" })).toBeHidden();
 });
 
 test("trash exposes restore and permanent deletion", async ({ page }) => {
   await page.goto("/trash");
-  await expect(page.getByRole("heading", { name: "Trash" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Papelera" })).toBeVisible();
   await expect(page.getByText("deleted.txt", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Restore" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Delete forever" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Restaurar" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Eliminar definitivamente" })).toBeVisible();
 });
 
 test("command palette searches Teldrive files", async ({ page }) => {
@@ -629,10 +629,10 @@ test("command palette searches Teldrive files", async ({ page }) => {
 test("mobile navigation opens and reaches Tasks", async ({ page, isMobile }) => {
   test.skip(!isMobile, "mobile-only navigation");
   await page.goto("/files");
-  await page.getByRole("button", { name: "Open navigation" }).click();
-  const dialog = page.getByRole("dialog", { name: "Navigation" });
+  await page.getByRole("button", { name: "Abrir navegación" }).click();
+  const dialog = page.getByRole("dialog", { name: "Navegación" });
   await expect(dialog).toBeVisible();
-  await dialog.getByRole("link", { name: "Tasks", exact: true }).click();
+  await dialog.getByRole("link", { name: "Tareas", exact: true }).click();
   await expect(page).toHaveURL(/\/tasks$/);
 });
 
@@ -641,24 +641,24 @@ test("auth guard redirects before protected UI renders", async ({ page }) => {
     await new Promise((resolve) => setTimeout(resolve, 350));
     await route.fulfill({
       status: 401,
-      json: { error: { code: "unauthorized", message: "Authentication required" } },
+      json: { error: { code: "unauthorized", message: "Se requiere iniciar sesión" } },
     });
   });
 
   const navigation = page.goto("/");
   await page.waitForTimeout(100);
-  await expect(page.getByText("Cloud drive", { exact: true })).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Files" })).toHaveCount(0);
+  await expect(page.getByText("Unidad en la nube", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Archivos" })).toHaveCount(0);
   await navigation;
   await expect(page).toHaveURL(/\/login\?redirect=/);
-  await expect(page.getByRole("heading", { name: "Sign in with Telegram" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Iniciar sesión con Telegram" })).toBeVisible();
 });
 
 test("Telegram login surface renders independently", async ({ page }) => {
   await page.goto("/login");
-  await expect(page.getByRole("heading", { name: "Sign in with Telegram" })).toBeVisible();
-  await expect(page.getByText("Phone", { exact: true })).toBeVisible();
-  await expect(page.getByText("QR code", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Iniciar sesión con Telegram" })).toBeVisible();
+  await expect(page.getByText("Teléfono", { exact: true })).toBeVisible();
+  await expect(page.getByText("Código QR", { exact: true })).toBeVisible();
 });
 
 test("React Aria drop zone and file trigger complete an upload", async ({ page, isMobile }) => {
@@ -686,20 +686,20 @@ test("React Aria drop zone and file trigger complete an upload", async ({ page, 
 test("files create-folder dialog uses  design controls", async ({ page, isMobile }) => {
   test.skip(isMobile, "desktop file toolbar");
   await page.goto("/files");
-  await page.getByRole("button", { name: "New folder" }).click();
-  const dialog = page.getByRole("dialog", { name: "Create folder" });
-  await dialog.getByRole("textbox", { name: "Folder name" }).fill("Projects");
-  await dialog.getByRole("button", { name: "Create folder" }).click();
+  await page.getByRole("button", { name: "Nueva carpeta" }).click();
+  const dialog = page.getByRole("dialog", { name: "Crear carpeta" });
+  await dialog.getByRole("textbox", { name: "Nombre de carpeta" }).fill("Projects");
+  await dialog.getByRole("button", { name: "Crear carpeta" }).click();
   await expect(dialog).toBeHidden();
 });
 
 test("upload settings use HeroUI controls and persist choices", async ({ page }) => {
   await page.goto("/settings/uploads");
-  const encryption = page.getByRole("switch", { name: "Encrypt uploaded files" });
+  const encryption = page.getByRole("switch", { name: "Cifrar archivos subidos" });
   await expect(encryption).not.toBeChecked();
   await encryption.press("Space");
   await page.getByRole("button", { name: /rename new file/i }).click();
-  await page.getByRole("option", { name: "Replace existing", exact: true }).click();
+  await page.getByRole("option", { name: "Reemplazar existente", exact: true }).click();
   await expect(encryption).toBeChecked();
   await expect(page.getByRole("button", { name: /replace existing/i })).toBeVisible();
 });

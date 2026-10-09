@@ -16,11 +16,11 @@ import { currentUserQueryOptions } from "@/auth/queries";
 
 const SETTINGS_GROUPS = [
   {
-    label: "Account",
+    label: "Cuenta",
     items: [
-      { label: "Overview", path: "/settings", icon: PersonIcon },
+      { label: "Resumen", path: "/settings", icon: PersonIcon },
       {
-        label: "Users & roles",
+        label: "Usuarios y permisos",
         path: "/settings/users",
         icon: PersonIcon,
         capability: "system.manageUsers",
@@ -28,31 +28,32 @@ const SETTINGS_GROUPS = [
     ],
   },
   {
-    label: "Telegram storage",
+    label: "Almacenamiento en Telegram",
     items: [
-      { label: "Channels", path: "/settings/channels", icon: StorageIcon },
+      { label: "Canales", path: "/settings/channels", icon: StorageIcon },
       { label: "Bots", path: "/settings/bots", icon: RobotIcon },
     ],
   },
   {
-    label: "Security",
+    label: "Seguridad",
     items: [
-      { label: "Sessions", path: "/settings/sessions", icon: SessionsIcon },
-      { label: "API keys", path: "/settings/api-keys", icon: KeyIcon },
+      { label: "Sesiones", path: "/settings/sessions", icon: SessionsIcon },
+      { label: "Claves de API", path: "/settings/api-keys", icon: KeyIcon },
     ],
   },
   {
-    label: "Preferences",
+    label: "Preferencias",
     items: [
-      { label: "Uploads", path: "/settings/uploads", icon: UploadIcon },
-      { label: "Appearance", path: "/settings/appearance", icon: PaletteIcon },
+      { label: "Subidas", path: "/settings/uploads", icon: UploadIcon },
+      { label: "Apariencia", path: "/settings/appearance", icon: PaletteIcon },
+      { label: "Rclone", path: "/settings/rclone", icon: StorageIcon },
     ],
   },
   {
-    label: "System",
+    label: "Sistema",
     items: [
       {
-        label: "Periodic Jobs",
+        label: "Tareas periódicas",
         path: "/settings/periodic-jobs",
         icon: ClockIcon,
         capability: "system.maintenance",
@@ -79,10 +80,10 @@ function SettingsLayout() {
         <div className="sticky top-0 flex max-h-[calc(100dvh-7rem)] flex-col gap-5 overflow-y-auto border-r border-border pr-5">
           <div>
             <Typography type="h2" className="text-lg font-semibold">
-              Settings
+              Configuración
             </Typography>
             <Typography.Paragraph className="mt-1 text-xs text-muted">
-              Configure Teldrive and this browser.
+              Configura Teldrive y este navegador.
             </Typography.Paragraph>
           </div>
           <SettingsNavigation currentPath={location.pathname} groups={visibleGroups} />
@@ -92,17 +93,17 @@ function SettingsLayout() {
         <div className="mb-5 flex items-center justify-between border-b border-border pb-4 lg:hidden">
           <div>
             <Typography type="h2" className="text-base font-semibold">
-              {activeLabel ?? "Settings"}
+              {activeLabel ?? "Configuración"}
             </Typography>
             <Typography.Paragraph className="text-xs text-muted">
-              Teldrive settings
+              Configuración de Teldrive
             </Typography.Paragraph>
           </div>
           <Button
             isIconOnly
             size="sm"
             variant="tertiary"
-            aria-label="Open settings navigation"
+            aria-label="Abrir menú de configuración"
             onPress={() => setMobileOpen(true)}
           >
             <MenuIcon className="size-4" />
@@ -115,16 +116,16 @@ function SettingsLayout() {
           <Modal.Dialog className="h-full rounded-none">
             <Modal.Header className="flex-row items-center justify-between border-b border-border">
               <div>
-                <Modal.Heading>Settings</Modal.Heading>
+                <Modal.Heading>Configuración</Modal.Heading>
                 <Typography.Paragraph className="text-xs text-muted">
-                  Choose a settings area.
+                  Elige una sección de configuración.
                 </Typography.Paragraph>
               </div>
               <Button
                 isIconOnly
                 size="sm"
                 variant="tertiary"
-                aria-label="Close settings navigation"
+                aria-label="Cerrar menú de configuración"
                 onPress={() => setMobileOpen(false)}
               >
                 <CloseIcon className="size-4" />
@@ -154,7 +155,7 @@ function SettingsNavigation({
   onNavigate?: () => void;
 }) {
   return (
-    <nav aria-label="Settings navigation" className="flex flex-col gap-5">
+    <nav aria-label="Menú de configuración" className="flex flex-col gap-5">
       {groups.map((group, groupIndex) => (
         <div key={group.label} className="flex flex-col gap-1.5">
           {groupIndex > 0 ? <Separator className="mb-3" /> : null}

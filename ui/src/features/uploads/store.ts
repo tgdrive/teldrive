@@ -144,7 +144,7 @@ export const useUploadStore = create<UploadState>((set, get) => ({
     if (!files.has(taskId)) {
       get().patchTask(taskId, {
         status: "failed",
-        error: "The original file is no longer available. Start the upload again.",
+        error: "El archivo original ya no está disponible. Inicia la subida de nuevo.",
       });
       return;
     }
@@ -220,7 +220,7 @@ async function getOrCreateSession(task: UploadTask, signal: AbortSignal): Promis
         { signal },
       );
       if (!validUploadSession(existing))
-        throw invalidResponse("The upload session response is malformed.");
+        throw invalidResponse("La respuesta de la sesión de subida no es válida.");
       return existing;
     } catch (error) {
       if (![404, 410].includes(normalizeApiError(error).status)) throw error;
@@ -247,7 +247,7 @@ async function getOrCreateSession(task: UploadTask, signal: AbortSignal): Promis
     signal,
   });
   if (!validUploadSession(created))
-    throw invalidResponse("The upload session response is malformed.");
+    throw invalidResponse("La respuesta de la sesión de subida no es válida.");
   return created;
 }
 
@@ -356,11 +356,11 @@ function uploadPart(
     });
     request.addEventListener("error", () => {
       signal.removeEventListener("abort", abort);
-      reject(new Error("The upload part could not be transferred."));
+      reject(new Error("No se pudo transferir el fragmento de subida."));
     });
     request.addEventListener("abort", () => {
       signal.removeEventListener("abort", abort);
-      reject(new DOMException("Upload paused", "AbortError"));
+      reject(new DOMException("Subida en pausa", "AbortError"));
     });
     signal.addEventListener("abort", abort, { once: true });
     if (signal.aborted) {
@@ -389,7 +389,7 @@ async function runTask(taskId: string) {
     if (task) {
       store.patchTask(taskId, {
         status: "failed",
-        error: "The original file is no longer available. Start the upload again.",
+        error: "El archivo original ya no está disponible. Inicia la subida de nuevo.",
       });
     }
     return;
@@ -420,7 +420,7 @@ async function runTask(taskId: string) {
     });
     const totalParts = task.size === 0 ? 0 : Math.ceil(task.size / session.partSize);
     for (let partNo = 1; partNo <= totalParts; partNo++) {
-      if (controller.signal.aborted) throw new DOMException("Upload paused", "AbortError");
+      if (controller.signal.aborted) throw new DOMException("Subida en pausa", "AbortError");
       if (stored.has(partNo)) continue;
       const start = (partNo - 1) * session.partSize;
       const end = Math.min(task.size, start + session.partSize);

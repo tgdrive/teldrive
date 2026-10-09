@@ -70,7 +70,7 @@ async function installViewerApi(
       return route.fulfill({
         json: {
           userId: 1,
-          displayName: "Reader",
+          displayName: "Lector",
           premium: true,
           role: "user",
           capabilities: ["files.read", "files.write", "files.share"],
@@ -169,9 +169,9 @@ test("PDF opens in the Teldrive PDF.js workspace with navigation and search", as
   await expect(dialog.locator(".pdfViewer .textLayer").first()).toBeVisible();
   const initialContentRequests = stats.pdfContentRequests;
 
-  const pageInput = dialog.getByRole("textbox", { name: "PDF page number" });
+  const pageInput = dialog.getByRole("textbox", { name: "Número de página del PDF" });
   await expect(pageInput).toHaveValue("1");
-  await dialog.getByRole("button", { name: "Next PDF page" }).click();
+  await dialog.getByRole("button", { name: "Página siguiente del PDF" }).click();
   await expect(pageInput).toHaveValue("2");
   await page.keyboard.press("=");
   expect(stats.pdfContentRequests).toBe(initialContentRequests);
@@ -180,15 +180,15 @@ test("PDF opens in the Teldrive PDF.js workspace with navigation and search", as
   if (viewportWidth >= 1024) {
     await expect(dialog.getByRole("button", { name: "Go to page 2" })).toBeVisible();
   } else {
-    await dialog.getByRole("button", { name: "Open PDF sidebar" }).click();
-    const navigation = page.getByRole("dialog", { name: "Document navigation" });
+    await dialog.getByRole("button", { name: "Abrir menú lateral del PDF" }).click();
+    const navigation = page.getByRole("dialog", { name: "Navegación del documento" });
     await expect(navigation).toBeVisible();
     await expect(navigation.getByRole("button", { name: "Go to page 2" })).toBeVisible();
-    await navigation.getByRole("button", { name: "Close" }).click();
+    await navigation.getByRole("button", { name: "Cerrar" }).click();
   }
 
-  await dialog.getByRole("button", { name: "Search in PDF" }).click();
-  const search = dialog.getByRole("textbox", { name: "Find in PDF" });
+  await dialog.getByRole("button", { name: "Buscar en PDF" }).click();
+  const search = dialog.getByRole("textbox", { name: "Buscar en PDF" });
   await search.fill("Second Page");
   await expect
     .poll(async () => dialog.locator("[data-pdf-findbar]").innerText())
@@ -198,18 +198,18 @@ test("PDF opens in the Teldrive PDF.js workspace with navigation and search", as
   await expect(dialog.locator("[data-pdf-findbar]")).toBeHidden();
 
   if (viewportWidth >= 1280) {
-    await dialog.getByRole("button", { name: "Highlight" }).click();
+    await dialog.getByRole("button", { name: "Resaltar" }).click();
   } else {
-    await dialog.getByRole("button", { name: "PDF reader tools" }).click();
-    await page.getByRole("button", { name: "Highlight" }).click();
+    await dialog.getByRole("button", { name: "Herramientas del lector de PDF" }).click();
+    await page.getByRole("button", { name: "Resaltar" }).click();
   }
   await expect(dialog.locator(".textLayer.highlighting").first()).toBeVisible();
 
   const editedDownload = page.waitForEvent("download");
   if (viewportWidth >= 1280) {
-    await dialog.getByRole("button", { name: "Save edited PDF copy" }).click();
+    await dialog.getByRole("button", { name: "Guardar copia editada del PDF" }).click();
   } else {
-    await page.getByRole("button", { name: "Save copy" }).click();
+    await page.getByRole("button", { name: "Guardar copia" }).click();
   }
   await expect
     .poll(async () => (await editedDownload).suggestedFilename())
@@ -224,7 +224,7 @@ test("PDF opens in the Teldrive PDF.js workspace with navigation and search", as
     await page.waitForTimeout(200);
   }
   if (await dialog.isVisible())
-    await dialog.getByRole("button", { name: "Close PDF reader" }).click();
+    await dialog.getByRole("button", { name: "Cerrar lector de PDF" }).click();
   await expect(dialog).toBeHidden();
   expect(errors).toEqual([]);
 });
@@ -241,13 +241,13 @@ test("mobile EPUB navigation opens in a HeroUI drawer", async ({ page }) => {
   const foliate = dialog.locator("foliate-view");
   await expect(foliate).toHaveAttribute("data-rendered-content", /A Quiet Beginning/);
 
-  const menu = dialog.getByRole("button", { name: "Open ebook navigation" });
+  const menu = dialog.getByRole("button", { name: "Abrir navegación del libro" });
   await expect(menu).toBeVisible();
   await menu.click();
 
-  const drawer = page.getByRole("dialog", { name: "Book navigation" });
+  const drawer = page.getByRole("dialog", { name: "Navegación del libro" });
   await expect(drawer).toBeVisible();
-  await expect(drawer.getByRole("listbox", { name: "Table of contents" })).toBeVisible();
+  await expect(drawer.getByRole("listbox", { name: "Tabla de contenido" })).toBeVisible();
   await drawer.getByRole("option", { name: "Across the Cloud" }).click();
   await expect(drawer).toBeHidden();
   await expect(dialog.getByText("Across the Cloud").first()).toBeVisible();
@@ -266,7 +266,7 @@ test("EPUB renders in its dedicated reader, navigates without persisting, and cl
   const dialog = page.getByRole("dialog", { name: "reader-sample.epub" });
   await expect(dialog).toBeVisible();
   await expect(dialog.locator("[data-epub-reader]")).toBeVisible();
-  await expect(dialog.getByRole("button", { name: "Open ebook navigation" })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Abrir navegación del libro" })).toBeVisible();
   await expect(dialog.getByText("TelDrive Reader Fixture").first()).toBeVisible();
 
   const foliate = dialog.locator("foliate-view");
@@ -300,10 +300,10 @@ test("EPUB renders in its dedicated reader, navigates without persisting, and cl
   const viewportWidth = page.viewportSize()?.width ?? 0;
   if (viewportWidth >= 1024) {
     const canvasBefore = await dialog.locator("[data-epub-canvas]").boundingBox();
-    await dialog.getByRole("button", { name: "Open ebook navigation" }).click();
+    await dialog.getByRole("button", { name: "Abrir navegación del libro" }).click();
     const sidebar = dialog.locator("[data-epub-sidebar]");
     await expect(sidebar).toBeVisible();
-    await expect(sidebar.getByRole("listbox", { name: "Table of contents" })).toBeVisible();
+    await expect(sidebar.getByRole("listbox", { name: "Tabla de contenido" })).toBeVisible();
     const canvasAfter = await dialog.locator("[data-epub-canvas]").boundingBox();
     expect(canvasBefore && canvasAfter).toBeTruthy();
     expect(canvasAfter!.x).toBeGreaterThan(canvasBefore!.x);
@@ -312,16 +312,16 @@ test("EPUB renders in its dedicated reader, navigates without persisting, and cl
   await settleBrowserLayout(page);
   expect(errors).toEqual([]);
 
-  await dialog.getByRole("button", { name: "Reading settings" }).click();
+  await dialog.getByRole("button", { name: "Configuración de lectura" }).click();
   await page.getByRole("button", { name: "Night" }).click();
   await expect(dialog.locator("[data-epub-reader]")).toHaveAttribute("data-reader-theme", "night");
-  const appearance = page.getByRole("dialog", { name: "Reading appearance" });
-  await appearance.getByRole("button", { name: "Done" }).click();
+  const appearance = page.getByRole("dialog", { name: "Apariencia de lectura" });
+  await appearance.getByRole("button", { name: "Listo" }).click();
   await expect(appearance).toBeHidden();
   await settleBrowserLayout(page);
   expect(errors).toEqual([]);
 
-  await dialog.getByRole("button", { name: "Next page" }).click();
+  await dialog.getByRole("button", { name: "Página siguiente" }).click();
   expect(writes).toEqual([]);
   await settleBrowserLayout(page);
   expect(errors).toEqual([]);

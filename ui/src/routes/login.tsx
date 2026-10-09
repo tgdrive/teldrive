@@ -61,7 +61,7 @@ function LoginPage() {
     const qc = getQueryClient();
     await qc.invalidateQueries({ queryKey: query.queryKey });
     await qc.ensureQueryData(query);
-    toast.success("Signed in to Teldrive");
+    toast.success("Sesión iniciada en Teldrive");
     await navigate({ to: redirect, replace: true });
   };
 
@@ -91,7 +91,7 @@ function LoginPage() {
       });
       if (isSession(result)) await finish();
     } catch (error) {
-      toast.error("Telegram sign-in failed", { description: userMessage(error) });
+      toast.error("No se pudo iniciar sesión con Telegram", { description: userMessage(error) });
     }
   };
 
@@ -130,12 +130,12 @@ function LoginPage() {
             if (state.qrExpiresAt) setQrExpiry(state.qrExpiresAt);
           } catch (error) {
             window.clearInterval(timer);
-            toast.error("QR sign-in stopped", { description: userMessage(error) });
+            toast.error("Inicio de sesión por QR detenido", { description: userMessage(error) });
           }
         }, 2500);
       })
       .catch((error) =>
-        toast.error("Unable to create QR sign-in", { description: userMessage(error) }),
+        toast.error("No se pudo crear el código QR", { description: userMessage(error) }),
       );
     return () => {
       active = false;
@@ -154,7 +154,7 @@ function LoginPage() {
             Teldrive
           </p>
           <h1 className="text-4xl font-semibold tracking-tight">
-            Your Telegram-backed cloud drive.
+            Tu unidad en la nube respaldada por Telegram.
           </h1>
           <p className="mt-4 max-w-lg text-sm leading-6 text-muted">
             Manage files, uploads, background jobs, channels, bots, sessions, and API access from
@@ -165,9 +165,9 @@ function LoginPage() {
       <section className="flex items-center justify-center p-4 sm:p-8 lg:p-12">
         <Card className="w-full max-w-md border border-border bg-surface/90 shadow-xl">
           <Card.Header className="block px-6 pt-6">
-            <Card.Title>Sign in with Telegram</Card.Title>
+            <Card.Title>Iniciar sesión con Telegram</Card.Title>
             <Card.Description>
-              API keys are reserved for rclone and external clients.
+              Las claves de API se utilizan con rclone y otros clientes externos.
             </Card.Description>
           </Card.Header>
           <Card.Content className="space-y-5 px-6 pb-6">
@@ -179,31 +179,31 @@ function LoginPage() {
               }}
             >
               <Tabs.ListContainer>
-                <Tabs.List aria-label="Sign-in method">
+                <Tabs.List aria-label="Método de inicio de sesión">
                   <Tabs.Tab id="phone">
-                    <PhoneIcon className="size-4" /> Phone
+                    <PhoneIcon className="size-4" /> Teléfono
                   </Tabs.Tab>
                   <Tabs.Tab id="qr">
-                    <QrIcon className="size-4" /> QR code
+                    <QrIcon className="size-4" /> Código QR
                   </Tabs.Tab>
                 </Tabs.List>
               </Tabs.ListContainer>
               <Tabs.Panel id="phone" className="space-y-4 pt-4">
                 {step === "phone" && (
                   <TextField className="grid gap-1">
-                    <Label>Telegram phone number</Label>
+                    <Label>Número de teléfono de Telegram</Label>
                     <Input
                       autoFocus
                       placeholder="+12025550123"
                       value={phone}
                       onChange={(event) => setPhone(event.target.value)}
                     />
-                    <Description>Use E.164 format including the country code.</Description>
+                    <Description>Incluye el prefijo del país, por ejemplo +56912345678.</Description>
                   </TextField>
                 )}
                 {step === "code" && (
                   <TextField className="grid gap-1">
-                    <Label>Telegram code</Label>
+                    <Label>Código de Telegram</Label>
                     <Input
                       autoFocus
                       inputMode="numeric"
@@ -214,7 +214,7 @@ function LoginPage() {
                 )}
                 {step === "password" && (
                   <TextField className="grid gap-1">
-                    <Label>Two-step verification password</Label>
+                    <Label>Contraseña de verificación en dos pasos</Label>
                     <Input
                       autoFocus
                       type="password"
@@ -232,7 +232,7 @@ function LoginPage() {
                   }
                 >
                   {pending ? <Spinner size="sm" /> : <ShieldIcon className="size-4" />}
-                  {step === "phone" ? "Send code" : "Verify and sign in"}
+                  {step === "phone" ? "Enviar código" : "Verificar e iniciar sesión"}
                 </Button>
                 {step !== "phone" && (
                   <Button
@@ -245,25 +245,25 @@ function LoginPage() {
                       setPassword("");
                     }}
                   >
-                    Start again
+                    Empezar de nuevo
                   </Button>
                 )}
               </Tabs.Panel>
               <Tabs.Panel id="qr" className="space-y-4 pt-4">
                 <div className="grid min-h-72 place-items-center rounded-xl border border-border bg-white p-5 text-black">
                   {qrUrl ? (
-                    <QRCodeSVG value={qrUrl} size={220} aria-label="Telegram sign-in QR code" />
+                    <QRCodeSVG value={qrUrl} size={220} aria-label="Código QR de inicio de sesión en Telegram" />
                   ) : (
                     <Spinner size="lg" />
                   )}
                 </div>
                 <div className="text-center">
-                  <p className="font-medium">Scan with Telegram</p>
+                  <p className="font-medium">Escanear con Telegram</p>
                   <p className="mt-1 text-xs text-muted">
-                    Settings → Devices → Link Desktop Device
+                    Ajustes → Dispositivos → Vincular dispositivo
                   </p>
                   <p className="mt-2 text-xs text-muted">
-                    Expires {qrExpiry ? new Date(qrExpiry).toLocaleTimeString() : "soon"}
+                    Vence {qrExpiry ? new Date(qrExpiry).toLocaleTimeString("es") : "en breve"}
                   </p>
                 </div>
               </Tabs.Panel>

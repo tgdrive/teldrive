@@ -87,7 +87,7 @@ test("header search submits and the routed query fetches drive results", async (
   });
 
   await page.goto("/files");
-  const search = page.getByRole("textbox", { name: "Search files" });
+  const search = page.getByRole("textbox", { name: "Buscar archivos" });
   await search.fill("alpha");
   await search.press("Enter");
   await expect(page).toHaveURL(/\/search\?q=alpha/);
@@ -124,8 +124,8 @@ test("header submission carries the active folder context without sending a path
     return route.fulfill({ status: 404, json: {} });
   });
   await page.goto(`/files?path=%2FProjects%2FDesign&parentId=${folderId}`);
-  await page.getByRole("textbox", { name: "Search files" }).fill("brief");
-  await page.getByRole("textbox", { name: "Search files" }).press("Enter");
+  await page.getByRole("textbox", { name: "Buscar archivos" }).fill("brief");
+  await page.getByRole("textbox", { name: "Buscar archivos" }).press("Enter");
   await expect(page).toHaveURL(/folderPath=%2FProjects%2FDesign/);
   await expect(page).toHaveURL(new RegExp(`parentId=${folderId}`));
   await expect.poll(() => searchRequest?.searchParams.get("search")).toBe("brief");
@@ -187,11 +187,11 @@ test("search filters apply as a real form and keep canonical dates in URL and AP
     return route.fulfill({ status: 404, json: {} });
   });
   await page.goto("/search?q=report");
-  await page.getByRole("button", { name: "Filters" }).click();
+  await page.getByRole("button", { name: "Filtros" }).click();
   await page.getByRole("button", { name: /Type/ }).click();
-  await page.getByRole("option", { name: "Files", exact: true }).click();
+  await page.getByRole("option", { name: "Archivos", exact: true }).click();
   await page.getByLabel("Modified after").fill("2026-05-10");
-  await page.getByRole("button", { name: "Apply filters" }).click();
+  await page.getByRole("button", { name: "Aplicar filtros" }).click();
   await expect(page).toHaveURL(/kind=file/);
   await expect
     .poll(() => requests.at(-1)?.searchParams.get("updatedAfter"))
@@ -229,13 +229,13 @@ test("recursive filter can choose a folder and sends only its id", async ({ page
     return route.fulfill({ status: 404, json: {} });
   });
   await page.goto("/search?q=notes");
-  await page.getByRole("button", { name: "Filters" }).click();
+  await page.getByRole("button", { name: "Filtros" }).click();
   await page.getByRole("button", { name: /Search in/ }).click();
-  await expect(page.getByRole("option", { name: "Folder and subfolders" })).toBeEnabled();
-  await page.getByRole("option", { name: "Folder and subfolders" }).click();
+  await expect(page.getByRole("option", { name: "Carpeta y subcarpetas" })).toBeEnabled();
+  await page.getByRole("option", { name: "Carpeta y subcarpetas" }).click();
   await page.getByRole("row", { name: "Projects" }).click();
-  await page.getByRole("button", { name: "Use this folder" }).click();
-  await page.getByRole("button", { name: "Apply filters" }).click();
+  await page.getByRole("button", { name: "Usar esta carpeta" }).click();
+  await page.getByRole("button", { name: "Aplicar filtros" }).click();
   await expect(page).toHaveURL(/scope=recursive/);
   await expect.poll(() => request?.searchParams.get("parentId")).toBe(folderId);
   expect(request?.searchParams.has("path")).toBe(false);
@@ -265,8 +265,8 @@ test("a recursive URL without its folder is recoverable and never requests or sp
     return route.fulfill({ status: 404, json: {} });
   });
   await page.goto("/search?q=report&scope=recursive");
-  await expect(page.getByText("Choose a folder to search recursively")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Choose folder" })).toBeVisible();
+  await expect(page.getByText("Elige una carpeta para buscar en su contenido")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Elegir carpeta" })).toBeVisible();
   await expect(page.getByRole("progressbar")).toHaveCount(0);
   expect(listCalls).toBe(0);
 });
@@ -295,7 +295,7 @@ test("live search debounces requests and browser history restores the input", as
   await page.goto("/files");
   await page.clock.install();
   await page.clock.pauseAt(new Date(Date.now() + 1_000));
-  const input = page.getByRole("textbox", { name: "Search files" });
+  const input = page.getByRole("textbox", { name: "Buscar archivos" });
   await input.fill("first");
   await input.press("Enter");
   await expect(page).toHaveURL(/q=first/);
@@ -412,11 +412,11 @@ test("search selection exposes bounded actions and renames the selected result",
   const row = page.getByRole("row", { name: /alpha\.txt/ });
   await row.click();
   await expect(page.getByText("1 selected", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Cut selected items" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Duplicate selected item" })).toHaveCount(0);
-  await page.getByRole("button", { name: "Rename selected item" }).click();
-  await page.getByRole("textbox", { name: "New name" }).fill("renamed.txt");
-  await page.getByRole("button", { name: "Rename", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Cortar elementos seleccionados" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Duplicar elemento seleccionado" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Renombrar elemento seleccionado" }).click();
+  await page.getByRole("textbox", { name: "Nuevo nombre" }).fill("renamed.txt");
+  await page.getByRole("button", { name: "Renombrar", exact: true }).click();
   await expect.poll(() => renamed?.id).toBe(fileId);
   expect(renamed?.body).toEqual({ name: "renamed.txt" });
 });
@@ -436,7 +436,7 @@ test("failed copies retain retry context and pending confirmation cannot submit 
     if (attempts === 1)
       return route.fulfill({
         status: 409,
-        json: { error: { code: "conflict", message: "Copy failed" } },
+        json: { error: { code: "conflict", message: "No se pudo copiar" } },
       });
     await pending;
     return route.fulfill({ json: resultFile });
@@ -446,11 +446,11 @@ test("failed copies retain retry context and pending confirmation cannot submit 
     .getByRole("row", { name: /alpha\.txt/ })
     .locator('[data-slot="checkbox-control"]')
     .click();
-  await page.getByRole("button", { name: "Copy selected items", exact: true }).click();
+  await page.getByRole("button", { name: "Copiar elementos seleccionados", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Copy 1 item" });
-  const confirm = dialog.getByRole("button", { name: "Copy here" });
+  const confirm = dialog.getByRole("button", { name: "Copiar aquí" });
   await confirm.click();
-  await expect(dialog.getByRole("alert")).toContainText("Items could not be copied");
+  await expect(dialog.getByRole("alert")).toContainText("No se pudieron copiar los elementos");
   await expect(dialog).toBeVisible();
   await expect(page.getByText("1 selected", { exact: true })).toHaveCount(1);
   await confirm.click();
@@ -518,7 +518,7 @@ test("pagination preserves filters and selection; changing criteria starts a fre
     .click();
   await expect(page.getByText("1 selected", { exact: true })).toBeVisible();
   const continuation = requests.find((url) => url.searchParams.has("cursor"))!;
-  await page.getByRole("grid", { name: "Files and folders" }).focus();
+  await page.getByRole("grid", { name: "Archivos y carpetas" }).focus();
   await page.keyboard.press("Control+a");
   expect(continuation.searchParams.get("search")).toBe("alpha");
   expect(continuation.searchParams.getAll("category")).toEqual(["document", "image"]);
@@ -532,12 +532,12 @@ test("pagination preserves filters and selection; changing criteria starts a fre
     "false",
   );
   await expect(page.getByText("1 selected", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Grid view" }).click();
+  await page.getByRole("button", { name: "Vista de cuadrícula" }).click();
   await expect(page.getByText("1 selected", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Filters", exact: true }).click();
+  await page.getByRole("button", { name: "Filtros", exact: true }).click();
   await page.getByRole("button", { name: /Type/ }).click();
-  await page.getByRole("option", { name: "Files", exact: true }).click();
-  await page.getByRole("button", { name: "Apply filters" }).click();
+  await page.getByRole("option", { name: "Archivos", exact: true }).click();
+  await page.getByRole("button", { name: "Aplicar filtros" }).click();
   await expect.poll(() => requests.at(-1)?.searchParams.get("kind")).toBe("file");
   expect(requests.at(-1)?.searchParams.has("cursor")).toBe(false);
   await expect(page.getByRole("row", { name: /alpha-second\.txt/ })).toHaveCount(0);
@@ -555,7 +555,7 @@ test("search previews preserve the route and nested location links open the cont
   const preview = page.getByRole("dialog", { name: "alpha.txt" });
   await expect(preview).toBeVisible();
   await expect(page).toHaveURL(/\/search\?q=alpha/);
-  await preview.getByRole("button", { name: "Close viewer" }).click();
+  await preview.getByRole("button", { name: "Cerrar visor" }).click();
   await page
     .getByRole("button", { name: "Open containing folder /Documents" })
     .filter({ visible: true })
@@ -569,20 +569,20 @@ test("applying unrelated filters preserves precise dates and invalid saved range
 }) => {
   const state = await installResults(page);
   await page.goto("/search?q=alpha&updatedAfter=2026-05-10T12%3A34%3A56Z");
-  await page.getByRole("button", { name: "Filters", exact: true }).click();
+  await page.getByRole("button", { name: "Filtros", exact: true }).click();
   await page.getByRole("button", { name: /Type/ }).click();
-  await page.getByRole("option", { name: "Files", exact: true }).click();
-  await page.getByRole("button", { name: "Apply filters" }).click();
+  await page.getByRole("option", { name: "Archivos", exact: true }).click();
+  await page.getByRole("button", { name: "Aplicar filtros" }).click();
   await expect.poll(() => state.requests.at(-1)?.searchParams.get("kind")).toBe("file");
   expect(state.requests.at(-1)?.searchParams.get("updatedAfter")).toBe("2026-05-10T12:34:56.000Z");
 
   state.requests.length = 0;
   await page.goto("/search?q=alpha&updatedAfter=2026-05-10&updatedBefore=2026-05-10");
-  await expect(page.getByText("Check the modified-date range", { exact: true })).toBeVisible();
+  await expect(page.getByText("Revisa el intervalo de fechas", { exact: true })).toBeVisible();
   expect(state.requests).toHaveLength(0);
-  await page.getByRole("button", { name: "Edit filters" }).click();
+  await page.getByRole("button", { name: "Editar filtros" }).click();
   await page.getByLabel("Modified before").fill("2026-05-12");
-  await page.getByRole("button", { name: "Apply filters" }).click();
+  await page.getByRole("button", { name: "Aplicar filtros" }).click();
   await expect
     .poll(() => state.requests.at(-1)?.searchParams.get("updatedBefore"))
     .toBe("2026-05-12T00:00:00.000Z");
@@ -595,15 +595,15 @@ test("search error and empty states never claim that a folder is empty", async (
     fail
       ? route.fulfill({
           status: 422,
-          json: { error: { code: "invalid_request", message: "Search unavailable" } },
+          json: { error: { code: "invalid_request", message: "Búsqueda no disponible" } },
         })
       : route.fulfill({ json: { items: [] } }),
   );
   await page.goto("/search?q=missing");
-  await expect(page.getByRole("alert")).toContainText("Search could not be completed");
-  await expect(page.getByText("This folder is empty", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("alert")).toContainText("No se pudo completar la búsqueda");
+  await expect(page.getByText("Esta carpeta está vacía", { exact: true })).toHaveCount(0);
   fail = false;
-  await page.getByRole("button", { name: "Retry", exact: true }).click();
+  await page.getByRole("button", { name: "Reintentar", exact: true }).click();
   await expect(page.getByText("No matching files", { exact: true })).toBeVisible();
   await expect(page.getByRole("alert")).toHaveCount(0);
 });
@@ -613,7 +613,7 @@ test("search waits for IME composition to finish before changing the URL", async
   await page.goto("/search?q=alpha");
   await page.clock.install();
   await page.clock.pauseAt(new Date(Date.now() + 1_000));
-  const input = page.getByRole("textbox", { name: "Search files" });
+  const input = page.getByRole("textbox", { name: "Buscar archivos" });
   await input.evaluate((element) =>
     element.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true })),
   );

@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -14,6 +15,9 @@ import (
 func TestExpandHomePath(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	if runtime.GOOS == "windows" {
+		t.Setenv("USERPROFILE", home)
+	}
 
 	got, err := expandHomePath("~/cache")
 	if err != nil {

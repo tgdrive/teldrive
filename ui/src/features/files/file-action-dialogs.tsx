@@ -44,17 +44,17 @@ export function FileActionDialogs({
         onOpenChange={(open) => {
           if (!open) onRenameClose();
         }}
-        title="Rename item"
+        title="Renombrar elemento"
         isDismissable={!pending}
         isCloseDisabled={pending}
         size="md"
         footer={
           <>
             <Button variant="secondary" isDisabled={pending} onPress={onRenameClose}>
-              Cancel
+              Cancelar
             </Button>
             <Button variant="primary" isDisabled={!renameName.trim() || pending} onPress={onRename}>
-              Rename
+              Renombrar
             </Button>
           </>
         }
@@ -71,7 +71,7 @@ export function FileActionDialogs({
             } else event.continuePropagation();
           }}
         >
-          <Label>New name</Label>
+          <Label>Nuevo nombre</Label>
           <Input />
         </TextField>
         {error && (
@@ -87,8 +87,8 @@ export function FileActionDialogs({
           onOpenChange={(open) => {
             if (!open) destinationAction.onClose();
           }}
-          title={`${destinationAction.mode === "move" ? "Move" : "Copy"} ${destinationAction.count} item${destinationAction.count === 1 ? "" : "s"}`}
-          description="Choose the destination folder."
+          title={`${destinationAction.mode === "move" ? "Move" : "Copiar"} ${destinationAction.count} elemento${destinationAction.count === 1 ? "" : "s"}`}
+          description="Elige la carpeta de destino."
           isDismissable={!pending}
           isCloseDisabled={pending}
         >
@@ -99,7 +99,7 @@ export function FileActionDialogs({
           )}
           <FolderPicker
             initialPath="/"
-            confirmLabel={destinationAction.mode === "move" ? "Move here" : "Copy here"}
+            confirmLabel={destinationAction.mode === "move" ? "Mover aquí" : "Copiar aquí"}
             isDisabled={pending}
             onConfirm={(parentId) => destinationAction.onConfirm(parentId)}
           />

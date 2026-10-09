@@ -34,6 +34,7 @@ export default defineConfig({
         launchOptions: { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH },
       },
     },
+    { name: "iphone", use: { ...devices["iPhone 13"], browserName: "webkit" } },
   ],
   webServer: externalBaseURL
     ? undefined

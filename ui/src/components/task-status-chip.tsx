@@ -3,7 +3,7 @@ import { Chip } from "@heroui/react";
 const ACTIVE_STATUSES = new Set(["pending", "scheduled", "available", "running", "retryable"]);
 
 export function taskStatusLabel(status: string) {
-  return status.charAt(0).toUpperCase() + status.slice(1);
+  return ({pending:"Pendiente",scheduled:"Programada",available:"Disponible",running:"En ejecución",retryable:"Reintentable",cancelled:"Cancelada",discarded:"Descartada",completed:"Completada"} as Record<string,string>)[status] ?? status;
 }
 
 export function TaskStatusChip({ status, animate = true }: { status: string; animate?: boolean }) {

@@ -45,18 +45,18 @@ export function FileSelectionToolbar({
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-4 z-30 flex justify-center px-4">
       <fieldset
-        aria-label="Selected file actions"
-        className="pointer-events-auto flex max-w-full items-center gap-1.5 overflow-x-auto rounded-full border border-border bg-surface/95 p-1.5 shadow-xl backdrop-blur"
+        aria-label="Acciones de archivos seleccionados"
+        className="touch-action-toolbar pointer-events-auto flex max-w-full items-center gap-1.5 overflow-x-auto rounded-full border border-border bg-surface/95 p-1.5 shadow-xl backdrop-blur"
       >
         <span className="shrink-0 rounded-full bg-accent/10 px-3 py-2 text-sm font-medium text-accent">
-          {selectedCount} selected
+          {selectedCount} seleccionados
         </span>
         {onCut ? (
           <Button
             isIconOnly
             size="sm"
             variant="ghost"
-            aria-label="Cut selected items"
+            aria-label="Cortar elementos seleccionados"
             isDisabled={pending}
             onPress={onCut}
           >
@@ -68,7 +68,7 @@ export function FileSelectionToolbar({
             isIconOnly
             size="sm"
             variant="ghost"
-            aria-label="Copy selected items"
+            aria-label="Copiar elementos seleccionados"
             isDisabled={pending}
             onPress={onCopy}
           >
@@ -80,7 +80,7 @@ export function FileSelectionToolbar({
             isIconOnly
             size="sm"
             variant="ghost"
-            aria-label="Rename selected item"
+            aria-label="Renombrar elemento seleccionado"
             isDisabled={pending}
             onPress={onRename}
           >
@@ -92,7 +92,7 @@ export function FileSelectionToolbar({
             isIconOnly
             size="sm"
             variant="ghost"
-            aria-label="Duplicate selected item"
+            aria-label="Duplicar elemento seleccionado"
             isDisabled={pending}
             onPress={onDuplicate}
           >
@@ -104,7 +104,7 @@ export function FileSelectionToolbar({
             isIconOnly
             size="sm"
             variant="ghost"
-            aria-label="Share selected item"
+            aria-label="Compartir elemento seleccionado"
             isDisabled={pending}
             onPress={onShare}
           >
@@ -116,7 +116,7 @@ export function FileSelectionToolbar({
             isIconOnly
             size="sm"
             variant="ghost"
-            aria-label="Download selected file"
+            aria-label="Descargar archivo seleccionado"
             isDisabled={pending}
             onPress={onDownload}
           >
@@ -130,8 +130,8 @@ export function FileSelectionToolbar({
             variant="ghost"
             aria-label={
               selectedCount === 1
-                ? "Copy selected file download link"
-                : "Copy selected files download links"
+                ? "Copiar enlace de descarga del archivo seleccionado"
+                : "Copiar enlaces de descarga de los archivos seleccionados"
             }
             onPress={onCopyDownloadLinks}
             isDisabled={pending}
@@ -144,7 +144,7 @@ export function FileSelectionToolbar({
             isIconOnly
             size="sm"
             variant="ghost"
-            aria-label="Move selected items"
+            aria-label="Mover elementos seleccionados"
             isDisabled={pending}
             onPress={onMove}
           >
@@ -156,7 +156,7 @@ export function FileSelectionToolbar({
             isIconOnly
             size="sm"
             variant="danger"
-            aria-label="Move selected items to trash"
+            aria-label="Mover elementos seleccionados a la papelera"
             isDisabled={pending}
             onPress={onTrash}
           >
@@ -168,7 +168,7 @@ export function FileSelectionToolbar({
             isIconOnly
             size="sm"
             variant="ghost"
-            aria-label="Clear selection"
+            aria-label="Borrar selección"
             isDisabled={pending}
             onPress={onClear}
           >
