@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { SettingsPageHeader, SettingsRow, SettingsSection } from "@/components/settings-layout";
 import { RcloneBrowser } from "@/components/rclone-browser";
 import { isDesktop, desktopRequest } from "@/lib/desktop";
+import { nativeTextSave } from "@/lib/mobile";
 
 export const Route = createFileRoute("/_settings/settings/rclone")({ component: RcloneSettings });
 
@@ -49,7 +50,11 @@ function RcloneSettings() {
     platform === "windows" ? `'${value.replace(/'/g, "''")}'` : `'${value.replace(/'/g, "'\\''")}'`;
   const executable = platform === "windows" ? ".\\rclone.exe" : "./rclone";
   const prefix = `${executable} --config ./rclone.conf`;
-  const commands = `${prefix} lsf ${quote(`${remote}:`)}\n${prefix} mount ${quote(`${remote}:`)} ${quote(mount)} --vfs-cache-mode full --vfs-cache-max-size 10Gi --vfs-cache-max-age 24h\n${prefix} backend trash-list ${quote(`${remote}:`)}`;
+  const mountCommand =
+    platform === "macos"
+      ? "# El montaje requiere una compilación nativa con CGO y macFUSE; pendiente de validación en macOS."
+      : `${prefix} mount ${quote(`${remote}:`)} ${quote(mount)} --vfs-cache-mode full --vfs-cache-max-size 10Gi --vfs-cache-max-age 24h`;
+  const commands = `${prefix} lsf ${quote(`${remote}:`)}\n${mountCommand}\n${prefix} backend trash-list ${quote(`${remote}:`)}`;
   const copy = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -189,7 +194,15 @@ function RcloneSettings() {
           ) : null}
           <Button
             isDisabled={!valid}
-            onPress={() => {
+            onPress={async () => {
+              try {
+                if (await nativeTextSave(config, "rclone.conf")) return;
+              } catch (cause) {
+                toast.error(
+                  cause instanceof Error ? cause.message : "No se pudo guardar el archivo.",
+                );
+                return;
+              }
               const url = URL.createObjectURL(
                 new Blob([config], { type: "text/plain;charset=utf-8" }),
               );
@@ -251,7 +264,7 @@ function RcloneSettings() {
             {platform === "windows"
               ? "Windows requiere el controlador WinFsp para montar una unidad. Puedes usar las transferencias y la UI sin ese controlador."
               : platform === "macos"
-                ? "macOS requiere macFUSE para el montaje."
+                ? "Las transferencias funcionan en macOS. El montaje necesita macFUSE y una compilación nativa adicional; todavía no está validado en esta edición."
                 : "Linux requiere FUSE para el montaje."}
           </p>
           <pre className="overflow-x-auto rounded-lg bg-default/30 p-4 text-xs">

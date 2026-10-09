@@ -55,8 +55,8 @@ export function normalizeApiError(error: unknown, response?: Response): ApiError
     error instanceof Error
       ? error.message
       : status
-        ? `Request failed with status ${status}`
-        : "Network request failed";
+        ? `La solicitud falló con el estado ${status}`
+        : "No se pudo conectar con el servidor";
   return new ApiError({
     status,
     code:
@@ -102,7 +102,7 @@ export function userMessage(error: unknown): string {
     case 0:
       return "No se pudo conectar con el servidor. Comprueba la conexión y vuelve a intentarlo.";
     case 400:
-      return normalized.message || "La solicitud no era válida.";
+      return "La solicitud no era válida. Revisa los datos e inténtalo de nuevo.";
     case 401:
       return "Tu sesión ha vencido. Inicia sesión de nuevo para continuar.";
     case 403:
@@ -110,7 +110,7 @@ export function userMessage(error: unknown): string {
     case 404:
       return "El elemento solicitado ya no existe.";
     case 409:
-      return normalized.message || "El cambio entra en conflicto con un elemento existente.";
+      return "El cambio entra en conflicto con un elemento existente. Actualiza la vista y revisa el nombre o la ubicación.";
     case 410:
       return "Esta subida o enlace compartido ha vencido.";
     case 412:
@@ -120,12 +120,12 @@ export function userMessage(error: unknown): string {
     case 416:
       return "El intervalo solicitado del archivo no está disponible.";
     case 422:
-      return normalized.message || "Revisa los valores señalados.";
+      return "No se puede procesar este elemento. Revisa el formato y los valores indicados.";
     case 429:
       return "Teldrive está recibiendo demasiadas solicitudes. Reintenta en unos momentos.";
     default:
       return normalized.status >= 500
-        ? "El servidor devolvió un error. Tus datos no se modificaron."
+        ? "El servidor devolvió un error. Actualiza la vista antes de reintentar."
         : normalized.message;
   }
 }

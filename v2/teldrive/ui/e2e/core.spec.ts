@@ -35,12 +35,26 @@ const activeFiles = [
 async function installApi(page: Page) {
   let uploaded = false;
   let jobState = "running";
+  let periodicPaused = false;
+  page.on("request", (request) => {
+    if (
+      request.method() === "POST" &&
+      new URL(request.url()).pathname === "/api/v1/periodic-jobs/teldrive-upload-cleanup/pause"
+    )
+      periodicPaused = true;
+  });
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     const path = url.pathname.replace(/^\/api/, "");
     const method = request.method();
 
+    if (path === "/v1/me/photo") {
+      return route.fulfill({
+        contentType: "image/svg+xml",
+        body: '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><circle cx="16" cy="16" r="16" fill="#4f46e5"/></svg>',
+      });
+    }
     if (path === "/v1/me" && method === "GET") {
       return route.fulfill({
         json: {
@@ -134,7 +148,7 @@ async function installApi(page: Page) {
         json: { items: kind === "folder" ? items.filter((file) => file.kind === "folder") : items },
       });
     }
-    if (path === `/v1/files/${fileId}/content/readme.txt` && method === "GET") {
+    if (path.startsWith(`/v1/files/${fileId}/content/`) && method === "GET") {
       return route.fulfill({ contentType: "text/plain", body: "fixture preview" });
     }
     if (path === "/v1/storage/stats" && method === "GET") {
@@ -310,7 +324,7 @@ async function installApi(page: Page) {
               cronExpression: "*/5 * * * *",
               cronTimezone: "UTC",
               nextRunAt: now,
-              paused: false,
+              paused: periodicPaused,
               createdAt: now,
               updatedAt: now,
             },
@@ -479,9 +493,9 @@ test("files renders, selects, previews, and exposes actions", async ({ page, isM
   );
   const errors = collectRuntimeErrors(page);
   await page.goto("/files");
-  await expect(page.getByRole("heading", { name: "Archivos" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Carpeta actual" })).toContainText("Mi unidad");
   await expect(page.getByText("fixture.txt", { exact: true })).toBeVisible();
-  await page.getByText("fixture.txt", { exact: true }).click();
+  await page.getByRole("row", { name: "fixture.txt" }).dblclick();
   await expect(page.getByRole("heading", { name: "fixture.txt" })).toBeVisible();
   await expect(page.getByText("fixture preview")).toBeVisible();
   expect(errors).toEqual([]);
@@ -497,14 +511,14 @@ test("files loads additional cursor pages while virtualized", async ({ page, isM
     element.scrollTop = element.scrollHeight;
     element.dispatchEvent(new Event("scroll", { bubbles: true }));
   });
-  await expect(page.getByText("101 items", { exact: true })).toBeVisible();
+  await expect(page.getByText("loaded-second-page.txt", { exact: true })).toBeVisible();
   expect(await list.getByRole("row").count()).toBeLessThan(100);
 });
 test("tasks uses RiverPro job data", async ({ page }) => {
   await page.goto("/tasks");
   await expect(page.getByRole("heading", { name: "Tareas" })).toBeVisible();
   await expect(page.getByRole("link", { name: "teldrive_upload_cleanup #42" })).toBeVisible();
-  await expect(page.getByText("maintenance queue", { exact: true })).toBeVisible();
+  await expect(page.getByText("Cola maintenance", { exact: true })).toBeVisible();
 });
 
 test("storage dashboard shows usage, distribution, cleanup, and activity", async ({ page }) => {
@@ -512,9 +526,13 @@ test("storage dashboard shows usage, distribution, cleanup, and activity", async
   await expect(page.getByRole("heading", { name: "Almacenamiento", exact: true })).toBeVisible();
   await expect(page.getByText("Crecimiento del almacenamiento", { exact: true })).toBeVisible();
   await expect(page.getByText("Composición del almacenamiento", { exact: true })).toBeVisible();
-  await expect(page.getByText("Distribución entre canales de Telegram", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Distribución entre canales de Telegram", { exact: true }),
+  ).toBeVisible();
   await expect(page.getByText("Opciones para liberar espacio", { exact: true })).toBeVisible();
-  await expect(page.getByText("Actividad reciente del almacenamiento", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Actividad reciente del almacenamiento", { exact: true }),
+  ).toBeVisible();
   await expect(page.getByText("Integridad de los datos", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Estado de subidas", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Elementos más grandes", { exact: true })).toHaveCount(0);
@@ -525,7 +543,7 @@ test("settings exposes all Teldrive areas", async ({ page, isMobile }) => {
   await page.goto("/settings");
   await expect(page.getByRole("heading", { name: "Cuenta" })).toBeVisible();
   if (isMobile) await page.getByRole("button", { name: "Abrir menú de configuración" }).click();
-  const navigation = page.locator('nav[aria-label="Settings navigation"]:visible');
+  const navigation = page.locator('nav[aria-label="Menú de configuración"]:visible');
   await expect(navigation).toBeVisible();
   for (const label of [
     "Resumen",
@@ -545,7 +563,7 @@ test("task detail is the exact detail surface", async ({ page }) => {
   await page.goto("/tasks/42");
   await expect(page.getByRole("heading", { name: "Limpiar subidas abandonadas" })).toBeVisible();
   await expect(page.getByText("Parámetros", { exact: true })).toBeVisible();
-  await expect(page.getByText("Metadata", { exact: true })).toBeVisible();
+  await expect(page.getByText("Resultado", { exact: true })).toBeVisible();
   await expect(page.getByText("Intentos", { exact: true })).toBeVisible();
 });
 
@@ -583,16 +601,20 @@ test("periodic job controls are icon buttons with row-scoped pending state", asy
   });
 
   await page.goto("/settings/periodic-jobs");
-  const firstPause = page.getByRole("button", { name: "Pause teldrive-upload-cleanup" });
-  const secondPause = page.getByRole("button", { name: "Pause custom-periodic-job" });
-  await expect(page.getByRole("button", { name: "Edit teldrive-upload-cleanup" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Delete teldrive-upload-cleanup" })).toBeVisible();
+  const firstPause = page.getByRole("button", { name: "Pausar teldrive-upload-cleanup" });
+  const secondPause = page.getByRole("button", { name: "Pausar custom-periodic-job" });
+  await expect(page.getByRole("button", { name: "Editar teldrive-upload-cleanup" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Eliminar teldrive-upload-cleanup" }),
+  ).toBeVisible();
 
   await firstPause.click();
   await expect(firstPause).toBeDisabled();
   await expect(secondPause).toBeEnabled();
   releasePause();
-  await expect(page.getByRole("button", { name: "Resume teldrive-upload-cleanup" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Reanudar teldrive-upload-cleanup" }),
+  ).toBeVisible();
 });
 
 test("task launcher queues a Teldrive River job", async ({ page, isMobile }) => {
@@ -603,7 +625,7 @@ test("task launcher queues a Teldrive River job", async ({ page, isMobile }) => 
   const queued = page.waitForRequest(
     (request) => request.method() === "POST" && request.url().endsWith("/api/v1/jobs"),
   );
-  await page.getByRole("button", { name: "Queue clean stale uploads" }).click();
+  await page.getByRole("button", { name: "Programar limpiar subidas abandonadas" }).click();
   await queued;
   await expect(page.getByRole("heading", { name: "Nueva tarea" })).toBeHidden();
 });
@@ -619,11 +641,12 @@ test("trash exposes restore and permanent deletion", async ({ page }) => {
 test("command palette searches Teldrive files", async ({ page }) => {
   await page.goto("/files");
   await page.keyboard.press("Control+KeyK");
-  const dialog = page.getByRole("dialog", { name: /search/i });
-  await expect(dialog).toBeVisible();
-  const input = dialog.getByRole("textbox");
+  const input = page.getByRole("textbox", { name: "Buscar archivos" });
+  await expect(input).toBeFocused();
   await input.fill("fixture");
-  await expect(dialog.getByText("fixture.txt", { exact: true })).toBeVisible();
+  await input.press("Enter");
+  await expect(page).toHaveURL(/\/search\?/);
+  await expect(page.getByText("fixture.txt", { exact: true })).toBeVisible();
 });
 
 test("mobile navigation opens and reaches Tasks", async ({ page, isMobile }) => {
@@ -648,7 +671,7 @@ test("auth guard redirects before protected UI renders", async ({ page }) => {
   const navigation = page.goto("/");
   await page.waitForTimeout(100);
   await expect(page.getByText("Unidad en la nube", { exact: true })).toHaveCount(0);
-  await expect(page.getByRole("heading", { name: "Archivos" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Mi unidad" })).toHaveCount(0);
   await navigation;
   await expect(page).toHaveURL(/\/login\?redirect=/);
   await expect(page.getByRole("heading", { name: "Iniciar sesión con Telegram" })).toBeVisible();
@@ -680,7 +703,7 @@ test("React Aria drop zone and file trigger complete an upload", async ({ page, 
     });
   await completed;
   await expect(page.getByText("dropped.txt", { exact: true })).toBeVisible();
-  await expect(page.getByText("completed", { exact: true })).toBeVisible();
+  await expect(page.getByText("Completada", { exact: true })).toBeVisible();
 });
 
 test("files create-folder dialog uses  design controls", async ({ page, isMobile }) => {
@@ -698,10 +721,10 @@ test("upload settings use HeroUI controls and persist choices", async ({ page })
   const encryption = page.getByRole("switch", { name: "Cifrar archivos subidos" });
   await expect(encryption).not.toBeChecked();
   await encryption.press("Space");
-  await page.getByRole("button", { name: /rename new file/i }).click();
+  await page.getByRole("button", { name: /renombrar el nuevo archivo/i }).click();
   await page.getByRole("option", { name: "Reemplazar existente", exact: true }).click();
   await expect(encryption).toBeChecked();
-  await expect(page.getByRole("button", { name: /replace existing/i })).toBeVisible();
+  await expect(page.getByRole("button", { name: /reemplazar existente/i })).toBeVisible();
 });
 
 test("running RiverPro job can be cancelled", async ({ page }) => {
@@ -709,7 +732,7 @@ test("running RiverPro job can be cancelled", async ({ page }) => {
   const cancelled = page.waitForRequest(
     (request) => request.method() === "POST" && request.url().endsWith("/api/v1/jobs/42/cancel"),
   );
-  await page.getByRole("button", { name: /^Cancel teldrive_upload_cleanup #42$/ }).click();
+  await page.getByRole("button", { name: /^Cancelar teldrive_upload_cleanup #42$/ }).click();
   await cancelled;
   await expect(page.getByRole("link", { name: "teldrive_upload_cleanup #42" })).toBeHidden();
 });
@@ -730,6 +753,8 @@ test("all active routes render without runtime errors", async ({ page }) => {
     "/settings/periodic-jobs",
     "/tasks/42",
     "/settings/appearance",
+    "/settings/info",
+    "/settings/rclone",
   ]) {
     await page.goto(route);
     await expect(page.locator("main").first()).toBeVisible();

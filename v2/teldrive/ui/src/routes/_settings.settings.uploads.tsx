@@ -38,11 +38,11 @@ function UploadSettings() {
           </Switch>
         </SettingsRow>
         <SettingsRow
-          label="Name conflicts"
+          label="Conflictos de nombre"
           description="Elige qué hacer si el destino ya contiene un elemento con el mismo nombre."
         >
           <Select
-            aria-label="Name conflicts"
+            aria-label="Conflictos de nombre"
             selectedKey={settings.conflictPolicy}
             onSelectionChange={(key) =>
               setSettings({ conflictPolicy: String(key) as typeof settings.conflictPolicy })

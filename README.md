@@ -1,5 +1,10 @@
 # Telegram Drive
 
+## Edición Teldrive v2
+
+La v2 incluye UI en español, Windows completo con .NET/WPF, rclone compatible con su API, seis CLI y APK Android. [Fuentes e instrucciones](v2/README.md) · [Descargas v2.0.0-drive-es.1](https://github.com/webr0m/teldrive/releases/tag/v2.0.0-drive-es.1).
+
+
 ## Edición personalizada para Windows en español
 
 La nueva edición incluye un ejecutable Desktop independiente, CLI, temas, multimedia, papelera y configuración gráfica de rclone. [Ver fuentes e instrucciones](windows-edition/README.md) · [Descargar para Windows](https://github.com/webr0m/teldrive/releases/tag/v1.8.3-drive-es.1).

@@ -642,3 +642,76 @@ func tokenHash(token string) []byte {
 	digest := sha256.Sum256([]byte(token))
 	return digest[:]
 }
+
+// ValidateDownloadReceipt keeps a previously reserved download usable for
+// Range requests while still enforcing revocation, expiry, password changes
+// and subtree boundaries. The receipt is held only in server memory.
+func (s *Service) ValidateDownloadReceipt(ctx context.Context, receipt *Public, fileID uuid.UUID) error {
+	if receipt == nil || fileID == uuid.Nil {
+		return ErrNotFound
+	}
+	row, err := s.queries.GetFileShareForOwner(ctx, sqlcgen.GetFileShareForOwnerParams{ID: receipt.Share.ID, OwnerID: receipt.Share.OwnerID})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ErrNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if row.RevokedAt.Valid || (row.ExpiresAt.Valid && !row.ExpiresAt.Time.After(s.now())) || row.PasswordHash != receipt.Share.PasswordHash {
+		return ErrExpired
+	}
+	rootID, ok := dbtypes.GoogleUUID(row.FileID)
+	if !ok {
+		return ErrNotFound
+	}
+	root, err := s.catalog.Get(ctx, row.OwnerID, rootID)
+	if err != nil {
+		return err
+	}
+	if root.Status != sqlcgen.FileStatusActive {
+		return ErrNotFound
+	}
+	if rootID == fileID {
+		return nil
+	}
+	ids, err := s.queries.ListFileSubtreeIDs(ctx, sqlcgen.ListFileSubtreeIDsParams{FileID: row.FileID, UserID: row.OwnerID})
+	if err != nil {
+		return err
+	}
+	for _, id := range ids {
+		if value, ok := dbtypes.GoogleUUID(id); ok && value == fileID {
+			return nil
+		}
+	}
+	return ErrNotFound
+}
+
+func (s *Service) MarkIncomingSpam(ctx context.Context, actor int64, fileID uuid.UUID) error {
+	if actor <= 0 || fileID == uuid.Nil {
+		return ErrInvalidInput
+	}
+	n, err := s.queries.MarkIncomingSpam(ctx, sqlcgen.MarkIncomingSpamParams{GranteeID: actor, FileID: dbtypes.UUID(fileID)})
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+func (s *Service) RestoreIncomingSpam(ctx context.Context, actor int64, fileID uuid.UUID, dismiss bool) error {
+	if actor <= 0 || fileID == uuid.Nil {
+		return ErrInvalidInput
+	}
+	if dismiss {
+		return s.queries.DismissIncomingSpam(ctx, sqlcgen.DismissIncomingSpamParams{GranteeID: actor, FileID: dbtypes.UUID(fileID)})
+	}
+	_, err := s.queries.RestoreIncomingSpam(ctx, sqlcgen.RestoreIncomingSpamParams{GranteeID: actor, FileID: dbtypes.UUID(fileID)})
+	return err
+}
+func (s *Service) ListIncomingSpam(ctx context.Context, actor int64) ([]*sqlcgen.ListIncomingSpamRow, error) {
+	if actor <= 0 {
+		return nil, ErrInvalidInput
+	}
+	return s.queries.ListIncomingSpam(ctx, actor)
+}

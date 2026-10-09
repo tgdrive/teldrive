@@ -4,6 +4,28 @@
 # daemon environment; Teldrive applies its own defaults otherwise.
 { lib, ... }:
 {
+  "media" = {
+    "enabled" = lib.mkOption {
+      type = lib.types.nullOr (lib.types.bool);
+      default = null;
+      description = "Enable compatible multimedia playback with FFmpeg (Default: true)";
+    };
+    "ffmpeg-path" = lib.mkOption {
+      type = lib.types.nullOr (lib.types.str);
+      default = null;
+      description = "FFmpeg executable path (Default: ffmpeg)";
+    };
+    "max-concurrent" = lib.mkOption {
+      type = lib.types.nullOr (lib.types.int);
+      default = null;
+      description = "Maximum simultaneous media conversions (Default: 2) [validate: min=1,max=8]";
+    };
+    "timeout" = lib.mkOption {
+      type = lib.types.nullOr (lib.types.str);
+      default = null;
+      description = "Maximum conversion duration (Default: 2h) [validate: gt=0]";
+    };
+  };
   "http" = {
     "address" = lib.mkOption {
       type = lib.types.nullOr (lib.types.str);

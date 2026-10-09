@@ -196,9 +196,7 @@ export function EpubReader({ file, url, onClose }: EpubReaderProps) {
 
     openingRef.current = open().catch((reason: unknown) => {
       if (activeRef.current) {
-        setError(
-          reason instanceof Error ? reason.message : "No se pudo abrir esta publicación.",
-        );
+        setError(reason instanceof Error ? reason.message : "No se pudo abrir esta publicación.");
       }
     });
 
@@ -277,9 +275,7 @@ export function EpubReader({ file, url, onClose }: EpubReaderProps) {
     const onEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || isEditableTarget(event.target)) return;
       const overlay =
-        event.target instanceof HTMLElement
-          ? event.target.closest('[role="dialog"]')
-          : null;
+        event.target instanceof HTMLElement ? event.target.closest('[role="dialog"]') : null;
       if (overlay && !overlay.querySelector("[data-epub-reader]")) return;
       event.preventDefault();
       event.stopPropagation();
@@ -317,7 +313,9 @@ export function EpubReader({ file, url, onClose }: EpubReaderProps) {
 
         <div className="min-w-0 flex-1 px-1 sm:px-2">
           <p className="truncate text-sm font-semibold tracking-[-0.01em]">{title}</p>
-          <p className="truncate text-[11px] text-(--reader-muted)">{chapter || "Lector de EPUB"}</p>
+          <p className="truncate text-[11px] text-(--reader-muted)">
+            {chapter || "Lector de EPUB"}
+          </p>
         </div>
 
         <div className="hidden min-w-28 text-center text-[11px] text-(--reader-muted) md:block">
@@ -593,7 +591,7 @@ function EpubSettings({
                 ["Blanco", "white"],
                 ["Papel", "paper"],
                 ["Gris", "gray"],
-                ["Night", "night"],
+                ["Noche", "night"],
               ]}
               onChange={onTheme}
             />

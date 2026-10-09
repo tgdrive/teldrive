@@ -19,7 +19,7 @@ WHERE files.user_id = sqlc.arg(user_id)
   AND (
     files.parent_id IS NOT DISTINCT FROM sqlc.narg(parent_id)::uuid
     OR (
-      sqlc.arg(status)::/* TEMPLATE: schema */file_status = 'trashed'
+      sqlc.arg(status)::/* TEMPLATE: schema */file_status IN ('trashed', 'spam')
       AND sqlc.narg(parent_id)::uuid IS NULL
       AND files.parent_id IS NOT NULL
       AND NOT EXISTS (
@@ -27,7 +27,7 @@ WHERE files.user_id = sqlc.arg(user_id)
         FROM /* TEMPLATE: schema */files parent
         WHERE parent.id = files.parent_id
           AND parent.user_id = files.user_id
-          AND parent.status = 'trashed'
+          AND parent.status = sqlc.arg(status)::/* TEMPLATE: schema */file_status
       )
     )
   )
@@ -113,11 +113,11 @@ RETURNING *;
 
 -- name: RestoreFileSubtree :many
 WITH RECURSIVE target AS (
-  SELECT root.id
+  SELECT root.id, root.status
   FROM /* TEMPLATE: schema */files root
   WHERE root.id = sqlc.arg(file_id)
     AND root.user_id = sqlc.arg(user_id)
-    AND root.status = 'trashed'
+    AND root.status IN ('trashed', 'spam')
     AND (
       root.parent_id IS NULL
       OR EXISTS (
@@ -129,11 +129,11 @@ WITH RECURSIVE target AS (
       )
     )
   UNION ALL
-  SELECT child.id
+  SELECT child.id, child.status
   FROM /* TEMPLATE: schema */files child
   JOIN target parent ON child.parent_id = parent.id
   WHERE child.user_id = sqlc.arg(user_id)
-    AND child.status = 'trashed'
+    AND child.status = parent.status
 )
 UPDATE /* TEMPLATE: schema */files AS target_file
 SET status = 'active',
@@ -229,7 +229,7 @@ WHERE f.user_id = sqlc.arg(user_id)
     (sqlc.arg(scope)::text = 'folder' AND f.parent_id IS NOT DISTINCT FROM sqlc.narg(parent_id)::uuid)
     OR (sqlc.arg(scope)::text <> 'folder' AND f.id IN (SELECT id FROM scope_files))
     OR (
-      sqlc.arg(status)::/* TEMPLATE: schema */file_status = 'trashed'
+      sqlc.arg(status)::/* TEMPLATE: schema */file_status IN ('trashed', 'spam')
       AND sqlc.narg(parent_id)::uuid IS NULL
       AND f.parent_id IS NOT NULL
       AND NOT EXISTS (
@@ -237,7 +237,7 @@ WHERE f.user_id = sqlc.arg(user_id)
         FROM /* TEMPLATE: schema */files parent
         WHERE parent.id = f.parent_id
           AND parent.user_id = f.user_id
-          AND parent.status = 'trashed'
+          AND parent.status = sqlc.arg(status)::/* TEMPLATE: schema */file_status
       )
     )
   )
@@ -623,7 +623,7 @@ WITH RECURSIVE target AS (
   FROM /* TEMPLATE: schema */files root
   WHERE root.id = sqlc.arg(file_id)
     AND root.user_id = sqlc.arg(user_id)
-    AND root.status = 'trashed'
+    AND root.status IN ('trashed', 'spam')
   UNION ALL
   SELECT child.id
   FROM /* TEMPLATE: schema */files child
@@ -682,3 +682,36 @@ FROM jsonb_to_recordset(sqlc.arg(parts)::jsonb) AS input(
 WHERE part.file_id = sqlc.arg(file_id)
   AND part.part_no = input.part_no
   AND (part.plain_size IS NULL OR part.stored_size IS NULL);
+
+-- name: SpamFileSubtrees :many
+WITH RECURSIVE target AS (
+  SELECT root.id
+  FROM /* TEMPLATE: schema */files root
+  WHERE root.user_id = sqlc.arg(user_id)
+    AND root.id = ANY(sqlc.arg(file_ids)::uuid[])
+    AND root.status = 'active'
+  UNION
+  SELECT child.id
+  FROM /* TEMPLATE: schema */files child
+  JOIN target parent ON child.parent_id = parent.id
+  WHERE child.user_id = sqlc.arg(user_id)
+    AND child.status = 'active'
+)
+UPDATE /* TEMPLATE: schema */files AS target_file
+SET status = 'spam',
+    deleted_at = now(),
+    generation = target_file.generation + 1,
+    updated_at = now()
+WHERE target_file.user_id = sqlc.arg(user_id)
+  AND target_file.id IN (SELECT target.id FROM target)
+RETURNING target_file.*;
+
+-- name: RevokeAccessForFileSubtrees :exec
+WITH RECURSIVE target AS (
+  SELECT root.id FROM /* TEMPLATE: schema */files root WHERE root.user_id = sqlc.arg(user_id) AND root.id = ANY(sqlc.arg(file_ids)::uuid[])
+  UNION
+  SELECT child.id FROM /* TEMPLATE: schema */files child JOIN target parent ON child.parent_id = parent.id WHERE child.user_id = sqlc.arg(user_id)
+)
+UPDATE /* TEMPLATE: schema */file_access_grants
+SET revoked_at = COALESCE(revoked_at, now()), updated_at = now()
+WHERE file_id IN (SELECT id FROM target) AND revoked_at IS NULL;

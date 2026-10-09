@@ -59,6 +59,9 @@ func (w *TrashCleanupWorker) Work(ctx context.Context, job *river.Job[TrashClean
 		return fmt.Errorf("invalid trash retention %q", retentionText)
 	}
 	deletedBefore := dbtypes.Time(w.now().Add(-retention))
+	if err := w.queries.ExpireIncomingSpam(ctx, dbtypes.Time(w.now().Add(-30*24*time.Hour))); err != nil {
+		return fmt.Errorf("expire incoming spam: %w", err)
+	}
 	for {
 		rows, err := w.queries.ListTrashedRootsBefore(ctx, deletedBefore)
 		if err != nil {

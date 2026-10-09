@@ -240,7 +240,9 @@ function TasksPage() {
       return;
     }
     toast.success(
-      CANCELLABLE_STATUSES.includes(task.status) ? "Cancelación de tarea solicitada" : "Tarea eliminada",
+      CANCELLABLE_STATUSES.includes(task.status)
+        ? "Cancelación de tarea solicitada"
+        : "Tarea eliminada",
     );
     refreshTasks();
   };
@@ -277,7 +279,7 @@ function TasksPage() {
             className="bg-accent text-accent-foreground"
             onPress={() => setComposerOpen(true)}
           >
-            <AddIcon className="size-3.5" /> New Task
+            <AddIcon className="size-3.5" /> Nueva tarea
           </Button>
         }
       />
@@ -444,7 +446,7 @@ function TaskRow({
           </Link>
 
           <div className="mt-1.5 flex min-w-0 items-center gap-2 overflow-hidden text-[11px] text-muted sm:flex-wrap sm:gap-x-3 sm:gap-y-1">
-            <span className="shrink-0">{task.queue || "default"} queue</span>
+            <span className="shrink-0">Cola {task.queue || "default"}</span>
             <span className="shrink-0">{taskDuration(task)}</span>
             <span className="truncate" title={formatDate(task.createdAt)}>
               {formatRelativeDate(task.createdAt)}
@@ -560,10 +562,10 @@ function QueueManager({ queues, onChanged }: { queues: TaskQueueOut[]; onChanged
     const { error } = await fetchClient.POST(endpoint, { params: { path: { queue: queue.name } } });
     setPendingQueue(null);
     if (error) {
-      toast.error(`No se pudo ${queue.paused ? "resume" : "pause"} ${queue.name}`);
+      toast.error(`No se pudo ${queue.paused ? "reanudar" : "pausar"} ${queue.name}`);
       return;
     }
-    toast.success(`${queue.name} ${queue.paused ? "resumed" : "paused"}`);
+    toast.success(`${queue.name} ${queue.paused ? "reanudada" : "en pausa"}`);
     onChanged();
   };
 
@@ -595,8 +597,8 @@ function QueueManager({ queues, onChanged }: { queues: TaskQueueOut[]; onChanged
                       </span>
                     </div>
                     <div className="mt-1 flex gap-3 text-[11px] text-muted">
-                      <span>{queue.available} available</span>
-                      <span>{queue.running} running</span>
+                      <span>{queue.available} disponibles</span>
+                      <span>{queue.running} en ejecución</span>
                     </div>
                   </div>
                   <Button
@@ -611,7 +613,7 @@ function QueueManager({ queues, onChanged }: { queues: TaskQueueOut[]; onChanged
               ))
             ) : (
               <div className="px-4 py-8 text-center text-sm text-muted">
-                No active River queues.
+                No hay colas de River activas.
               </div>
             )}
           </div>

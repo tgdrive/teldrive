@@ -41,6 +41,15 @@ func normalizeBulkIDs(ids []uuid.UUID) ([]uuid.UUID, error) {
 // BulkTrash moves every requested root and all of its descendants to trash in
 // one transaction. It returns every affected entry, including descendants.
 func (s *Service) BulkTrash(ctx context.Context, userID int64, rawIDs []uuid.UUID) ([]*sqlcgen.File, error) {
+	return s.quarantine(ctx, userID, rawIDs, false)
+}
+
+// BulkSpam quarantines owned items recursively. Restoring does not reopen shares.
+func (s *Service) BulkSpam(ctx context.Context, userID int64, rawIDs []uuid.UUID) ([]*sqlcgen.File, error) {
+	return s.quarantine(ctx, userID, rawIDs, true)
+}
+
+func (s *Service) quarantine(ctx context.Context, userID int64, rawIDs []uuid.UUID, spam bool) ([]*sqlcgen.File, error) {
 	if userID <= 0 {
 		return nil, ErrInvalidOwner
 	}
@@ -63,7 +72,12 @@ func (s *Service) BulkTrash(ctx context.Context, userID int64, rawIDs []uuid.UUI
 	if len(roots) != len(ids) {
 		return nil, ErrNotFound
 	}
-	items, err := queries.TrashFileSubtrees(ctx, sqlcgen.TrashFileSubtreesParams{UserID: userID, FileIds: fileIDs})
+	var items []*sqlcgen.File
+	if spam {
+		items, err = queries.SpamFileSubtrees(ctx, sqlcgen.SpamFileSubtreesParams{UserID: userID, FileIds: fileIDs})
+	} else {
+		items, err = queries.TrashFileSubtrees(ctx, sqlcgen.TrashFileSubtreesParams{UserID: userID, FileIds: fileIDs})
+	}
 	if err != nil {
 		return nil, fmt.Errorf("bulk trash files: %w", err)
 	}
@@ -71,6 +85,11 @@ func (s *Service) BulkTrash(ctx context.Context, userID int64, rawIDs []uuid.UUI
 		UserID: userID, FileIds: fileIDs,
 	}); err != nil {
 		return nil, fmt.Errorf("revoke bulk trashed shares: %w", err)
+	}
+	if spam {
+		if err := queries.RevokeAccessForFileSubtrees(ctx, sqlcgen.RevokeAccessForFileSubtreesParams{UserID: userID, FileIds: fileIDs}); err != nil {
+			return nil, fmt.Errorf("revoke spam access: %w", err)
+		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("commit bulk trash: %w", err)

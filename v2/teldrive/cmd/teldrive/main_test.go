@@ -29,7 +29,7 @@ func TestDesktopInfoValidatesWithoutConnectingOrExposingSecrets(t *testing.T) {
 	if err := json.Unmarshal(out.Bytes(), &info); err != nil {
 		t.Fatal(err)
 	}
-	if len(info) != 1 || info["address"] != "127.0.0.1:9123" {
+	if len(info) != 2 || info["address"] != "127.0.0.1:9123" || info["databaseAddress"] != "127.0.0.1:1" {
 		t.Fatalf("unexpected desktop info: %v", info)
 	}
 	for _, secret := range []string{signing, key, "private-password"} {

@@ -3,6 +3,7 @@ package app
 import (
 	"log/slog"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -35,7 +36,7 @@ func httpRequestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 					slog.Int("status", status),
 					slog.String("method", r.Method),
 					slog.String("path", r.URL.Path),
-					slog.String("query", r.URL.RawQuery),
+					slog.String("query", redactedHTTPQuery(r.URL.RawQuery)),
 					slog.String("ip", r.RemoteAddr),
 					slog.String("user_agent", r.UserAgent()),
 					slog.Duration("latency", time.Since(started)),
@@ -46,4 +47,17 @@ func httpRequestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 			next.ServeHTTP(ww, r)
 		})
 	}
+}
+
+func redactedHTTPQuery(raw string) string {
+	values, err := url.ParseQuery(raw)
+	if err != nil {
+		return "[invalid query]"
+	}
+	for _, key := range []string{"ticket", "token", "password", "key", "access_token"} {
+		if values.Has(key) {
+			values.Set(key, "[redacted]")
+		}
+	}
+	return values.Encode()
 }

@@ -9,6 +9,8 @@ info:
     durable, API instances are stateless, and completed files are immediately
     readable.
 tags:
+  - name: Files
+  - name: Public shares
   - name: System
   - name: Authentication
   - name: Account
@@ -19,15 +21,245 @@ tags:
   - name: Channels
   - name: Bots
   - name: Events
-  - name: Files
   - name: Folders
   - name: Uploads
   - name: Shares
-  - name: Public shares
   - name: Jobs
   - name: Periodic Jobs
   - name: Storage
 paths:
+  /v1/files/{fileId}/playback:
+    post:
+      operationId: createPlayback
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "201":
+          description: The request has succeeded and a new resource has been created as a
+            result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlaybackSession"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/public/shares/{token}/files/{fileId}/playback:
+    post:
+      operationId: createPublicPlayback
+      parameters:
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+        - $ref: "#/components/parameters/SharePasswordHeader"
+      responses:
+        "201":
+          description: The request has succeeded and a new resource has been created as a
+            result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlaybackSession"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Public shares
+  /v1/playback:
+    get:
+      operationId: streamPlayback
+      parameters:
+        - name: ticket
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 32
+            maxLength: 128
+          explode: false
+        - name: mode
+          in: query
+          required: false
+          schema:
+            type: string
+            enum:
+              - original
+              - audio
+              - video
+            default: original
+          explode: false
+        - name: start
+          in: query
+          required: false
+          schema:
+            type: number
+            format: double
+            minimum: 0
+            maximum: 86400
+            default: 0
+          explode: false
+        - $ref: "#/components/parameters/FileContentRequestOptions.range"
+        - $ref: "#/components/parameters/FileContentRequestOptions.ifNoneMatch"
+        - $ref: "#/components/parameters/FileContentRequestOptions.download"
+      responses:
+        "200":
+          description: The request has succeeded.
+          headers:
+            Content-Length:
+              required: true
+              schema:
+                type: integer
+                format: int64
+            Accept-Ranges:
+              required: true
+              schema:
+                type: string
+                enum:
+                  - bytes
+            Etag:
+              required: true
+              schema:
+                $ref: "#/components/schemas/ETag"
+            Last-Modified:
+              required: true
+              schema:
+                type: string
+                format: http-date
+            Content-Disposition:
+              required: true
+              schema:
+                type: string
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+              x-ogen-raw-response: true
+        "206":
+          description: Successful
+          headers:
+            Content-Length:
+              required: true
+              schema:
+                type: integer
+                format: int64
+            Content-Range:
+              required: true
+              schema:
+                type: string
+            Accept-Ranges:
+              required: true
+              schema:
+                type: string
+                enum:
+                  - bytes
+            Etag:
+              required: true
+              schema:
+                $ref: "#/components/schemas/ETag"
+            Last-Modified:
+              required: true
+              schema:
+                type: string
+                format: http-date
+            Content-Disposition:
+              required: true
+              schema:
+                type: string
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+              x-ogen-raw-response: true
+        "304":
+          description: The client has made a conditional request and the resource has not
+            been modified.
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "416":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "503":
+          description: Service unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Files
   /health/live:
     get:
       operationId: healthLive
@@ -2470,6 +2702,55 @@ paths:
           application/json:
             schema:
               $ref: "#/components/schemas/FileBulkMoveRequest"
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/files/bulk/spam:
+    post:
+      operationId: bulkSpamFiles
+      description: Quarantine owned files and folders and revoke their sharing.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyHeader"
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FileBulkResult"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Files
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FileBulkTrashRequest"
       security:
         - BearerAuth: []
         - CookieAuth: []
@@ -5593,8 +5874,141 @@ paths:
         - BearerAuth: []
         - CookieAuth: []
         - ExternalApiKeyAuth: []
+  /v1/shared/spam:
+    get:
+      operationId: listIncomingSpam
+      parameters: []
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FileEntry"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Shares
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/shared/spam/{fileId}:
+    post:
+      operationId: markIncomingSpam
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "204":
+          description: "There is no content to send for this request, but the headers may
+            be useful. "
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Shares
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+        - ExternalApiKeyAuth: []
+    delete:
+      operationId: restoreIncomingSpam
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "204":
+          description: "There is no content to send for this request, but the headers may
+            be useful. "
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Shares
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/shared/spam/{fileId}/dismiss:
+    delete:
+      operationId: dismissIncomingSpam
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "204":
+          description: "There is no content to send for this request, but the headers may
+            be useful. "
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Shares
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+        - ExternalApiKeyAuth: []
 components:
   parameters:
+    SharePasswordHeader:
+      name: X-Share-Password
+      in: header
+      required: false
+      schema:
+        type: string
+    FileContentRequestOptions.range:
+      name: Range
+      in: header
+      required: false
+      schema:
+        type: string
+    FileContentRequestOptions.ifNoneMatch:
+      name: If-None-Match
+      in: header
+      required: false
+      schema:
+        $ref: "#/components/schemas/ETag"
+    FileContentRequestOptions.download:
+      name: download
+      in: query
+      required: false
+      description: Force a browser download instead of inline display.
+      schema:
+        type: string
+        enum:
+          - "1"
+      explode: false
     IdempotencyHeader:
       name: Idempotency-Key
       in: header
@@ -5736,28 +6150,6 @@ components:
       required: false
       schema:
         $ref: "#/components/schemas/ETag"
-    FileContentRequestOptions.range:
-      name: Range
-      in: header
-      required: false
-      schema:
-        type: string
-    FileContentRequestOptions.ifNoneMatch:
-      name: If-None-Match
-      in: header
-      required: false
-      schema:
-        $ref: "#/components/schemas/ETag"
-    FileContentRequestOptions.download:
-      name: download
-      in: query
-      required: false
-      description: Force a browser download instead of inline display.
-      schema:
-        type: string
-        enum:
-          - "1"
-      explode: false
     UploadPartHeaders.contentLength:
       name: Content-Length
       in: header
@@ -5773,12 +6165,6 @@ components:
       description: BLAKE3 checksum of the plaintext part.
       schema:
         $ref: "#/components/schemas/Checksum"
-    SharePasswordHeader:
-      name: X-Share-Password
-      in: header
-      required: false
-      schema:
-        type: string
     PublicShareListQuery.path:
       name: path
       in: query
@@ -5825,19 +6211,23 @@ components:
         $ref: "#/components/schemas/JobState"
       explode: false
   schemas:
-    HealthStatus:
+    Uuid:
+      type: string
+      format: uuid
+    PlaybackSession:
       type: object
       required:
-        - status
-        - version
+        - ticket
+        - expiresAt
+        - conversionAvailable
       properties:
-        status:
+        ticket:
           type: string
-          enum:
-            - ok
-            - degraded
-        version:
+        expiresAt:
           type: string
+          format: date-time
+        conversionAvailable:
+          type: boolean
     ErrorDetail:
       type: object
       required:
@@ -5861,9 +6251,21 @@ components:
       properties:
         error:
           $ref: "#/components/schemas/ErrorDetail"
-    Uuid:
+    ETag:
       type: string
-      format: uuid
+    HealthStatus:
+      type: object
+      required:
+        - status
+        - version
+      properties:
+        status:
+          type: string
+          enum:
+            - ok
+            - degraded
+        version:
+          type: string
     TelegramLoginStartResponse:
       type: object
       required:
@@ -6013,8 +6415,6 @@ components:
         createdAt:
           type: string
           format: date-time
-    ETag:
-      type: string
     UserSearchResult:
       type: object
       required:
@@ -6269,6 +6669,7 @@ components:
       enum:
         - active
         - trashed
+        - spam
         - deletion_pending
     FileSearchType:
       type: string
@@ -7368,6 +7769,7 @@ components:
         - activeFiles
         - activeFolders
         - trashedFiles
+        - spamBytes
         - trashBytes
       properties:
         logicalBytes:
@@ -7380,6 +7782,9 @@ components:
           type: integer
           format: int64
         trashedFiles:
+          type: integer
+          format: int64
+        spamBytes:
           type: integer
           format: int64
         trashBytes:
@@ -7503,13 +7908,13 @@ components:
           items:
             $ref: "#/components/schemas/StorageActivity"
   securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: Bearer
     CookieAuth:
       type: apiKey
       in: cookie
       name: teldrive_access
-    BearerAuth:
-      type: http
-      scheme: Bearer
     ExternalApiKeyAuth:
       type: apiKey
       in: header

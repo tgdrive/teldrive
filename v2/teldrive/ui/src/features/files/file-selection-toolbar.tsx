@@ -22,6 +22,7 @@ export function FileSelectionToolbar({
   onCopyDownloadLinks,
   onMove,
   onTrash,
+  onSpam,
   onClear,
 }: {
   selectedFiles: FileEntry[];
@@ -35,6 +36,7 @@ export function FileSelectionToolbar({
   onCopyDownloadLinks?: () => void;
   onMove?: () => void;
   onTrash?: () => void;
+  onSpam?: () => void;
   onClear?: () => void;
 }) {
   if (selectedFiles.length === 0) return null;
@@ -161,6 +163,17 @@ export function FileSelectionToolbar({
             onPress={onTrash}
           >
             <TrashIcon className="size-4" />
+          </Button>
+        ) : null}
+        {onSpam ? (
+          <Button
+            size="sm"
+            variant="secondary"
+            aria-label="Marcar elementos seleccionados como spam"
+            isDisabled={pending}
+            onPress={onSpam}
+          >
+            Spam
           </Button>
         ) : null}
         {onClear ? (

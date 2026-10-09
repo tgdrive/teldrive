@@ -58,7 +58,8 @@ SELECT
     count(*) FILTER (WHERE f.kind = 'file' AND f.status = 'active')::bigint AS active_files,
     count(*) FILTER (WHERE f.kind = 'folder' AND f.status = 'active')::bigint AS active_folders,
     count(*) FILTER (WHERE f.kind = 'file' AND f.status = 'trashed')::bigint AS trashed_files,
-    COALESCE(sum(f.size) FILTER (WHERE f.kind = 'file' AND f.status = 'trashed'), 0)::bigint AS trash_bytes
+    COALESCE(sum(f.size) FILTER (WHERE f.kind = 'file' AND f.status = 'trashed'), 0)::bigint AS trash_bytes,
+    COALESCE(sum(f.size) FILTER (WHERE f.kind = 'file' AND f.status = 'spam'), 0)::bigint AS spam_bytes
 FROM /* TEMPLATE: schema */files f
 WHERE f.user_id = $1
 `
@@ -69,6 +70,7 @@ type GetStorageDashboardTotalsRow struct {
 	ActiveFolders int64 `json:"active_folders"`
 	TrashedFiles  int64 `json:"trashed_files"`
 	TrashBytes    int64 `json:"trash_bytes"`
+	SpamBytes     int64 `json:"spam_bytes"`
 }
 
 func (q *Queries) GetStorageDashboardTotals(ctx context.Context, userID int64) (*GetStorageDashboardTotalsRow, error) {
@@ -80,6 +82,7 @@ func (q *Queries) GetStorageDashboardTotals(ctx context.Context, userID int64) (
 		&i.ActiveFolders,
 		&i.TrashedFiles,
 		&i.TrashBytes,
+		&i.SpamBytes,
 	)
 	return &i, err
 }

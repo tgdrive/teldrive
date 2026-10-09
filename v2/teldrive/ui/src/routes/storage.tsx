@@ -63,27 +63,27 @@ function StoragePage() {
         <StatCard
           label="Total almacenado"
           value={formatBytes(summary.logicalBytes)}
-          detail={`${formatBytes(data.growth.at(-1)?.addedBytes ?? 0)} added today`}
+          detail={`${formatBytes(data.growth.at(-1)?.addedBytes ?? 0)} añadidos hoy`}
         />
         <StatCard
           label="Archivos activos"
           value={summary.activeFiles.toLocaleString()}
-          detail={`${summary.activeFolders.toLocaleString()} folders`}
+          detail={`${summary.activeFolders.toLocaleString()} carpetas`}
         />
         <StatCard
           label="Papelera"
           value={formatBytes(summary.trashBytes)}
-          detail={`${summary.trashedFiles.toLocaleString()} files`}
+          detail={`${summary.trashedFiles.toLocaleString()} archivos`}
         />
         <StatCard
           label="Canales"
           value={configuredChannels.toLocaleString()}
-          detail={`${selectedChannels.toLocaleString()} selected`}
+          detail={`${selectedChannels.toLocaleString()} seleccionados`}
         />
         <StatCard
           label="Recuperable"
           value={formatBytes(data.cleanup.totalReclaimableBytes)}
-          detail={`${data.cleanup.staleUploads.toLocaleString()} stale uploads`}
+          detail={`${data.cleanup.staleUploads.toLocaleString()} subidas abandonadas`}
         />
       </div>
 
@@ -94,7 +94,7 @@ function StoragePage() {
               Crecimiento del almacenamiento
             </Typography>
             <Typography.Paragraph className="text-sm text-muted">
-              Logical bytes stored over the last 30 days.
+              Bytes lógicos almacenados durante los últimos 30 días.
             </Typography.Paragraph>
           </div>
           <Chip variant="tertiary">30 días</Chip>
@@ -124,14 +124,16 @@ function StoragePage() {
                     </span>
                     <span className="text-muted">
                       {formatBytes(category.totalSize)} · {category.totalFiles.toLocaleString()}{" "}
-                      files
+                      archivos
                     </span>
                   </div>
                   <ProgressTrack value={percent} label={`${category.category} storage`} />
                 </div>
               );
             })}
-            {data.categories.length === 0 && <EmptyCopy>No active files are stored yet.</EmptyCopy>}
+            {data.categories.length === 0 && (
+              <EmptyCopy>Todavía no hay archivos activos almacenados.</EmptyCopy>
+            )}
           </div>
         </Card>
 
@@ -167,11 +169,14 @@ function StoragePage() {
                         )}
                       </div>
                       <div className="mt-1 text-xs text-muted">
-                        {channel.partCount.toLocaleString()} parts · {percent.toFixed(1)}%
+                        {channel.partCount.toLocaleString()} fragmentos · {percent.toFixed(1)}%
                       </div>
                     </div>
                   </div>
-                  <ProgressTrack value={percent} label={`${channel.name} storage distribution`} />
+                  <ProgressTrack
+                    value={percent}
+                    label={`${channel.name}: distribución de almacenamiento`}
+                  />
                 </div>
               );
             })}
@@ -197,10 +202,11 @@ function StoragePage() {
           </div>
           <div className="divide-y divide-border rounded-xl border border-border">
             <MetricRow label="Papelera" value={formatBytes(data.cleanup.trashBytes)} />
+            <MetricRow label="Spam propio" value={formatBytes(data.summary.spamBytes ?? 0)} />
             <MetricRow
               label="Subidas por fragmentos abandonadas"
               value={formatBytes(data.cleanup.staleUploadBytes)}
-              detail={`${data.cleanup.staleUploads.toLocaleString()} sessions`}
+              detail={`${data.cleanup.staleUploads.toLocaleString()} sesiones`}
             />
             <MetricRow
               label="Total que puedes liberar"
@@ -209,9 +215,7 @@ function StoragePage() {
             />
           </div>
           <div className="flex items-center justify-between gap-4">
-            <p className="text-xs text-muted">
-              Este panel no elimina archivos automáticamente.
-            </p>
+            <p className="text-xs text-muted">Este panel no elimina archivos automáticamente.</p>
             <LinkButton to="/trash" size="sm" variant="primary">
               Revisar limpieza
             </LinkButton>
@@ -329,10 +333,10 @@ function StorageGrowthChart({ points }: { points: StorageGrowthPoint[] }) {
         <svg
           viewBox={`0 0 ${width} ${height}`}
           role="img"
-          aria-label="Logical storage growth over 30 days"
+          aria-label="Crecimiento de almacenamiento durante 30 días"
           className="h-56 w-full"
         >
-          <title>Logical storage growth over 30 days</title>
+          <title>Crecimiento de almacenamiento durante 30 días</title>
           {[0.25, 0.5, 0.75].map((ratio) => (
             <line
               key={ratio}
@@ -386,10 +390,10 @@ function formatBytes(bytes: number) {
 function formatRelative(value: string) {
   const delta = Math.max(0, Date.now() - new Date(value).getTime());
   const minutes = Math.floor(delta / 60_000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 1) return "ahora";
+  if (minutes < 60) return `hace ${minutes} min`;
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return `hace ${hours} h`;
   const days = Math.floor(hours / 24);
-  return days < 7 ? `${days}d ago` : new Date(value).toLocaleDateString();
+  return days < 7 ? `hace ${days} días` : new Date(value).toLocaleDateString();
 }

@@ -12,6 +12,7 @@ import StorageIcon from "~icons/gravity-ui/database";
 import UploadIcon from "~icons/gravity-ui/arrow-up-from-line";
 import CloseIcon from "~icons/gravity-ui/xmark";
 import ClockIcon from "~icons/gravity-ui/clock";
+import InfoIcon from "~icons/gravity-ui/circle-info";
 import { currentUserQueryOptions } from "@/auth/queries";
 
 const SETTINGS_GROUPS = [
@@ -58,6 +59,7 @@ const SETTINGS_GROUPS = [
         icon: ClockIcon,
         capability: "system.maintenance",
       },
+      { label: "Información", path: "/settings/info", icon: InfoIcon },
     ],
   },
 ] as const;

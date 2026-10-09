@@ -36,7 +36,7 @@ test("upload menu preserves folder hierarchy and exposes byte-weighted tree prog
   await expect(tree.getByText("detail.jpg", { exact: true })).toBeVisible();
   await expect.poll(() => uploadRequests.length).toBe(2);
 
-  expect(folderRequests.map((request) => request.name)).toEqual(["Destino", "2026"]);
+  expect(folderRequests.map((request) => request.name)).toEqual(["Destination", "2026"]);
   expect(folderRequests[1].parentId).toBeTruthy();
   expect(uploadRequests.every((request) => Boolean(request.parentId))).toBe(true);
   expect(uploadRequests.every((request) => request.preferredPartSize === 512 * 1024 * 1024)).toBe(
@@ -47,9 +47,9 @@ test("upload menu preserves folder hierarchy and exposes byte-weighted tree prog
     "100",
   );
   const destinationBatch = tree.getByRole("row", { name: /Destination/ });
-  await tree.getByRole("button", { name: "Contraer destino" }).click();
+  await tree.getByRole("button", { name: "Contraer Destination" }).click();
   await expect(destinationBatch).toHaveAttribute("aria-expanded", "false");
-  await tree.getByRole("button", { name: "Expandir destino" }).click();
+  await tree.getByRole("button", { name: "Expandir Destination" }).click();
   await expect(destinationBatch).toHaveAttribute("aria-expanded", "true");
 
   const shelf = page.getByTestId("upload-shelf");
@@ -106,7 +106,7 @@ test("upload settings use an encryption switch and normalize chunk size", async 
   await encryption.press("Space");
   await expect(encryption).toBeChecked();
 
-  const partSize = page.getByRole("textbox", { name: /Preferred part size in MiB/ });
+  const partSize = page.getByRole("textbox", { name: /Tamaño preferido de fragmento en MiB/ });
   await expect(partSize).toHaveValue("512");
   await partSize.fill("521");
   await partSize.blur();
@@ -119,7 +119,7 @@ test("upload settings use an encryption switch and normalize chunk size", async 
 
   await partSize.fill("3000");
   await partSize.blur();
-  await expect(partSize).toHaveValue("2,048");
+  await expect(partSize).toHaveValue("2048");
   await expect
     .poll(() =>
       page.evaluate(() => JSON.parse(localStorage.getItem("teldrive.upload-settings.v2") || "{}")),
@@ -135,9 +135,9 @@ test("upload settings retain an existing valid chunk choice", async ({ page }) =
     );
   });
   await page.goto("/settings/uploads");
-  await expect(page.getByRole("textbox", { name: /Preferred part size in MiB/ })).toHaveValue(
-    "640",
-  );
+  await expect(
+    page.getByRole("textbox", { name: /Tamaño preferido de fragmento en MiB/ }),
+  ).toHaveValue("640");
 });
 
 test("React Aria file selection supports replacement, ranges, select all, and escape", async ({
@@ -162,7 +162,7 @@ test("React Aria file selection supports replacement, ranges, select all, and es
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Cortar elementos seleccionados" })).toBeVisible();
   await beta.click({ modifiers: ["Shift"] });
-  await expect(page.getByText("2 selected", { exact: true })).toBeVisible();
+  await expect(page.getByText("2 seleccionados", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Renombrar elemento seleccionado" })).toBeHidden();
   await expect(page.getByRole("button", { name: "Duplicar elemento seleccionado" })).toBeHidden();
   await expect(
@@ -170,9 +170,9 @@ test("React Aria file selection supports replacement, ranges, select all, and es
   ).toBeVisible();
 
   await page.keyboard.press("Control+KeyA");
-  await expect(page.getByText("3 selected", { exact: true })).toBeVisible();
+  await expect(page.getByText("3 seleccionados", { exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
-  await expect(page.getByText(/selected$/)).toBeHidden();
+  await expect(page.getByText(/seleccionados$/)).toBeHidden();
 });
 
 test("selected file downloads and copies its attachment URL on an insecure host", async ({
@@ -200,7 +200,9 @@ test("selected file downloads and copies its attachment URL on an insecure host"
   const download = await downloadPromise;
   expect(download.suggestedFilename()).toBe("alpha.txt");
 
-  await page.getByRole("button", { name: "Copiar enlace de descarga del archivo seleccionado" }).click();
+  await page
+    .getByRole("button", { name: "Copiar enlace de descarga del archivo seleccionado" })
+    .click();
   await expect
     .poll(() => page.evaluate(() => (window as typeof window & { copiedText?: string }).copiedText))
     .toBe(`${new URL(page.url()).origin}/api/v1/files/${alphaId}/content/alpha.txt?download=1`);
@@ -220,15 +222,13 @@ test("React Aria owns directional navigation, range selection, typeahead, and it
   await expect(beta).toBeFocused();
   await expect(beta).toHaveAttribute("aria-selected", "true");
   await page.keyboard.press("Shift+ArrowUp");
-  await expect(page.getByText("2 selected", { exact: true })).toBeVisible();
+  await expect(page.getByText("2 seleccionados", { exact: true })).toBeVisible();
 
   await page.keyboard.press("KeyD");
-  const destination = page.getByRole("row", { name: /Destination/ });
+  const destination = page.getByRole("row", { name: /Destino/ });
   await expect(destination).toBeFocused();
   await page.keyboard.press("Enter");
-  await expect(page.getByRole("navigation", { name: "Carpeta actual" })).toContainText(
-    "Destino",
-  );
+  await expect(page.getByRole("navigation", { name: "Carpeta actual" })).toContainText("Destino");
 });
 
 test("file operation shortcuts are guarded and update visible state", async ({
@@ -247,7 +247,7 @@ test("file operation shortcuts are guarded and update visible state", async ({
   await expect(page.getByText("renamed.txt", { exact: true })).toBeVisible();
 
   await page.getByRole("row", { name: /renamed\.txt/ }).click();
-  await page.keyboard.press("Eliminar");
+  await page.keyboard.press("Delete");
   await expect(page.getByText("renamed.txt", { exact: true })).toBeHidden();
 
   await page.keyboard.press("Control+Shift+KeyN");
@@ -259,7 +259,7 @@ test("file operation shortcuts are guarded and update visible state", async ({
   await page.keyboard.press("Escape");
   await expect(createFolder).toBeHidden();
   await expect(page.getByRole("textbox", { name: "Buscar en esta carpeta" })).toHaveCount(0);
-  await expect(page.getByText(/selected$/)).toBeHidden();
+  await expect(page.getByText(/seleccionados$/)).toBeHidden();
 });
 
 test("file shortcuts stay within the browser and do not act inside inputs or dialogs", async ({
@@ -275,25 +275,25 @@ test("file shortcuts stay within the browser and do not act inside inputs or dia
   await search.press("F2");
   await expect(page.getByRole("dialog", { name: "Renombrar elemento" })).toHaveCount(0);
   await search.press("Control+x");
-  await search.press("Eliminar");
+  await search.press("Delete");
   await expect(alpha).toBeVisible();
-  await expect(page.getByText("1 selected", { exact: true })).toBeVisible();
+  await expect(page.getByText("1 seleccionados", { exact: true })).toBeVisible();
   await alpha.focus();
   await alpha.press("F2");
   const dialog = page.getByRole("dialog", { name: "Renombrar elemento" });
   const name = dialog.getByRole("textbox", { name: "Nuevo nombre" });
   await name.fill("draft.txt");
   await name.press("Control+a");
-  await name.press("Eliminar");
+  await name.press("Delete");
   await expect(name).toHaveValue("");
   await expect(dialog).toBeVisible();
   await name.press("Escape");
   await expect(dialog).toBeHidden();
   await expect(alpha).toBeVisible();
-  await expect(page.getByText("1 selected", { exact: true })).toBeVisible();
+  await expect(page.getByText("1 seleccionados", { exact: true })).toBeVisible();
   await alpha.focus();
   await alpha.press("Escape");
-  await expect(page.getByText("1 selected", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("1 seleccionados", { exact: true })).toHaveCount(0);
 });
 
 test("selected files keep the destination picker alongside clipboard actions", async ({
@@ -308,17 +308,17 @@ test("selected files keep the destination picker alongside clipboard actions", a
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Cortar elementos seleccionados" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Copiar elementos seleccionados" })).toBeVisible();
-  await expect(page.getByRole("button", { name: /^Paste / })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Pegar / })).toHaveCount(0);
 
   await page.getByRole("button", { name: "Mover elementos seleccionados", exact: true }).click();
-  const move = page.getByRole("dialog", { name: "Move 1 item" });
+  const move = page.getByRole("dialog", { name: "Mover 1 elemento" });
   await expect(move).toBeVisible();
-  await move.getByRole("row", { name: /Destination/ }).click();
+  await move.getByRole("row", { name: /Destino/ }).click();
   await move.getByRole("button", { name: "Mover aquí" }).click();
   await expect(move).toBeHidden();
   await expect(page.getByText("alpha.txt", { exact: true })).toBeHidden();
 
-  await page.getByRole("row", { name: /Destination/ }).dblclick();
+  await page.getByRole("row", { name: /Destino/ }).dblclick();
   await expect(page.getByText("alpha.txt", { exact: true })).toBeVisible();
 });
 
@@ -329,42 +329,48 @@ test("split panes cut and copy items directly between folders", async ({ page, i
 
   const primary = page.getByTestId("file-pane-primary");
   const secondary = page.getByTestId("file-pane-secondary");
-  await secondary.getByRole("row", { name: /Destination/ }).dblclick();
+  await secondary.getByRole("row", { name: /Destino/ }).dblclick();
   await expect(secondary.getByRole("navigation", { name: "Carpeta actual" })).toContainText(
     "Destino",
   );
 
   await primary.getByRole("row", { name: /alpha\.txt/ }).click();
   await primary.getByRole("button", { name: "Cortar elementos seleccionados" }).click();
-  await expect(primary.getByRole("button", { name: /^Paste 1 clipboard item$/ })).toHaveCount(0);
+  await expect(
+    primary.getByRole("button", { name: /^Pegar 1 elemento del portapapeles$/ }),
+  ).toHaveCount(0);
   await expect(secondary.getByText("1 cut", { exact: true })).toBeVisible();
   await expect(secondary.getByRole("button", { name: "Cancelar corte" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Borrar selección" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Mover elementos seleccionados", exact: true })).toHaveCount(
-    0,
-  );
-  await expect(page.getByRole("button", { name: "Mover elementos seleccionados a la papelera" })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Mover elementos seleccionados", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Mover elementos seleccionados a la papelera" }),
+  ).toHaveCount(0);
 
   await secondary.getByRole("button", { name: "Cancelar corte" }).click();
-  await expect(page.getByRole("button", { name: /^Paste / })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Pegar / })).toHaveCount(0);
   await expect(primary.getByText("alpha.txt", { exact: true })).toBeVisible();
 
   await primary.getByRole("row", { name: /alpha\.txt/ }).click();
   await primary.getByRole("button", { name: "Cortar elementos seleccionados" }).click();
-  await secondary.getByRole("button", { name: /^Paste 1 clipboard item$/ }).click();
+  await secondary.getByRole("button", { name: /^Pegar 1 elemento del portapapeles$/ }).click();
   await expect(primary.getByText("alpha.txt", { exact: true })).toBeHidden();
   await expect(secondary.getByText("alpha.txt", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: /^Paste / })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Pegar / })).toHaveCount(0);
 
   await secondary.getByRole("row", { name: /alpha\.txt/ }).click();
   await secondary.getByRole("button", { name: "Copiar elementos seleccionados" }).click();
-  await expect(secondary.getByRole("button", { name: /^Paste 1 clipboard item$/ })).toHaveCount(0);
+  await expect(
+    secondary.getByRole("button", { name: /^Pegar 1 elemento del portapapeles$/ }),
+  ).toHaveCount(0);
   await expect(primary.getByText("1 copied", { exact: true })).toBeVisible();
-  await primary.getByRole("button", { name: /^Paste 1 clipboard item$/ }).click();
+  await primary.getByRole("button", { name: /^Pegar 1 elemento del portapapeles$/ }).click();
   await expect(primary.getByText("alpha.txt", { exact: true })).toBeVisible();
   await expect(secondary.getByText("alpha.txt", { exact: true })).toBeVisible();
   await primary.getByRole("button", { name: "Borrar elementos copiados" }).click();
-  await expect(page.getByRole("button", { name: /^Paste / })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Pegar / })).toHaveCount(0);
 });
 
 test("cut paste asks before resolving a name conflict", async ({ page, isMobile }) => {
@@ -374,11 +380,11 @@ test("cut paste asks before resolving a name conflict", async ({ page, isMobile 
 
   const primary = page.getByTestId("file-pane-primary");
   const secondary = page.getByTestId("file-pane-secondary");
-  await secondary.getByRole("row", { name: /Destination/ }).dblclick();
+  await secondary.getByRole("row", { name: /Destino/ }).dblclick();
 
   await primary.getByRole("row", { name: /alpha\.txt/ }).click();
   await primary.getByRole("button", { name: "Copiar elementos seleccionados" }).click();
-  await secondary.getByRole("button", { name: /^Paste 1 clipboard item$/ }).click();
+  await secondary.getByRole("button", { name: /^Pegar 1 elemento del portapapeles$/ }).click();
   await expect(secondary.getByText("alpha.txt", { exact: true })).toBeVisible();
   // The success toast overlaps the action bar and pauses while the pointer is over it.
   await page.getByRole("button", { name: "Cerrar aviso", exact: true }).click();
@@ -386,7 +392,7 @@ test("cut paste asks before resolving a name conflict", async ({ page, isMobile 
 
   await primary.getByRole("row", { name: /alpha\.txt/ }).click();
   await primary.getByRole("button", { name: "Cortar elementos seleccionados" }).click();
-  await secondary.getByRole("button", { name: /^Paste 1 clipboard item$/ }).click();
+  await secondary.getByRole("button", { name: /^Pegar 1 elemento del portapapeles$/ }).click();
 
   const conflict = page.getByRole("dialog", { name: "El elemento ya existe" });
   await expect(conflict).toBeVisible();
@@ -422,7 +428,7 @@ test("split view keeps pane navigation independent and uses browser history", as
 
   const primaryFolder = primary.getByRole("navigation", { name: "Carpeta actual" });
   const secondaryFolder = secondary.getByRole("navigation", { name: "Carpeta actual" });
-  await secondary.getByRole("row", { name: /Destination/ }).dblclick();
+  await secondary.getByRole("row", { name: /Destino/ }).dblclick();
   await expect(secondaryFolder).toContainText("Destino");
   await expect(primaryFolder).not.toContainText("Destino");
   await expect(secondary.getByRole("button", { name: "Subir una carpeta" })).toBeEnabled();
@@ -449,15 +455,13 @@ test("touch opens items and exposes an explicit multi-selection control", async 
     .getByRole("row", { name: /alpha\.txt/ })
     .locator('[data-slot="checkbox-control"]')
     .tap();
-  await expect(page.getByText("1 selected", { exact: true })).toBeVisible();
+  await expect(page.getByText("1 seleccionados", { exact: true })).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Mover elementos seleccionados", exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Borrar selección" }).tap();
-  await page.getByRole("row", { name: /Destination/ }).tap();
-  await expect(page.getByRole("navigation", { name: "Carpeta actual" })).toContainText(
-    "Destino",
-  );
+  await page.getByRole("row", { name: /Destino/ }).tap();
+  await expect(page.getByRole("navigation", { name: "Carpeta actual" })).toContainText("Destino");
   await expect(page.getByRole("button", { name: "Subir una carpeta" })).toBeEnabled();
   await expect
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth))

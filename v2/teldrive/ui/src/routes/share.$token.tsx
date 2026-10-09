@@ -1,6 +1,6 @@
 import { Button, Input, Label, Spinner, TextField } from "@heroui/react";
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { FileTrigger, type Selection } from "react-aria-components";
 import { toast } from "sonner";
 import DownloadIcon from "~icons/gravity-ui/arrow-down-to-line";
@@ -14,6 +14,8 @@ import CloseIcon from "~icons/gravity-ui/xmark";
 import { apiFetch } from "@/api/client";
 import { ApiError, userMessage } from "@/api/errors";
 import type { FileEntry, PublicShare } from "@/api/types";
+import { FilePreviewDialog, isPreviewable } from "@/components/file-preview-dialog";
+import { playbackUrl, type PlaybackSession } from "@/components/viewers/compatible-media";
 import { AppDialog } from "@/components/dialogs/app-dialog";
 import { Page, PageContent } from "@/components/page";
 import { FileBrowser, formatFileBytes, type FileBrowserView } from "@/features/files/file-browser";
@@ -30,6 +32,8 @@ type UploadSession = { id: string; partSize: number };
 
 function PublicSharePage() {
   const { token } = Route.useParams();
+  const sessions = useRef(new Map<string, PlaybackSession>());
+  const [preview, setPreview] = useState<{ file: FileEntry; session: PlaybackSession }>();
   const [password, setPassword] = useState("");
   const [activePassword, setActivePassword] = useState("");
   const [share, setShare] = useState<PublicShare>();
@@ -68,6 +72,8 @@ function PublicSharePage() {
 
   useEffect(() => {
     const controller = new AbortController();
+    sessions.current.clear();
+    setPreview(undefined);
     setLoading(true);
     setError(undefined);
     void loadShare(controller.signal)
@@ -130,29 +136,38 @@ function PublicSharePage() {
     return new URL(`/api${endpoint}`, window.location.origin).toString();
   };
 
-  const publicDownloadUrl = (file: FileEntry) => {
-    const url = new URL(publicContentUrl(file));
-    url.searchParams.set("download", "1");
-    return url.toString();
+  const playback = async (file: FileEntry) => {
+    const existing = sessions.current.get(file.id);
+    if (existing && new Date(existing.expiresAt).getTime() > Date.now()) return existing;
+    const response = await apiFetch(
+      `/v1/public/shares/${encodeURIComponent(token)}/files/${encodeURIComponent(file.id)}/playback`,
+      { method: "POST", headers: shareHeaders(activePassword) },
+    );
+    const session = (await response.json()) as PlaybackSession;
+    sessions.current.set(file.id, session);
+    return session;
   };
 
   const download = async (file: FileEntry) => {
     setError(undefined);
     try {
-      if (await nativeFileDownload(publicDownloadUrl(file), file.name, shareHeaders(activePassword))) return;
-      const response = await apiFetch(
-        new URL(publicDownloadUrl(file)).pathname + new URL(publicDownloadUrl(file)).search,
-        {
-          headers: shareHeaders(activePassword),
-        },
-      );
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
+      const session = await playback(file);
+      const url = new URL(playbackUrl(session.ticket), window.location.origin);
+      url.searchParams.set("download", "1");
+      if (await nativeFileDownload(url.toString(), file.name)) return;
       const anchor = document.createElement("a");
-      anchor.href = url;
+      anchor.href = url.toString();
       anchor.download = file.name;
       anchor.click();
-      URL.revokeObjectURL(url);
+    } catch (cause) {
+      setError(userMessage(cause));
+    }
+  };
+
+  const openPreview = async (file: FileEntry) => {
+    try {
+      const session = await playback(file);
+      setPreview({ file, session });
     } catch (cause) {
       setError(userMessage(cause));
     }
@@ -180,7 +195,8 @@ function PublicSharePage() {
       setPath(nextPath);
       return;
     }
-    void download(file);
+    if (isPreviewable(file)) void openPreview(file);
+    else void download(file);
   };
 
   const createFolder = async () => {
@@ -424,7 +440,7 @@ function PublicSharePage() {
                             isIconOnly
                             size="sm"
                             variant="primary"
-                            aria-label="Upload file"
+                            aria-label="Subir archivo"
                             isDisabled={uploading}
                           >
                             {uploading ? <Spinner size="sm" /> : <UploadIcon className="size-4" />}
@@ -438,7 +454,7 @@ function PublicSharePage() {
                       <div className="pointer-events-none absolute inset-x-0 bottom-4 z-30 flex justify-center px-4">
                         <div className="pointer-events-auto flex max-w-full items-center gap-1.5 overflow-x-auto rounded-full border border-border bg-surface/95 p-1.5 shadow-xl backdrop-blur">
                           <span className="shrink-0 rounded-full bg-accent/10 px-3 py-2 text-sm font-medium text-accent">
-                            {selectedFiles.length} selected
+                            {selectedFiles.length} seleccionados
                           </span>
                           {editable && singleSelected ? (
                             <Button
@@ -452,6 +468,15 @@ function PublicSharePage() {
                               }}
                             >
                               <PencilIcon className="size-4" />
+                            </Button>
+                          ) : null}
+                          {singleSelected && isPreviewable(singleSelected) ? (
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onPress={() => void openPreview(singleSelected)}
+                            >
+                              Vista previa
                             </Button>
                           ) : null}
                           {singleSelected?.kind === "file" ? (
@@ -500,7 +525,7 @@ function PublicSharePage() {
                       </div>
                     ) : undefined
                   }
-                  emptyHint="No files are available in this shared folder."
+                  emptyHint="No hay archivos disponibles en esta carpeta compartida."
                 />
               </div>
             </PageContent>
@@ -512,6 +537,18 @@ function PublicSharePage() {
           </div>
         ) : null}
       </main>
+
+      <FilePreviewDialog
+        file={preview?.file}
+        url={preview ? playbackUrl(preview.session.ticket) : undefined}
+        playbackSession={preview?.session}
+        onOpenChange={(open) => {
+          if (!open) setPreview(undefined);
+        }}
+        onDownload={() => {
+          if (preview) void download(preview.file);
+        }}
+      />
 
       <AppDialog
         open={folderDialogOpen}

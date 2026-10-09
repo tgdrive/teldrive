@@ -359,7 +359,9 @@ export function FileManagerPage({
         );
       },
       `${target.files.length} elemento${target.files.length === 1 ? "" : "s"} ${target.mode === "copy" ? "copiados" : "movidos"}`,
-      target.mode === "copy" ? "No se pudieron copiar los elementos" : "No se pudieron mover los elementos seleccionados",
+      target.mode === "copy"
+        ? "No se pudieron copiar los elementos"
+        : "No se pudieron mover los elementos seleccionados",
       () => {
         setDestination(undefined);
         setPaneSelectedKeys(target.pane, new Set());
@@ -415,7 +417,9 @@ export function FileManagerPage({
         setPasteConflictPane(pane);
         return;
       }
-      toast.error("No se pudieron pegar los elementos del portapapeles", { description: userMessage(error) });
+      toast.error("No se pudieron pegar los elementos del portapapeles", {
+        description: userMessage(error),
+      });
     }
   };
 
@@ -476,7 +480,7 @@ export function FileManagerPage({
         setRenameName(singleSelectedFile.name);
         return;
       }
-      if (event.key === "Eliminar" && selectedIds.length > 0) {
+      if (event.key === "Delete" && selectedIds.length > 0) {
         event.preventDefault();
         void trashSelected(pane);
         return;
@@ -537,7 +541,9 @@ export function FileManagerPage({
         `${selectedFiles.length} enlace de descarga${selectedFiles.length === 1 ? "" : "s"} copiados`,
       );
     } catch (error) {
-      toast.error("No se pudieron copiar los enlaces de descarga", { description: userMessage(error) });
+      toast.error("No se pudieron copiar los enlaces de descarga", {
+        description: userMessage(error),
+      });
     }
   };
 
@@ -705,6 +711,14 @@ export function FileManagerPage({
           setActionError(undefined);
           setDestination({ mode: "move", files: [...selectedFiles], pane });
         }}
+        onSpam={() =>
+          void performAction(
+            () => fileActions.bulkSpam(paneSelectedFiles(pane).map((file) => file.id)),
+            "Elementos enviados a Spam; se retiraron sus enlaces compartidos",
+            "No se pudieron marcar los elementos como spam",
+            () => setPaneSelectedKeys(pane, new Set()),
+          )
+        }
         onTrash={() => void trashSelected(pane)}
         onClear={() => setPaneSelectedKeys(pane, new Set())}
       />
@@ -812,7 +826,9 @@ export function FileManagerPage({
       )}
       {searchMode && activeSearch && !missingFolder && !invalidDates && (
         <p aria-live="polite" className="text-xs text-muted">
-          {primaryFileQuery.isFetching ? "Actualizando resultados…" : `${primaryFiles.length} cargados`}
+          {primaryFileQuery.isFetching
+            ? "Actualizando resultados…"
+            : `${primaryFiles.length} cargados`}
         </p>
       )}
       <PageContent className="flex min-h-0 flex-1 overflow-x-hidden">
@@ -821,7 +837,7 @@ export function FileManagerPage({
             <div role="alert" className="mb-3 rounded-xl border border-danger/30 p-4 text-sm">
               <p className="font-medium">
                 {primaryFileQuery.isFetchNextPageError
-                  ? "More results could not be loaded."
+                  ? "No se pudieron cargar más resultados."
                   : "No se pudo completar la búsqueda."}
               </p>
               <p className="mt-1 text-muted">{userMessage(primaryFileQuery.error)}</p>

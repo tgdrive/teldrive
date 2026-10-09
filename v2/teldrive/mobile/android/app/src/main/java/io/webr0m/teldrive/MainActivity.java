@@ -44,6 +44,7 @@ import java.util.Collections;
 
 public final class MainActivity extends Activity {
     private static final int FILE_PICKER = 41;
+    private static final int SAVE_FILE = 42;
     private static final int BLUE = 0xff1a73e8;
     private static final int BG = 0xfff6f8fc;
     private LinearLayout root;
@@ -57,6 +58,11 @@ public final class MainActivity extends Activity {
     private View fullscreen;
     private WebChromeClient.CustomViewCallback fullscreenCallback;
     private String[] pendingDownload;
+    private PendingSave pendingSave;
+    private static final class PendingSave {
+        final byte[] contents; final String id; final androidx.webkit.JavaScriptReplyProxy reply;
+        PendingSave(byte[] contents, String id, androidx.webkit.JavaScriptReplyProxy reply) { this.contents = contents; this.id = id; this.reply = reply; }
+    }
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
@@ -92,7 +98,7 @@ public final class MainActivity extends Activity {
         TextView intro = text("Conecta tu servidor Teldrive v2 para abrir tus archivos, escuchar música, ver vídeos y compartir contenido.", 16, 0xff667085); intro.setPadding(0, dp(12), 0, dp(28)); form.addView(intro);
         form.addView(text("Dirección del servidor", 14, 0xff344054));
         EditText address = new EditText(this); address.setSingleLine(); address.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI); address.setHint("https://teldrive.tudominio.com"); address.setText(preferences.getString("server", "")); address.setMinHeight(dp(56)); form.addView(address);
-        CheckBox local = new CheckBox(this); local.setText("Permitir HTTP en mi red local"); local.setMinHeight(dp(48)); local.setChecked(preferences.getBoolean("localHttp", false)); form.addView(local);
+        CheckBox local = new CheckBox(this); local.setText(R.string.allow_local_http); local.setMinHeight(dp(48)); local.setChecked(preferences.getBoolean("localHttp", false)); form.addView(local);
         TextView error = text("", 14, 0xffb42318); error.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE); form.addView(error);
         Button connect = button("Conectar a mi unidad", true); form.addView(connect, new LinearLayout.LayoutParams(-1, dp(52)));
         connect.setOnClickListener(v -> {
@@ -102,7 +108,7 @@ public final class MainActivity extends Activity {
         TextView help = text("Usa la dirección accesible desde tu móvil. 127.0.0.1 apunta al propio teléfono. El servidor y sus archivos permanecen en tu equipo o servidor; esta app no necesita PostgreSQL, rclone ni WinFsp.", 14, 0xff667085); help.setPadding(0, dp(24), 0, dp(24)); form.addView(help);
         if (server != null) { Button back = button("Volver a mi unidad", false); back.setOnClickListener(v -> connect(server, false)); form.addView(back); }
         scroll.addView(form); content.addView(scroll);
-        title.setText("☁  Teldrive");
+        title.setText(R.string.app_title);
     }
 
     @android.annotation.SuppressLint("SetJavaScriptEnabled")
@@ -120,7 +126,7 @@ public final class MainActivity extends Activity {
                     catch (URISyntaxException | NullPointerException ignored) {}
                     return true;
                 }
-                @Override public void onPageFinished(WebView view, String url) { CookieManager.getInstance().flush(); progress.setVisibility(View.INVISIBLE); title.setText("☁  Teldrive"); }
+                @Override public void onPageFinished(WebView view, String url) { CookieManager.getInstance().flush(); progress.setVisibility(View.INVISIBLE); title.setText(R.string.app_title); }
                 @Override public boolean onRenderProcessGone(WebView view, android.webkit.RenderProcessGoneDetail detail) {
                     content.removeView(view); view.destroy(); web = null;
                     if (upload != null) { upload.onReceiveValue(null); upload = null; }
@@ -152,13 +158,22 @@ public final class MainActivity extends Activity {
             WebViewCompat.removeWebMessageListener(web, "teldriveMobile");
             WebViewCompat.addWebMessageListener(web, "teldriveMobile", Collections.singleton(server.getScheme() + "://" + server.getRawAuthority()), (view, message, origin, mainFrame, reply) -> {
                 if (!mainFrame || !ServerAddress.sameOrigin(server, URI.create(origin.toString()))) return;
+                URI page = URI.create(view.getUrl());
+                if (!ServerAddress.sameOrigin(server, page) || !page.getPath().matches("/(files|settings/rclone|share/[^/]+)")) return;
                 String id = "";
                 try {
-                    String raw = message.getData(); if (raw == null || raw.length() > 16384) throw new IllegalArgumentException("Solicitud no válida.");
+                    String raw = message.getData(); if (raw == null || raw.length() > 2 * 1024 * 1024) throw new IllegalArgumentException("Solicitud no válida.");
                     JSONObject request = new JSONObject(raw); id = request.getString("id");
+                    if ("save".equals(request.getString("method"))) {
+                        if (pendingSave != null) throw new IllegalStateException("Termina el guardado anterior.");
+                        pendingSave = new PendingSave(request.getString("contents").getBytes(java.nio.charset.StandardCharsets.UTF_8), id, reply);
+                        Intent save = new Intent(Intent.ACTION_CREATE_DOCUMENT); save.addCategory(Intent.CATEGORY_OPENABLE); save.setType("text/plain"); save.putExtra(Intent.EXTRA_TITLE, request.getString("filename").replaceAll("[\\\\/:*?\"<>|\\p{Cntrl}]", "_"));
+                        try { startActivityForResult(save, SAVE_FILE); } catch (Exception error) { pendingSave = null; throw error; }
+                        return;
+                    }
                     if (!"download".equals(request.getString("method"))) throw new IllegalArgumentException("Operación no admitida.");
                     URI target = URI.create(request.getString("url"));
-                    if (!ServerAddress.sameOrigin(server, target) || !target.getPath().matches("/api/v1/(files/[^/]+/content/[^/]+|public/shares/[^/]+/(files/[^/]+/)?content/[^/]+)")) throw new IllegalArgumentException("Solo se descargan archivos de tu servidor.");
+                    if (!ServerAddress.sameOrigin(server, target) || !target.getPath().matches("/api/v1/(playback|files/[^/]+/content/[^/]+|public/shares/[^/]+/(files/[^/]+/)?content/[^/]+)")) throw new IllegalArgumentException("Solo se descargan archivos de tu servidor.");
                     JSONObject headers = request.optJSONObject("headers"); String password = headers == null ? "" : headers.optString("x-share-password", headers.optString("X-Share-Password", ""));
                     if (password.contains("\r") || password.contains("\n")) throw new IllegalArgumentException("La contraseña del enlace no es válida.");
                     enqueue(target.toString(), web.getSettings().getUserAgentString(), request.getString("filename"), "application/octet-stream", password);
@@ -217,6 +232,22 @@ public final class MainActivity extends Activity {
     }
     @Override protected void onActivityResult(int request, int result, Intent data) {
         super.onActivityResult(request, result, data);
+        if (request == SAVE_FILE && pendingSave != null) {
+            PendingSave save = pendingSave; pendingSave = null;
+            new Thread(() -> {
+                String error = null;
+                try {
+                    if (result != RESULT_OK || data == null || data.getData() == null) throw new java.io.IOException("Guardado cancelado.");
+                    try (java.io.OutputStream stream = getContentResolver().openOutputStream(data.getData())) { if (stream == null) throw new java.io.IOException("No se pudo abrir el archivo."); stream.write(save.contents); }
+                } catch (Exception failure) { error = failure.getMessage(); }
+                String problem = error;
+                runOnUiThread(() -> {
+                    if (isDestroyed() || !WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) return;
+                    try { JSONObject reply = new JSONObject().put("id", save.id); if (problem == null) reply.put("result", true); else reply.put("error", problem); save.reply.postMessage(reply.toString()); } catch (Exception ignored) {}
+                });
+            }, "teldrive-file-save").start();
+            return;
+        }
         if (request != FILE_PICKER || upload == null) return;
         Uri[] values = null;
         if (result == RESULT_OK && data != null) {

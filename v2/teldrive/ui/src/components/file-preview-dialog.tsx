@@ -3,6 +3,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import type { FileEntry } from "@/api/types";
 import { fileContentUrl, startFileDownload } from "@/features/files/download";
 import { previewMedia, supportsCodePreview } from "@/features/files/preview-support";
+import { CompatibleMedia, type PlaybackSession } from "./viewers/compatible-media";
 import { readerKind } from "@/features/files/reader-support";
 type ViewerKind = "image" | "video" | "audio" | "pdf" | "ebook" | "text";
 import DownloadIcon from "~icons/gravity-ui/arrow-down-to-line";
@@ -11,9 +12,6 @@ import ZoomOutIcon from "~icons/gravity-ui/magnifier-minus";
 import ZoomInIcon from "~icons/gravity-ui/magnifier-plus";
 import CloseIcon from "~icons/gravity-ui/xmark";
 
-const VideoViewer = lazy(() =>
-  import("@/components/viewers/video-viewer").then((module) => ({ default: module.VideoViewer })),
-);
 const PdfReader = lazy(() =>
   import("@/components/viewers/pdf-reader").then((module) => ({ default: module.PdfReader })),
 );
@@ -24,12 +22,18 @@ const EpubReader = lazy(() =>
 export function FilePreviewDialog({
   file,
   onOpenChange,
+  url,
+  playbackSession,
+  onDownload,
 }: {
   file?: FileEntry;
   onOpenChange: (open: boolean) => void;
+  url?: string;
+  playbackSession?: PlaybackSession;
+  onDownload?: () => void;
 }) {
   const closeFrame = useRef<number>(undefined);
-  const contentUrl = file ? fileContentUrl(file) : "";
+  const contentUrl = url ?? (file ? fileContentUrl(file) : "");
   const kind = file ? viewerKind(file) : undefined;
   const isReader = kind === "pdf" || kind === "ebook";
 
@@ -137,7 +141,7 @@ export function FilePreviewDialog({
             <Button
               variant={isReader ? "ghost" : "secondary"}
               size="sm"
-              onPress={() => startFileDownload(file)}
+              onPress={() => (onDownload ? onDownload() : startFileDownload(file))}
             >
               <DownloadIcon className="size-4" />
               <span className="hidden sm:inline">Descargar</span>
@@ -152,12 +156,15 @@ export function FilePreviewDialog({
             )}
           >
             {kind === "image" ? <ImageViewer file={file} url={contentUrl} /> : null}
-            {kind === "video" ? (
-              <Suspense fallback={<ViewerLoading label="Cargando reproductor de vídeo" />}>
-                <VideoViewer file={file} url={contentUrl} />
-              </Suspense>
+            {kind === "video" || kind === "audio" ? (
+              <CompatibleMedia
+                key={file.id}
+                file={file}
+                url={contentUrl}
+                kind={kind}
+                session={playbackSession}
+              />
             ) : null}
-            {kind === "audio" ? <AudioViewer file={file} url={contentUrl} /> : null}
             {kind === "text" ? <TextViewer url={contentUrl} /> : null}
           </Modal.Body>
         </Modal.Dialog>
@@ -209,21 +216,6 @@ function ImageViewer({ file, url }: { file: FileEntry; url: string }) {
         >
           <RotateIcon className="size-4" />
         </Button>
-      </div>
-    </div>
-  );
-}
-
-function AudioViewer({ file, url }: { file: FileEntry; url: string }) {
-  return (
-    <div className="flex h-full items-center justify-center p-6">
-      <div className="glass-panel w-full max-w-xl rounded-3xl p-8 text-center">
-        <div className="mx-auto mb-6 grid size-28 place-items-center rounded-full border border-accent/20 bg-accent/10 text-4xl">
-          ♪
-        </div>
-        <h3 className="truncate text-lg font-semibold">{file.name}</h3>
-        {/* biome-ignore lint/a11y/useMediaCaption: user-provided audio does not have a separate caption resource */}
-        <audio className="mt-7 w-full" src={url} controls />
       </div>
     </div>
   );

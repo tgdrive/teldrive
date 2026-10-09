@@ -20,9 +20,20 @@ struct TeldriveWebView: UIViewRepresentable {
         private var destinations: [ObjectIdentifier: URL] = [:]
         init(store: BrowserStore) { self.store = store }
         func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage, replyHandler: @escaping (Any?, String?) -> Void) {
-            guard message.frameInfo.isMainFrame, let server = store.server, let source = message.frameInfo.request.url, ServerAddress.sameOrigin(server, source),
-                  let request = message.body as? [String: Any], request["method"] as? String == "download", let raw = request["url"] as? String, let url = URL(string: raw), ServerAddress.sameOrigin(server, url),
-                  url.path.range(of: #"^/api/v1/(files/[^/]+/content/[^/]+|public/shares/[^/]+/(files/[^/]+/)?content/[^/]+)$"#, options: .regularExpression) != nil else { replyHandler(nil, "Solicitud de descarga no válida."); return }
+            guard message.frameInfo.isMainFrame, let server = store.server, let source = message.frameInfo.request.url, ServerAddress.sameOrigin(server, source), let request = message.body as? [String: Any] else { replyHandler(nil, "Solicitud no válida."); return }
+            if request["method"] as? String == "save" {
+                do {
+                    guard let contents = request["contents"] as? String, let data = contents.data(using: .utf8), data.count <= 2 * 1024 * 1024 else { throw URLError(.dataLengthExceedsMaximum) }
+                    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("TeldriveDownloads", isDirectory:true).appendingPathComponent(UUID().uuidString, isDirectory:true)
+                    try FileManager.default.createDirectory(at:folder, withIntermediateDirectories:true)
+                    let name = URL(fileURLWithPath:request["filename"] as? String ?? "archivo.txt").lastPathComponent
+                    let url = folder.appendingPathComponent(name.isEmpty ? "archivo.txt" : name)
+                    try data.write(to:url, options:.atomic); store.downloaded = DownloadedFile(url:url); replyHandler(true,nil)
+                } catch { replyHandler(nil,"No se pudo guardar el archivo en el dispositivo.") }
+                return
+            }
+            guard request["method"] as? String == "download", let raw = request["url"] as? String, let url = URL(string: raw), ServerAddress.sameOrigin(server, url),
+                  url.path.range(of: #"^/api/v1/(playback|files/[^/]+/content/[^/]+|public/shares/[^/]+/(files/[^/]+/)?content/[^/]+)$"#, options: .regularExpression) != nil else { replyHandler(nil, "Solicitud de descarga no válida."); return }
             if store.downloading { replyHandler(nil, "Espera a que termine la descarga anterior."); return }
             store.downloading = true
             Task { @MainActor in

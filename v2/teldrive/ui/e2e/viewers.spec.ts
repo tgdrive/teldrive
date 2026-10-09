@@ -178,12 +178,12 @@ test("PDF opens in the Teldrive PDF.js workspace with navigation and search", as
 
   const viewportWidth = page.viewportSize()?.width ?? 0;
   if (viewportWidth >= 1024) {
-    await expect(dialog.getByRole("button", { name: "Go to page 2" })).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "Ir a la página 2" })).toBeVisible();
   } else {
     await dialog.getByRole("button", { name: "Abrir menú lateral del PDF" }).click();
     const navigation = page.getByRole("dialog", { name: "Navegación del documento" });
     await expect(navigation).toBeVisible();
-    await expect(navigation.getByRole("button", { name: "Go to page 2" })).toBeVisible();
+    await expect(navigation.getByRole("button", { name: "Ir a la página 2" })).toBeVisible();
     await navigation.getByRole("button", { name: "Cerrar" }).click();
   }
 
@@ -313,7 +313,7 @@ test("EPUB renders in its dedicated reader, navigates without persisting, and cl
   expect(errors).toEqual([]);
 
   await dialog.getByRole("button", { name: "Configuración de lectura" }).click();
-  await page.getByRole("button", { name: "Night" }).click();
+  await page.getByRole("button", { name: "Noche" }).click();
   await expect(dialog.locator("[data-epub-reader]")).toHaveAttribute("data-reader-theme", "night");
   const appearance = page.getByRole("dialog", { name: "Apariencia de lectura" });
   await appearance.getByRole("button", { name: "Listo" }).click();

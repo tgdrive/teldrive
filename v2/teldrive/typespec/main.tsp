@@ -12,6 +12,8 @@ import "./uploads.tsp";
 import "./shares.tsp";
 import "./jobs.tsp";
 import "./storage.tsp";
+import "./playback.tsp";
+import "./incoming-spam.tsp";
 
 using TypeSpec.Http;
 using TypeSpec.OpenAPI;

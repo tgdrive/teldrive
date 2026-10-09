@@ -96,3 +96,10 @@ reconnect-max = "30s"
 [logging]
 log-level = "info"
 log-format = "json"
+
+# Conversión opcional para los códecs que el navegador no puede reproducir.
+[media]
+enabled = true
+ffmpeg-path = "ffmpeg"
+max-concurrent = 2
+timeout = "2h"

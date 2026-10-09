@@ -48,9 +48,26 @@ internal static class RcloneSmokeTest
         if (!File.Exists(Path.Combine(remote, "lote", "segundo.txt"))) throw new IOException("La subida de carpetas no terminó.");
         await rclone.TrashAsync("/carpeta", true);
         if (Directory.Exists(Path.Combine(remote, "carpeta"))) throw new IOException("La eliminación de la carpeta no terminó.");
+        var mounted = false;
+        if (rclone.DriverInstalled) {
+            var occupied = DriveInfo.GetDrives().Select(drive => drive.Name[..2]).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var letter = Enumerable.Range('D', 23).Reverse().Select(value => ((char)value) + ":").FirstOrDefault(value => !occupied.Contains(value));
+            if (letter is null) throw new IOException("No hay una letra libre para la prueba de montaje.");
+            var mount = rclone.Mount(letter);
+            try {
+                var driveRoot = letter + Path.DirectorySeparatorChar;
+                for (var attempt = 0; attempt < 100 && !File.Exists(Path.Combine(driveRoot, "audio.wav")); attempt++) await Task.Delay(200);
+                if (!File.Exists(Path.Combine(driveRoot, "audio.wav"))) throw new IOException("La unidad de prueba no se montó.");
+                await File.WriteAllTextAsync(Path.Combine(driveRoot, "montaje.txt"), contents);
+                if (await File.ReadAllTextAsync(Path.Combine(driveRoot, "montaje.txt")) != contents) throw new IOException("La lectura de la unidad montada falló.");
+                for (var attempt = 0; attempt < 100 && !File.Exists(Path.Combine(remote, "montaje.txt")); attempt++) await Task.Delay(200);
+                if (!File.Exists(Path.Combine(remote, "montaje.txt")) || await File.ReadAllTextAsync(Path.Combine(remote, "montaje.txt")) != contents) throw new IOException("La unidad no guardó el archivo remoto.");
+                mounted = true;
+            } finally { await rclone.StopAsync(mount); }
+        }
         if (File.Exists(Path.Combine(runtime.DataRoot, "rclone.conf.encrypted.old"))) throw new IOException("Quedó una copia sin cifrar de la configuración.");
         await rclone.LockAsync();
-        await File.WriteAllTextAsync(Path.Combine(runtime.DataRoot, "rclone-smoke-test.json"), JsonSerializer.Serialize(new {success = true, encrypted = rclone.Encrypted, locked = rclone.Locked, scenarios = new[] {"encryption", "wrong-password", "unlock", "mkdir", "upload", "rename", "browse", "size", "download", "retry", "stream-audio-mpv", "folder-upload", "delete", "lock"}}));
+        await File.WriteAllTextAsync(Path.Combine(runtime.DataRoot, "rclone-smoke-test.json"), JsonSerializer.Serialize(new {success = true, encrypted = rclone.Encrypted, locked = rclone.Locked, mounted, scenarios = new[] {"encryption", "wrong-password", "unlock", "mkdir", "upload", "rename", "browse", "size", "download", "retry", "stream-audio-mpv", "folder-upload", "delete", "lock"}}));
     }
     private static async Task WaitAsync(RcloneRuntime rclone, string id)
     {
