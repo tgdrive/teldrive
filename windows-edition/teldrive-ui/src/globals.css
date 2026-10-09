@@ -1,0 +1,109 @@
+@font-face {
+  font-family: "Rubik";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("/fonts/rubik.woff2") format("woff2-variations");
+}
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :focus-visible { outline: 2px solid oklch(var(--m3-primary)); outline-offset: 3px; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+}
+
+.drive-files { min-height: 0; }
+.drive-files > div { min-height: 0; }
+.drive-main { scrollbar-gutter: stable; }
+[data-ui-theme="mega"] .drive-main { border-radius: 12px; }
+[data-ui-theme="mega"] .drive-sidebar nav a { border-radius: 10px; }
+[data-ui-theme="forest"] .drive-main, [data-ui-theme="ocean"] .drive-main { border-radius: 24px; }
+[data-density="compact"] .drive-main { padding: 1rem; }
+[data-density="compact"] .drive-sidebar nav a { padding-top: 0.4rem; padding-bottom: 0.4rem; }
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+.apexcharts-legend-text {
+  @apply text-on-surface;
+}
+.apexcharts-text {
+  @apply fill-on-surface;
+}
+.apexcharts-xcrosshairs {
+  @apply fill-zinc-200 dark:fill-zinc-800;
+}
+.apexcharts-gridline {
+  @apply stroke-zinc-200 dark:stroke-zinc-800;
+}
+.apexcharts-series.apexcharts-pie-series path {
+  @apply dark:stroke-transparent;
+}
+.apexcharts-legend-series {
+  @apply inline-flex gap-1.5;
+}
+.apexcharts-tooltip.apexcharts-theme-light {
+  @apply !border-none !shadow-1 !bg-surface-container-low;
+}
+.apexcharts-tooltip.apexcharts-theme-light .apexcharts-tooltip-title {
+  @apply !border-none !bg-surface-container-high;
+}
+.apexcharts-xaxistooltip,
+.apexcharts-yaxistooltip {
+  @apply !border-none shadow-1 !bg-surface-container-low !text-on-surface;
+}
+.apexcharts-xaxistooltip-bottom:after {
+  @apply !border-b-surface-container-low;
+}
+.apexcharts-xaxistooltip-bottom:before {
+  @apply !border-b-surface-container-low;
+}
+.apexcharts-xaxistooltip-bottom {
+  @apply rounded border-none text-xs font-medium text-on-surface;
+}
+.apexcharts-tooltip-series-group {
+  @apply !pl-1.5;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+@media (pointer: coarse) {
+  *::-webkit-scrollbar {
+    display: none;
+  }
+
+  * {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+.art-video-player {
+  --art-theme: oklch(var(--m3-primary)) !important;
+  @apply rounded-xl;
+  overflow: hidden;
+  font-family: inherit !important;
+}
+.art-fullscreen {
+  @apply rounded-none;
+}

@@ -1,5 +1,11 @@
 # Telegram Drive
 
+## Edición personalizada para Windows en español
+
+La nueva edición incluye un ejecutable Desktop independiente, CLI, temas, multimedia, papelera y configuración gráfica de rclone. [Ver fuentes e instrucciones](windows-edition/README.md) · [Descargar para Windows](https://github.com/webr0m/teldrive/releases/tag/v1.8.3-drive-es.1).
+
+El código de esta edición está en `windows-edition/`; el proyecto anterior se conserva a continuación.
+
 Telegram Drive is a powerful utility that enables you to create your own cloud storage service using Telegram as the backend.
 
 

@@ -1,0 +1,20 @@
+# Entorno y datos personales
+.tools/
+node_modules/
+.env
+.env.*
+config.toml
+sessions/
+logs/
+*.db
+*.log
+
+# Artefactos: se distribuyen en Releases
+dist-custom/
+*.exe
+*.dll
+*.msi
+*.gz
+*.zip
+teldrive/tools/desktop/bundle/*
+!teldrive/tools/desktop/bundle/.gitkeep

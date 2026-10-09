@@ -5,6 +5,7 @@ on:
   push:
     tags:
       - '*'
+      - '!v*-drive-es*'
 env:
   DOCKER_BUILDKIT: 1
   
