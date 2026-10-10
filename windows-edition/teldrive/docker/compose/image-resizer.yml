@@ -1,0 +1,11 @@
+services:
+  imgproxy:
+    image: darthsim/imgproxy
+    container_name: imgproxy
+    environment:
+      IMGPROXY_ALLOW_ORIGIN: "*"
+      IMGPROXY_ENFORCE_WEBP: true
+      IMGPROXY_MALLOC: "jemalloc"
+    restart: always
+    ports:
+      - 8000:8080

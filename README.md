@@ -1,4 +1,11 @@
 # Teldrive
+
+## Edición personalizada para Windows en español
+
+La edición 1.8.3 incluye un ejecutable Desktop independiente, CLI, temas, multimedia, papelera y configuración gráfica de rclone. [Ver fuentes e instrucciones](windows-edition/README.md) · [Descargar la edición 1.8.3](https://github.com/webr0m/teldrive/releases/tag/v1.8.3-drive-es.1).
+
+Las fuentes personalizadas están en `windows-edition/`. La raíz conserva la versión de Teldrive de `main`, con sus instrucciones a continuación.
+
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/tgdrive/teldrive)
 
 Teldrive is a powerful utility that enables you to organise your telegram files and much more.
@@ -24,10 +31,10 @@ Visit https://teldrive-docs.pages.dev for setting up teldrive.
 
 - **Follow Limits:** Adhere to the limits imposed by Telegram servers to avoid account bans and automatic deletion of your channel.Your files will be removed from telegram servers if you try to abuse the service as most people have zero brains they will still do so good luck.
 - **Responsible Storage:** Be mindful of the content you store on Telegram. Utilize storage efficiently and only keep data that serves a purpose.
-  
+
 ### Don'ts:
 - **Data Hoarding:** Avoid excessive data hoarding, as it not only violates Telegram's terms.
-  
+
 By following these guidelines, you contribute to the responsible and effective use of Telegram, maintaining a fair and equitable environment for all users.
 
 ## Contributing

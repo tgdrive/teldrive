@@ -1,0 +1,3498 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Teldrive",
+    "version": "0.0.0"
+  },
+  "tags": [
+    {
+      "name": "Auth"
+    },
+    {
+      "name": "Files"
+    },
+    {
+      "name": "Uploads"
+    },
+    {
+      "name": "Users"
+    },
+    {
+      "name": "Shares"
+    },
+    {
+      "name": "Events"
+    },
+    {
+      "name": "Version"
+    }
+  ],
+  "paths": {
+    "/auth/login": {
+      "post": {
+        "operationId": "Auth_login",
+        "summary": "Login",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": "There is no content to send for this request, but the headers may be useful. ",
+            "headers": {
+              "Set-Cookie": {
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Auth"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionCreate"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "operationId": "Auth_logout",
+        "summary": "Logout",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": "There is no content to send for this request, but the headers may be useful. ",
+            "headers": {
+              "Set-Cookie": {
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Auth"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
+    "/auth/session": {
+      "get": {
+        "operationId": "Auth_session",
+        "summary": "Get session information",
+        "parameters": [
+          {
+            "name": "access_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "explode": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "headers": {
+              "Set-Cookie": {
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Session"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "There is no content to send for this request, but the headers may be useful."
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/auth/ws": {
+      "get": {
+        "operationId": "Auth_ws",
+        "summary": "Websocket QR Login",
+        "parameters": [],
+        "responses": {
+          "101": {
+            "description": "Informational"
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/events": {
+      "get": {
+        "operationId": "Events_getEvents",
+        "summary": "Get events",
+        "description": "Get events (polling)",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Event"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Events"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
+    "/events/stream": {
+      "get": {
+        "operationId": "Events_eventsStream",
+        "summary": "Server-Sent Events stream",
+        "description": "Real-time event stream using Server-Sent Events (SSE). Events are filtered by authenticated user. Optional interval parameter for heartbeat configuration.",
+        "parameters": [
+          {
+            "name": "interval",
+            "in": "query",
+            "required": false,
+            "description": "Heartbeat interval in milliseconds (default: 30000)",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "explode": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "headers": {
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-cache"
+                  ]
+                }
+              },
+              "Connection": {
+                "required": true,
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "keep-alive"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Events"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
+    "/files": {
+      "get": {
+        "operationId": "Files_list",
+        "summary": "List all files",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/FileQuery.name"
+          },
+          {
+            "$ref": "#/components/parameters/FileQuery.query"
+          },
+          {
+            "$ref": "#/components/parameters/FileQuery.searchType"
+          },
+          {
+            "$ref": "#/components/parameters/FileQuery.type"
+          },
+          {
+            "$ref": "#/components/parameters/FileQuery.path"
+          },
+          {
+            "$ref": "#/components/parameters/FileQuery.operation"
+          },
+          {
+            "$ref": "#/components/parameters/FileQuery.status"
+          },
+          {
+            "$ref": "#/components/parameters/FileQuery.deepSearch"
+          },
+          {
+            "$ref": "#/components/parameters/FileQuery.shared"
+          },
+          {
+            "$ref": "#/components/parameters/FileQuery.parentId"
+          },
+          {
+            "$ref": "#/components/parameters/FileQuery.category"
+          },
+          {
+            "$ref": "#/components/parameters/FileQuery.updatedAt"
+          },
+          {
+            "$ref": "#/components/parameters/FileQuery.sort"
+          },
+          {
+            "$ref": "#/components/parameters/FileQuery.order"
+          },
+          {
+            "$ref": "#/components/parameters/FileQuery.limit"
+          },
+          {
+            "$ref": "#/components/parameters/FileQuery.page"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Files"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "Files_create",
+        "summary": "Create a new file",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "The request has succeeded and a new resource has been created as a result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/File"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Files"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/File"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
+    "/files/categories": {
+      "get": {
+        "operationId": "Files_categoryStats",
+        "summary": "Get category stats",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CategoryStats"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Files"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
+    "/files/delete": {
+      "post": {
+        "operationId": "Files_delete",
+        "summary": "Delete files",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": "There is no content to send for this request, but the headers may be useful."
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Files"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FileDelete"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
+    "/files/mkdir": {
+      "post": {
+        "operationId": "Files_mkdir",
+        "summary": "Create Folders",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": "There is no content to send for this request, but the headers may be useful."
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Files"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FileMkDir"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
+    "/files/move": {
+      "post": {
+        "operationId": "Files_move",
+        "summary": "Move files",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": "There is no content to send for this request, but the headers may be useful."
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Files"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FileMove"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
+    "/files/{id}": {
+      "get": {
+        "operationId": "Files_getById",
+        "summary": "Get file by ID",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/File"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Files"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "Files_update",
+        "summary": "Update file",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/File"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Files"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FileUpdate"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
+    "/files/{id}/copy": {
+      "post": {
+        "operationId": "Files_copy",
+        "summary": "Copy file",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/File"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Files"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FileCopy"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
+    "/files/{id}/share": {
+      "delete": {
+        "operationId": "Files_deleteShare",
+        "summary": "Delete share",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "There is no content to send for this request, but the headers may be useful."
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Files"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      },
+      "get": {
+        "operationId": "Files_shareByid",
+        "summary": "Get share by file ID",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileShare"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Files"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "Files_editShare",
+        "summary": "Edit share",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "There is no content to send for this request, but the headers may be useful."
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Files"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FileShareCreate"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "Files_createShare",
+        "summary": "Create a share for the file",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "The request has succeeded and a new resource has been created as a result."
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Files"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FileShareCreate"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
+    "/files/{id}/{name}": {
+      "get": {
+        "operationId": "Files_stream",
+        "summary": "Stream or Download file",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "download",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "0",
+                "1"
+              ],
+              "default": "0"
+            },
+            "explode": false
+          },
+          {
+            "name": "hash",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "explode": false
+          },
+          {
+            "name": "Range",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "access_token",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "explode": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File streaming response",
+            "headers": {
+              "Accept-Ranges": {
+                "required": true,
+                "description": "Indicates server supports range requests",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "bytes"
+                  ]
+                }
+              },
+              "Content-Length": {
+                "required": true,
+                "description": "Size of the response body in bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Content-Disposition": {
+                "required": true,
+                "description": "File attachment information",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Content-Range": {
+                "required": false,
+                "description": "Range of bytes being sent",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Etag": {
+                "required": true,
+                "description": "Entity tag for cache validation",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Last-Modified": {
+                "required": true,
+                "description": "Last modification timestamp",
+                "schema": {
+                  "type": "string",
+                  "format": "http-date"
+                }
+              }
+            },
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "File streaming response",
+            "headers": {
+              "Accept-Ranges": {
+                "required": true,
+                "description": "Indicates server supports range requests",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "bytes"
+                  ]
+                }
+              },
+              "Content-Length": {
+                "required": true,
+                "description": "Size of the response body in bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Content-Disposition": {
+                "required": true,
+                "description": "File attachment information",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Content-Range": {
+                "required": false,
+                "description": "Range of bytes being sent",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Etag": {
+                "required": true,
+                "description": "Entity tag for cache validation",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Last-Modified": {
+                "required": true,
+                "description": "Last modification timestamp",
+                "schema": {
+                  "type": "string",
+                  "format": "http-date"
+                }
+              }
+            },
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Files"
+        ],
+        "security": [
+          {}
+        ]
+      }
+    },
+    "/shares/{id}": {
+      "get": {
+        "operationId": "Shares_getById",
+        "summary": "Get share by ID",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileShareInfo"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Shares"
+        ]
+      }
+    },
+    "/shares/{id}/files": {
+      "get": {
+        "operationId": "Shares_listFiles",
+        "summary": "List files in share",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/ShareQuery.path"
+          },
+          {
+            "$ref": "#/components/parameters/ShareQuery.sort"
+          },
+          {
+            "$ref": "#/components/parameters/ShareQuery.order"
+          },
+          {
+            "$ref": "#/components/parameters/ShareQuery.limit"
+          },
+          {
+            "$ref": "#/components/parameters/ShareQuery.page"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FileList"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Shares"
+        ]
+      }
+    },
+    "/shares/{id}/files/{fileId}/{name}": {
+      "get": {
+        "operationId": "Shares_stream",
+        "summary": "Stream or Download shared file",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fileId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "download",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "0",
+                "1"
+              ],
+              "default": "0"
+            },
+            "explode": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "File streaming response",
+            "headers": {
+              "Accept-Ranges": {
+                "required": true,
+                "description": "Indicates server supports range requests",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "bytes"
+                  ]
+                }
+              },
+              "Content-Length": {
+                "required": true,
+                "description": "Size of the response body in bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Content-Disposition": {
+                "required": true,
+                "description": "File attachment information",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Content-Range": {
+                "required": false,
+                "description": "Range of bytes being sent",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Etag": {
+                "required": true,
+                "description": "Entity tag for cache validation",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Last-Modified": {
+                "required": true,
+                "description": "Last modification timestamp",
+                "schema": {
+                  "type": "string",
+                  "format": "http-date"
+                }
+              }
+            },
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "206": {
+            "description": "File streaming response",
+            "headers": {
+              "Accept-Ranges": {
+                "required": true,
+                "description": "Indicates server supports range requests",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "bytes"
+                  ]
+                }
+              },
+              "Content-Length": {
+                "required": true,
+                "description": "Size of the response body in bytes",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Content-Disposition": {
+                "required": true,
+                "description": "File attachment information",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Content-Range": {
+                "required": false,
+                "description": "Range of bytes being sent",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Etag": {
+                "required": true,
+                "description": "Entity tag for cache validation",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Last-Modified": {
+                "required": true,
+                "description": "Last modification timestamp",
+                "schema": {
+                  "type": "string",
+                  "format": "http-date"
+                }
+              }
+            },
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Shares"
+        ]
+      }
+    },
+    "/shares/{id}/unlock": {
+      "post": {
+        "operationId": "Shares_unlock",
+        "summary": "Unlock share",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "There is no content to send for this request, but the headers may be useful."
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Shares"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShareUnlock"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/uploads/stats": {
+      "get": {
+        "operationId": "Uploads_stats",
+        "summary": "Get upload stats",
+        "parameters": [
+          {
+            "name": "days",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "explode": false
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UploadStats"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Uploads"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
+    "/uploads/{id}": {
+      "post": {
+        "operationId": "Uploads_upload",
+        "summary": "Upload file",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "Content-Length",
+            "in": "header",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/UploadQuery.partName"
+          },
+          {
+            "$ref": "#/components/parameters/UploadQuery.fileName"
+          },
+          {
+            "$ref": "#/components/parameters/UploadQuery.partNo"
+          },
+          {
+            "$ref": "#/components/parameters/UploadQuery.channelId"
+          },
+          {
+            "$ref": "#/components/parameters/UploadQuery.encrypted"
+          },
+          {
+            "$ref": "#/components/parameters/UploadQuery.hashing"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadPart"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Uploads"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "*/*": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      },
+      "get": {
+        "operationId": "Uploads_partsById",
+        "summary": "Get uploaded parts by ID",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UploadPart"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Uploads"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "Uploads_delete",
+        "summary": "Delete uploaded file",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "There is no content to send for this request, but the headers may be useful."
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Uploads"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
+    "/users/bots": {
+      "post": {
+        "operationId": "Users_addBots",
+        "summary": "Add bots to user account",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": "There is no content to send for this request, but the headers may be useful."
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Users"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddBots"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      },
+      "delete": {
+        "operationId": "Users_removeBots",
+        "summary": "Remove bots from user account",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": "There is no content to send for this request, but the headers may be useful."
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
+    "/users/channels": {
+      "get": {
+        "operationId": "Users_listChannels",
+        "summary": "List user channels",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Channel"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      },
+      "post": {
+        "operationId": "Users_createChannel",
+        "summary": "Create user channel",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": "The request has succeeded and a new resource has been created as a result."
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Users"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Channel"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      },
+      "patch": {
+        "operationId": "Users_updateChannel",
+        "summary": "Update user channel",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": "There is no content to send for this request, but the headers may be useful."
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Users"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChannelUpdate"
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
+    "/users/channels/sync": {
+      "patch": {
+        "operationId": "Users_syncChannels",
+        "summary": "Sync user channels",
+        "parameters": [],
+        "responses": {
+          "204": {
+            "description": "There is no content to send for this request, but the headers may be useful."
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
+    "/users/channels/{id}": {
+      "delete": {
+        "operationId": "Users_deleteChannel",
+        "summary": "Delete user channel",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "There is no content to send for this request, but the headers may be useful."
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
+    "/users/config": {
+      "get": {
+        "operationId": "Users_stats",
+        "summary": "Get user config",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserConfig"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
+    "/users/profile/{name}": {
+      "get": {
+        "operationId": "Users_profileImage",
+        "summary": "Get user profile photo",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "headers": {
+              "Etag": {
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Cache-Control": {
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Content-Length": {
+                "required": true,
+                "schema": {
+                  "type": "integer",
+                  "format": "int64"
+                }
+              },
+              "Content-Disposition": {
+                "required": true,
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "image/jpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
+    "/users/sessions": {
+      "get": {
+        "operationId": "Users_listSessions",
+        "summary": "List user sessions",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UserSession"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
+    "/users/sessions/{id}": {
+      "delete": {
+        "operationId": "Users_removeSession",
+        "summary": "Remove user session",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "There is no content to send for this request, but the headers may be useful."
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Users"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          },
+          {
+            "ApiKeyAuth": []
+          }
+        ]
+      }
+    },
+    "/version": {
+      "get": {
+        "operationId": "Version_version",
+        "summary": "Get API version",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "The request has succeeded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiVersion"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An unexpected error response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "tags": [
+          "Version"
+        ]
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "FileQuery.category": {
+        "name": "category",
+        "in": "query",
+        "required": false,
+        "description": "File category",
+        "schema": {
+          "type": "array",
+          "items": {
+            "$ref": "#/components/schemas/Category"
+          }
+        },
+        "explode": false
+      },
+      "FileQuery.deepSearch": {
+        "name": "deepSearch",
+        "in": "query",
+        "required": false,
+        "description": "Enable deep search",
+        "schema": {
+          "type": "boolean",
+          "default": false
+        },
+        "explode": false
+      },
+      "FileQuery.limit": {
+        "name": "limit",
+        "in": "query",
+        "required": false,
+        "description": "Items per page",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000,
+          "default": 500
+        },
+        "explode": false
+      },
+      "FileQuery.name": {
+        "name": "name",
+        "in": "query",
+        "required": false,
+        "description": "File name filter",
+        "schema": {
+          "type": "string"
+        },
+        "explode": false
+      },
+      "FileQuery.operation": {
+        "name": "operation",
+        "in": "query",
+        "required": false,
+        "description": "Operation",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "list",
+            "find"
+          ],
+          "default": "list"
+        },
+        "explode": false
+      },
+      "FileQuery.order": {
+        "name": "order",
+        "in": "query",
+        "required": false,
+        "description": "Sort order",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "asc",
+            "desc"
+          ],
+          "default": "asc"
+        },
+        "explode": false
+      },
+      "FileQuery.page": {
+        "name": "page",
+        "in": "query",
+        "required": false,
+        "description": "Page number",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1
+        },
+        "explode": false
+      },
+      "FileQuery.parentId": {
+        "name": "parentId",
+        "in": "query",
+        "required": false,
+        "description": "Parent folder ID",
+        "schema": {
+          "type": "string"
+        },
+        "explode": false
+      },
+      "FileQuery.path": {
+        "name": "path",
+        "in": "query",
+        "required": false,
+        "description": "File path",
+        "schema": {
+          "type": "string"
+        },
+        "explode": false
+      },
+      "FileQuery.query": {
+        "name": "query",
+        "in": "query",
+        "required": false,
+        "description": "Search query",
+        "schema": {
+          "type": "string"
+        },
+        "explode": false
+      },
+      "FileQuery.searchType": {
+        "name": "searchType",
+        "in": "query",
+        "required": false,
+        "description": "Search type",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "text",
+            "regex"
+          ],
+          "default": "text"
+        },
+        "explode": false
+      },
+      "FileQuery.shared": {
+        "name": "shared",
+        "in": "query",
+        "required": false,
+        "description": "Show shared files",
+        "schema": {
+          "type": "boolean"
+        },
+        "explode": false
+      },
+      "FileQuery.sort": {
+        "name": "sort",
+        "in": "query",
+        "required": false,
+        "description": "Sort field",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "name",
+            "updatedAt",
+            "size",
+            "id"
+          ],
+          "default": "name"
+        },
+        "explode": false
+      },
+      "FileQuery.status": {
+        "name": "status",
+        "in": "query",
+        "required": false,
+        "description": "File Status",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "active",
+            "pending_deletion"
+          ],
+          "default": "active"
+        },
+        "explode": false
+      },
+      "FileQuery.type": {
+        "name": "type",
+        "in": "query",
+        "required": false,
+        "description": "File type",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "folder",
+            "file"
+          ]
+        },
+        "explode": false
+      },
+      "FileQuery.updatedAt": {
+        "name": "updatedAt",
+        "in": "query",
+        "required": false,
+        "description": "UpdatedAt Filter supports operator eq, gt, lt, gte, lte",
+        "schema": {
+          "type": "string"
+        },
+        "explode": false
+      },
+      "ShareQuery.limit": {
+        "name": "limit",
+        "in": "query",
+        "required": false,
+        "description": "Items per page",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000,
+          "default": 500
+        },
+        "explode": false
+      },
+      "ShareQuery.order": {
+        "name": "order",
+        "in": "query",
+        "required": false,
+        "description": "Sort order",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "asc",
+            "desc"
+          ],
+          "default": "asc"
+        },
+        "explode": false
+      },
+      "ShareQuery.page": {
+        "name": "page",
+        "in": "query",
+        "required": false,
+        "description": "Page number",
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1
+        },
+        "explode": false
+      },
+      "ShareQuery.path": {
+        "name": "path",
+        "in": "query",
+        "required": false,
+        "description": "Folder path",
+        "schema": {
+          "type": "string"
+        },
+        "explode": false
+      },
+      "ShareQuery.sort": {
+        "name": "sort",
+        "in": "query",
+        "required": false,
+        "description": "Sort field",
+        "schema": {
+          "type": "string",
+          "enum": [
+            "name",
+            "updatedAt",
+            "size",
+            "id"
+          ],
+          "default": "name"
+        },
+        "explode": false
+      },
+      "UploadQuery.channelId": {
+        "name": "channelId",
+        "in": "query",
+        "required": false,
+        "description": "Optional channel identifier for upload",
+        "schema": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "explode": false
+      },
+      "UploadQuery.encrypted": {
+        "name": "encrypted",
+        "in": "query",
+        "required": false,
+        "description": "Whether the upload content is encrypted",
+        "schema": {
+          "type": "boolean",
+          "default": false
+        },
+        "explode": false
+      },
+      "UploadQuery.fileName": {
+        "name": "fileName",
+        "in": "query",
+        "required": true,
+        "description": "Original file name",
+        "schema": {
+          "type": "string"
+        },
+        "explode": false
+      },
+      "UploadQuery.hashing": {
+        "name": "hashing",
+        "in": "query",
+        "required": false,
+        "description": "Enable BLAKE3 hashing for integrity checking",
+        "schema": {
+          "type": "boolean",
+          "default": true
+        },
+        "explode": false
+      },
+      "UploadQuery.partName": {
+        "name": "partName",
+        "in": "query",
+        "required": true,
+        "description": "Name of the part being uploaded",
+        "schema": {
+          "type": "string"
+        },
+        "explode": false
+      },
+      "UploadQuery.partNo": {
+        "name": "partNo",
+        "in": "query",
+        "required": true,
+        "description": "Part number in sequence",
+        "schema": {
+          "type": "integer"
+        },
+        "explode": false
+      }
+    },
+    "schemas": {
+      "AddBots": {
+        "type": "object",
+        "required": [
+          "bots"
+        ],
+        "properties": {
+          "bots": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of bot tokens"
+          }
+        }
+      },
+      "ApiVersion": {
+        "type": "object",
+        "required": [
+          "version",
+          "commitSHA",
+          "goVersion",
+          "os",
+          "arch"
+        ],
+        "properties": {
+          "version": {
+            "type": "string",
+            "description": "API version",
+            "example": "1.0.0"
+          },
+          "commitSHA": {
+            "type": "string",
+            "description": "Git commit SHA",
+            "example": "a1b2c3d4e5f6g7h8i9j0"
+          },
+          "goVersion": {
+            "type": "string",
+            "description": "Go version",
+            "example": "go1.17.1"
+          },
+          "os": {
+            "type": "string",
+            "description": "Operating system",
+            "example": "linux"
+          },
+          "arch": {
+            "type": "string",
+            "description": "Architecture",
+            "example": "amd64"
+          }
+        }
+      },
+      "Category": {
+        "type": "string",
+        "enum": [
+          "archive",
+          "audio",
+          "document",
+          "image",
+          "other",
+          "video"
+        ],
+        "description": "Supported file categories"
+      },
+      "CategoryStats": {
+        "type": "object",
+        "required": [
+          "totalFiles",
+          "totalSize",
+          "category"
+        ],
+        "properties": {
+          "totalFiles": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total number of files"
+          },
+          "totalSize": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total size of files in bytes"
+          },
+          "category": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Category"
+              }
+            ],
+            "description": "Category name"
+          }
+        },
+        "description": "Statistics for files by category",
+        "example": {
+          "totalFiles": 1250,
+          "totalSize": 104857600,
+          "category": "document"
+        }
+      },
+      "Channel": {
+        "type": "object",
+        "required": [
+          "channelName"
+        ],
+        "properties": {
+          "channelName": {
+            "type": "string",
+            "description": "Name of the Telegram channel"
+          },
+          "channelId": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unique numeric identifier of the channel"
+          }
+        },
+        "description": "Telegram channel information",
+        "example": {
+          "channelName": "Channel Name",
+          "channelId": 123456789
+        }
+      },
+      "ChannelUpdate": {
+        "type": "object",
+        "properties": {
+          "channelName": {
+            "type": "string",
+            "description": "Name of the Telegram channel"
+          },
+          "channelId": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Unique numeric identifier of the channel"
+          }
+        },
+        "description": "Telegram channel information",
+        "example": {
+          "channelName": "Channel Name",
+          "channelId": 123456789
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "integer",
+            "description": "Error code",
+            "example": 500
+          },
+          "message": {
+            "type": "string",
+            "description": "Error message",
+            "example": "Internal server error occurred"
+          }
+        },
+        "description": "Standard error response"
+      },
+      "Event": {
+        "type": "object",
+        "required": [
+          "id",
+          "type",
+          "createdAt",
+          "source"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Event ID",
+            "example": "123e4567-e89b-12d3-a456-426614174000"
+          },
+          "type": {
+            "type": "string",
+            "description": "Event type",
+            "example": "file_update"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Event timestamp"
+          },
+          "source": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Source"
+              }
+            ],
+            "description": "Event Source"
+          }
+        },
+        "description": "Event information"
+      },
+      "File": {
+        "type": "object",
+        "required": [
+          "name",
+          "type"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "File ID",
+            "example": "123e4567-e89b-12d3-a456-426614174000",
+            "readOnly": true
+          },
+          "uploadId": {
+            "type": "string",
+            "description": "Upload session ID (for multi-part uploads)",
+            "example": "upload-abc-123"
+          },
+          "name": {
+            "type": "string",
+            "description": "File name",
+            "example": "document.pdf"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "folder",
+              "file"
+            ],
+            "description": "File type",
+            "example": "file"
+          },
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Part"
+            },
+            "description": "File parts"
+          },
+          "mimeType": {
+            "type": "string",
+            "description": "MIME type",
+            "example": "application/pdf"
+          },
+          "category": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Category"
+              }
+            ],
+            "description": "File category",
+            "example": "document",
+            "readOnly": true
+          },
+          "channelId": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Channel ID",
+            "example": 123456789
+          },
+          "path": {
+            "type": "string",
+            "description": "File or Folder path",
+            "example": "/documents/2023/"
+          },
+          "parentId": {
+            "type": "string",
+            "description": "Parent folder ID",
+            "example": "123e4567-e89b-12d3-a456-426614174000"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "File size in bytes",
+            "example": 1048576
+          },
+          "encrypted": {
+            "type": "boolean",
+            "description": "Encryption status",
+            "example": false
+          },
+          "hash": {
+            "type": "string",
+            "description": "BLAKE3 tree hash for integrity checking",
+            "example": "d41d8cd98f00b204e9800998ecf8427e"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Last update time",
+            "readOnly": true
+          }
+        },
+        "description": "File metadata"
+      },
+      "FileCopy": {
+        "type": "object",
+        "required": [
+          "destination"
+        ],
+        "properties": {
+          "newName": {
+            "type": "string",
+            "description": "New file name"
+          },
+          "destination": {
+            "type": "string",
+            "description": "Destination path for the copied file"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Last update time"
+          }
+        },
+        "description": "File Copy request",
+        "example": {
+          "newName": "document_copy.pdf",
+          "destination": "/Documents/2023/"
+        }
+      },
+      "FileDelete": {
+        "type": "object",
+        "required": [
+          "ids"
+        ],
+        "properties": {
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "description": "Array of file or folders ids to be deleted"
+          }
+        },
+        "description": "Delete operation request",
+        "example": {
+          "ids": [
+            "123e4567-e89b-12d3-a456-426614174000"
+          ]
+        }
+      },
+      "FileList": {
+        "type": "object",
+        "required": [
+          "items",
+          "meta"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/File"
+            },
+            "minItems": 0,
+            "maxItems": 1000,
+            "description": "Array of file entries in the current page"
+          },
+          "meta": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Meta"
+              }
+            ],
+            "description": "Pagination metadata and total count information"
+          }
+        },
+        "description": "Paginated file listing response with metadata"
+      },
+      "FileMkDir": {
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Directory path to be created"
+          }
+        },
+        "description": "Request to create directories",
+        "example": {
+          "path": "/Documents/2023/"
+        }
+      },
+      "FileMove": {
+        "type": "object",
+        "required": [
+          "ids",
+          "destinationParent"
+        ],
+        "properties": {
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "description": "Array of file or folders ids to be moved"
+          },
+          "destinationParent": {
+            "type": "string",
+            "description": "Destination parent path or ID where files will be moved to"
+          },
+          "destinationName": {
+            "type": "string",
+            "description": "Destination file or folder name"
+          }
+        },
+        "description": "Move multiple files by ids or path",
+        "example": {
+          "ids": [
+            "123e4567-e89b-12d3-a456-426614174000"
+          ],
+          "destinationParent": "/Documents/2023/"
+        }
+      },
+      "FileShare": {
+        "type": "object",
+        "required": [
+          "id",
+          "protected",
+          "type",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Share ID",
+            "example": "123e4567-e89b-12d3-a456-426614174000"
+          },
+          "protected": {
+            "type": "boolean",
+            "description": "Indicates if the shared file requires password protection",
+            "example": true
+          },
+          "userId": {
+            "type": "integer",
+            "format": "int64",
+            "description": "ID of the user who created the share",
+            "example": 123456789
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "folder",
+              "file"
+            ],
+            "description": "File type",
+            "example": "file"
+          },
+          "name": {
+            "type": "string",
+            "description": "Name of the shared file or folder"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Expiration date and time of the share link"
+          }
+        },
+        "description": "File sharing information and settings"
+      },
+      "FileShareCreate": {
+        "type": "object",
+        "properties": {
+          "password": {
+            "type": "string",
+            "description": "Share password",
+            "example": "securepass123"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Share expiration date"
+          }
+        },
+        "description": "File share creation request"
+      },
+      "FileShareInfo": {
+        "type": "object",
+        "required": [
+          "name",
+          "type",
+          "userId",
+          "protected"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "File name",
+            "example": "document.pdf"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "folder",
+              "file"
+            ],
+            "description": "File type",
+            "example": "file"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Share expiration date"
+          },
+          "userId": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Share User ID"
+          },
+          "protected": {
+            "type": "boolean",
+            "description": "Share Protection Status",
+            "example": false
+          }
+        }
+      },
+      "FileUpdate": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "File name",
+            "example": "document.pdf"
+          },
+          "parentId": {
+            "type": "string",
+            "description": "Parent folder ID",
+            "example": "123e4567-e89b-12d3-a456-426614174000"
+          },
+          "channelId": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Channel ID",
+            "example": 123456
+          },
+          "uploadId": {
+            "type": "string",
+            "description": "Upload ID for hash calculation"
+          },
+          "parts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Part"
+            },
+            "description": "File parts"
+          },
+          "encrypted": {
+            "type": "boolean",
+            "description": "Indicates if the file is encrypted"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "File size in bytes",
+            "example": 1048576
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Last update time"
+          }
+        },
+        "description": "File update request"
+      },
+      "Meta": {
+        "type": "object",
+        "required": [
+          "count",
+          "totalPages",
+          "currentPage"
+        ],
+        "properties": {
+          "count": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Total number of items matching the query",
+            "example": 1250
+          },
+          "totalPages": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Total number of available pages based on limit",
+            "example": 25
+          },
+          "currentPage": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Current page number in the pagination",
+            "example": 1
+          }
+        },
+        "description": "Pagination metadata containing count, page information"
+      },
+      "Part": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "description": "Part ID",
+            "example": 1
+          },
+          "salt": {
+            "type": "string",
+            "description": "Encryption salt",
+            "example": "abc123"
+          }
+        },
+        "description": "File part information"
+      },
+      "Session": {
+        "type": "object",
+        "required": [
+          "name",
+          "userName",
+          "userId",
+          "isPremium",
+          "hash",
+          "expires"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "User's display name or full name",
+            "example": "John Doe"
+          },
+          "userName": {
+            "type": "string",
+            "description": "Telegram username without @ symbol",
+            "example": "johndoe"
+          },
+          "userId": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "description": "Telegram user ID (unique identifier)",
+            "example": 123456789
+          },
+          "isPremium": {
+            "type": "boolean",
+            "description": "Premium subscription status",
+            "example": true
+          },
+          "hash": {
+            "type": "string",
+            "description": "Session hash for verification and security",
+            "example": "a1b2c3d4e5f6g7h8i9j0"
+          },
+          "expires": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Session expiration date"
+          }
+        },
+        "description": "User session information containing authentication and profile details"
+      },
+      "SessionCreate": {
+        "type": "object",
+        "required": [
+          "name",
+          "userName",
+          "userId",
+          "isPremium",
+          "hash",
+          "expires",
+          "session"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "User's display name or full name",
+            "example": "John Doe"
+          },
+          "userName": {
+            "type": "string",
+            "description": "Telegram username without @ symbol",
+            "example": "johndoe"
+          },
+          "userId": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 1,
+            "description": "Telegram user ID (unique identifier)",
+            "example": 123456789
+          },
+          "isPremium": {
+            "type": "boolean",
+            "description": "Premium subscription status",
+            "example": true
+          },
+          "hash": {
+            "type": "string",
+            "description": "Session hash for verification and security",
+            "example": "a1b2c3d4e5f6g7h8i9j0"
+          },
+          "expires": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Session expiration date"
+          },
+          "session": {
+            "type": "string",
+            "description": "Optional session token for client identification"
+          }
+        },
+        "description": "User session information containing authentication and profile details"
+      },
+      "ShareUnlock": {
+        "type": "object",
+        "required": [
+          "password"
+        ],
+        "properties": {
+          "password": {
+            "type": "string",
+            "description": "Share password",
+            "example": "securepass123"
+          }
+        }
+      },
+      "Source": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "type",
+          "parentId"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "File ID",
+            "example": "123e4567-e89b-12d3-a456-426614174000"
+          },
+          "name": {
+            "type": "string",
+            "description": "File name",
+            "example": "document.pdf"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "folder",
+              "file"
+            ],
+            "description": "File type",
+            "example": "file"
+          },
+          "parentId": {
+            "type": "string",
+            "description": "Parent ID",
+            "example": "123e4567-e89b-12d3-a456-426614174000"
+          },
+          "destParentId": {
+            "type": "string",
+            "description": "Destination Parent ID",
+            "example": "123e4567-e89b-12d3-a456-426614174000"
+          },
+          "path": {
+            "type": "string",
+            "description": "Full path of the file/folder (e.g., 'documents/projects/file.txt')",
+            "example": "documents/2023/report.pdf"
+          }
+        }
+      },
+      "UploadPart": {
+        "type": "object",
+        "required": [
+          "name",
+          "partId",
+          "partNo",
+          "channelId",
+          "size",
+          "encrypted"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name identifier of the part"
+          },
+          "partId": {
+            "type": "integer",
+            "description": "Telegram Message ID"
+          },
+          "partNo": {
+            "type": "integer",
+            "description": "Sequential number of the part"
+          },
+          "channelId": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Channel identifier associated with the upload"
+          },
+          "size": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Size of the part in bytes"
+          },
+          "encrypted": {
+            "type": "boolean",
+            "description": "Indicates if the part is encrypted"
+          },
+          "salt": {
+            "type": "string",
+            "description": "Salt value used for encryption, required if encrypted is true"
+          }
+        },
+        "description": "Details of an uploaded part"
+      },
+      "UploadStats": {
+        "type": "object",
+        "required": [
+          "uploadDate",
+          "totalUploaded"
+        ],
+        "properties": {
+          "uploadDate": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Date and time when the upload occurred"
+          },
+          "totalUploaded": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Total number of bytes uploaded"
+          }
+        },
+        "description": "Statistics about the upload"
+      },
+      "UserConfig": {
+        "type": "object",
+        "required": [
+          "channelId",
+          "bots"
+        ],
+        "properties": {
+          "channelId": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Channel identifier associated with the user"
+          },
+          "bots": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "List of bot tokens"
+          }
+        },
+        "description": "User configuration for channel and bot settings",
+        "example": {
+          "channelId": 123456789,
+          "bots": [
+            "bot1",
+            "bot2"
+          ]
+        }
+      },
+      "UserSession": {
+        "type": "object",
+        "required": [
+          "hash",
+          "createdAt",
+          "valid",
+          "current"
+        ],
+        "properties": {
+          "hash": {
+            "type": "string",
+            "description": "Unique hash identifier for the session"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Session creation timestamp"
+          },
+          "location": {
+            "type": "string",
+            "description": "Geographic location where session was created"
+          },
+          "officialApp": {
+            "type": "boolean",
+            "description": "Indicates if session is from an official Telegram app"
+          },
+          "appName": {
+            "type": "string",
+            "description": "Name of the application used for session"
+          },
+          "valid": {
+            "type": "boolean",
+            "description": "Indicates if the session is still valid"
+          },
+          "current": {
+            "type": "boolean",
+            "description": "Indicates if this is the currently active session"
+          }
+        },
+        "description": "User session information",
+        "example": {
+          "hash": "a1b2c3d4e5f6g7h8i9j0",
+          "createdAt": "2023-10-21T07:28:00Z",
+          "location": "New York, USA",
+          "officialApp": true,
+          "appName": "Telegram",
+          "valid": true,
+          "current": true
+        }
+      }
+    },
+    "securitySchemes": {
+      "BearerAuth": {
+        "type": "http",
+        "scheme": "Bearer"
+      },
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "access_token"
+      }
+    }
+  },
+  "servers": [
+    {
+      "url": "{url}/api",
+      "description": "Teldrive Server URL",
+      "variables": {
+        "url": {
+          "default": ""
+        }
+      }
+    }
+  ]
+}

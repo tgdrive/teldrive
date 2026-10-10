@@ -1,0 +1,5 @@
+FROM scratch
+ARG TARGETPLATFORM
+COPY $TARGETPLATFORM/teldrive /teldrive
+EXPOSE 8080
+ENTRYPOINT ["/teldrive","run"]

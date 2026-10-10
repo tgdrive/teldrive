@@ -1,0 +1,32 @@
+{
+  "compilerOptions": {
+    "lib": ["esnext", "dom"],
+    "module": "esnext",
+    "target": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "importHelpers": true,
+    "removeComments": true,
+    "strict": true,
+    "declaration": false,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": true,
+    "jsx": "react-jsx",
+    "noImplicitAny": false,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "forceConsistentCasingInFileNames": true,
+    "allowSyntheticDefaultImports": true,
+    //"noUncheckedIndexedAccess": true,
+    "types": ["unplugin-icons/types/react"],
+    "paths": {
+      "@/*": ["./src/*"],
+      "tsdef": ["./node_modules/tsdef"]
+    }
+  },
+  "include": ["**/*.ts", "**/*.tsx", "vite.config.mts", "tailwind.config.ts"],
+  "exclude": ["node_modules", "tests"]
+}

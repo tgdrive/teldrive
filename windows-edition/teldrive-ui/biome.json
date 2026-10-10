@@ -1,0 +1,46 @@
+{
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "a11y": {
+        "noSvgWithoutTitle": "off",
+        "useKeyWithClickEvents": "off"
+      },
+      "correctness": {
+        "noUnusedVariables": "error",
+        "useExhaustiveDependencies": "off"
+      },
+      "security": {
+        "noDangerouslySetInnerHtml": "off"
+      },
+      "style": {
+        "useBlockStatements": "off",
+        "noNonNullAssertion": "off",
+        "noParameterAssign": "off"
+      },
+      "performance": {
+        "noDelete": "off"
+      },
+      "suspicious": {
+        "noExplicitAny": "off",
+        "noConsoleLog": "warn"
+      },
+      "complexity": {
+        "noForEach": "off"
+      }
+    },
+    "ignore": ["node_modules", "dist"]
+  },
+  "formatter": {
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "enabled": true,
+    "lineWidth": 100,
+    "ignore": ["node_modules", "dist"]
+  },
+  "organizeImports": {
+    "enabled": true,
+    "ignore": ["node_modules", "dist"]
+  }
+}
