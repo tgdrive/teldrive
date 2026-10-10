@@ -22,10 +22,20 @@ func main() {
 }
 
 func run() error {
-	if len(os.Args) != 2 {
-		return fmt.Errorf("usage: just update-bin VERSION")
+	if len(os.Args) > 2 {
+		return fmt.Errorf("usage: just update-bin [VERSION]")
 	}
-	version := strings.TrimPrefix(os.Args[1], "v")
+	client := &http.Client{Timeout: 5 * time.Minute}
+	var version string
+	if len(os.Args) == 2 && os.Args[1] != "" {
+		version = strings.TrimPrefix(os.Args[1], "v")
+	} else {
+		latest, err := latestVersion(client, "https://api.github.com/repos/tgdrive/teldrive/releases/latest")
+		if err != nil {
+			return err
+		}
+		version = latest
+	}
 	if !regexp.MustCompile(`^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$`).MatchString(version) {
 		return fmt.Errorf("invalid stable version")
 	}
@@ -36,10 +46,13 @@ func run() error {
 	if len(status) != 0 {
 		return fmt.Errorf("commit existing changes before updating release pins")
 	}
-	client := &http.Client{Timeout: 5 * time.Minute}
+	if strings.HasPrefix(version, "0.") || strings.HasPrefix(version, "1.") {
+		return fmt.Errorf("release %s predates the v2 binary package; publish 2.0.0 first", version)
+	}
+	fmt.Printf("Updating binary package to %s\n", version)
 	hashes := map[string]string{}
 	for _, arch := range []string{"amd64", "arm64"} {
-		url := fmt.Sprintf("https://github.com/tgdrive/teldrive/releases/download/v%s/teldrive-v%s-linux-%s.tar.gz", version, version, arch)
+		url := fmt.Sprintf("https://github.com/tgdrive/teldrive/releases/download/%s/teldrive-%s-linux-%s.tar.gz", version, version, arch)
 		response, err := client.Get(url)
 		if err != nil {
 			return err
@@ -76,7 +89,7 @@ func run() error {
 	if err := os.WriteFile(path, data, 0644); err != nil {
 		return err
 	}
-	for _, args := range [][]string{{"add", "--", path}, {"commit", "-m", "chore(nix): pin teldrive-bin v" + version, "--", path}} {
+	for _, args := range [][]string{{"add", "--", path}, {"commit", "-m", "chore(nix): pin teldrive-bin " + version, "--", path}} {
 		cmd := exec.Command("git", args...)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
@@ -85,4 +98,33 @@ func run() error {
 		}
 	}
 	return nil
+}
+
+func latestVersion(client *http.Client, url string) (string, error) {
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("User-Agent", "teldrive-bin-updater")
+	response, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("detect latest release: %s", response.Status)
+	}
+	var release struct {
+		Tag        string `json:"tag_name"`
+		Draft      bool   `json:"draft"`
+		Prerelease bool   `json:"prerelease"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&release); err != nil {
+		return "", err
+	}
+	if release.Draft || release.Prerelease || release.Tag == "" {
+		return "", fmt.Errorf("latest release is not a published stable release")
+	}
+	return strings.TrimPrefix(release.Tag, "v"), nil
 }

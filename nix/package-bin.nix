@@ -6,7 +6,7 @@ in stdenv.mkDerivation {
   pname = "teldrive-bin";
   inherit (release) version;
   src = if release.version == null then throw "Run just update-bin VERSION after publishing a release" else fetchurl {
-    url = "https://github.com/tgdrive/teldrive/releases/download/v${release.version}/teldrive-v${release.version}-linux-${arch}.tar.gz";
+    url = "https://github.com/tgdrive/teldrive/releases/download/${release.version}/teldrive-${release.version}-linux-${arch}.tar.gz";
     hash = release.hashes.${arch};
   };
   sourceRoot = ".";

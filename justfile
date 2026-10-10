@@ -164,7 +164,7 @@ release version *args:
     go run ./scripts/release.go {{quote(version)}} {{args}}
 
 # Download published release assets, update Nix hashes, and commit only the pin file.
-update-bin version:
+update-bin version="":
     go run ./internal/tools/updatebin {{quote(version)}}
 
 test-integration:

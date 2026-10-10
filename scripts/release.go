@@ -110,13 +110,13 @@ func release(args []string) error {
 	if status != "" {
 		return errors.New("release requires a clean working tree")
 	}
-	tag := "v" + v.String()
+	tag := v.String()
 	for _, existing := range strings.Fields(tags) {
-		if existing == tag || existing == v.String() {
+		if existing == tag || existing == "v"+tag {
 			return fmt.Errorf("version %s already tagged locally", v)
 		}
 	}
-	remote, err := git("ls-remote", "--tags", "origin", "refs/tags/"+tag, "refs/tags/"+v.String())
+	remote, err := git("ls-remote", "--tags", "origin", "refs/tags/"+tag, "refs/tags/v"+tag)
 	if err != nil {
 		return err
 	}
