@@ -556,6 +556,48 @@ test("PDF opens in the Teldrive PDF.js workspace with navigation and search", as
   expect(errors).toEqual([]);
 });
 
+test("EPUB brightness is display-only and Auto theme follows the system", async ({ page }) => {
+  const writes: StateWrite[] = [];
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.stack || error.message));
+  await installViewerApi(page, writes);
+  await page.goto("/files?view=list");
+  await openFile(page, "reader-sample.epub");
+
+  const dialog = page.getByRole("dialog", { name: "reader-sample.epub" });
+  const reader = dialog.locator("[data-epub-reader]");
+  await expect(dialog.locator("foliate-view")).toHaveAttribute(
+    "data-rendered-content",
+    /A Quiet Beginning/,
+  );
+  // The test browser uses a dark color scheme, so Automatic resolves to night.
+  await expect(reader).toHaveAttribute("data-reader-theme", "night");
+
+  await dialog.getByRole("button", { name: "Reading settings", exact: true }).click();
+  const appearance = page.getByRole("dialog", { name: "Reading appearance" });
+  const brightness = appearance.getByRole("slider", { name: "Brightness", exact: true });
+  await brightness.focus();
+  await brightness.press("Home");
+  for (let press = 0; press < 16; press += 1) await brightness.press("ArrowRight");
+  await expect(brightness).toHaveValue("130");
+  await expect(dialog.locator("[data-page-brightness='130']")).toHaveAttribute(
+    "style",
+    /brightness\(1\.3\)/,
+  );
+  await appearance.getByRole("button", { name: "Done" }).click();
+  await expect(appearance).toBeHidden();
+
+  await page.emulateMedia({ colorScheme: "light" });
+  await expect(reader).toHaveAttribute("data-reader-theme", "paper");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(reader).toHaveAttribute("data-reader-theme", "night");
+
+  await dialog.getByRole("button", { name: "Close ebook reader", exact: true }).click();
+  await expect(dialog).toBeHidden();
+  expect(writes).toEqual([]);
+  expect(errors).toEqual([]);
+});
+
 test("mobile EPUB navigation opens in a HeroUI drawer", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const writes: StateWrite[] = [];

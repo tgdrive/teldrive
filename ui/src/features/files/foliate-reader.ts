@@ -66,6 +66,7 @@ export function applyPublicationAppearance(
       hanging-punctuation: allow-end last;
       orphans: 2;
       widows: 2;
+      hyphens: auto;
     }
     html, body { background: ${page} !important; }
     body {
@@ -73,14 +74,28 @@ export function applyPublicationAppearance(
       font-size: ${fontSize}% !important;
       text-rendering: optimizeLegibility;
     }
-    p, li, blockquote, dd { line-height: ${lineHeight}; }
+    p, li, blockquote, dd, div { line-height: ${lineHeight}; }
     [align="left"] { text-align: left; }
     [align="right"] { text-align: right; }
     [align="center"] { text-align: center; }
     [align="justify"] { text-align: justify; }
     h1, h2, h3, h4, h5, h6, hgroup, th { text-wrap: balance; }
-    pre { white-space: pre-wrap !important; }
-    img, svg, video { max-width: 100%; }
+    /* Containment reset: publisher-sized content must stay inside the column
+       instead of spilling across pages in the paginated layout. */
+    img, svg, video, canvas, iframe, audio, figure, table, pre,
+    div, section, article, aside, blockquote {
+      max-width: 100% !important;
+    }
+    img, svg, video { height: auto; }
+    table[width], table[style] {
+      width: 100% !important;
+      table-layout: auto !important;
+    }
+    td, th { overflow-wrap: anywhere; }
+    pre, code {
+      white-space: pre-wrap !important;
+      overflow-wrap: anywhere !important;
+    }
     a:any-link { color: ${link}; }
   `);
 }

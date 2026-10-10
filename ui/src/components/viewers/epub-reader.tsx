@@ -65,16 +65,19 @@ export function EpubReader({ file, url, onClose }: EpubReaderProps) {
   const [chapter, setChapter] = useState<string>();
   const [progress, setProgress] = useState(0);
   const [location, setLocation] = useState<Location>({});
-  const [theme, setTheme] = useState("paper");
+  const [theme, setTheme] = useState("auto");
   const [flow, setFlow] = useState("paginated");
   const [font, setFont] = useState("publisher");
   const [fontSize, setFontSize] = useState(100);
   const [lineHeight, setLineHeight] = useState(1.55);
   const [margin, setMargin] = useState(48);
   const [columns, setColumns] = useState(2);
+  const [brightness, setBrightness] = useState(100);
+  const prefersDark = useMediaQuery("(prefers-color-scheme: dark)");
+  const resolvedTheme = theme === "auto" ? (prefersDark ? "night" : "paper") : theme;
 
   const preferences: ReaderPreferences = {
-    theme,
+    theme: resolvedTheme,
     flow,
     font,
     fontSize,
@@ -258,7 +261,7 @@ export function EpubReader({ file, url, onClose }: EpubReaderProps) {
   useEffect(() => {
     const view = viewRef.current;
     if (view) applyPublicationAppearance(view, preferences);
-  }, [columns, flow, font, fontSize, lineHeight, margin, theme]);
+  }, [columns, flow, font, fontSize, lineHeight, margin, resolvedTheme]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -277,9 +280,7 @@ export function EpubReader({ file, url, onClose }: EpubReaderProps) {
     const onEscape = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || isEditableTarget(event.target)) return;
       const overlay =
-        event.target instanceof HTMLElement
-          ? event.target.closest('[role="dialog"]')
-          : null;
+        event.target instanceof HTMLElement ? event.target.closest('[role="dialog"]') : null;
       if (overlay && !overlay.querySelector("[data-epub-reader]")) return;
       event.preventDefault();
       event.stopPropagation();
@@ -298,7 +299,7 @@ export function EpubReader({ file, url, onClose }: EpubReaderProps) {
   return (
     <div
       data-epub-reader
-      data-reader-theme={theme}
+      data-reader-theme={resolvedTheme}
       className="reader-shell flex h-dvh min-h-0 flex-col overflow-hidden"
     >
       <header
@@ -334,6 +335,7 @@ export function EpubReader({ file, url, onClose }: EpubReaderProps) {
           lineHeight={lineHeight}
           margin={margin}
           columns={columns}
+          brightness={brightness}
           onTheme={setTheme}
           onFlow={setFlow}
           onFont={setFont}
@@ -341,6 +343,7 @@ export function EpubReader({ file, url, onClose }: EpubReaderProps) {
           onLineHeight={setLineHeight}
           onMargin={setMargin}
           onColumns={setColumns}
+          onBrightness={setBrightness}
         />
 
         <Button
@@ -395,7 +398,12 @@ export function EpubReader({ file, url, onClose }: EpubReaderProps) {
             </div>
           ) : null}
           <div className="mx-auto h-full min-h-0 w-full max-w-[1680px] px-0 sm:px-2 lg:px-4">
-            <div ref={hostRef} className="reader-page h-full min-h-0 w-full overflow-hidden" />
+            <div
+              ref={hostRef}
+              className="reader-page h-full min-h-0 w-full overflow-hidden"
+              data-page-brightness={brightness}
+              style={brightness === 100 ? undefined : { filter: `brightness(${brightness / 100})` }}
+            />
           </div>
         </main>
       </div>
@@ -438,7 +446,7 @@ export function EpubReader({ file, url, onClose }: EpubReaderProps) {
         <Drawer state={drawerState}>
           <Drawer.Backdrop variant="blur">
             <Drawer.Content placement="left" className="w-[min(88vw,22rem)]">
-              <Drawer.Dialog data-reader-theme={theme} className="reader-chrome">
+              <Drawer.Dialog data-reader-theme={resolvedTheme} className="reader-chrome">
                 <Drawer.Header className="border-b border-(--reader-border)">
                   <Drawer.Heading>Book navigation</Drawer.Heading>
                   <Drawer.CloseTrigger />
@@ -544,6 +552,7 @@ function EpubSettings({
   lineHeight,
   margin,
   columns,
+  brightness,
   onTheme,
   onFlow,
   onFont,
@@ -551,7 +560,9 @@ function EpubSettings({
   onLineHeight,
   onMargin,
   onColumns,
+  onBrightness,
 }: ReaderPreferences & {
+  brightness: number;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onTheme: (value: string) => void;
@@ -561,6 +572,7 @@ function EpubSettings({
   onLineHeight: (value: number) => void;
   onMargin: (value: number) => void;
   onColumns: (value: number) => void;
+  onBrightness: (value: number) => void;
 }) {
   return (
     <Popover isOpen={isOpen} onOpenChange={onOpenChange}>
@@ -590,12 +602,22 @@ function EpubSettings({
               label="Theme"
               value={theme}
               options={[
+                ["Automatic", "auto"],
                 ["White", "white"],
                 ["Paper", "paper"],
                 ["Gray", "gray"],
                 ["Night", "night"],
               ]}
               onChange={onTheme}
+            />
+            <SettingSlider
+              label="Brightness"
+              value={brightness}
+              min={50}
+              max={150}
+              step={5}
+              output={`${brightness}%`}
+              onChange={onBrightness}
             />
             <SettingButtons
               label="Font"
