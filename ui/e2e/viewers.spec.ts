@@ -137,6 +137,209 @@ async function openFile(page: Page, name: string) {
   await page.keyboard.press("Enter");
 }
 
+async function openPdfWorkspace(page: Page) {
+  await installViewerApi(page, []);
+  await page.goto("/files?view=list");
+  await openFile(page, "reader-sample.pdf");
+  const dialog = page.getByRole("dialog", { name: "reader-sample.pdf" });
+  await expect(dialog.locator(".pdfViewer .page canvas").first()).toBeVisible();
+  await expect(dialog.getByRole("button", { name: "Next PDF page", exact: true })).toBeEnabled();
+  return dialog;
+}
+
+async function pdfTool(page: Page, name: string) {
+  const dialog = page.getByRole("dialog", { name: "reader-sample.pdf" });
+  const direct = dialog.getByRole("button", { name, exact: true });
+  if (await direct.isVisible()) {
+    await direct.click();
+    return;
+  }
+  const tools = dialog.getByRole("button", { name: "PDF reader tools", exact: true });
+  await tools.click();
+  await page.getByRole("button", { name, exact: true }).click();
+  await expect(page.locator('[data-slot="popover-dialog"]')).toHaveCount(0);
+}
+
+async function slider(page: Page, name: string, value: number) {
+  await expect(page.getByRole("slider", { name, exact: true })).toBeEnabled();
+  await page.getByRole("slider", { name, exact: true }).evaluate((element, value) => {
+    const input = element as HTMLInputElement;
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, String(value));
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  }, value);
+}
+
+test("PDF page fields, fit presets, search closing, and menu shortcuts stay consistent", async ({ page }) => {
+  const dialog = await openPdfWorkspace(page);
+  const input = dialog.getByRole("textbox", { name: "PDF page number", exact: true });
+  const viewport = dialog.locator("[data-pdf-viewer-container]");
+  const field = input.locator("..");
+  const inputBox = (await input.boundingBox())!;
+  const fieldBox = (await field.boundingBox())!;
+  expect(inputBox.width).toBeLessThanOrEqual(fieldBox.width);
+  expect(inputBox.x + inputBox.width).toBeLessThanOrEqual(fieldBox.x + fieldBox.width + 1);
+  await input.fill("999");
+  await input.press("Enter");
+  await expect(input).toHaveValue("2");
+  await input.fill("999");
+  await input.press("Escape");
+  await expect(input).toHaveValue("2");
+  await input.fill("0");
+  await input.press("Enter");
+  await expect(input).toHaveValue("1");
+  await input.fill("");
+  await input.press("Enter");
+  await expect(input).toHaveValue("1");
+  await expect.poll(() => viewport.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
+
+  if ((page.viewportSize()?.width || 0) >= 1024) {
+    const before = (await dialog.locator(".pdfViewer .page").first().boundingBox())!.width;
+    await dialog.getByRole("button", { name: "Toggle PDF sidebar", exact: true }).click();
+    await expect.poll(async () => (await dialog.locator(".pdfViewer .page").first().boundingBox())!.width).toBeGreaterThan(before + 100);
+  }
+  let manualZoom: number | undefined;
+  if ((page.viewportSize()?.width || 0) >= 768) {
+    await dialog.getByRole("button", { name: "Zoom in", exact: true }).click();
+    manualZoom = (await dialog.locator(".pdfViewer .page").first().boundingBox())!.width;
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  if (manualZoom !== undefined) {
+    await expect.poll(async () => (await dialog.locator(".pdfViewer .page").first().boundingBox())!.width).toBeCloseTo(manualZoom, 0);
+    await pdfTool(page, "Fit width");
+  }
+  await expect.poll(() => viewport.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
+  const tools = dialog.getByRole("button", { name: "PDF reader tools", exact: true });
+  await tools.click();
+  await page.getByRole("button", { name: "Fit page", exact: true }).focus();
+  const beforeArrow = await input.inputValue();
+  await page.keyboard.press("ArrowRight");
+  await expect(input).toHaveValue(beforeArrow);
+  await page.getByRole("button", { name: "Fit page", exact: true }).click();
+  await expect(page.locator('[data-slot="popover-dialog"]')).toHaveCount(0);
+  await expect.poll(async () => {
+    const p = (await dialog.locator(".pdfViewer .page").first().boundingBox())!;
+    const c = (await viewport.boundingBox())!;
+    return p.height - c.height;
+  }).toBeLessThanOrEqual(1);
+
+  await dialog.getByRole("button", { name: "Search in PDF", exact: true }).click();
+  await dialog.getByRole("textbox", { name: "Find in PDF", exact: true }).fill("TelDrive");
+  await expect(dialog.locator(".textLayer .highlight")).toHaveCount(1);
+  await dialog.getByRole("button", { name: "Search in PDF", exact: true }).click();
+  await expect(dialog.locator("[data-pdf-findbar]")).toHaveCount(0);
+  await expect(dialog.locator(".textLayer .highlight")).toHaveCount(0);
+});
+
+test("PDF annotation controls synchronize colors, font size, ink settings, undo, and exports", async ({ page }) => {
+  const dialog = await openPdfWorkspace(page);
+  await pdfTool(page, "Add text");
+  await expect(dialog.locator(".annotationEditorLayer.freetextEditing").first()).toBeVisible();
+  await slider(page, "PDF text font size", 18);
+  await dialog.getByRole("button", { name: "Use annotation color #60a5fa", exact: true }).click();
+  const box = (await dialog.locator(".pdfViewer .page").first().boundingBox())!;
+  await page.mouse.click(box.x + box.width * 0.25, box.y + Math.min(box.height * 0.38, 240));
+  const editor = dialog.locator(".freeTextEditor [contenteditable=true]").last();
+  await expect(editor).toBeVisible();
+  await editor.fill("Saved PDF annotation");
+  await expect(editor).toHaveCSS("color", "rgb(96, 165, 250)");
+  await expect(editor).toHaveAttribute("style", /18px/);
+
+  await pdfTool(page, "Draw");
+  await expect(dialog.locator(".annotationEditorLayer.inkEditing").first()).toBeVisible();
+  // Text and ink remember their own defaults rather than sharing a stale swatch.
+  await expect(dialog.getByRole("button", { name: "Use annotation color #000000", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await dialog.getByRole("button", { name: "Use annotation color #60a5fa", exact: true }).click();
+  await slider(page, "PDF ink stroke width", 5);
+  await slider(page, "PDF ink opacity", 50);
+  const inkBox = (await dialog.locator(".pdfViewer .page").first().boundingBox())!;
+  await page.mouse.move(inkBox.x + inkBox.width * 0.2, inkBox.y + Math.min(inkBox.height * 0.6, 350));
+  await page.mouse.down();
+  await page.mouse.move(inkBox.x + inkBox.width * 0.5, inkBox.y + Math.min(inkBox.height * 0.65, 380), { steps: 12 });
+  await page.mouse.up();
+  const blueStrokes = () => dialog.locator(".pdfViewer .page svg").evaluateAll((elements) => elements.filter((el) => getComputedStyle(el).stroke === "rgb(96, 165, 250)").length);
+  await expect.poll(blueStrokes).toBeGreaterThan(0);
+  await pdfTool(page, "Undo PDF edit");
+  await expect.poll(blueStrokes).toBe(0);
+  await pdfTool(page, "Redo PDF edit");
+  await expect.poll(blueStrokes).toBeGreaterThan(0);
+
+  const downloaded = page.waitForEvent("download");
+  await pdfTool(page, (page.viewportSize()?.width || 0) >= 1280 ? "Save edited PDF copy" : "Save copy");
+  const download = await downloaded;
+  const exported = readFileSync((await download.path())!).toString("latin1");
+  expect(exported).toMatch(/\/Subtype\s*\/FreeText/);
+  expect(exported).toMatch(/\/Subtype\s*\/Ink/);
+  expect(exported).toMatch(/\/CA\s+0\.5/);
+  await dialog.getByRole("button", { name: "Close PDF reader", exact: true }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole("dialog", { name: "Unsaved PDF changes", exact: true })).toHaveCount(0);
+});
+
+test("PDF hand tool pans and closing unsaved edits requires a choice", async ({ page }) => {
+  const dialog = await openPdfWorkspace(page);
+  const viewport = dialog.locator("[data-pdf-viewer-container]");
+  await pdfTool(page, "Hand tool");
+  await expect(dialog.locator("[data-pdf-reader]")).toHaveAttribute("data-pdf-hand-active", "true");
+  const box = (await viewport.boundingBox())!;
+  const start = await viewport.evaluate((el) => el.scrollTop);
+  await page.mouse.move(box.x + box.width * 0.7, box.y + box.height * 0.7);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width * 0.7, box.y + box.height * 0.7 - 60, { steps: 10 });
+  await page.mouse.up();
+  await expect.poll(() => viewport.evaluate((el) => el.scrollTop)).toBeGreaterThan(start + 30);
+  await pdfTool(page, "Add text");
+  await viewport.evaluate((el) => el.scrollTo(0, 0));
+  const pageBox = (await dialog.locator(".pdfViewer .page").first().boundingBox())!;
+  await page.mouse.click(pageBox.x + pageBox.width * 0.25, pageBox.y + Math.min(pageBox.height * 0.4, 240));
+  const editor = dialog.locator(".freeTextEditor [contenteditable=true]").last();
+  await editor.fill("Unsaved annotation");
+  await dialog.getByRole("button", { name: "Close PDF reader", exact: true }).click();
+  const prompt = page.getByRole("dialog", { name: "Unsaved PDF changes", exact: true });
+  await expect(prompt).toBeVisible();
+  await prompt.getByRole("button", { name: "Keep editing", exact: true }).click();
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Close PDF reader", exact: true }).click();
+  await expect(prompt).toBeVisible();
+  await prompt.getByRole("button", { name: "Discard changes", exact: true }).click();
+  await expect(dialog).toBeHidden();
+});
+
+test("PDF save failures stay visible and do not dismiss unsaved changes", async ({ page }) => {
+  // Fault-inject the worker's SaveDocument RPC, not the application component.
+  await page.addInitScript(() => {
+    const NativeWorker = window.Worker;
+    window.Worker = class extends NativeWorker {
+      postMessage(message: { action?: string; callbackId?: number; sourceName?: string; targetName?: string }, transfer: Transferable[] = []) {
+        if (message.action === "SaveDocument") {
+          queueMicrotask(() => this.dispatchEvent(new MessageEvent("message", { data: {
+            sourceName: message.targetName, targetName: message.sourceName,
+            callback: 2, callbackId: message.callbackId,
+            reason: { name: "UnknownErrorException", message: "Simulated save failure", details: "Regression test" },
+          } })));
+          return;
+        }
+        super.postMessage(message, transfer);
+      }
+    };
+  });
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  const dialog = await openPdfWorkspace(page);
+  await pdfTool(page, "Add text");
+  const box = (await dialog.locator(".pdfViewer .page").first().boundingBox())!;
+  await page.mouse.click(box.x + box.width * 0.25, box.y + Math.min(box.height * 0.4, 240));
+  await dialog.locator(".freeTextEditor [contenteditable=true]").last().fill("Do not lose this edit");
+  await dialog.getByRole("button", { name: "Close PDF reader", exact: true }).click();
+  const prompt = page.getByRole("dialog", { name: "Unsaved PDF changes", exact: true });
+  await prompt.getByRole("button", { name: "Save copy and close", exact: true }).click();
+  await expect(prompt.getByRole("alert")).toContainText("Simulated save failure");
+  await expect(prompt).toBeVisible();
+  await prompt.getByRole("button", { name: "Keep editing", exact: true }).click();
+  await expect(dialog.getByRole("alert")).toContainText("Simulated save failure");
+  expect(errors).toEqual([]);
+});
+
 test("PDF opens in the Teldrive PDF.js workspace with navigation and search", async ({ page }) => {
   const writes: StateWrite[] = [];
   const errors: string[] = [];
@@ -209,6 +412,7 @@ test("PDF opens in the Teldrive PDF.js workspace with navigation and search", as
   if (viewportWidth >= 1280) {
     await dialog.getByRole("button", { name: "Save edited PDF copy" }).click();
   } else {
+    await dialog.getByRole("button", { name: "PDF reader tools" }).click();
     await page.getByRole("button", { name: "Save copy" }).click();
   }
   await expect

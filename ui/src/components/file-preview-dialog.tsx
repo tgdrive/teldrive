@@ -51,7 +51,8 @@ export function FilePreviewDialog({
       <Modal.Backdrop
         isOpen
         onOpenChange={changeOpen}
-        isDismissable
+        isDismissable={false}
+        isKeyboardDismissDisabled
         variant="opaque"
         data-content-viewer
         className="bg-background"

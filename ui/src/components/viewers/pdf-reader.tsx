@@ -37,6 +37,8 @@ import {
 } from "react";
 
 import type { FileEntry } from "@/api/types";
+import { AppDialog } from "@/components/dialogs/app-dialog";
+import UndoIcon from "~icons/gravity-ui/arrow-rotate-left";
 import DownloadIcon from "~icons/gravity-ui/arrow-down-to-line";
 import RotateIcon from "~icons/gravity-ui/arrow-rotate-right";
 import MenuIcon from "~icons/gravity-ui/bars";
@@ -63,7 +65,14 @@ type PdfReaderProps = {
 };
 
 type SidebarTab = "thumbnails" | "outline";
-type AnnotationTool = "select" | "highlight" | "text" | "ink";
+type AnnotationTool = "select" | "pan" | "highlight" | "text" | "ink";
+type EditorTool = "highlight" | "text" | "ink";
+type ToolSettings = { color: string; size: number; thickness: number; opacity: number };
+type EditorSettings = Record<EditorTool, ToolSettings>;
+// PDF.js supports this callback, but its generated types declare it as null only.
+type EditableAnnotationStorage = Omit<PDFDocumentProxy["annotationStorage"], "onSetModified"> & {
+  onSetModified: (() => void) | null;
+};
 type OutlineItem = {
   title: string;
   dest: string | unknown[] | null;
@@ -86,14 +95,25 @@ type PasswordChallenge = {
 };
 
 const HIGHLIGHT_COLORS = ["#facc15", "#4ade80", "#60a5fa", "#f472b6"] as const;
+const ANNOTATION_COLORS = ["#000000", "#e11d48", ...HIGHLIGHT_COLORS] as const;
 const PDFJS_HIGHLIGHT_COLORS = "yellow=#facc15,green=#4ade80,blue=#60a5fa,pink=#f472b6";
 
+function defaultEditorSettings(): EditorSettings {
+  return {
+    highlight: { color: HIGHLIGHT_COLORS[0], size: 12, thickness: 12, opacity: 1 },
+    text: { color: "#000000", size: 12, thickness: 2, opacity: 1 },
+    ink: { color: "#000000", size: 12, thickness: 2, opacity: 1 },
+  };
+}
+
 export function PdfReader({ file, url, onClose }: PdfReaderProps) {
+  const readerRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
   const runtimeRef = useRef<PdfRuntime | null>(null);
   const closeRef = useRef(onClose);
   const drawerState = useOverlayState();
+  const [toolsOpen, setToolsOpen] = useState(false);
 
   const initialPage = 1;
   const initialScaleValue = "page-width";
@@ -104,10 +124,12 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
   const [document, setDocument] = useState<PDFDocumentProxy>();
   const [outline, setOutline] = useState<OutlineItem[]>([]);
   const [ready, setReady] = useState(false);
+  const readyRef = useRef(false);
   const [error, setError] = useState<string>();
   const [loadingProgress, setLoadingProgress] = useState<number>();
   const [pageNumber, setPageNumber] = useState(initialPage);
   const [pageDraft, setPageDraft] = useState(String(initialPage));
+  const pageDraftRef = useRef(String(initialPage));
   const [numPages, setNumPages] = useState(0);
   const [scale, setScale] = useState(1);
   const [scaleValue, setScaleValue] = useState(initialScaleValue);
@@ -122,14 +144,54 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
   const [findState, setFindState] = useState<number>(FindState.FOUND);
   const [annotationTool, setAnnotationTool] = useState<AnnotationTool>("select");
   const annotationToolRef = useRef<AnnotationTool>("select");
-  const [annotationColor, setAnnotationColorState] = useState<(typeof HIGHLIGHT_COLORS)[number]>(
-    HIGHLIGHT_COLORS[0],
-  );
+  const [editorSettings, setEditorSettings] = useState(defaultEditorSettings);
+  const editorSettingsRef = useRef(editorSettings);
+  const pendingToolRef = useRef<{ tool: EditorTool; settings: ToolSettings } | null>(null);
+  const [toolSwitching, setToolSwitching] = useState(false);
+  const [canAnnotate, setCanAnnotate] = useState(false);
+  const [selectedEditorTool, setSelectedEditorTool] = useState<EditorTool>();
+  const selectedEditorRef = useRef(false);
+  const lastParamsToolRef = useRef<EditorTool | undefined>(undefined);
+  const [canUndo, setCanUndo] = useState(false);
+  const [canRedo, setCanRedo] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const dirtyRef = useRef(false);
+  const editRevisionRef = useRef(0);
+  const [closePrompt, setClosePrompt] = useState(false);
+  const [saveError, setSaveError] = useState<string>();
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [passwordChallenge, setPasswordChallenge] = useState<PasswordChallenge>();
   const [passwordDraft, setPasswordDraft] = useState("");
 
   closeRef.current = onClose;
+  const activeEditorTool =
+    selectedEditorTool || (isEditorTool(annotationTool) ? annotationTool : undefined);
+
+  const markDirty = useCallback(() => {
+    editRevisionRef.current += 1;
+    dirtyRef.current = true;
+    setDirty(true);
+  }, []);
+
+  const requestClose = () => {
+    if (savingRef.current) return;
+    // Commit a currently edited form field or text annotation before checking.
+    if (window.document.activeElement instanceof HTMLElement) window.document.activeElement.blur();
+    if (dirtyRef.current) setClosePrompt(true);
+    else closeRef.current();
+  };
+
+  useEffect(() => {
+    if (!dirty) return;
+    const onBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [dirty]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -137,11 +199,12 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
     if (!container || !viewerElement) return;
 
     let active = true;
+    const viewerAbort = new AbortController();
     let loadingTask: ReturnType<typeof getDocument> | undefined;
     const eventBus = new EventBus();
     const linkService = new PDFLinkService({ eventBus });
     const findController = new PDFFindController({ eventBus, linkService });
-    const viewer = new PDFViewer({
+    const viewerOptions = {
       container,
       viewer: viewerElement,
       eventBus,
@@ -152,12 +215,15 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
       annotationEditorMode: AnnotationEditorType.NONE,
       annotationEditorHighlightColors: PDFJS_HIGHLIGHT_COLORS,
       removePageBorders: true,
-    });
+      abortSignal: viewerAbort.signal,
+    };
+    const viewer = new PDFViewer(viewerOptions);
     linkService.setViewer(viewer);
 
     const onPageChanging = (event: { pageNumber?: number }) => {
       const next = positiveInt(event.pageNumber, viewer.currentPageNumber || 1);
       setPageNumber(next);
+      pageDraftRef.current = String(next);
       setPageDraft(String(next));
     };
     const onScaleChanging = (event: { scale?: number; presetValue?: string }) => {
@@ -173,19 +239,90 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
       if (typeof event.state === "number") setFindState(event.state);
       if (event.matchesCount) setFindCount(event.matchesCount);
     };
+    const onEditingState = (event: {
+      details?: {
+        hasSomethingToUndo?: boolean;
+        hasSomethingToRedo?: boolean;
+        hasSelectedEditor?: boolean;
+      };
+    }) => {
+      if (!active) return;
+      if (event.details?.hasSomethingToUndo !== undefined)
+        setCanUndo(event.details.hasSomethingToUndo);
+      if (event.details?.hasSomethingToRedo !== undefined)
+        setCanRedo(event.details.hasSomethingToRedo);
+      if (event.details?.hasSelectedEditor !== undefined) {
+        selectedEditorRef.current = event.details.hasSelectedEditor;
+        setSelectedEditorTool(
+          event.details.hasSelectedEditor ? lastParamsToolRef.current : undefined,
+        );
+      }
+    };
+    const onEditorParams = (event: { details?: [number, unknown][] }) => {
+      if (!active || pendingToolRef.current) return;
+      const next = readEditorParams(editorSettingsRef.current, event.details || []);
+      const tool = editorToolFromParams(event.details || []);
+      if (tool) {
+        lastParamsToolRef.current = tool;
+        if (selectedEditorRef.current) setSelectedEditorTool(tool);
+      }
+      editorSettingsRef.current = next;
+      setEditorSettings(next);
+    };
+    const onEditorMode = (event: { mode?: number }) => {
+      const tool = editorToolFromMode(event.mode);
+      if (!active || !tool || tool !== annotationToolRef.current) return;
+      // Changing modes is asynchronous and clears the previous selection.
+      // Apply this tool's defaults only after PDF.js has finished that switch.
+      const settings = pendingToolRef.current?.settings || editorSettingsRef.current[tool];
+      pendingToolRef.current = null;
+      const next = { ...editorSettingsRef.current, [tool]: settings };
+      editorSettingsRef.current = next;
+      setEditorSettings(next);
+      applyEditorSettings(eventBus, tool, settings);
+      setToolSwitching(false);
+    };
 
     eventBus.on("pagechanging", onPageChanging);
     eventBus.on("scalechanging", onScaleChanging);
     eventBus.on("rotationchanging", onRotationChanging);
     eventBus.on("updatefindmatchescount", onFindCount);
     eventBus.on("updatefindcontrolstate", onFindState);
+    eventBus.on("editingstateschanged", onEditingState);
+    eventBus.on("annotationeditorparamschanged", onEditorParams);
+    eventBus.on("annotationeditormodechanged", onEditorMode);
+
+    let resizeFrame = 0;
+    const resizeObserver = new ResizeObserver(() => {
+      cancelAnimationFrame(resizeFrame);
+      resizeFrame = requestAnimationFrame(() => {
+        if (!active || !viewer.pdfDocument) return;
+        const preset = viewer.currentScaleValue;
+        if (preset === "page-width" || preset === "page-fit" || preset === "auto") {
+          viewer.currentScaleValue = preset;
+        }
+        viewer.update();
+      });
+    });
+    resizeObserver.observe(container);
 
     const open = async () => {
+      readyRef.current = false;
       setReady(false);
       setError(undefined);
       setLoadingProgress(undefined);
       setPasswordChallenge(undefined);
       setPasswordDraft("");
+      setOutline([]);
+      setNumPages(0);
+      setCanUndo(false);
+      setCanRedo(false);
+      setCanAnnotate(false);
+      selectedEditorRef.current = false;
+      setSelectedEditorTool(undefined);
+      setSaveError(undefined);
+      dirtyRef.current = false;
+      setDirty(false);
       loadingTask = getDocument({
         url,
         withCredentials: true,
@@ -208,6 +345,8 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
       };
       const pdf = await loadingTask.promise;
       if (!active) return;
+      const storage = pdf.annotationStorage as unknown as EditableAnnotationStorage;
+      storage.onSetModified = markDirty;
 
       runtimeRef.current = { eventBus, linkService, findController, viewer, document: pdf };
       setDocument(pdf);
@@ -215,8 +354,15 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
       linkService.setDocument(pdf);
       findController.setDocument(pdf);
 
-      const loadedOutline = await pdf.getOutline();
-      if (active) setOutline((loadedOutline || []) as OutlineItem[]);
+      // An unavailable outline must not prevent the document itself from opening.
+      void pdf
+        .getOutline()
+        .then((loadedOutline) => {
+          if (active) setOutline((loadedOutline || []) as OutlineItem[]);
+        })
+        .catch(() => {
+          if (active) setOutline([]);
+        });
 
       const pagesInitialized = new Promise<void>((resolve) => {
         eventBus.on("pagesinit", () => resolve(), { once: true });
@@ -229,10 +375,15 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
       viewer.currentScaleValue = initialScaleValue;
       viewer.currentPageNumber = Math.min(Math.max(initialPage, 1), pdf.numPages);
       setPageNumber(viewer.currentPageNumber);
+      pageDraftRef.current = String(viewer.currentPageNumber);
       setPageDraft(String(viewer.currentPageNumber));
       setScale(viewer.currentScale);
       setScaleValue(viewer.currentScaleValue || initialScaleValue);
       setRotation(viewer.pagesRotation);
+      readyRef.current = true;
+      setCanAnnotate(
+        (viewer.annotationEditorMode as unknown as number) !== AnnotationEditorType.DISABLE,
+      );
       setReady(true);
       setLoadingProgress(100);
     };
@@ -244,18 +395,28 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
 
     return () => {
       active = false;
+      readyRef.current = false;
       setReady(false);
       eventBus.off("pagechanging", onPageChanging);
       eventBus.off("scalechanging", onScaleChanging);
       eventBus.off("rotationchanging", onRotationChanging);
       eventBus.off("updatefindmatchescount", onFindCount);
       eventBus.off("updatefindcontrolstate", onFindState);
-      viewer.cleanup();
+      eventBus.off("editingstateschanged", onEditingState);
+      eventBus.off("annotationeditorparamschanged", onEditorParams);
+      eventBus.off("annotationeditormodechanged", onEditorMode);
+      resizeObserver.disconnect();
+      cancelAnimationFrame(resizeFrame);
+      const pdf = runtimeRef.current?.document;
+      if (pdf) (pdf.annotationStorage as unknown as EditableAnnotationStorage).onSetModified = null;
+      viewer.setDocument(null);
+      linkService.setDocument(null);
+      viewerAbort.abort();
       runtimeRef.current = null;
       setDocument(undefined);
-      if (loadingTask) void loadingTask.destroy();
+      if (loadingTask) void loadingTask.destroy().catch(() => undefined);
     };
-  }, [file.id, url]);
+  }, [file.id, loadAttempt, markDirty, url]);
 
   const dispatchFind = useCallback(
     (type: "" | "again" | "highlightallchange" = "", previous = false) => {
@@ -287,26 +448,50 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
     return () => window.clearTimeout(timer);
   }, [dispatchFind, ready, searchOpen]);
 
+  const closeSearch = useCallback(() => {
+    setSearchOpen(false);
+    setQuery("");
+    setFindCount({ current: 0, total: 0 });
+    setFindState(FindState.FOUND);
+    runtimeRef.current?.eventBus.dispatch("findbarclose", { source: containerRef.current });
+  }, []);
+
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      if (inNestedOverlay(target) || savingRef.current) return;
+      if (target && !readerRef.current?.contains(target) && target !== window.document.body) return;
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "f") {
         event.preventDefault();
         event.stopPropagation();
         setSearchOpen(true);
         return;
       }
-      if (event.key === "Escape" && searchOpen && !inNestedOverlay(event.target)) {
+      if (
+        event.key === "Escape" &&
+        searchOpen &&
+        (!isEditableTarget(target) || target?.closest("[data-pdf-findbar]"))
+      ) {
         event.preventDefault();
         event.stopPropagation();
-        setSearchOpen(false);
-        setQuery("");
-        runtimeRef.current?.eventBus.dispatch("findbarclose", { source: containerRef.current });
+        closeSearch();
         return;
       }
+      if (event.key === "Escape" && target?.getAttribute("aria-label") === "PDF page number") {
+        event.preventDefault();
+        event.stopPropagation();
+        pageDraftRef.current = String(runtimeRef.current?.viewer.currentPageNumber || 1);
+        setPageDraft(pageDraftRef.current);
+        target.blur();
+        containerRef.current?.focus({ preventScroll: true });
+        return;
+      }
+      // PDF.js owns text editing and annotation-selection keyboard shortcuts.
+      if (isEditableTarget(target) || target?.closest(".annotationEditorLayer")) return;
       if (
         event.key === "Escape" &&
         annotationToolRef.current !== "select" &&
-        !inNestedOverlay(event.target)
+        !inNestedOverlay(target)
       ) {
         // Escape leaves the annotation tool before it closes the reader.
         event.preventDefault();
@@ -314,20 +499,15 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
         setTool("select");
         return;
       }
-      if (
-        event.key === "Escape" &&
-        !isEditableTarget(event.target) &&
-        !inNestedOverlay(event.target) &&
-        (!window.document.activeElement || window.document.activeElement === window.document.body)
-      ) {
-        // Focus escaped the modal (e.g. after triggering a download), in which
-        // case the modal ignores Escape. Close explicitly instead.
+      if (event.key === "Escape") {
         event.preventDefault();
         event.stopPropagation();
-        closeRef.current();
+        requestClose();
         return;
       }
-      if (isEditableTarget(event.target)) return;
+      if (target?.closest("button, a, [role=button], [role=tab], [role=slider]")) return;
+      if (target && target !== window.document.body && !containerRef.current?.contains(target))
+        return;
       const runtime = runtimeRef.current;
       if (!runtime) return;
       if (event.key === "+" || event.key === "=") {
@@ -349,23 +529,70 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [searchOpen]);
+  }, [closeSearch, searchOpen]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || annotationTool !== "pan" || saving) return;
+    let pointer: { id: number; x: number; y: number } | undefined;
+    const onDown = (event: PointerEvent) => {
+      if (event.button !== 0 || !event.isPrimary) return;
+      if (
+        event.target instanceof HTMLElement &&
+        event.target.closest("a, button, input, textarea, select")
+      )
+        return;
+      event.preventDefault();
+      pointer = { id: event.pointerId, x: event.clientX, y: event.clientY };
+      container.setPointerCapture(event.pointerId);
+      container.dataset.dragging = "true";
+      container.focus({ preventScroll: true });
+    };
+    const onMove = (event: PointerEvent) => {
+      if (!pointer || event.pointerId !== pointer.id) return;
+      event.preventDefault();
+      runtimeRef.current?.viewer.panBy(event.clientX - pointer.x, event.clientY - pointer.y);
+      pointer.x = event.clientX;
+      pointer.y = event.clientY;
+    };
+    const onUp = (event: PointerEvent) => {
+      if (!pointer || event.pointerId !== pointer.id) return;
+      if (container.hasPointerCapture(pointer.id)) container.releasePointerCapture(pointer.id);
+      pointer = undefined;
+      delete container.dataset.dragging;
+    };
+    container.addEventListener("pointerdown", onDown, true);
+    container.addEventListener("pointermove", onMove);
+    container.addEventListener("pointerup", onUp);
+    container.addEventListener("pointercancel", onUp);
+    return () => {
+      if (pointer && container.hasPointerCapture(pointer.id))
+        container.releasePointerCapture(pointer.id);
+      container.removeEventListener("pointerdown", onDown, true);
+      container.removeEventListener("pointermove", onMove);
+      container.removeEventListener("pointerup", onUp);
+      container.removeEventListener("pointercancel", onUp);
+      delete container.dataset.dragging;
+    };
+  }, [annotationTool, saving]);
 
   const setPdfScale = (next: number) => {
     const viewer = runtimeRef.current?.viewer;
     if (!viewer) return;
     viewer.currentScale = Math.min(5, Math.max(0.25, next));
+    setToolsOpen(false);
   };
 
   const setPdfScaleValue = (next: string) => {
     const viewer = runtimeRef.current?.viewer;
     if (!viewer) return;
     viewer.currentScaleValue = next;
+    setToolsOpen(false);
   };
 
   const goToPage = (next: number) => {
     const runtime = runtimeRef.current;
-    if (!runtime) return;
+    if (!runtime || !readyRef.current || savingRef.current) return;
     runtime.viewer.currentPageNumber = Math.min(
       Math.max(Math.round(next), 1),
       runtime.document.numPages,
@@ -373,52 +600,80 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
   };
 
   const commitPageDraft = () => {
-    const next = Number(pageDraft);
-    if (Number.isFinite(next)) goToPage(next);
-    else setPageDraft(String(pageNumber));
+    const runtime = runtimeRef.current;
+    if (!runtime) return;
+    const draft = pageDraftRef.current.trim();
+    const next = Number(draft);
+    if (draft && Number.isFinite(next)) goToPage(next);
+    // PDF.js doesn't emit pagechanging when clamping to the current page.
+    pageDraftRef.current = String(runtime.viewer.currentPageNumber);
+    setPageDraft(pageDraftRef.current);
   };
 
   const rotate = () => {
     const viewer = runtimeRef.current?.viewer;
     if (!viewer) return;
     viewer.pagesRotation = normalizedRotation(viewer.pagesRotation + 90);
+    setToolsOpen(false);
   };
 
   const setTool = (tool: AnnotationTool) => {
-    const viewer = runtimeRef.current?.viewer;
-    if (!viewer) return;
+    const runtime = runtimeRef.current;
+    if (!runtime || !readyRef.current || savingRef.current) return;
+    if (pendingToolRef.current?.tool === tool) return;
+    // PDF.js's getter returns a number; its generated declaration incorrectly
+    // uses the object-shaped setter type for both accessors.
+    const currentMode = runtime.viewer.annotationEditorMode as unknown as number;
+    if (isEditorTool(tool) && currentMode === AnnotationEditorType.DISABLE) return;
     annotationToolRef.current = tool;
     setAnnotationTool(tool);
-    viewer.annotationEditorMode = { mode: annotationEditorMode(tool) };
-    if (tool !== "select") setAnnotationColor(annotationColor, tool);
+    const mode = annotationEditorMode(tool);
+    setToolSwitching(isEditorTool(tool) && currentMode !== mode);
+    if (isEditorTool(tool)) {
+      pendingToolRef.current = { tool, settings: { ...editorSettingsRef.current[tool] } };
+    } else pendingToolRef.current = null;
+    if (currentMode === mode && isEditorTool(tool)) {
+      pendingToolRef.current = null;
+      applyEditorSettings(runtime.eventBus, tool, editorSettingsRef.current[tool]);
+    }
+    if (currentMode !== AnnotationEditorType.DISABLE)
+      runtime.viewer.annotationEditorMode = { mode };
+    setToolsOpen(false);
   };
 
-  const setAnnotationColor = (
-    color: (typeof HIGHLIGHT_COLORS)[number],
-    tool: AnnotationTool = annotationTool,
+  const changeEditorSetting = <K extends keyof ToolSettings>(
+    tool: EditorTool,
+    key: K,
+    value: ToolSettings[K],
   ) => {
-    setAnnotationColorState(color);
     const eventBus = runtimeRef.current?.eventBus;
-    if (!eventBus || tool === "select") return;
-    const type =
-      tool === "highlight"
-        ? AnnotationEditorParamsType.HIGHLIGHT_COLOR
-        : tool === "ink"
-          ? AnnotationEditorParamsType.INK_COLOR
-          : AnnotationEditorParamsType.FREETEXT_COLOR;
-    eventBus.dispatch("switchannotationeditorparams", {
-      source: containerRef.current,
-      type,
-      value: color,
-    });
+    if (!eventBus || savingRef.current) return;
+    const settings = { ...editorSettingsRef.current[tool], [key]: value };
+    const next = { ...editorSettingsRef.current, [tool]: settings };
+    editorSettingsRef.current = next;
+    setEditorSettings(next);
+    if (pendingToolRef.current?.tool === tool) {
+      pendingToolRef.current = { tool, settings };
+    } else dispatchEditorParam(eventBus, editorParamType(tool, key), value);
+  };
+
+  const editAction = (name: "undo" | "redo") => {
+    if (savingRef.current) return;
+    runtimeRef.current?.eventBus.dispatch("editingaction", { source: readerRef.current, name });
+    setToolsOpen(false);
   };
 
   const saveModified = async () => {
     const pdf = runtimeRef.current?.document;
-    if (!pdf || saving) return;
+    if (!pdf || savingRef.current) return false;
+    setToolsOpen(false);
+    if (window.document.activeElement instanceof HTMLElement) window.document.activeElement.blur();
+    const revision = editRevisionRef.current;
+    savingRef.current = true;
     setSaving(true);
+    setSaveError(undefined);
     try {
-      const data = await pdf.saveDocument();
+      const data = pdf.annotationStorage.size ? await pdf.saveDocument() : await pdf.getData();
       const copy = new Uint8Array(data);
       const objectUrl = URL.createObjectURL(new Blob([copy.buffer], { type: "application/pdf" }));
       const anchor = window.document.createElement("a");
@@ -426,12 +681,24 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
       anchor.download = editedPdfName(file.name);
       anchor.click();
       window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1_000);
+      if (editRevisionRef.current === revision) {
+        dirtyRef.current = false;
+        setDirty(false);
+      }
+      return true;
+    } catch (reason) {
+      setSaveError(
+        reason instanceof Error ? reason.message : "The edited PDF could not be saved. Try again.",
+      );
+      return false;
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
 
   const downloadOriginal = () => {
+    setToolsOpen(false);
     const anchor = window.document.createElement("a");
     anchor.href = url;
     anchor.download = file.name;
@@ -469,7 +736,12 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
 
   return (
     <div
+      ref={readerRef}
       data-pdf-reader
+      data-pdf-hand-active={annotationTool === "pan" || undefined}
+      onInputCapture={(event) => {
+        if (containerRef.current?.contains(event.target as Node)) markDirty();
+      }}
       className="flex h-dvh min-h-0 w-full flex-col overflow-hidden bg-background text-foreground"
     >
       <header
@@ -481,7 +753,8 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
           size="sm"
           variant="ghost"
           aria-label="Close PDF reader"
-          onPress={() => closeRef.current()}
+          isDisabled={saving}
+          onPress={requestClose}
         >
           <CloseIcon className="size-4" />
         </Button>
@@ -541,7 +814,10 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
               aria-label="PDF page number"
               inputMode="numeric"
               value={pageDraft}
-              onChange={(event) => setPageDraft(event.target.value.replace(/[^0-9]/g, ""))}
+              onChange={(event) => {
+                pageDraftRef.current = event.target.value.replace(/[^0-9]/g, "");
+                setPageDraft(pageDraftRef.current);
+              }}
               onBlur={commitPageDraft}
               onKeyDown={(event: ReactKeyboardEvent<HTMLInputElement>) => {
                 if (event.key === "Enter") {
@@ -549,7 +825,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
                   event.currentTarget.blur();
                 }
               }}
-              className="h-8 text-center text-xs tabular-nums"
+              className="h-8 min-w-0 w-full text-center text-xs tabular-nums"
             />
           </InputGroup>
           <span className="min-w-8 text-muted">/ {numPages || "—"}</span>
@@ -653,10 +929,18 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
             active={annotationTool === "select"}
             onPress={() => setTool("select")}
           >
+            <TextIcon className="size-4" />
+          </ToolButton>
+          <ToolButton
+            label="Hand tool"
+            active={annotationTool === "pan"}
+            onPress={() => setTool("pan")}
+          >
             <HandIcon className="size-4" />
           </ToolButton>
           <ToolButton
             label="Highlight"
+            disabled={!canAnnotate || saving || toolSwitching}
             active={annotationTool === "highlight"}
             onPress={() => setTool("highlight")}
           >
@@ -664,46 +948,43 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
           </ToolButton>
           <ToolButton
             label="Add text"
+            disabled={!canAnnotate || saving || toolSwitching}
             active={annotationTool === "text"}
             onPress={() => setTool("text")}
           >
             <TextIcon className="size-4" />
           </ToolButton>
-          <ToolButton label="Draw" active={annotationTool === "ink"} onPress={() => setTool("ink")}>
+          <ToolButton
+            label="Draw"
+            disabled={!canAnnotate || saving || toolSwitching}
+            active={annotationTool === "ink"}
+            onPress={() => setTool("ink")}
+          >
             <PencilIcon className="size-4" />
           </ToolButton>
-          {annotationTool !== "select" ? (
-            <Popover>
-              <Button isIconOnly size="sm" variant="ghost" aria-label="Annotation color">
-                <span
-                  className="size-3.5 rounded-full border border-black/15"
-                  style={{ background: annotationColor }}
-                />
-              </Button>
-              <Popover.Content placement="bottom" offset={8} className="w-auto">
-                <Popover.Dialog className="flex gap-1.5 p-2">
-                  {HIGHLIGHT_COLORS.map((color) => (
-                    <Button
-                      key={color}
-                      isIconOnly
-                      size="sm"
-                      variant={annotationColor === color ? "secondary" : "ghost"}
-                      aria-label={`Use annotation color ${color}`}
-                      onPress={() => setAnnotationColor(color)}
-                    >
-                      <span
-                        className="size-4 rounded-full border border-black/15"
-                        style={{ background: color }}
-                      />
-                    </Button>
-                  ))}
-                </Popover.Dialog>
-              </Popover.Content>
-            </Popover>
-          ) : null}
+          <Button
+            isIconOnly
+            size="sm"
+            variant="ghost"
+            aria-label="Undo PDF edit"
+            isDisabled={!canUndo || saving}
+            onPress={() => editAction("undo")}
+          >
+            <UndoIcon className="size-4" />
+          </Button>
+          <Button
+            isIconOnly
+            size="sm"
+            variant="ghost"
+            aria-label="Redo PDF edit"
+            isDisabled={!canRedo || saving}
+            onPress={() => editAction("redo")}
+          >
+            <RotateIcon className="size-4" />
+          </Button>
         </div>
 
-        <Popover>
+        <Popover isOpen={toolsOpen} onOpenChange={setToolsOpen}>
           <Button
             isIconOnly
             size="sm"
@@ -711,10 +992,17 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
             className="xl:hidden"
             aria-label="PDF reader tools"
             isDisabled={!ready}
+            // Restore focus to the document, not a previously edited annotation,
+            // when the mobile tools menu closes after a tool switch.
+            onPressStart={() => containerRef.current?.focus({ preventScroll: true })}
           >
             <EllipsisIcon className="size-4" />
           </Button>
-          <Popover.Content placement="bottom end" offset={8} className="w-[min(92vw,17rem)]">
+          <Popover.Content
+            placement="bottom end"
+            offset={8}
+            className="max-h-[75dvh] w-[min(92vw,17rem)] overflow-y-auto"
+          >
             <Popover.Dialog className="p-2">
               <p className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
                 View
@@ -743,6 +1031,14 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
                 <Button size="sm" variant="ghost" className="col-span-2" onPress={rotate}>
                   <RotateIcon className="size-4" /> Rotate clockwise
                 </Button>
+                <Button
+                  size="sm"
+                  variant={annotationTool === "pan" ? "secondary" : "ghost"}
+                  className="col-span-2"
+                  onPress={() => setTool("pan")}
+                >
+                  <HandIcon className="size-4" /> Hand tool
+                </Button>
               </div>
 
               <div className="mt-2 border-t border-border pt-2">
@@ -755,11 +1051,12 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
                     variant={annotationTool === "select" ? "secondary" : "ghost"}
                     onPress={() => setTool("select")}
                   >
-                    <HandIcon className="size-4" /> Select
+                    <TextIcon className="size-4" /> Select
                   </Button>
                   <Button
                     size="sm"
                     variant={annotationTool === "highlight" ? "secondary" : "ghost"}
+                    isDisabled={!canAnnotate || saving || toolSwitching}
                     onPress={() => setTool("highlight")}
                   >
                     <BrushIcon className="size-4" /> Highlight
@@ -767,6 +1064,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
                   <Button
                     size="sm"
                     variant={annotationTool === "text" ? "secondary" : "ghost"}
+                    isDisabled={!canAnnotate || saving || toolSwitching}
                     onPress={() => setTool("text")}
                   >
                     <TextIcon className="size-4" /> Add text
@@ -774,33 +1072,33 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
                   <Button
                     size="sm"
                     variant={annotationTool === "ink" ? "secondary" : "ghost"}
+                    isDisabled={!canAnnotate || saving || toolSwitching}
                     onPress={() => setTool("ink")}
                   >
                     <PencilIcon className="size-4" /> Draw
                   </Button>
                 </div>
-                {annotationTool !== "select" ? (
-                  <div className="mt-2 flex items-center justify-between rounded-lg bg-default/25 px-2 py-1.5">
-                    <span className="text-[11px] text-muted">Color</span>
-                    <div className="flex gap-1">
-                      {HIGHLIGHT_COLORS.map((color) => (
-                        <Button
-                          key={color}
-                          isIconOnly
-                          size="sm"
-                          variant={annotationColor === color ? "secondary" : "ghost"}
-                          aria-label={`Use annotation color ${color}`}
-                          onPress={() => setAnnotationColor(color)}
-                        >
-                          <span
-                            className="size-3.5 rounded-full border border-black/15"
-                            style={{ background: color }}
-                          />
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
+              </div>
+
+              <div className="mt-2 grid grid-cols-2 gap-1 border-t border-border pt-2">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  aria-label="Undo PDF edit"
+                  isDisabled={!canUndo || saving}
+                  onPress={() => editAction("undo")}
+                >
+                  <UndoIcon className="size-4" /> Undo
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  aria-label="Redo PDF edit"
+                  isDisabled={!canRedo || saving}
+                  onPress={() => editAction("redo")}
+                >
+                  <RotateIcon className="size-4" /> Redo
+                </Button>
               </div>
 
               <div className="mt-2 grid grid-cols-2 gap-1 border-t border-border pt-2">
@@ -826,7 +1124,10 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
           size="sm"
           variant={searchOpen ? "secondary" : "ghost"}
           aria-label="Search in PDF"
-          onPress={() => setSearchOpen((value) => !value)}
+          onPress={() => {
+            if (searchOpen) closeSearch();
+            else setSearchOpen(true);
+          }}
         >
           <SearchIcon className="size-4" />
         </Button>
@@ -853,6 +1154,32 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
         </Button>
       </header>
 
+      {activeEditorTool ? (
+        <PdfAnnotationSettings
+          tool={activeEditorTool}
+          settings={editorSettings[activeEditorTool]}
+          disabled={saving || toolSwitching}
+          onChange={(key, value) => changeEditorSetting(activeEditorTool, key, value)}
+        />
+      ) : null}
+
+      {saveError && !closePrompt ? (
+        <div
+          role="alert"
+          className="flex shrink-0 items-center justify-between gap-3 border-b border-danger/20 bg-danger/10 px-3 py-2 text-sm"
+        >
+          <span>Could not save the PDF: {saveError}</span>
+          <Button
+            size="sm"
+            variant="secondary"
+            isDisabled={saving}
+            onPress={() => void saveModified()}
+          >
+            Try again
+          </Button>
+        </div>
+      ) : null}
+
       {searchOpen ? (
         <PdfFindBar
           query={query}
@@ -865,11 +1192,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
           onWholeWord={setWholeWord}
           onPrevious={() => dispatchFind("again", true)}
           onNext={() => dispatchFind("again", false)}
-          onClose={() => {
-            setSearchOpen(false);
-            setQuery("");
-            runtimeRef.current?.eventBus.dispatch("findbarclose", { source: containerRef.current });
-          }}
+          onClose={closeSearch}
         />
       ) : null}
 
@@ -918,7 +1241,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
                   />
                 </InputGroup>
                 <div className="mt-4 flex justify-end gap-2">
-                  <Button size="sm" variant="ghost" onPress={() => closeRef.current()}>
+                  <Button size="sm" variant="ghost" onPress={requestClose}>
                     Cancel
                   </Button>
                   <Button
@@ -941,18 +1264,181 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
               <div className="max-w-lg">
                 <p className="font-semibold">Unable to open this PDF</p>
                 <p className="mt-2 text-sm text-muted">{error}</p>
+                <Button
+                  className="mt-4"
+                  variant="secondary"
+                  onPress={() => setLoadAttempt((value) => value + 1)}
+                >
+                  Try again
+                </Button>
               </div>
             </div>
           ) : null}
+          {/* biome-ignore lint/a11y/useSemanticElements: PDF.js requires a DIV scroll container. */}
           <div
             ref={containerRef}
             data-pdf-viewer-container
-            className="absolute inset-0 overflow-auto"
+            role="region"
+            aria-label="PDF document"
+            // biome-ignore lint/a11y/noNoninteractiveTabindex: The document viewport is keyboard navigable.
+            tabIndex={0}
+            inert={saving}
+            className="absolute inset-3 overflow-auto outline-none sm:inset-4"
           >
             <div ref={viewerRef} className="pdfViewer teldrive-pdf-viewer" />
           </div>
+          {saving ? (
+            <div className="absolute inset-0 z-30 grid place-items-center bg-background/50 backdrop-blur-sm">
+              <Spinner size="lg" aria-label="Saving PDF copy" />
+            </div>
+          ) : null}
         </main>
       </div>
+      <AppDialog
+        open={closePrompt}
+        onOpenChange={setClosePrompt}
+        isCloseDisabled={saving}
+        isDismissable={!saving}
+        title="Unsaved PDF changes"
+        footer={
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button variant="tertiary" isDisabled={saving} onPress={() => setClosePrompt(false)}>
+              Keep editing
+            </Button>
+            <Button
+              variant="danger"
+              isDisabled={saving}
+              onPress={() => {
+                dirtyRef.current = false;
+                setDirty(false);
+                closeRef.current();
+              }}
+            >
+              Discard changes
+            </Button>
+            <Button
+              variant="primary"
+              isPending={saving}
+              onPress={() =>
+                void saveModified().then((saved) => {
+                  if (saved) closeRef.current();
+                })
+              }
+            >
+              Save copy and close
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-sm text-muted">
+          Your changes are only in this reader. Save an edited copy before closing, or discard them.
+          The original file is unchanged.
+        </p>
+        {saveError ? (
+          <p role="alert" className="mt-3 text-sm text-danger">
+            Could not save the PDF: {saveError}
+          </p>
+        ) : null}
+      </AppDialog>
+    </div>
+  );
+}
+
+function PdfAnnotationSettings({
+  tool,
+  settings,
+  disabled,
+  onChange,
+}: {
+  tool: EditorTool;
+  settings: ToolSettings;
+  disabled: boolean;
+  onChange: (key: keyof ToolSettings, value: string | number) => void;
+}) {
+  const colors = tool === "highlight" ? HIGHLIGHT_COLORS : ANNOTATION_COLORS;
+  return (
+    <div
+      role="toolbar"
+      aria-label="Annotation settings"
+      className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-border bg-surface px-3 py-2"
+    >
+      <span className="text-xs font-semibold">
+        {tool === "highlight" ? "Highlight" : tool === "text" ? "Text" : "Draw"}
+      </span>
+      <fieldset
+        aria-label="Annotation colors"
+        className="flex items-center gap-1"
+        disabled={disabled}
+      >
+        {colors.map((color) => (
+          <Button
+            key={color}
+            isIconOnly
+            size="sm"
+            variant={settings.color === color ? "secondary" : "ghost"}
+            aria-label={`Use annotation color ${color}`}
+            aria-pressed={settings.color === color}
+            isDisabled={disabled}
+            onPress={() => onChange("color", color)}
+          >
+            <span
+              className="size-4 rounded-full border border-foreground/20"
+              style={{ background: color }}
+            />
+          </Button>
+        ))}
+      </fieldset>
+      {tool === "text" ? (
+        <label className="flex items-center gap-2 text-xs">
+          Font size
+          <input
+            aria-label="PDF text font size"
+            type="range"
+            min={6}
+            max={72}
+            step={1}
+            value={settings.size}
+            disabled={disabled}
+            className="w-24 accent-accent"
+            onChange={(event) => onChange("size", Number(event.currentTarget.value))}
+          />
+          <span className="min-w-9 tabular-nums">{settings.size} pt</span>
+        </label>
+      ) : null}
+      {tool === "ink" ? (
+        <>
+          <label className="flex items-center gap-2 text-xs">
+            Stroke width
+            <input
+              aria-label="PDF ink stroke width"
+              type="range"
+              min={1}
+              max={20}
+              step={0.5}
+              value={settings.thickness}
+              disabled={disabled}
+              className="w-24 accent-accent"
+              onChange={(event) => onChange("thickness", Number(event.currentTarget.value))}
+            />
+            <span className="min-w-9 tabular-nums">{settings.thickness} pt</span>
+          </label>
+          <label className="flex items-center gap-2 text-xs">
+            Opacity
+            <input
+              aria-label="PDF ink opacity"
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={Math.round(settings.opacity * 100)}
+              disabled={disabled}
+              className="w-24 accent-accent"
+              onChange={(event) => onChange("opacity", Number(event.currentTarget.value) / 100)}
+            />
+            <span className="min-w-9 tabular-nums">{Math.round(settings.opacity * 100)}%</span>
+          </label>
+        </>
+      ) : null}
     </div>
   );
 }
@@ -1261,11 +1747,13 @@ function OutlineItems({
 function ToolButton({
   label,
   active,
+  disabled = false,
   onPress,
   children,
 }: {
   label: string;
   active: boolean;
+  disabled?: boolean;
   onPress: () => void;
   children: React.ReactNode;
 }) {
@@ -1274,6 +1762,7 @@ function ToolButton({
       isIconOnly
       size="sm"
       variant={active ? "secondary" : "ghost"}
+      isDisabled={disabled}
       aria-label={label}
       onPress={onPress}
     >
@@ -1291,6 +1780,106 @@ function annotationEditorMode(tool: AnnotationTool) {
   if (tool === "text") return AnnotationEditorType.FREETEXT;
   if (tool === "ink") return AnnotationEditorType.INK;
   return AnnotationEditorType.NONE;
+}
+
+function isEditorTool(tool: AnnotationTool): tool is EditorTool {
+  return tool === "highlight" || tool === "text" || tool === "ink";
+}
+
+function editorToolFromMode(mode: number | undefined): EditorTool | undefined {
+  if (mode === AnnotationEditorType.HIGHLIGHT) return "highlight";
+  if (mode === AnnotationEditorType.FREETEXT) return "text";
+  if (mode === AnnotationEditorType.INK) return "ink";
+  return undefined;
+}
+
+function editorToolFromParams(details: [number, unknown][]): EditorTool | undefined {
+  if (
+    details.some(
+      ([type]) =>
+        type === AnnotationEditorParamsType.FREETEXT_COLOR ||
+        type === AnnotationEditorParamsType.FREETEXT_SIZE,
+    )
+  )
+    return "text";
+  if (
+    details.some(
+      ([type]) =>
+        type === AnnotationEditorParamsType.INK_COLOR ||
+        type === AnnotationEditorParamsType.INK_THICKNESS ||
+        type === AnnotationEditorParamsType.INK_OPACITY,
+    )
+  )
+    return "ink";
+  if (details.some(([type]) => type === AnnotationEditorParamsType.HIGHLIGHT_COLOR))
+    return "highlight";
+  return undefined;
+}
+
+function editorParamType(tool: EditorTool, key: keyof ToolSettings): number | undefined {
+  if (key === "color") {
+    if (tool === "highlight") return AnnotationEditorParamsType.HIGHLIGHT_COLOR;
+    if (tool === "text") return AnnotationEditorParamsType.FREETEXT_COLOR;
+    return AnnotationEditorParamsType.INK_COLOR;
+  }
+  if (key === "size" && tool === "text") return AnnotationEditorParamsType.FREETEXT_SIZE;
+  if (key === "thickness" && tool === "ink") return AnnotationEditorParamsType.INK_THICKNESS;
+  if (key === "opacity" && tool === "ink") return AnnotationEditorParamsType.INK_OPACITY;
+  return undefined;
+}
+
+function dispatchEditorParam(eventBus: EventBus, type: number | undefined, value: string | number) {
+  if (type !== undefined) eventBus.dispatch("switchannotationeditorparams", { type, value });
+}
+
+function applyEditorSettings(eventBus: EventBus, tool: EditorTool, settings: ToolSettings) {
+  for (const key of Object.keys(settings) as (keyof ToolSettings)[]) {
+    dispatchEditorParam(eventBus, editorParamType(tool, key), settings[key]);
+  }
+}
+
+function readEditorParams(previous: EditorSettings, details: [number, unknown][]): EditorSettings {
+  let next = previous;
+  for (const tool of ["highlight", "text", "ink"] as const) {
+    for (const key of ["color", "size", "thickness", "opacity"] as const) {
+      const type = editorParamType(tool, key);
+      if (type === undefined) continue;
+      const entry = details.find(([parameter]) => parameter === type);
+      if (!entry) continue;
+      const value = entry[1];
+      if (key === "color" && typeof value === "string") {
+        const color = normalizedColor(value);
+        if (color && color !== next[tool].color)
+          next = { ...next, [tool]: { ...next[tool], color } };
+      } else if (
+        key !== "color" &&
+        typeof value === "number" &&
+        Number.isFinite(value) &&
+        (key === "opacity" ? value >= 0 : value > 0) &&
+        value !== next[tool][key]
+      ) {
+        next = { ...next, [tool]: { ...next[tool], [key]: value } };
+      }
+    }
+  }
+  return next;
+}
+
+function normalizedColor(color: string): string | undefined {
+  if (/^#[\da-f]{6}$/i.test(color)) return color.toLowerCase();
+  if (/^#[\da-f]{3}$/i.test(color))
+    return `#${color
+      .slice(1)
+      .split("")
+      .map((part) => part + part)
+      .join("")}`.toLowerCase();
+  const rgb = color.match(/^rgb\(\s*(\d+)[,\s]+(\d+)[,\s]+(\d+)\s*\)$/);
+  if (rgb)
+    return `#${rgb
+      .slice(1)
+      .map((part) => Math.min(255, Number(part)).toString(16).padStart(2, "0"))
+      .join("")}`;
+  return undefined;
 }
 
 function normalizedRotation(value: unknown) {
