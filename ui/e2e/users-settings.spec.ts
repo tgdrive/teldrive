@@ -1,5 +1,45 @@
 import { expect, test } from "@playwright/test";
 
+test("appearance applies light tokens and persists across reloads", async ({ page }) => {
+  await page.route("**/api/v1/**", async (route) => {
+    if (new URL(route.request().url()).pathname === "/api/v1/me") {
+      return route.fulfill({ json: { userId: 1, displayName: "Fixture", role: "owner", capabilities: [], premium: false, createdAt: "2026-07-22T12:00:00Z" } });
+    }
+    if (new URL(route.request().url()).pathname === "/api/v1/files/statistics/drive") {
+      return route.fulfill({ json: { totalFiles: 0, totalBytes: 0, openUploads: 0 } });
+    }
+    return route.fulfill({ status: 404, json: {} });
+  });
+  await page.goto("/settings/appearance");
+  await page.emulateMedia({ colorScheme: "dark" });
+  const root = page.locator("html");
+  await expect(root).toHaveAttribute("data-theme", "dark");
+  const darkBackground = await root.evaluate((el) => getComputedStyle(el).getPropertyValue("--background"));
+  await page.getByRole("button", { name: "Light", exact: true }).click();
+  await expect(root).toHaveAttribute("data-theme", "light");
+  await expect(root).not.toHaveClass(/dark/);
+  await expect(root).toHaveCSS("color-scheme", "light");
+  await expect.poll(() => root.evaluate((el) => getComputedStyle(el).getPropertyValue("--background"))).not.toBe(darkBackground);
+  await page.reload();
+  await expect(root).toHaveAttribute("data-theme", "light");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(root).toHaveAttribute("data-theme", "light");
+  await page.getByRole("button", { name: "System", exact: true }).click();
+  await expect(root).toHaveAttribute("data-theme", "dark");
+  await page.emulateMedia({ colorScheme: "light" });
+  await expect(root).toHaveAttribute("data-theme", "light");
+  await page.reload();
+  await expect(root).toHaveAttribute("data-theme", "light");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(root).toHaveAttribute("data-theme", "dark");
+  await page.goto("/settings");
+  await page.getByRole("button", { name: "Log out", exact: true }).click();
+  await expect(page.getByText("Unable to log out", { exact: true })).toBeVisible();
+  await expect(page.locator("[data-sonner-toaster]")).toHaveAttribute("data-sonner-theme", "dark");
+  await page.emulateMedia({ colorScheme: "light" });
+  await expect(page.locator("[data-sonner-toaster]")).toHaveAttribute("data-sonner-theme", "light");
+});
+
 test("users search is debounced and stays usable while results load", async ({ page }) => {
   const users = [
     { userId: 1, displayName: "Instance Owner", role: "owner", disabled: false },

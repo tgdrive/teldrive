@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gotd/td/tgerr"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/riverqueue/river"
 
@@ -60,15 +61,21 @@ func (w *BotProvisionWorker) Work(ctx context.Context, job *river.Job[BotProvisi
 	if err != nil {
 		return fmt.Errorf("list channels for bot provisioning: %w", err)
 	}
+	var failures []error
+	waiting := false
 	for _, botID := range botIDs {
-		row, verifyErr := w.bots.VerifyPending(ctx, job.Args.UserID, botID)
+		row, verifyErr := w.bots.VerifyForProvision(ctx, job.Args.UserID, botID)
 		if verifyErr != nil {
-			_ = w.bots.MarkProvisionFailure(ctx, job.Args.UserID, botID, verifyErr)
-			return fmt.Errorf("verify pending bot %d: %w", botID, verifyErr)
+			failures = append(failures, fmt.Errorf("verify pending bot %d: %w", botID, verifyErr), w.bots.MarkProvisionFailure(ctx, job.Args.UserID, botID, verifyErr))
+			continue
+		}
+		if row.Enabled {
+			continue
 		}
 		username := strings.TrimSpace(row.Username.String)
 		var wg sync.WaitGroup
 		var inviteErr error
+		freshAdminRestriction := false
 		var inviteMu sync.Mutex
 		sem := make(chan struct{}, 3)
 		for _, channel := range channels {
@@ -78,21 +85,34 @@ func (w *BotProvisionWorker) Work(ctx context.Context, job *river.Job[BotProvisi
 
 				if err := w.inviter.InviteBot(ctx, job.Args.UserID, channel.ChannelID, username); err != nil {
 					inviteMu.Lock()
-					if inviteErr == nil {
-						inviteErr = err
-					}
+					freshAdminRestriction = freshAdminRestriction || tgerr.Is(err, "FRESH_CHANGE_ADMINS_FORBIDDEN")
+					inviteErr = errors.Join(inviteErr, err)
 					inviteMu.Unlock()
 				}
 			})
 		}
 		wg.Wait()
 		if inviteErr != nil {
-			_ = w.bots.MarkProvisionFailure(ctx, job.Args.UserID, botID, inviteErr)
-			return fmt.Errorf("provision bot %d: %w", botID, inviteErr)
+			if freshAdminRestriction && time.Since(job.CreatedAt) < 48*time.Hour {
+				waiting = true
+				continue
+			}
+			if freshAdminRestriction {
+				inviteErr = fmt.Errorf("Telegram admin restriction persisted for 48 hours; add the bot as a channel admin manually: %w", inviteErr)
+			}
+			failures = append(failures, fmt.Errorf("provision bot %d: %w", botID, inviteErr), w.bots.MarkProvisionFailure(ctx, job.Args.UserID, botID, inviteErr))
+			continue
+		}
+		if _, err := w.bots.Activate(ctx, job.Args.UserID, botID, username); err != nil {
+			failures = append(failures, err)
+			continue
 		}
 		slog.InfoContext(ctx, "Telegram bot provisioned", "job_id", job.ID, "user_id", job.Args.UserID, "bot_id", botID, "bot_username", username, "channel_count", len(channels))
 	}
-	return nil
+	if waiting {
+		return river.JobSnooze(min(3*time.Hour, max(time.Until(job.CreatedAt.Add(48*time.Hour)), time.Second)))
+	}
+	return errors.Join(failures...)
 }
 
 func normalizedBotIDs(values []int64) []int64 {

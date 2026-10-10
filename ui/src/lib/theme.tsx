@@ -1,27 +1,23 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useState,
-  type ReactNode,
-} from "react";
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from "react";
 
-type Theme = "light" | "dark";
+type ResolvedTheme = "light" | "dark";
+type Theme = ResolvedTheme | "system";
 
 // Same storage key as the next-themes default, so existing browser
 // preferences carry over.
 const STORAGE_KEY = "theme";
 
 const ThemeContext = createContext<{
-  resolvedTheme: Theme;
+  theme: Theme;
+  resolvedTheme: ResolvedTheme;
   setTheme: (theme: Theme) => void;
 }>({
-  resolvedTheme: "dark",
+  theme: "system",
+  resolvedTheme: "light",
   setTheme: () => {},
 });
 
-function applyTheme(theme: Theme) {
+function applyTheme(theme: ResolvedTheme) {
   const root = document.documentElement;
   root.classList.toggle("dark", theme === "dark");
   root.dataset.theme = theme;
@@ -31,21 +27,31 @@ function applyTheme(theme: Theme) {
 function initialTheme(): Theme {
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (stored === "light" || stored === "dark") return stored;
+    if (stored === "light" || stored === "dark" || stored === "system") return stored;
   } catch {
     // Private mode etc: fall through to the default.
   }
-  return "dark";
+  return "system";
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("dark");
+  const [theme, setThemeState] = useState<Theme>(initialTheme);
+  const [systemTheme, setSystemTheme] = useState<ResolvedTheme>(() =>
+    window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
+  );
+  const resolvedTheme = theme === "system" ? systemTheme : theme;
 
   useEffect(() => {
-    const initial = initialTheme();
-    setThemeState(initial);
-    applyTheme(initial);
+    const media = window.matchMedia("(prefers-color-scheme: dark)");
+    const update = () => setSystemTheme(media.matches ? "dark" : "light");
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
   }, []);
+
+  useEffect(() => {
+    applyTheme(resolvedTheme);
+  }, [resolvedTheme]);
 
   const setTheme = useCallback((next: Theme) => {
     setThemeState(next);
@@ -54,11 +60,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     } catch {
       // Ignore write failures; the theme still applies for this session.
     }
-    applyTheme(next);
   }, []);
 
   return (
-    <ThemeContext.Provider value={{ resolvedTheme: theme, setTheme }}>
+    <ThemeContext.Provider value={{ theme, resolvedTheme, setTheme }}>
       {children}
     </ThemeContext.Provider>
   );

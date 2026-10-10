@@ -6,10 +6,37 @@ import (
 	"context"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/tgdrive/teldrive/v2/internal/database"
 	testpostgres "github.com/tgdrive/teldrive/v2/internal/testutil/postgres"
 )
+
+func TestConcurrentMigrateEmptyDatabase(t *testing.T) {
+	db := testpostgres.New(t)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+	// Reset this disposable database, including the database-wide extension.
+	for _, statement := range []string{"DROP SCHEMA teldrive CASCADE", "DROP EXTENSION IF EXISTS pgcrypto"} {
+		if _, err := db.Pool.Exec(ctx, statement); err != nil {
+			t.Fatal(err)
+		}
+	}
+	start := make(chan struct{})
+	results := make(chan error, 4)
+	for range 4 {
+		go func() {
+			<-start
+			results <- database.Migrate(ctx, database.Config{URL: db.URL})
+		}()
+	}
+	close(start)
+	for range 4 {
+		if err := <-results; err != nil {
+			t.Errorf("concurrent migration: %v", err)
+		}
+	}
+}
 
 func TestMigrateAndOpenAgainstPostgres18(t *testing.T) {
 	db := testpostgres.New(t)

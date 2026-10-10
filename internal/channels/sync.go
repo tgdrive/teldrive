@@ -30,6 +30,9 @@ func (s *Service) Sync(ctx context.Context, userID int64, remote []RemoteChannel
 	items := slices.SortedFunc(maps.Values(unique), func(a, b RemoteChannel) int {
 		return cmp.Or(cmp.Compare(a.Name, b.Name), cmp.Compare(a.ID, b.ID))
 	})
+	if items == nil {
+		items = []RemoteChannel{}
+	}
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {

@@ -265,7 +265,12 @@ SELECT input.bot_id, $1, decode(input.token_ciphertext, 'base64'), false
 FROM jsonb_to_recordset($2::jsonb) AS input(
     bot_id bigint, token_ciphertext text
 )
-ON CONFLICT (user_id, bot_id) DO NOTHING
+ON CONFLICT (user_id, bot_id) DO UPDATE
+SET token_ciphertext = EXCLUDED.token_ciphertext,
+    last_error = NULL,
+    retry_after = NULL,
+    updated_at = now()
+WHERE NOT bot.enabled
 RETURNING bot.bot_id, bot.user_id, bot.username, bot.token_ciphertext, bot.enabled, bot.session, bot.consecutive_failures, bot.last_error, bot.last_used_at, bot.retry_after, bot.created_at, bot.updated_at
 `
 

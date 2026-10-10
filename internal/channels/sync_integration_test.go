@@ -49,6 +49,19 @@ func TestSyncUsesOneUpsertForWideDiscovery(t *testing.T) {
 	}
 }
 
+func TestSyncEmptyDiscovery(t *testing.T) {
+	db := testpostgres.New(t)
+	ctx := context.Background()
+	seedChannelOwner(t, db.Pool, 1001)
+	svc := channels.NewService(db.Pool, nil, channels.Config{})
+	for _, remote := range [][]channels.RemoteChannel{nil, {}} {
+		rows, err := svc.Sync(ctx, 1001, remote)
+		if err != nil || rows == nil || len(rows) != 0 {
+			t.Fatalf("empty Sync() = %v, %v", rows, err)
+		}
+	}
+}
+
 func TestSyncDeduplicatesSortsAndUpdatesChannels(t *testing.T) {
 	db := testpostgres.New(t)
 	ctx := context.Background()

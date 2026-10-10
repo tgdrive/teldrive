@@ -5,6 +5,28 @@ const rootId = "11111111-1111-4111-8111-111111111111";
 const alphaId = "22222222-2222-4222-8222-222222222222";
 const betaId = "33333333-3333-4333-8333-333333333333";
 
+test("sorting hydrates before the first request and URL overrides saved preferences", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("file-sort", JSON.stringify({ sort: "size", order: "desc" })));
+  await installFileApi(page);
+  const requests: URL[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === "/api/v1/files") requests.push(url);
+  });
+  await page.goto("/files");
+  await expect.poll(() => requests.length).toBeGreaterThan(0);
+  expect(requests[0].searchParams.get("sort")).toBe("size");
+  expect(requests[0].searchParams.get("order")).toBe("desc");
+  await page.getByRole("button", { name: "Toggle sort order" }).click();
+  await expect.poll(() => requests.at(-1)?.searchParams.get("order")).toBe("asc");
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("file-sort")!).order)).toBe("asc");
+  requests.length = 0;
+  await page.goto("/files?sort=updatedAt&order=asc");
+  await expect.poll(() => requests.length).toBeGreaterThan(0);
+  expect(requests[0].searchParams.get("sort")).toBe("updatedAt");
+  expect(requests[0].searchParams.get("order")).toBe("asc");
+});
+
 type FixtureFile = {
   id: string;
   parentId?: string;

@@ -148,12 +148,24 @@ func (s *Service) InsertPending(ctx context.Context, userID int64, tokens []stri
 }
 
 func (s *Service) VerifyPending(ctx context.Context, userID, botID int64) (*sqlcgen.Bot, error) {
+	return s.verifyPending(ctx, userID, botID, true)
+}
+
+// VerifyForProvision keeps a bot disabled until all channel invitations succeed.
+func (s *Service) VerifyForProvision(ctx context.Context, userID, botID int64) (*sqlcgen.Bot, error) {
+	return s.verifyPending(ctx, userID, botID, false)
+}
+
+func (s *Service) verifyPending(ctx context.Context, userID, botID int64, activate bool) (*sqlcgen.Bot, error) {
 	if userID <= 0 || botID <= 0 {
 		return nil, ErrInvalidInput
 	}
 	row, err := s.queries.GetBot(ctx, sqlcgen.GetBotParams{UserID: userID, BotID: botID})
 	if err != nil {
 		return nil, fmt.Errorf("load pending bot: %w", err)
+	}
+	if !activate && row.Enabled {
+		return row, nil
 	}
 	token, err := s.cipher.Open("bot-token", row.TokenCiphertext)
 	if err != nil {
@@ -166,8 +178,16 @@ func (s *Service) VerifyPending(ctx context.Context, userID, botID int64) (*sqlc
 	if identity.ID != botID || strings.TrimSpace(identity.Username) == "" {
 		return nil, ErrNotBot
 	}
+	if !activate {
+		row.Username = dbtypes.OptionalText(nonEmpty(identity.Username))
+		return row, nil
+	}
+	return s.Activate(ctx, userID, botID, identity.Username)
+}
+
+func (s *Service) Activate(ctx context.Context, userID, botID int64, username string) (*sqlcgen.Bot, error) {
 	activated, err := s.queries.ActivateBot(ctx, sqlcgen.ActivateBotParams{
-		Username: dbtypes.OptionalText(nonEmpty(identity.Username)), UserID: userID, BotID: botID,
+		Username: dbtypes.OptionalText(nonEmpty(username)), UserID: userID, BotID: botID,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("activate bot: %w", err)

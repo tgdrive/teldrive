@@ -1,6 +1,7 @@
 import { Spinner } from "@heroui/react";
 import { createFileRoute } from "@tanstack/react-router";
 import { FileManagerPage, type FilesLocation } from "@/features/files/file-manager";
+import { validFileSort, validSortOrder } from "@/features/files/sort-preference";
 
 export const Route = createFileRoute("/files")({
   validateSearch: (search: Record<string, unknown>): FilesLocation => ({
@@ -8,6 +9,8 @@ export const Route = createFileRoute("/files")({
     parentId: typeof search.parentId === "string" ? search.parentId : undefined,
     query: typeof search.query === "string" ? search.query : "",
     view: search.view === "grid" ? "grid" : "list",
+    sort: validFileSort(search.sort),
+    order: validSortOrder(search.order),
     split: search.split === true || search.split === "true",
     secondaryPath:
       typeof search.secondaryPath === "string" && search.secondaryPath

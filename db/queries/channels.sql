@@ -89,7 +89,12 @@ SELECT input.bot_id, sqlc.arg(user_id), decode(input.token_ciphertext, 'base64')
 FROM jsonb_to_recordset(sqlc.arg(bots)::jsonb) AS input(
     bot_id bigint, token_ciphertext text
 )
-ON CONFLICT (user_id, bot_id) DO NOTHING
+ON CONFLICT (user_id, bot_id) DO UPDATE
+SET token_ciphertext = EXCLUDED.token_ciphertext,
+    last_error = NULL,
+    retry_after = NULL,
+    updated_at = now()
+WHERE NOT bot.enabled
 RETURNING bot.*;
 
 -- name: GetBot :one
