@@ -1,0 +1,16 @@
+services:
+  postgres_db:
+    image: ghcr.io/tgdrive/postgres:17-alpine
+    container_name: postgres_db
+    restart: always
+    networks:
+     - postgres
+    environment:
+      - POSTGRES_USER=teldrive
+      - POSTGRES_PASSWORD=secret
+      - POSTGRES_DB=postgres
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+networks:
+  postgres:                                 
+    external: true

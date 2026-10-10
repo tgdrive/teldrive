@@ -1,0 +1,66 @@
+name: Validate native Teldrive v2 clients
+on:
+  push:
+    branches: [teldrive-v2-drive-es]
+    paths: [v2/**, .github/workflows/native-v2.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - name: Generate the Xcode project
+        working-directory: v2/teldrive/mobile/ios
+        run: |
+          command -v xcodegen >/dev/null || brew install xcodegen
+          xcodegen generate
+      - name: Build and test on an iPhone simulator
+        working-directory: v2/teldrive/mobile/ios
+        run: |
+          set -euo pipefail
+          device=$(xcrun simctl list devices available -j | python3 -c 'import sys,json; d=json.load(sys.stdin); print(next(x["udid"] for devices in d["devices"].values() for x in devices if x["isAvailable"] and x["name"].startswith("iPhone")))')
+          xcodebuild -project Teldrive.xcodeproj -scheme Teldrive -configuration Release -sdk iphonesimulator -destination "platform=iOS Simulator,id=$device" -derivedDataPath build/DerivedData -resultBundlePath build/Tests.xcresult CODE_SIGNING_ALLOWED=NO test
+          ditto -c -k --sequesterRsrc --keepParent build/DerivedData/Build/Products/Release-iphonesimulator/Teldrive.app build/Teldrive-iOS-Simulator.zip
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        if: always()
+        with:
+          name: teldrive-ios-simulator
+          path: |
+            v2/teldrive/mobile/ios/build/Teldrive-iOS-Simulator.zip
+            v2/teldrive/mobile/ios/build/Tests.xcresult
+          retention-days: 30
+  rclone-macos:
+    runs-on: macos-15
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16
+        with:
+          go-version-file: v2/rclone/go.mod
+          cache-dependency-path: v2/rclone/go.sum
+      - name: Prepare macFUSE headers
+        run: brew install --cask macfuse
+      - name: Build both macOS architectures with mount support
+        working-directory: v2/rclone
+        run: |
+          set -euo pipefail
+          export CGO_ENABLED=1 GOOS=darwin
+          export CGO_CFLAGS="-I/usr/local/include -I/opt/homebrew/include"
+          export CGO_LDFLAGS="-L/usr/local/lib -L/opt/homebrew/lib"
+          for arch in amd64 arm64; do
+            mkdir -p "dist-custom/darwin-$arch"
+            GOARCH=$arch go build -trimpath -tags cmount -ldflags '-s -w -X github.com/rclone/rclone/fs.Version=v1.76.0-teldrive-v2.1' -o "dist-custom/darwin-$arch/rclone" .
+            file "dist-custom/darwin-$arch/rclone"
+          done
+          if [ "$(uname -m)" = arm64 ]; then arch=arm64; else arch=amd64; fi
+          "dist-custom/darwin-$arch/rclone" version
+          "dist-custom/darwin-$arch/rclone" mount --help > /dev/null
+          go test ./backend/teldrive/...
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
+        with:
+          name: rclone-teldrive-v2-macos
+          path: v2/rclone/dist-custom/
+          retention-days: 30

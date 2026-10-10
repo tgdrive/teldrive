@@ -1,145 +1,56 @@
-# Telegram Drive
+# Teldrive
 
 ## Edición personalizada para Windows en español
 
-La nueva edición incluye un ejecutable Desktop independiente, CLI, temas, multimedia, papelera y configuración gráfica de rclone. [Ver fuentes e instrucciones](windows-edition/README.md) · [Descargar para Windows](https://github.com/webr0m/teldrive/releases/tag/v1.8.3-drive-es.1).
+La edición 1.8.3 incluye un ejecutable Desktop independiente, CLI, temas, multimedia, papelera y configuración gráfica de rclone. [Ver fuentes e instrucciones](windows-edition/README.md) · [Descargar la edición 1.8.3](https://github.com/webr0m/teldrive/releases/tag/v1.8.3-drive-es.1).
 
-El código de esta edición está en `windows-edition/`; el proyecto anterior se conserva a continuación.
+Las fuentes personalizadas están en `windows-edition/`. La raíz conserva la versión de Teldrive de `main`, con sus instrucciones a continuación.
 
-Telegram Drive is a powerful utility that enables you to create your own cloud storage service using Telegram as the backend.
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/tgdrive/teldrive)
 
+Teldrive is a powerful utility that enables you to organise your telegram files and much more.
 
-[![Discord](https://img.shields.io/discord/1142377485737148479?label=discord&logo=discord&style=flat-square&logoColor=white)](https://discord.gg/J2gVAZnHfP) 
+## Advantages Over Alternative Solutions
 
-**Click on icon to join Discord Server for better support**
+- **Exceptional Speed:** Teldrive stands out among similar tools, thanks to its implementation in Go, a language known for its efficiency. Its performance surpasses alternatives written in Python and other languages, with the exception of Rust.
 
-[Read Wiki for FAQ](https://github.com/divyam234/teldrive/wiki).
+- **Enhanced Management Capabilities:** Teldrive not only excels in speed but also offers an intuitive user interface for efficient file interaction which other tool lacks. Its compatibility with Rclone further enhances file management.
 
-<details open="open">
-  <summary>Table of Contents</summary>
-  <ol>
-    <li>
-      <ul>
-      <li>
-      <a href="#features">Features</a>
-    </li>
-        <li><a href="#deploy-using-docker-compose">Deploy using docker-compose</a></li>
-       <li><a href="#use-without-docker">Use without docker</a></li>
-      </ul>
-    </li>
-    <li><a href="#setting-up-things">Setting up things</a></li>
-    <ul>
-      <li><a href="#mandatory-vars">Mandatory Vars</a></li>
-      <li><a href="#optional-vars">Optional Vars</a></li>
-    </ul>
-  </ol>
-</details>
+> [!IMPORTANT]
+> Teldrive functions as a wrapper over your Telegram account, simplifying file access. However, users must adhere to the limitations imposed by the Telegram API. Teldrive is not responsible for any consequences arising from non-compliance with these API limits.You will be banned instantly if you misuse telegram API.
 
-## Features
+Visit https://teldrive-docs.pages.dev for setting up teldrive.
 
-- **UI:** Based on Material You to create nice looking UI themes.
-- **Secure:** Your data is secured using Telegram's robust encryption.
-- **Flexible Deployment:** Use Docker Compose or deploy without Docker.
-## Demo
+# Recognitions
 
-![demo](./public/demo.png)
+<a href="https://trendshift.io/repositories/7568" target="_blank"><img src="https://trendshift.io/api/badge/repositories/7568" alt="divyam234%2Fteldrive | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 
-[UI Repo ](https://github.com/divyam234/teldrive-ui)
+## Best Practices for Using Teldrive
 
-### Deploy using docker-compose
-First clone the repository
-```sh
-git clone https://github.com/divyam234/teldrive
-cd teldrive
-touch teldrive.db
-```
+### Dos:
 
+- **Follow Limits:** Adhere to the limits imposed by Telegram servers to avoid account bans and automatic deletion of your channel.Your files will be removed from telegram servers if you try to abuse the service as most people have zero brains they will still do so good luck.
+- **Responsible Storage:** Be mindful of the content you store on Telegram. Utilize storage efficiently and only keep data that serves a purpose.
 
-**Follow Below Steps**
+### Don'ts:
+- **Data Hoarding:** Avoid excessive data hoarding, as it not only violates Telegram's terms.
 
-- Create the `teldrive.env`  file with your variables and start your container.
-
-```sh
-docker compose up -d
-```
-- **Go to http://localhost:8080**
-- **Uploads from UI will be slower due to limitations of browser use [Teldrive Uploader](https://github.com/divyam234/teldrive-upload) for faster uploads.Make sure to use Multi Bots mode if you are using uploader.**
-
-- **If you intend to share download links with others, ensure that you enable multi bots mode with bots.**
-
-### Use without docker
-
-**Follow Below Steps**
-
-- Download the release binary of Teldrive from the releases section.
-
-- Add same env  file as above.
-  
-- Now, run the Teldrive executable binary directly.
-
-## Setting up things
-
-If you're locally or remotely hosting, create a file named `teldrive.env`  in the root directory and add all the variables there.
-An example of `teldrive.env` file:
-
-```sh
-APP_ID=1234
-APP_HASH=abc
-CHANNEL_ID=1234
-HTTPS=false
-COOKIE_SAME_SITE=true
-JWT_SECRET=abc
-DATABASE_URL=abc
-RATE_LIMIT=true
-LAZY_STREAM_BOTS=false
-
-```
-> **Warning**
->Default Channel can be selected through UI make sure to set it from account settings on first login.<br>
->Use strong JWT secret instead of pure guessable string.You can use openssl to generate it.<br>
-
-```bash
-$ openssl rand -hex 32
-```
-
-**Multi Bots Mode is recommended to avoid flood errors and enable maximum download speed, especially if you are using downloaders like IDM and aria2c which use multiple connections for downloads.**
-
-> **Note**
-> What it multi bots feature and what it does? <br>
-> This feature shares the Telegram API requests between other bots to avoid getting floodwaited (A kind of rate limiting that Telegram does in the backend to avoid flooding their servers) and to make the server handle more requests. <br>
-
-To enable multi bots, generate new bot tokens from BotFather and add it through UI on first login. 
-
-### Mandatory Vars
-Before running the bot, you will need to set up the following mandatory variables:
-
-- `APP_ID` : This is the API ID for your Telegram account, which can be obtained from my.telegram.org.
-
-- `APP_HASH` : This is the API HASH for your Telegram account, which can be obtained from my.telegram.org.
-
-- `JWT_SECRET` : Used for signing jwt tokens
-
-- `DATABASE_URL` : Connection String obtained from Postgres DB (you can use Neon db as free alternative fro postgres)
-
-### Optional Vars
-In addition to the mandatory variables, you can also set the following optional variables:
-- `HTTPS` : Only needed when frontend is on other domain.
-- `PORT` : Change listen port default is 8080
-- `ALLOWED_USERS` : Allow certain telegram usernames including yours to access the app.Enter comma seperated telegram usernames here.Its needed when your instance is on public cloud and you want to restrict other people to access you app.
-- `COOKIE_SAME_SITE` : Only needed when frontend is on other domain.
-
-- `LAZY_STREAM_BOTS` : If set to true start Bot session and close immediately when stream or download request is over otherwise run bots forever till server stops.
-
-- `BG_BOTS_LIMIT` : If LAZY_STREAM_BOTS is set to false it start atmost BG_BOTS_LIMIT no of bots in background to prevent connection recreation on every request(Default is 10).
-### For making use of Multi Bots support
-
-> **Warning**
->Bots will be auto added as admin in channel if you set them from UI if it fails somehow add it manually.
-## FAQ
-
-- How to get Postgres DB url ?
-> You can set up a local Postgres instance, but it's not recommended due to backup and data transfer hassles. The recommended approach is to use a free cloud-based Postgres DB like [Neon DB](https://neon.tech/).
+By following these guidelines, you contribute to the responsible and effective use of Telegram, maintaining a fair and equitable environment for all users.
 
 ## Contributing
 
-Feel free to contribute to this project if you have any further ideas.
+Feel free to contribute to this project.See [CONTRIBUTING.md](CONTRIBUTING.md) for more information.
+
+## Donate
+
+If you like this project small contribution would be appreciated [Paypal](https://paypal.me/redux234).
+
+## Star History
+
+<a href="https://www.star-history.com/#tgdrive/teldrive&Date">
+ <picture>
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=tgdrive/teldrive&type=Date&theme=dark" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=tgdrive/teldrive&type=Date" />
+   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=tgdrive/teldrive&type=Date" />
+ </picture>
+</a>
