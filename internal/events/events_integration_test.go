@@ -4,6 +4,7 @@ package events_test
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"io"
 	"log/slog"
@@ -30,7 +31,7 @@ func TestServiceDurableReplayNotificationsAndTickets(t *testing.T) {
 		MaxConnectionsPerUser: 5,
 		Heartbeat:             20 * time.Millisecond,
 		WriteTimeout:          time.Second,
-		TicketTTL:             80 * time.Millisecond,
+		TicketTTL:             time.Minute,
 		CleanupInterval:       time.Hour,
 		ConnectTimeout:        time.Second,
 		PingInterval:          20 * time.Millisecond,
@@ -165,7 +166,12 @@ func TestServiceDurableReplayNotificationsAndTickets(t *testing.T) {
 	if _, err := first.AuthenticateTicket(ctx, "invalid"); !errors.Is(err, events.ErrInvalidTicket) {
 		t.Fatalf("invalid ticket error = %v", err)
 	}
-	time.Sleep(100 * time.Millisecond)
+	// Expire against PostgreSQL's clock instead of relying on a subsecond sleep
+	// and synchronized host/container clocks.
+	hash := sha256.Sum256([]byte(ticket.Value))
+	if _, err := db.Pool.Exec(ctx, "UPDATE event_stream_tickets SET expires_at = now() - interval '1 second' WHERE token_hash = $1", hash[:]); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := first.AuthenticateTicket(ctx, ticket.Value); !errors.Is(err, events.ErrInvalidTicket) {
 		t.Fatalf("expired ticket error = %v", err)
 	}

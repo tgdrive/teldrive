@@ -21,7 +21,7 @@ func (h *Handler) GetStorageStats(ctx context.Context) (gen.GetStorageStatsRes, 
 
 	response := gen.StorageDashboard{
 		Summary: gen.StorageSummary{
-			LogicalBytes:  dashboard.Summary.LogicalBytes,
+			SpamBytes: dashboard.Summary.SpamBytes, LogicalBytes: dashboard.Summary.LogicalBytes,
 			ActiveFiles:   dashboard.Summary.ActiveFiles,
 			ActiveFolders: dashboard.Summary.ActiveFolders,
 			TrashedFiles:  dashboard.Summary.TrashedFiles,

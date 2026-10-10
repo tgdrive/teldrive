@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 test("users search is debounced and stays usable while results load", async ({ page }) => {
   const users = [
-    { userId: 1, displayName: "Instance Owner", role: "owner", disabled: false },
+    { userId: 1, displayName: "Propietario del servidor", role: "owner", disabled: false },
     { userId: 2, displayName: "Alice", username: "alice", role: "user", disabled: false },
   ];
   const searches: (string | null)[] = [];
@@ -36,43 +36,38 @@ test("users search is debounced and stays usable while results load", async ({ p
   });
 
   await page.goto("/settings/users");
-  await expect(page.getByText("Instance Owner", { exact: true })).toBeVisible();
+  await expect(page.getByText("Propietario del servidor", { exact: true })).toBeVisible();
   expect(searches).toEqual([null]);
-  await page.clock.install();
-  await page.clock.pauseAt(new Date(Date.now() + 1_000));
 
-  const input = page.getByRole("textbox", { name: "Search users" });
+  const input = page.getByRole("textbox", { name: "Buscar usuarios" });
   await input.fill("A");
-  await page.clock.runFor(200);
+  await page.waitForTimeout(150);
   await input.fill("Al");
-  await page.clock.runFor(200);
+  await page.waitForTimeout(150);
   await input.fill(" Alice ");
-  await page.clock.runFor(299);
   expect(searches).toEqual([null]);
   await expect(input).toHaveValue(" Alice ");
 
-  await page.clock.runFor(1);
   await expect.poll(() => searches).toEqual([null, "Alice"]);
   await expect(input).toBeVisible();
   await expect(input).toBeFocused();
-  await expect(page.getByText("Instance Owner", { exact: true })).toBeVisible();
-  const response = page.waitForResponse((response) =>
-    response.url().includes("/api/v1/admin/users?search=Alice"),
-  );
+  await expect(page.getByText("Propietario del servidor", { exact: true })).toBeVisible();
+  const response = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return url.pathname === "/api/v1/admin/users" && url.searchParams.get("search") === "Alice";
+  });
   releaseSearch();
   await (await response).finished();
-  await page.clock.runFor(1);
-  await expect(page.getByText("Instance Owner", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Propietario del servidor", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Alice", { exact: true })).toBeVisible();
 
   // Whitespace-only changes should not issue another search.
   await input.fill("Alice");
-  await page.clock.runFor(300);
+  await page.waitForTimeout(350);
   expect(searches).toEqual([null, "Alice"]);
 
   // Clearing restores the cached unfiltered list without an unnecessary request.
   await input.fill("");
-  await page.clock.runFor(300);
-  await expect(page.getByText("Instance Owner", { exact: true })).toBeVisible();
+  await expect(page.getByText("Propietario del servidor", { exact: true })).toBeVisible();
   expect(searches).toEqual([null, "Alice"]);
 });

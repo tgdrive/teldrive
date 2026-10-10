@@ -1,7 +1,13 @@
 node_modules/
 .direnv/
 dist/
+dist-release/
 test-results/
+touch-test-results/
+touch-test-results-*/
+playwright-report/
+desktop/obj/
+desktop/Payload.zip
 .env
 .env.*
 coverage/

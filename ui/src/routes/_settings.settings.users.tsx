@@ -39,43 +39,43 @@ function UsersSettings() {
     try {
       await updateUser.mutateAsync({ params: { path: { userId } }, body });
       await refresh();
-      toast.success("User updated");
+      toast.success("Usuario actualizado");
     } catch (error) {
-      toast.error("User could not be updated", { description: userMessage(error) });
+      toast.error("No se pudo actualizar el usuario", { description: userMessage(error) });
     }
   };
 
   return (
     <div className="space-y-6">
       <SettingsPageHeader
-        title="Users & roles"
-        description="Manage who can use this Teldrive instance and which users can administer system-wide features."
+        title="Usuarios y permisos"
+        description="Administra quién puede usar este servidor y quién puede gestionar sus funciones de sistema."
         actions={
           <Button variant="secondary" onPress={() => void refresh()}>
             <RefreshIcon className="size-4" />
-            Refresh
+            Actualizar
           </Button>
         }
       />
 
       <SettingsSection
-        title="Users"
-        description="The first account is the instance owner and cannot be demoted or disabled."
+        title="Usuarios"
+        description="La primera cuenta es la propietaria del servidor y no se puede degradar ni desactivar."
       >
         <div className="border-b border-border p-4">
           <TextField value={search} onChange={setSearch} className="max-w-md">
-            <Label>Search users</Label>
-            <Input placeholder="Name, username, or Telegram user ID" />
+            <Label>Buscar usuarios</Label>
+            <Input placeholder="Nombre, usuario o ID de Telegram" />
           </TextField>
         </div>
         {query.isPending ? (
-          <div className="flex justify-center p-6" role="status" aria-label="Loading users">
+          <div className="flex justify-center p-6" role="status" aria-label="Cargando usuarios">
             <Spinner />
           </div>
         ) : query.data?.length ? (
           query.data.map((user) => {
             const displayName =
-              user.displayName?.trim() || user.username?.trim() || `User ${user.userId}`;
+              user.displayName?.trim() || user.username?.trim() || `Usuario ${user.userId}`;
             const owner = user.role === "owner";
             return (
               <SettingsRow
@@ -88,11 +88,11 @@ function UsersSettings() {
                     variant="tertiary"
                     color={owner ? "accent" : user.role === "admin" ? "warning" : "default"}
                   >
-                    {user.role}
+                    {user.role === "owner" ? "Propietario" : user.role === "admin" ? "Administrador" : "Usuario"}
                   </Chip>
                   {user.disabled ? (
                     <Chip variant="tertiary" color="danger">
-                      Disabled
+                      Desactivado
                     </Chip>
                   ) : null}
                   {!owner ? (
@@ -104,7 +104,7 @@ function UsersSettings() {
                         void update(user.userId, { role: user.role === "admin" ? "user" : "admin" })
                       }
                     >
-                      {user.role === "admin" ? "Make user" : "Make admin"}
+                      {user.role === "admin" ? "Asignar usuario" : "Asignar administrador"}
                     </Button>
                   ) : null}
                   {!owner ? (
@@ -114,7 +114,7 @@ function UsersSettings() {
                       isDisabled={updateUser.isPending}
                       onPress={() => void update(user.userId, { disabled: !user.disabled })}
                     >
-                      {user.disabled ? "Enable" : "Disable"}
+                      {user.disabled ? "Activar" : "Desactivar"}
                     </Button>
                   ) : null}
                   {!owner ? (
@@ -127,15 +127,15 @@ function UsersSettings() {
                           await revokeAccess.mutateAsync({
                             params: { path: { userId: user.userId } },
                           });
-                          toast.success("Sessions and API keys revoked");
+                          toast.success("Sesiones y claves de API revocadas");
                         } catch (error) {
-                          toast.error("Access could not be revoked", {
+                          toast.error("No se pudo revocar el acceso", {
                             description: userMessage(error),
                           });
                         }
                       }}
                     >
-                      Revoke access
+                      Revocar acceso
                     </Button>
                   ) : null}
                 </div>
@@ -143,7 +143,7 @@ function UsersSettings() {
             );
           })
         ) : (
-          <p className="p-6 text-sm text-muted">No users match this search.</p>
+          <p className="p-6 text-sm text-muted">Ningún usuario coincide con la búsqueda.</p>
         )}
       </SettingsSection>
     </div>

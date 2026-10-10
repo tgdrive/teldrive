@@ -28,14 +28,14 @@ const PAGE_SIZE = 20;
 const CANCELLABLE_STATUSES = ["pending", "scheduled", "available", "running", "retryable"];
 
 const STATUS_TABS = [
-  { key: "pending", label: "Pending" },
-  { key: "scheduled", label: "Scheduled" },
-  { key: "available", label: "Available" },
-  { key: "running", label: "Running" },
+  { key: "pending", label: "Pendiente" },
+  { key: "scheduled", label: "Programada" },
+  { key: "available", label: "Disponible" },
+  { key: "running", label: "En ejecución" },
   { key: "retryable", label: "Retryable" },
-  { key: "cancelled", label: "Cancelled" },
-  { key: "discarded", label: "Discarded" },
-  { key: "completed", label: "Completed" },
+  { key: "cancelled", label: "Cancelada" },
+  { key: "discarded", label: "Descartada" },
+  { key: "completed", label: "Completada" },
 ] as const;
 
 export const Route = createFileRoute("/tasks")({
@@ -214,10 +214,10 @@ function TasksPage() {
     });
     setRetryingId(null);
     if (error) {
-      toast.error("Failed to retry task");
+      toast.error("No se pudo reintentar la tarea");
       return;
     }
-    toast.success("Task queued for retry");
+    toast.success("Tarea programada para reintentar");
     refreshTasks();
   };
 
@@ -234,13 +234,15 @@ function TasksPage() {
     if (error) {
       toast.error(
         CANCELLABLE_STATUSES.includes(task.status)
-          ? "Failed to cancel task"
-          : "Failed to remove task",
+          ? "No se pudo cancelar la tarea"
+          : "No se pudo eliminar la tarea",
       );
       return;
     }
     toast.success(
-      CANCELLABLE_STATUSES.includes(task.status) ? "Task cancellation requested" : "Task removed",
+      CANCELLABLE_STATUSES.includes(task.status)
+        ? "Cancelación de tarea solicitada"
+        : "Tarea eliminada",
     );
     refreshTasks();
   };
@@ -253,7 +255,7 @@ function TasksPage() {
     });
     setCleaning(false);
     if (error) {
-      toast.error(`Failed to clean ${cleanupStatus} tasks`);
+      toast.error(`No se pudieron limpiar las tareas ${cleanupStatus} tareas`);
       return;
     }
 
@@ -261,15 +263,15 @@ function TasksPage() {
     setCleanupStatus(null);
     setCursor(undefined);
     setCursorHistory([]);
-    toast.success(`Removed ${response.count} ${status} task${response.count === 1 ? "" : "s"}`);
+    toast.success(`Eliminadas ${response.count} ${status} tarea${response.count === 1 ? "" : "s"}`);
     refreshTasks();
   };
 
   return (
     <Page>
       <PageHeader
-        title="Tasks"
-        description="Create, monitor, retry, and inspect background work."
+        title="Tareas"
+        description="Crea, supervisa, reintenta y consulta tareas en segundo plano."
         actions={
           <Button
             size="sm"
@@ -277,7 +279,7 @@ function TasksPage() {
             className="bg-accent text-accent-foreground"
             onPress={() => setComposerOpen(true)}
           >
-            <AddIcon className="size-3.5" /> New Task
+            <AddIcon className="size-3.5" /> Nueva tarea
           </Button>
         }
       />
@@ -295,8 +297,8 @@ function TasksPage() {
       <PageToolbar className="items-stretch">
         <div className="flex min-w-0 flex-1 flex-col gap-2 md:flex-row md:items-center">
           <Input
-            aria-label="Search tasks"
-            placeholder="Search tasks by type, queue, path, or ID"
+            aria-label="Buscar tareas"
+            placeholder="Buscar tareas por tipo, cola, ruta o ID"
             value={search.query}
             onChange={(event) => setSearch({ query: event.currentTarget.value })}
             className="min-w-0 flex-1"
@@ -321,7 +323,7 @@ function TasksPage() {
                     isDisabled={(taskStats?.[purgeStatus] ?? 0) === 0}
                     onPress={() => setCleanupStatus(purgeStatus)}
                   >
-                    <TrashIcon className="size-3.5" /> Clean
+                    <TrashIcon className="size-3.5" /> Limpiar
                   </Button>
                 ) : null;
               })()}
@@ -332,7 +334,7 @@ function TasksPage() {
 
       <Card className="overflow-hidden p-0">
         <div className="flex items-center justify-between border-border border-b px-4 py-3">
-          <div className="text-sm font-semibold">Task activity</div>
+          <div className="text-sm font-semibold">Actividad de tareas</div>
           {hasActiveTasks && (
             <span className="flex items-center gap-2 text-xs text-muted">
               <span className="size-2 animate-pulse rounded-full bg-accent" />
@@ -342,7 +344,7 @@ function TasksPage() {
         </div>
         {filteredTasks.length > 0 ? (
           <ListBox
-            aria-label="Tasks"
+            aria-label="Tareas"
             selectionMode="none"
             className="w-full min-w-0 divide-y divide-border overflow-hidden p-0"
           >
@@ -359,8 +361,8 @@ function TasksPage() {
           </ListBox>
         ) : (
           <EmptyState
-            title="No tasks match these filters"
-            description="Adjust the active filters or queue a new task."
+            title="Ninguna tarea coincide con los filtros"
+            description="Ajusta los filtros o programa una nueva tarea."
             action={
               <Button size="sm" variant="primary" onPress={() => setComposerOpen(true)}>
                 New Task
@@ -378,13 +380,13 @@ function TasksPage() {
             isDisabled={cursorHistory.length === 0}
             onPress={goPrevious}
           >
-            <PrevIcon className="size-3.5" /> Previous
+            <PrevIcon className="size-3.5" /> Anterior
           </Button>
           <span className="min-w-20 text-center text-xs text-muted">
-            Page {cursorHistory.length + 1}
+            Página {cursorHistory.length + 1}
           </span>
           <Button size="sm" variant="tertiary" isDisabled={!meta?.nextCursor} onPress={goNext}>
-            Next <NextIcon className="size-3.5" />
+            Siguiente <NextIcon className="size-3.5" />
           </Button>
         </div>
       )}
@@ -393,9 +395,9 @@ function TasksPage() {
         open={cleanupStatus != null}
         onOpenChange={(open) => !open && setCleanupStatus(null)}
         onConfirm={cleanTasks}
-        title={`Clean ${cleanupStatus ?? ""} tasks?`}
-        message={`This permanently removes all ${cleanupStatus ? (taskStats?.[cleanupStatus] ?? 0) : 0} ${cleanupStatus ?? ""} task records. Other task statuses are not affected.`}
-        confirmLabel="Clean"
+        title={`Limpiar ${cleanupStatus ?? ""} tareas?`}
+        message={`Esto elimina definitivamente los ${cleanupStatus ? (taskStats?.[cleanupStatus] ?? 0) : 0} ${cleanupStatus ?? ""} registros de tareas. Los otros estados no se modifican.`}
+        confirmLabel="Limpiar"
         isPending={cleaning}
       />
     </Page>
@@ -430,7 +432,7 @@ function TaskRow({
             <TaskStatusChip status={task.status} />
             {task.parentId ? (
               <Chip size="sm" variant="tertiary">
-                Child task
+                Subtarea
               </Chip>
             ) : null}
           </div>
@@ -444,21 +446,21 @@ function TaskRow({
           </Link>
 
           <div className="mt-1.5 flex min-w-0 items-center gap-2 overflow-hidden text-[11px] text-muted sm:flex-wrap sm:gap-x-3 sm:gap-y-1">
-            <span className="shrink-0">{task.queue || "default"} queue</span>
+            <span className="shrink-0">Cola {task.queue || "default"}</span>
             <span className="shrink-0">{taskDuration(task)}</span>
             <span className="truncate" title={formatDate(task.createdAt)}>
               {formatRelativeDate(task.createdAt)}
             </span>
             {(task.attempt ?? 0) > 0 ? (
               <span className="hidden shrink-0 sm:inline lg:hidden">
-                Attempt {task.attempt} of {task.maxAttempts || "—"}
+                Intento {task.attempt} of {task.maxAttempts || "—"}
               </span>
             ) : null}
           </div>
         </div>
 
         <div className="hidden lg:block">
-          <div className="text-[10px] font-medium uppercase tracking-wide text-muted">Attempts</div>
+          <div className="text-[10px] font-medium uppercase tracking-wide text-muted">Intentos</div>
           <div className="mt-1 text-xs font-semibold tabular-nums">
             {task.attempt ?? 0} / {task.maxAttempts || "—"}
           </div>
@@ -471,9 +473,9 @@ function TaskRow({
               variant="primary"
               isPending={retryPending}
               onPress={onRetry}
-              aria-label={`Retry ${title}`}
+              aria-label={`Reintentar ${title}`}
             >
-              Retry
+              Reintentar
             </Button>
           ) : null}
           {task.status === "running" ? (
@@ -482,9 +484,9 @@ function TaskRow({
               variant="danger-soft"
               isPending={deletePending}
               onPress={onDelete}
-              aria-label={`Cancel ${title}`}
+              aria-label={`Cancelar ${title}`}
             >
-              Cancel
+              Cancelar
             </Button>
           ) : (
             <Button
@@ -493,7 +495,7 @@ function TaskRow({
               isIconOnly
               isPending={deletePending}
               onPress={onDelete}
-              aria-label={`Delete ${title}`}
+              aria-label={`Eliminar ${title}`}
             >
               <TrashIcon className="size-3.5" />
             </Button>
@@ -517,7 +519,7 @@ function TaskStatusSelect({
 
   return (
     <Select
-      aria-label="Task status"
+      aria-label="Estado de tarea"
       selectedKey={value}
       onSelectionChange={(key) => onChange(String(key))}
       className="w-44 shrink-0"
@@ -560,24 +562,24 @@ function QueueManager({ queues, onChanged }: { queues: TaskQueueOut[]; onChanged
     const { error } = await fetchClient.POST(endpoint, { params: { path: { queue: queue.name } } });
     setPendingQueue(null);
     if (error) {
-      toast.error(`Failed to ${queue.paused ? "resume" : "pause"} ${queue.name}`);
+      toast.error(`No se pudo ${queue.paused ? "reanudar" : "pausar"} ${queue.name}`);
       return;
     }
-    toast.success(`${queue.name} ${queue.paused ? "resumed" : "paused"}`);
+    toast.success(`${queue.name} ${queue.paused ? "reanudada" : "en pausa"}`);
     onChanged();
   };
 
   return (
     <Popover>
       <Button size="sm" variant="tertiary">
-        <FilterIcon className="size-3.5" /> Queues
+        <FilterIcon className="size-3.5" /> Colas
       </Button>
       <Popover.Content placement="bottom end" offset={8} className="w-[min(92vw,28rem)]">
         <Popover.Dialog className="p-0">
           <div className="border-border border-b px-4 py-3">
-            <Popover.Heading className="text-sm font-semibold">Worker queues</Popover.Heading>
+            <Popover.Heading className="text-sm font-semibold">Colas de procesos</Popover.Heading>
             <p className="mt-0.5 text-xs text-muted">
-              Pause or resume River queues without stopping workers.
+              Pausa o reanuda colas de River sin detener los procesos.
             </p>
           </div>
           <div className="max-h-80 divide-y divide-border overflow-y-auto">
@@ -591,12 +593,12 @@ function QueueManager({ queues, onChanged }: { queues: TaskQueueOut[]; onChanged
                         className={`size-2 rounded-full ${queue.paused ? "bg-warning" : "bg-success"}`}
                       />
                       <span className="text-[10px] text-muted">
-                        {queue.paused ? "Paused" : "Active"}
+                        {queue.paused ? "En pausa" : "Activo"}
                       </span>
                     </div>
                     <div className="mt-1 flex gap-3 text-[11px] text-muted">
-                      <span>{queue.available} available</span>
-                      <span>{queue.running} running</span>
+                      <span>{queue.available} disponibles</span>
+                      <span>{queue.running} en ejecución</span>
                     </div>
                   </div>
                   <Button
@@ -605,13 +607,13 @@ function QueueManager({ queues, onChanged }: { queues: TaskQueueOut[]; onChanged
                     isPending={pendingQueue === queue.name}
                     onPress={() => toggleQueue(queue)}
                   >
-                    {queue.paused ? "Resume" : "Pause"}
+                    {queue.paused ? "Reanudar" : "Pausar"}
                   </Button>
                 </div>
               ))
             ) : (
               <div className="px-4 py-8 text-center text-sm text-muted">
-                No active River queues.
+                No hay colas de River activas.
               </div>
             )}
           </div>

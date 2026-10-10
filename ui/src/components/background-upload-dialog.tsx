@@ -86,25 +86,25 @@ export function BackgroundUploadDialog({
   const queueUpload = async () => {
     try {
       const target = destination.trim();
-      if (!target) throw new Error("Destination is required");
+      if (!target) throw new Error("El destino es obligatorio");
       if (!target.startsWith("/") && !isUUID(target)) {
-        throw new Error("Destination must be an absolute drive path or folder UUID");
+        throw new Error("El destino debe ser una ruta absoluta de la unidad o el UUID de una carpeta");
       }
       const bodySources = sources.map<ImportSource>((source, index) => {
         const location = source.location.trim();
-        if (!location) throw new Error(`Source ${index + 1} is empty`);
-        if (source.type === "local" && !location.startsWith("/")) {
-          throw new Error(`Local source ${index + 1} must use an absolute path`);
+        if (!location) throw new Error(`El origen ${index + 1} está vacío`);
+        if (source.type === "local" && !/^(\/|[a-zA-Z]:[\\/]|\\\\)/.test(location)) {
+          throw new Error(`El origen local ${index + 1} debe usar una ruta absoluta`);
         }
         if (source.type === "http") {
           const url = new URL(location);
           if (url.protocol !== "http:" && url.protocol !== "https:") {
-            throw new Error(`HTTP source ${index + 1} must use http or https`);
+            throw new Error(`El origen HTTP ${index + 1} debe usar http o https`);
           }
         }
         const destinationPath = source.destinationPath.trim();
         if (destinationPath.startsWith("/") || destinationPath.split("/").includes("..")) {
-          throw new Error(`Destination ${index + 1} must be a relative path`);
+          throw new Error(`El destino ${index + 1} debe ser una ruta relativa`);
         }
         const item: ImportSource = {
           type: source.type,
@@ -129,12 +129,12 @@ export function BackgroundUploadDialog({
       };
       setSubmitting(true);
       const { error } = await fetchClient.POST("/v1/uploads/imports", { body });
-      if (error) throw new Error("The server rejected the background upload");
-      toast.success("Background upload queued");
+      if (error) throw new Error("El servidor rechazó la subida en segundo plano");
+      toast.success("Subida en segundo plano programada");
       reset();
       onOpenChange(false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to queue background upload");
+      toast.error(error instanceof Error ? error.message : "No se pudo programar la subida en segundo plano");
     } finally {
       setSubmitting(false);
     }
@@ -145,14 +145,14 @@ export function BackgroundUploadDialog({
       open={open}
       onOpenChange={(next) => (next ? onOpenChange(true) : close())}
       isDismissable={!submitting}
-      title="Background upload"
-      description={`Import server paths and remote URLs into ${currentPath}.`}
+      title="Subida en segundo plano"
+      description={`Importa archivos del servidor y URLs remotas a ${currentPath}.`}
       className="min-w-0 sm:w-[min(94vw,46rem)] sm:max-w-none bg-surface"
       bodyClassName="p-0"
       footer={
         <>
           <Button variant="secondary" isDisabled={submitting} onPress={close}>
-            Cancel
+            Cancelar
           </Button>
           <Button variant="primary" isPending={submitting} onPress={() => void queueUpload()}>
             Queue upload
@@ -162,10 +162,10 @@ export function BackgroundUploadDialog({
     >
       <div className="grid gap-4 p-4 sm:p-5">
         <TextField value={destination} onChange={setDestination} isRequired>
-          <Label>Destination</Label>
+          <Label>Destino</Label>
           <Input placeholder="/Movies/Incoming or a folder UUID" />
           <div className="mt-1 text-xs text-muted">
-            Enter an absolute drive path from root or an existing folder UUID.
+            Introduce una ruta absoluta desde la raíz o el UUID de una carpeta existente.
           </div>
         </TextField>
 
@@ -178,10 +178,10 @@ export function BackgroundUploadDialog({
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
                   <div className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
-                    Source {index + 1}
+                    Origen {index + 1}
                   </div>
                   <div className="mt-0.5 text-xs text-muted">
-                    {source.type === "local" ? "Read from this server" : "Fetch over HTTP"}
+                    {source.type === "local" ? "Leer desde este servidor" : "Descargar por HTTP"}
                   </div>
                 </div>
                 <Button
@@ -216,7 +216,7 @@ export function BackgroundUploadDialog({
                   value={source.location}
                   onChange={(value) => patchSource(source.id, { location: value })}
                 >
-                  <Label>{source.type === "local" ? "Absolute server path" : "URL"}</Label>
+                  <Label>{source.type === "local" ? "Ruta absoluta del servidor" : "URL"}</Label>
                   <Input
                     placeholder={
                       source.type === "local"
@@ -229,8 +229,8 @@ export function BackgroundUploadDialog({
                   value={source.destinationPath}
                   onChange={(value) => patchSource(source.id, { destinationPath: value })}
                 >
-                  <Label>Destination path</Label>
-                  <Input placeholder="Optional relative path" />
+                  <Label>Ruta de destino</Label>
+                  <Input placeholder="Ruta relativa opcional" />
                 </TextField>
               </div>
 
@@ -238,7 +238,7 @@ export function BackgroundUploadDialog({
                 <Accordion.Item id={`source-options-${source.id}`}>
                   <Accordion.Heading>
                     <Accordion.Trigger className="rounded-lg text-xs font-medium text-muted hover:text-foreground">
-                      Source options
+                      Opciones de origen
                       <Accordion.Indicator />
                     </Accordion.Trigger>
                   </Accordion.Heading>
@@ -246,7 +246,7 @@ export function BackgroundUploadDialog({
                     <Accordion.Body>
                       <div className="grid gap-3 border-border border-t pt-3 sm:grid-cols-2">
                         <TextField>
-                          <Label>Exclude patterns</Label>
+                          <Label>Patrones de exclusión</Label>
                           <TextArea
                             value={source.exclude}
                             onChange={(event) =>
@@ -257,7 +257,7 @@ export function BackgroundUploadDialog({
                           />
                         </TextField>
                         <TextField isDisabled={source.type !== "http"}>
-                          <Label>HTTP headers</Label>
+                          <Label>Cabeceras HTTP</Label>
                           <TextArea
                             value={source.headers}
                             onChange={(event) =>
@@ -277,7 +277,7 @@ export function BackgroundUploadDialog({
         </div>
 
         <Button variant="secondary" onPress={() => setSources((items) => [...items, newSource()])}>
-          <PlusIcon className="size-3.5" /> Add source
+          <PlusIcon className="size-3.5" /> Añadir origen
         </Button>
 
         <Accordion
@@ -288,7 +288,7 @@ export function BackgroundUploadDialog({
           <Accordion.Item id="advanced-settings">
             <Accordion.Heading>
               <Accordion.Trigger className="rounded-xl py-3 text-sm font-semibold">
-                Advanced settings
+                Opciones avanzadas
                 <Accordion.Indicator />
               </Accordion.Trigger>
             </Accordion.Heading>
@@ -298,14 +298,14 @@ export function BackgroundUploadDialog({
                   <div className="grid gap-3 sm:grid-cols-2">
                     <TextField value={minSize} onChange={setMinSize}>
                       <Label>Minimum size</Label>
-                      <Input placeholder="For example 10 MiB" />
+                      <Input placeholder="Por ejemplo 10 MiB" />
                     </TextField>
                     <TextField value={maxSize} onChange={setMaxSize}>
                       <Label>Maximum size</Label>
-                      <Input placeholder="For example 20 GiB" />
+                      <Input placeholder="Por ejemplo 20 GiB" />
                     </TextField>
                     <NumberField
-                      aria-label="Chunk size in MiB"
+                      aria-label="Tamaño de fragmento en MiB"
                       value={chunkSizeMiB}
                       minValue={64}
                       maxValue={2000}
@@ -313,7 +313,7 @@ export function BackgroundUploadDialog({
                         setChunkSizeMiB(Math.max(64, Math.min(2000, value ?? 512)))
                       }
                     >
-                      <Label>Chunk size (MiB)</Label>
+                      <Label>Tamaño de fragmento (MiB)</Label>
                       <NumberField.Group>
                         <NumberField.DecrementButton />
                         <NumberField.Input />
@@ -322,7 +322,7 @@ export function BackgroundUploadDialog({
                       </NumberField.Group>
                     </NumberField>
                     <NumberField
-                      aria-label="Concurrent upload parts"
+                      aria-label="Fragmentos de subida simultáneos"
                       value={partConcurrency}
                       minValue={1}
                       maxValue={16}
@@ -330,7 +330,7 @@ export function BackgroundUploadDialog({
                         setPartConcurrency(Math.max(1, Math.min(16, value ?? 4)))
                       }
                     >
-                      <Label>Concurrent parts</Label>
+                      <Label>Fragmentos simultáneos</Label>
                       <NumberField.Group>
                         <NumberField.DecrementButton />
                         <NumberField.Input />
@@ -340,7 +340,7 @@ export function BackgroundUploadDialog({
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <TextField>
-                      <Label>Batch exclusions</Label>
+                      <Label>Exclusiones de lotes</Label>
                       <TextArea
                         value={exclude}
                         onChange={(event) => setExclude(event.currentTarget.value)}
@@ -349,7 +349,7 @@ export function BackgroundUploadDialog({
                       />
                     </TextField>
                     <TextField>
-                      <Label>Default HTTP headers</Label>
+                      <Label>Cabeceras HTTP predeterminadas</Label>
                       <TextArea
                         value={headers}
                         onChange={(event) => setHeaders(event.currentTarget.value)}
@@ -363,7 +363,7 @@ export function BackgroundUploadDialog({
                       <Switch.Control>
                         <Switch.Thumb />
                       </Switch.Control>
-                      <Label>Encrypt uploaded files</Label>
+                      <Label>Cifrar archivos subidos</Label>
                     </Switch.Content>
                   </Switch>
                 </div>

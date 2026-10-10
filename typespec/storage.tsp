@@ -8,6 +8,7 @@ model StorageSummary {
   activeFiles: int64;
   activeFolders: int64;
   trashedFiles: int64;
+  spamBytes: int64;
   trashBytes: int64;
 }
 

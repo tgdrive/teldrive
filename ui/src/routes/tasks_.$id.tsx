@@ -62,7 +62,7 @@ function TaskDetailPage() {
   }, [id, qc, task?.status]);
 
   if (!task) {
-    return <div className="py-20 text-center text-sm text-muted">Task not found.</div>;
+    return <div className="py-20 text-center text-sm text-muted">No se encontró la tarea.</div>;
   }
 
   const retry = async () => {
@@ -72,10 +72,10 @@ function TaskDetailPage() {
     });
     setRetrying(false);
     if (error) {
-      toast.error("Failed to retry task");
+      toast.error("No se pudo reintentar la tarea");
       return;
     }
-    toast.success("Task queued for retry");
+    toast.success("Tarea programada para reintentar");
     await invalidateTaskQueries(qc, id);
   };
 
@@ -87,12 +87,14 @@ function TaskDetailPage() {
     setDeleting(false);
     if (error) {
       toast.error(
-        ACTIVE_STATES.includes(task.status) ? "Failed to cancel task" : "Failed to remove task",
+        ACTIVE_STATES.includes(task.status)
+          ? "No se pudo cancelar la tarea"
+          : "No se pudo eliminar la tarea",
       );
       return;
     }
     toast.success(
-      ACTIVE_STATES.includes(task.status) ? "Task cancellation requested" : "Task removed",
+      ACTIVE_STATES.includes(task.status) ? "Cancelación de tarea solicitada" : "Tarea eliminada",
     );
     await invalidateTaskQueries(qc, id);
     navigate({
@@ -116,7 +118,7 @@ function TaskDetailPage() {
             to="/tasks"
             search={{ status: "running", query: "" }}
             className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg text-muted transition hover:bg-muted/40 hover:text-foreground"
-            aria-label="Back to tasks"
+            aria-label="Volver a tareas"
           >
             <BackIcon className="size-4" />
           </Link>
@@ -133,7 +135,7 @@ function TaskDetailPage() {
                   params={{ id: task.parentId }}
                   className="hover:text-foreground"
                 >
-                  Parent {task.parentId}
+                  Tarea principal {task.parentId}
                 </Link>
               )}
             </div>
@@ -142,11 +144,11 @@ function TaskDetailPage() {
 
         <div className="flex flex-wrap gap-2 lg:justify-end">
           <Button size="sm" variant="tertiary" onPress={refresh}>
-            <RefreshIcon className="size-3.5" /> Refresh
+            <RefreshIcon className="size-3.5" /> Actualizar
           </Button>
           {["cancelled", "discarded", "retryable"].includes(task.status) && (
             <Button size="sm" variant="primary" isPending={retrying} onPress={retry}>
-              Retry
+              Reintentar
             </Button>
           )}
           <Button
@@ -155,34 +157,34 @@ function TaskDetailPage() {
             isPending={deleting}
             onPress={remove}
           >
-            {ACTIVE_STATES.includes(task.status) ? "Cancel" : "Delete"}
+            {ACTIVE_STATES.includes(task.status) ? "Cancelar" : "Eliminar"}
           </Button>
         </div>
       </header>
 
       <Card className="overflow-hidden p-0">
         <Card.Header className="flex-col items-start gap-1 border-border border-b px-5 py-4">
-          <Card.Title className="text-sm font-semibold">Execution</Card.Title>
+          <Card.Title className="text-sm font-semibold">Ejecución</Card.Title>
           <Card.Description className="text-xs">
-            Current state, worker lifecycle, and operational details.
+            Estado actual, ciclo de ejecución y detalles de la operación.
           </Card.Description>
         </Card.Header>
         <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.85fr)]">
           <div className="border-border p-5 lg:border-r sm:p-6">
             <div className="grid gap-x-8 gap-y-5 sm:grid-cols-3">
-              <Fact label="State" value={taskStatusLabel(task.status)}>
+              <Fact label="Estado" value={taskStatusLabel(task.status)}>
                 <TaskStatusChip status={task.status} />
               </Fact>
-              <Fact label="Attempt" value={`${task.attempt} / ${task.maxAttempts}`} />
-              <Fact label="Priority" value={String(task.priority)} />
-              <Fact label="Queue" value={task.queue || "default"} />
-              <Fact label="Tags" value={task.tags?.length ? task.tags.join(", ") : "—"} />
-              <Fact label="Created" value={formatRelative(task.createdAt)} />
+              <Fact label="Intento" value={`${task.attempt} / ${task.maxAttempts}`} />
+              <Fact label="Prioridad" value={String(task.priority)} />
+              <Fact label="Cola" value={task.queue || "default"} />
+              <Fact label="Etiquetas" value={task.tags?.length ? task.tags.join(", ") : "—"} />
+              <Fact label="Creado" value={formatRelative(task.createdAt)} />
             </div>
 
             <div className="mt-6 border-border border-t pt-5">
               <div className="text-[11px] font-semibold text-muted uppercase tracking-[0.14em]">
-                Current status
+                Estado actual
               </div>
               <div className="mt-2 text-base font-semibold">
                 {task.message || statusSummary(task.status)}
@@ -191,7 +193,7 @@ function TaskDetailPage() {
           </div>
 
           <div className="p-5 sm:p-6">
-            <h2 className="text-sm font-semibold">Lifecycle</h2>
+            <h2 className="text-sm font-semibold">Ciclo de ejecución</h2>
             <div className="mt-4">
               <Timeline task={task} />
             </div>
@@ -200,11 +202,11 @@ function TaskDetailPage() {
       </Card>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <JsonPanel title="Arguments" value={task.args} empty="This task has no arguments." />
+        <JsonPanel title="Parámetros" value={task.args} empty="Esta tarea no tiene parámetros." />
         <JsonPanel
-          title="Output"
+          title="Resultado"
           value={task.output}
-          empty="No output was recorded."
+          empty="No se registró ningún resultado."
           downloadName={`task-${task.id}-output.json`}
         />
       </div>
@@ -216,8 +218,10 @@ function TaskDetailPage() {
       <Card className="overflow-hidden p-0">
         <div className="flex items-center justify-between border-border border-b px-5 py-4">
           <div>
-            <h2 className="text-sm font-semibold">Attempts</h2>
-            <p className="mt-1 text-xs text-muted">Execution history and recorded River errors.</p>
+            <h2 className="text-sm font-semibold">Intentos</h2>
+            <p className="mt-1 text-xs text-muted">
+              Historial de ejecución y errores registrados por River.
+            </p>
           </div>
           <Chip size="sm" variant="tertiary">
             {Math.max(task.attempt ?? 0, errors.length)}
@@ -253,15 +257,15 @@ function Fact({
 function Timeline({ task }: { task: TaskOut }) {
   const errors = task.errors ?? [];
   const steps = [
-    { label: "Created", at: task.createdAt, state: "done", kind: "created" },
+    { label: "Creado", at: task.createdAt, state: "done", kind: "created" },
     {
-      label: "Scheduled",
+      label: "Programada",
       at: task.scheduledAt,
       state: timelineState(task, "scheduled"),
       kind: "scheduled",
     },
     {
-      label: "Running",
+      label: "En ejecución",
       at: task.startedAt,
       state: timelineState(task, "running"),
       kind: "running",
@@ -269,7 +273,7 @@ function Timeline({ task }: { task: TaskOut }) {
     ...(errors.length > 0
       ? [
           {
-            label: "Errored",
+            label: "Con error",
             at: errors.at(-1)?.at,
             state: task.status === "discarded" ? "error" : "done",
             kind: "error",
@@ -277,15 +281,15 @@ function Timeline({ task }: { task: TaskOut }) {
         ]
       : []),
     ...(task.status === "retryable"
-      ? [{ label: "Awaiting retry", at: task.scheduledAt, state: "current", kind: "retry" }]
+      ? [{ label: "Esperando reintento", at: task.scheduledAt, state: "current", kind: "retry" }]
       : []),
     {
       label:
         task.status === "cancelled"
-          ? "Cancelled"
+          ? "Cancelada"
           : task.status === "discarded"
-            ? "Discarded"
-            : "Complete",
+            ? "Descartada"
+            : "Completa",
       at: task.completedAt,
       state: ["completed", "cancelled", "discarded"].includes(task.status)
         ? task.status === "discarded"
@@ -382,7 +386,7 @@ function AttemptRow({ attempt }: { attempt: AttemptView }) {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="text-sm font-semibold">
               {attemptLabel(attempt.state)}{" "}
-              <span className="font-normal text-muted">(Attempt {attempt.attempt})</span>
+              <span className="font-normal text-muted">(Intento {attempt.attempt})</span>
             </div>
             <div className="text-xs text-muted">
               {attempt.at ? formatRelative(attempt.at) : "—"}
@@ -440,7 +444,7 @@ function JsonPanel({
             variant="tertiary"
             onPress={() => downloadJsonFile(downloadName, value)}
           >
-            <DownloadIcon className="size-3.5" /> Download
+            <DownloadIcon className="size-3.5" /> Descargar
           </Button>
         )}
       </div>
@@ -488,10 +492,10 @@ function BrokenFilesCard({ files, truncated }: { files: BrokenFileEntry[]; trunc
     <Card className="overflow-hidden p-0">
       <div className="flex flex-wrap items-center justify-between gap-2 border-border border-b px-5 py-3.5">
         <div>
-          <h2 className="text-sm font-semibold">Broken files</h2>
+          <h2 className="text-sm font-semibold">Archivos incompletos</h2>
           <p className="mt-0.5 text-xs text-muted">
-            Files with messages missing from Telegram — re-upload the originals to repair them.
-            {truncated ? " List truncated; download for the full set shown here." : ""}
+            Archivos con partes ausentes en Telegram. Vuelve a subir los originales para repararlos.
+            {truncated ? " Lista recortada; descarga para consultar el contenido completo." : ""}
           </p>
         </div>
         <Button
@@ -499,7 +503,7 @@ function BrokenFilesCard({ files, truncated }: { files: BrokenFileEntry[]; trunc
           variant="tertiary"
           onPress={() => downloadJsonFile("broken-files.json", files)}
         >
-          <DownloadIcon className="size-3.5" /> Download list
+          <DownloadIcon className="size-3.5" /> Descargar lista
         </Button>
       </div>
       <div className="divide-y divide-border">
@@ -509,7 +513,7 @@ function BrokenFilesCard({ files, truncated }: { files: BrokenFileEntry[]; trunc
             className="flex flex-wrap items-center gap-x-6 gap-y-1 px-5 py-3"
           >
             <span className="min-w-0 flex-1 truncate text-sm font-medium">
-              {typeof file.name === "string" && file.name ? file.name : "Unnamed file"}
+              {typeof file.name === "string" && file.name ? file.name : "Archivo sin nombre"}
             </span>
             <span className="text-xs text-muted">{formatBytes(file.size)}</span>
             <span className="text-xs text-muted">
@@ -587,21 +591,21 @@ function attemptDot(state: AttemptView["state"]) {
 }
 
 function attemptLabel(state: AttemptView["state"]) {
-  if (state === "completed") return "Completed";
-  if (state === "failed") return "Failed";
-  if (state === "running") return "Running";
-  return "Waiting";
+  if (state === "completed") return "Completada";
+  if (state === "failed") return "Error";
+  if (state === "running") return "En ejecución";
+  return "En espera";
 }
 
 function statusSummary(status: string) {
-  if (status === "pending") return "Waiting to be scheduled";
-  if (status === "scheduled") return "Scheduled for future execution";
-  if (status === "available") return "Waiting for an available worker";
-  if (status === "retryable") return "Waiting for another retry attempt";
-  if (status === "running") return "Task is currently running";
-  if (status === "completed") return "Task completed successfully";
-  if (status === "discarded") return "Task exhausted its retry attempts";
-  if (status === "cancelled") return "Task was cancelled";
+  if (status === "pending") return "Esperando programación";
+  if (status === "scheduled") return "Programada para una ejecución futura";
+  if (status === "available") return "Esperando un proceso disponible";
+  if (status === "retryable") return "Esperando otro reintento";
+  if (status === "running") return "La tarea se está ejecutando";
+  if (status === "completed") return "Tarea completada";
+  if (status === "discarded") return "La tarea agotó sus reintentos";
+  if (status === "cancelled") return "La tarea se canceló";
   return taskStatusLabel(status);
 }
 

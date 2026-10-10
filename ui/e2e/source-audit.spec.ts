@@ -24,7 +24,9 @@ function sourceFiles(directory: string): string[] {
 
 test("all active API consumers import generated OpenAPI types", () => {
   const apiConsumers = sourceFiles(sourceRoot).filter((path) => {
-    if (path.endsWith("api/schema.ts") || path.endsWith("gen/api.d.ts")) return false;
+    const portablePath = path.replaceAll("\\", "/");
+    if (portablePath.endsWith("api/schema.ts") || portablePath.endsWith("gen/api.d.ts"))
+      return false;
     if (!path.endsWith(".ts") && !path.endsWith(".tsx")) return false;
     const source = readFileSync(path, "utf8");
     return (

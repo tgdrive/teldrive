@@ -1241,6 +1241,8 @@ func (s FileListQueryStatus) Validate() error {
 		return nil
 	case "trashed":
 		return nil
+	case "spam":
+		return nil
 	case "deletion_pending":
 		return nil
 	default:
@@ -1296,6 +1298,8 @@ func (s FileStatus) Validate() error {
 	case "active":
 		return nil
 	case "trashed":
+		return nil
+	case "spam":
 		return nil
 	case "deletion_pending":
 		return nil
@@ -2114,6 +2118,31 @@ func (s *ListFilesOK) Validate() error {
 	return nil
 }
 
+func (s ListIncomingSpamOKApplicationJSON) Validate() error {
+	alias := ([]FileEntry)(s)
+	if alias == nil {
+		return errors.New("nil is invalid value")
+	}
+	var failures []validate.FieldError
+	for i, elem := range alias {
+		if err := func() error {
+			if err := elem.Validate(); err != nil {
+				return err
+			}
+			return nil
+		}(); err != nil {
+			failures = append(failures, validate.FieldError{
+				Name:  fmt.Sprintf("[%d]", i),
+				Error: err,
+			})
+		}
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
 func (s *ListPublicShareFilesOK) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer
@@ -2923,6 +2952,83 @@ func (s *StreamEventsOKHeaders) Validate() error {
 	}(); err != nil {
 		failures = append(failures, validate.FieldError{
 			Name:  "CacheControl",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s StreamPlaybackMode) Validate() error {
+	switch s {
+	case "original":
+		return nil
+	case "audio":
+		return nil
+	case "video":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
+func (s StreamPlaybackOKAcceptRanges) Validate() error {
+	switch s {
+	case "bytes":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
+func (s *StreamPlaybackOKHeaders) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if err := s.AcceptRanges.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "AcceptRanges",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s StreamPlaybackPartialContentAcceptRanges) Validate() error {
+	switch s {
+	case "bytes":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
+func (s *StreamPlaybackPartialContentHeaders) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if err := s.AcceptRanges.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "AcceptRanges",
 			Error: err,
 		})
 	}

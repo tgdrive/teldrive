@@ -15,6 +15,7 @@ export function useFileActions() {
 
   const cleanTrashMutation = $api.useMutation("delete", "/v1/files/trash");
   const bulkMoveMutation = $api.useMutation("post", "/v1/files/bulk/move");
+  const bulkSpamMutation = $api.useMutation("post", "/v1/files/bulk/spam");
   const bulkTrashMutation = $api.useMutation("post", "/v1/files/bulk/trash");
 
   async function invalidateFiles() {
@@ -153,6 +154,15 @@ export function useFileActions() {
     return result;
   }
 
+  async function bulkSpam(fileIds: string[]) {
+    const result = await bulkSpamMutation.mutateAsync({
+      params: { header: { "Idempotency-Key": newIdempotencyKey() } },
+      body: { fileIds },
+    });
+    await invalidateFiles();
+    return result;
+  }
+
   async function bulkRestore(fileIds: string[]) {
     await Promise.all(
       fileIds.map((fileId) =>
@@ -179,6 +189,7 @@ export function useFileActions() {
     cleanTrashMutation,
     bulkMoveMutation,
     bulkTrashMutation,
+    bulkSpamMutation,
   ];
 
   return {
@@ -195,6 +206,7 @@ export function useFileActions() {
     cleanTrash,
     bulkMove,
     bulkTrash,
+    bulkSpam,
     bulkRestore,
     pending: mutations.some((mutation) => mutation.isPending),
     error: mutations.find((mutation) => mutation.isError)?.error,

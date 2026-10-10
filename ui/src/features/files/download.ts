@@ -32,7 +32,7 @@ export async function copyText(value: string) {
   const copied = document.execCommand("copy");
   textarea.remove();
   activeElement?.focus();
-  if (!copied) throw new Error("Clipboard access is unavailable");
+  if (!copied) throw new Error("El portapapeles no está disponible");
 }
 
 export function absoluteFileDownloadUrl(file: Pick<FileEntry, "id" | "name">) {

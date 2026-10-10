@@ -239,7 +239,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
 
     void open().catch((reason: unknown) => {
       if (!active) return;
-      setError(reason instanceof Error ? reason.message : "This PDF could not be opened.");
+      setError(reason instanceof Error ? reason.message : "No se pudo abrir este PDF.");
     });
 
     return () => {
@@ -439,9 +439,9 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
   };
 
   const zoomLabel = useMemo(() => {
-    if (scaleValue === "page-width") return "Fit width";
-    if (scaleValue === "page-fit") return "Fit page";
-    if (scaleValue === "page-actual") return "Actual size";
+    if (scaleValue === "page-width") return "Ajustar al ancho";
+    if (scaleValue === "page-fit") return "Ajustar a la página";
+    if (scaleValue === "page-actual") return "Tamaño real";
     return `${Math.round(scale * 100)}%`;
   }, [scale, scaleValue]);
 
@@ -480,7 +480,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
           isIconOnly
           size="sm"
           variant="ghost"
-          aria-label="Close PDF reader"
+          aria-label="Cerrar lector de PDF"
           onPress={() => closeRef.current()}
         >
           <CloseIcon className="size-4" />
@@ -489,7 +489,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
           isIconOnly
           size="sm"
           variant={sidebarOpen ? "secondary" : "ghost"}
-          aria-label="Toggle PDF sidebar"
+          aria-label="Mostrar menú lateral del PDF"
           className="hidden lg:inline-flex"
           onPress={() => setSidebarOpen((value) => !value)}
         >
@@ -500,7 +500,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
             isIconOnly
             size="sm"
             variant="ghost"
-            aria-label="Open PDF sidebar"
+            aria-label="Abrir menú lateral del PDF"
             className="lg:hidden"
           >
             <MenuIcon className="size-4" />
@@ -509,7 +509,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
             <Drawer.Content placement="left" className="w-[min(88vw,20rem)]">
               <Drawer.Dialog>
                 <Drawer.Header className="border-b border-border">
-                  <Drawer.Heading>Document navigation</Drawer.Heading>
+                  <Drawer.Heading>Navegación del documento</Drawer.Heading>
                   <Drawer.CloseTrigger />
                 </Drawer.Header>
                 <Drawer.Body className="min-h-0 p-0">{sidebar}</Drawer.Body>
@@ -529,7 +529,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
           isIconOnly
           size="sm"
           variant="ghost"
-          aria-label="Previous PDF page"
+          aria-label="Página anterior del PDF"
           isDisabled={!ready || pageNumber <= 1}
           onPress={() => goToPage(pageNumber - 1)}
         >
@@ -538,7 +538,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
         <div className="flex items-center gap-1 text-xs tabular-nums">
           <InputGroup className="w-14" variant="secondary">
             <InputGroup.Input
-              aria-label="PDF page number"
+              aria-label="Número de página del PDF"
               inputMode="numeric"
               value={pageDraft}
               onChange={(event) => setPageDraft(event.target.value.replace(/[^0-9]/g, ""))}
@@ -558,7 +558,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
           isIconOnly
           size="sm"
           variant="ghost"
-          aria-label="Next PDF page"
+          aria-label="Página siguiente del PDF"
           isDisabled={!ready || pageNumber >= numPages}
           onPress={() => goToPage(pageNumber + 1)}
         >
@@ -570,7 +570,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
           isIconOnly
           size="sm"
           variant="ghost"
-          aria-label="Zoom out"
+          aria-label="Alejar"
           className="hidden md:inline-flex"
           isDisabled={!ready}
           onPress={() => setPdfScale(scale / 1.1)}
@@ -589,9 +589,9 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
           <Popover.Content placement="bottom" offset={8} className="w-44">
             <Popover.Dialog className="space-y-1 p-1.5">
               {[
-                ["Fit width", "page-width"],
-                ["Fit page", "page-fit"],
-                ["Actual size", "page-actual"],
+                ["Ajustar al ancho", "page-width"],
+                ["Ajustar a la página", "page-fit"],
+                ["Tamaño real", "page-actual"],
               ].map(([label, value]) => (
                 <Button
                   key={value}
@@ -623,7 +623,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
           isIconOnly
           size="sm"
           variant="ghost"
-          aria-label="Zoom in"
+          aria-label="Acercar"
           className="hidden md:inline-flex"
           isDisabled={!ready}
           onPress={() => setPdfScale(scale * 1.1)}
@@ -634,7 +634,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
           isIconOnly
           size="sm"
           variant="ghost"
-          aria-label="Rotate PDF clockwise"
+          aria-label="Girar PDF a la derecha"
           className="hidden md:inline-flex"
           isDisabled={!ready}
           onPress={rotate}
@@ -646,35 +646,35 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
         <div
           className="hidden items-center gap-0.5 xl:flex"
           role="toolbar"
-          aria-label="PDF annotation tools"
+          aria-label="Herramientas de anotación de PDF"
         >
           <ToolButton
-            label="Select text"
+            label="Seleccionar texto"
             active={annotationTool === "select"}
             onPress={() => setTool("select")}
           >
             <HandIcon className="size-4" />
           </ToolButton>
           <ToolButton
-            label="Highlight"
+            label="Resaltar"
             active={annotationTool === "highlight"}
             onPress={() => setTool("highlight")}
           >
             <BrushIcon className="size-4" />
           </ToolButton>
           <ToolButton
-            label="Add text"
+            label="Añadir texto"
             active={annotationTool === "text"}
             onPress={() => setTool("text")}
           >
             <TextIcon className="size-4" />
           </ToolButton>
-          <ToolButton label="Draw" active={annotationTool === "ink"} onPress={() => setTool("ink")}>
+          <ToolButton label="Dibujar" active={annotationTool === "ink"} onPress={() => setTool("ink")}>
             <PencilIcon className="size-4" />
           </ToolButton>
           {annotationTool !== "select" ? (
             <Popover>
-              <Button isIconOnly size="sm" variant="ghost" aria-label="Annotation color">
+              <Button isIconOnly size="sm" variant="ghost" aria-label="Color de las anotaciones">
                 <span
                   className="size-3.5 rounded-full border border-black/15"
                   style={{ background: annotationColor }}
@@ -688,7 +688,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
                       isIconOnly
                       size="sm"
                       variant={annotationColor === color ? "secondary" : "ghost"}
-                      aria-label={`Use annotation color ${color}`}
+                      aria-label={`Usar color de anotación ${color}`}
                       onPress={() => setAnnotationColor(color)}
                     >
                       <span
@@ -709,7 +709,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
             size="sm"
             variant="ghost"
             className="xl:hidden"
-            aria-label="PDF reader tools"
+            aria-label="Herramientas del lector de PDF"
             isDisabled={!ready}
           >
             <EllipsisIcon className="size-4" />
@@ -717,7 +717,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
           <Popover.Content placement="bottom end" offset={8} className="w-[min(92vw,17rem)]">
             <Popover.Dialog className="p-2">
               <p className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
-                View
+                Ver
               </p>
               <div className="grid grid-cols-2 gap-1">
                 <Button
@@ -725,29 +725,29 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
                   variant={scaleValue === "page-width" ? "secondary" : "ghost"}
                   onPress={() => setPdfScaleValue("page-width")}
                 >
-                  Fit width
+                  Ajustar al ancho
                 </Button>
                 <Button
                   size="sm"
                   variant={scaleValue === "page-fit" ? "secondary" : "ghost"}
                   onPress={() => setPdfScaleValue("page-fit")}
                 >
-                  Fit page
+                  Ajustar a la página
                 </Button>
                 <Button size="sm" variant="ghost" onPress={() => setPdfScale(scale / 1.1)}>
-                  <ZoomOutIcon className="size-4" /> Zoom out
+                  <ZoomOutIcon className="size-4" /> Alejar
                 </Button>
                 <Button size="sm" variant="ghost" onPress={() => setPdfScale(scale * 1.1)}>
-                  <ZoomInIcon className="size-4" /> Zoom in
+                  <ZoomInIcon className="size-4" /> Acercar
                 </Button>
                 <Button size="sm" variant="ghost" className="col-span-2" onPress={rotate}>
-                  <RotateIcon className="size-4" /> Rotate clockwise
+                  <RotateIcon className="size-4" /> Girar a la derecha
                 </Button>
               </div>
 
               <div className="mt-2 border-t border-border pt-2">
                 <p className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
-                  Annotate
+                  Anotar
                 </p>
                 <div className="grid grid-cols-2 gap-1">
                   <Button
@@ -755,28 +755,28 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
                     variant={annotationTool === "select" ? "secondary" : "ghost"}
                     onPress={() => setTool("select")}
                   >
-                    <HandIcon className="size-4" /> Select
+                    <HandIcon className="size-4" /> Seleccionar
                   </Button>
                   <Button
                     size="sm"
                     variant={annotationTool === "highlight" ? "secondary" : "ghost"}
                     onPress={() => setTool("highlight")}
                   >
-                    <BrushIcon className="size-4" /> Highlight
+                    <BrushIcon className="size-4" /> Resaltar
                   </Button>
                   <Button
                     size="sm"
                     variant={annotationTool === "text" ? "secondary" : "ghost"}
                     onPress={() => setTool("text")}
                   >
-                    <TextIcon className="size-4" /> Add text
+                    <TextIcon className="size-4" /> Añadir texto
                   </Button>
                   <Button
                     size="sm"
                     variant={annotationTool === "ink" ? "secondary" : "ghost"}
                     onPress={() => setTool("ink")}
                   >
-                    <PencilIcon className="size-4" /> Draw
+                    <PencilIcon className="size-4" /> Dibujar
                   </Button>
                 </div>
                 {annotationTool !== "select" ? (
@@ -789,7 +789,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
                           isIconOnly
                           size="sm"
                           variant={annotationColor === color ? "secondary" : "ghost"}
-                          aria-label={`Use annotation color ${color}`}
+                          aria-label={`Usar color de anotación ${color}`}
                           onPress={() => setAnnotationColor(color)}
                         >
                           <span
@@ -810,7 +810,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
                   isDisabled={saving}
                   onPress={() => void saveModified()}
                 >
-                  {saving ? <Spinner size="sm" /> : <SaveIcon className="size-4" />} Save copy
+                  {saving ? <Spinner size="sm" /> : <SaveIcon className="size-4" />} Guardar copia
                 </Button>
                 <Button size="sm" variant="ghost" onPress={downloadOriginal}>
                   <DownloadIcon className="size-4" /> Original
@@ -825,7 +825,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
           isIconOnly
           size="sm"
           variant={searchOpen ? "secondary" : "ghost"}
-          aria-label="Search in PDF"
+          aria-label="Buscar en PDF"
           onPress={() => setSearchOpen((value) => !value)}
         >
           <SearchIcon className="size-4" />
@@ -835,7 +835,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
           size="sm"
           variant="ghost"
           className="hidden xl:inline-flex"
-          aria-label="Save edited PDF copy"
+          aria-label="Guardar copia editada del PDF"
           isDisabled={!ready || saving}
           onPress={() => void saveModified()}
         >
@@ -846,7 +846,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
           size="sm"
           variant="ghost"
           className="hidden xl:inline-flex"
-          aria-label="Download original PDF"
+          aria-label="Descargar PDF original"
           onPress={downloadOriginal}
         >
           <DownloadIcon className="size-4" />
@@ -883,11 +883,11 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
           {!ready && !error && !passwordChallenge ? (
             <div className="absolute inset-0 z-20 grid place-items-center bg-background/70 backdrop-blur-sm">
               <div className="text-center">
-                <Spinner size="lg" aria-label="Loading PDF" />
+                <Spinner size="lg" aria-label="Cargando PDF" />
                 <p className="mt-3 text-xs text-muted">
                   {loadingProgress === undefined
-                    ? "Opening document"
-                    : `Loading ${loadingProgress}%`}
+                    ? "Abriendo documento"
+                    : `Cargando ${loadingProgress}%`}
                 </p>
               </div>
             </div>
@@ -895,18 +895,18 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
           {passwordChallenge ? (
             <div className="absolute inset-0 z-30 grid place-items-center bg-background/80 p-5 backdrop-blur-md">
               <div className="w-full max-w-sm rounded-2xl border border-border bg-surface p-5 shadow-2xl">
-                <p className="text-sm font-semibold">Protected PDF</p>
+                <p className="text-sm font-semibold">PDF protegido</p>
                 <p className="mt-1 text-xs leading-5 text-muted">
                   {passwordChallenge.incorrect
-                    ? "That password was not accepted. Try again."
-                    : "Enter the document password to open this PDF."}
+                    ? "La contraseña no es correcta. Vuelve a intentarlo."
+                    : "Introduce la contraseña para abrir este PDF."}
                 </p>
                 <InputGroup className="mt-4" variant="secondary">
                   <InputGroup.Input
                     autoFocus
                     type="password"
-                    aria-label="PDF password"
-                    placeholder="Document password"
+                    aria-label="Contraseña del PDF"
+                    placeholder="Contraseña del documento"
                     value={passwordDraft}
                     onChange={(event) => setPasswordDraft(event.target.value)}
                     onKeyDown={(event: ReactKeyboardEvent<HTMLInputElement>) => {
@@ -919,7 +919,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
                 </InputGroup>
                 <div className="mt-4 flex justify-end gap-2">
                   <Button size="sm" variant="ghost" onPress={() => closeRef.current()}>
-                    Cancel
+                    Cancelar
                   </Button>
                   <Button
                     size="sm"
@@ -939,7 +939,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
           {error ? (
             <div className="absolute inset-0 z-20 grid place-items-center p-6 text-center">
               <div className="max-w-lg">
-                <p className="font-semibold">Unable to open this PDF</p>
+                <p className="font-semibold">No se pudo abrir este PDF</p>
                 <p className="mt-2 text-sm text-muted">{error}</p>
               </div>
             </div>
@@ -991,8 +991,8 @@ function PdfFindBar({
       <InputGroup className="max-w-md flex-1" variant="secondary">
         <InputGroup.Input
           autoFocus
-          aria-label="Find in PDF"
-          placeholder="Find in document"
+          aria-label="Buscar en PDF"
+          placeholder="Buscar en documento"
           value={query}
           onChange={(event) => onQuery(event.target.value)}
           onKeyDown={(event: ReactKeyboardEvent<HTMLInputElement>) => {
@@ -1016,7 +1016,7 @@ function PdfFindBar({
         isIconOnly
         size="sm"
         variant="ghost"
-        aria-label="Previous search result"
+        aria-label="Resultado anterior de búsqueda"
         isDisabled={!count.total}
         onPress={onPrevious}
       >
@@ -1026,7 +1026,7 @@ function PdfFindBar({
         isIconOnly
         size="sm"
         variant="ghost"
-        aria-label="Next search result"
+        aria-label="Resultado siguiente de búsqueda"
         isDisabled={!count.total}
         onPress={onNext}
       >
@@ -1048,9 +1048,9 @@ function PdfFindBar({
         aria-label="Match whole words"
         onPress={() => onWholeWord(!wholeWord)}
       >
-        Word
+        Documento de Word
       </Button>
-      <Button isIconOnly size="sm" variant="ghost" aria-label="Close PDF search" onPress={onClose}>
+      <Button isIconOnly size="sm" variant="ghost" aria-label="Cerrar búsqueda en PDF" onPress={onClose}>
         <CloseIcon className="size-4" />
       </Button>
     </div>
@@ -1083,7 +1083,7 @@ function PdfSidebar({
       <div className="border-b border-border px-4 py-3">
         <p className="truncate text-xs font-semibold">{file.name}</p>
         <p className="mt-0.5 text-[10px] text-muted">
-          {document ? `${document.numPages} pages` : "Loading document"}
+          {document ? `${document.numPages} páginas` : "Cargando documento"}
         </p>
       </div>
       <Tabs
@@ -1092,12 +1092,12 @@ function PdfSidebar({
         className="flex min-h-0 flex-1 flex-col px-2 pt-2"
       >
         <Tabs.ListContainer>
-          <Tabs.List aria-label="PDF sidebar" className="w-full">
+          <Tabs.List aria-label="Menú lateral del PDF" className="w-full">
             <Tabs.Tab id="thumbnails" className="flex-1 gap-1.5 text-xs">
-              <MenuIcon className="size-3.5" /> Pages
+              <MenuIcon className="size-3.5" /> Páginas
             </Tabs.Tab>
             <Tabs.Tab id="outline" className="flex-1 gap-1.5 text-xs">
-              <BookmarkIcon className="size-3.5" /> Outline
+              <BookmarkIcon className="size-3.5" /> Índice
             </Tabs.Tab>
           </Tabs.List>
         </Tabs.ListContainer>
@@ -1118,7 +1118,7 @@ function PdfSidebar({
               ))}
             </div>
           ) : (
-            <SidebarEmpty label="Preparing pages" />
+            <SidebarEmpty label="Preparando páginas" />
           )}
         </Tabs.Panel>
         <Tabs.Panel id="outline" className="min-h-0 flex-1 overflow-y-auto py-2">
@@ -1134,7 +1134,7 @@ function PdfSidebar({
               />
             </div>
           ) : (
-            <SidebarEmpty label="This PDF has no outline" />
+            <SidebarEmpty label="Este PDF no tiene índice" />
           )}
         </Tabs.Panel>
       </Tabs>
@@ -1215,7 +1215,7 @@ function PdfThumbnail({
           "h-auto w-full flex-col gap-2 rounded-xl px-2 py-2",
           current && "ring-1 ring-accent/40",
         )}
-        aria-label={`Go to page ${pageNumber}`}
+        aria-label={`Ir a la página ${pageNumber}`}
         onPress={onPress}
       >
         <div
@@ -1249,7 +1249,7 @@ function OutlineItems({
         style={{ paddingInlineStart: `${10 + depth * 14}px` }}
         onPress={() => onSelect(item)}
       >
-        <span className="line-clamp-2">{item.title || "Untitled section"}</span>
+        <span className="line-clamp-2">{item.title || "Sección sin título"}</span>
       </Button>
       {item.items?.length ? (
         <OutlineItems items={item.items} depth={depth + 1} onSelect={onSelect} />

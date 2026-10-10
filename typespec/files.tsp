@@ -11,6 +11,7 @@ enum FileKind {
 enum FileStatus {
   active: "active",
   trashed: "trashed",
+  spam: "spam",
   deletionPending: "deletion_pending",
 }
 
@@ -507,6 +508,17 @@ namespace Files {
   @route("/bulk/move")
   @operationId("bulkMoveFiles")
   op bulkMove(...IdempotencyHeader, @body body: FileBulkMoveRequest):
+    | JsonResponse<200, FileBulkResult>
+    | ErrorResponse<401>
+    | ErrorResponse<404>
+    | ErrorResponse<409>
+    | ErrorResponse<422>;
+
+  /** Quarantine owned files and folders and revoke their sharing. */
+  @post
+  @route("/bulk/spam")
+  @operationId("bulkSpamFiles")
+  op bulkSpam(...IdempotencyHeader, @body body: FileBulkTrashRequest):
     | JsonResponse<200, FileBulkResult>
     | ErrorResponse<401>
     | ErrorResponse<404>

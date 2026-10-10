@@ -69,8 +69,8 @@ export function FileBrowser({
   hasNextPage = false,
   isLoadingMore = false,
   onLoadMore,
-  emptyHint = "This folder is empty.",
-  emptyTitle = "This folder is empty",
+  emptyHint = "Esta carpeta está vacía.",
+  emptyTitle = "Esta carpeta está vacía",
   hideFolderControls = false,
   showLocations = false,
   onOpenContainingFolder,
@@ -78,9 +78,9 @@ export function FileBrowser({
   return (
     <Card className="@container/file-browser relative flex min-h-0 min-w-0 flex-1 flex-col gap-0 overflow-hidden border border-border bg-surface/80 shadow-sm">
       <Card.Header className="shrink-0 border-b border-border px-3 py-3 sm:px-4">
-        <div className="flex min-w-0 items-center gap-1.5">
+        <div className="file-browser-header flex min-w-0 items-center gap-1.5">
           {onBack ? (
-            <Button isIconOnly size="sm" variant="ghost" aria-label="Back" onPress={onBack}>
+            <Button isIconOnly size="sm" variant="ghost" aria-label="Volver" onPress={onBack}>
               <BackIcon className="size-4" />
             </Button>
           ) : null}
@@ -89,7 +89,7 @@ export function FileBrowser({
               isIconOnly
               size="sm"
               variant="ghost"
-              aria-label="Up one folder"
+              aria-label="Subir una carpeta"
               isDisabled={path === "/"}
               onPress={() => {
                 const parts = path.split("/").filter(Boolean);
@@ -109,13 +109,13 @@ export function FileBrowser({
               />
             </div>
           )}
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="file-browser-controls flex shrink-0 items-center gap-1">
             {toolbar}
             <Button
               isIconOnly
               size="sm"
               variant={view === "list" ? "secondary" : "ghost"}
-              aria-label="List view"
+              aria-label="Vista de lista"
               onPress={() => onViewChange("list")}
             >
               <ListIcon className="size-4" />
@@ -124,7 +124,7 @@ export function FileBrowser({
               isIconOnly
               size="sm"
               variant={view === "grid" ? "secondary" : "ghost"}
-              aria-label="Grid view"
+              aria-label="Vista de cuadrícula"
               onPress={() => onViewChange("grid")}
             >
               <GridIcon className="size-4" />
@@ -200,7 +200,7 @@ function FileCollection({
   return (
     <Virtualizer key={view} layout={grid ? GridLayout : ListLayout}>
       <GridList
-        aria-label="Files and folders"
+        aria-label="Archivos y carpetas"
         layout={grid ? "grid" : "stack"}
         selectionMode={selection ? "multiple" : "none"}
         selectionBehavior="replace"
@@ -305,7 +305,7 @@ function SelectionCheckbox({ file, isVisible }: { file: FileEntry; isVisible: bo
   return (
     <Checkbox
       slot="selection"
-      aria-label={`Select ${file.name}`}
+      aria-label={`Seleccionar ${file.name}`}
       className={({ isSelected }) =>
         [
           "shrink-0 transition-opacity",
@@ -353,7 +353,7 @@ function GridFile({
           <LocationButton location={location} onPress={onOpenContainingFolder} className="mt-1" />
         )}
         <p className="mt-1 text-[11px] text-muted">
-          {file.kind === "folder" ? "Folder" : formatFileBytes(file.size ?? 0)}
+          {file.kind === "folder" ? "Carpeta" : formatFileBytes(file.size ?? 0)}
         </p>
       </div>
     </>
@@ -401,7 +401,7 @@ function ListFile({
         </div>
       </div>
       <span className="hidden text-xs text-muted sm:block">
-        {file.kind === "folder" ? "Folder" : formatFileBytes(file.size ?? 0)}
+        {file.kind === "folder" ? "Carpeta" : formatFileBytes(file.size ?? 0)}
       </span>
       <span className="hidden min-w-0 text-xs text-muted lg:block">
         {location ? (
@@ -428,7 +428,7 @@ function LocationButton({
       size="sm"
       variant="ghost"
       className={`h-auto min-h-0 max-w-full justify-start rounded-sm px-0 py-0 text-[11px] text-muted ${className}`}
-      aria-label={`Open containing folder ${location}`}
+      aria-label={`Abrir carpeta contenedora ${location}`}
       onPress={onPress}
     >
       <span className="truncate">{location}</span>
@@ -449,7 +449,7 @@ function FileBrowserBreadcrumb({
   const lastIndex = parts.length - 1;
   return (
     <nav
-      aria-label="Current folder"
+      aria-label="Carpeta actual"
       className="flex min-w-0 items-center gap-1 overflow-hidden text-sm"
     >
       <Button

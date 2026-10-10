@@ -12,27 +12,27 @@ type StorageActivity = components["schemas"]["StorageActivity"];
 type StorageGrowthPoint = components["schemas"]["StorageGrowthPoint"];
 
 const CATEGORY_LABELS: Record<string, string> = {
-  archive: "Archives",
+  archive: "Archivos comprimidos",
   audio: "Audio",
-  document: "Documents",
-  image: "Images",
-  video: "Video",
-  other: "Other",
+  document: "Documentos",
+  image: "Imágenes",
+  video: "Vídeo",
+  other: "Otros",
 };
 
 const ACTIVITY_LABELS: Record<string, string> = {
-  "file.created": "File added",
-  "file.trashed": "File moved to Trash",
-  "file.restored": "File restored",
-  "file.purged": "File permanently deleted",
-  "upload.completed": "Upload completed",
-  "upload.aborted": "Upload aborted",
-  "upload.expired": "Upload expired",
-  "share.created": "Share created",
-  "share.deleted": "Share removed",
-  "channel.created": "Storage channel added",
-  "channel.updated": "Storage channel updated",
-  "channel.deleted": "Storage channel removed",
+  "file.created": "Archivo añadido",
+  "file.trashed": "Archivo enviado a la papelera",
+  "file.restored": "Archivo restaurado",
+  "file.purged": "Archivo eliminado definitivamente",
+  "upload.completed": "Subida completada",
+  "upload.aborted": "Subida cancelada",
+  "upload.expired": "Subida vencida",
+  "share.created": "Enlace compartido creado",
+  "share.deleted": "Enlace compartido eliminado",
+  "channel.created": "Canal de almacenamiento añadido",
+  "channel.updated": "Canal de almacenamiento actualizado",
+  "channel.deleted": "Canal de almacenamiento retirado",
 };
 
 export const Route = createFileRoute("/storage")({
@@ -55,35 +55,35 @@ function StoragePage() {
   return (
     <Page>
       <PageHeader
-        title="Storage"
-        description="Telegram-backed storage usage, growth, distribution, cleanup, and recent activity."
+        title="Almacenamiento"
+        description="Uso, crecimiento, distribución, limpieza y actividad del almacenamiento en Telegram."
       />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
-          label="Total stored"
+          label="Total almacenado"
           value={formatBytes(summary.logicalBytes)}
-          detail={`${formatBytes(data.growth.at(-1)?.addedBytes ?? 0)} added today`}
+          detail={`${formatBytes(data.growth.at(-1)?.addedBytes ?? 0)} añadidos hoy`}
         />
         <StatCard
-          label="Active files"
+          label="Archivos activos"
           value={summary.activeFiles.toLocaleString()}
-          detail={`${summary.activeFolders.toLocaleString()} folders`}
+          detail={`${summary.activeFolders.toLocaleString()} carpetas`}
         />
         <StatCard
-          label="Trash"
+          label="Papelera"
           value={formatBytes(summary.trashBytes)}
-          detail={`${summary.trashedFiles.toLocaleString()} files`}
+          detail={`${summary.trashedFiles.toLocaleString()} archivos`}
         />
         <StatCard
-          label="Channels"
+          label="Canales"
           value={configuredChannels.toLocaleString()}
-          detail={`${selectedChannels.toLocaleString()} selected`}
+          detail={`${selectedChannels.toLocaleString()} seleccionados`}
         />
         <StatCard
-          label="Reclaimable"
+          label="Recuperable"
           value={formatBytes(data.cleanup.totalReclaimableBytes)}
-          detail={`${data.cleanup.staleUploads.toLocaleString()} stale uploads`}
+          detail={`${data.cleanup.staleUploads.toLocaleString()} subidas abandonadas`}
         />
       </div>
 
@@ -91,13 +91,13 @@ function StoragePage() {
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <Typography type="h2" className="text-base font-semibold">
-              Storage growth
+              Crecimiento del almacenamiento
             </Typography>
             <Typography.Paragraph className="text-sm text-muted">
-              Logical bytes stored over the last 30 days.
+              Bytes lógicos almacenados durante los últimos 30 días.
             </Typography.Paragraph>
           </div>
-          <Chip variant="tertiary">30 days</Chip>
+          <Chip variant="tertiary">30 días</Chip>
         </div>
         <StorageGrowthChart points={data.growth} />
       </Card>
@@ -106,10 +106,10 @@ function StoragePage() {
         <Card className="gap-5 p-5">
           <div>
             <Typography type="h2" className="text-base font-semibold">
-              Storage composition
+              Composición del almacenamiento
             </Typography>
             <Typography.Paragraph className="text-sm text-muted">
-              Active file bytes grouped by content category.
+              Espacio de archivos activos agrupado por tipo.
             </Typography.Paragraph>
           </div>
           <div className="grid gap-4">
@@ -124,14 +124,16 @@ function StoragePage() {
                     </span>
                     <span className="text-muted">
                       {formatBytes(category.totalSize)} · {category.totalFiles.toLocaleString()}{" "}
-                      files
+                      archivos
                     </span>
                   </div>
                   <ProgressTrack value={percent} label={`${category.category} storage`} />
                 </div>
               );
             })}
-            {data.categories.length === 0 && <EmptyCopy>No active files are stored yet.</EmptyCopy>}
+            {data.categories.length === 0 && (
+              <EmptyCopy>Todavía no hay archivos activos almacenados.</EmptyCopy>
+            )}
           </div>
         </Card>
 
@@ -139,10 +141,10 @@ function StoragePage() {
           <div className="flex items-start justify-between gap-3">
             <div>
               <Typography type="h2" className="text-base font-semibold">
-                Telegram channel distribution
+                Distribución entre canales de Telegram
               </Typography>
               <Typography.Paragraph className="text-sm text-muted">
-                Stored Telegram parts across configured channels.
+                Fragmentos almacenados en los canales de Telegram configurados.
               </Typography.Paragraph>
             </div>
             <LinkButton to="/settings/channels" size="sm" variant="tertiary">
@@ -162,21 +164,24 @@ function StoragePage() {
                         <span className="truncate text-sm font-semibold">{channel.name}</span>
                         {channel.selected && (
                           <Chip size="sm" variant="tertiary">
-                            Selected
+                            Seleccionado
                           </Chip>
                         )}
                       </div>
                       <div className="mt-1 text-xs text-muted">
-                        {channel.partCount.toLocaleString()} parts · {percent.toFixed(1)}%
+                        {channel.partCount.toLocaleString()} fragmentos · {percent.toFixed(1)}%
                       </div>
                     </div>
                   </div>
-                  <ProgressTrack value={percent} label={`${channel.name} storage distribution`} />
+                  <ProgressTrack
+                    value={percent}
+                    label={`${channel.name}: distribución de almacenamiento`}
+                  />
                 </div>
               );
             })}
             {data.channels.length === 0 && (
-              <EmptyCopy>No storage channels are configured.</EmptyCopy>
+              <EmptyCopy>No hay canales de almacenamiento configurados.</EmptyCopy>
             )}
           </div>
         </Card>
@@ -187,33 +192,32 @@ function StoragePage() {
           <div className="flex items-start justify-between gap-3">
             <div>
               <Typography type="h2" className="text-base font-semibold">
-                Cleanup opportunities
+                Opciones para liberar espacio
               </Typography>
               <Typography.Paragraph className="text-sm text-muted">
-                Storage that can be reviewed for permanent cleanup.
+                Almacenamiento que puedes revisar para eliminar definitivamente.
               </Typography.Paragraph>
             </div>
             <CleanupIcon className="size-5 text-muted" />
           </div>
           <div className="divide-y divide-border rounded-xl border border-border">
-            <MetricRow label="Trash" value={formatBytes(data.cleanup.trashBytes)} />
+            <MetricRow label="Papelera" value={formatBytes(data.cleanup.trashBytes)} />
+            <MetricRow label="Spam propio" value={formatBytes(data.summary.spamBytes ?? 0)} />
             <MetricRow
-              label="Stale multipart uploads"
+              label="Subidas por fragmentos abandonadas"
               value={formatBytes(data.cleanup.staleUploadBytes)}
-              detail={`${data.cleanup.staleUploads.toLocaleString()} sessions`}
+              detail={`${data.cleanup.staleUploads.toLocaleString()} sesiones`}
             />
             <MetricRow
-              label="Total reclaimable"
+              label="Total que puedes liberar"
               value={formatBytes(data.cleanup.totalReclaimableBytes)}
               strong
             />
           </div>
           <div className="flex items-center justify-between gap-4">
-            <p className="text-xs text-muted">
-              Nothing is deleted automatically from this dashboard.
-            </p>
+            <p className="text-xs text-muted">Este panel no elimina archivos automáticamente.</p>
             <LinkButton to="/trash" size="sm" variant="primary">
-              Review cleanup
+              Revisar limpieza
             </LinkButton>
           </div>
         </Card>
@@ -221,10 +225,10 @@ function StoragePage() {
         <Card className="gap-5 p-5">
           <div>
             <Typography type="h2" className="text-base font-semibold">
-              Recent storage activity
+              Actividad reciente del almacenamiento
             </Typography>
             <Typography.Paragraph className="text-sm text-muted">
-              Durable file, upload, share, and channel events.
+              Registro de archivos, subidas, enlaces compartidos y canales.
             </Typography.Paragraph>
           </div>
           <div className="divide-y divide-border rounded-xl border border-border">
@@ -306,7 +310,7 @@ function ActivityRow({ activity }: { activity: StorageActivity }) {
 }
 
 function StorageGrowthChart({ points }: { points: StorageGrowthPoint[] }) {
-  if (points.length === 0) return <EmptyCopy>No storage history is available.</EmptyCopy>;
+  if (points.length === 0) return <EmptyCopy>No hay historial de almacenamiento.</EmptyCopy>;
   const width = 960;
   const height = 220;
   const padding = 18;
@@ -329,10 +333,10 @@ function StorageGrowthChart({ points }: { points: StorageGrowthPoint[] }) {
         <svg
           viewBox={`0 0 ${width} ${height}`}
           role="img"
-          aria-label="Logical storage growth over 30 days"
+          aria-label="Crecimiento de almacenamiento durante 30 días"
           className="h-56 w-full"
         >
-          <title>Logical storage growth over 30 days</title>
+          <title>Crecimiento de almacenamiento durante 30 días</title>
           {[0.25, 0.5, 0.75].map((ratio) => (
             <line
               key={ratio}
@@ -386,10 +390,10 @@ function formatBytes(bytes: number) {
 function formatRelative(value: string) {
   const delta = Math.max(0, Date.now() - new Date(value).getTime());
   const minutes = Math.floor(delta / 60_000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 1) return "ahora";
+  if (minutes < 60) return `hace ${minutes} min`;
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return `hace ${hours} h`;
   const days = Math.floor(hours / 24);
-  return days < 7 ? `${days}d ago` : new Date(value).toLocaleDateString();
+  return days < 7 ? `hace ${days} días` : new Date(value).toLocaleDateString();
 }

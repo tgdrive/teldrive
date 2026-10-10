@@ -105,7 +105,7 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
       ? sharedWithMeQuery.isPending
       : sharedQuery.isPending
     : childrenQuery.isPending;
-  const rootLabel = mode === "with-me" ? "Shared with me" : "Shared";
+  const rootLabel = mode === "with-me" ? "Compartido conmigo" : "Compartidos";
 
   const permissionFor = (file: FileEntry): Permission => {
     if (mode === "shared") return "edit";
@@ -135,9 +135,9 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
       setFolderName("");
       setFolderDialogOpen(false);
       await childrenQuery.refetch();
-      toast.success("Folder created");
+      toast.success("Carpeta creada");
     } catch (error) {
-      toast.error("Folder could not be created", {
+      toast.error("No se pudo crear la carpeta", {
         description: userMessage(error),
       });
     }
@@ -152,9 +152,9 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
       setSelectedKeys(new Set());
       if (atRoot) await refreshRoots();
       else await childrenQuery.refetch();
-      toast.success("Item renamed");
+      toast.success("Elemento renombrado");
     } catch (error) {
-      toast.error("Item could not be renamed", {
+      toast.error("No se pudo renombrar el elemento", {
         description: userMessage(error),
       });
     }
@@ -168,10 +168,10 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
       if (atRoot) await refreshRoots();
       else await childrenQuery.refetch();
       toast.success(
-        `${selectedFiles.length} item${selectedFiles.length === 1 ? "" : "s"} moved to trash`,
+        `${selectedFiles.length} elemento${selectedFiles.length === 1 ? "" : "s"} enviado a la papelera`,
       );
     } catch (error) {
-      toast.error("Items could not be moved to trash", {
+      toast.error("No se pudieron mover los elementos a la papelera", {
         description: userMessage(error),
       });
     }
@@ -229,10 +229,10 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
       setSelectedKeys(new Set());
       await refreshRoots();
       toast.success(
-        `${selectedFiles.length} item${selectedFiles.length === 1 ? "" : "s"} no longer shared`,
+        `${selectedFiles.length} elemento${selectedFiles.length === 1 ? "" : "s"} ya no se comparte`,
       );
     } catch (error) {
-      toast.error("Sharing could not be removed", {
+      toast.error("No se pudo dejar de compartir", {
         description: userMessage(error),
       });
     }
@@ -290,7 +290,7 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
                   isIconOnly
                   size="sm"
                   variant="secondary"
-                  aria-label="New folder"
+                  aria-label="Nueva carpeta"
                   isDisabled={fileActions.pending}
                   onPress={() => setFolderDialogOpen(true)}
                 >
@@ -300,7 +300,7 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
                   isIconOnly
                   size="sm"
                   variant="primary"
-                  aria-label="Upload files"
+                  aria-label="Subir archivos"
                   isDisabled={fileActions.pending}
                   onPress={() => uploadTriggerRef.current?.click()}
                 >
@@ -313,7 +313,7 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
                       if (list?.length) enqueue(Array.from(list), search.parentId, search.path);
                     }}
                   >
-                    <Button ref={uploadTriggerRef}>Choose upload files</Button>
+                    <Button ref={uploadTriggerRef}>Elegir archivos para subir</Button>
                   </FileTrigger>
                 </span>
               </>
@@ -331,7 +331,7 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
                       isIconOnly
                       size="sm"
                       variant="ghost"
-                      aria-label="Rename selected item"
+                      aria-label="Renombrar elemento seleccionado"
                       isDisabled={fileActions.pending}
                       onPress={() => {
                         setRenameFile(singleSelected);
@@ -346,7 +346,7 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
                       isIconOnly
                       size="sm"
                       variant="ghost"
-                      aria-label="Share selected item"
+                      aria-label="Compartir elemento seleccionado"
                       onPress={() => setShareFile(singleSelected)}
                     >
                       <LinkIcon className="size-4" />
@@ -357,7 +357,7 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
                       isIconOnly
                       size="sm"
                       variant="ghost"
-                      aria-label="Download selected file"
+                      aria-label="Descargar archivo seleccionado"
                       onPress={() => startFileDownload(singleSelected)}
                     >
                       <DownloadIcon className="size-4" />
@@ -368,7 +368,7 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
                       isIconOnly
                       size="sm"
                       variant="danger"
-                      aria-label="Stop sharing selected items"
+                      aria-label="Dejar de compartir los elementos seleccionados"
                       onPress={() => void stopSharingSelected()}
                     >
                       <LinkIcon className="size-4" />
@@ -378,18 +378,39 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
                       isIconOnly
                       size="sm"
                       variant="danger"
-                      aria-label="Move selected items to trash"
+                      aria-label="Mover elementos seleccionados a la papelera"
                       isDisabled={fileActions.pending}
                       onPress={() => void trashSelected()}
                     >
                       <TrashIcon className="size-4" />
                     </Button>
                   ) : null}
+                  {mode === "with-me" && atRoot ? (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onPress={async () => {
+                        try {
+                          for (const file of selectedFiles)
+                            await fetchClient.POST("/v1/shared/spam/{fileId}", {
+                              params: { path: { fileId: file.id } },
+                            });
+                          setSelectedKeys(new Set());
+                          await refreshRoots();
+                          toast.success("Elementos enviados a Spam");
+                        } catch (cause) {
+                          toast.error(userMessage(cause));
+                        }
+                      }}
+                    >
+                      Marcar como spam
+                    </Button>
+                  ) : null}
                   <Button
                     isIconOnly
                     size="sm"
                     variant="ghost"
-                    aria-label="Clear selection"
+                    aria-label="Borrar selección"
                     onPress={() => setSelectedKeys(new Set())}
                   >
                     <CloseIcon className="size-4" />
@@ -401,9 +422,9 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
           emptyHint={
             atRoot
               ? mode === "with-me"
-                ? "Files and folders shared with you appear here."
-                : "Files and folders you shared appear here."
-              : "This shared folder is empty."
+                ? "Aquí aparecerán los archivos y carpetas compartidos contigo."
+                : "Aquí aparecerán los archivos y carpetas que has compartido."
+              : "Esta carpeta compartida está vacía."
           }
         />
       </PageContent>
@@ -411,24 +432,24 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
       <AppDialog
         open={folderDialogOpen}
         onOpenChange={setFolderDialogOpen}
-        title="Create folder"
+        title="Crear carpeta"
         footer={
           <>
             <Button variant="secondary" onPress={() => setFolderDialogOpen(false)}>
-              Cancel
+              Cancelar
             </Button>
             <Button
               variant="primary"
               isDisabled={!folderName.trim()}
               onPress={() => void createFolder()}
             >
-              Create folder
+              Crear carpeta
             </Button>
           </>
         }
       >
         <TextField value={folderName} onChange={setFolderName}>
-          <Label>Name</Label>
+          <Label>Nombre</Label>
           <Input autoFocus />
         </TextField>
       </AppDialog>
@@ -438,24 +459,24 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
         onOpenChange={(open) => {
           if (!open) setRenameFile(undefined);
         }}
-        title="Rename item"
+        title="Renombrar elemento"
         footer={
           <>
             <Button variant="secondary" onPress={() => setRenameFile(undefined)}>
-              Cancel
+              Cancelar
             </Button>
             <Button
               variant="primary"
               isDisabled={!renameName.trim()}
               onPress={() => void renameSelected()}
             >
-              Rename
+              Renombrar
             </Button>
           </>
         }
       >
         <TextField value={renameName} onChange={setRenameName}>
-          <Label>Name</Label>
+          <Label>Nombre</Label>
           <Input autoFocus />
         </TextField>
       </AppDialog>

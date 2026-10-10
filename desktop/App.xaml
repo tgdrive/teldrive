@@ -1,0 +1,8 @@
+<Application x:Class="Teldrive.Desktop.App" xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Application.Resources>
+    <SolidColorBrush x:Key="Accent" Color="#1A73E8"/>
+    <Style TargetType="Button"><Setter Property="Padding" Value="16,10"/><Setter Property="Margin" Value="0,0,8,8"/><Setter Property="MinHeight" Value="44"/><Setter Property="Background" Value="#EEF3FC"/><Setter Property="Foreground" Value="#174EA6"/><Setter Property="BorderThickness" Value="0"/><Setter Property="Cursor" Value="Hand"/></Style>
+    <Style TargetType="TextBox"><Setter Property="Padding" Value="10"/><Setter Property="MinHeight" Value="44"/><Setter Property="BorderBrush" Value="#D9DFEA"/><Setter Property="Margin" Value="0,4,0,16"/></Style>
+    <Style TargetType="TextBlock"><Setter Property="Foreground" Value="#263247"/><Setter Property="TextWrapping" Value="Wrap"/></Style>
+  </Application.Resources>
+</Application>

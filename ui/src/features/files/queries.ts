@@ -15,7 +15,7 @@ const fileListSchema = z
           id: z.string().uuid(),
           name: z.string(),
           kind: z.enum(["file", "folder"]),
-          status: z.enum(["active", "trashed", "deletion_pending"]),
+          status: z.enum(["active", "trashed", "spam", "deletion_pending"]),
         })
         .passthrough(),
     ),
@@ -27,7 +27,7 @@ function validateFileList(data: FileListResponse): FileListResponse {
   const result = fileListSchema.safeParse(data);
   if (!result.success) {
     throw invalidResponse(
-      "Teldrive received data from an incompatible API version. Refresh after the server and UI are upgraded together.",
+      "La versión de la API es incompatible. Actualiza el servidor y la UI juntos y vuelve a cargar.",
     );
   }
   return data;
@@ -137,7 +137,7 @@ export function useInfiniteFilePages(search: FileRouteSearch, status: FileStatus
         signal,
       });
       if (!result.data) {
-        throw invalidResponse("Teldrive returned an empty file-list response.");
+        throw invalidResponse("Teldrive devolvió una respuesta vacía a la lista de archivos.");
       }
       return validateFileList(result.data);
     },

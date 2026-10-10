@@ -40,22 +40,24 @@ import { $api } from "../api/client";
 import { isUnauthorized, userMessage } from "../api/errors";
 import { currentUserQueryOptions } from "../auth/queries";
 import { UploadShelf } from "../components/upload-shelf";
+import { StorageSummary } from "../components/storage-summary";
 import { getQueryClient } from "../lib/queryClient";
 
 const mainNav = [
-  { label: "Files", icon: GridIcon, path: "/files" },
-  { label: "Shared", icon: FolderIcon, path: "/shared" },
-  { label: "Shared with me", icon: FolderIcon, path: "/shared-with-me" },
-  { label: "Storage", icon: StorageIcon, path: "/storage" },
-  { label: "Tasks", icon: TasksIcon, path: "/tasks", capability: "system.manageJobs" },
-  { label: "Trash", icon: GridIcon, path: "/trash" },
+  { label: "Archivos", icon: GridIcon, path: "/files" },
+  { label: "Compartidos", icon: FolderIcon, path: "/shared" },
+  { label: "Compartido conmigo", icon: FolderIcon, path: "/shared-with-me" },
+  { label: "Almacenamiento", icon: StorageIcon, path: "/storage" },
+  { label: "Tareas", icon: TasksIcon, path: "/tasks", capability: "system.manageJobs" },
+  { label: "Spam", icon: GridIcon, path: "/spam" },
+  { label: "Papelera", icon: GridIcon, path: "/trash" },
 ] as const;
 
 const DESKTOP_BREAKPOINT = 1024;
 
 function getPageTitle(pathname: string) {
-  if (pathname === "/search") return "Search";
-  if (pathname.startsWith("/settings")) return "Settings";
+  if (pathname === "/search") return "Buscar";
+  if (pathname.startsWith("/settings")) return "Configuración";
   const item = mainNav.find(
     (entry) => pathname === entry.path || pathname.startsWith(`${entry.path}/`),
   );
@@ -81,7 +83,7 @@ function Sidebar({
   const displayName =
     user?.displayName?.trim() ||
     user?.username?.trim() ||
-    (user ? `User ${user.userId}` : "Account");
+    (user ? `Usuario ${user.userId}` : "Cuenta");
   const secondaryLabel = user?.username
     ? `@${user.username}`
     : user?.premium
@@ -101,7 +103,7 @@ function Sidebar({
       onNavigate?.();
       await navigate({ to: "/login", search: { redirect: "/files" }, replace: true });
     } catch (error) {
-      toast.error("Unable to log out", { description: userMessage(error) });
+      toast.error("No se pudo cerrar la sesión", { description: userMessage(error) });
     }
   };
   const renderItem = (item: (typeof mainNav)[number]) => {
@@ -123,7 +125,13 @@ function Sidebar({
         }}
         onClick={() => onNavigate?.()}
       >
-        <item.icon className="size-4 shrink-0" />
+        {item.path === "/storage" ? (
+          <span className="shrink-0" aria-hidden="true">
+            ☁️
+          </span>
+        ) : (
+          <item.icon className="size-4 shrink-0" />
+        )}
         <span
           className={cn(
             "overflow-hidden whitespace-nowrap transition-[width,opacity,margin] duration-200",
@@ -157,13 +165,18 @@ function Sidebar({
           )}
         >
           <p className="text-base font-semibold tracking-tight">Teldrive</p>
-          <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Cloud drive</p>
+          <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Unidad en la nube</p>
         </div>
       </div>
 
       <Separator className="mx-3 w-auto" />
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-        {visibleMainNav.map(renderItem)}
+        {visibleMainNav.map((item) => (
+          <div key={item.path}>
+            {renderItem(item)}
+            {item.path === "/storage" && (!collapsed || mobile) ? <StorageSummary /> : null}
+          </div>
+        ))}
       </nav>
       <div className="border-t border-border px-3 py-3">
         <Dropdown isOpen={accountMenuOpen} onOpenChange={setAccountMenuOpen}>
@@ -177,7 +190,7 @@ function Sidebar({
           ) : (
             <Button
               variant="ghost"
-              aria-label={`Open account menu for ${displayName}`}
+              aria-label={`Abrir menú de cuenta de ${displayName}`}
               className="flex h-14 w-full items-center justify-start gap-3 rounded-xl px-2 text-muted hover:bg-default/30 hover:text-foreground"
             >
               <Avatar className="size-9 shrink-0">
@@ -192,14 +205,14 @@ function Sidebar({
           )}
           <Dropdown.Popover placement="top start" className="min-w-52">
             <Dropdown.Menu
-              aria-label="Account"
+              aria-label="Cuenta"
               onAction={(key) => {
                 if (key === "logout") void signOut();
               }}
             >
               <Dropdown.Item
                 id="settings"
-                textValue="Settings"
+                textValue="Configuración"
                 render={({ ref, ...itemProps }) => {
                   return (
                     // @ts-expect-error HeroUI types render props for a menu item div; this render target is an anchor.
@@ -217,7 +230,7 @@ function Sidebar({
                 }}
               >
                 <SettingsIcon className="size-4" />
-                <Label>Settings</Label>
+                <Label>Configuración</Label>
               </Dropdown.Item>
               <Dropdown.Item id="logout" textValue="Log out" isDisabled={logout.isPending}>
                 <LogoutIcon className="size-4" />
@@ -301,7 +314,11 @@ function TopBar({
         className="size-9 rounded-xl"
         onPress={desktop ? onToggleSidebar : onOpenMobile}
         aria-label={
-          desktop ? (collapsed ? "Expand sidebar" : "Collapse sidebar") : "Open navigation"
+          desktop
+            ? collapsed
+              ? "Expandir menú lateral"
+              : "Contraer menú lateral"
+            : "Abrir navegación"
         }
       >
         {desktop ? (
@@ -319,7 +336,10 @@ function TopBar({
         <p className="truncate text-sm font-semibold sm:text-base">{title}</p>
       </div>
 
-      <search aria-label="Search drive" className="flex min-w-0 flex-1 items-center md:max-w-md">
+      <search
+        aria-label="Buscar en la unidad"
+        className="flex min-w-0 flex-1 items-center md:max-w-md"
+      >
         <form
           className="w-full"
           onSubmit={(event) => {
@@ -352,7 +372,7 @@ function TopBar({
             </InputGroup.Prefix>
             <InputGroup.Input
               ref={searchRef}
-              aria-label="Search files"
+              aria-label="Buscar archivos"
               value={searchText}
               maxLength={512}
               enterKeyHint="search"
@@ -377,7 +397,7 @@ function TopBar({
                 setSearchText(value);
                 scheduleSearch(value);
               }}
-              placeholder="Search files"
+              placeholder="Buscar archivos"
               className="min-w-0 text-sm"
             />
             <InputGroup.Suffix className="hidden md:flex">
@@ -391,7 +411,7 @@ function TopBar({
         variant="ghost"
         className="size-9 rounded-xl"
         onPress={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-        aria-label="Toggle color theme"
+        aria-label="Cambiar tema de color"
       >
         {resolvedTheme === "dark" ? (
           <SunIcon className="size-4" />
@@ -444,12 +464,12 @@ function Layout() {
             className="fixed inset-0 z-50 flex"
             role="dialog"
             aria-modal="true"
-            aria-label="Navigation"
+            aria-label="Navegación"
           >
             <Button
               type="button"
               variant="ghost"
-              aria-label="Close navigation"
+              aria-label="Cerrar navegación"
               className="absolute inset-0 h-full w-full rounded-none bg-black/55 backdrop-blur-sm"
               onPress={() => setMobileOpen(false)}
             />
@@ -460,7 +480,7 @@ function Layout() {
                 variant="ghost"
                 className="absolute right-3 top-3 size-9 rounded-xl"
                 onPress={() => setMobileOpen(false)}
-                aria-label="Close navigation"
+                aria-label="Cerrar navegación"
               >
                 <CloseIcon className="size-4" />
               </Button>

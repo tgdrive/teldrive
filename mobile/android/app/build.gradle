@@ -1,0 +1,19 @@
+plugins { id 'com.android.application' }
+def signingFile = rootProject.file('signing.properties')
+def signingValues = new Properties()
+if (signingFile.exists()) signingFile.withInputStream { signingValues.load(it) }
+android {
+    namespace 'io.webr0m.teldrive'
+    compileSdk 36
+    buildFeatures { buildConfig true }
+    defaultConfig { applicationId 'io.webr0m.teldrive'; minSdk 26; targetSdk 36; versionCode 200001; versionName '2.0.0-drive-es.1' }
+    signingConfigs {
+        if (signingFile.exists()) {
+            release { storeFile rootProject.file(signingValues['storeFile']); storePassword signingValues['storePassword']; keyAlias signingValues['keyAlias']; keyPassword signingValues['keyPassword'] }
+        }
+    }
+    buildTypes { release { minifyEnabled false; if (signingFile.exists()) signingConfig signingConfigs.release } }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    lint { abortOnError true }
+}
+dependencies { implementation 'androidx.webkit:webkit:1.17.1'; testImplementation 'junit:junit:4.13.2' }

@@ -33,6 +33,7 @@ import (
 	"github.com/tgdrive/teldrive/v2/internal/health"
 	"github.com/tgdrive/teldrive/v2/internal/jobs"
 	"github.com/tgdrive/teldrive/v2/internal/legacymigrate"
+	"github.com/tgdrive/teldrive/v2/internal/media"
 	"github.com/tgdrive/teldrive/v2/internal/secureblob"
 	"github.com/tgdrive/teldrive/v2/internal/shares"
 	"github.com/tgdrive/teldrive/v2/internal/telegramstore"
@@ -210,6 +211,7 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 		cfg.Encryption.ActiveKeyVersion, eventService,
 	).ConfigureDomains(authService, botService, channelService, fileService, shareService, telegramAccount).
 		ConfigureJobs(jobRuntime)
+	handler.Media = media.New(cfg.Media)
 	httpServer, err := api.NewServer(handler, api.NewSecurity(authenticator, eventService))
 	if err != nil {
 		return nil, fmt.Errorf("create generated HTTP server: %w", err)
