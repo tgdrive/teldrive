@@ -325,12 +325,26 @@ func inspect(ctx context.Context, source legacyReader) (Report, []legacyFile, er
 	}
 	report.Bots = int64(len(botIDs))
 
-	rows, err := source.Query(ctx, `
+	// Older v1 releases predate stored hashes. Inspect before selecting: a failed
+	// SELECT followed by a fallback would leave the migration transaction aborted.
+	var hasHash bool
+	if err := source.QueryRow(ctx, `SELECT EXISTS (
+SELECT 1 FROM pg_attribute
+WHERE attrelid = 'teldrive.files'::regclass AND attname = 'hash'
+  AND attnum > 0 AND NOT attisdropped
+)`).Scan(&hasHash); err != nil {
+		return Report{}, nil, fmt.Errorf("inspect legacy file hash column: %w", err)
+	}
+	hashColumn := "NULL::text"
+	if hasHash {
+		hashColumn = "hash"
+	}
+	rows, err := source.Query(ctx, fmt.Sprintf(`
 SELECT id, name, type, mime_type, size, user_id, parent_id, status,
        channel_id, COALESCE(parts, '[]'::jsonb), COALESCE(encrypted, false),
-       hash, created_at, updated_at
+       %s, created_at, updated_at
 FROM teldrive.files
-ORDER BY created_at, id`)
+ORDER BY created_at, id`, hashColumn))
 	if err != nil {
 		return Report{}, nil, fmt.Errorf("read legacy files: %w", err)
 	}
