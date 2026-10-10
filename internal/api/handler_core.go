@@ -5,6 +5,8 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"log/slog"
 	"net/url"
 	"strings"
 	"time"
@@ -207,15 +209,38 @@ func (h *Handler) ListFiles(ctx context.Context, params gen.ListFilesParams) (ge
 			return nil, mapServiceError(err)
 		}
 	}
+	// What each folder on the page holds. It is put on the entries, not on the rows: a folder's
+	// stored size stays NULL, which is also what the size cursor below is made from. A listing is
+	// still a listing without it: folders that hold more than can be summed within the budget go
+	// without a size, and so do all of them when the sum fails, which is logged.
+	var folderSizes map[uuid.UUID]int64
+	if input.Status == "" || input.Status == sqlcgen.FileStatusActive {
+		var folderIDs []uuid.UUID
+		for _, file := range files {
+			if id, ok := dbtypes.GoogleUUID(file.ID); ok && file.Kind == sqlcgen.FileKindFolder {
+				folderIDs = append(folderIDs, id)
+			}
+		}
+		sizes, sizeErr := h.Catalog.FolderSizes(ctx, ownerID, folderIDs, catalog.FolderSizeBudget)
+		switch {
+		case sizeErr == nil:
+			folderSizes = sizes
+		case !errors.Is(sizeErr, catalog.ErrFolderSizesOverBudget):
+			slog.WarnContext(ctx, "folder sizes could not be read", "error", sizeErr)
+		}
+	}
 	items := make([]gen.FileEntry, 0, len(files))
 	for _, file := range files {
 		entry, err := fileEntry(file)
 		if err != nil {
 			return nil, mapServiceError(err)
 		}
-		if scope != "folder" {
-			if id, ok := dbtypes.GoogleUUID(file.ID); ok {
+		if id, ok := dbtypes.GoogleUUID(file.ID); ok {
+			if scope != "folder" {
 				entry.ParentPath = gen.NewOptString(paths[id])
+			}
+			if size, found := folderSizes[id]; found {
+				entry.Size = gen.NewOptInt64(size)
 			}
 		}
 		items = append(items, entry)

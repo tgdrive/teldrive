@@ -343,6 +343,34 @@ FROM ancestors a
 LEFT JOIN /* TEMPLATE: schema */files node ON node.id = a.ancestor_id AND node.user_id = sqlc.arg(user_id)
 GROUP BY a.listed_id;
 
+-- name: ListFolderSizes :many
+-- The bytes of the active files under each folder, at any depth. A folder holding none is 0;
+-- an id that is not one of the user's folders gets no row.
+-- Only folders go through the recursion; each one's files are then summed through files_list_idx
+-- (user_id, parent_id, status, kind). The cost is that of the files under the folders asked for,
+-- not of the whole account, so a small folder in a large account stays cheap.
+WITH RECURSIVE tree AS (
+  SELECT f.id AS folder_id, f.id AS node_id
+  FROM /* TEMPLATE: schema */files f
+  WHERE f.user_id = sqlc.arg(user_id)
+    AND f.id = ANY(sqlc.arg(folder_ids)::uuid[])
+    AND f.kind = 'folder'
+  UNION ALL
+  SELECT t.folder_id, child.id
+  FROM tree t
+  JOIN /* TEMPLATE: schema */files child ON child.parent_id = t.node_id
+  WHERE child.user_id = sqlc.arg(user_id) AND child.status = 'active' AND child.kind = 'folder'
+)
+SELECT t.folder_id, COALESCE(sum(held.bytes), 0)::bigint AS total_size
+FROM tree t
+CROSS JOIN LATERAL (
+  SELECT sum(f.size) AS bytes
+  FROM /* TEMPLATE: schema */files f
+  WHERE f.user_id = sqlc.arg(user_id) AND f.parent_id = t.node_id
+    AND f.status = 'active' AND f.kind = 'file'
+) held
+GROUP BY t.folder_id;
+
 -- name: ListFileCategoryStatistics :many
 SELECT category, count(*)::bigint AS total_files, COALESCE(sum(size), 0)::bigint AS total_size
 FROM (

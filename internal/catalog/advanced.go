@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 
 	"github.com/tgdrive/teldrive/v2/internal/db/sqlcgen"
@@ -216,6 +217,56 @@ func (s *Service) ParentPaths(ctx context.Context, userID int64, ids []uuid.UUID
 		paths[id] = row.ParentPath
 	}
 	return paths, nil
+}
+
+// FolderSizeBudget is how long a listing waits for its folders' sizes. They are summed when the
+// listing is read, which costs as much as there are files under the folders on the page: a few
+// milliseconds for thousands of files, seconds for a million.
+const FolderSizeBudget = 250 * time.Millisecond
+
+// ErrFolderSizesOverBudget says the folders hold more than can be summed within the budget.
+var ErrFolderSizesOverBudget = errors.New("folder sizes took longer than the budget")
+
+// FolderSizes is the bytes of the active files under each of the user's folders, at any depth.
+// A folder holding none is 0; an id that is not one of the user's folders is left out.
+// The database gives the sum up after the budget (ErrFolderSizesOverBudget); 0 is no limit.
+func (s *Service) FolderSizes(ctx context.Context, userID int64, ids []uuid.UUID, budget time.Duration) (map[uuid.UUID]int64, error) {
+	sizes := make(map[uuid.UUID]int64, len(ids))
+	if len(ids) == 0 {
+		return sizes, nil
+	}
+	folderIDs := make([]pgtype.UUID, len(ids))
+	for i, id := range ids {
+		folderIDs[i] = dbtypes.UUID(id)
+	}
+	// The limit is the statement's own, set for this transaction only: the server stops the work
+	// itself and the connection goes back to the pool as it was.
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("begin folder sizes: %w", err)
+	}
+	defer tx.Rollback(ctx)
+	if budget > 0 {
+		if _, err := tx.Exec(ctx, fmt.Sprintf("SET LOCAL statement_timeout = %d", max(budget.Milliseconds(), 1))); err != nil {
+			return nil, fmt.Errorf("limit folder sizes: %w", err)
+		}
+	}
+	rows, err := s.queries.WithTx(tx).ListFolderSizes(ctx, sqlcgen.ListFolderSizesParams{UserID: userID, FolderIds: folderIDs})
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "57014" { // query_canceled: the statement timeout
+			return nil, ErrFolderSizesOverBudget
+		}
+		return nil, fmt.Errorf("list folder sizes: %w", err)
+	}
+	for _, row := range rows {
+		id, ok := dbtypes.GoogleUUID(row.FolderID)
+		if !ok {
+			continue
+		}
+		sizes[id] = row.TotalSize
+	}
+	return sizes, nil
 }
 
 func FileCursorValue(file *sqlcgen.File, sortBy string) string {

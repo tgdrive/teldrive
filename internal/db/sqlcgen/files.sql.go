@@ -936,6 +936,65 @@ func (q *Queries) ListFilesAdvanced(ctx context.Context, arg ListFilesAdvancedPa
 	return items, nil
 }
 
+const listFolderSizes = `-- name: ListFolderSizes :many
+WITH RECURSIVE tree AS (
+  SELECT f.id AS folder_id, f.id AS node_id
+  FROM /* TEMPLATE: schema */files f
+  WHERE f.user_id = $1
+    AND f.id = ANY($2::uuid[])
+    AND f.kind = 'folder'
+  UNION ALL
+  SELECT t.folder_id, child.id
+  FROM tree t
+  JOIN /* TEMPLATE: schema */files child ON child.parent_id = t.node_id
+  WHERE child.user_id = $1 AND child.status = 'active' AND child.kind = 'folder'
+)
+SELECT t.folder_id, COALESCE(sum(held.bytes), 0)::bigint AS total_size
+FROM tree t
+CROSS JOIN LATERAL (
+  SELECT sum(f.size) AS bytes
+  FROM /* TEMPLATE: schema */files f
+  WHERE f.user_id = $1 AND f.parent_id = t.node_id
+    AND f.status = 'active' AND f.kind = 'file'
+) held
+GROUP BY t.folder_id
+`
+
+type ListFolderSizesParams struct {
+	UserID    int64         `json:"user_id"`
+	FolderIds []pgtype.UUID `json:"folder_ids"`
+}
+
+type ListFolderSizesRow struct {
+	FolderID  pgtype.UUID `json:"folder_id"`
+	TotalSize int64       `json:"total_size"`
+}
+
+// The bytes of the active files under each folder, at any depth. A folder holding none is 0;
+// an id that is not one of the user's folders gets no row.
+// Only folders go through the recursion; each one's files are then summed through files_list_idx
+// (user_id, parent_id, status, kind). The cost is that of the files under the folders asked for,
+// not of the whole account, so a small folder in a large account stays cheap.
+func (q *Queries) ListFolderSizes(ctx context.Context, arg ListFolderSizesParams) ([]*ListFolderSizesRow, error) {
+	rows, err := q.db.Query(ctx, listFolderSizes, arg.UserID, arg.FolderIds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []*ListFolderSizesRow{}
+	for rows.Next() {
+		var i ListFolderSizesRow
+		if err := rows.Scan(&i.FolderID, &i.TotalSize); err != nil {
+			return nil, err
+		}
+		items = append(items, &i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const loadFileSubtree = `-- name: LoadFileSubtree :many
 WITH RECURSIVE tree AS (
     SELECT f.id, f.user_id, f.parent_id, f.name, f.kind, f.mime_type, f.size, f.hash_algorithm, f.hash_value, f.encryption, f.encryption_key_version, f.status, f.mod_time, f.generation, f.created_at, f.updated_at, f.deleted_at, 0::integer AS depth
