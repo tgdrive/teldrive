@@ -28,3 +28,10 @@ sslcerts
 *.env.local
 *.env.staging
 *.db
+logs
+bin
+ui/dist
+docs/dist
+teldrive-ui.zip
+internal/api
+.opencode/plans
