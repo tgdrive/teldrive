@@ -30,6 +30,8 @@ teldrive run --config /etc/teldrive/config.toml
 
 Supported formats: TOML, YAML, YML.
 
+In the official Docker/Podman image, `~` is `/home/nonroot`. Mount your host config file read-only at `/home/nonroot/.teldrive/config.toml`; see [Mount a config file](/installation/containers#mount-a-config-file) for examples and permissions.
+
 ## Name mapping
 
 ```text

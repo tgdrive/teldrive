@@ -27,6 +27,29 @@ docker run --rm \
 
 Podman uses the same settings with `podman run`.
 
+## Mount a config file
+
+The official image runs as `nonroot`, whose home directory is `/home/nonroot`. Teldrive automatically discovers `/home/nonroot/.teldrive/config.toml` inside the container.
+
+Create `config.toml` on the host before starting the container, then mount it read-only. For Compose, add this to the `teldrive` service:
+
+```yaml
+services:
+  teldrive:
+    volumes:
+      - ./config.toml:/home/nonroot/.teldrive/config.toml:ro
+```
+
+With `docker run`, add:
+
+```bash
+--mount type=bind,src="$(pwd)/config.toml",dst=/home/nonroot/.teldrive/config.toml,readonly
+```
+
+The file must be readable by the container's nonroot user (UID/GID `65532:65532`). Keep it protected on the host because it may contain credentials.
+
+No `--config` flag is needed for this path. `TELDRIVE_*` environment variables override values in the file, including those in the generated Compose configuration. See [Configuration overview](/configuration/overview) for supported formats and precedence.
+
 ## Pin releases
 
 ```yaml
