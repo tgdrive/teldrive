@@ -55,7 +55,6 @@ type channelProcessor struct {
 	files           []file
 	missingFiles    []file
 	orphanMessages  []int
-	totalCount      int64
 	totalPartsDB    int
 	totalMessagesTG int
 	channelExport   *channelExport
@@ -96,16 +95,6 @@ func (cl *channelLogger) error(errMsg string) {
 	defer cl.mutex.Unlock()
 	c := color.New(color.FgRed)
 	c.Printf("[Channel %d] ✗ %s\n", cl.channelID, errMsg)
-}
-
-func (cl *channelLogger) progress(current, total int64, operation string) {
-	cl.mutex.Lock()
-	defer cl.mutex.Unlock()
-	if total > 0 {
-		percent := float64(current) / float64(total) * 100
-		c := color.New(color.FgYellow)
-		c.Printf("[Channel %d] %s: %d/%d (%.1f%%)\n", cl.channelID, operation, current, total, percent)
-	}
 }
 
 func NewCheckCmd() *cobra.Command {

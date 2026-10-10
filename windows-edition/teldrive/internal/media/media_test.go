@@ -48,7 +48,7 @@ func TestCompatiblePlaybackFFmpeg(t *testing.T) {
 				t.Fatal("required encoders unavailable")
 			}
 			recorder := httptest.NewRecorder()
-			request := httptest.NewRequest("GET", "/compatible?mode="+fixture.mode, nil)
+			request := httptest.NewRequest(http.MethodGet, "/compatible?mode="+fixture.mode, nil)
 			service.Handler(recorder, request)
 			if recorder.Code != 200 {
 				t.Fatalf("status %d: %s", recorder.Code, recorder.Body.String())
@@ -80,13 +80,13 @@ func TestMediaValidation(t *testing.T) {
 	service := &Service{available: true, slots: make(chan struct{}, 1), resolve: func(_ *http.Request, _ string) (Source, error) { return Source{}, errors.New("denied") }}
 	for _, query := range []string{"mode=invalid", "mode=video&start=NaN", "mode=audio&start=-1", "mode=video&start=Inf"} {
 		recorder := httptest.NewRecorder()
-		service.Handler(recorder, httptest.NewRequest("GET", "/compatible?"+query, nil))
+		service.Handler(recorder, httptest.NewRequest(http.MethodGet, "/compatible?"+query, nil))
 		if recorder.Code != 400 {
 			t.Fatal("invalid request accepted", query)
 		}
 	}
 	recorder := httptest.NewRecorder()
-	service.Handler(recorder, httptest.NewRequest("GET", "/compatible?mode=video", nil))
+	service.Handler(recorder, httptest.NewRequest(http.MethodGet, "/compatible?mode=video", nil))
 	if recorder.Code != 403 {
 		t.Fatal("unauthorized media must not be converted")
 	}

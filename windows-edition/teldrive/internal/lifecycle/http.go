@@ -15,13 +15,13 @@ func Handler(db *gorm.DB, authorize Authorize) http.HandlerFunc {
 		w.Header().Set("Cache-Control", "no-store")
 		user, err := authorize(r)
 		if err != nil || user == 0 {
-			http.Error(w, "Sesión no válida", 401)
+			http.Error(w, "Sesión no válida", http.StatusUnauthorized)
 			return
 		}
-		if r.Method == "GET" {
+		if r.Method == http.MethodGet {
 			items, err := List(r.Context(), db, user, r.URL.Query().Get("state"))
 			if err != nil {
-				http.Error(w, "No se pudo consultar esta carpeta", 400)
+				http.Error(w, "No se pudo consultar esta carpeta", http.StatusBadRequest)
 				return
 			}
 			w.Header().Set("Content-Type", "application/json")
@@ -30,13 +30,13 @@ func Handler(db *gorm.DB, authorize Authorize) http.HandlerFunc {
 			}
 			return
 		}
-		if r.Method != "POST" {
-			w.WriteHeader(405)
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
 			return
 		}
 		// A custom header prevents cross-origin simple requests through cookies.
 		if r.Header.Get("X-Teldrive-Intent") != "file-lifecycle" || r.Header.Get("Sec-Fetch-Site") == "cross-site" {
-			http.Error(w, "Origen inválido", 403)
+			http.Error(w, "Origen inválido", http.StatusForbidden)
 			return
 		}
 		var body struct {
@@ -47,20 +47,20 @@ func Handler(db *gorm.DB, authorize Authorize) http.HandlerFunc {
 		decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64*1024))
 		decoder.DisallowUnknownFields()
 		if decoder.Decode(&body) != nil {
-			http.Error(w, "Solicitud no válida", 400)
+			http.Error(w, "Solicitud no válida", http.StatusBadRequest)
 			return
 		}
 		if err := Change(r.Context(), db, user, body.IDs, body.Action, body.State); err != nil {
-			code := 409
+			code := http.StatusConflict
 			if errors.Is(err, ErrInvalid) {
-				code = 400
+				code = http.StatusBadRequest
 			}
 			if errors.Is(err, ErrNotFound) {
-				code = 404
+				code = http.StatusNotFound
 			}
 			http.Error(w, "No se pudo completar el cambio; actualiza la lista e inténtalo de nuevo", code)
 			return
 		}
-		w.WriteHeader(204)
+		w.WriteHeader(http.StatusNoContent)
 	}
 }

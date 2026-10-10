@@ -106,7 +106,7 @@ func (m *manager) start(name, binary string, args ...string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if j := m.jobs[name]; j != nil && j.Running {
-		return errors.New("Ya hay una tarea en ejecución")
+		return errors.New("ya hay una tarea en ejecución")
 	}
 	p := filepath.Join(m.dir, name+".log")
 	f, e := os.OpenFile(p, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0600)
@@ -132,7 +132,7 @@ func (m *manager) start(name, binary string, args ...string) error {
 			c.Process.Kill()
 			c.Wait()
 			f.Close()
-			return fmt.Errorf("No se pudo supervisar el proceso: %w", err)
+			return fmt.Errorf("no se pudo controlar el proceso: %w", err)
 		}
 	}
 	j := &job{Cmd: c, File: f, Running: true, Log: p}
@@ -193,7 +193,7 @@ func validRemote(s string) bool {
 		return false
 	}
 	for _, r := range s {
-		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '_' || r == '-') {
+		if (r < 'a' || r > 'z') && (r < 'A' || r > 'Z') && (r < '0' || r > '9') && r != '_' && r != '-' {
 			return false
 		}
 	}
@@ -201,7 +201,7 @@ func validRemote(s string) bool {
 }
 func rcloneArgs(q request) ([]string, error) {
 	if !validRemote(q.Remote) {
-		return nil, errors.New("Nombre de remoto inválido")
+		return nil, errors.New("nombre de remoto inválido")
 	}
 	remote := q.Remote + ":" + q.Destination
 	args := []string{"--config", "rclone-teldrive.conf", "--stats", "1s", "--stats-one-line", "--log-level", "INFO"}
@@ -210,7 +210,7 @@ func rcloneArgs(q request) ([]string, error) {
 		args = append(args, "lsd", remote)
 	case "upload", "download":
 		if !filepath.IsAbs(q.Local) {
-			return nil, errors.New("Selecciona una ruta local absoluta")
+			return nil, errors.New("selecciona una ruta local absoluta")
 		}
 		if q.Action == "upload" {
 			args = append(args, "copy", q.Local, remote)
@@ -223,14 +223,14 @@ func rcloneArgs(q request) ([]string, error) {
 		}
 	case "mount":
 		if len(q.Drive) != 2 || q.Drive[0] < 'D' || q.Drive[0] > 'Z' || q.Drive[1] != ':' {
-			return nil, errors.New("Usa una letra de D: a Z:")
+			return nil, errors.New("usa una letra de unidad entre D y Z")
 		}
 		if _, e := os.Stat(q.Drive + "\\"); e == nil {
-			return nil, errors.New("La letra de unidad ya está ocupada")
+			return nil, errors.New("la letra de unidad ya está ocupada")
 		}
 		args = append(args, "mount", q.Remote+":", q.Drive, "--vfs-cache-mode", "writes", "--cache-dir", "rclone-cache")
 	default:
-		return nil, errors.New("Acción de rclone no permitida")
+		return nil, errors.New("acción de rclone no permitida")
 	}
 	return args, nil
 }
@@ -238,15 +238,15 @@ func (m *manager) api(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Content-Type", "application/json")
 	if r.Host != strings.TrimPrefix(m.origin, "http://") {
-		http.Error(w, "Dirección no permitida", 403)
+		http.Error(w, "Dirección no permitida", http.StatusForbidden)
 		return
 	}
 	c, e := r.Cookie("teldrive_desktop")
 	if e != nil || c.Value != m.secret {
-		http.Error(w, "Abre el programa desde su ejecutable", 403)
+		http.Error(w, "Abre el programa desde su ejecutable", http.StatusForbidden)
 		return
 	}
-	if r.Method == "GET" {
+	if r.Method == http.MethodGet {
 		switch r.URL.Path {
 		case "/desktop/api/status":
 			json.NewEncoder(w).Encode(m.status())
@@ -258,12 +258,12 @@ func (m *manager) api(w http.ResponseWriter, r *http.Request) {
 		case "/desktop/api/config":
 			b, e := os.ReadFile(filepath.Join(m.dir, "config.toml"))
 			if e != nil {
-				http.Error(w, e.Error(), 500)
+				http.Error(w, e.Error(), http.StatusInternalServerError)
 				return
 			}
 			values, e := (toml.Parser()).Unmarshal(b)
 			if e != nil {
-				http.Error(w, "La configuración TOML no es válida", 500)
+				http.Error(w, "La configuración TOML no es válida", http.StatusInternalServerError)
 				return
 			}
 			json.NewEncoder(w).Encode(map[string]any{"config": string(b), "values": values})
@@ -272,15 +272,15 @@ func (m *manager) api(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	if r.Method != "POST" || r.Header.Get("Origin") != m.origin || r.Header.Get("X-Teldrive-Desktop") != "1" {
-		http.Error(w, "Petición no permitida", 403)
+	if r.Method != http.MethodPost || r.Header.Get("Origin") != m.origin || r.Header.Get("X-Teldrive-Desktop") != "1" {
+		http.Error(w, "Petición no permitida", http.StatusForbidden)
 		return
 	}
 	var q request
 	d := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20))
 	d.DisallowUnknownFields()
 	if e = d.Decode(&q); e != nil {
-		http.Error(w, "Petición inválida", 400)
+		http.Error(w, "Petición inválida", http.StatusBadRequest)
 		return
 	}
 	m.operations.Lock()
@@ -292,7 +292,7 @@ func (m *manager) api(w http.ResponseWriter, r *http.Request) {
 			running := m.jobs["server"] != nil && m.jobs["server"].Running
 			m.mu.Unlock()
 			if running {
-				e = errors.New("Detén el servidor antes de guardar la configuración")
+				e = errors.New("detén el servidor antes de guardar la configuración")
 			} else {
 				p := filepath.Join(m.dir, "config.toml")
 				e = os.WriteFile(p+".tmp", []byte(q.Config), 0600)
@@ -336,7 +336,7 @@ func (m *manager) api(w http.ResponseWriter, r *http.Request) {
 		e = m.installRuntime()
 	case "/desktop/api/rclone/start":
 		if strings.ContainsAny(q.Config, "\x00") || !strings.HasPrefix(q.Config, "["+q.Remote+"]\n") || !strings.Contains(q.Config, "\ntype = teldrive\n") {
-			e = errors.New("Configuración de rclone inválida")
+			e = errors.New("configuración de rclone inválida")
 			break
 		}
 		// Accept only the generated Teldrive INI; prevent arbitrary backends and injected sections.
@@ -345,13 +345,13 @@ func (m *manager) api(w http.ResponseWriter, r *http.Request) {
 		for _, line := range strings.Split(strings.TrimSpace(q.Config), "\n")[1:] {
 			kv := strings.SplitN(line, "=", 2)
 			if len(kv) != 2 || !allowed[strings.TrimSpace(kv[0])] || seen[strings.TrimSpace(kv[0])] || strings.ContainsAny(kv[1], "\r\n") {
-				e = errors.New("La configuración contiene opciones no permitidas")
+				e = errors.New("la configuración contiene opciones no permitidas")
 				break
 			}
 			key, value := strings.TrimSpace(kv[0]), strings.TrimSpace(kv[1])
 			seen[key] = true
 			if key == "type" && value != "teldrive" {
-				e = errors.New("Solo se permite el backend Teldrive")
+				e = errors.New("solo se permite el backend Teldrive")
 				break
 			}
 		}
@@ -364,14 +364,14 @@ func (m *manager) api(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 		if q.Action == "mount" && !winfspInstalled() {
-			e = errors.New("Instala WinFsp con el botón de esta interfaz antes de montar")
+			e = errors.New("instala WinFsp con el botón de esta interfaz antes de montar")
 			break
 		}
 		m.mu.Lock()
 		running := m.jobs["rclone"] != nil && m.jobs["rclone"].Running
 		m.mu.Unlock()
 		if running {
-			e = errors.New("Detén la tarea actual antes de iniciar otra")
+			e = errors.New("detén la tarea actual antes de iniciar otra")
 			break
 		}
 		e = os.WriteFile(filepath.Join(m.dir, "rclone-teldrive.conf"), []byte(q.Config), 0600)
@@ -402,20 +402,20 @@ func (m *manager) api(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if e != nil {
-		http.Error(w, e.Error(), 400)
+		http.Error(w, e.Error(), http.StatusBadRequest)
 		return
 	}
 	json.NewEncoder(w).Encode(map[string]bool{"ok": true})
 }
 func (m *manager) serve(w http.ResponseWriter, r *http.Request, proxy *httputil.ReverseProxy) {
 	if r.Host != strings.TrimPrefix(m.origin, "http://") {
-		http.Error(w, "Dirección no permitida", 403)
+		http.Error(w, "Dirección no permitida", http.StatusForbidden)
 		return
 	}
 	if r.URL.Path == "/desktop" || r.URL.Path == "/desktop/" {
 		if key := r.URL.Query().Get("key"); key != "" {
 			if key != m.secret {
-				http.Error(w, "Clave inválida", 403)
+				http.Error(w, "Clave inválida", http.StatusForbidden)
 				return
 			}
 			http.SetCookie(w, &http.Cookie{Name: "teldrive_desktop", Value: m.secret, Path: "/desktop", HttpOnly: true, SameSite: http.SameSiteStrictMode})
@@ -424,7 +424,7 @@ func (m *manager) serve(w http.ResponseWriter, r *http.Request, proxy *httputil.
 		}
 		c, e := r.Cookie("teldrive_desktop")
 		if e != nil || c.Value != m.secret {
-			http.Error(w, "Abre Teldrive Desktop.exe para acceder", 403)
+			http.Error(w, "Abre Teldrive Desktop.exe para acceder", http.StatusForbidden)
 			return
 		}
 		b, _ := assets.ReadFile("index.html")
@@ -486,7 +486,7 @@ func main() {
 			}
 			time.Sleep(100 * time.Millisecond)
 		}
-		showStartupError(errors.New("La instancia anterior todavía no publicó su dirección. Vuelve a abrir el ejecutable en unos segundos"))
+		showStartupError(errors.New("la instancia anterior todavía no publicó su dirección. Vuelve a abrir el ejecutable en unos segundos"))
 		return
 	}
 	if mutexErr != nil {
@@ -553,10 +553,10 @@ func main() {
 	proxy := httputil.NewSingleHostReverseProxy(u)
 	proxy.ErrorHandler = func(w http.ResponseWriter, r *http.Request, e error) {
 		if r.URL.Path == "/" {
-			http.Redirect(w, r, "/desktop", 303)
+			http.Redirect(w, r, "/desktop", http.StatusSeeOther)
 			return
 		}
-		http.Error(w, "El servidor está detenido. Abre /desktop para configurarlo e iniciarlo.", 503)
+		http.Error(w, "El servidor está detenido. Abre /desktop para configurarlo e iniciarlo.", http.StatusServiceUnavailable)
 	}
 	// Preserve the browser's original Host/Origin for cookie and CSRF checks on proxied APIs.
 	proxy.ModifyResponse = func(resp *http.Response) error { resp.Header.Del("Access-Control-Allow-Origin"); return nil }
@@ -571,7 +571,7 @@ func main() {
 		log.Print(e)
 		return
 	}
-	if !(len(os.Args) > 1 && os.Args[1] == "--background") {
+	if len(os.Args) <= 1 || os.Args[1] != "--background" {
 		if e = openApp(windowURL); e != nil {
 			showStartupError(e)
 		}
