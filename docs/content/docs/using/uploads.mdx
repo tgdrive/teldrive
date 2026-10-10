@@ -1,0 +1,18 @@
+---
+title: Uploads
+description: Upload from your browser or import files the server can read.
+---
+
+## Browser uploads
+
+On **Files → Upload**, select files or a folder, or drag files into the browser. Interrupted uploads can resume while their session remains valid (seven days by default). Teldrive computes BLAKE3 hashes by default.
+
+## Background imports
+
+Choose **Upload → Background upload** to import files the server can read. Configure allowed paths and read-only mounts in [Uploads and events](/configuration/uploads-and-events). Expose only directories Teldrive should read.
+
+## Progress and failures
+
+Browser transfers appear in the upload UI; background imports appear in **Tasks**.
+
+If an upload fails, check the task error, Telegram session/channel access, import permissions, and session expiry. For fixed-duration failures, see [Troubleshooting](/operations/troubleshooting). Change concurrency only after measuring the bottleneck; see [Performance tuning](/advanced/performance).

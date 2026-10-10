@@ -1,0 +1,20 @@
+---
+title: Telegram bots
+description: Add and verify optional Telegram clients.
+---
+
+Bots are optional. Add them only when you need additional Telegram clients for throughput.
+
+## Add bots
+
+1. Create bots with **@BotFather**.
+2. Open **Settings → Telegram bots**.
+3. Paste one token per line and choose **Add bots**.
+
+Verification and channel invitations run as background jobs. Check **Tasks** if a bot stays disabled. Recently signed-in Telegram accounts may need to wait before granting admin permissions.
+
+## Download rotation
+
+Downloads use the authenticated user by default. Enable bot rotation only after provisioning succeeds. See [Telegram settings](/configuration/telegram) for bot counts, rotation backends, and warm clients.
+
+BotFather tokens are credentials: do not publish or commit them. For tuning, see [Performance](/advanced/performance).

@@ -1,0 +1,98 @@
+---
+title: Performance tuning
+description: Tune Telegram concurrency, hashing, PostgreSQL, HTTP streaming, and memory use.
+---
+
+Measure before changing concurrency.
+
+## Baseline
+
+Record:
+
+- upload/download throughput;
+- CPU and memory;
+- PostgreSQL connections;
+- Telegram retry/rate-limit errors;
+- proxy timeouts/errors.
+
+## Uploads
+
+```yaml
+telegram:
+  upload-threads: 8
+```
+
+Valid range: `1`–`32`. Increase gradually and stop when throughput no longer improves or errors/resource use rise.
+
+Hashing can also consume CPU:
+
+```yaml
+uploads:
+  hashing-enabled: true
+```
+
+Disable it only if measurements show it is the bottleneck and you do not need server-computed hashes.
+
+## Downloads
+
+```yaml
+telegram:
+  download-read-buffers: 32
+  download-read-parallel: 4
+  download-bots: 0
+```
+
+`download-read-parallel` controls concurrent chunk fetches per stream. `download-read-buffers` controls prefetched chunks in memory. Both multiply across simultaneous downloads.
+
+Use bots only after normal user-client downloads work correctly.
+
+## PostgreSQL
+
+```yaml
+database:
+  max-connections: 25
+  min-connections: 2
+```
+
+Increase the pool only when requests are waiting for connections and PostgreSQL has capacity. With multiple Teldrive instances, budget the sum of every process pool.
+
+## Memory cache
+
+```yaml
+cache:
+  memory:
+    size: 5MB
+```
+
+This is metadata/application cache, not file-content cache.
+
+## Timeouts
+
+```yaml
+http:
+  read-timeout: 1h
+  write-timeout: 1h
+```
+
+If transfers fail at a consistent duration, check the shortest timeout across the client, CDN/load balancer, reverse proxy, and Teldrive.
+
+## Telegram rate limiting
+
+Keep client-side rate limiting enabled unless you have a specific reason to change it:
+
+```yaml
+telegram:
+  rate-limit: true
+  rate-interval: 50ms
+  rate-burst: 10
+```
+
+## Tuning order
+
+1. Fix proxy/time-out errors.
+2. Measure one upload and one download.
+3. Check CPU, memory, and network saturation.
+4. Adjust upload or download concurrency one setting at a time.
+5. Re-test under realistic simultaneous load.
+6. Check PostgreSQL pool pressure.
+7. Consider bots or horizontal scaling last.

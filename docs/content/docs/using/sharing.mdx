@@ -1,0 +1,29 @@
+---
+title: Sharing
+description: Create public links or grant access to another Teldrive user.
+---
+
+Teldrive supports **public links** and **user grants**.
+
+## Public links
+
+A share can set:
+
+- `read` or `edit` permission;
+- password;
+- expiration;
+- maximum download count.
+
+The share URL/token is a credential. `edit` shares allow writes under the shared root; use them only when intended.
+
+Password-protected shares use `X-Share-Password` for API clients.
+
+## User grants
+
+For another account on the same Teldrive server, grant `read` or `edit` access instead of creating a public link. Recipients see grants under **Shared with me**.
+
+## Revoke
+
+Revoking a share/grant removes access without deleting the underlying file.
+
+For exact request/response schemas, use the [API Reference](/api/).

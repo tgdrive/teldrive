@@ -1,0 +1,4 @@
+{
+  "title": "Installation",
+  "pages": ["binary", "nix", "containers", "from-source"]
+}

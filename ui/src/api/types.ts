@@ -1,0 +1,23 @@
+import type { components } from "./schema";
+
+export type UserProfile = components["schemas"]["UserProfile"];
+export type TokenPair = components["schemas"]["TokenPair"];
+export type FileEntry = components["schemas"]["FileEntry"];
+export type FileKind = components["schemas"]["FileKind"];
+export type FileStatus = components["schemas"]["FileStatus"];
+export type FileCategory = components["schemas"]["FileCategory"];
+export type FileSort = components["schemas"]["FileSort"];
+export type NameConflictPolicy = components["schemas"]["NameConflictPolicy"];
+export type UploadSession = components["schemas"]["UploadSession"];
+export type UploadPart = components["schemas"]["UploadPart"];
+export type UploadState = components["schemas"]["UploadState"];
+export type DriveStatistics = components["schemas"]["DriveStatistics"];
+export type FileCategoryStatistics = components["schemas"]["FileCategoryStatistics"];
+export type ShareSummary = components["schemas"]["ShareSummary"];
+export type ShareCreated = components["schemas"]["ShareCreated"];
+export type ApiKeySummary = components["schemas"]["ApiKeySummary"];
+export type ApiKeyCreated = components["schemas"]["ApiKeyCreated"];
+export type SessionSummary = components["schemas"]["SessionSummary"];
+export type ChannelSummary = components["schemas"]["ChannelSummary"];
+export type BotSummary = components["schemas"]["BotSummary"];
+export type PublicShare = components["schemas"]["PublicShare"];

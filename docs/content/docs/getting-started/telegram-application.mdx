@@ -1,0 +1,43 @@
+---
+title: Custom Telegram application
+description: Override Teldrive's built-in public Telegram app credentials.
+---
+
+Most installations should use the built-in credentials. Configure this only if you intentionally want your own `api_id` and `api_hash`.
+
+## Create credentials
+
+1. Open `https://my.telegram.org`.
+2. Sign in.
+3. Open **API development tools**.
+4. Create an application.
+5. Copy `api_id` and `api_hash`.
+
+Keep the API hash private.
+
+## Configure
+
+Environment:
+
+```bash
+TELDRIVE_TELEGRAM_APP_ID=12345678
+TELDRIVE_TELEGRAM_APP_HASH=0123456789abcdef0123456789abcdef
+```
+
+YAML:
+
+```yaml
+telegram:
+  app-id: 12345678
+  app-hash: 0123456789abcdef0123456789abcdef
+```
+
+TOML:
+
+```toml
+[telegram]
+app-id = 12345678
+app-hash = "0123456789abcdef0123456789abcdef"
+```
+
+For proxy, retry, rate-limit, and filesystem-backend settings, see [Telegram settings](/configuration/telegram).

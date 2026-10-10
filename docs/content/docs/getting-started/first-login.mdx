@@ -1,0 +1,42 @@
+---
+title: First login and verification
+description: Verify login, persistence, uploads, and downloads before production use.
+---
+
+## 1. Sign in
+
+Open the UI and complete Telegram login.
+
+Keep `security.data-key` stable; it encrypts the stored Telegram session.
+
+## 2. Test storage
+
+Create a folder, upload a small file, then download it again. This verifies the API, Telegram storage path, and PostgreSQL metadata.
+
+## 3. Restart Teldrive
+
+```bash
+docker compose restart teldrive
+```
+
+Reload the UI and verify the account, file listing, and download still work.
+
+## 4. Restart PostgreSQL
+
+```bash
+docker compose restart postgres
+```
+
+After PostgreSQL is healthy, verify the same data again. Failure here usually means database storage was not persisted or secrets changed.
+
+## 5. Check logs
+
+```bash
+docker compose logs --tail=200 teldrive
+```
+
+Investigate repeated database, migration, authentication, or Telegram reconnect errors.
+
+## Before public access
+
+Complete the [Production checklist](/deployment/production): HTTPS, access restrictions, backups, trusted proxies, and pinned releases.

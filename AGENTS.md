@@ -1,82 +1,33 @@
-# TelDrive Agent Guidelines
+# Repository Guide
 
-This file contains instructions for agentic coding agents working on the TelDrive codebase.
+## Sources Of Truth
 
-## 1. Build, Lint, and Test Commands
+- Use `justfile` for supported workflows; it loads a root `.env` automatically.
+- TypeSpec files in `typespec/` own the HTTP contract. Do not hand-edit `openapi/teldrive.openapi.yaml`, `internal/api/gen/`, or `ui/src/api/schema.ts`; run `just generate-api`, `just generate-ui`, or `just generate` as appropriate.
+- SQL lives in `db/queries/` and migrations in `db/migrations/`. Do not edit `internal/db/sqlcgen/` manually.
+- Go config structs in `internal/config` own the NixOS/Home Manager option schema. Do not hand-edit `nix/modules/generated-options.nix` or `nix/modules/generated-leaf-maps.nix`; run `just nix-generate`.
+- Always run `just generate-db` after SQL changes. A bare `sqlc generate` omits the required `go run ./internal/tools/patchsqlc` step and breaks configurable PostgreSQL schema rewriting in `internal/db/sqlcgen/db.go`.
+- Preserve `/* TEMPLATE: schema */` markers in SQL; the generated DB wrapper replaces them with the configured schema at runtime.
 
-The project uses `task` (taskfile.yml) for build automation and standard Go toolchain.
+## Commands
 
-### Build
-- **Build Server:** `task server` (builds binary to `bin/teldrive`)
-- **Build UI:** `task ui` (downloads frontend assets)
-- **Full Build:** `task` (runs `ui` then `server`)
-- **Install Dependencies:** `task deps` (runs `go mod download && go mod tidy`)
-- **Generate Code:** `task gen` (runs `go generate ./...`)
+- Install pinned JS dependencies: `just install-tools` (uses Bun for both `typespec/` and `ui/`).
+- Backend unit tests: `go test ./...`; focused package/test: `go test ./internal/transfer -run '^TestName$'`.
+- Integration tests require Podman and must use the harness: `scripts/test-postgres.sh go test -tags=integration ./internal/uploads`; use `just test-integration` for all packages.
+- Race tests also require the PostgreSQL harness: `just test-race`.
+- Full project validation: `just check`. This regenerates artifacts and runs lint, UI checks/build, unit tests, and the Podman-backed 80% core coverage gate; it is intentionally expensive.
+- UI checks: `just ui-check` (includes browser E2E with mocked API responses).
+- Format only handwritten code with `just format`; generated Go directories are deliberately excluded.
 
-### Test
-- **Run All Tests:** `go test ./...`
-- **Run Specific Package:** `go test ./internal/config/...`
-- **Run Specific Test:** `go test -v ./internal/config -run TestConfigLoader`
-- **Run with Race Detector:** `go test -race ./...`
+## Architecture
 
-### Lint
-- **Run Linter:** `task lint` (runs `golangci-lint run`)
-- **Format Code:** `go fmt ./...`
+- `cmd/teldrive` is the CLI entrypoint; `internal/app/app.go` is the composition root and owns migrations, services, HTTP routing, workers, and shutdown order.
+- `internal/api` adapts the ogen contract; domain behavior belongs in packages such as `catalog`, `uploads`, `transfer`, `fileops`, and `shares`, not generated handlers.
+- `internal/telegramstore` is the external storage boundary. Production uses gotd; integration and UI tests can use the filesystem backend.
+- `db/migrations` includes application schema; startup also runs River/RiverPro migrations before opening the long-lived pool.
+- The UI is a Vite/React app in `ui/`; `ui/ui.go` embeds `ui/dist`, so `just build` builds the UI before compiling the server binary.
 
-## 2. Code Style & Guidelines
+## Generated Changes
 
-### Formatting & Style
-- **Go Standard:** Strictly follow `gofmt` and standard Go idioms.
-- **Imports:** Group imports into standard library, 3rd party, and local packages.
-- **Line Length:** Aim for readable line lengths (soft limit ~120 chars), but prioritize readability.
-
-### Project Structure
-- **`cmd/`**: Entry points for the application commands (server, check, etc.).
-- **`internal/`**: Private application code.
-  - **`config/`**: Configuration loading (Koanf based).
-  - **`database/`**: Database interactions (GORM).
-  - **`tgc/`**: Telegram client wrappers.
-- **`pkg/`**: Library code that might be imported by other projects.
-  - **`services/`**: Core business logic and API handlers.
-  - **`models/`**: GORM database models.
-
-### Naming Conventions
-- **Interfaces:** Named with `-er` suffix (e.g., `Reader`, `Writer`) where appropriate.
-- **Structs:** PascalCase.
-- **Variables:** camelCase.
-- **Constants:** PascalCase or SCREAMING_SNAKE_CASE.
-- **Package Names:** Short, lowercase, single word (e.g., `config`, `auth`).
-
-### Error Handling
-- **Wrapping:** Use `%w` to wrap errors to preserve context.
-- **Check Errors:** Never swallow errors. Handle them or return them.
-- **Panic:** Avoid panic except during initialization/startup where recovery is impossible.
-- **Logging:** Use `zap` logger via `logging.FromContext(ctx)`.
-  - **Levels:** Use `Debug` for trace info, `Info` for general ops, `Error` for failures.
-  - **Fields:** Use structured logging (e.g., `zap.String("key", "value")`).
-
-### Configuration
-- **Library:** Uses `knadh/koanf/v2`.
-- **Loading:** Loads from Defaults -> Config File -> Env Vars -> Flags.
-- **Validation:** Uses `go-playground/validator`. Ensure struct tags `validate:"..."` are present.
-- **Mapping:** Use explicit mapping in `populate` method in `internal/config/config.go` (avoid reflection where possible).
-
-### Database
-- **Library:** GORM with PostgreSQL.
-- **Migrations:** Use SQL migrations in `internal/database/migrations` or GORM auto-migration if configured.
-- **Context:** Always pass `ctx` to database calls.
-
-### Telegram Client (TGC)
-- **Library:** `gotd/td`.
-- **Session:** Managed via `internal/tgc` and database.
-- **Concurrency:** Be mindful of Telegram rate limits. Use `tgc.NewMiddleware` with rate limiters.
-
-### Frontend
-- **Location:** `ui/` directory.
-- **Assets:** Embeds frontend in binary via `embed` package or serves from `ui/dist`.
-
-## 3. Development Workflow
-1.  **Dependencies:** Ensure `task` is installed.
-2.  **Generate:** Run `task gen` if modifying API definitions or generated code.
-3.  **Test:** Write unit tests for new logic, especially in `internal/` packages.
-4.  **Lint:** Run linter before committing.
+- API generation intentionally fails if ogen emits an unimplemented-handler fallback or operation counts diverge; implement every generated handler method explicitly.
+- Review generated diffs after `just generate`; generation can touch Go API code, SQL query code, OpenAPI, and the UI schema together.
