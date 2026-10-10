@@ -15,16 +15,123 @@ The binary package becomes available after the first 2.x release is published an
 
 ## NixOS and Home Manager
 
-Add `github:tgdrive/teldrive` to your flake inputs. Import its `nixosModules.default` or `homeManagerModules.default`, and add `overlays.default` to `nixpkgs.overlays`.
+### NixOS flake
+
+Merge the Teldrive input, overlay, and module into your existing `flake.nix`. Keep your current Nixpkgs pin, host configuration, and system architecture:
 
 ```nix
-services.teldrive = {
-  enable = true;
-  package = pkgs.teldrive-bin;
-  environmentFile = "/path/to/teldrive.env";
+{
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    teldrive.url = "github:tgdrive/teldrive";
+    teldrive.inputs.nixpkgs.follows = "nixpkgs";
+  };
+
+  outputs = { nixpkgs, teldrive, ... }: {
+    nixosConfigurations.myhost = nixpkgs.lib.nixosSystem {
+      system = "x86_64-linux";
+      modules = [
+        ./configuration.nix
+        teldrive.nixosModules.default
+        ({ pkgs, ... }: {
+          nixpkgs.overlays = [ teldrive.overlays.default ];
+          services.teldrive = {
+            enable = true;
+            package = pkgs.teldrive;
+            environmentFile = "/etc/teldrive/teldrive.env";
+            settings = {
+              http.address = "127.0.0.1:8080";
+              database.schema = "teldrive";
+              telegram.upload-threads = 8;
+              logging.log-level = "info";
+            };
+          };
+        })
+      ];
+    };
+  };
+}
+```
+
+Use `aarch64-linux` on ARM64. After a release is pinned, switch `package` to `pkgs.teldrive-bin` to avoid building from source.
+
+Create the environment file outside the Nix store with your database URL and security keys; see [Configuration](/configuration/overview). Configure PostgreSQL separately. Then apply your host configuration:
+
+```bash
+sudo nixos-rebuild switch --flake .#myhost
+sudo systemctl status teldrive
+```
+
+### Home Manager flake
+
+Use the same Teldrive input. In your existing `home-manager.lib.homeManagerConfiguration`, import the overlay when creating `pkgs` and include Teldrive's module:
+
+```nix
+homeConfigurations.myuser = home-manager.lib.homeManagerConfiguration {
+  pkgs = import nixpkgs {
+    system = "x86_64-linux";
+    overlays = [ teldrive.overlays.default ];
+  };
+  modules = [
+    ./home.nix
+    teldrive.homeManagerModules.default
+    ({ pkgs, ... }: {
+      services.teldrive = {
+        enable = true;
+        package = pkgs.teldrive;
+        environmentFile = "/home/myuser/.config/teldrive/teldrive.env";
+      };
+    })
+  ];
 };
 ```
 
-Keep secrets outside the Nix store. Configure PostgreSQL separately; see [Configuration](/configuration/overview).
+Replace `myuser` and the environment-file path with your own. Keep your existing Home Manager input and user settings. Apply with:
+
+```bash
+home-manager switch --flake .#myuser
+systemctl --user status teldrive
+```
+
+Keep secrets outside the Nix store and restrict the environment file's permissions. The flake lock pins dependencies; update the Teldrive input deliberately when upgrading.
+
+### Configure service settings
+
+Both modules accept application configuration under `services.teldrive.settings`. Use the same nested keys as the [configuration reference](/configuration/reference):
+
+```nix
+services.teldrive.settings = {
+  http = {
+    address = "127.0.0.1:8080";
+    trusted-proxies = [ "127.0.0.1" ];
+  };
+  database = {
+    schema = "teldrive";
+    max-connections = 25;
+  };
+  telegram = {
+    upload-threads = 8;
+    rate-limit = true;
+  };
+  security.allowed-users = [ "alice" "bob" ];
+  jobs.run-workers = true;
+  logging = {
+    log-level = "info";
+    log-format = "text";
+  };
+};
+```
+
+The modules convert these values to `TELDRIVE_*` environment variables. Omitted settings use Teldrive defaults; durations and sizes are strings such as `"1h"` and `"5MB"`.
+
+Keep database passwords and security/encryption keys in `environmentFile`, not in Nix expressions. A protected file can contain:
+
+```ini
+TELDRIVE_DATABASE_URL=postgres://teldrive:YOUR_PASSWORD@127.0.0.1:5432/teldrive?sslmode=disable
+TELDRIVE_SECURITY_SIGNING_KEY=YOUR_SIGNING_KEY
+TELDRIVE_SECURITY_DATA_KEY=YOUR_BASE64_DATA_KEY
+```
+
+Values in `environmentFile` override matching `settings` values. Generate compatible keys using [Security](/configuration/security); URL-encode special characters in the database password.
 
 Both packages install Bash, Zsh, and Fish completions. Enable completion in your shell configuration.
