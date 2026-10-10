@@ -6,6 +6,7 @@ test-results/
 .env.*
 coverage/
 bin/
+/completions/
 *.log
 .DS_Store
 

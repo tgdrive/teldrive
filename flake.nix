@@ -26,10 +26,12 @@
           };
         in {
           teldrive = teldrive;
+          teldrive-bin = pkgs.callPackage ./nix/package-bin.nix { };
           default = teldrive;
         });
 
       overlays.default = final: prev: {
+        teldrive-bin = final.callPackage ./nix/package-bin.nix { };
         teldrive-ui-dist = final.callPackage ./nix/ui.nix { inherit version; };
         teldrive = final.callPackage ./nix/package.nix {
           inherit version;
@@ -49,6 +51,7 @@
           default = pkgs.mkShell {
             packages = with pkgs; [
               go
+              goreleaser
               bun
               nodejs
               chromium
