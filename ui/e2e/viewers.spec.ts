@@ -5,11 +5,14 @@ import { strToU8, zipSync } from "fflate";
 const now = "2026-08-01T12:00:00Z";
 const pdfId = "71111111-1111-4111-8111-111111111111";
 const epubId = "72222222-2222-4222-8222-222222222222";
+const outlinePdfId = "73333333-3333-4333-8333-333333333333";
 const pdf = readFileSync(new URL("./fixtures/viewers/sample.pdf", import.meta.url));
+const outlinePdf = readFileSync(new URL("./fixtures/viewers/outline.pdf", import.meta.url));
 const epub = makeEpub();
 
 const files = [
   file(pdfId, "reader-sample.pdf", "application/pdf", pdf.byteLength),
+  file(outlinePdfId, "outline-sample.pdf", "application/pdf", outlinePdf.byteLength),
   file(epubId, "reader-sample.epub", "application/epub+zip", epub.byteLength),
 ];
 
@@ -84,9 +87,9 @@ async function installViewerApi(
     if (path === "/v1/files/statistics/drive") {
       return route.fulfill({
         json: {
-          totalFiles: 2,
+          totalFiles: 3,
           totalFolders: 0,
-          totalBytes: pdf.byteLength + epub.byteLength,
+          totalBytes: pdf.byteLength + outlinePdf.byteLength + epub.byteLength,
           trashedFiles: 0,
           activeShares: 0,
           openUploads: 0,
@@ -98,6 +101,9 @@ async function installViewerApi(
       if (stats) stats.pdfContentRequests += 1;
       return route.fulfill({ body: pdf, contentType: "application/pdf" });
     }
+    if (content === outlinePdfId) {
+      return route.fulfill({ body: outlinePdf, contentType: "application/pdf" });
+    }
     if (content === epubId) {
       return route.fulfill({ body: epub, contentType: "application/epub+zip" });
     }
@@ -108,7 +114,7 @@ async function installViewerApi(
         ? route.fulfill({
             json: {
               fileId: state,
-              kind: state === pdfId ? "pdf" : "ebook",
+              kind: state === epubId ? "ebook" : "pdf",
               position: {},
               preferences: {},
               bookmarks: [],
@@ -137,11 +143,11 @@ async function openFile(page: Page, name: string) {
   await page.keyboard.press("Enter");
 }
 
-async function openPdfWorkspace(page: Page) {
+async function openPdfWorkspace(page: Page, name = "reader-sample.pdf") {
   await installViewerApi(page, []);
   await page.goto("/files?view=list");
-  await openFile(page, "reader-sample.pdf");
-  const dialog = page.getByRole("dialog", { name: "reader-sample.pdf" });
+  await openFile(page, name);
+  const dialog = page.getByRole("dialog", { name });
   await expect(dialog.locator(".pdfViewer .page canvas").first()).toBeVisible();
   await expect(dialog.getByRole("button", { name: "Next PDF page", exact: true })).toBeEnabled();
   return dialog;
@@ -161,16 +167,24 @@ async function pdfTool(page: Page, name: string) {
 }
 
 async function slider(page: Page, name: string, value: number) {
-  await expect(page.getByRole("slider", { name, exact: true })).toBeEnabled();
-  await page.getByRole("slider", { name, exact: true }).evaluate((element, value) => {
-    const input = element as HTMLInputElement;
-    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, String(value));
-    input.dispatchEvent(new Event("input", { bubbles: true }));
-    input.dispatchEvent(new Event("change", { bubbles: true }));
-  }, value);
+  const control = page.getByRole("slider", { name, exact: true });
+  await expect(control).toBeEnabled();
+  await control.focus();
+  await control.press("Home");
+  const minimum = Number(await control.getAttribute("min"));
+  const step =
+    name === "PDF ink stroke width"
+      ? 0.5
+      : name === "PDF ink opacity" || name === "PDF page brightness"
+        ? 5
+        : 1;
+  for (let current = minimum; current < value; current += step) await control.press("ArrowRight");
+  await expect(control).toHaveValue(String(value));
 }
 
-test("PDF page fields, fit presets, search closing, and menu shortcuts stay consistent", async ({ page }) => {
+test("PDF page fields, fit presets, search closing, and menu shortcuts stay consistent", async ({
+  page,
+}) => {
   const dialog = await openPdfWorkspace(page);
   const input = dialog.getByRole("textbox", { name: "PDF page number", exact: true });
   const viewport = dialog.locator("[data-pdf-viewer-container]");
@@ -191,12 +205,16 @@ test("PDF page fields, fit presets, search closing, and menu shortcuts stay cons
   await input.fill("");
   await input.press("Enter");
   await expect(input).toHaveValue("1");
-  await expect.poll(() => viewport.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
+  await expect
+    .poll(() => viewport.evaluate((el) => el.scrollWidth - el.clientWidth))
+    .toBeLessThanOrEqual(1);
 
   if ((page.viewportSize()?.width || 0) >= 1024) {
     const before = (await dialog.locator(".pdfViewer .page").first().boundingBox())!.width;
     await dialog.getByRole("button", { name: "Toggle PDF sidebar", exact: true }).click();
-    await expect.poll(async () => (await dialog.locator(".pdfViewer .page").first().boundingBox())!.width).toBeGreaterThan(before + 100);
+    await expect
+      .poll(async () => (await dialog.locator(".pdfViewer .page").first().boundingBox())!.width)
+      .toBeGreaterThan(before + 100);
   }
   let manualZoom: number | undefined;
   if ((page.viewportSize()?.width || 0) >= 768) {
@@ -205,10 +223,14 @@ test("PDF page fields, fit presets, search closing, and menu shortcuts stay cons
   }
   await page.setViewportSize({ width: 390, height: 844 });
   if (manualZoom !== undefined) {
-    await expect.poll(async () => (await dialog.locator(".pdfViewer .page").first().boundingBox())!.width).toBeCloseTo(manualZoom, 0);
+    await expect
+      .poll(async () => (await dialog.locator(".pdfViewer .page").first().boundingBox())!.width)
+      .toBeCloseTo(manualZoom, 0);
     await pdfTool(page, "Fit width");
   }
-  await expect.poll(() => viewport.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(1);
+  await expect
+    .poll(() => viewport.evaluate((el) => el.scrollWidth - el.clientWidth))
+    .toBeLessThanOrEqual(1);
   const tools = dialog.getByRole("button", { name: "PDF reader tools", exact: true });
   await tools.click();
   await page.getByRole("button", { name: "Fit page", exact: true }).focus();
@@ -217,11 +239,13 @@ test("PDF page fields, fit presets, search closing, and menu shortcuts stay cons
   await expect(input).toHaveValue(beforeArrow);
   await page.getByRole("button", { name: "Fit page", exact: true }).click();
   await expect(page.locator('[data-slot="popover-dialog"]')).toHaveCount(0);
-  await expect.poll(async () => {
-    const p = (await dialog.locator(".pdfViewer .page").first().boundingBox())!;
-    const c = (await viewport.boundingBox())!;
-    return p.height - c.height;
-  }).toBeLessThanOrEqual(1);
+  await expect
+    .poll(async () => {
+      const p = (await dialog.locator(".pdfViewer .page").first().boundingBox())!;
+      const c = (await viewport.boundingBox())!;
+      return p.height - c.height;
+    })
+    .toBeLessThanOrEqual(1);
 
   await dialog.getByRole("button", { name: "Search in PDF", exact: true }).click();
   await dialog.getByRole("textbox", { name: "Find in PDF", exact: true }).fill("TelDrive");
@@ -231,7 +255,9 @@ test("PDF page fields, fit presets, search closing, and menu shortcuts stay cons
   await expect(dialog.locator(".textLayer .highlight")).toHaveCount(0);
 });
 
-test("PDF annotation controls synchronize colors, font size, ink settings, undo, and exports", async ({ page }) => {
+test("PDF annotation controls synchronize colors, font size, ink settings, undo, and exports", async ({
+  page,
+}) => {
   const dialog = await openPdfWorkspace(page);
   await pdfTool(page, "Add text");
   await expect(dialog.locator(".annotationEditorLayer.freetextEditing").first()).toBeVisible();
@@ -248,16 +274,31 @@ test("PDF annotation controls synchronize colors, font size, ink settings, undo,
   await pdfTool(page, "Draw");
   await expect(dialog.locator(".annotationEditorLayer.inkEditing").first()).toBeVisible();
   // Text and ink remember their own defaults rather than sharing a stale swatch.
-  await expect(dialog.getByRole("button", { name: "Use annotation color #000000", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    dialog.getByRole("button", { name: "Use annotation color #000000", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
   await dialog.getByRole("button", { name: "Use annotation color #60a5fa", exact: true }).click();
   await slider(page, "PDF ink stroke width", 5);
   await slider(page, "PDF ink opacity", 50);
   const inkBox = (await dialog.locator(".pdfViewer .page").first().boundingBox())!;
-  await page.mouse.move(inkBox.x + inkBox.width * 0.2, inkBox.y + Math.min(inkBox.height * 0.6, 350));
+  await page.mouse.move(
+    inkBox.x + inkBox.width * 0.2,
+    inkBox.y + Math.min(inkBox.height * 0.6, 350),
+  );
   await page.mouse.down();
-  await page.mouse.move(inkBox.x + inkBox.width * 0.5, inkBox.y + Math.min(inkBox.height * 0.65, 380), { steps: 12 });
+  await page.mouse.move(
+    inkBox.x + inkBox.width * 0.5,
+    inkBox.y + Math.min(inkBox.height * 0.65, 380),
+    { steps: 12 },
+  );
   await page.mouse.up();
-  const blueStrokes = () => dialog.locator(".pdfViewer .page svg").evaluateAll((elements) => elements.filter((el) => getComputedStyle(el).stroke === "rgb(96, 165, 250)").length);
+  const blueStrokes = () =>
+    dialog
+      .locator(".pdfViewer .page svg")
+      .evaluateAll(
+        (elements) =>
+          elements.filter((el) => getComputedStyle(el).stroke === "rgb(96, 165, 250)").length,
+      );
   await expect.poll(blueStrokes).toBeGreaterThan(0);
   await pdfTool(page, "Undo PDF edit");
   await expect.poll(blueStrokes).toBe(0);
@@ -265,7 +306,10 @@ test("PDF annotation controls synchronize colors, font size, ink settings, undo,
   await expect.poll(blueStrokes).toBeGreaterThan(0);
 
   const downloaded = page.waitForEvent("download");
-  await pdfTool(page, (page.viewportSize()?.width || 0) >= 1280 ? "Save edited PDF copy" : "Save copy");
+  await pdfTool(
+    page,
+    (page.viewportSize()?.width || 0) >= 1280 ? "Save edited PDF copy" : "Save copy",
+  );
   const download = await downloaded;
   const exported = readFileSync((await download.path())!).toString("latin1");
   expect(exported).toMatch(/\/Subtype\s*\/FreeText/);
@@ -273,7 +317,65 @@ test("PDF annotation controls synchronize colors, font size, ink settings, undo,
   expect(exported).toMatch(/\/CA\s+0\.5/);
   await dialog.getByRole("button", { name: "Close PDF reader", exact: true }).click();
   await expect(dialog).toBeHidden();
-  await expect(page.getByRole("dialog", { name: "Unsaved PDF changes", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "Unsaved PDF changes", exact: true })).toHaveCount(
+    0,
+  );
+});
+
+test("PDF brightness control is display-only and never dirties the document", async ({ page }) => {
+  const dialog = await openPdfWorkspace(page);
+  const viewer = dialog.locator(".pdfViewer.teldrive-pdf-viewer");
+  await expect(viewer).toHaveAttribute("data-pdf-brightness", "100");
+  const zoomOptions = dialog.getByRole("button", { name: "PDF zoom options", exact: true });
+  if (await zoomOptions.isVisible()) {
+    await zoomOptions.click();
+  } else {
+    await dialog.getByRole("button", { name: "PDF reader tools", exact: true }).click();
+  }
+  await slider(page, "PDF page brightness", 130);
+  await expect(viewer).toHaveAttribute("data-pdf-brightness", "130");
+  await expect(viewer).toHaveAttribute("style", /brightness\(1\.3\)/);
+  await page.keyboard.press("Escape");
+  await expect(page.locator('[data-slot="popover-dialog"]')).toHaveCount(0);
+  // Display-only: changing brightness must not trigger the unsaved-changes prompt.
+  await dialog.getByRole("button", { name: "Close PDF reader", exact: true }).click();
+  await expect(dialog).toBeHidden();
+  await expect(page.getByRole("dialog", { name: "Unsaved PDF changes", exact: true })).toHaveCount(
+    0,
+  );
+});
+
+test("PDF outline renders a collapsible hierarchy", async ({ page }) => {
+  const dialog = await openPdfWorkspace(page, "outline-sample.pdf");
+  const sidebar =
+    (page.viewportSize()?.width || 0) >= 1024
+      ? dialog
+      : page.getByRole("dialog", { name: "Document navigation" });
+  if ((page.viewportSize()?.width || 0) < 1024) {
+    await dialog.getByRole("button", { name: "Open PDF sidebar" }).click();
+    await expect(sidebar).toBeVisible();
+  }
+  await sidebar.getByRole("tab", { name: "Outline" }).click();
+  const chapterOne = sidebar.getByRole("button", { name: "Chapter 1", exact: true });
+  const sectionOne = sidebar.getByRole("button", { name: "Section 1.1", exact: true });
+  const sectionTwo = sidebar.getByRole("button", { name: "Section 1.2", exact: true });
+  await expect(chapterOne).toBeVisible();
+  await expect(sectionOne).toBeVisible();
+  await expect(sectionTwo).toBeVisible();
+  await expect(sidebar.getByRole("button", { name: "Chapter 2", exact: true })).toBeVisible();
+
+  const pageInput = dialog.getByRole("textbox", { name: "PDF page number", exact: true });
+  // Collapsing a parent hides its children without navigating.
+  await sidebar.getByRole("button", { name: "Collapse Chapter 1", exact: true }).click();
+  await expect(sectionOne).toBeHidden();
+  await expect(sectionTwo).toBeHidden();
+  await expect(pageInput).toHaveValue("1");
+  await sidebar.getByRole("button", { name: "Expand Chapter 1", exact: true }).click();
+  await expect(sectionOne).toBeVisible();
+  await expect(sectionTwo).toBeVisible();
+  // Selecting a nested bookmark still navigates to its destination.
+  await sectionTwo.click();
+  await expect(pageInput).toHaveValue("2");
 });
 
 test("PDF hand tool pans and closing unsaved edits requires a choice", async ({ page }) => {
@@ -291,7 +393,10 @@ test("PDF hand tool pans and closing unsaved edits requires a choice", async ({ 
   await pdfTool(page, "Add text");
   await viewport.evaluate((el) => el.scrollTo(0, 0));
   const pageBox = (await dialog.locator(".pdfViewer .page").first().boundingBox())!;
-  await page.mouse.click(pageBox.x + pageBox.width * 0.25, pageBox.y + Math.min(pageBox.height * 0.4, 240));
+  await page.mouse.click(
+    pageBox.x + pageBox.width * 0.25,
+    pageBox.y + Math.min(pageBox.height * 0.4, 240),
+  );
   const editor = dialog.locator(".freeTextEditor [contenteditable=true]").last();
   await editor.fill("Unsaved annotation");
   await dialog.getByRole("button", { name: "Close PDF reader", exact: true }).click();
@@ -310,13 +415,28 @@ test("PDF save failures stay visible and do not dismiss unsaved changes", async 
   await page.addInitScript(() => {
     const NativeWorker = window.Worker;
     window.Worker = class extends NativeWorker {
-      postMessage(message: { action?: string; callbackId?: number; sourceName?: string; targetName?: string }, transfer: Transferable[] = []) {
+      postMessage(
+        message: { action?: string; callbackId?: number; sourceName?: string; targetName?: string },
+        transfer: Transferable[] = [],
+      ) {
         if (message.action === "SaveDocument") {
-          queueMicrotask(() => this.dispatchEvent(new MessageEvent("message", { data: {
-            sourceName: message.targetName, targetName: message.sourceName,
-            callback: 2, callbackId: message.callbackId,
-            reason: { name: "UnknownErrorException", message: "Simulated save failure", details: "Regression test" },
-          } })));
+          queueMicrotask(() =>
+            this.dispatchEvent(
+              new MessageEvent("message", {
+                data: {
+                  sourceName: message.targetName,
+                  targetName: message.sourceName,
+                  callback: 2,
+                  callbackId: message.callbackId,
+                  reason: {
+                    name: "UnknownErrorException",
+                    message: "Simulated save failure",
+                    details: "Regression test",
+                  },
+                },
+              }),
+            ),
+          );
           return;
         }
         super.postMessage(message, transfer);
@@ -329,7 +449,10 @@ test("PDF save failures stay visible and do not dismiss unsaved changes", async 
   await pdfTool(page, "Add text");
   const box = (await dialog.locator(".pdfViewer .page").first().boundingBox())!;
   await page.mouse.click(box.x + box.width * 0.25, box.y + Math.min(box.height * 0.4, 240));
-  await dialog.locator(".freeTextEditor [contenteditable=true]").last().fill("Do not lose this edit");
+  await dialog
+    .locator(".freeTextEditor [contenteditable=true]")
+    .last()
+    .fill("Do not lose this edit");
   await dialog.getByRole("button", { name: "Close PDF reader", exact: true }).click();
   const prompt = page.getByRole("dialog", { name: "Unsaved PDF changes", exact: true });
   await prompt.getByRole("button", { name: "Save copy and close", exact: true }).click();

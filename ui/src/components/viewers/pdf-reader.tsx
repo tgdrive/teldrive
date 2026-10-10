@@ -23,6 +23,7 @@ import {
   Drawer,
   InputGroup,
   Popover,
+  Slider,
   Spinner,
   Tabs,
   useOverlayState,
@@ -46,6 +47,7 @@ import BookmarkIcon from "~icons/gravity-ui/bookmark";
 import BrushIcon from "~icons/gravity-ui/brush";
 import LeftIcon from "~icons/gravity-ui/chevron-left";
 import RightIcon from "~icons/gravity-ui/chevron-right";
+import DownIcon from "~icons/gravity-ui/chevron-down";
 import EllipsisIcon from "~icons/gravity-ui/ellipsis";
 import SaveIcon from "~icons/gravity-ui/floppy-disk";
 import HandIcon from "~icons/gravity-ui/hand";
@@ -133,6 +135,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
   const [numPages, setNumPages] = useState(0);
   const [scale, setScale] = useState(1);
   const [scaleValue, setScaleValue] = useState(initialScaleValue);
+  const [brightness, setBrightness] = useState(100);
   const [_rotation, setRotation] = useState(initialRotation);
   const [sidebarOpen, setSidebarOpen] = useState(initialSidebarOpen);
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>(initialSidebarTab);
@@ -858,6 +861,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
             size="sm"
             variant="ghost"
             className="hidden min-w-20 px-2 text-xs md:inline-flex"
+            aria-label="PDF zoom options"
             isDisabled={!ready}
           >
             {zoomLabel}
@@ -891,6 +895,13 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
                     {percent}%
                   </Button>
                 ))}
+              </div>
+              <div className="border-t border-border px-2 pt-2 pb-1">
+                <PdfBrightnessControl
+                  value={brightness}
+                  disabled={!ready}
+                  onChange={setBrightness}
+                />
               </div>
             </Popover.Dialog>
           </Popover.Content>
@@ -1039,6 +1050,13 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
                 >
                   <HandIcon className="size-4" /> Hand tool
                 </Button>
+              </div>
+              <div className="mt-2 border-t border-border px-2 pt-2">
+                <PdfBrightnessControl
+                  value={brightness}
+                  disabled={!ready}
+                  onChange={setBrightness}
+                />
               </div>
 
               <div className="mt-2 border-t border-border pt-2">
@@ -1285,7 +1303,12 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
             inert={saving}
             className="absolute inset-3 overflow-auto outline-none sm:inset-4"
           >
-            <div ref={viewerRef} className="pdfViewer teldrive-pdf-viewer" />
+            <div
+              ref={viewerRef}
+              className="pdfViewer teldrive-pdf-viewer"
+              data-pdf-brightness={brightness}
+              style={brightness === 100 ? undefined : { filter: `brightness(${brightness / 100})` }}
+            />
           </div>
           {saving ? (
             <div className="absolute inset-0 z-30 grid place-items-center bg-background/50 backdrop-blur-sm">
@@ -1344,6 +1367,40 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
   );
 }
 
+function PdfBrightnessControl({
+  value,
+  disabled,
+  onChange,
+}: {
+  value: number;
+  disabled: boolean;
+  onChange: (value: number) => void;
+}) {
+  return (
+    <div className="flex items-center gap-2 text-xs">
+      Brightness
+      <Slider
+        aria-label="PDF page brightness"
+        minValue={50}
+        maxValue={150}
+        step={5}
+        value={value}
+        isDisabled={disabled}
+        className="w-24 flex-1"
+        onChange={(next) => {
+          if (typeof next === "number") onChange(next);
+        }}
+      >
+        <Slider.Track>
+          <Slider.Fill />
+          <Slider.Thumb />
+        </Slider.Track>
+      </Slider>
+      <span className="min-w-9 tabular-nums">{value}%</span>
+    </div>
+  );
+}
+
 function PdfAnnotationSettings({
   tool,
   settings,
@@ -1389,54 +1446,72 @@ function PdfAnnotationSettings({
         ))}
       </fieldset>
       {tool === "text" ? (
-        <label className="flex items-center gap-2 text-xs">
+        <div className="flex items-center gap-2 text-xs">
           Font size
-          <input
+          <Slider
             aria-label="PDF text font size"
-            type="range"
-            min={6}
-            max={72}
+            minValue={6}
+            maxValue={72}
             step={1}
             value={settings.size}
-            disabled={disabled}
-            className="w-24 accent-accent"
-            onChange={(event) => onChange("size", Number(event.currentTarget.value))}
-          />
+            isDisabled={disabled}
+            className="w-24"
+            onChange={(value) => {
+              if (typeof value === "number") onChange("size", value);
+            }}
+          >
+            <Slider.Track>
+              <Slider.Fill />
+              <Slider.Thumb />
+            </Slider.Track>
+          </Slider>
           <span className="min-w-9 tabular-nums">{settings.size} pt</span>
-        </label>
+        </div>
       ) : null}
       {tool === "ink" ? (
         <>
-          <label className="flex items-center gap-2 text-xs">
+          <div className="flex items-center gap-2 text-xs">
             Stroke width
-            <input
+            <Slider
               aria-label="PDF ink stroke width"
-              type="range"
-              min={1}
-              max={20}
+              minValue={1}
+              maxValue={20}
               step={0.5}
               value={settings.thickness}
-              disabled={disabled}
-              className="w-24 accent-accent"
-              onChange={(event) => onChange("thickness", Number(event.currentTarget.value))}
-            />
+              isDisabled={disabled}
+              className="w-24"
+              onChange={(value) => {
+                if (typeof value === "number") onChange("thickness", value);
+              }}
+            >
+              <Slider.Track>
+                <Slider.Fill />
+                <Slider.Thumb />
+              </Slider.Track>
+            </Slider>
             <span className="min-w-9 tabular-nums">{settings.thickness} pt</span>
-          </label>
-          <label className="flex items-center gap-2 text-xs">
+          </div>
+          <div className="flex items-center gap-2 text-xs">
             Opacity
-            <input
+            <Slider
               aria-label="PDF ink opacity"
-              type="range"
-              min={0}
-              max={100}
+              minValue={0}
+              maxValue={100}
               step={5}
               value={Math.round(settings.opacity * 100)}
-              disabled={disabled}
-              className="w-24 accent-accent"
-              onChange={(event) => onChange("opacity", Number(event.currentTarget.value) / 100)}
-            />
+              isDisabled={disabled}
+              className="w-24"
+              onChange={(value) => {
+                if (typeof value === "number") onChange("opacity", value / 100);
+              }}
+            >
+              <Slider.Track>
+                <Slider.Fill />
+                <Slider.Thumb />
+              </Slider.Track>
+            </Slider>
             <span className="min-w-9 tabular-nums">{Math.round(settings.opacity * 100)}%</span>
-          </label>
+          </div>
         </>
       ) : null}
     </div>
@@ -1609,10 +1684,11 @@ function PdfSidebar({
         </Tabs.Panel>
         <Tabs.Panel id="outline" className="min-h-0 flex-1 overflow-y-auto py-2">
           {outline.length ? (
-            <div className="space-y-0.5 px-1 pb-3">
+            <div key={file.id} className="space-y-0.5 px-1 pb-3">
               <OutlineItems
                 items={outline}
                 depth={0}
+                path="outline"
                 onSelect={(item) => {
                   onOutline(item);
                   onNavigateMobile();
@@ -1720,28 +1796,77 @@ function PdfThumbnail({
 function OutlineItems({
   items,
   depth,
+  path,
   onSelect,
 }: {
   items: OutlineItem[];
   depth: number;
+  path: string;
   onSelect: (item: OutlineItem) => void;
 }) {
-  return items.map((item) => (
-    <div key={`${depth}-${item.title}-${outlineDestinationKey(item)}`}>
-      <Button
-        size="sm"
-        variant="ghost"
-        className="h-auto w-full justify-start whitespace-normal py-2 text-left text-xs"
-        style={{ paddingInlineStart: `${10 + depth * 14}px` }}
-        onPress={() => onSelect(item)}
+  return items.map((item, index) => (
+    <OutlineNode
+      // biome-ignore lint/suspicious/noArrayIndexKey: PDF outlines expose no stable ids and never reorder within a document.
+      key={`${path}/${index}`}
+      item={item}
+      depth={depth}
+      path={`${path}/${index}`}
+      onSelect={onSelect}
+    />
+  ));
+}
+
+function OutlineNode({
+  item,
+  depth,
+  path,
+  onSelect,
+}: {
+  item: OutlineItem;
+  depth: number;
+  path: string;
+  onSelect: (item: OutlineItem) => void;
+}) {
+  const children = item.items ?? [];
+  const hasChildren = children.length > 0;
+  // Top-level parents start expanded; deeper levels start collapsed like Adobe.
+  const [expanded, setExpanded] = useState(depth < 1);
+  const title = item.title || "Untitled section";
+  return (
+    <div>
+      <div
+        className="flex items-center gap-0.5"
+        style={{ paddingInlineStart: `${2 + depth * 14}px` }}
       >
-        <span className="line-clamp-2">{item.title || "Untitled section"}</span>
-      </Button>
-      {item.items?.length ? (
-        <OutlineItems items={item.items} depth={depth + 1} onSelect={onSelect} />
+        {hasChildren ? (
+          <Button
+            isIconOnly
+            size="sm"
+            variant="ghost"
+            className="h-7 w-7 shrink-0"
+            aria-label={`${expanded ? "Collapse" : "Expand"} ${title}`}
+            aria-expanded={expanded}
+            onPress={() => setExpanded((value) => !value)}
+          >
+            {expanded ? <DownIcon className="size-3.5" /> : <RightIcon className="size-3.5" />}
+          </Button>
+        ) : (
+          <span className="w-7 shrink-0" aria-hidden="true" />
+        )}
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-auto min-w-0 flex-1 justify-start whitespace-normal py-2 text-left text-xs"
+          onPress={() => onSelect(item)}
+        >
+          <span className="line-clamp-2">{title}</span>
+        </Button>
+      </div>
+      {hasChildren && expanded ? (
+        <OutlineItems items={children} depth={depth + 1} path={path} onSelect={onSelect} />
       ) : null}
     </div>
-  ));
+  );
 }
 
 function ToolButton({
@@ -1894,12 +2019,6 @@ function positiveInt(value: unknown, fallback: number) {
 
 function positiveNumber(value: unknown, fallback: number) {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : fallback;
-}
-
-function outlineDestinationKey(item: OutlineItem) {
-  if (item.url) return item.url;
-  if (typeof item.dest === "string") return item.dest;
-  return String(item.dest ?? "section");
 }
 
 function editedPdfName(name: string) {
