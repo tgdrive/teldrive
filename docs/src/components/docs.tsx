@@ -37,7 +37,7 @@ export function Docs({
           url: import.meta.env.BASE_URL,
         }}
         sidebar={{
-          defaultOpenLevel: 1,
+          defaultOpenLevel: 0,
         }}
       >
         <DocsPage {...page}>{children}</DocsPage>

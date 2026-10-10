@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -20,7 +21,6 @@ type row struct {
 	env         string
 	defaultVal  string
 	description string
-	validation  string
 }
 
 func main() {
@@ -32,22 +32,20 @@ func main() {
 	b.WriteString("---\ntitle: \"CLI, environment & config reference\"\ndescription: Complete generated mapping of Teldrive config keys to command-line flags and TELDRIVE_ environment variables.\n---\n\n")
 	b.WriteString("Generated from the server configuration structs. Precedence: **defaults < config file < environment < explicit CLI flags**.\n\n")
 	b.WriteString("Name mapping example: `http.address` → `TELDRIVE_HTTP_ADDRESS` → `--http-address`. Slices use comma-separated values; encryption maps use `version:key` entries.\n\n")
-	b.WriteString("The **Default** column is the runtime default, not a production recommendation.\n\n")
+	b.WriteString("Defaults are runtime values, not production recommendations.\n\n")
 
 	current := ""
 	for _, r := range rows {
 		if r.section != current {
 			current = r.section
 			b.WriteString("## " + title(current) + "\n\n")
-			b.WriteString("| Config key | CLI flag | Environment variable | Default | Validation | Description |\n")
-			b.WriteString("| --- | --- | --- | --- | --- | --- |\n")
 		}
-		fmt.Fprintf(&b, "| `%s` | `%s` | `%s` | %s | %s | %s |\n",
-			escape(r.configKey), escape(r.flag), escape(r.env), codeOrDash(r.defaultVal), codeOrDash(r.validation), escape(r.description))
+		fmt.Fprintf(&b, "<ConfigOption name={%s} flag={%s} env={%s} defaultValue={%s} description={%s} />\n\n",
+			jsonString(r.configKey), jsonString(r.flag), jsonString(r.env), jsonString(r.defaultVal), jsonString(r.description))
 	}
 
 	out := filepath.Join("docs", "content", "docs", "configuration", "reference.mdx")
-	if err := os.WriteFile(out, []byte(b.String()), 0o644); err != nil {
+	if err := os.WriteFile(out, []byte(strings.TrimSpace(b.String())+"\n"), 0o644); err != nil {
 		panic(err)
 	}
 	fmt.Printf("generated %s (%d settings)\n", out, len(rows))
@@ -81,7 +79,6 @@ func collect(v reflect.Value, t reflect.Type, path, section string) []row {
 			env:         "TELDRIVE_" + strings.ToUpper(strings.NewReplacer(".", "_", "-", "_").Replace(childPath)),
 			defaultVal:  formatValue(fv),
 			description: f.Tag.Get("description"),
-			validation:  f.Tag.Get("validate"),
 		})
 	}
 	return rows
@@ -154,15 +151,7 @@ func title(s string) string {
 	return strings.Join(parts, " ")
 }
 
-func codeOrDash(s string) string {
-	if s == "" {
-		return "—"
-	}
-	return "`" + escape(s) + "`"
-}
-
-func escape(s string) string {
-	s = strings.ReplaceAll(s, "|", "\\|")
-	s = strings.ReplaceAll(s, "\n", " ")
-	return s
+func jsonString(s string) string {
+	encoded, _ := json.Marshal(s)
+	return string(encoded)
 }

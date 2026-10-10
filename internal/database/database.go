@@ -138,21 +138,6 @@ func Migrate(ctx context.Context, cfg Config) error {
 	if err := db.PingContext(pingCtx); err != nil {
 		return fmt.Errorf("ping migration database: %w", err)
 	}
-	// Use a dedicated session for a database-wide lock: extension creation can
-	// race even when replicas migrate different application schemas.
-	lockConn, err := db.Conn(ctx)
-	if err != nil {
-		return fmt.Errorf("open migration lock session: %w", err)
-	}
-	defer lockConn.Close()
-	if _, err := lockConn.ExecContext(ctx, "SELECT pg_advisory_lock(72644574697665)"); err != nil {
-		return fmt.Errorf("acquire migration lock: %w", err)
-	}
-	defer func() {
-		unlockCtx, cancel := context.WithTimeout(context.Background(), defaultConnectTimeout)
-		defer cancel()
-		_, _ = lockConn.ExecContext(unlockCtx, "SELECT pg_advisory_unlock(72644574697665)")
-	}()
 	legacy, err := hasLegacySchema(ctx, db)
 	if err != nil {
 		return fmt.Errorf("inspect database schema: %w", err)

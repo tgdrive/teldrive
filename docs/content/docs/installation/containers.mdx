@@ -22,7 +22,7 @@ docker run --rm \
   -e TELDRIVE_DATABASE_URL='postgres://teldrive:password@db.example:5432/teldrive?sslmode=require' \
   -e TELDRIVE_SECURITY_SIGNING_KEY='YOUR_SIGNING_KEY' \
   -e TELDRIVE_SECURITY_DATA_KEY='YOUR_DATA_KEY' \
-  ghcr.io/tgdrive/teldrive:v2
+  ghcr.io/tgdrive/teldrive:2
 ```
 
 Podman uses the same settings with `podman run`.
@@ -30,23 +30,14 @@ Podman uses the same settings with `podman run`.
 ## Pin releases
 
 ```yaml
-image: ghcr.io/tgdrive/teldrive:vX.Y.Z
+image: ghcr.io/tgdrive/teldrive:X.Y.Z
 ```
 
-Avoid `latest` for controlled upgrades/rollbacks.
+Use `:2` to follow major-version updates, or an exact version for controlled upgrades/rollbacks. Releases do not publish `latest`.
 
 ## Local imports
 
-```yaml
-services:
-  teldrive:
-    volumes:
-      - /srv/imports:/imports:ro
-    environment:
-      TELDRIVE_UPLOADS_LOCAL_IMPORT_ROOTS: /imports
-```
-
-Import roots must be absolute paths.
+See [Uploads and events](/configuration/uploads-and-events) for allowed paths and read-only container mounts.
 
 ## Validate
 

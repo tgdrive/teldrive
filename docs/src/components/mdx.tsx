@@ -34,4 +34,21 @@ export const mdxComponents = {
   a: BaseAwareLink,
   Card: BaseAwareCard,
   ButtonLink,
+  ConfigOption,
 };
+
+function ConfigOption({ name, description, defaultValue, flag, env }: {
+  name: string; description: string; defaultValue: string; flag: string; env: string;
+}) {
+  return (
+    <section className="config-option not-prose" aria-label={name}>
+      <h3><code>{name}</code></h3>
+      <p>{description}</p>
+      <dl>
+        <div><dt>Default</dt><dd><code>{defaultValue || 'Not set'}</code></dd></div>
+        <div><dt>CLI flag</dt><dd><code>{flag}</code></dd></div>
+        <div><dt>Environment</dt><dd><code>{env}</code></dd></div>
+      </dl>
+    </section>
+  );
+}

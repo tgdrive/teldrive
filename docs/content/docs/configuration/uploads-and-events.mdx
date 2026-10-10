@@ -30,12 +30,7 @@ Only expose directories Teldrive is allowed to read.
 
 ## Workers
 
-```yaml
-jobs:
-  run-workers: true
-```
-
-Set `false` only when another Teldrive process sharing the database runs workers. See [Multi-instance deployments](/advanced/multi-instance).
+See [Jobs and queues](/operations/jobs-and-queues) for worker settings. At least one process sharing the database must run workers.
 
 ## Live events
 

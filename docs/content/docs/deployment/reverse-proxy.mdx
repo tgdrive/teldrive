@@ -40,6 +40,79 @@ http:
 
 For containerized Caddy, trust the actual container-network source CIDR instead.
 
+### Optional: `tgdrive/caddy` with varc
+
+The [`tgdrive/caddy` image](https://github.com/tgdrive/docker-images/tree/main/caddy) includes [varc](https://github.com/tgdrive/varc), a sparse byte-range cache for large downloads and media seeking. Standard Caddy remains sufficient for HTTPS; caching is optional.
+
+Add Caddy to the same private Compose network as Teldrive:
+
+```yaml
+services:
+  caddy:
+    image: ghcr.io/tgdrive/caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+      - varc_cache:/var/cache/varc
+volumes:
+  caddy_data:
+  caddy_config:
+  varc_cache:
+```
+
+Save this as `Caddyfile`, replacing the domain:
+
+```text
+drive.example.com {
+    @stream {
+        method GET HEAD
+        path_regexp stream ^/api/v1/files/[0-9a-fA-F-]+/content(/[^/]+)?$
+    }
+
+    handle @stream {
+        varc http://teldrive:8080{http.request.uri} {
+            cache_dir /var/cache/varc
+            key "{host}:{uri}:{http.request.header.Authorization}:{http.request.header.Cookie}"
+            max_size 100GiB
+            min_free_space 5GiB
+            max_age 24h
+            poll_interval 1m
+            chunk_size 128MiB
+            chunk_size_limit 1GiB
+            chunk_streams 3
+            read_ahead 16MiB
+            buffer_size 16MiB
+        }
+    }
+
+    handle {
+        reverse_proxy teldrive:8080
+    }
+}
+```
+
+Set Teldrive's listener to `0.0.0.0:8080` inside its container and trust only the private network used by Caddy. Do not publish Teldrive's port publicly.
+
+This caches GET/HEAD requests to `/api/v1/files/{fileId}/content/{fileName}` and the legacy `/content` URL. All other routes—including login, uploads, shares, and live events—use ordinary proxying. The dynamic upstream preserves query parameters. Cache keys include the URL and request credentials to separate authenticated representations; do not replace incoming credentials with a shared service token.
+
+Varc forwards cookies/authorization and checks origin metadata before opening cached content. Test unauthenticated access and revoked credentials after warming the cache. Origin authentication errors may appear as cache-proxy errors rather than their original HTTP status.
+
+Adjust the disk limits to your host and keep this volume private. Use one cache directory per Caddy process. See [varc options](https://github.com/tgdrive/varc#caddy-module) for tuning.
+
+Validate and start:
+
+```bash
+docker compose run --rm caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+docker compose up -d caddy
+docker compose logs --tail=100 caddy
+```
+
+The example follows current varc source; validation must use an image containing its dynamic-upstream support. It has not been exercised end-to-end here.
+
 ## nginx
 
 ```nginx

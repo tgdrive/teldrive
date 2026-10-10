@@ -7,118 +7,170 @@ Generated from the server configuration structs. Precedence: **defaults < config
 
 Name mapping example: `http.address` → `TELDRIVE_HTTP_ADDRESS` → `--http-address`. Slices use comma-separated values; encryption maps use `version:key` entries.
 
-The **Default** column is the runtime default, not a production recommendation.
+Defaults are runtime values, not production recommendations.
 
 ## Cache
 
-| Config key | CLI flag | Environment variable | Default | Validation | Description |
-| --- | --- | --- | --- | --- | --- |
-| `cache.memory.size` | `--cache-memory-size` | `TELDRIVE_CACHE_MEMORY_SIZE` | `5MB` | `gt=0` | Global Ristretto memory cache size (e.g., 5MB, 10MB) |
+<ConfigOption name={"cache.memory.size"} flag={"--cache-memory-size"} env={"TELDRIVE_CACHE_MEMORY_SIZE"} defaultValue={"5MB"} description={"Global Ristretto memory cache size (e.g., 5MB, 10MB)"} />
+
 ## Database
 
-| Config key | CLI flag | Environment variable | Default | Validation | Description |
-| --- | --- | --- | --- | --- | --- |
-| `database.application-name` | `--database-application-name` | `TELDRIVE_DATABASE_APPLICATION_NAME` | `teldrive-v2` | `required` | PostgreSQL application name |
-| `database.auto-migrate-legacy` | `--database-auto-migrate-legacy` | `TELDRIVE_DATABASE_AUTO_MIGRATE_LEGACY` | `true` | — | Automatically migrate a detected TelDrive v1 database during startup |
-| `database.connect-timeout` | `--database-connect-timeout` | `TELDRIVE_DATABASE_CONNECT_TIMEOUT` | `10s` | `gt=0` | PostgreSQL connection timeout |
-| `database.health-check-interval` | `--database-health-check-interval` | `TELDRIVE_DATABASE_HEALTH_CHECK_INTERVAL` | `30s` | `gt=0` | PostgreSQL pool health-check interval |
-| `database.max-connection-idle` | `--database-max-connection-idle` | `TELDRIVE_DATABASE_MAX_CONNECTION_IDLE` | `5m0s` | `gte=0` | Maximum idle time for a PostgreSQL connection |
-| `database.max-connection-life` | `--database-max-connection-life` | `TELDRIVE_DATABASE_MAX_CONNECTION_LIFE` | `30m0s` | `gte=0` | Maximum lifetime for a PostgreSQL connection |
-| `database.max-connections` | `--database-max-connections` | `TELDRIVE_DATABASE_MAX_CONNECTIONS` | `25` | `gte=1` | Maximum PostgreSQL connections |
-| `database.min-connections` | `--database-min-connections` | `TELDRIVE_DATABASE_MIN_CONNECTIONS` | `2` | `gte=0` | Minimum PostgreSQL connections |
-| `database.schema` | `--database-schema` | `TELDRIVE_DATABASE_SCHEMA` | `teldrive` | `required` | PostgreSQL schema for all TelDrive and River tables |
-| `database.url` | `--database-url` | `TELDRIVE_DATABASE_URL` | — | `required` | PostgreSQL connection URL |
+<ConfigOption name={"database.application-name"} flag={"--database-application-name"} env={"TELDRIVE_DATABASE_APPLICATION_NAME"} defaultValue={"teldrive-v2"} description={"PostgreSQL application name"} />
+
+<ConfigOption name={"database.auto-migrate-legacy"} flag={"--database-auto-migrate-legacy"} env={"TELDRIVE_DATABASE_AUTO_MIGRATE_LEGACY"} defaultValue={"true"} description={"Automatically migrate a detected TelDrive v1 database during startup"} />
+
+<ConfigOption name={"database.connect-timeout"} flag={"--database-connect-timeout"} env={"TELDRIVE_DATABASE_CONNECT_TIMEOUT"} defaultValue={"10s"} description={"PostgreSQL connection timeout"} />
+
+<ConfigOption name={"database.health-check-interval"} flag={"--database-health-check-interval"} env={"TELDRIVE_DATABASE_HEALTH_CHECK_INTERVAL"} defaultValue={"30s"} description={"PostgreSQL pool health-check interval"} />
+
+<ConfigOption name={"database.max-connection-idle"} flag={"--database-max-connection-idle"} env={"TELDRIVE_DATABASE_MAX_CONNECTION_IDLE"} defaultValue={"5m0s"} description={"Maximum idle time for a PostgreSQL connection"} />
+
+<ConfigOption name={"database.max-connection-life"} flag={"--database-max-connection-life"} env={"TELDRIVE_DATABASE_MAX_CONNECTION_LIFE"} defaultValue={"30m0s"} description={"Maximum lifetime for a PostgreSQL connection"} />
+
+<ConfigOption name={"database.max-connections"} flag={"--database-max-connections"} env={"TELDRIVE_DATABASE_MAX_CONNECTIONS"} defaultValue={"25"} description={"Maximum PostgreSQL connections"} />
+
+<ConfigOption name={"database.min-connections"} flag={"--database-min-connections"} env={"TELDRIVE_DATABASE_MIN_CONNECTIONS"} defaultValue={"2"} description={"Minimum PostgreSQL connections"} />
+
+<ConfigOption name={"database.schema"} flag={"--database-schema"} env={"TELDRIVE_DATABASE_SCHEMA"} defaultValue={"teldrive"} description={"PostgreSQL schema for all TelDrive and River tables"} />
+
+<ConfigOption name={"database.url"} flag={"--database-url"} env={"TELDRIVE_DATABASE_URL"} defaultValue={""} description={"PostgreSQL connection URL"} />
+
 ## Encryption
 
-| Config key | CLI flag | Environment variable | Default | Validation | Description |
-| --- | --- | --- | --- | --- | --- |
-| `encryption.active-key-version` | `--encryption-active-key-version` | `TELDRIVE_ENCRYPTION_ACTIVE_KEY_VERSION` | `0` | `gte=0` | Active server-managed encryption key version for new uploads |
-| `encryption.keys` | `--encryption-keys` | `TELDRIVE_ENCRYPTION_KEYS` | — | — | Encryption keys as comma-separated version:key entries |
+<ConfigOption name={"encryption.active-key-version"} flag={"--encryption-active-key-version"} env={"TELDRIVE_ENCRYPTION_ACTIVE_KEY_VERSION"} defaultValue={"0"} description={"Active server-managed encryption key version for new uploads"} />
+
+<ConfigOption name={"encryption.keys"} flag={"--encryption-keys"} env={"TELDRIVE_ENCRYPTION_KEYS"} defaultValue={""} description={"Encryption keys as comma-separated version:key entries"} />
+
 ## Events
 
-| Config key | CLI flag | Environment variable | Default | Validation | Description |
-| --- | --- | --- | --- | --- | --- |
-| `events.batch-size` | `--events-batch-size` | `TELDRIVE_EVENTS_BATCH_SIZE` | `100` | `min=1,max=1000` | Maximum events read from PostgreSQL per SSE batch |
-| `events.cleanup-interval` | `--events-cleanup-interval` | `TELDRIVE_EVENTS_CLEANUP_INTERVAL` | `1h0m0s` | `gt=0` | Expired event stream ticket cleanup interval |
-| `events.connect-timeout` | `--events-connect-timeout` | `TELDRIVE_EVENTS_CONNECT_TIMEOUT` | `10s` | `gt=0` | PostgreSQL event listener connection timeout |
-| `events.heartbeat` | `--events-heartbeat` | `TELDRIVE_EVENTS_HEARTBEAT` | `20s` | `gt=0` | SSE heartbeat interval |
-| `events.max-connections-per-user` | `--events-max-connections-per-user` | `TELDRIVE_EVENTS_MAX_CONNECTIONS_PER_USER` | `5` | `min=1,max=1000` | Maximum concurrent SSE connections per user on one API instance |
-| `events.ping-interval` | `--events-ping-interval` | `TELDRIVE_EVENTS_PING_INTERVAL` | `5s` | `gt=0` | PostgreSQL event listener health-check interval |
-| `events.reconnect-max` | `--events-reconnect-max` | `TELDRIVE_EVENTS_RECONNECT_MAX` | `30s` | `gt=0` | Maximum PostgreSQL listener reconnect delay |
-| `events.reconnect-min` | `--events-reconnect-min` | `TELDRIVE_EVENTS_RECONNECT_MIN` | `100ms` | `gt=0` | Minimum PostgreSQL listener reconnect delay |
-| `events.ticket-ttl` | `--events-ticket-ttl` | `TELDRIVE_EVENTS_TICKET_TTL` | `2m0s` | `gt=0` | Lifetime of browser event stream tickets |
-| `events.write-timeout` | `--events-write-timeout` | `TELDRIVE_EVENTS_WRITE_TIMEOUT` | `10s` | `gt=0` | Maximum duration for one SSE write and flush |
+<ConfigOption name={"events.batch-size"} flag={"--events-batch-size"} env={"TELDRIVE_EVENTS_BATCH_SIZE"} defaultValue={"100"} description={"Maximum events read from PostgreSQL per SSE batch"} />
+
+<ConfigOption name={"events.cleanup-interval"} flag={"--events-cleanup-interval"} env={"TELDRIVE_EVENTS_CLEANUP_INTERVAL"} defaultValue={"1h0m0s"} description={"Expired event stream ticket cleanup interval"} />
+
+<ConfigOption name={"events.connect-timeout"} flag={"--events-connect-timeout"} env={"TELDRIVE_EVENTS_CONNECT_TIMEOUT"} defaultValue={"10s"} description={"PostgreSQL event listener connection timeout"} />
+
+<ConfigOption name={"events.heartbeat"} flag={"--events-heartbeat"} env={"TELDRIVE_EVENTS_HEARTBEAT"} defaultValue={"20s"} description={"SSE heartbeat interval"} />
+
+<ConfigOption name={"events.max-connections-per-user"} flag={"--events-max-connections-per-user"} env={"TELDRIVE_EVENTS_MAX_CONNECTIONS_PER_USER"} defaultValue={"5"} description={"Maximum concurrent SSE connections per user on one API instance"} />
+
+<ConfigOption name={"events.ping-interval"} flag={"--events-ping-interval"} env={"TELDRIVE_EVENTS_PING_INTERVAL"} defaultValue={"5s"} description={"PostgreSQL event listener health-check interval"} />
+
+<ConfigOption name={"events.reconnect-max"} flag={"--events-reconnect-max"} env={"TELDRIVE_EVENTS_RECONNECT_MAX"} defaultValue={"30s"} description={"Maximum PostgreSQL listener reconnect delay"} />
+
+<ConfigOption name={"events.reconnect-min"} flag={"--events-reconnect-min"} env={"TELDRIVE_EVENTS_RECONNECT_MIN"} defaultValue={"100ms"} description={"Minimum PostgreSQL listener reconnect delay"} />
+
+<ConfigOption name={"events.ticket-ttl"} flag={"--events-ticket-ttl"} env={"TELDRIVE_EVENTS_TICKET_TTL"} defaultValue={"2m0s"} description={"Lifetime of browser event stream tickets"} />
+
+<ConfigOption name={"events.write-timeout"} flag={"--events-write-timeout"} env={"TELDRIVE_EVENTS_WRITE_TIMEOUT"} defaultValue={"10s"} description={"Maximum duration for one SSE write and flush"} />
+
 ## HTTP
 
-| Config key | CLI flag | Environment variable | Default | Validation | Description |
-| --- | --- | --- | --- | --- | --- |
-| `http.address` | `--http-address` | `TELDRIVE_HTTP_ADDRESS` | `127.0.0.1:8080` | `required` | HTTP listen address |
-| `http.idle-timeout` | `--http-idle-timeout` | `TELDRIVE_HTTP_IDLE_TIMEOUT` | `2m0s` | `gte=0` | HTTP keep-alive idle timeout |
-| `http.read-header-timeout` | `--http-read-header-timeout` | `TELDRIVE_HTTP_READ_HEADER_TIMEOUT` | `10s` | `gte=0` | Maximum time to read request headers |
-| `http.read-timeout` | `--http-read-timeout` | `TELDRIVE_HTTP_READ_TIMEOUT` | `1h0m0s` | `gte=0` | Maximum time to read an entire request; zero disables it for streaming uploads |
-| `http.shutdown-timeout` | `--http-shutdown-timeout` | `TELDRIVE_HTTP_SHUTDOWN_TIMEOUT` | `10s` | `gte=0` | Graceful shutdown timeout |
-| `http.trusted-proxies` | `--http-trusted-proxies` | `TELDRIVE_HTTP_TRUSTED_PROXIES` | — | — | Proxy IP addresses or CIDRs trusted to set forwarding headers |
-| `http.write-timeout` | `--http-write-timeout` | `TELDRIVE_HTTP_WRITE_TIMEOUT` | `1h0m0s` | `gte=0` | Maximum response write duration; zero disables it for streaming |
+<ConfigOption name={"http.address"} flag={"--http-address"} env={"TELDRIVE_HTTP_ADDRESS"} defaultValue={"127.0.0.1:8080"} description={"HTTP listen address"} />
+
+<ConfigOption name={"http.idle-timeout"} flag={"--http-idle-timeout"} env={"TELDRIVE_HTTP_IDLE_TIMEOUT"} defaultValue={"2m0s"} description={"HTTP keep-alive idle timeout"} />
+
+<ConfigOption name={"http.read-header-timeout"} flag={"--http-read-header-timeout"} env={"TELDRIVE_HTTP_READ_HEADER_TIMEOUT"} defaultValue={"10s"} description={"Maximum time to read request headers"} />
+
+<ConfigOption name={"http.read-timeout"} flag={"--http-read-timeout"} env={"TELDRIVE_HTTP_READ_TIMEOUT"} defaultValue={"1h0m0s"} description={"Maximum time to read an entire request; zero disables it for streaming uploads"} />
+
+<ConfigOption name={"http.shutdown-timeout"} flag={"--http-shutdown-timeout"} env={"TELDRIVE_HTTP_SHUTDOWN_TIMEOUT"} defaultValue={"10s"} description={"Graceful shutdown timeout"} />
+
+<ConfigOption name={"http.trusted-proxies"} flag={"--http-trusted-proxies"} env={"TELDRIVE_HTTP_TRUSTED_PROXIES"} defaultValue={""} description={"Proxy IP addresses or CIDRs trusted to set forwarding headers"} />
+
+<ConfigOption name={"http.write-timeout"} flag={"--http-write-timeout"} env={"TELDRIVE_HTTP_WRITE_TIMEOUT"} defaultValue={"1h0m0s"} description={"Maximum response write duration; zero disables it for streaming"} />
+
 ## Jobs
 
-| Config key | CLI flag | Environment variable | Default | Validation | Description |
-| --- | --- | --- | --- | --- | --- |
-| `jobs.run-workers` | `--jobs-run-workers` | `TELDRIVE_JOBS_RUN_WORKERS` | `true` | — | Run River background job workers in this process |
+<ConfigOption name={"jobs.run-workers"} flag={"--jobs-run-workers"} env={"TELDRIVE_JOBS_RUN_WORKERS"} defaultValue={"true"} description={"Run River background job workers in this process"} />
+
 ## Logging
 
-| Config key | CLI flag | Environment variable | Default | Validation | Description |
-| --- | --- | --- | --- | --- | --- |
-| `logging.log-format` | `--logging-log-format` | `TELDRIVE_LOGGING_LOG_FORMAT` | `text` | `oneof=json text` | Log format: json or text |
-| `logging.log-level` | `--logging-log-level` | `TELDRIVE_LOGGING_LOG_LEVEL` | `info` | `oneof=debug info warn error` | Log level: debug, info, warn, or error |
+<ConfigOption name={"logging.log-format"} flag={"--logging-log-format"} env={"TELDRIVE_LOGGING_LOG_FORMAT"} defaultValue={"text"} description={"Log format: json or text"} />
+
+<ConfigOption name={"logging.log-level"} flag={"--logging-log-level"} env={"TELDRIVE_LOGGING_LOG_LEVEL"} defaultValue={"info"} description={"Log level: debug, info, warn, or error"} />
+
 ## Security
 
-| Config key | CLI flag | Environment variable | Default | Validation | Description |
-| --- | --- | --- | --- | --- | --- |
-| `security.access-token-ttl` | `--security-access-token-ttl` | `TELDRIVE_SECURITY_ACCESS_TOKEN_TTL` | `15m0s` | `gt=0` | Access-token lifetime |
-| `security.allowed-users` | `--security-allowed-users` | `TELDRIVE_SECURITY_ALLOWED_USERS` | — | — | Allowed Telegram usernames; empty permits every user |
-| `security.data-key` | `--security-data-key` | `TELDRIVE_SECURITY_DATA_KEY` | — | `required` | Key used to encrypt stored Telegram credentials |
-| `security.issuer` | `--security-issuer` | `TELDRIVE_SECURITY_ISSUER` | `teldrive-v2` | `required` | JWT issuer |
-| `security.login-flow-ttl` | `--security-login-flow-ttl` | `TELDRIVE_SECURITY_LOGIN_FLOW_TTL` | `10m0s` | `gt=0` | Telegram login-flow lifetime |
-| `security.refresh-token-ttl` | `--security-refresh-token-ttl` | `TELDRIVE_SECURITY_REFRESH_TOKEN_TTL` | `720h0m0s` | `gt=0` | Refresh-token lifetime |
-| `security.signing-key` | `--security-signing-key` | `TELDRIVE_SECURITY_SIGNING_KEY` | — | `required,min=32` | JWT signing key |
+<ConfigOption name={"security.access-token-ttl"} flag={"--security-access-token-ttl"} env={"TELDRIVE_SECURITY_ACCESS_TOKEN_TTL"} defaultValue={"15m0s"} description={"Access-token lifetime"} />
+
+<ConfigOption name={"security.allowed-users"} flag={"--security-allowed-users"} env={"TELDRIVE_SECURITY_ALLOWED_USERS"} defaultValue={""} description={"Allowed Telegram usernames; empty permits every user"} />
+
+<ConfigOption name={"security.data-key"} flag={"--security-data-key"} env={"TELDRIVE_SECURITY_DATA_KEY"} defaultValue={""} description={"Key used to encrypt stored Telegram credentials"} />
+
+<ConfigOption name={"security.issuer"} flag={"--security-issuer"} env={"TELDRIVE_SECURITY_ISSUER"} defaultValue={"teldrive-v2"} description={"JWT issuer"} />
+
+<ConfigOption name={"security.login-flow-ttl"} flag={"--security-login-flow-ttl"} env={"TELDRIVE_SECURITY_LOGIN_FLOW_TTL"} defaultValue={"10m0s"} description={"Telegram login-flow lifetime"} />
+
+<ConfigOption name={"security.refresh-token-ttl"} flag={"--security-refresh-token-ttl"} env={"TELDRIVE_SECURITY_REFRESH_TOKEN_TTL"} defaultValue={"720h0m0s"} description={"Refresh-token lifetime"} />
+
+<ConfigOption name={"security.signing-key"} flag={"--security-signing-key"} env={"TELDRIVE_SECURITY_SIGNING_KEY"} defaultValue={""} description={"JWT signing key"} />
+
 ## Telegram
 
-| Config key | CLI flag | Environment variable | Default | Validation | Description |
-| --- | --- | --- | --- | --- | --- |
-| `telegram.app-hash` | `--telegram-app-hash` | `TELDRIVE_TELEGRAM_APP_HASH` | `8da85b0d5bfe62527e5b244c209159c3` | `required_if=Backend remote` | Telegram application hash |
-| `telegram.app-id` | `--telegram-app-id` | `TELDRIVE_TELEGRAM_APP_ID` | `2496` | `required_if=Backend remote,omitempty,gt=0` | Telegram application ID |
-| `telegram.app-version` | `--telegram-app-version` | `TELDRIVE_TELEGRAM_APP_VERSION` | `6.1.4 K` | `required` | Telegram client application version |
-| `telegram.auto-channel-create` | `--telegram-auto-channel-create` | `TELDRIVE_TELEGRAM_AUTO_CHANNEL_CREATE` | `true` | — | Create storage channels automatically |
-| `telegram.backend` | `--telegram-backend` | `TELDRIVE_TELEGRAM_BACKEND` | `remote` | `oneof=remote filesystem` | Telegram backend: remote or filesystem |
-| `telegram.bot-rotation-backend` | `--telegram-bot-rotation-backend` | `TELDRIVE_TELEGRAM_BOT_ROTATION_BACKEND` | `memory` | `oneof=memory database` | Bot rotation backend: memory for single-instance speed or database for cluster-wide coordination |
-| `telegram.channel-name-prefix` | `--telegram-channel-name-prefix` | `TELDRIVE_TELEGRAM_CHANNEL_NAME_PREFIX` | `teldrive` | `required` | Prefix for automatically created channels |
-| `telegram.channel-part-limit` | `--telegram-channel-part-limit` | `TELDRIVE_TELEGRAM_CHANNEL_PART_LIMIT` | `500000` | `gt=0` | Maximum parts stored in one Telegram channel |
-| `telegram.client-logging` | `--telegram-client-logging` | `TELDRIVE_TELEGRAM_CLIENT_LOGGING` | `false` | — | Enable verbose gotd Telegram client logs through the application logger |
-| `telegram.device-model` | `--telegram-device-model` | `TELDRIVE_TELEGRAM_DEVICE_MODEL` | `Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/116.0` | `required` | Telegram client device model |
-| `telegram.dial-timeout` | `--telegram-dial-timeout` | `TELDRIVE_TELEGRAM_DIAL_TIMEOUT` | `10s` | `gt=0` | Telegram connection timeout |
-| `telegram.download-bots` | `--telegram-download-bots` | `TELDRIVE_TELEGRAM_DOWNLOAD_BOTS` | `0` | `min=0,max=32` | Maximum enabled bots used for download rotation; zero uses the authenticated user |
-| `telegram.download-client-pool` | `--telegram-download-client-pool` | `TELDRIVE_TELEGRAM_DOWNLOAD_CLIENT_POOL` | `false` | — | Keep authenticated Telegram download clients warm between HTTP requests |
-| `telegram.download-read-buffers` | `--telegram-download-read-buffers` | `TELDRIVE_TELEGRAM_DOWNLOAD_READ_BUFFERS` | `32` | `min=1,max=256` | Number of prefetched Telegram download chunks buffered in memory per stream |
-| `telegram.download-read-parallel` | `--telegram-download-read-parallel` | `TELDRIVE_TELEGRAM_DOWNLOAD_READ_PARALLEL` | `4` | `min=1,max=32` | Concurrent Telegram chunk fetches per download stream |
-| `telegram.language-code` | `--telegram-language-code` | `TELDRIVE_TELEGRAM_LANGUAGE_CODE` | `en` | `required` | Telegram client language code |
-| `telegram.language-pack` | `--telegram-language-pack` | `TELDRIVE_TELEGRAM_LANGUAGE_PACK` | `webk` | — | Telegram client language pack |
-| `telegram.local-root` | `--telegram-local-root` | `TELDRIVE_TELEGRAM_LOCAL_ROOT` | `./var/local-telegram` | `required_if=Backend filesystem` | Filesystem root used by the local Telegram emulator |
-| `telegram.max-retries` | `--telegram-max-retries` | `TELDRIVE_TELEGRAM_MAX_RETRIES` | `10` | `gte=0` | Maximum Telegram transport retry attempts |
-| `telegram.mtproxy.address` | `--telegram-mtproxy-address` | `TELDRIVE_TELEGRAM_MTPROXY_ADDRESS` | — | — | MTProto proxy address in host:port form |
-| `telegram.mtproxy.secret` | `--telegram-mtproxy-secret` | `TELDRIVE_TELEGRAM_MTPROXY_SECRET` | — | — | MTProto proxy secret in hexadecimal form |
-| `telegram.proxy` | `--telegram-proxy` | `TELDRIVE_TELEGRAM_PROXY` | — | — | HTTP, HTTPS, or SOCKS5 proxy URL |
-| `telegram.randomize-part-names` | `--telegram-randomize-part-names` | `TELDRIVE_TELEGRAM_RANDOMIZE_PART_NAMES` | `true` | — | Randomize Telegram document names |
-| `telegram.rate-burst` | `--telegram-rate-burst` | `TELDRIVE_TELEGRAM_RATE_BURST` | `10` | `gt=0` | Telegram API request burst allowance |
-| `telegram.rate-interval` | `--telegram-rate-interval` | `TELDRIVE_TELEGRAM_RATE_INTERVAL` | `50ms` | `gt=0` | Minimum interval between Telegram API requests |
-| `telegram.rate-limit` | `--telegram-rate-limit` | `TELDRIVE_TELEGRAM_RATE_LIMIT` | `true` | — | Enable Telegram API request rate limiting |
-| `telegram.reconnect-timeout` | `--telegram-reconnect-timeout` | `TELDRIVE_TELEGRAM_RECONNECT_TIMEOUT` | `5m0s` | `gt=0` | Maximum Telegram reconnect backoff duration |
-| `telegram.system-language-code` | `--telegram-system-language-code` | `TELDRIVE_TELEGRAM_SYSTEM_LANGUAGE_CODE` | `en-US` | `required` | Telegram client system language code |
-| `telegram.system-version` | `--telegram-system-version` | `TELDRIVE_TELEGRAM_SYSTEM_VERSION` | `Win32` | `required` | Telegram client system version |
-| `telegram.upload-threads` | `--telegram-upload-threads` | `TELDRIVE_TELEGRAM_UPLOAD_THREADS` | `8` | `min=1,max=32` | Concurrent Telegram upload workers |
+<ConfigOption name={"telegram.app-hash"} flag={"--telegram-app-hash"} env={"TELDRIVE_TELEGRAM_APP_HASH"} defaultValue={"8da85b0d5bfe62527e5b244c209159c3"} description={"Telegram application hash"} />
+
+<ConfigOption name={"telegram.app-id"} flag={"--telegram-app-id"} env={"TELDRIVE_TELEGRAM_APP_ID"} defaultValue={"2496"} description={"Telegram application ID"} />
+
+<ConfigOption name={"telegram.app-version"} flag={"--telegram-app-version"} env={"TELDRIVE_TELEGRAM_APP_VERSION"} defaultValue={"6.1.4 K"} description={"Telegram client application version"} />
+
+<ConfigOption name={"telegram.auto-channel-create"} flag={"--telegram-auto-channel-create"} env={"TELDRIVE_TELEGRAM_AUTO_CHANNEL_CREATE"} defaultValue={"true"} description={"Create storage channels automatically"} />
+
+<ConfigOption name={"telegram.backend"} flag={"--telegram-backend"} env={"TELDRIVE_TELEGRAM_BACKEND"} defaultValue={"remote"} description={"Telegram backend: remote or filesystem"} />
+
+<ConfigOption name={"telegram.bot-rotation-backend"} flag={"--telegram-bot-rotation-backend"} env={"TELDRIVE_TELEGRAM_BOT_ROTATION_BACKEND"} defaultValue={"memory"} description={"Bot rotation backend: memory for single-instance speed or database for cluster-wide coordination"} />
+
+<ConfigOption name={"telegram.channel-name-prefix"} flag={"--telegram-channel-name-prefix"} env={"TELDRIVE_TELEGRAM_CHANNEL_NAME_PREFIX"} defaultValue={"teldrive"} description={"Prefix for automatically created channels"} />
+
+<ConfigOption name={"telegram.channel-part-limit"} flag={"--telegram-channel-part-limit"} env={"TELDRIVE_TELEGRAM_CHANNEL_PART_LIMIT"} defaultValue={"500000"} description={"Maximum parts stored in one Telegram channel"} />
+
+<ConfigOption name={"telegram.client-logging"} flag={"--telegram-client-logging"} env={"TELDRIVE_TELEGRAM_CLIENT_LOGGING"} defaultValue={"false"} description={"Enable verbose gotd Telegram client logs through the application logger"} />
+
+<ConfigOption name={"telegram.device-model"} flag={"--telegram-device-model"} env={"TELDRIVE_TELEGRAM_DEVICE_MODEL"} defaultValue={"Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/116.0"} description={"Telegram client device model"} />
+
+<ConfigOption name={"telegram.dial-timeout"} flag={"--telegram-dial-timeout"} env={"TELDRIVE_TELEGRAM_DIAL_TIMEOUT"} defaultValue={"10s"} description={"Telegram connection timeout"} />
+
+<ConfigOption name={"telegram.download-bots"} flag={"--telegram-download-bots"} env={"TELDRIVE_TELEGRAM_DOWNLOAD_BOTS"} defaultValue={"0"} description={"Maximum enabled bots used for download rotation; zero uses the authenticated user"} />
+
+<ConfigOption name={"telegram.download-client-pool"} flag={"--telegram-download-client-pool"} env={"TELDRIVE_TELEGRAM_DOWNLOAD_CLIENT_POOL"} defaultValue={"false"} description={"Keep authenticated Telegram download clients warm between HTTP requests"} />
+
+<ConfigOption name={"telegram.download-read-buffers"} flag={"--telegram-download-read-buffers"} env={"TELDRIVE_TELEGRAM_DOWNLOAD_READ_BUFFERS"} defaultValue={"32"} description={"Number of prefetched Telegram download chunks buffered in memory per stream"} />
+
+<ConfigOption name={"telegram.download-read-parallel"} flag={"--telegram-download-read-parallel"} env={"TELDRIVE_TELEGRAM_DOWNLOAD_READ_PARALLEL"} defaultValue={"4"} description={"Concurrent Telegram chunk fetches per download stream"} />
+
+<ConfigOption name={"telegram.language-code"} flag={"--telegram-language-code"} env={"TELDRIVE_TELEGRAM_LANGUAGE_CODE"} defaultValue={"en"} description={"Telegram client language code"} />
+
+<ConfigOption name={"telegram.language-pack"} flag={"--telegram-language-pack"} env={"TELDRIVE_TELEGRAM_LANGUAGE_PACK"} defaultValue={"webk"} description={"Telegram client language pack"} />
+
+<ConfigOption name={"telegram.local-root"} flag={"--telegram-local-root"} env={"TELDRIVE_TELEGRAM_LOCAL_ROOT"} defaultValue={"./var/local-telegram"} description={"Filesystem root used by the local Telegram emulator"} />
+
+<ConfigOption name={"telegram.max-retries"} flag={"--telegram-max-retries"} env={"TELDRIVE_TELEGRAM_MAX_RETRIES"} defaultValue={"10"} description={"Maximum Telegram transport retry attempts"} />
+
+<ConfigOption name={"telegram.mtproxy.address"} flag={"--telegram-mtproxy-address"} env={"TELDRIVE_TELEGRAM_MTPROXY_ADDRESS"} defaultValue={""} description={"MTProto proxy address in host:port form"} />
+
+<ConfigOption name={"telegram.mtproxy.secret"} flag={"--telegram-mtproxy-secret"} env={"TELDRIVE_TELEGRAM_MTPROXY_SECRET"} defaultValue={""} description={"MTProto proxy secret in hexadecimal form"} />
+
+<ConfigOption name={"telegram.proxy"} flag={"--telegram-proxy"} env={"TELDRIVE_TELEGRAM_PROXY"} defaultValue={""} description={"HTTP, HTTPS, or SOCKS5 proxy URL"} />
+
+<ConfigOption name={"telegram.randomize-part-names"} flag={"--telegram-randomize-part-names"} env={"TELDRIVE_TELEGRAM_RANDOMIZE_PART_NAMES"} defaultValue={"true"} description={"Randomize Telegram document names"} />
+
+<ConfigOption name={"telegram.rate-burst"} flag={"--telegram-rate-burst"} env={"TELDRIVE_TELEGRAM_RATE_BURST"} defaultValue={"10"} description={"Telegram API request burst allowance"} />
+
+<ConfigOption name={"telegram.rate-interval"} flag={"--telegram-rate-interval"} env={"TELDRIVE_TELEGRAM_RATE_INTERVAL"} defaultValue={"50ms"} description={"Minimum interval between Telegram API requests"} />
+
+<ConfigOption name={"telegram.rate-limit"} flag={"--telegram-rate-limit"} env={"TELDRIVE_TELEGRAM_RATE_LIMIT"} defaultValue={"true"} description={"Enable Telegram API request rate limiting"} />
+
+<ConfigOption name={"telegram.reconnect-timeout"} flag={"--telegram-reconnect-timeout"} env={"TELDRIVE_TELEGRAM_RECONNECT_TIMEOUT"} defaultValue={"5m0s"} description={"Maximum Telegram reconnect backoff duration"} />
+
+<ConfigOption name={"telegram.system-language-code"} flag={"--telegram-system-language-code"} env={"TELDRIVE_TELEGRAM_SYSTEM_LANGUAGE_CODE"} defaultValue={"en-US"} description={"Telegram client system language code"} />
+
+<ConfigOption name={"telegram.system-version"} flag={"--telegram-system-version"} env={"TELDRIVE_TELEGRAM_SYSTEM_VERSION"} defaultValue={"Win32"} description={"Telegram client system version"} />
+
+<ConfigOption name={"telegram.upload-threads"} flag={"--telegram-upload-threads"} env={"TELDRIVE_TELEGRAM_UPLOAD_THREADS"} defaultValue={"8"} description={"Concurrent Telegram upload workers"} />
+
 ## Uploads
 
-| Config key | CLI flag | Environment variable | Default | Validation | Description |
-| --- | --- | --- | --- | --- | --- |
-| `uploads.hashing-enabled` | `--uploads-hashing-enabled` | `TELDRIVE_UPLOADS_HASHING_ENABLED` | `true` | — | Compute and store BLAKE3 hashes for uploaded files |
-| `uploads.local-import-roots` | `--uploads-local-import-roots` | `TELDRIVE_UPLOADS_LOCAL_IMPORT_ROOTS` | — | — | Absolute server directories allowed as local background-upload sources; empty disables local imports |
-| `uploads.session-ttl` | `--uploads-session-ttl` | `TELDRIVE_UPLOADS_SESSION_TTL` | `168h0m0s` | `gt=0` | Lifetime of resumable upload sessions |
+<ConfigOption name={"uploads.hashing-enabled"} flag={"--uploads-hashing-enabled"} env={"TELDRIVE_UPLOADS_HASHING_ENABLED"} defaultValue={"true"} description={"Compute and store BLAKE3 hashes for uploaded files"} />
+
+<ConfigOption name={"uploads.local-import-roots"} flag={"--uploads-local-import-roots"} env={"TELDRIVE_UPLOADS_LOCAL_IMPORT_ROOTS"} defaultValue={""} description={"Absolute server directories allowed as local background-upload sources; empty disables local imports"} />
+
+<ConfigOption name={"uploads.session-ttl"} flag={"--uploads-session-ttl"} env={"TELDRIVE_UPLOADS_SESSION_TTL"} defaultValue={"168h0m0s"} description={"Lifetime of resumable upload sessions"} />
