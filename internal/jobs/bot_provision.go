@@ -25,6 +25,7 @@ var ErrBotProvisionNotConfigured = errors.New("bot provisioning worker is not co
 type BotProvisionArgs struct {
 	UserID int64   `json:"user_id"`
 	BotIDs []int64 `json:"bot_ids"`
+	Force  bool    `json:"force,omitempty"`
 }
 
 func (BotProvisionArgs) Kind() string { return BotProvisionKind }
@@ -64,12 +65,16 @@ func (w *BotProvisionWorker) Work(ctx context.Context, job *river.Job[BotProvisi
 	var failures []error
 	waiting := false
 	for _, botID := range botIDs {
-		row, verifyErr := w.bots.VerifyForProvision(ctx, job.Args.UserID, botID)
+		verify := w.bots.VerifyForProvision
+		if job.Args.Force {
+			verify = w.bots.VerifyForReprovision
+		}
+		row, verifyErr := verify(ctx, job.Args.UserID, botID)
 		if verifyErr != nil {
 			failures = append(failures, fmt.Errorf("verify pending bot %d: %w", botID, verifyErr), w.bots.MarkProvisionFailure(ctx, job.Args.UserID, botID, verifyErr))
 			continue
 		}
-		if row.Enabled {
+		if row.Enabled && !job.Args.Force {
 			continue
 		}
 		username := strings.TrimSpace(row.Username.String)
@@ -110,7 +115,7 @@ func (w *BotProvisionWorker) Work(ctx context.Context, job *river.Job[BotProvisi
 		slog.InfoContext(ctx, "Telegram bot provisioned", "job_id", job.ID, "user_id", job.Args.UserID, "bot_id", botID, "bot_username", username, "channel_count", len(channels))
 	}
 	if waiting {
-		return river.JobSnooze(min(3*time.Hour, max(time.Until(job.CreatedAt.Add(48*time.Hour)), time.Second)))
+		return river.JobSnooze(min(time.Hour, max(time.Until(job.CreatedAt.Add(48*time.Hour)), time.Second)))
 	}
 	return errors.Join(failures...)
 }

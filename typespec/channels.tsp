@@ -52,6 +52,10 @@ model BotCreateResponse {
   jobId?: string;
 }
 
+model BotProvisionResponse {
+  jobId: string;
+}
+
 @tag("Channels")
 @route("/v1/channels")
 @useAuth(TelDriveAuth)
@@ -126,6 +130,17 @@ namespace Bots {
     | ErrorResponse<401>
     | ErrorResponse<422>
     | ErrorResponse<429>;
+  /** Re-verify a saved bot and repair its access to the user's registered channels. */
+  @post
+  @route("/{botId}/provision")
+  @operationId("provisionBot")
+  op provision(@path botId: int64, ...IdempotencyHeader):
+    | JsonResponse<202, BotProvisionResponse>
+    | ErrorResponse<401>
+    | ErrorResponse<404>
+    | ErrorResponse<422>
+    | ErrorResponse<429>;
+
   @delete
   @route("/{botId}")
   @operationId("deleteBot")

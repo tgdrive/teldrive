@@ -372,6 +372,12 @@ type Handler interface {
 	//
 	// POST /v1/periodic-jobs/{periodicJobId}/pause
 	PausePeriodicJob(ctx context.Context, params PausePeriodicJobParams) (PausePeriodicJobRes, error)
+	// ProvisionBot implements provisionBot operation.
+	//
+	// Re-verify a saved bot and repair its access to the user's registered channels.
+	//
+	// POST /v1/bots/{botId}/provision
+	ProvisionBot(ctx context.Context, params ProvisionBotParams) (ProvisionBotRes, error)
 	// PurgeFile implements purgeFile operation.
 	//
 	// Permanently delete a trashed file or folder from the catalog.

@@ -1,5 +1,34 @@
 import { expect, test } from "@playwright/test";
 
+test("bots can be manually provisioned after migration", async ({ page }) => {
+  let provisionRequests = 0;
+  await page.route("**/api/v1/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/v1/me") {
+      return route.fulfill({ json: { userId: 1, displayName: "Fixture", role: "owner", capabilities: [], premium: false, createdAt: "2026-07-22T12:00:00Z" } });
+    }
+    if (url.pathname === "/api/v1/bots") {
+      return route.fulfill({ json: { items: [{ id: 777, enabled: true, createdAt: "2026-07-22T12:00:00Z" }] } });
+    }
+    if (url.pathname === "/api/v1/bots/777/provision") {
+      expect(route.request().method()).toBe("POST");
+      expect(route.request().headers()["idempotency-key"]).toBeTruthy();
+      provisionRequests++;
+      return route.fulfill({ status: 202, json: { jobId: "123" } });
+    }
+    return route.fulfill({ status: 404, json: {} });
+  });
+  await page.goto("/settings/bots");
+  await expect(page.getByText("Enabled", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Provision bot 777", exact: true }).click();
+  await expect(page.getByRole("alertdialog")).toBeVisible();
+  expect(provisionRequests).toBe(0);
+  await page.getByRole("alertdialog").getByRole("button", { name: "Provision bot", exact: true }).click();
+  await expect(page.getByText("Bot provisioning queued", { exact: true })).toBeVisible();
+  expect(provisionRequests).toBe(1);
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+});
+
 test("appearance applies light tokens and persists across reloads", async ({ page }) => {
   await page.route("**/api/v1/**", async (route) => {
     if (new URL(route.request().url()).pathname === "/api/v1/me") {
@@ -36,8 +65,26 @@ test("appearance applies light tokens and persists across reloads", async ({ pag
   await page.getByRole("button", { name: "Log out", exact: true }).click();
   await expect(page.getByText("Unable to log out", { exact: true })).toBeVisible();
   await expect(page.locator("[data-sonner-toaster]")).toHaveAttribute("data-sonner-theme", "dark");
+  const errorToast = page.locator('[data-sonner-toast][data-type="error"]');
+  const darkToastColors = await errorToast.evaluate((el) => {
+    const style = getComputedStyle(el);
+    return { background: style.backgroundColor, text: style.color, border: style.borderColor };
+  });
+  const errorText = await errorToast.evaluate((el) => {
+    const probe = document.createElement("span");
+    probe.style.color = "var(--error-text)";
+    el.appendChild(probe);
+    const color = getComputedStyle(probe).color;
+    probe.remove();
+    return color;
+  });
+  expect(darkToastColors.text).toBe(errorText);
+  expect(darkToastColors.background).toBe("oklch(0.21 0.008 70 / 0.85)");
+  expect(darkToastColors.border).toBe("oklch(0.95 0.02 70 / 0.1)");
+  await expect(errorToast).toHaveCSS("backdrop-filter", "blur(16px)");
   await page.emulateMedia({ colorScheme: "light" });
   await expect(page.locator("[data-sonner-toaster]")).toHaveAttribute("data-sonner-theme", "light");
+  await expect.poll(() => errorToast.evaluate((el) => getComputedStyle(el).backgroundColor)).not.toBe(darkToastColors.background);
 });
 
 test("users search is debounced and stays usable while results load", async ({ page }) => {

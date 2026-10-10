@@ -49,7 +49,10 @@ type Job struct {
 func (j Job) UserID() (int64, bool) {
 	raw, ok := j.Args["user_id"]
 	if !ok {
-		return 0, false
+		raw, ok = j.Metadata["user_id"]
+		if !ok {
+			return 0, false
+		}
 	}
 	var userID int64
 	if err := json.Unmarshal(raw, &userID); err != nil || userID <= 0 {
@@ -94,7 +97,7 @@ func (r *Runtime) List(ctx context.Context, input ListInput) ([]Job, string, err
 		OrderBy(river.JobListOrderByID, river.SortOrderDesc).
 		First(int(input.Limit) + 1)
 	if input.UserID > 0 {
-		params = params.Where("args->>'user_id' = @user_id", river.NamedArgs{"user_id": strconv.FormatInt(input.UserID, 10)})
+		params = params.Where("COALESCE(args->>'user_id', metadata->>'user_id') = @user_id", river.NamedArgs{"user_id": strconv.FormatInt(input.UserID, 10)})
 	}
 	if beforeID > 0 {
 		params = params.Where("id < @before_id", river.NamedArgs{"before_id": beforeID})
@@ -166,7 +169,7 @@ func (r *Runtime) StatisticsForUser(ctx context.Context, userID int64) (Statisti
 		return Statistics{}, ErrRuntimeNotConfigured
 	}
 	jobTable := pgx.Identifier{r.schema, "river_job"}.Sanitize()
-	rows, err := r.pool.Query(ctx, "SELECT state::text, count(*) FROM "+jobTable+" WHERE args->>'user_id' = $1 GROUP BY state", strconv.FormatInt(userID, 10))
+	rows, err := r.pool.Query(ctx, "SELECT state::text, count(*) FROM "+jobTable+" WHERE COALESCE(args->>'user_id', metadata->>'user_id') = $1 GROUP BY state", strconv.FormatInt(userID, 10))
 	if err != nil {
 		return Statistics{}, fmt.Errorf("job statistics for user: %w", err)
 	}

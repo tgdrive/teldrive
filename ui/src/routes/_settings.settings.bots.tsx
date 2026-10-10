@@ -23,6 +23,7 @@ function BotsSettings() {
   const [token, setToken] = useState("");
   const [isAddingBots, setIsAddingBots] = useState(false);
   const [deleteBot, setDeleteBot] = useState<{ id: number; name: string } | null>(null);
+  const [provisionBot, setProvisionBot] = useState<{ id: number; name: string } | null>(null);
   const query = $api.useSuspenseQuery(
     "get",
     "/v1/bots",
@@ -30,6 +31,17 @@ function BotsSettings() {
     { staleTime: 20_000 },
   );
   const create = $api.useMutation("post", "/v1/bots");
+  const provision = $api.useMutation("post", "/v1/bots/{botId}/provision", {
+    onSuccess: () => {
+      setProvisionBot(null);
+      toast.success("Bot provisioning queued", {
+        description: "Check Tasks for progress. Telegram may temporarily delay channel admin changes.",
+      });
+    },
+    onError: (error) => {
+      toast.error("Bot provisioning could not be queued", { description: userMessage(error) });
+    },
+  });
   const remove = $api.useMutation("delete", "/v1/bots/{botId}", {
     onSuccess: () => {
       setDeleteBot(null);
@@ -118,7 +130,7 @@ function BotsSettings() {
       </SettingsSection>
       <SettingsSection
         title="Configured bots"
-        description="Healthy enabled bots are used automatically by the storage runtime."
+        description="Healthy enabled bots are used automatically. After migration, use Provision to verify a bot and repair its channel access."
       >
         {query.data.items.length ? (
           query.data.items.map((bot) => (
@@ -131,6 +143,17 @@ function BotsSettings() {
                 <Chip color={bot.enabled ? "success" : "warning"} variant="tertiary">
                   {bot.enabled ? "Enabled" : "Disabled"}
                 </Chip>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  aria-label={`Provision bot ${bot.username || bot.id}`}
+                  isDisabled={provision.isPending || remove.isPending}
+                  onPress={() =>
+                    setProvisionBot({ id: bot.id, name: bot.username || `bot-${bot.id}` })
+                  }
+                >
+                  Provision
+                </Button>
                 <Button
                   isIconOnly
                   size="sm"
@@ -150,6 +173,27 @@ function BotsSettings() {
           <div className="px-5 py-8 text-sm text-muted">No Telegram bots are configured.</div>
         )}
       </SettingsSection>
+      <ConfirmDialog
+        open={provisionBot !== null}
+        onOpenChange={(open) => {
+          if (!open && !provision.isPending) setProvisionBot(null);
+        }}
+        title="Provision Telegram bot?"
+        message={`Verify “${provisionBot?.name ?? ""}” and add it as an admin to your registered Telegram channels. This runs in the background using your logged-in Telegram account. Track progress in Tasks.`}
+        confirmLabel="Provision bot"
+        isDestructive={false}
+        isPending={provision.isPending}
+        onConfirm={() => {
+          if (provisionBot) {
+            provision.mutate({
+              params: {
+                path: { botId: provisionBot.id },
+                header: { "Idempotency-Key": newIdempotencyKey() },
+              },
+            });
+          }
+        }}
+      />
       <ConfirmDialog
         open={deleteBot !== null}
         onOpenChange={(open) => {

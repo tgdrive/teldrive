@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -311,10 +312,18 @@ func inspect(ctx context.Context, source legacyReader) (Report, []legacyFile, er
 	var report Report
 	if err := source.QueryRow(ctx, `SELECT
 (SELECT count(*) FROM teldrive.users),
-(SELECT count(*) FROM teldrive.channels),
-(SELECT count(DISTINCT (user_id, bot_id)) FROM teldrive.bots)`).Scan(&report.Users, &report.Channels, &report.Bots); err != nil {
+(SELECT count(*) FROM teldrive.channels)`).Scan(&report.Users, &report.Channels); err != nil {
 		return Report{}, nil, fmt.Errorf("count legacy rows: %w", err)
 	}
+	legacyBots, err := readLegacyBots(ctx, source)
+	if err != nil {
+		return Report{}, nil, err
+	}
+	botIDs := make(map[[2]int64]struct{}, len(legacyBots))
+	for _, bot := range legacyBots {
+		botIDs[[2]int64{bot.UserID, bot.BotID}] = struct{}{}
+	}
+	report.Bots = int64(len(botIDs))
 
 	rows, err := source.Query(ctx, `
 SELECT id, name, type, mime_type, size, user_id, parent_id, status,
@@ -534,26 +543,49 @@ func migrateChannels(ctx context.Context, source legacyReader, tx pgx.Tx, schema
 	return nil
 }
 
-func migrateBots(ctx context.Context, source legacyReader, tx pgx.Tx, cipher *secureblob.Cipher, verifier bots.Verifier, schema string) error {
+func readLegacyBots(ctx context.Context, source legacyReader) ([]legacyBot, error) {
 	rows, err := source.Query(ctx, `SELECT user_id,token,bot_id FROM teldrive.bots ORDER BY user_id,bot_id,token`)
 	if err != nil {
-		return fmt.Errorf("read bots: %w", err)
+		return nil, fmt.Errorf("read bots: %w", err)
 	}
+	defer rows.Close()
 
 	legacyBots := make([]legacyBot, 0)
 	for rows.Next() {
 		var bot legacyBot
 		if err := rows.Scan(&bot.UserID, &bot.Token, &bot.BotID); err != nil {
-			rows.Close()
-			return fmt.Errorf("scan bot: %w", err)
+			return nil, fmt.Errorf("scan bot: %w", err)
+		}
+		if bot.BotID <= 0 {
+			bot.BotID, err = bots.TokenBotID(bot.Token)
+			if err != nil {
+				return nil, fmt.Errorf("recover legacy bot ID for user %d: token has no valid bot ID prefix; re-enter or remove this bot before migration", bot.UserID)
+			}
 		}
 		legacyBots = append(legacyBots, bot)
 	}
 	if err := rows.Err(); err != nil {
-		rows.Close()
-		return fmt.Errorf("read bots: %w", err)
+		return nil, fmt.Errorf("read bots: %w", err)
 	}
-	rows.Close()
+	// Recovery can change ordering and merge formerly distinct bot ID groups.
+	sort.Slice(legacyBots, func(i, j int) bool {
+		a, b := legacyBots[i], legacyBots[j]
+		if a.UserID != b.UserID {
+			return a.UserID < b.UserID
+		}
+		if a.BotID != b.BotID {
+			return a.BotID < b.BotID
+		}
+		return a.Token < b.Token
+	})
+	return legacyBots, nil
+}
+
+func migrateBots(ctx context.Context, source legacyReader, tx pgx.Tx, cipher *secureblob.Cipher, verifier bots.Verifier, schema string) error {
+	legacyBots, err := readLegacyBots(ctx, source)
+	if err != nil {
+		return err
+	}
 
 	selected := make([]legacyBot, 0, len(legacyBots))
 	for start := 0; start < len(legacyBots); {

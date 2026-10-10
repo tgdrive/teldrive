@@ -1371,6 +1371,56 @@ paths:
       security:
         - BearerAuth: []
         - CookieAuth: []
+  /v1/bots/{botId}/provision:
+    post:
+      operationId: provisionBot
+      description: Re-verify a saved bot and repair its access to the user's
+        registered channels.
+      parameters:
+        - name: botId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - $ref: "#/components/parameters/IdempotencyHeader"
+      responses:
+        "202":
+          description: The request has been accepted for processing, but processing has
+            not yet completed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BotProvisionResponse"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Bots
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
   /v1/bots/{botId}:
     delete:
       operationId: deleteBot
@@ -6241,6 +6291,13 @@ components:
           minItems: 1
           maxItems: 200
           description: Telegram bot tokens. Tokens are never returned by the API.
+    BotProvisionResponse:
+      type: object
+      required:
+        - jobId
+      properties:
+        jobId:
+          type: string
     EventStreamTicket:
       type: object
       required:

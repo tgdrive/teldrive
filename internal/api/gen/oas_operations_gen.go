@@ -85,6 +85,7 @@ const (
 	MoveFileOperation                          OperationName = "MoveFile"
 	PauseJobQueueOperation                     OperationName = "PauseJobQueue"
 	PausePeriodicJobOperation                  OperationName = "PausePeriodicJob"
+	ProvisionBotOperation                      OperationName = "ProvisionBot"
 	PurgeFileOperation                         OperationName = "PurgeFile"
 	PurgeJobsOperation                         OperationName = "PurgeJobs"
 	PutFileViewStateOperation                  OperationName = "PutFileViewState"

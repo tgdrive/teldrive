@@ -50,7 +50,10 @@ INSERT INTO teldrive.users VALUES
 INSERT INTO teldrive.channels VALUES (201, 'Channel', 101, true, now());
 INSERT INTO teldrive.bots VALUES
     (101, '301:a-invalid', 301),
-    (101, '301:b-valid', 301);
+    (101, '301:b-valid', 301),
+    (101, '301:legacy-zero', 0),
+    (101, '302:legacy-zero', 0),
+    (101, '303:legacy-zero', 0);
 `); err != nil {
 		t.Fatalf("seed legacy schema: %v", err)
 	}
@@ -89,21 +92,21 @@ VALUES
 	if !migrated {
 		t.Fatal("legacy database was not migrated")
 	}
-	if report.Users != 2 || report.Channels != 1 || report.Bots != 1 || report.Folders != 1 || report.Files != 2 || report.FileParts != 1 || report.SkippedZero != 1 {
+	if report.Users != 2 || report.Channels != 1 || report.Bots != 3 || report.Folders != 1 || report.Files != 2 || report.FileParts != 1 || report.SkippedZero != 1 {
 		t.Fatalf("unexpected report: %+v", report)
 	}
 
-	var users, channels, bots, files, parts int
+	var users, channels, botCount, files, parts int
 	if err := source.Pool.QueryRow(ctx, `SELECT
 (SELECT count(*) FROM teldrive.users),
 (SELECT count(*) FROM teldrive.channels),
 (SELECT count(*) FROM teldrive.bots),
 (SELECT count(*) FROM teldrive.files),
-(SELECT count(*) FROM teldrive.file_parts)`).Scan(&users, &channels, &bots, &files, &parts); err != nil {
+(SELECT count(*) FROM teldrive.file_parts)`).Scan(&users, &channels, &botCount, &files, &parts); err != nil {
 		t.Fatalf("count target rows: %v", err)
 	}
-	if users != 2 || channels != 1 || bots != 1 || files != 3 || parts != 1 {
-		t.Fatalf("target counts = %d,%d,%d,%d,%d", users, channels, bots, files, parts)
+	if users != 2 || channels != 1 || botCount != 3 || files != 3 || parts != 1 {
+		t.Fatalf("target counts = %d,%d,%d,%d,%d", users, channels, botCount, files, parts)
 	}
 	var tokenCiphertext []byte
 	if err := source.Pool.QueryRow(ctx, `SELECT token_ciphertext FROM teldrive.bots WHERE user_id=101 AND bot_id=301`).Scan(&tokenCiphertext); err != nil {
@@ -119,6 +122,19 @@ VALUES
 	}
 	if string(plainToken) != "301:b-valid" {
 		t.Fatalf("migrated bot token = %q, want valid duplicate", plainToken)
+	}
+	for _, botID := range []int64{302, 303} {
+		if err := source.Pool.QueryRow(ctx, `SELECT token_ciphertext FROM teldrive.bots WHERE user_id=101 AND bot_id=$1`, botID).Scan(&tokenCiphertext); err != nil {
+			t.Fatalf("load recovered bot %d: %v", botID, err)
+		}
+		plainToken, err := cipher.Open("bot-token", tokenCiphertext)
+		if err != nil {
+			t.Fatalf("decrypt recovered bot %d: %v", botID, err)
+		}
+		recoveredID, err := bots.TokenBotID(string(plainToken))
+		if err != nil || recoveredID != botID {
+			t.Fatalf("recovered bot ID=%d, want %d, err=%v", recoveredID, botID, err)
+		}
 	}
 
 	var ownerRole, userRole string
@@ -160,8 +176,12 @@ NOT EXISTS (SELECT 1 FROM teldrive.files WHERE id=$3)`, folderID, fileID, synthe
 (SELECT count(*) FROM `+pgx.Identifier{report.BackupSchema}.Sanitize()+`.bots)`).Scan(&backupUserCount, &backupBotCount); err != nil {
 		t.Fatalf("inspect backup schema: %v", err)
 	}
-	if backupUserCount != 2 || backupBotCount != 2 {
-		t.Fatalf("backup counts = users %d, bots %d; want 2, 2", backupUserCount, backupBotCount)
+	if backupUserCount != 2 || backupBotCount != 5 {
+		t.Fatalf("backup counts = users %d, bots %d; want 2, 5", backupUserCount, backupBotCount)
+	}
+	var backupZeroIDs int
+	if err := source.Pool.QueryRow(ctx, `SELECT count(*) FROM `+pgx.Identifier{report.BackupSchema}.Sanitize()+`.bots WHERE bot_id=0`).Scan(&backupZeroIDs); err != nil || backupZeroIDs != 3 {
+		t.Fatalf("legacy zero-ID records were modified: count=%d, err=%v", backupZeroIDs, err)
 	}
 	var gooseMoved bool
 	if err := source.Pool.QueryRow(ctx, `SELECT to_regclass($1) IS NOT NULL AND to_regclass('public.goose_db_version') IS NULL`, report.BackupSchema+".goose_db_version").Scan(&gooseMoved); err != nil {

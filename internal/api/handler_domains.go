@@ -359,6 +359,24 @@ func (h *Handler) ListBots(ctx context.Context, params gen.ListBotsParams) (gen.
 	return &response, nil
 }
 
+func (h *Handler) ProvisionBot(ctx context.Context, params gen.ProvisionBotParams) (gen.ProvisionBotRes, error) {
+	userID, err := UserIDFromContext(ctx)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	if h.Bots == nil || h.Jobs == nil {
+		return nil, mapServiceError(ErrOperationUnavailable)
+	}
+	if _, err := h.Bots.Get(ctx, userID, params.BotId); err != nil {
+		return nil, mapServiceError(err)
+	}
+	jobID, err := h.Jobs.InsertBotReprovision(ctx, userID, params.BotId)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	return &gen.BotProvisionResponse{JobId: jobID}, nil
+}
+
 func (h *Handler) DeleteBot(ctx context.Context, params gen.DeleteBotParams) (gen.DeleteBotRes, error) {
 	userID, err := UserIDFromContext(ctx)
 	if err != nil {

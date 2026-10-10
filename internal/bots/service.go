@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -148,23 +149,39 @@ func (s *Service) InsertPending(ctx context.Context, userID int64, tokens []stri
 }
 
 func (s *Service) VerifyPending(ctx context.Context, userID, botID int64) (*sqlcgen.Bot, error) {
-	return s.verifyPending(ctx, userID, botID, true)
+	return s.verifyPending(ctx, userID, botID, true, false)
 }
 
 // VerifyForProvision keeps a bot disabled until all channel invitations succeed.
 func (s *Service) VerifyForProvision(ctx context.Context, userID, botID int64) (*sqlcgen.Bot, error) {
-	return s.verifyPending(ctx, userID, botID, false)
+	return s.verifyPending(ctx, userID, botID, false, false)
 }
 
-func (s *Service) verifyPending(ctx context.Context, userID, botID int64, activate bool) (*sqlcgen.Bot, error) {
+// VerifyForReprovision also verifies enabled bots imported from a legacy database.
+func (s *Service) VerifyForReprovision(ctx context.Context, userID, botID int64) (*sqlcgen.Bot, error) {
+	return s.verifyPending(ctx, userID, botID, false, true)
+}
+
+func (s *Service) Get(ctx context.Context, userID, botID int64) (*sqlcgen.Bot, error) {
 	if userID <= 0 || botID <= 0 {
 		return nil, ErrInvalidInput
 	}
 	row, err := s.queries.GetBot(ctx, sqlcgen.GetBotParams{UserID: userID, BotID: botID})
-	if err != nil {
-		return nil, fmt.Errorf("load pending bot: %w", err)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
 	}
-	if !activate && row.Enabled {
+	if err != nil {
+		return nil, fmt.Errorf("load bot: %w", err)
+	}
+	return row, nil
+}
+
+func (s *Service) verifyPending(ctx context.Context, userID, botID int64, activate, force bool) (*sqlcgen.Bot, error) {
+	row, err := s.Get(ctx, userID, botID)
+	if err != nil {
+		return nil, err
+	}
+	if !activate && !force && row.Enabled {
 		return row, nil
 	}
 	token, err := s.cipher.Open("bot-token", row.TokenCiphertext)

@@ -144,7 +144,7 @@ SELECT queue,
        count(*) FILTER (WHERE state::text = 'retryable'),
        count(*) FILTER (WHERE state::text = 'scheduled')
 FROM %s
-WHERE args->>'user_id' = $1
+WHERE COALESCE(args->>'user_id', metadata->>'user_id') = $1
 GROUP BY queue
 ORDER BY queue`, jobTable), fmt.Sprintf("%d", userID))
 	if err != nil {
@@ -216,7 +216,7 @@ func (r *Runtime) PurgeForUser(ctx context.Context, userID int64, state string) 
 		return 0, ErrInvalidJobState
 	}
 	jobTable := pgx.Identifier{r.schema, "river_job"}.Sanitize()
-	command, err := r.pool.Exec(ctx, fmt.Sprintf("DELETE FROM %s WHERE state::text = $1 AND args->>'user_id' = $2", jobTable), state, fmt.Sprintf("%d", userID))
+	command, err := r.pool.Exec(ctx, fmt.Sprintf("DELETE FROM %s WHERE state::text = $1 AND COALESCE(args->>'user_id', metadata->>'user_id') = $2", jobTable), state, fmt.Sprintf("%d", userID))
 	if err != nil {
 		return 0, fmt.Errorf("purge %s jobs for user: %w", state, err)
 	}

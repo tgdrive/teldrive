@@ -7,6 +7,21 @@ Startup can run Teldrive, River, and RiverPro migrations. Back up PostgreSQL bef
 
 ## Before upgrading
 
+### Migrating from v1
+
+Legacy bots with a zero ID have their ID recovered from the numeric prefix of
+their BotFather token (`bot_id:secret`). Tokens are preserved and encrypted with
+the v2 `security.data-key`; no Telegram login is needed for this recovery.
+
+Migration preserves existing bots as enabled but does not reconfigure their
+Telegram channel permissions. After logging in, open **Settings → Telegram bots**
+and choose **Provision** on a bot to verify its token and repair its access to
+your registered channels. Follow the task in **Tasks**. Telegram can temporarily
+restrict admin changes after a fresh login; the task retries these restrictions
+every hour, for up to 48 hours.
+
+### Upgrade checklist
+
 1. Read release notes.
 2. Record the current version.
 3. Back up PostgreSQL.

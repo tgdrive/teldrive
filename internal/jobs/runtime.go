@@ -325,6 +325,15 @@ func (r *Runtime) InsertPurge(ctx context.Context) error {
 }
 
 func (r *Runtime) InsertBotProvision(ctx context.Context, userID int64, botIDs []int64) (string, error) {
+	return r.insertBotProvision(ctx, userID, botIDs, false)
+}
+
+// InsertBotReprovision repairs channel access even when the bot is already enabled.
+func (r *Runtime) InsertBotReprovision(ctx context.Context, userID, botID int64) (string, error) {
+	return r.insertBotProvision(ctx, userID, []int64{botID}, true)
+}
+
+func (r *Runtime) insertBotProvision(ctx context.Context, userID int64, botIDs []int64, force bool) (string, error) {
 	if r == nil || r.client == nil || !r.botProvisionEnabled || userID <= 0 {
 		return "", ErrRuntimeNotConfigured
 	}
@@ -332,7 +341,10 @@ func (r *Runtime) InsertBotProvision(ctx context.Context, userID int64, botIDs [
 	if len(botIDs) == 0 {
 		return "", nil
 	}
-	result, err := r.client.Insert(ctx, BotProvisionArgs{UserID: userID, BotIDs: botIDs}, nil)
+	// Arguments are encrypted; retain server-controlled ownership for task views.
+	result, err := r.client.Insert(ctx, BotProvisionArgs{UserID: userID, BotIDs: botIDs, Force: force}, &river.InsertOpts{
+		Metadata: []byte(fmt.Sprintf(`{"user_id":%d}`, userID)),
+	})
 	if err != nil {
 		return "", fmt.Errorf("insert bot provisioning job: %w", err)
 	}

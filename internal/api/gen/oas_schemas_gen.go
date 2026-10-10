@@ -384,6 +384,23 @@ func (s *BotCreateResponse) SetJobId(val OptString) {
 
 func (*BotCreateResponse) createBotsRes() {}
 
+// Ref: #/components/schemas/BotProvisionResponse
+type BotProvisionResponse struct {
+	JobId string `json:"jobId"`
+}
+
+// GetJobId returns the value of JobId.
+func (s *BotProvisionResponse) GetJobId() string {
+	return s.JobId
+}
+
+// SetJobId sets the value of JobId.
+func (s *BotProvisionResponse) SetJobId(val string) {
+	s.JobId = val
+}
+
+func (*BotProvisionResponse) provisionBotRes() {}
+
 // Ref: #/components/schemas/BotSummary
 type BotSummary struct {
 	ID        int64     `json:"id"`
@@ -9043,6 +9060,22 @@ func (s *PeriodicJobUpdateArgs) init() PeriodicJobUpdateArgs {
 	}
 	return m
 }
+
+type ProvisionBotNotFound ErrorEnvelope
+
+func (*ProvisionBotNotFound) provisionBotRes() {}
+
+type ProvisionBotTooManyRequests ErrorEnvelope
+
+func (*ProvisionBotTooManyRequests) provisionBotRes() {}
+
+type ProvisionBotUnauthorized ErrorEnvelope
+
+func (*ProvisionBotUnauthorized) provisionBotRes() {}
+
+type ProvisionBotUnprocessableEntity ErrorEnvelope
+
+func (*ProvisionBotUnprocessableEntity) provisionBotRes() {}
 
 // Ref: #/components/schemas/PublicShare
 type PublicShare struct {

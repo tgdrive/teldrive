@@ -13,7 +13,9 @@ import { AppDialog } from "@/components/dialogs/app-dialog";
 import { isPreviewable } from "@/components/file-preview-dialog";
 import { Page, PageContent } from "@/components/page";
 import { useUploadStore } from "@/features/uploads/store";
+import ArrowDownIcon from "~icons/gravity-ui/arrow-down";
 import PasteIcon from "~icons/gravity-ui/arrow-right-to-square";
+import ArrowUpIcon from "~icons/gravity-ui/arrow-up";
 import UploadIcon from "~icons/gravity-ui/arrow-up-from-line";
 import FileIcon from "~icons/gravity-ui/file";
 import FolderIcon from "~icons/gravity-ui/folder";
@@ -594,14 +596,23 @@ export function FileManagerPage({
           </Dropdown.Popover>
         </Dropdown>
         <Button
+          isIconOnly
           size="sm"
           variant="secondary"
-          aria-label="Toggle sort order"
+          aria-label={
+            sorting.order === "asc"
+              ? "Toggle sort order: ascending — switch to descending"
+              : "Toggle sort order: descending — switch to ascending"
+          }
           onPress={() =>
             changeSorting({ ...sorting, order: sorting.order === "asc" ? "desc" : "asc" })
           }
         >
-          {sorting.order === "asc" ? "Ascending" : "Descending"}
+          {sorting.order === "asc" ? (
+            <ArrowUpIcon className="size-4" aria-hidden="true" />
+          ) : (
+            <ArrowDownIcon className="size-4" aria-hidden="true" />
+          )}
         </Button>
         {pane === "primary" && !search.split ? (
           <Button

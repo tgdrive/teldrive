@@ -17,7 +17,14 @@ test("sorting hydrates before the first request and URL overrides saved preferen
   await expect.poll(() => requests.length).toBeGreaterThan(0);
   expect(requests[0].searchParams.get("sort")).toBe("size");
   expect(requests[0].searchParams.get("order")).toBe("desc");
-  await page.getByRole("button", { name: "Toggle sort order" }).click();
+  const sortOrder = page.getByRole("button", { name: "Toggle sort order" });
+  await expect(sortOrder).toHaveAttribute("aria-label", "Toggle sort order: descending — switch to ascending");
+  await expect(sortOrder).toHaveText("");
+  await expect(sortOrder.locator("svg")).toBeVisible();
+  const descendingIcon = await sortOrder.locator("svg").innerHTML();
+  await sortOrder.click();
+  await expect(sortOrder).toHaveAttribute("aria-label", "Toggle sort order: ascending — switch to descending");
+  expect(await sortOrder.locator("svg").innerHTML()).not.toBe(descendingIcon);
   await expect.poll(() => requests.at(-1)?.searchParams.get("order")).toBe("asc");
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("file-sort")!).order)).toBe("asc");
   requests.length = 0;

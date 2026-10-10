@@ -17,14 +17,17 @@ function ThemeToaster() {
       richColors
       closeButton
       theme={resolvedTheme}
-      toastOptions={{
-        style: {
-          background: "var(--background)",
-          border: "1px solid var(--border)",
-          color: "var(--foreground)",
-          backdropFilter: "blur(16px)",
-        },
-      }}
+      toastOptions={
+        resolvedTheme === "dark"
+          ? {
+              style: {
+                background: "oklch(0.21 0.008 70 / 0.85)",
+                border: "1px solid oklch(0.95 0.02 70 / 0.1)",
+                backdropFilter: "blur(16px)",
+              },
+            }
+          : undefined
+      }
     />
   );
 }

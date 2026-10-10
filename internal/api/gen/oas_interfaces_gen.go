@@ -313,6 +313,10 @@ type PausePeriodicJobRes interface {
 	pausePeriodicJobRes()
 }
 
+type ProvisionBotRes interface {
+	provisionBotRes()
+}
+
 type PurgeFileRes interface {
 	purgeFileRes()
 }
