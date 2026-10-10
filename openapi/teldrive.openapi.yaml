@@ -1371,6 +1371,43 @@ paths:
       security:
         - BearerAuth: []
         - CookieAuth: []
+  /v1/bots/provision:
+    post:
+      operationId: provisionBots
+      description: Re-verify all saved bots, with one independent task per bot.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyHeader"
+      responses:
+        "202":
+          description: The request has been accepted for processing, but processing has
+            not yet completed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BotBulkProvisionResponse"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Bots
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
   /v1/bots/{botId}/provision:
     post:
       operationId: provisionBot
@@ -6266,6 +6303,7 @@ components:
       required:
         - bots
         - failedIndexes
+        - jobIds
       properties:
         bots:
           type: array
@@ -6278,7 +6316,13 @@ components:
             format: int32
         jobId:
           type: string
-          description: Present only when existing channels need background bot provisioning.
+          description: First provisioning task, retained for older clients. Use jobIds for
+            all tasks.
+        jobIds:
+          type: array
+          items:
+            type: string
+          description: Each saved bot has an independent provisioning task.
     BotCreateRequest:
       type: object
       required:
@@ -6291,6 +6335,15 @@ components:
           minItems: 1
           maxItems: 200
           description: Telegram bot tokens. Tokens are never returned by the API.
+    BotBulkProvisionResponse:
+      type: object
+      required:
+        - jobIds
+      properties:
+        jobIds:
+          type: array
+          items:
+            type: string
     BotProvisionResponse:
       type: object
       required:

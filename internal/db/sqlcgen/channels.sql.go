@@ -312,6 +312,33 @@ func (q *Queries) InsertPendingBots(ctx context.Context, arg InsertPendingBotsPa
 	return items, nil
 }
 
+const listBotIDs = `-- name: ListBotIDs :many
+SELECT bot_id
+FROM /* TEMPLATE: schema */bots
+WHERE user_id = $1
+ORDER BY bot_id
+`
+
+func (q *Queries) ListBotIDs(ctx context.Context, userID int64) ([]int64, error) {
+	rows, err := q.db.Query(ctx, listBotIDs, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []int64{}
+	for rows.Next() {
+		var bot_id int64
+		if err := rows.Scan(&bot_id); err != nil {
+			return nil, err
+		}
+		items = append(items, bot_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listBots = `-- name: ListBots :many
 SELECT bot_id, user_id, username, token_ciphertext, enabled, session, consecutive_failures, last_error, last_used_at, retry_after, created_at, updated_at
 FROM /* TEMPLATE: schema */bots

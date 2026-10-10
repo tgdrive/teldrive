@@ -87,6 +87,7 @@ type Querier interface {
 	ListActiveFileIDsAnyOwner(ctx context.Context, fileIds []pgtype.UUID) ([]pgtype.UUID, error)
 	ListActiveNames(ctx context.Context, arg ListActiveNamesParams) ([]string, error)
 	ListAuditEvents(ctx context.Context, arg ListAuditEventsParams) ([]*AuditEvent, error)
+	ListBotIDs(ctx context.Context, userID int64) ([]int64, error)
 	ListBots(ctx context.Context, arg ListBotsParams) ([]*Bot, error)
 	ListChannelReferencedParts(ctx context.Context, arg ListChannelReferencedPartsParams) ([]*ListChannelReferencedPartsRow, error)
 	ListChannels(ctx context.Context, arg ListChannelsParams) ([]*Channel, error)

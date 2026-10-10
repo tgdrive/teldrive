@@ -289,7 +289,7 @@ func (h *Handler) CreateBots(ctx context.Context, req *gen.BotCreateRequest, par
 	if h.Bots == nil || h.Jobs == nil || req == nil || len(req.Tokens) == 0 {
 		return nil, mapServiceError(ErrOperationUnavailable)
 	}
-	response := gen.BotCreateResponse{Bots: []gen.BotSummary{}, FailedIndexes: []int32{}}
+	response := gen.BotCreateResponse{Bots: []gen.BotSummary{}, FailedIndexes: []int32{}, JobIds: []string{}}
 	tokens := make([]string, 0, len(req.Tokens))
 	seen := make(map[int64]struct{}, len(req.Tokens))
 	for index, raw := range req.Tokens {
@@ -316,12 +316,13 @@ func (h *Handler) CreateBots(ctx context.Context, req *gen.BotCreateRequest, par
 		botIDs = append(botIDs, row.BotID)
 	}
 	if len(botIDs) > 0 {
-		jobID, jobErr := h.Jobs.InsertBotProvision(ctx, userID, botIDs)
+		jobIDs, jobErr := h.Jobs.InsertBotProvision(ctx, userID, botIDs)
 		if jobErr != nil {
 			return nil, mapServiceError(jobErr)
 		}
-		if jobID != "" {
-			response.JobId = gen.NewOptString(jobID)
+		response.JobIds = jobIDs
+		if len(jobIDs) > 0 {
+			response.JobId = gen.NewOptString(jobIDs[0])
 		}
 	}
 	return &response, nil
@@ -357,6 +358,25 @@ func (h *Handler) ListBots(ctx context.Context, params gen.ListBotsParams) (gen.
 		response.NextCursor = encodeCursor(datedInt64Cursor{CreatedAt: last.CreatedAt.Time, ID: last.BotID})
 	}
 	return &response, nil
+}
+
+func (h *Handler) ProvisionBots(ctx context.Context, params gen.ProvisionBotsParams) (gen.ProvisionBotsRes, error) {
+	userID, err := UserIDFromContext(ctx)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	if h.Bots == nil || h.Jobs == nil {
+		return nil, mapServiceError(ErrOperationUnavailable)
+	}
+	botIDs, err := h.Bots.ListIDs(ctx, userID)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	jobIDs, err := h.Jobs.InsertBotsReprovision(ctx, userID, botIDs)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	return &gen.BotBulkProvisionResponse{JobIds: jobIDs}, nil
 }
 
 func (h *Handler) ProvisionBot(ctx context.Context, params gen.ProvisionBotParams) (gen.ProvisionBotRes, error) {

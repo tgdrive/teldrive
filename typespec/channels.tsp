@@ -48,12 +48,19 @@ model BotCreateResponse {
   bots: BotSummary[];
   failedIndexes: int32[];
 
-  /** Present only when existing channels need background bot provisioning. */
+  /** First provisioning task, retained for older clients. Use jobIds for all tasks. */
   jobId?: string;
+
+  /** Each saved bot has an independent provisioning task. */
+  jobIds: string[];
 }
 
 model BotProvisionResponse {
   jobId: string;
+}
+
+model BotBulkProvisionResponse {
+  jobIds: string[];
 }
 
 @tag("Channels")
@@ -130,6 +137,16 @@ namespace Bots {
     | ErrorResponse<401>
     | ErrorResponse<422>
     | ErrorResponse<429>;
+  /** Re-verify all saved bots, with one independent task per bot. */
+  @post
+  @route("/provision")
+  @operationId("provisionBots")
+  op provisionAll(...IdempotencyHeader):
+    | JsonResponse<202, BotBulkProvisionResponse>
+    | ErrorResponse<401>
+    | ErrorResponse<422>
+    | ErrorResponse<429>;
+
   /** Re-verify a saved bot and repair its access to the user's registered channels. */
   @post
   @route("/{botId}/provision")

@@ -324,31 +324,57 @@ func (r *Runtime) InsertPurge(ctx context.Context) error {
 	return nil
 }
 
-func (r *Runtime) InsertBotProvision(ctx context.Context, userID int64, botIDs []int64) (string, error) {
+// InsertBotProvision queues one independent task per bot in a single transaction.
+func (r *Runtime) InsertBotProvision(ctx context.Context, userID int64, botIDs []int64) ([]string, error) {
 	return r.insertBotProvision(ctx, userID, botIDs, false)
 }
 
 // InsertBotReprovision repairs channel access even when the bot is already enabled.
 func (r *Runtime) InsertBotReprovision(ctx context.Context, userID, botID int64) (string, error) {
-	return r.insertBotProvision(ctx, userID, []int64{botID}, true)
+	ids, err := r.insertBotProvision(ctx, userID, []int64{botID}, true)
+	if err != nil || len(ids) == 0 {
+		return "", err
+	}
+	return ids[0], nil
 }
 
-func (r *Runtime) insertBotProvision(ctx context.Context, userID int64, botIDs []int64, force bool) (string, error) {
+func (r *Runtime) InsertBotsReprovision(ctx context.Context, userID int64, botIDs []int64) ([]string, error) {
+	return r.insertBotProvision(ctx, userID, botIDs, true)
+}
+
+func (r *Runtime) insertBotProvision(ctx context.Context, userID int64, botIDs []int64, force bool) ([]string, error) {
 	if r == nil || r.client == nil || !r.botProvisionEnabled || userID <= 0 {
-		return "", ErrRuntimeNotConfigured
+		return nil, ErrRuntimeNotConfigured
 	}
 	botIDs = normalizedBotIDs(botIDs)
 	if len(botIDs) == 0 {
-		return "", nil
+		return []string{}, nil
 	}
-	// Arguments are encrypted; retain server-controlled ownership for task views.
-	result, err := r.client.Insert(ctx, BotProvisionArgs{UserID: userID, BotIDs: botIDs, Force: force}, &river.InsertOpts{
-		Metadata: []byte(fmt.Sprintf(`{"user_id":%d}`, userID)),
-	})
+	params := make([]river.InsertManyParams, 0, len(botIDs))
+	for _, botID := range botIDs {
+		params = append(params, river.InsertManyParams{
+			Args: BotProvisionArgs{UserID: userID, BotIDs: []int64{botID}, Force: force},
+			// Arguments are encrypted; retain server-controlled ownership for task views.
+			InsertOpts: &river.InsertOpts{Metadata: []byte(fmt.Sprintf(`{"user_id":%d}`, userID))},
+		})
+	}
+	tx, err := r.pool.Begin(ctx)
 	if err != nil {
-		return "", fmt.Errorf("insert bot provisioning job: %w", err)
+		return nil, fmt.Errorf("begin bot provisioning insert: %w", err)
 	}
-	return fmt.Sprintf("%d", result.Job.ID), nil
+	defer tx.Rollback(ctx)
+	results, err := r.client.InsertManyTx(ctx, tx, params)
+	if err != nil {
+		return nil, fmt.Errorf("insert bot provisioning jobs: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("commit bot provisioning jobs: %w", err)
+	}
+	ids := make([]string, 0, len(results))
+	for _, result := range results {
+		ids = append(ids, fmt.Sprintf("%d", result.Job.ID))
+	}
+	return ids, nil
 }
 
 func (r *Runtime) InsertUploadBatch(ctx context.Context, args UploadBatchArgs) (Job, error) {

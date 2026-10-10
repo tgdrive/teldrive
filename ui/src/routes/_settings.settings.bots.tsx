@@ -24,6 +24,7 @@ function BotsSettings() {
   const [isAddingBots, setIsAddingBots] = useState(false);
   const [deleteBot, setDeleteBot] = useState<{ id: number; name: string } | null>(null);
   const [provisionBot, setProvisionBot] = useState<{ id: number; name: string } | null>(null);
+  const [provisionAllOpen, setProvisionAllOpen] = useState(false);
   const query = $api.useSuspenseQuery(
     "get",
     "/v1/bots",
@@ -35,11 +36,30 @@ function BotsSettings() {
     onSuccess: () => {
       setProvisionBot(null);
       toast.success("Bot provisioning queued", {
-        description: "Check Tasks for progress. Telegram may temporarily delay channel admin changes.",
+        description:
+          "Check Tasks for progress. Telegram may temporarily delay channel admin changes.",
       });
     },
     onError: (error) => {
       toast.error("Bot provisioning could not be queued", { description: userMessage(error) });
+    },
+  });
+  const provisionAll = $api.useMutation("post", "/v1/bots/provision", {
+    onSuccess: (result) => {
+      setProvisionAllOpen(false);
+      if (result.jobIds.length === 0) {
+        toast.info("No bots to provision");
+        return;
+      }
+      toast.success(
+        `${result.jobIds.length} bot${result.jobIds.length === 1 ? "" : "s"} queued for provisioning`,
+        {
+          description: "Each bot has its own task. Check Tasks for progress.",
+        },
+      );
+    },
+    onError: (error) => {
+      toast.error("Bots could not be queued for provisioning", { description: userMessage(error) });
     },
   });
   const remove = $api.useMutation("delete", "/v1/bots/{botId}", {
@@ -100,7 +120,7 @@ function BotsSettings() {
       />
       <SettingsSection
         title="Add bots"
-        description="Paste one BotFather token per line. Bots are stored immediately; existing channels are updated in the background."
+        description="Paste one BotFather token per line. Each bot is verified and added to existing channels in its own background task."
       >
         <SettingsRow
           label="Bot tokens"
@@ -131,6 +151,22 @@ function BotsSettings() {
       <SettingsSection
         title="Configured bots"
         description="Healthy enabled bots are used automatically. After migration, use Provision to verify a bot and repair its channel access."
+        actions={
+          <Button
+            size="sm"
+            variant="secondary"
+            isDisabled={
+              !query.data.items.length ||
+              provisionAll.isPending ||
+              provision.isPending ||
+              remove.isPending
+            }
+            isPending={provisionAll.isPending}
+            onPress={() => setProvisionAllOpen(true)}
+          >
+            Provision all bots
+          </Button>
+        }
       >
         {query.data.items.length ? (
           query.data.items.map((bot) => (
@@ -147,7 +183,7 @@ function BotsSettings() {
                   size="sm"
                   variant="secondary"
                   aria-label={`Provision bot ${bot.username || bot.id}`}
-                  isDisabled={provision.isPending || remove.isPending}
+                  isDisabled={provision.isPending || provisionAll.isPending || remove.isPending}
                   onPress={() =>
                     setProvisionBot({ id: bot.id, name: bot.username || `bot-${bot.id}` })
                   }
@@ -173,6 +209,22 @@ function BotsSettings() {
           <div className="px-5 py-8 text-sm text-muted">No Telegram bots are configured.</div>
         )}
       </SettingsSection>
+      <ConfirmDialog
+        open={provisionAllOpen}
+        onOpenChange={(open) => {
+          if (!provisionAll.isPending) setProvisionAllOpen(open);
+        }}
+        title="Provision all Telegram bots?"
+        message="Verify every configured bot and repair its admin access to your registered Telegram channels using your logged-in account. Each bot runs in its own background task, including bots not shown on this page. Track progress in Tasks."
+        confirmLabel="Provision all bots"
+        isDestructive={false}
+        isPending={provisionAll.isPending}
+        onConfirm={() => {
+          if (!provisionAll.isPending) {
+            provisionAll.mutate({ params: { header: { "Idempotency-Key": newIdempotencyKey() } } });
+          }
+        }}
+      />
       <ConfirmDialog
         open={provisionBot !== null}
         onOpenChange={(open) => {

@@ -378,6 +378,12 @@ type Handler interface {
 	//
 	// POST /v1/bots/{botId}/provision
 	ProvisionBot(ctx context.Context, params ProvisionBotParams) (ProvisionBotRes, error)
+	// ProvisionBots implements provisionBots operation.
+	//
+	// Re-verify all saved bots, with one independent task per bot.
+	//
+	// POST /v1/bots/provision
+	ProvisionBots(ctx context.Context, params ProvisionBotsParams) (ProvisionBotsRes, error)
 	// PurgeFile implements purgeFile operation.
 	//
 	// Permanently delete a trashed file or folder from the catalog.

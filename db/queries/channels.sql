@@ -103,6 +103,12 @@ FROM /* TEMPLATE: schema */bots
 WHERE user_id = sqlc.arg(user_id)
   AND bot_id = sqlc.arg(bot_id);
 
+-- name: ListBotIDs :many
+SELECT bot_id
+FROM /* TEMPLATE: schema */bots
+WHERE user_id = sqlc.arg(user_id)
+ORDER BY bot_id;
+
 -- name: ActivateBot :one
 UPDATE /* TEMPLATE: schema */bots
 SET username = sqlc.arg(username),

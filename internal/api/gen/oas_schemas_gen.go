@@ -328,6 +328,23 @@ func (s *BearerAuth) SetRoles(val []string) {
 	s.Roles = val
 }
 
+// Ref: #/components/schemas/BotBulkProvisionResponse
+type BotBulkProvisionResponse struct {
+	JobIds []string `json:"jobIds"`
+}
+
+// GetJobIds returns the value of JobIds.
+func (s *BotBulkProvisionResponse) GetJobIds() []string {
+	return s.JobIds
+}
+
+// SetJobIds sets the value of JobIds.
+func (s *BotBulkProvisionResponse) SetJobIds(val []string) {
+	s.JobIds = val
+}
+
+func (*BotBulkProvisionResponse) provisionBotsRes() {}
+
 // Ref: #/components/schemas/BotCreateRequest
 type BotCreateRequest struct {
 	// Telegram bot tokens. Tokens are never returned by the API.
@@ -348,8 +365,10 @@ func (s *BotCreateRequest) SetTokens(val []string) {
 type BotCreateResponse struct {
 	Bots          []BotSummary `json:"bots"`
 	FailedIndexes []int32      `json:"failedIndexes"`
-	// Present only when existing channels need background bot provisioning.
+	// First provisioning task, retained for older clients. Use jobIds for all tasks.
 	JobId OptString `json:"jobId"`
+	// Each saved bot has an independent provisioning task.
+	JobIds []string `json:"jobIds"`
 }
 
 // GetBots returns the value of Bots.
@@ -367,6 +386,11 @@ func (s *BotCreateResponse) GetJobId() OptString {
 	return s.JobId
 }
 
+// GetJobIds returns the value of JobIds.
+func (s *BotCreateResponse) GetJobIds() []string {
+	return s.JobIds
+}
+
 // SetBots sets the value of Bots.
 func (s *BotCreateResponse) SetBots(val []BotSummary) {
 	s.Bots = val
@@ -380,6 +404,11 @@ func (s *BotCreateResponse) SetFailedIndexes(val []int32) {
 // SetJobId sets the value of JobId.
 func (s *BotCreateResponse) SetJobId(val OptString) {
 	s.JobId = val
+}
+
+// SetJobIds sets the value of JobIds.
+func (s *BotCreateResponse) SetJobIds(val []string) {
+	s.JobIds = val
 }
 
 func (*BotCreateResponse) createBotsRes() {}
@@ -9076,6 +9105,18 @@ func (*ProvisionBotUnauthorized) provisionBotRes() {}
 type ProvisionBotUnprocessableEntity ErrorEnvelope
 
 func (*ProvisionBotUnprocessableEntity) provisionBotRes() {}
+
+type ProvisionBotsTooManyRequests ErrorEnvelope
+
+func (*ProvisionBotsTooManyRequests) provisionBotsRes() {}
+
+type ProvisionBotsUnauthorized ErrorEnvelope
+
+func (*ProvisionBotsUnauthorized) provisionBotsRes() {}
+
+type ProvisionBotsUnprocessableEntity ErrorEnvelope
+
+func (*ProvisionBotsUnprocessableEntity) provisionBotsRes() {}
 
 // Ref: #/components/schemas/PublicShare
 type PublicShare struct {

@@ -176,6 +176,18 @@ func (s *Service) Get(ctx context.Context, userID, botID int64) (*sqlcgen.Bot, e
 	return row, nil
 }
 
+// ListIDs includes every saved bot, without the list endpoint's pagination limit.
+func (s *Service) ListIDs(ctx context.Context, userID int64) ([]int64, error) {
+	if userID <= 0 {
+		return nil, ErrInvalidInput
+	}
+	ids, err := s.queries.ListBotIDs(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("list bot IDs: %w", err)
+	}
+	return ids, nil
+}
+
 func (s *Service) verifyPending(ctx context.Context, userID, botID int64, activate, force bool) (*sqlcgen.Bot, error) {
 	row, err := s.Get(ctx, userID, botID)
 	if err != nil {

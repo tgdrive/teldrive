@@ -317,6 +317,10 @@ type ProvisionBotRes interface {
 	provisionBotRes()
 }
 
+type ProvisionBotsRes interface {
+	provisionBotsRes()
+}
+
 type PurgeFileRes interface {
 	purgeFileRes()
 }
