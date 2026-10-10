@@ -595,17 +595,22 @@ test("periodic job controls are icon buttons with row-scoped pending state", asy
   await expect(page.getByRole("button", { name: "Resume teldrive-upload-cleanup" })).toBeVisible();
 });
 
-test("task launcher queues a Teldrive River job", async ({ page, isMobile }) => {
-  test.skip(isMobile, "desktop task launcher interaction");
+test("tasks retain monitoring without a manual task launcher", async ({ page }) => {
   await page.goto("/tasks");
-  await page.getByRole("button", { name: "New task" }).click();
-  await expect(page.getByRole("heading", { name: "New task" })).toBeVisible();
-  const queued = page.waitForRequest(
-    (request) => request.method() === "POST" && request.url().endsWith("/api/v1/jobs"),
-  );
-  await page.getByRole("button", { name: "Queue clean stale uploads" }).click();
-  await queued;
-  await expect(page.getByRole("heading", { name: "New task" })).toBeHidden();
+  await expect(page.getByRole("heading", { name: "Tasks", exact: true })).toBeVisible();
+  await expect(page.getByText("Task activity", { exact: true })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Search tasks" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /new task/i })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "New task", exact: true })).toHaveCount(0);
+  await page.route("**/api/v1/jobs**", async (route) => {
+    if (new URL(route.request().url()).pathname === "/api/v1/jobs") {
+      return route.fulfill({ json: { tasks: [], meta: {} } });
+    }
+    return route.fallback();
+  });
+  await page.reload();
+  await expect(page.getByText("No tasks match these filters", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: /new task/i })).toHaveCount(0);
 });
 
 test("trash exposes restore and permanent deletion", async ({ page }) => {

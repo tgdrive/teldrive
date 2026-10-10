@@ -5,11 +5,9 @@ import { toast } from "sonner";
 import PrevIcon from "~icons/gravity-ui/chevron-left";
 import NextIcon from "~icons/gravity-ui/chevron-right";
 import FilterIcon from "~icons/gravity-ui/funnel";
-import AddIcon from "~icons/gravity-ui/plus";
 import TrashIcon from "~icons/gravity-ui/trash-bin";
 import { ConfirmDialog } from "../components/dialogs/confirm-dialog";
 import { EmptyState, Page, PageHeader, PageToolbar } from "../components/page";
-import { TaskLauncher } from "../components/task-launcher";
 import { TaskStatusChip } from "../components/task-status-chip";
 import type { components } from "@/api/schema";
 import { $api as api, fetchClient } from "@/api/client";
@@ -106,7 +104,6 @@ function TasksPage() {
   const _queuesQuery = api.queryOptions("get", "/v1/jobs/queues");
   const { data: queuesData } = api.useSuspenseQuery("get", "/v1/jobs/queues");
 
-  const [composerOpen, setComposerOpen] = useState(false);
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [cleanupStatus, setCleanupStatus] = useState<
@@ -269,28 +266,8 @@ function TasksPage() {
     <Page>
       <PageHeader
         title="Tasks"
-        description="Create, monitor, retry, and inspect background work."
-        actions={
-          <Button
-            size="sm"
-            variant="primary"
-            className="bg-accent text-accent-foreground"
-            onPress={() => setComposerOpen(true)}
-          >
-            <AddIcon className="size-3.5" /> New Task
-          </Button>
-        }
+        description="Monitor, retry, and inspect background work."
       />
-
-      {composerOpen && (
-        <TaskLauncher
-          onClose={() => setComposerOpen(false)}
-          onQueued={() => {
-            refreshTasks();
-            setComposerOpen(false);
-          }}
-        />
-      )}
 
       <PageToolbar className="items-stretch">
         <div className="flex min-w-0 flex-1 flex-col gap-2 md:flex-row md:items-center">
@@ -360,12 +337,7 @@ function TasksPage() {
         ) : (
           <EmptyState
             title="No tasks match these filters"
-            description="Adjust the active filters or queue a new task."
-            action={
-              <Button size="sm" variant="primary" onPress={() => setComposerOpen(true)}>
-                New Task
-              </Button>
-            }
+            description="Adjust the active filters to find existing tasks."
           />
         )}
       </Card>
