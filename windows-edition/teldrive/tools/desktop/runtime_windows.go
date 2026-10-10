@@ -28,8 +28,8 @@ func (m *manager) installRuntime() error {
 		return e
 	}
 	defer response.Body.Close()
-	if response.StatusCode != 200 {
-		return errors.New("Microsoft no pudo entregar el instalador")
+	if response.StatusCode != http.StatusOK {
+		return errors.New("microsoft no pudo entregar el instalador")
 	}
 	data, e := io.ReadAll(io.LimitReader(response.Body, 64<<20))
 	if e != nil {
@@ -37,7 +37,7 @@ func (m *manager) installRuntime() error {
 	}
 	sum := sha256.Sum256(data)
 	if hex.EncodeToString(sum[:]) != "cc0ff0eb1dc3f5188ae6300faef32bf5beeba4bdd6e8e445a9184072096b713b" {
-		return errors.New("Microsoft cambió el instalador. Actualiza el programa o usa el enlace oficial de la interfaz")
+		return errors.New("microsoft cambió el instalador. Actualiza el programa o usa el enlace oficial de la interfaz")
 	}
 	p := filepath.Join(m.dir, "vc_redist.x64.exe")
 	if e = os.WriteFile(p, data, 0600); e != nil {

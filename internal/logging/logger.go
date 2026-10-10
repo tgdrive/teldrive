@@ -50,9 +50,10 @@ func SetLevel(l zapcore.Level) {
 
 // prettyCore is a custom zapcore.Core for human-readable, colored, non-structured logs
 type prettyCore struct {
-	level  zapcore.Level
-	out    zapcore.WriteSyncer
-	fields []zapcore.Field
+	timeFormat string
+	level      zapcore.Level
+	out        zapcore.WriteSyncer
+	fields     []zapcore.Field
 }
 
 func (c *prettyCore) Enabled(l zapcore.Level) bool {
@@ -61,9 +62,10 @@ func (c *prettyCore) Enabled(l zapcore.Level) bool {
 
 func (c *prettyCore) With(fields []zapcore.Field) zapcore.Core {
 	return &prettyCore{
-		level:  c.level,
-		out:    c.out,
-		fields: append(c.fields[:len(c.fields):len(c.fields)], fields...),
+		timeFormat: c.timeFormat,
+		level:      c.level,
+		out:        c.out,
+		fields:     append(c.fields[:len(c.fields):len(c.fields)], fields...),
 	}
 }
 
@@ -134,7 +136,7 @@ func (c *prettyCore) Write(ent zapcore.Entry, fields []zapcore.Field) error {
 	// Build the line
 	// Format: HH:MM:SS  ICON LEVEL  [COMPONENT] MESSAGE   key=val key=val
 	line := fmt.Sprintf("%s  %s %s%-5s\x1b[0m  %s%s",
-		ent.Time.Format("2006-01-02 15:04:05"),
+		ent.Time.Format(c.timeFormat),
 		icon,
 		color,
 		strings.ToUpper(ent.Level.String()),
@@ -171,8 +173,9 @@ func NewLogger(cfg *Config) *zap.Logger {
 	var cores []zapcore.Core
 
 	consoleCore := &prettyCore{
-		level: cfg.Level,
-		out:   zapcore.Lock(os.Stderr),
+		timeFormat: timeFmt,
+		level:      cfg.Level,
+		out:        zapcore.Lock(os.Stderr),
 	}
 
 	cores = append(cores, consoleCore)

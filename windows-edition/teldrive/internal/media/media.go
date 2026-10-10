@@ -68,12 +68,12 @@ func Arguments(source Source, mode string, start float64) []string {
 
 func (s *Service) Handler(w http.ResponseWriter, r *http.Request) {
 	if !s.available {
-		http.Error(w, "Instala FFmpeg con libx264 y libmp3lame en el servidor", 503)
+		http.Error(w, "Instala FFmpeg con libx264 y libmp3lame en el servidor", http.StatusServiceUnavailable)
 		return
 	}
 	mode := r.URL.Query().Get("mode")
 	if mode != "audio" && mode != "video" {
-		http.Error(w, "Tipo de reproducción inválido", 400)
+		http.Error(w, "Tipo de reproducción inválido", http.StatusBadRequest)
 		return
 	}
 	start := 0.0
@@ -81,20 +81,20 @@ func (s *Service) Handler(w http.ResponseWriter, r *http.Request) {
 		var err error
 		start, err = strconv.ParseFloat(value, 64)
 		if err != nil || !(start >= 0 && start <= 86400) {
-			http.Error(w, "Tiempo de inicio inválido", 400)
+			http.Error(w, "Tiempo de inicio inválido", http.StatusBadRequest)
 			return
 		}
 	}
 	source, err := s.resolve(r, chi.URLParam(r, "id"))
 	if err != nil {
-		http.Error(w, "No tienes acceso a este archivo", 403)
+		http.Error(w, "No tienes acceso a este archivo", http.StatusForbidden)
 		return
 	}
 	select {
 	case s.slots <- struct{}{}:
 		defer func() { <-s.slots }()
 	default:
-		http.Error(w, "El servidor está convirtiendo otros archivos. Inténtalo en unos instantes", 429)
+		http.Error(w, "El servidor está convirtiendo otros archivos. Inténtalo en unos instantes", http.StatusTooManyRequests)
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), s.timeout)
@@ -104,11 +104,11 @@ func (s *Service) Handler(w http.ResponseWriter, r *http.Request) {
 	command.Stderr = io.Discard
 	output, err := command.StdoutPipe()
 	if err != nil {
-		http.Error(w, "No se pudo iniciar la conversión", 500)
+		http.Error(w, "No se pudo iniciar la conversión", http.StatusInternalServerError)
 		return
 	}
 	if err := command.Start(); err != nil {
-		http.Error(w, "No se pudo iniciar FFmpeg", 503)
+		http.Error(w, "No se pudo iniciar FFmpeg", http.StatusServiceUnavailable)
 		return
 	}
 	prefix := make([]byte, 1024)
@@ -116,7 +116,7 @@ func (s *Service) Handler(w http.ResponseWriter, r *http.Request) {
 	if n == 0 && readErr != nil {
 		cancel()
 		_ = command.Wait()
-		http.Error(w, "No se pudo convertir el archivo. Descárgalo para abrirlo en VLC", 422)
+		http.Error(w, "No se pudo convertir el archivo. Descárgalo para abrirlo en VLC", http.StatusUnprocessableEntity)
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")

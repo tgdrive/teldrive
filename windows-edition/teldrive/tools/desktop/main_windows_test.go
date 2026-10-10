@@ -57,7 +57,7 @@ func TestInvalidTOMLPreservesSavedConfiguration(t *testing.T) {
 	m := &manager{dir: t.TempDir(), origin: "http://127.0.0.1:12345", secret: "private", jobs: map[string]*job{}}
 	p := filepath.Join(m.dir, "config.toml")
 	os.WriteFile(p, []byte("original"), 0600)
-	r := httptest.NewRequest("POST", m.origin+"/desktop/api/config", strings.NewReader(`{"config":"[broken"}`))
+	r := httptest.NewRequest(http.MethodPost, m.origin+"/desktop/api/config", strings.NewReader(`{"config":"[broken"}`))
 	r.Header.Set("Origin", m.origin)
 	r.Header.Set("X-Teldrive-Desktop", "1")
 	r.AddCookie(&http.Cookie{Name: "teldrive_desktop", Value: m.secret})
@@ -135,7 +135,7 @@ func TestDesktopRunsBundledRcloneAndReportsProgress(t *testing.T) {
 	}
 	q := request{Action: "list", Remote: "td", Config: "[td]\ntype = teldrive\napi_host = " + fixture.URL + "\naccess_token = test-only-token\n"}
 	body, _ := json.Marshal(q)
-	r := httptest.NewRequest("POST", m.origin+"/desktop/api/rclone/start", bytes.NewReader(body))
+	r := httptest.NewRequest(http.MethodPost, m.origin+"/desktop/api/rclone/start", bytes.NewReader(body))
 	r.Header.Set("Origin", m.origin)
 	r.Header.Set("X-Teldrive-Desktop", "1")
 	r.AddCookie(&http.Cookie{Name: "teldrive_desktop", Value: m.secret})

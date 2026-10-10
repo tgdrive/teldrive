@@ -217,7 +217,7 @@ func (a *apiService) UploadsUpload(ctx context.Context, req *api.UploadsUploadRe
 	var out api.UploadPart
 	// Compute BLAKE3 block hashes on plaintext BEFORE encryption
 	var blockHasher *hash.BlockHasher
-	var reader io.Reader = req.Content.Data
+	reader := req.Content.Data
 
 	if params.Hashing.Value {
 		blockHasher = hash.NewBlockHasher()

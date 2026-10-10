@@ -51,7 +51,7 @@ func (m *manager) unpackDatabase() error {
 		p := filepath.Join(root, filepath.FromSlash(entry.Name))
 		relative, e := filepath.Rel(root, p)
 		if e != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(os.PathSeparator)) {
-			return errors.New("Ruta inválida en archivo PostgreSQL")
+			return errors.New("ruta inválida en archivo PostgreSQL")
 		}
 		if entry.FileInfo().IsDir() {
 			if e = os.MkdirAll(p, 0700); e != nil {
@@ -99,7 +99,7 @@ func (m *manager) readyDatabase(d localDB) error {
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
-	return errors.New("PostgreSQL no pudo iniciar. Consulta el registro de la base de datos")
+	return errors.New("postgreSQL no pudo iniciar. Consulta el registro de la base de datos")
 }
 func (m *manager) startDatabase(d localDB) error {
 	m.mu.Lock()
@@ -128,13 +128,13 @@ func (m *manager) stopDatabase() error {
 }
 func (m *manager) setupDatabase() error {
 	if !runtimeInstalled() {
-		return errors.New("Falta el runtime de Microsoft Visual C++. Instálalo con el botón de la interfaz y vuelve a crear la base local")
+		return errors.New("falta el runtime de Microsoft Visual C++. Instálalo con el botón de la interfaz y vuelve a crear la base local")
 	}
 	m.mu.Lock()
 	running := m.jobs["server"] != nil && m.jobs["server"].Running
 	m.mu.Unlock()
 	if running {
-		return errors.New("Detén el servidor antes de configurar la base local")
+		return errors.New("detén el servidor antes de configurar la base local")
 	}
 	if e := m.unpackDatabase(); e != nil {
 		return e
@@ -166,7 +166,7 @@ func (m *manager) setupDatabase() error {
 		os.Remove(pwfile)
 		os.WriteFile(filepath.Join(m.dir, "database-setup.log"), output, 0600)
 		if initErr != nil {
-			return fmt.Errorf("No se pudo crear PostgreSQL: %s", string(output))
+			return fmt.Errorf("no se pudo crear PostgreSQL: %s", string(output))
 		}
 	}
 	if e = m.startDatabase(d); e != nil {
@@ -179,7 +179,7 @@ func (m *manager) setupDatabase() error {
 	}
 	if strings.TrimSpace(string(output)) != "1" {
 		if output, e = m.dbCommand("createdb.exe", d, "-h", "127.0.0.1", "-p", d.Port, "-U", "teldrive", "teldrive").CombinedOutput(); e != nil {
-			return fmt.Errorf("No se pudo crear la base teldrive: %s", output)
+			return fmt.Errorf("no se pudo crear la base teldrive: %s", output)
 		}
 	}
 	p := filepath.Join(m.dir, "config.toml")
