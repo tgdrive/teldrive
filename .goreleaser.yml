@@ -5,10 +5,6 @@ before:
   hooks:
     - bun ci --cwd ui
     - bun run --cwd ui build
-    - mkdir -p completions
-    - sh -c 'go run ./cmd/teldrive completion bash > completions/teldrive.bash'
-    - sh -c 'go run ./cmd/teldrive completion zsh > completions/teldrive.zsh'
-    - sh -c 'go run ./cmd/teldrive completion fish > completions/teldrive.fish'
 
 builds:
   - id: teldrive
@@ -46,7 +42,6 @@ archives:
         formats: [zip]
     files:
       - README*.md
-      - completions/*
 
 dockers_v2:
   - id: teldrive

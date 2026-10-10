@@ -14,8 +14,13 @@ in stdenv.mkDerivation {
   installPhase = ''
     runHook preInstall
     install -Dm755 teldrive $out/bin/teldrive
-    installShellCompletion --cmd teldrive --bash completions/teldrive.bash --zsh completions/teldrive.zsh --fish completions/teldrive.fish
     runHook postInstall
+  '';
+  postInstall = lib.optionalString (stdenv.buildPlatform.canExecute stdenv.hostPlatform) ''
+    installShellCompletion --cmd teldrive \
+      --bash <($out/bin/teldrive completion bash) \
+      --zsh <($out/bin/teldrive completion zsh) \
+      --fish <($out/bin/teldrive completion fish)
   '';
   meta = {
     description = "Telegram-backed cloud storage server (release binary)";
