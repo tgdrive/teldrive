@@ -3,11 +3,29 @@ title: Rclone setup
 description: Configure rclone's native Teldrive backend with an API key.
 ---
 
-## 1. Create an API key
+## 1. Install rclone from the Teldrive fork
+
+The `teldrive` backend only exists in the [tgdrive/rclone fork](https://github.com/tgdrive/rclone) — stock rclone from your package manager or rclone.io does not include it and will fail with `unknown backend "teldrive"`.
+
+Download the latest release for your OS/architecture from [tgdrive/rclone releases](https://github.com/tgdrive/rclone/releases):
+
+- **Debian/Ubuntu:** install the `.deb` with `sudo dpkg -i rclone-*.deb`.
+- **Other Linux/macOS/Windows:** extract the `.zip` and place the `rclone` binary on your `PATH`.
+
+Verify you have the fork build:
+
+```bash
+rclone version
+rclone help backend teldrive
+```
+
+The second command must print the Teldrive backend help. If it errors, you are running stock rclone.
+
+## 2. Create an API key
 
 In Teldrive, open **Settings → API keys**, create a key, and copy the secret. It is shown once.
 
-## 2. Configure rclone
+## 3. Configure rclone
 
 ```bash
 rclone config
@@ -32,7 +50,7 @@ rclone config create teldrive teldrive \
   api_key=YOUR_TELDRIVE_API_KEY
 ```
 
-## 3. Test
+## 4. Test
 
 ```bash
 rclone lsf teldrive:
