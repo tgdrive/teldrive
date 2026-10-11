@@ -22,8 +22,11 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
-          go-version-file: go.mod
+          go-version: stable
           cache: true
+          cache-dependency-path: |
+            go.mod
+            go.sum
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
