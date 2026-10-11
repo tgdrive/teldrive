@@ -55,7 +55,7 @@ function buildCompose(secrets: Secrets, encryptionEnabled: boolean) {
       retries: 10
 
   teldrive:
-    image: ghcr.io/tgdrive/teldrive:v2
+    image: ghcr.io/tgdrive/teldrive:2
     restart: unless-stopped
     depends_on:
       postgres:

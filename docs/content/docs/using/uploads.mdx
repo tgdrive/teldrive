@@ -1,62 +1,18 @@
 ---
 title: Uploads
-description: Use browser uploads, resumable sessions, and server-side imports.
+description: Upload from your browser or import files the server can read.
 ---
 
 ## Browser uploads
 
-On **Files → Upload** choose files, a folder, or drag files into the browser.
-
-## Resumable uploads
-
-```yaml
-uploads:
-  session-ttl: 168h
-```
-
-Interrupted uploads can resume while the session remains valid.
-
-## Hashing
-
-```yaml
-uploads:
-  hashing-enabled: true
-```
-
-Teldrive computes BLAKE3 hashes by default. Disable only for a measured performance reason.
+On **Files → Upload**, select files or a folder, or drag files into the browser. Interrupted uploads can resume while their session remains valid (seven days by default). Teldrive computes BLAKE3 hashes by default.
 
 ## Background imports
 
-Allow explicit server paths:
-
-```yaml
-uploads:
-  local-import-roots:
-    - /srv/imports
-```
-
-Container mount:
-
-```yaml
-volumes:
-  - /srv/imports:/srv/imports:ro
-```
-
-Import roots are a security boundary; expose only directories Teldrive should read.
-
-## Telegram concurrency
-
-```yaml
-telegram:
-  upload-threads: 8
-```
-
-Increase gradually while monitoring throughput and Telegram errors.
+Choose **Upload → Background upload** to import files the server can read. Configure allowed paths and read-only mounts in [Uploads and events](/configuration/uploads-and-events). Expose only directories Teldrive should read.
 
 ## Progress and failures
 
-Browser transfers appear in upload UI; background imports appear in **Tasks**.
+Browser transfers appear in the upload UI; background imports appear in **Tasks**.
 
-For failures, check Telegram session/channel availability, PostgreSQL, proxy timeouts, import path/mount permissions, session expiry, and concurrency settings.
-
-See [Uploads and events](/configuration/uploads-and-events).
+If an upload fails, check the task error, Telegram session/channel access, import permissions, and session expiry. For fixed-duration failures, see [Troubleshooting](/operations/troubleshooting). Change concurrency only after measuring the bottleneck; see [Performance tuning](/advanced/performance).

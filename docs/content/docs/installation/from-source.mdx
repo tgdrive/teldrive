@@ -35,12 +35,12 @@ The root `justfile` loads `.env`. Do not commit production secrets.
 ## Validate changes
 
 ```bash
-just test-unit
-just ui-check
 just check
 ```
 
 `just check` runs generation, linting, builds, tests, and coverage checks.
+
+For focused checks, use `just test-unit` or `just ui-check` instead.
 
 ## Generated code
 

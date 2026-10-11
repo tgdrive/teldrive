@@ -16,7 +16,7 @@ Startup can run Teldrive, River, and RiverPro migrations. Back up PostgreSQL bef
 Use a pinned release tag:
 
 ```yaml
-image: ghcr.io/tgdrive/teldrive:vX.Y.Z
+image: ghcr.io/tgdrive/teldrive:X.Y.Z
 ```
 
 ## Compose
@@ -35,14 +35,14 @@ docker compose logs --tail=250 teldrive
 Keep old and new binaries side by side:
 
 ```text
-/usr/local/lib/teldrive/teldrive-vOLD
-/usr/local/lib/teldrive/teldrive-vX.Y.Z
+/usr/local/lib/teldrive/teldrive-OLD
+/usr/local/lib/teldrive/teldrive-X.Y.Z
 ```
 
 Validate before switching:
 
 ```bash
-/usr/local/lib/teldrive/teldrive-vX.Y.Z check --config /etc/teldrive/config.toml
+/usr/local/lib/teldrive/teldrive-X.Y.Z check --config /etc/teldrive/config.toml
 ```
 
 ## Smoke test

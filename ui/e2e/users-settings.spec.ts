@@ -1,4 +1,45 @@
 import { expect, test } from "@playwright/test";
+import { installFileApi } from "./file-api.fixture";
+
+test("appearance applies light tokens and persists across reloads", async ({ page }) => {
+  await page.route("**/api/v1/**", async (route) => {
+    if (new URL(route.request().url()).pathname === "/api/v1/me") {
+      return route.fulfill({ json: { userId: 1, displayName: "Fixture", role: "owner", capabilities: [], premium: false, createdAt: "2026-07-22T12:00:00Z" } });
+    }
+    if (new URL(route.request().url()).pathname === "/api/v1/files/statistics/drive") {
+      return route.fulfill({ json: { totalFiles: 0, totalBytes: 0, openUploads: 0 } });
+    }
+    return route.fulfill({ status: 404, json: {} });
+  });
+  await page.goto("/settings/appearance");
+  await page.emulateMedia({ colorScheme: "dark" });
+  const root = page.locator("html");
+  await expect(root).toHaveAttribute("data-theme", "dark");
+  const darkBackground = await root.evaluate((el) => getComputedStyle(el).getPropertyValue("--background"));
+  await page.getByRole("button", { name: "Claro", exact: true }).click();
+  await expect(root).toHaveAttribute("data-theme", "light");
+  await expect(root).not.toHaveClass(/dark/);
+  await expect(root).toHaveCSS("color-scheme", "light");
+  await expect.poll(() => root.evaluate((el) => getComputedStyle(el).getPropertyValue("--background"))).not.toBe(darkBackground);
+  await page.reload();
+  await expect(root).toHaveAttribute("data-theme", "light");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(root).toHaveAttribute("data-theme", "light");
+  await page.getByRole("button", { name: "Automático", exact: true }).click();
+  await expect(root).toHaveAttribute("data-theme", "dark");
+  await page.emulateMedia({ colorScheme: "light" });
+  await expect(root).toHaveAttribute("data-theme", "light");
+  await page.reload();
+  await expect(root).toHaveAttribute("data-theme", "light");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(root).toHaveAttribute("data-theme", "dark");
+  await page.goto("/settings");
+  await page.getByRole("button", { name: "Cerrar sesión", exact: true }).click();
+  await expect(page.getByText("No se pudo cerrar la sesión", { exact: true })).toBeVisible();
+  await expect(page.locator("[data-sonner-toaster]")).toHaveAttribute("data-sonner-theme", "dark");
+  await page.emulateMedia({ colorScheme: "light" });
+  await expect(page.locator("[data-sonner-toaster]")).toHaveAttribute("data-sonner-theme", "light");
+});
 
 test("users search is debounced and stays usable while results load", async ({ page }) => {
   const users = [
@@ -70,4 +111,15 @@ test("users search is debounced and stays usable while results load", async ({ p
   await input.fill("");
   await expect(page.getByText("Propietario del servidor", { exact: true })).toBeVisible();
   expect(searches).toEqual([null, "Alice"]);
+});
+
+test("legacy theme preference survives upgrading without appearance settings", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("theme", "light"));
+  await installFileApi(page);
+  await page.emulateMedia({ colorScheme: "dark" });
+  await page.goto("/settings/appearance");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("teldrive-v2-appearance")!).mode)).toBe("light");
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
 });

@@ -1,14 +1,36 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createRouter, RouterProvider } from "@tanstack/react-router";
-import { ThemeProvider } from "@/lib/theme";
 import ReactDOM from "react-dom/client";
 import { I18nProvider } from "react-aria-components";
 import { Toaster } from "sonner";
+import { ThemeProvider, useTheme } from "@/lib/theme";
 import { getQueryClient } from "./lib/queryClient";
 import { routeTree } from "./routeTree.gen";
 import "./styles/globals.css";
 
 const queryClient = getQueryClient();
+
+function ThemeToaster() {
+  const { resolvedTheme } = useTheme();
+  return (
+    <Toaster
+      position="bottom-right"
+      richColors
+      closeButton
+      containerAriaLabel="Notificaciones"
+      theme={resolvedTheme}
+      toastOptions={{
+        closeButtonAriaLabel: "Cerrar aviso",
+        style: {
+          background: "var(--background)",
+          border: "1px solid var(--border)",
+          color: "var(--foreground)",
+          backdropFilter: "blur(16px)",
+        },
+      }}
+    />
+  );
+}
 
 const router = createRouter({
   routeTree,
@@ -32,21 +54,7 @@ async function startApp() {
         <I18nProvider locale="es-ES">
           <ThemeProvider>
             <RouterProvider router={router} />
-            <Toaster
-              position="bottom-right"
-              richColors
-              closeButton
-              containerAriaLabel="Notificaciones"
-              theme="dark"
-              toastOptions={{
-                closeButtonAriaLabel: "Cerrar aviso",
-                style: {
-                  background: "oklch(0.21 0.008 70 / 0.85)",
-                  border: "1px solid oklch(0.95 0.02 70 / 0.1)",
-                  backdropFilter: "blur(16px)",
-                },
-              }}
-            />
+            <ThemeToaster />
           </ThemeProvider>
         </I18nProvider>
       </QueryClientProvider>,

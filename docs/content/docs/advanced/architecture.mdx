@@ -36,12 +36,7 @@ Browser ⇄ Teldrive ⇄ Telegram
 
 ## Background jobs
 
-River/RiverPro stores job state in PostgreSQL. Workers run in the API process by default:
-
-```yaml
-jobs:
-  run-workers: true
-```
+River/RiverPro stores job state in PostgreSQL. Workers run in the API process by default; see [Jobs and queues](/operations/jobs-and-queues) for configuration.
 
 See [Multi-instance deployments](/advanced/multi-instance) to split API and worker roles.
 

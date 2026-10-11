@@ -21,7 +21,11 @@ export function getPageTree(): Root {
 
 function withBaseUrl(node: Node): Node {
   if (node.type === 'page') {
-    return { ...node, url: prefixBase(node.url) };
+    return {
+      ...node,
+      url: prefixBase(node.url),
+      ...(node.url === '/api/' ? { external: true } : {}),
+    };
   }
 
   if (node.type === 'folder') {

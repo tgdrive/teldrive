@@ -36,6 +36,13 @@ import {
   type SearchState,
 } from "./search-state";
 
+import {
+  type FileSort,
+  loadSortPreference,
+  type SortOrder,
+  saveSortPreference,
+} from "./sort-preference";
+
 type FileBrowserView = "list" | "grid";
 type PaneId = "primary" | "secondary";
 
@@ -47,6 +54,8 @@ type PaneLocation = {
 };
 
 export type FilesLocation = PaneLocation & {
+  sort?: FileSort;
+  order?: SortOrder;
   split?: boolean;
   secondaryPath?: string;
   secondaryParentId?: string;
@@ -67,6 +76,13 @@ export function FileManagerPage({
   };
 }) {
   const navigateTo = useNavigate();
+  const [savedSort, setSavedSort] = useState(loadSortPreference);
+  const sorting = { sort: search.sort ?? savedSort.sort, order: search.order ?? savedSort.order };
+  const changeSorting = (next: typeof sorting) => {
+    setSavedSort(next);
+    saveSortPreference(next);
+    onLocationChange({ ...search, ...next }, true);
+  };
   const navigate = ({ search: next, replace }: { search: FilesLocation; replace?: boolean }) =>
     onLocationChange(next, replace);
   const criteria = searchMode?.criteria;
@@ -132,8 +148,7 @@ export function FileManagerPage({
       path: primaryLocation.path,
       parentId: primaryLocation.parentId,
       q: primaryLocation.query || undefined,
-      sort: "name",
-      order: "asc",
+      ...sorting,
       view: primaryLocation.view,
       ...(criteria ? driveSearchOptions(criteria) : {}),
     },
@@ -145,8 +160,7 @@ export function FileManagerPage({
       path: secondaryLocation.path,
       parentId: secondaryLocation.parentId,
       q: secondaryLocation.query || undefined,
-      sort: "name",
-      order: "asc",
+      ...sorting,
       view: secondaryLocation.view,
     },
     "active",
@@ -156,6 +170,7 @@ export function FileManagerPage({
   const secondaryFiles = secondaryFileQuery.data?.pages.flatMap((page) => page.items) ?? [];
 
   const primaryCriteriaKey = JSON.stringify({
+    ...sorting,
     path: primaryLocation.path,
     ...(criteria
       ? driveSearchOptions(criteria)
@@ -556,6 +571,44 @@ export function FileManagerPage({
       pane === "secondary" ? secondaryUploadFolderTriggerRef : primaryUploadFolderTriggerRef;
     return (
       <>
+        <Dropdown>
+          <Button size="sm" variant="secondary" aria-label="Ordenar archivos">
+            {sorting.sort === "updatedAt"
+              ? "Fecha de modificación"
+              : sorting.sort === "size"
+                ? "Tamaño"
+                : "Nombre"}
+            {sorting.order === "asc" ? " ↑" : " ↓"}
+          </Button>
+          <Dropdown.Popover>
+            <Dropdown.Menu
+              aria-label="Ordenar por"
+              selectionMode="single"
+              selectedKeys={new Set([sorting.sort])}
+              onAction={(key) => changeSorting({ ...sorting, sort: key as FileSort })}
+            >
+              <Dropdown.Item id="name" textValue="Nombre">
+                <Label>Nombre</Label>
+              </Dropdown.Item>
+              <Dropdown.Item id="updatedAt" textValue="Fecha de modificación">
+                <Label>Fecha de modificación</Label>
+              </Dropdown.Item>
+              <Dropdown.Item id="size" textValue="Tamaño">
+                <Label>Tamaño</Label>
+              </Dropdown.Item>
+            </Dropdown.Menu>
+          </Dropdown.Popover>
+        </Dropdown>
+        <Button
+          size="sm"
+          variant="secondary"
+          aria-label="Cambiar sentido de ordenación"
+          onPress={() =>
+            changeSorting({ ...sorting, order: sorting.order === "asc" ? "desc" : "asc" })
+          }
+        >
+          {sorting.order === "asc" ? "Ascendente" : "Descendente"}
+        </Button>
         {pane === "primary" && !search.split ? (
           <Button
             isIconOnly

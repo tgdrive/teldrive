@@ -1,6 +1,27 @@
 import { expect, test } from "@playwright/test";
 import { alphaId, betaId, installFileApi } from "./file-api.fixture";
 
+test("sorting hydrates before the first request and URL overrides saved preferences", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("file-sort", JSON.stringify({ sort: "size", order: "desc" })));
+  const requests: URL[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname === "/api/v1/files") requests.push(url);
+  });
+  await page.goto("/files");
+  await expect.poll(() => requests.length).toBeGreaterThan(0);
+  expect(requests[0].searchParams.get("sort")).toBe("size");
+  expect(requests[0].searchParams.get("order")).toBe("desc");
+  await page.getByRole("button", { name: "Cambiar sentido de ordenación" }).click();
+  await expect.poll(() => requests.at(-1)?.searchParams.get("order")).toBe("asc");
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("file-sort")!).order)).toBe("asc");
+  requests.length = 0;
+  await page.goto("/files?sort=updatedAt&order=asc");
+  await expect.poll(() => requests.length).toBeGreaterThan(0);
+  expect(requests[0].searchParams.get("sort")).toBe("updatedAt");
+  expect(requests[0].searchParams.get("order")).toBe("asc");
+});
+
 test.beforeEach(async ({ page }) => installFileApi(page));
 
 test("upload menu preserves folder hierarchy and exposes byte-weighted tree progress", async ({
