@@ -1,4 +1,56 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Route, test } from "@playwright/test";
+
+test("QR login serializes slow polls and completes two-step password verification", async ({ page }) => {
+  const time = new Date("2026-10-11T12:00:00Z");
+  await page.clock.install({ time });
+  await page.clock.pauseAt(time);
+  const flowId = "11111111-1111-4111-8111-111111111111";
+  let pollRequests = 0;
+  let authenticated = false;
+  let capturePoll!: (route: Route) => void;
+  const pendingPoll = new Promise<Route>((resolve) => { capturePoll = resolve; });
+  await page.route("**/api/v1/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/v1/me") {
+      if (!authenticated) return route.fulfill({ status: 401, json: { error: { code: "unauthorized", message: "Sign in" } } });
+      return route.fulfill({ json: { userId: 1, displayName: "QR User", role: "owner", capabilities: [], premium: false, createdAt: time.toISOString() } });
+    }
+    if (path === "/api/v1/auth/telegram/qr/start") {
+      return route.fulfill({ json: {
+        flowId, state: "pending", expiresAt: "2026-10-11T12:10:00Z",
+        qrUrl: "tg://login?token=fixture", qrExpiresAt: "2026-10-11T12:05:00Z",
+      } });
+    }
+    if (path === "/api/v1/auth/cookie/telegram/qr/poll") {
+      expect(route.request().postDataJSON()).toEqual({ flowId });
+      pollRequests++;
+      if (pollRequests === 1) { capturePoll(route); return; }
+      return route.fulfill({ json: { flowId, state: "pending", expiresAt: "2026-10-11T12:10:00Z", qrUrl: "tg://login?token=consumed" } });
+    }
+    if (path === "/api/v1/auth/cookie/telegram/verify-password") {
+      expect(route.request().postDataJSON()).toEqual({ flowId, password: "correct-password" });
+      authenticated = true;
+      return route.fulfill({ json: { authenticated: true, expiresAt: "2026-10-12T12:00:00Z" } });
+    }
+    if (path === "/api/v1/files") return route.fulfill({ json: { items: [] } });
+    return route.fulfill({ status: 404, json: {} });
+  });
+  await page.goto("/login");
+  await page.getByRole("tab", { name: "QR code", exact: true }).click();
+  await expect(page.getByLabel("Telegram sign-in QR code")).toBeVisible();
+  await page.clock.runFor(2500);
+  const poll = await pendingPoll;
+  await page.clock.runFor(7500);
+  expect(pollRequests).toBe(1);
+  await poll.fulfill({ json: { flowId, state: "password_required", expiresAt: "2026-10-11T12:10:00Z" } });
+  await expect(page.getByLabel("Two-step verification password", { exact: true })).toBeVisible();
+  await page.clock.runFor(7500);
+  expect(pollRequests).toBe(1);
+  await page.getByLabel("Two-step verification password", { exact: true }).fill("correct-password");
+  await page.getByRole("button", { name: "Verify and sign in", exact: true }).click();
+  await expect(page).toHaveURL(/\/files/);
+  expect(authenticated).toBe(true);
+});
 
 test("channel discovery previews all channels and syncs only checked choices", async ({ page }) => {
   let syncRequests = 0;

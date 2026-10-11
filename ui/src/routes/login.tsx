@@ -98,6 +98,7 @@ function LoginPage() {
   useEffect(() => {
     if (method !== "qr") return;
     let active = true;
+    let polling = false;
     let timer = 0;
     void startQr
       .mutateAsync({ params: { header: { "Idempotency-Key": newIdempotencyKey() } } })
@@ -108,6 +109,8 @@ function LoginPage() {
         setQrUrl(flow.qrUrl ?? "");
         setQrExpiry(flow.qrExpiresAt ?? flow.expiresAt);
         timer = window.setInterval(async () => {
+          if (!active || polling) return;
+          polling = true;
           try {
             const next = await pollQr.mutateAsync({
               params: { header: { "Idempotency-Key": newIdempotencyKey() } },
@@ -115,12 +118,14 @@ function LoginPage() {
             });
             if (!active) return;
             if (isSession(next)) {
+              active = false;
               window.clearInterval(timer);
               await finish();
               return;
             }
             const state = next as Flow;
             if (state.state === "password_required") {
+              active = false;
               window.clearInterval(timer);
               setMethod("phone");
               setStep("password");
@@ -129,14 +134,18 @@ function LoginPage() {
             if (state.qrUrl) setQrUrl(state.qrUrl);
             if (state.qrExpiresAt) setQrExpiry(state.qrExpiresAt);
           } catch (error) {
+            if (!active) return;
+            active = false;
             window.clearInterval(timer);
             toast.error("QR sign-in stopped", { description: userMessage(error) });
+          } finally {
+            polling = false;
           }
         }, 2500);
       })
-      .catch((error) =>
-        toast.error("Unable to create QR sign-in", { description: userMessage(error) }),
-      );
+      .catch((error) => {
+        if (active) toast.error("Unable to create QR sign-in", { description: userMessage(error) });
+      });
     return () => {
       active = false;
       window.clearInterval(timer);
