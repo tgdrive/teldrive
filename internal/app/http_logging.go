@@ -9,9 +9,12 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-func httpRequestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
+func httpRequestLogger(logger *slog.Logger, security *requestSecurity) func(http.Handler) http.Handler {
 	if logger == nil {
 		logger = slog.Default()
+	}
+	if security == nil {
+		security = &requestSecurity{}
 	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -36,7 +39,7 @@ func httpRequestLogger(logger *slog.Logger) func(http.Handler) http.Handler {
 					slog.String("method", r.Method),
 					slog.String("path", r.URL.Path),
 					slog.String("query", r.URL.RawQuery),
-					slog.String("ip", r.RemoteAddr),
+					slog.String("ip", security.clientIP(r)),
 					slog.String("user_agent", r.UserAgent()),
 					slog.Duration("latency", time.Since(started)),
 					slog.String("request_id", middleware.GetReqID(r.Context())),

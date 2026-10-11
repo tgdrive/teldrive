@@ -44,7 +44,7 @@ func TestHTTPRequestLoggerLevelsAndAttributes(t *testing.T) {
 			next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(test.status)
 			})
-			wrapped := middleware.RequestID(httpRequestLogger(logger)(next))
+			wrapped := middleware.RequestID(httpRequestLogger(logger, nil)(next))
 			request := httptest.NewRequest(http.MethodGet, "/api/v1/test?q=value", nil)
 			request.RemoteAddr = "127.0.0.1:1234"
 			request.Header.Set("User-Agent", "test-agent")
@@ -79,7 +79,7 @@ func TestHTTPRequestLoggerSkipsUIRequests(t *testing.T) {
 
 	handler := &recordHandler{}
 	logger := slog.New(handler)
-	wrapped := httpRequestLogger(logger)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	wrapped := httpRequestLogger(logger, nil)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
@@ -87,5 +87,56 @@ func TestHTTPRequestLoggerSkipsUIRequests(t *testing.T) {
 
 	if len(handler.records) != 0 {
 		t.Fatalf("records = %d, want 0", len(handler.records))
+	}
+}
+
+func TestHTTPRequestLoggerResolvesClientIPThroughTrustedProxies(t *testing.T) {
+	t.Parallel()
+
+	security, err := newRequestSecurity([]string{"172.30.0.0/24", "10.0.0.1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		name       string
+		remoteAddr string
+		forwarded  []string
+		want       string
+	}{
+		{name: "untrusted peer ignores header", remoteAddr: "203.0.113.9:4000", forwarded: []string{"198.51.100.1"}, want: "203.0.113.9"},
+		{name: "trusted peer without header", remoteAddr: "172.30.0.11:50264", want: "172.30.0.11"},
+		{name: "trusted peer uses forwarded client", remoteAddr: "172.30.0.11:50264", forwarded: []string{"213.35.116.148"}, want: "213.35.116.148"},
+		{name: "spoofed leftmost entry ignored", remoteAddr: "172.30.0.11:50264", forwarded: []string{"1.2.3.4, 213.35.116.148"}, want: "213.35.116.148"},
+		{name: "skips chained trusted hops across headers", remoteAddr: "172.30.0.11:50264", forwarded: []string{"1.2.3.4, 213.35.116.148", "10.0.0.1"}, want: "213.35.116.148"},
+		{name: "malformed hop stops at last trusted", remoteAddr: "172.30.0.11:50264", forwarded: []string{"213.35.116.148, garbage"}, want: "172.30.0.11"},
+		{name: "ipv4-mapped peer is trusted", remoteAddr: "[::ffff:172.30.0.11]:50264", forwarded: []string{"213.35.116.148"}, want: "213.35.116.148"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			handler := &recordHandler{}
+			wrapped := httpRequestLogger(slog.New(handler), security)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusNotFound)
+			}))
+			request := httptest.NewRequest(http.MethodGet, "/api/files", nil)
+			request.RemoteAddr = test.remoteAddr
+			for _, value := range test.forwarded {
+				request.Header.Add("X-Forwarded-For", value)
+			}
+
+			wrapped.ServeHTTP(httptest.NewRecorder(), request)
+
+			if len(handler.records) != 1 {
+				t.Fatalf("records = %d, want 1", len(handler.records))
+			}
+			var ip any
+			handler.records[0].Attrs(func(attr slog.Attr) bool {
+				if attr.Key == "ip" {
+					ip = attr.Value.Any()
+				}
+				return true
+			})
+			if ip != test.want {
+				t.Fatalf("ip = %v, want %s", ip, test.want)
+			}
+		})
 	}
 }

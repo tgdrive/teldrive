@@ -21,6 +21,8 @@ http:
 
 Teldrive accepts `X-Forwarded-Proto: https` only from trusted peers. Do not use `0.0.0.0/0` or `::/0`.
 
+Request logs report the client from `X-Forwarded-For` when the direct peer is trusted. Teldrive reads the header right-to-left, skipping trusted hops, so clients cannot spoof their address by prepending entries. Requests from untrusted peers log the peer address.
+
 ## Caddy
 
 Same host:
