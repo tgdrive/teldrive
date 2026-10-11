@@ -1,0 +1,46 @@
+---
+title: Jobs and queues
+description: Operate River/RiverPro jobs, queues, retries, cancellation, and schedules.
+---
+
+## Workers
+
+Default:
+
+```yaml
+jobs:
+  run-workers: true
+```
+
+API-only instance:
+
+```yaml
+jobs:
+  run-workers: false
+```
+
+At least one process sharing the database must run workers.
+
+## Tasks UI
+
+Use **Tasks** to inspect queued/running/completed/failed jobs, view details, retry failures, and cancel supported work.
+
+Retry transient failures only after checking the cause. Cancel work that is no longer wanted.
+
+## Queue controls
+
+Queues can be paused/resumed for maintenance. A paused queue remains queued until resumed.
+
+## Periodic jobs
+
+Use **Settings → Periodic jobs** to create, update, pause, resume, reset, or delete scheduled jobs.
+
+## API
+
+Use the [API Reference](/api/) for exact queue/job/periodic-job operations and request schemas.
+
+## Multi-instance
+
+Worker capacity is the sum of worker-enabled processes. When adding workers, monitor PostgreSQL connections, Telegram errors, resource use, queue depth, and retries.
+
+See [Multi-instance deployments](/advanced/multi-instance).

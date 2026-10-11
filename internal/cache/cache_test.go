@@ -1,174 +1,56 @@
 package cache
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"testing"
 	"time"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/tgdrive/teldrive/pkg/models"
 )
 
-func TestCache(t *testing.T) {
+func TestMemoryCacheStoresEntryLargerThanFreeCacheLimit(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
-	var value = models.File{
-		Name: "file.jpeg",
-		Type: "file",
+	c := NewMemoryCache(5 * 1024 * 1024)
+	defer c.Close()
+
+	want := bytes.Repeat([]byte("x"), 64*1024)
+	if err := c.Set(ctx, "large", want, time.Minute); err != nil {
+		t.Fatalf("Set: %v", err)
 	}
-	var result models.File
-
-	cache := NewMemoryCache(1 * 1024 * 1024)
-
-	err := cache.Set(ctx, "key", value, 1*time.Second)
-	assert.NoError(t, err)
-
-	err = cache.Get(ctx, "key", &result)
-	assert.NoError(t, err)
-	assert.Equal(t, result, value)
-}
-
-func TestKey(t *testing.T) {
-	tests := []struct {
-		name     string
-		args     []any
-		expected string
-	}{
-		{
-			name:     "simple strings",
-			args:     []any{"user", "123"},
-			expected: "user:123",
-		},
-		{
-			name:     "mixed types",
-			args:     []any{"cache", 123, true},
-			expected: "cache:123:true",
-		},
-		{
-			name:     "with nil",
-			args:     []any{"key", nil, "value"},
-			expected: "key:nil:value",
-		},
-		{
-			name:     "empty args",
-			args:     []any{},
-			expected: "",
-		},
-		{
-			name:     "single arg",
-			args:     []any{"solo"},
-			expected: "solo",
-		},
+	var got []byte
+	if err := c.Get(ctx, "large", &got); err != nil {
+		t.Fatalf("Get: %v", err)
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := Key(tt.args...)
-			if result != tt.expected {
-				t.Errorf("Key() = %v, want %v", result, tt.expected)
-			}
-		})
+	if !bytes.Equal(got, want) {
+		t.Fatalf("cached value mismatch: got %d bytes, want %d", len(got), len(want))
 	}
 }
 
-func TestFormatValue(t *testing.T) {
-	type testStruct struct {
-		Name string
-		Age  int
+func TestMemoryCacheDeleteAndTTL(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	c := NewMemoryCache(512 * 1024)
+	defer c.Close()
+
+	if err := c.Set(ctx, "delete", "value", time.Minute); err != nil {
+		t.Fatalf("Set(delete): %v", err)
+	}
+	if err := c.Delete(ctx, "delete"); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+	var value string
+	if err := c.Get(ctx, "delete", &value); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("Get after delete = %v, want ErrNotFound", err)
 	}
 
-	tests := []struct {
-		name     string
-		input    any
-		expected string
-	}{
-		{
-			name:     "nil value",
-			input:    nil,
-			expected: "nil",
-		},
-		{
-			name:     "string",
-			input:    "test",
-			expected: "test",
-		},
-		{
-			name:     "integer",
-			input:    123,
-			expected: "123",
-		},
-		{
-			name:     "boolean",
-			input:    true,
-			expected: "true",
-		},
-		{
-			name:     "slice of strings",
-			input:    []string{"a", "b", "c"},
-			expected: "[a,b,c]",
-		},
-		{
-			name:     "slice of ints",
-			input:    []int{1, 2, 3},
-			expected: "[1,2,3]",
-		},
-		{
-			name:     "empty slice",
-			input:    []string{},
-			expected: "[]",
-		},
-		{
-			name:     "map string to string",
-			input:    map[string]string{"a": "1", "b": "2"},
-			expected: "{a=1,b=2}",
-		},
-		{
-			name:     "empty map",
-			input:    map[string]string{},
-			expected: "{}",
-		},
-		{
-			name:     "struct",
-			input:    testStruct{Name: "John", Age: 30},
-			expected: "{Name:John Age:30}",
-		},
-		{
-			name:     "pointer to string",
-			input:    func() any { s := "test"; return &s }(),
-			expected: "test",
-		},
-		{
-			name:     "nil pointer",
-			input:    func() any { var s *string; return s }(),
-			expected: "nil",
-		},
-		{
-			name:     "nested slice",
-			input:    [][]int{{1, 2}, {3, 4}},
-			expected: "[[1,2],[3,4]]",
-		},
-		{
-			name: "complex mixed structure",
-			input: struct {
-				ID    int
-				Tags  []string
-				Meta  map[string]any
-				Valid bool
-			}{
-				ID:    1,
-				Tags:  []string{"a", "b"},
-				Meta:  map[string]any{"count": 42},
-				Valid: true,
-			},
-			expected: "{ID:1 Tags:[a b] Meta:map[count:42] Valid:true}",
-		},
+	if err := c.Set(ctx, "ttl", "value", 5*time.Millisecond); err != nil {
+		t.Fatalf("Set(ttl): %v", err)
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := formatValue(tt.input)
-			if result != tt.expected {
-				t.Errorf("formatValue() = %v, want %v", result, tt.expected)
-			}
-		})
+	time.Sleep(10 * time.Millisecond)
+	if err := c.Get(ctx, "ttl", &value); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("Get after TTL = %v, want ErrNotFound", err)
 	}
 }

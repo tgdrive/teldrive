@@ -1,0 +1,180 @@
+---
+title: Backup and restore
+description: Back up PostgreSQL with pg_dumpall and restic over any rclone remote.
+---
+
+Back up PostgreSQL plus the Teldrive keys required to decrypt protected data.
+
+## Recovery set
+
+Keep:
+
+- PostgreSQL backup
+- `security.data-key`
+- `security.signing-key`
+- every `encryption.keys` version still in use
+- deployment configuration
+- restic repository password and rclone credentials
+
+Keep Teldrive decryption keys separate from the database backup.
+
+## Recommended backup
+
+Use `pg_dumpall` piped directly into restic. Restic can store the encrypted repository through any rclone remote:
+
+```text
+rclone:<remote>:<path>
+```
+
+Example:
+
+```text
+rclone:backup:teldrive/postgres
+```
+
+`pg_dumpall` includes all databases plus cluster-wide objects such as roles and grants.
+
+## Configure restic
+
+Create root-only files:
+
+```bash
+sudo install -d -m 0700 /etc/teldrive-backup
+sudo rclone config --config /etc/teldrive-backup/rclone.conf
+sudo chmod 0600 /etc/teldrive-backup/rclone.conf
+
+openssl rand -base64 32 | sudo tee /etc/teldrive-backup/restic-password >/dev/null
+sudo chmod 0600 /etc/teldrive-backup/restic-password
+```
+
+Create `/etc/teldrive-backup/backup.env`:
+
+```ini
+RESTIC_REPOSITORY=rclone:backup:teldrive/postgres
+RESTIC_PASSWORD_FILE=/etc/teldrive-backup/restic-password
+RCLONE_CONFIG=/etc/teldrive-backup/rclone.conf
+RESTIC_CACHE_DIR=/var/cache/teldrive-backup
+```
+
+```bash
+sudo chmod 0600 /etc/teldrive-backup/backup.env
+sudo env \
+  RESTIC_REPOSITORY='rclone:backup:teldrive/postgres' \
+  RESTIC_PASSWORD_FILE=/etc/teldrive-backup/restic-password \
+  RCLONE_CONFIG=/etc/teldrive-backup/rclone.conf \
+  restic init
+```
+
+Back up the restic password separately. Without it, the repository cannot be restored.
+
+## systemd service
+
+For the Quick Start Docker Compose deployment, create `/etc/systemd/system/teldrive-backup.service`:
+
+```ini
+[Unit]
+Description=Back up Teldrive PostgreSQL
+Wants=network-online.target
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/teldrive-backup/backup.env
+CacheDirectory=teldrive-backup
+CacheDirectoryMode=0700
+UMask=0077
+
+ExecStart=/usr/bin/restic backup --stdin-from-command --stdin-filename teldrive-postgres.sql --tag teldrive-postgres -- /usr/bin/docker compose -f /opt/teldrive/compose.yaml exec -T postgres pg_dumpall -U teldrive --clean --if-exists
+ExecStart=/usr/bin/restic forget --tag teldrive-postgres --keep-daily 7 --keep-weekly 5 --keep-monthly 12 --keep-yearly 3 --prune
+
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+NoNewPrivileges=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+```
+
+Change `/opt/teldrive/compose.yaml` to your actual Compose path.
+
+For Podman, replace the Docker command with the equivalent `podman compose` command.
+
+For host PostgreSQL, use `pg_dumpall` directly and authenticate with a protected `PGPASSFILE`/`.pgpass` instead of embedding the password in the unit.
+
+## systemd timer
+
+Create `/etc/systemd/system/teldrive-backup.timer`:
+
+```ini
+[Unit]
+Description=Run Teldrive PostgreSQL backup daily
+
+[Timer]
+OnCalendar=*-*-* 03:15:00
+Persistent=true
+RandomizedDelaySec=15m
+
+[Install]
+WantedBy=timers.target
+```
+
+Enable and test:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now teldrive-backup.timer
+sudo systemctl start teldrive-backup.service
+sudo systemctl status teldrive-backup.service
+```
+
+Logs:
+
+```bash
+sudo journalctl -u teldrive-backup.service
+```
+
+## Verify backups
+
+```bash
+restic snapshots --tag teldrive-postgres
+restic check
+```
+
+Periodically perform a real restore into an isolated PostgreSQL instance.
+
+## Restore
+
+Extract the latest SQL dump:
+
+```bash
+restic dump latest teldrive-postgres.sql > teldrive-postgres.sql
+```
+
+`pg_dumpall` produces plain SQL, so restore with `psql`, not `pg_restore`:
+
+```bash
+docker compose -f /opt/teldrive/compose.yaml exec -T postgres \
+  psql -X -U teldrive -d postgres < teldrive-postgres.sql
+```
+
+Then restore the same `security.data-key`, signing key, content-encryption keys, and deployment configuration before starting Teldrive.
+
+Validate:
+
+```bash
+docker compose run --rm teldrive check
+docker compose up -d
+```
+
+Verify login, listing, upload, download, channels, bots, shares, and encrypted files if used.
+
+## Important
+
+PostgreSQL contains Teldrive metadata, not the Telegram file payload itself. A database backup cannot recover payloads independently deleted from Telegram.
+
+For installations requiring point-in-time recovery, add PostgreSQL physical/WAL backups; `pg_dumpall` is the logical disaster-recovery layer.

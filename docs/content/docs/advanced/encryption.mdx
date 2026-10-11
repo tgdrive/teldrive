@@ -1,0 +1,70 @@
+---
+title: Content encryption and key rotation
+description: Configure versioned server-managed file encryption and rotate keys safely.
+---
+
+Content encryption is separate from `security.data-key`.
+
+## Enable
+
+```yaml
+encryption:
+  active-key-version: 1
+  keys:
+    1: "YOUR_RANDOM_SECRET"
+```
+
+Generate a 256-bit secret:
+
+```bash
+openssl rand -base64 32
+```
+
+Environment form:
+
+```bash
+TELDRIVE_ENCRYPTION_ACTIVE_KEY_VERSION=1
+TELDRIVE_ENCRYPTION_KEYS='1:YOUR_RANDOM_SECRET'
+```
+
+Teldrive records the key version with encrypted file parts, so old data continues to depend on the key version used when it was written.
+
+## Rotate
+
+Add the new key before changing the active version:
+
+```yaml
+encryption:
+  active-key-version: 2
+  keys:
+    1: "OLD_KEY"
+    2: "NEW_KEY"
+```
+
+Then:
+
+1. run `teldrive check`;
+2. restart Teldrive;
+3. verify a new encrypted upload;
+4. verify an older encrypted download.
+
+Do not remove old key versions while files still reference them.
+
+## Validation
+
+Configuration is rejected when:
+
+- keys exist but `active-key-version` is `0`;
+- the active version is missing;
+- a key version is non-positive;
+- a key value is empty.
+
+## Backup
+
+Back up every key version still in use. Losing one makes files encrypted with that version unreadable.
+
+See [Backup and restore](/deployment/backup-and-restore).
+
+## Disable for future uploads
+
+Remove the active version and key map only after data that depends on those keys has been removed or migrated.

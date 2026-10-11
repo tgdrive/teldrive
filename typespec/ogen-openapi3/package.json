@@ -1,0 +1,14 @@
+{
+  "name": "teldrive-ogen-openapi3",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "peerDependencies": {
+    "@typespec/compiler": "1.13.0",
+    "@typespec/openapi3": "1.13.0",
+    "yaml": "2.9.0"
+  }
+}
