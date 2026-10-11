@@ -17,7 +17,7 @@ targets:
         TARGETED_DEVICE_FAMILY: '1,2'
         CODE_SIGN_STYLE: Automatic
         MARKETING_VERSION: '2.0.0'
-        CURRENT_PROJECT_VERSION: '200001'
+        CURRENT_PROJECT_VERSION: '200002'
   TeldriveTests:
     type: bundle.unit-test
     platform: iOS

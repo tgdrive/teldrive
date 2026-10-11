@@ -6,7 +6,7 @@ android {
     namespace 'io.webr0m.teldrive'
     compileSdk 36
     buildFeatures { buildConfig true }
-    defaultConfig { applicationId 'io.webr0m.teldrive'; minSdk 26; targetSdk 36; versionCode 200001; versionName '2.0.0-drive-es.1' }
+    defaultConfig { applicationId 'io.webr0m.teldrive'; minSdk 26; targetSdk 36; versionCode 200002; versionName '2.0.0-drive-es.2' }
     signingConfigs {
         if (signingFile.exists()) {
             release { storeFile rootProject.file(signingValues['storeFile']); storePassword signingValues['storePassword']; keyAlias signingValues['keyAlias']; keyPassword signingValues['keyPassword'] }
