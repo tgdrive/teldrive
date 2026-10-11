@@ -4,6 +4,7 @@ import { invalidResponse, normalizeApiError, userMessage } from "@/api/errors";
 import type { FileEntry, NameConflictPolicy, UploadPart, UploadSession } from "@/api/types";
 import { newClientId } from "@/features/shared/client-id";
 import { newIdempotencyKey } from "@/features/shared/idempotency";
+import { getQueryClient } from "@/lib/queryClient";
 
 export type UploadTaskStatus =
   | "queued"
@@ -400,6 +401,7 @@ async function runTask(taskId: string) {
   try {
     const session = await getOrCreateSession(task, controller.signal);
     if (session.state === "completed") {
+      files.delete(taskId);
       store.patchTask(taskId, {
         status: "completed",
         progress: 100,
@@ -407,6 +409,7 @@ async function runTask(taskId: string) {
         uploadId: session.id,
         fileId: session.fileId,
       });
+      refreshUploadedFiles();
       return;
     }
     if (session.state !== "open") throw new Error(`Upload session is ${session.state}.`);
@@ -455,6 +458,7 @@ async function runTask(taskId: string) {
       fileId: completed.id,
       error: undefined,
     });
+    refreshUploadedFiles();
   } catch (error) {
     if (controller.signal.aborted) {
       const current = useUploadStore.getState().tasks.find((item) => item.id === taskId);
@@ -465,6 +469,17 @@ async function runTask(taskId: string) {
     active--;
     queueMicrotask(schedule);
   }
+}
+
+function refreshUploadedFiles() {
+  const queryClient = getQueryClient();
+  // Refresh active listings and mark other directories stale for the next visit.
+  // Refetch failures must not turn a successfully completed upload into a failure.
+  void Promise.all([
+    queryClient.invalidateQueries({ queryKey: ["get", "/v1/files"] }),
+    queryClient.invalidateQueries({ queryKey: ["get", "/v1/files/{fileId}"] }),
+    queryClient.invalidateQueries({ queryKey: ["get", "/v1/files/statistics/drive"] }),
+  ]).catch(() => undefined);
 }
 
 function schedule() {

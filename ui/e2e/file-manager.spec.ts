@@ -5,8 +5,12 @@ const rootId = "11111111-1111-4111-8111-111111111111";
 const alphaId = "22222222-2222-4222-8222-222222222222";
 const betaId = "33333333-3333-4333-8333-333333333333";
 
-test("sorting hydrates before the first request and URL overrides saved preferences", async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem("file-sort", JSON.stringify({ sort: "size", order: "desc" })));
+test("sorting hydrates before the first request and URL overrides saved preferences", async ({
+  page,
+}) => {
+  await page.addInitScript(() =>
+    localStorage.setItem("file-sort", JSON.stringify({ sort: "size", order: "desc" })),
+  );
   await installFileApi(page);
   const requests: URL[] = [];
   page.on("request", (request) => {
@@ -18,15 +22,23 @@ test("sorting hydrates before the first request and URL overrides saved preferen
   expect(requests[0].searchParams.get("sort")).toBe("size");
   expect(requests[0].searchParams.get("order")).toBe("desc");
   const sortOrder = page.getByRole("button", { name: "Toggle sort order" });
-  await expect(sortOrder).toHaveAttribute("aria-label", "Toggle sort order: descending — switch to ascending");
+  await expect(sortOrder).toHaveAttribute(
+    "aria-label",
+    "Toggle sort order: descending — switch to ascending",
+  );
   await expect(sortOrder).toHaveText("");
   await expect(sortOrder.locator("svg")).toBeVisible();
   const descendingIcon = await sortOrder.locator("svg").innerHTML();
   await sortOrder.click();
-  await expect(sortOrder).toHaveAttribute("aria-label", "Toggle sort order: ascending — switch to descending");
+  await expect(sortOrder).toHaveAttribute(
+    "aria-label",
+    "Toggle sort order: ascending — switch to descending",
+  );
   expect(await sortOrder.locator("svg").innerHTML()).not.toBe(descendingIcon);
   await expect.poll(() => requests.at(-1)?.searchParams.get("order")).toBe("asc");
-  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("file-sort")!).order)).toBe("asc");
+  await expect
+    .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("file-sort")!).order))
+    .toBe("asc");
   requests.length = 0;
   await page.goto("/files?sort=updatedAt&order=asc");
   await expect.poll(() => requests.length).toBeGreaterThan(0);
@@ -65,6 +77,7 @@ function file(
 
 async function installFileApi(page: Page) {
   let uploadSequence = 0;
+  const uploadFiles = new Map<string, ReturnType<typeof file>>();
   const files = new Map<string, FixtureFile>([
     [rootId, file({ id: rootId, name: "Destination", kind: "folder" })],
     [
@@ -142,11 +155,22 @@ async function installFileApi(page: Page) {
     if (path === "/v1/storage/stats" && method === "GET") {
       return route.fulfill({
         json: {
-          summary: { logicalBytes: 0, activeFiles: 0, activeFolders: 0, trashedFiles: 0, trashBytes: 0 },
+          summary: {
+            logicalBytes: 0,
+            activeFiles: 0,
+            activeFolders: 0,
+            trashedFiles: 0,
+            trashBytes: 0,
+          },
           growth: [],
           categories: [],
           channels: [],
-          cleanup: { trashBytes: 0, staleUploadBytes: 0, staleUploads: 0, totalReclaimableBytes: 0 },
+          cleanup: {
+            trashBytes: 0,
+            staleUploadBytes: 0,
+            staleUploads: 0,
+            totalReclaimableBytes: 0,
+          },
           activity: [],
         },
       });
@@ -155,7 +179,18 @@ async function installFileApi(page: Page) {
       return route.fulfill({ json: { tasks: [], meta: {} } });
     }
     if (path === "/v1/jobs/statistics" && method === "GET") {
-      return route.fulfill({ json: { available: 0, cancelled: 0, completed: 0, discarded: 0, pending: 0, retryable: 0, running: 0, scheduled: 0 } });
+      return route.fulfill({
+        json: {
+          available: 0,
+          cancelled: 0,
+          completed: 0,
+          discarded: 0,
+          pending: 0,
+          retryable: 0,
+          running: 0,
+          scheduled: 0,
+        },
+      });
     }
     if (path === "/v1/jobs/queues" && method === "GET") {
       return route.fulfill({ json: { queues: [] } });
@@ -163,9 +198,19 @@ async function installFileApi(page: Page) {
     if (path === "/v1/jobs/123" && method === "GET") {
       return route.fulfill({
         json: {
-          id: "123", status: "completed", type: "fixture", queue: "default",
-          attempt: 1, maxAttempts: 1, priority: 1, tags: [], args: {}, errors: [], attemptedBy: [],
-          createdAt: now, scheduledAt: now,
+          id: "123",
+          status: "completed",
+          type: "fixture",
+          queue: "default",
+          attempt: 1,
+          maxAttempts: 1,
+          priority: 1,
+          tags: [],
+          args: {},
+          errors: [],
+          attemptedBy: [],
+          createdAt: now,
+          scheduledAt: now,
         },
       });
     }
@@ -228,10 +273,22 @@ async function installFileApi(page: Page) {
         encryption: boolean;
       };
       uploadSequence++;
+      const id = `66666666-6666-4666-8666-${String(uploadSequence).padStart(12, "0")}`;
+      uploadFiles.set(
+        id,
+        file({
+          id: crypto.randomUUID(),
+          name: body.name,
+          kind: "file",
+          parentId: body.parentId,
+          size: body.size,
+          mimeType: "application/octet-stream",
+        }),
+      );
       return route.fulfill({
         status: 201,
         json: {
-          id: `66666666-6666-4666-8666-${String(uploadSequence).padStart(12, "0")}`,
+          id,
           userId: 1,
           parentId: body.parentId,
           name: body.name,
@@ -254,14 +311,10 @@ async function installFileApi(page: Page) {
       if (method === "GET" && parts) return route.fulfill({ json: { items: [] } });
       if (method === "PUT" && parts) return route.fulfill({ status: 204 });
       if (method === "POST" && complete) {
+        const uploaded = uploadFiles.get(uploadId)!;
+        files.set(uploaded.id, uploaded);
         return route.fulfill({
-          json: file({
-            id: crypto.randomUUID(),
-            name: uploadId,
-            kind: "file",
-            size: 1,
-            mimeType: "application/octet-stream",
-          }),
+          json: uploaded,
         });
       }
       if (method === "DELETE") return route.fulfill({ status: 204 });
@@ -349,7 +402,10 @@ async function installFileApi(page: Page) {
 
 test.beforeEach(async ({ page }) => installFileApi(page));
 
-test("sidebar active state follows route path and bookmark search state", async ({ page, isMobile }) => {
+test("sidebar active state follows route path and bookmark search state", async ({
+  page,
+  isMobile,
+}) => {
   const cases = [
     ["/files?path=%2F&query=&view=list", "Files"],
     ["/files?bookmarked=true", "Bookmarks"],
@@ -370,6 +426,25 @@ test("sidebar active state follows route path and bookmark search state", async 
     await expect(activeLinks).toHaveCount(1);
     await expect(activeLinks).toHaveText(activeLabel);
   }
+});
+
+test("completed upload appears in the current directory without reloading", async ({ page }) => {
+  await page.goto("/files?view=list");
+  const row = page.getByRole("row", { name: /fresh-upload.txt/ });
+  await expect(row).toHaveCount(0);
+  await page.getByRole("button", { name: "Upload", exact: true }).click();
+  const chooserPromise = page.waitForEvent("filechooser");
+  await page.getByRole("menuitem", { name: "Upload files", exact: true }).click();
+  await (await chooserPromise).setFiles({
+    name: "fresh-upload.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("uploaded content"),
+  });
+  await expect(
+    page
+      .getByRole("grid", { name: "Files and folders", exact: true })
+      .getByRole("row", { name: /fresh-upload.txt/ }),
+  ).toBeVisible();
 });
 
 test("upload menu preserves folder hierarchy and exposes byte-weighted tree progress", async ({
@@ -525,8 +600,12 @@ test("React Aria file selection supports replacement, ranges, select all, and es
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Rename selected item" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Duplicate selected item" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Copy selected items", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Bookmark selected items", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Copy selected items", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Bookmark selected items", exact: true }),
+  ).toBeVisible();
   await expect(page.getByRole("button", { name: "Download selected file" })).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Copy selected file download link" }),
@@ -556,7 +635,9 @@ test("files and folders can be bookmarked from the shared file manager", async (
   await expect(page.getByRole("row", { name: /alpha\.txt/ })).toBeVisible();
   await expect(page.getByRole("row", { name: /beta\.txt/ })).toHaveCount(0);
   await page.getByRole("row", { name: /alpha\.txt/ }).click();
-  await page.getByRole("button", { name: "Remove bookmarks from selected items", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Remove bookmarks from selected items", exact: true })
+    .click();
   await expect(page.getByText("1 bookmark removed", { exact: true })).toBeVisible();
   await expect(page.getByText("No bookmarks yet", { exact: true })).toBeVisible();
 });
