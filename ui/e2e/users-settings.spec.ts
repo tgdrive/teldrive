@@ -1,5 +1,84 @@
 import { expect, test } from "@playwright/test";
 
+test("channel discovery previews all channels and syncs only checked choices", async ({ page }) => {
+  let syncRequests = 0;
+  let registered = false;
+  const discovered = [
+    { id: 9001, name: "Storage" },
+    { id: 9002, name: "Personal" },
+  ];
+  await page.route("**/api/v1/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/api/v1/me") {
+      return route.fulfill({
+        json: {
+          userId: 1,
+          displayName: "Fixture",
+          role: "owner",
+          capabilities: [],
+          premium: false,
+          createdAt: "2026-07-22T12:00:00Z",
+        },
+      });
+    }
+    if (url.pathname === "/api/v1/channels/discover") {
+      return route.fulfill({ json: discovered });
+    }
+    if (url.pathname === "/api/v1/channels") {
+      return route.fulfill({
+        json: {
+          items: registered
+            ? [
+                {
+                  ...discovered[0],
+                  selected: false,
+                  health: "unknown",
+                  createdAt: "2026-07-22T12:00:00Z",
+                },
+              ]
+            : [],
+        },
+      });
+    }
+    if (url.pathname === "/api/v1/channels/sync") {
+      expect(route.request().method()).toBe("POST");
+      expect(route.request().headers()["idempotency-key"]).toBeTruthy();
+      expect(route.request().postDataJSON()).toEqual({ channelIds: [9001] });
+      syncRequests++;
+      if (syncRequests === 1) {
+        return route.fulfill({
+          status: 503,
+          json: { error: { code: "unavailable", message: "Try again" } },
+        });
+      }
+      registered = true;
+      return route.fulfill({ json: [] });
+    }
+    return route.fulfill({ status: 404, json: {} });
+  });
+  await page.goto("/settings/channels");
+  await page.getByRole("button", { name: "Discover and sync", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("checkbox", { name: "Storage", exact: true })).toBeChecked();
+  await expect(dialog.getByRole("checkbox", { name: "Personal", exact: true })).toBeChecked();
+  expect(syncRequests).toBe(0);
+  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  expect(syncRequests).toBe(0);
+  await page.getByRole("button", { name: "Discover and sync", exact: true }).click();
+  await dialog.getByText("Personal", { exact: true }).click();
+  await expect(dialog.getByRole("checkbox", { name: "Personal", exact: true })).not.toBeChecked();
+  await dialog.getByRole("button", { name: "Sync selected channels", exact: true }).click();
+  await expect(page.getByText("Channel sync failed", { exact: true })).toBeVisible();
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("checkbox", { name: "Personal", exact: true })).not.toBeChecked();
+  await page.locator('[data-sonner-toast][data-type="error"] [data-close-button]').click();
+  await dialog.getByRole("button", { name: "Sync selected channels", exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByText("Channels synchronized", { exact: true })).toBeVisible();
+  expect(syncRequests).toBe(2);
+});
+
 test("bots can be manually provisioned after migration", async ({ page }) => {
   let provisionRequests = 0;
   await page.route("**/api/v1/**", async (route) => {

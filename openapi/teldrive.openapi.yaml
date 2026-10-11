@@ -1143,8 +1143,8 @@ paths:
   /v1/channels/discover:
     get:
       operationId: discoverChannels
-      description: List Telegram channels where the authenticated user can add
-        administrators.
+      description: List broadcast channels where the authenticated user can add
+        administrators. Groups are excluded.
       parameters: []
       responses:
         "200":
@@ -1176,8 +1176,8 @@ paths:
   /v1/channels/sync:
     post:
       operationId: syncChannels
-      description: Discover and upsert manageable Telegram channels without deleting
-        missing rows.
+      description: Register only chosen manageable broadcast channels, without
+        deleting existing channels.
       parameters:
         - $ref: "#/components/parameters/IdempotencyHeader"
       responses:
@@ -1191,6 +1191,12 @@ paths:
                   $ref: "#/components/schemas/ChannelSummary"
         "401":
           description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
           content:
             application/json:
               schema:
@@ -1209,6 +1215,12 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
       tags:
         - Channels
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChannelSyncRequest"
       security:
         - BearerAuth: []
         - CookieAuth: []
@@ -6271,6 +6283,18 @@ components:
           format: int64
         name:
           type: string
+    ChannelSyncRequest:
+      type: object
+      required:
+        - channelIds
+      properties:
+        channelIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+          description: Only these discovered broadcast channels will be registered.
+            Existing channels are retained.
     ChannelCreateRequest:
       type: object
       properties:

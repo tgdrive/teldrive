@@ -158,7 +158,7 @@ type Handler interface {
 	DeletePeriodicJob(ctx context.Context, params DeletePeriodicJobParams) (DeletePeriodicJobRes, error)
 	// DiscoverChannels implements discoverChannels operation.
 	//
-	// List Telegram channels where the authenticated user can add administrators.
+	// List broadcast channels where the authenticated user can add administrators. Groups are excluded.
 	//
 	// GET /v1/channels/discover
 	DiscoverChannels(ctx context.Context) (DiscoverChannelsRes, error)
@@ -477,10 +477,10 @@ type Handler interface {
 	SelectChannel(ctx context.Context, params SelectChannelParams) (SelectChannelRes, error)
 	// SyncChannels implements syncChannels operation.
 	//
-	// Discover and upsert manageable Telegram channels without deleting missing rows.
+	// Register only chosen manageable broadcast channels, without deleting existing channels.
 	//
 	// POST /v1/channels/sync
-	SyncChannels(ctx context.Context, params SyncChannelsParams) (SyncChannelsRes, error)
+	SyncChannels(ctx context.Context, req *ChannelSyncRequest, params SyncChannelsParams) (SyncChannelsRes, error)
 	// TelegramLoginStart implements telegramLoginStart operation.
 	//
 	// Begin Telegram authentication and send a login code.

@@ -1,4 +1,4 @@
-import { Button, Chip, Input, Spinner, TextField, Label } from "@heroui/react";
+import { Button, Checkbox, Chip, Input, Spinner, TextField, Label } from "@heroui/react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -8,6 +8,7 @@ import TrashIcon from "~icons/gravity-ui/trash-bin";
 import { $api } from "@/api/client";
 import { userMessage } from "@/api/errors";
 import { ConfirmDialog } from "@/components/dialogs/confirm-dialog";
+import { AppDialog } from "@/components/dialogs/app-dialog";
 import { SettingsPageHeader, SettingsRow, SettingsSection } from "@/components/settings-layout";
 import { newIdempotencyKey } from "@/features/shared/idempotency";
 import { getQueryClient } from "@/lib/queryClient";
@@ -23,6 +24,9 @@ export const Route = createFileRoute("/_settings/settings/channels")({
 
 function ChannelsSettings() {
   const [name, setName] = useState("");
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [channelIds, setChannelIds] = useState<number[]>([]);
+  const discovery = $api.useQuery("get", "/v1/channels/discover", {}, { enabled: false });
   const [deleteChannel, setDeleteChannel] = useState<{ id: number; name: string } | null>(null);
   const query = $api.useSuspenseQuery(
     "get",
@@ -58,22 +62,83 @@ function ChannelsSettings() {
             variant="secondary"
             onPress={async () => {
               try {
-                await sync.mutateAsync({
-                  params: { header: { "Idempotency-Key": newIdempotencyKey() } },
-                });
-                await refresh();
-                toast.success("Channels synchronized");
+                const result = await discovery.refetch();
+                if (result.error) throw result.error;
+                setChannelIds((result.data ?? []).map((channel) => channel.id));
+                setPickerOpen(true);
               } catch (error) {
-                toast.error("Channel sync failed", { description: userMessage(error) });
+                toast.error("Channel discovery failed", { description: userMessage(error) });
               }
             }}
-            isDisabled={sync.isPending}
+            isDisabled={discovery.isFetching || sync.isPending}
           >
             <RefreshIcon className="size-4" />
             Discover and sync
           </Button>
         }
       />
+      <AppDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        title="Choose storage channels"
+        description="Only broadcast channels are listed. Bots will be added to registered channels when provisioned. Existing registered channels are kept even if unchecked."
+        isDismissable={!sync.isPending}
+        isCloseDisabled={sync.isPending}
+        footer={
+          <>
+            <Button
+              variant="tertiary"
+              isDisabled={sync.isPending}
+              onPress={() => setPickerOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              isPending={sync.isPending}
+              onPress={async () => {
+                try {
+                  await sync.mutateAsync({
+                    params: { header: { "Idempotency-Key": newIdempotencyKey() } },
+                    body: { channelIds },
+                  });
+                  await refresh();
+                  setPickerOpen(false);
+                  toast.success("Channels synchronized");
+                } catch (error) {
+                  toast.error("Channel sync failed", { description: userMessage(error) });
+                }
+              }}
+            >
+              Sync selected channels
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          {(discovery.data ?? []).map((channel) => (
+            <Checkbox
+              key={channel.id}
+              isSelected={channelIds.includes(channel.id)}
+              isDisabled={sync.isPending}
+              onChange={(checked) =>
+                setChannelIds((ids) =>
+                  checked ? [...ids, channel.id] : ids.filter((id) => id !== channel.id),
+                )
+              }
+            >
+              <Checkbox.Content>
+                <Checkbox.Control>
+                  <Checkbox.Indicator />
+                </Checkbox.Control>
+                {channel.name}
+              </Checkbox.Content>
+            </Checkbox>
+          ))}
+          {!discovery.data?.length && (
+            <p className="text-sm text-muted">No manageable broadcast channels found.</p>
+          )}
+        </div>
+      </AppDialog>
       <SettingsSection
         title="Create channel"
         description="Teldrive will create and configure a Telegram storage channel."

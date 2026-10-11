@@ -6317,7 +6317,7 @@ func (s *Server) handleDeletePeriodicJobRequest(args [1]string, argsEscaped bool
 
 // handleDiscoverChannelsRequest handles discoverChannels operation.
 //
-// List Telegram channels where the authenticated user can add administrators.
+// List broadcast channels where the authenticated user can add administrators. Groups are excluded.
 //
 // GET /v1/channels/discover
 func (s *Server) handleDiscoverChannelsRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
@@ -20775,7 +20775,7 @@ func (s *Server) handleStreamEventsRequest(args [0]string, argsEscaped bool, w h
 
 // handleSyncChannelsRequest handles syncChannels operation.
 //
-// Discover and upsert manageable Telegram channels without deleting missing rows.
+// Register only chosen manageable broadcast channels, without deleting existing channels.
 //
 // POST /v1/channels/sync
 func (s *Server) handleSyncChannelsRequest(args [0]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
@@ -20941,6 +20941,21 @@ func (s *Server) handleSyncChannelsRequest(args [0]string, argsEscaped bool, w h
 	}
 
 	var rawBody []byte
+	request, rawBody, close, err := s.decodeSyncChannelsRequest(r)
+	if err != nil {
+		err = &ogenerrors.DecodeRequestError{
+			OperationContext: opErrContext,
+			Err:              err,
+		}
+		defer recordError("DecodeRequest", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+	defer func() {
+		if err := close(); err != nil {
+			recordError("CloseRequest", err)
+		}
+	}()
 
 	var response SyncChannelsRes
 	if m := s.cfg.Middleware; m != nil {
@@ -20949,7 +20964,7 @@ func (s *Server) handleSyncChannelsRequest(args [0]string, argsEscaped bool, w h
 			OperationName:    SyncChannelsOperation,
 			OperationSummary: "",
 			OperationID:      "syncChannels",
-			Body:             nil,
+			Body:             request,
 			RawBody:          rawBody,
 			Params: middleware.Parameters{
 				{
@@ -20961,7 +20976,7 @@ func (s *Server) handleSyncChannelsRequest(args [0]string, argsEscaped bool, w h
 		}
 
 		type (
-			Request  = struct{}
+			Request  = *ChannelSyncRequest
 			Params   = SyncChannelsParams
 			Response = SyncChannelsRes
 		)
@@ -20974,12 +20989,12 @@ func (s *Server) handleSyncChannelsRequest(args [0]string, argsEscaped bool, w h
 			mreq,
 			unpackSyncChannelsParams,
 			func(ctx context.Context, request Request, params Params) (response Response, err error) {
-				response, err = s.h.SyncChannels(ctx, params)
+				response, err = s.h.SyncChannels(ctx, request, params)
 				return response, err
 			},
 		)
 	} else {
-		response, err = s.h.SyncChannels(ctx, params)
+		response, err = s.h.SyncChannels(ctx, request, params)
 	}
 	if err != nil {
 		defer recordError("Internal", err)

@@ -757,7 +757,7 @@ func (s *GotdStorage) CreateChannel(ctx context.Context, userID int64, name stri
 		}
 		for _, chat := range updates.Chats {
 			channel, ok := chat.(*tg.Channel)
-			if !ok {
+			if !ok || !isBroadcastChannel(channel) {
 				continue
 			}
 			if s.botProvider != nil {
@@ -817,6 +817,10 @@ func (s *GotdStorage) InviteBot(ctx context.Context, userID, channelID int64, us
 		channel, err := fullChannel(runCtx, api, channelID)
 		if err != nil {
 			return err
+		}
+		if !isBroadcastChannel(channel) {
+			slog.InfoContext(runCtx, "Skipping bot provisioning for non-broadcast chat", "user_id", userID, "channel_id", channelID)
+			return nil
 		}
 		resolved, err := api.ContactsResolveUsername(runCtx, &tg.ContactsResolveUsernameRequest{Username: username})
 		if err != nil {

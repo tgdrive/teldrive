@@ -22,6 +22,10 @@ model DiscoveredChannel {
   id: int64;
   name: string;
 }
+model ChannelSyncRequest {
+  /** Only these discovered broadcast channels will be registered. Existing channels are retained. */
+  channelIds: int64[];
+}
 model ChannelCreateRequest {
   /** Optional display name. Telegram may choose the final title. */
   @maxLength(120)
@@ -73,7 +77,7 @@ namespace Channels {
     | JsonResponse<200, CursorPage<ChannelSummary>>
     | ErrorResponse<401>;
 
-  /** List Telegram channels where the authenticated user can add administrators. */
+  /** List broadcast channels where the authenticated user can add administrators. Groups are excluded. */
   @get
   @route("/discover")
   @operationId("discoverChannels")
@@ -82,13 +86,14 @@ namespace Channels {
     | ErrorResponse<401>
     | ErrorResponse<429>;
 
-  /** Discover and upsert manageable Telegram channels without deleting missing rows. */
+  /** Register only chosen manageable broadcast channels, without deleting existing channels. */
   @post
   @route("/sync")
   @operationId("syncChannels")
-  op sync(...IdempotencyHeader):
+  op sync(...IdempotencyHeader, @body body: ChannelSyncRequest):
     | JsonResponse<200, ChannelSummary[]>
     | ErrorResponse<401>
+    | ErrorResponse<404>
     | ErrorResponse<422>
     | ErrorResponse<429>;
   @post

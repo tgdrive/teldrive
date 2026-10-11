@@ -667,6 +667,22 @@ func (s *ChannelSummary) SetCreatedAt(val time.Time) {
 func (*ChannelSummary) createChannelRes() {}
 func (*ChannelSummary) selectChannelRes() {}
 
+// Ref: #/components/schemas/ChannelSyncRequest
+type ChannelSyncRequest struct {
+	// Only these discovered broadcast channels will be registered. Existing channels are retained.
+	ChannelIds []int64 `json:"channelIds"`
+}
+
+// GetChannelIds returns the value of ChannelIds.
+func (s *ChannelSyncRequest) GetChannelIds() []int64 {
+	return s.ChannelIds
+}
+
+// SetChannelIds sets the value of ChannelIds.
+func (s *ChannelSyncRequest) SetChannelIds(val []int64) {
+	s.ChannelIds = val
+}
+
 type Checksum string
 
 // CleanTrashNoContent is response for CleanTrash operation.
@@ -10491,6 +10507,10 @@ func (*StreamEventsUnauthorized) streamEventsRes() {}
 type StreamEventsUnprocessableEntity ErrorEnvelope
 
 func (*StreamEventsUnprocessableEntity) streamEventsRes() {}
+
+type SyncChannelsNotFound ErrorEnvelope
+
+func (*SyncChannelsNotFound) syncChannelsRes() {}
 
 type SyncChannelsOKApplicationJSON []ChannelSummary
 

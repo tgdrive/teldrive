@@ -429,7 +429,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description List Telegram channels where the authenticated user can add administrators. */
+        /** @description List broadcast channels where the authenticated user can add administrators. Groups are excluded. */
         get: operations["discoverChannels"];
         put?: never;
         post?: never;
@@ -448,7 +448,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Discover and upsert manageable Telegram channels without deleting missing rows. */
+        /** @description Register only chosen manageable broadcast channels, without deleting existing channels. */
         post: operations["syncChannels"];
         delete?: never;
         options?: never;
@@ -1686,6 +1686,10 @@ export interface components {
             /** Format: int64 */
             id: number;
             name: string;
+        };
+        ChannelSyncRequest: {
+            /** @description Only these discovered broadcast channels will be registered. Existing channels are retained. */
+            channelIds: number[];
         };
         ChannelCreateRequest: {
             /** @description Optional display name. Telegram may choose the final title. */
@@ -3735,7 +3739,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChannelSyncRequest"];
+            };
+        };
         responses: {
             /** @description The request has succeeded. */
             200: {
@@ -3748,6 +3756,15 @@ export interface operations {
             };
             /** @description Access is unauthorized. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -324,6 +324,20 @@ func encodeRefreshSessionRequest(
 	return nil
 }
 
+func encodeSyncChannelsRequest(
+	req *ChannelSyncRequest,
+	r *http.Request,
+) error {
+	const contentType = "application/json"
+	e := new(jx.Encoder)
+	{
+		req.Encode(e)
+	}
+	encoded := e.Bytes()
+	ht.SetBody(r, bytes.NewReader(encoded), contentType)
+	return nil
+}
+
 func encodeTelegramLoginStartRequest(
 	req *TelegramLoginStartRequest,
 	r *http.Request,

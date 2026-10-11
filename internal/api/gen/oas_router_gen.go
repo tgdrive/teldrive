@@ -78,7 +78,7 @@ var (
 		"GET": "Authorization,X-Api-Key",
 	}
 	rn131AllowedHeaders = map[string]string{
-		"POST": "Authorization,Idempotency-Key,X-Api-Key",
+		"POST": "Authorization,Content-Type,Idempotency-Key,X-Api-Key",
 	}
 	rn46AllowedHeaders = map[string]string{
 		"DELETE": "Authorization,X-Api-Key",
@@ -1195,7 +1195,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 									s.notAllowed(w, r, notAllowedParams{
 										allowedMethods: "POST",
 										allowedHeaders: rn131AllowedHeaders,
-										acceptPost:     "",
+										acceptPost:     "application/json",
 										acceptPatch:    "",
 									})
 								}

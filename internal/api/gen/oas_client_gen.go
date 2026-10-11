@@ -179,7 +179,7 @@ type Invoker interface {
 	DeletePeriodicJob(ctx context.Context, params DeletePeriodicJobParams) (DeletePeriodicJobRes, error)
 	// DiscoverChannels invokes discoverChannels operation.
 	//
-	// List Telegram channels where the authenticated user can add administrators.
+	// List broadcast channels where the authenticated user can add administrators. Groups are excluded.
 	//
 	// GET /v1/channels/discover
 	DiscoverChannels(ctx context.Context) (DiscoverChannelsRes, error)
@@ -533,10 +533,10 @@ type Invoker interface {
 	StreamEvents(ctx context.Context, params StreamEventsParams) (StreamEventsRes, error)
 	// SyncChannels invokes syncChannels operation.
 	//
-	// Discover and upsert manageable Telegram channels without deleting missing rows.
+	// Register only chosen manageable broadcast channels, without deleting existing channels.
 	//
 	// POST /v1/channels/sync
-	SyncChannels(ctx context.Context, params SyncChannelsParams) (SyncChannelsRes, error)
+	SyncChannels(ctx context.Context, request *ChannelSyncRequest, params SyncChannelsParams) (SyncChannelsRes, error)
 	// TelegramLoginStart invokes telegramLoginStart operation.
 	//
 	// Begin Telegram authentication and send a login code.
@@ -5002,7 +5002,7 @@ func (c *Client) sendDeletePeriodicJob(ctx context.Context, params DeletePeriodi
 
 // DiscoverChannels invokes discoverChannels operation.
 //
-// List Telegram channels where the authenticated user can add administrators.
+// List broadcast channels where the authenticated user can add administrators. Groups are excluded.
 //
 // GET /v1/channels/discover
 func (c *Client) DiscoverChannels(ctx context.Context) (DiscoverChannelsRes, error) {
@@ -16232,15 +16232,15 @@ func (c *Client) sendStreamEvents(ctx context.Context, params StreamEventsParams
 
 // SyncChannels invokes syncChannels operation.
 //
-// Discover and upsert manageable Telegram channels without deleting missing rows.
+// Register only chosen manageable broadcast channels, without deleting existing channels.
 //
 // POST /v1/channels/sync
-func (c *Client) SyncChannels(ctx context.Context, params SyncChannelsParams) (SyncChannelsRes, error) {
-	res, err := c.sendSyncChannels(ctx, params)
+func (c *Client) SyncChannels(ctx context.Context, request *ChannelSyncRequest, params SyncChannelsParams) (SyncChannelsRes, error) {
+	res, err := c.sendSyncChannels(ctx, request, params)
 	return res, err
 }
 
-func (c *Client) sendSyncChannels(ctx context.Context, params SyncChannelsParams) (res SyncChannelsRes, err error) {
+func (c *Client) sendSyncChannels(ctx context.Context, request *ChannelSyncRequest, params SyncChannelsParams) (res SyncChannelsRes, err error) {
 	otelAttrs := []attribute.KeyValue{
 		otelogen.OperationID("syncChannels"),
 		semconv.HTTPRequestMethodKey.String("POST"),
@@ -16285,6 +16285,9 @@ func (c *Client) sendSyncChannels(ctx context.Context, params SyncChannelsParams
 	r, err := ht.NewRequest(ctx, "POST", u)
 	if err != nil {
 		return res, errors.Wrap(err, "create request")
+	}
+	if err := encodeSyncChannelsRequest(request, r); err != nil {
+		return res, errors.Wrap(err, "encode request")
 	}
 
 	stage = "EncodeHeaderParams"

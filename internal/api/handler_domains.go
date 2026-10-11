@@ -431,21 +431,29 @@ func (h *Handler) DiscoverChannels(ctx context.Context) (gen.DiscoverChannelsRes
 	return &response, nil
 }
 
-func (h *Handler) SyncChannels(ctx context.Context, params gen.SyncChannelsParams) (gen.SyncChannelsRes, error) {
+func (h *Handler) SyncChannels(ctx context.Context, req *gen.ChannelSyncRequest, params gen.SyncChannelsParams) (gen.SyncChannelsRes, error) {
 	userID, err := UserIDFromContext(ctx)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
-	if h.TelegramAccount == nil || h.Channels == nil {
+	if h.TelegramAccount == nil || h.Channels == nil || req == nil {
 		return nil, mapServiceError(ErrOperationUnavailable)
 	}
 	discovered, err := h.TelegramAccount.DiscoverChannels(ctx, userID)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
-	remote := make([]channels.RemoteChannel, 0, len(discovered))
+	available := make(map[int64]channels.RemoteChannel, len(discovered))
 	for _, channel := range discovered {
-		remote = append(remote, channels.RemoteChannel{ID: channel.ID, Name: channel.Name})
+		available[channel.ID] = channels.RemoteChannel{ID: channel.ID, Name: channel.Name}
+	}
+	remote := make([]channels.RemoteChannel, 0, len(req.ChannelIds))
+	for _, id := range req.ChannelIds {
+		channel, ok := available[id]
+		if !ok {
+			return nil, mapServiceError(channels.ErrInvalidChannel)
+		}
+		remote = append(remote, channel)
 	}
 	rows, err := h.Channels.Sync(ctx, userID, remote)
 	if err != nil {
