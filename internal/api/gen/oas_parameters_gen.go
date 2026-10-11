@@ -6383,6 +6383,8 @@ type ListFilesParams struct {
 	UpdatedBefore OptDateTime                `json:",omitempty,omitzero"`
 	Sort          OptFileListQuerySort       `json:",omitempty,omitzero"`
 	Order         OptFileListQueryOrder      `json:",omitempty,omitzero"`
+	// Restrict results to the authenticated user's bookmarked files and folders.
+	Bookmarked OptBool `json:",omitempty,omitzero"`
 }
 
 func unpackListFilesParams(packed middleware.Parameters) (params ListFilesParams) {
@@ -6510,6 +6512,15 @@ func unpackListFilesParams(packed middleware.Parameters) (params ListFilesParams
 		}
 		if v, ok := packed[key]; ok {
 			params.Order = v.(OptFileListQueryOrder)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "bookmarked",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.Bookmarked = v.(OptBool)
 		}
 	}
 	return params
@@ -7325,6 +7336,52 @@ func decodeListFilesParams(args [0]string, argsEscaped bool, r *http.Request) (p
 	}(); err != nil {
 		return params, &ogenerrors.DecodeParamError{
 			Name: "order",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	// Set default value for query: bookmarked.
+	{
+		val := bool(false)
+		params.Bookmarked.SetTo(val)
+	}
+	// Decode query: bookmarked.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "bookmarked",
+			Style:   uri.QueryStyleForm,
+			Explode: false,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotBookmarkedVal bool
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToBool(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotBookmarkedVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.Bookmarked.SetTo(paramsDotBookmarkedVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "bookmarked",
 			In:   "query",
 			Err:  err,
 		}

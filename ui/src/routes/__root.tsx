@@ -17,6 +17,7 @@ import {
   Outlet,
   redirect,
   useLocation,
+  useMatchRoute,
   useNavigate,
 } from "@tanstack/react-router";
 import { useTheme } from "@/lib/theme";
@@ -36,6 +37,7 @@ import SearchIcon from "~icons/gravity-ui/magnifier";
 import MoonIcon from "~icons/gravity-ui/moon";
 import SunIcon from "~icons/gravity-ui/sun";
 import CloseIcon from "~icons/gravity-ui/xmark";
+import BookmarkIcon from "~icons/gravity-ui/bookmark";
 import { $api } from "../api/client";
 import { isUnauthorized, userMessage } from "../api/errors";
 import { currentUserQueryOptions } from "../auth/queries";
@@ -44,6 +46,7 @@ import { getQueryClient } from "../lib/queryClient";
 
 const mainNav = [
   { label: "Files", icon: GridIcon, path: "/files" },
+  { label: "Bookmarks", icon: BookmarkIcon, path: "/files", bookmarked: true },
   { label: "Shared", icon: FolderIcon, path: "/shared" },
   { label: "Shared with me", icon: FolderIcon, path: "/shared-with-me" },
   { label: "Storage", icon: StorageIcon, path: "/storage" },
@@ -72,6 +75,8 @@ function Sidebar({
   onNavigate?: () => void;
 }) {
   const navigate = useNavigate();
+  const matchRoute = useMatchRoute();
+  const routeSearch = useLocation({ select: (location) => location.search as Record<string, unknown> });
   const { data: user } = useQuery(currentUserQueryOptions());
   const logout = $api.useMutation("post", "/v1/auth/cookie/logout");
   const visibleMainNav = mainNav.filter(
@@ -105,24 +110,14 @@ function Sidebar({
     }
   };
   const renderItem = (item: (typeof mainNav)[number]) => {
-    const link = (
-      <Link
-        key={item.label}
-        to={item.path}
-        preload="intent"
-        activeOptions={{ exact: true }}
-        className="h-10 w-full justify-start rounded-full px-3 text-sm font-medium"
-        activeProps={{
-          className: cn(buttonVariants({ variant: "secondary" }), "bg-accent/10 text-accent"),
-        }}
-        inactiveProps={{
-          className: cn(
-            buttonVariants({ variant: "ghost" }),
-            "text-muted hover:bg-default/30 hover:text-foreground",
-          ),
-        }}
-        onClick={() => onNavigate?.()}
-      >
+    const routeMatches = Boolean(matchRoute({ to: item.path, fuzzy: true }));
+    const active = routeMatches && (
+      item.path !== "/files" || ("bookmarked" in item
+        ? routeSearch.bookmarked === true
+        : routeSearch.bookmarked !== true)
+    );
+    const children = (
+      <>
         <item.icon className="size-4 shrink-0" />
         <span
           className={cn(
@@ -132,10 +127,26 @@ function Sidebar({
         >
           {item.label}
         </span>
+      </>
+    );
+    const className = "h-10 w-full justify-start rounded-full px-3 text-sm font-medium";
+    return (
+      <Link
+        key={item.label}
+        to={item.path}
+        search={"bookmarked" in item ? { bookmarked: true } : {}}
+        activeOptions={{ includeSearch: false }}
+        preload="intent"
+        className={cn(
+          buttonVariants({ variant: active ? "secondary" : "ghost" }),
+          className,
+          active ? "bg-accent/10 text-accent" : "text-muted hover:bg-default/30 hover:text-foreground",
+        )}
+        onClick={() => onNavigate?.()}
+      >
+        {children}
       </Link>
     );
-
-    return link;
   };
 
   return (
@@ -162,7 +173,7 @@ function Sidebar({
       </div>
 
       <Separator className="mx-3 w-auto" />
-      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+      <nav aria-label="Main navigation" className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
         {visibleMainNav.map(renderItem)}
       </nav>
       <div className="border-t border-border px-3 py-3">
@@ -253,7 +264,7 @@ function TopBar({
     select: (location) => location.search as Record<string, unknown>,
   });
   const locationKey = useLocation({ select: (location) => location.href });
-  const title = getPageTitle(pathname);
+  const title = pathname === "/files" && routeSearch.bookmarked ? "Bookmarks" : getPageTitle(pathname);
   const scheduleSearch = (value: string) => {
     if (searchTimer.current) window.clearTimeout(searchTimer.current);
     searchTimer.current = undefined;

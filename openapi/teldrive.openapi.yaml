@@ -1630,6 +1630,7 @@ paths:
         - $ref: "#/components/parameters/FileListQuery.updatedBefore"
         - $ref: "#/components/parameters/FileListQuery.sort"
         - $ref: "#/components/parameters/FileListQuery.order"
+        - $ref: "#/components/parameters/FileListQuery.bookmarked"
       responses:
         "200":
           description: The request has succeeded.
@@ -1666,6 +1667,71 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
       tags:
         - Files
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/files/bookmarks:
+    post:
+      operationId: bookmarkFiles
+      description: Bookmark selected active files and folders.
+      parameters: []
+      responses:
+        "204":
+          description: "There is no content to send for this request, but the headers may
+            be useful. "
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Files
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookmarkFilesRequest"
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+        - ExternalApiKeyAuth: []
+    delete:
+      operationId: removeFileBookmarks
+      description: Remove bookmarks from selected files and folders.
+      parameters: []
+      responses:
+        "204":
+          description: "There is no content to send for this request, but the headers may
+            be useful. "
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Files
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookmarkFilesRequest"
       security:
         - BearerAuth: []
         - CookieAuth: []
@@ -5829,6 +5895,16 @@ components:
           - $ref: "#/components/schemas/SortOrder"
         default: asc
       explode: false
+    FileListQuery.bookmarked:
+      name: bookmarked
+      in: query
+      required: false
+      description: Restrict results to the authenticated user's bookmarked files and
+        folders.
+      schema:
+        type: boolean
+        default: false
+      explode: false
     OptionalIfMatchHeader:
       name: If-Match
       in: header
@@ -6493,6 +6569,17 @@ components:
         parentPath:
           type: string
           description: Location path, included for drive and recursive listings.
+    BookmarkFilesRequest:
+      type: object
+      required:
+        - fileIds
+      properties:
+        fileIds:
+          type: array
+          items:
+            $ref: "#/components/schemas/Uuid"
+          minItems: 1
+          maxItems: 500
     FileUpdateRequest:
       type: object
       properties:

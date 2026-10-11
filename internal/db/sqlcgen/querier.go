@@ -16,12 +16,14 @@ type Querier interface {
 	AcquireAdvisoryTransactionLock(ctx context.Context, lockID int64) error
 	AcquireUserBootstrapLock(ctx context.Context) error
 	ActivateBot(ctx context.Context, arg ActivateBotParams) (*Bot, error)
+	AddFileBookmarks(ctx context.Context, arg AddFileBookmarksParams) error
 	ClaimUploadPart(ctx context.Context, arg ClaimUploadPartParams) (*UploadPart, error)
 	ClearSelectedChannel(ctx context.Context, userID int64) error
 	ClearUploadSessionParentsByFileIDs(ctx context.Context, arg ClearUploadSessionParentsByFileIDsParams) error
 	CompleteIdempotencyKey(ctx context.Context, arg CompleteIdempotencyKeyParams) (*IdempotencyKey, error)
 	CompleteTelegramLoginFlow(ctx context.Context, id pgtype.UUID) (*TelegramLoginFlow, error)
 	CompleteUploadSession(ctx context.Context, arg CompleteUploadSessionParams) (*UploadSession, error)
+	CountBookmarkableFiles(ctx context.Context, arg CountBookmarkableFilesParams) (int32, error)
 	CountChannelReferences(ctx context.Context, targetChannelID int64) (int64, error)
 	CountChannelStoredMessages(ctx context.Context, targetChannelID int64) (int64, error)
 	CountInvalidOpenEndedUploadParts(ctx context.Context, arg CountInvalidOpenEndedUploadPartsParams) (int64, error)
@@ -148,6 +150,7 @@ type Querier interface {
 	NextBotSelectionValue(ctx context.Context, arg NextBotSelectionValueParams) (int64, error)
 	QueueFileSubtreePurge(ctx context.Context, arg QueueFileSubtreePurgeParams) ([]*File, error)
 	ReleaseAdvisoryLock(ctx context.Context, lockID int64) (bool, error)
+	RemoveFileBookmarks(ctx context.Context, arg RemoveFileBookmarksParams) error
 	RenameUploadSession(ctx context.Context, arg RenameUploadSessionParams) (int64, error)
 	RenewUploadPartLease(ctx context.Context, arg RenewUploadPartLeaseParams) (int64, error)
 	ReserveIdempotencyKey(ctx context.Context, arg ReserveIdempotencyKeyParams) (*IdempotencyKey, error)

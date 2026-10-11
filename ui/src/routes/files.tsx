@@ -23,6 +23,7 @@ export const Route = createFileRoute("/files")({
       search.secondaryView === "grid" || search.secondaryView === "list"
         ? search.secondaryView
         : undefined,
+    bookmarked: search.bookmarked === true || search.bookmarked === "true",
   }),
   component: FilesPage,
   pendingComponent: () => (

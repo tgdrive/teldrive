@@ -9,6 +9,10 @@ type AbortUploadRes interface {
 	abortUploadRes()
 }
 
+type BookmarkFilesRes interface {
+	bookmarkFilesRes()
+}
+
 type BulkMoveFilesRes interface {
 	bulkMoveFilesRes()
 }
@@ -347,6 +351,10 @@ type RefreshCookieSessionRes interface {
 
 type RefreshSessionRes interface {
 	refreshSessionRes()
+}
+
+type RemoveFileBookmarksRes interface {
+	removeFileBookmarksRes()
 }
 
 type ResetPeriodicJobsRes interface {

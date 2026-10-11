@@ -123,6 +123,54 @@ func encodeAbortUploadResponse(response AbortUploadRes, w http.ResponseWriter, s
 	}
 }
 
+func encodeBookmarkFilesResponse(response BookmarkFilesRes, w http.ResponseWriter, span trace.Span) error {
+	switch response := response.(type) {
+	case *BookmarkFilesNoContent:
+		w.WriteHeader(204)
+
+		return nil
+
+	case *BookmarkFilesUnauthorized:
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(401)
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *BookmarkFilesNotFound:
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(404)
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *BookmarkFilesUnprocessableEntity:
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(422)
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	default:
+		return errors.Errorf("unexpected response type: %T", response)
+	}
+}
+
 func encodeBulkMoveFilesResponse(response BulkMoveFilesRes, w http.ResponseWriter, span trace.Span) error {
 	switch response := response.(type) {
 	case *FileBulkResult:
@@ -5718,6 +5766,30 @@ func encodeRefreshSessionResponse(response RefreshSessionRes, w http.ResponseWri
 	case *RefreshSessionTooManyRequests:
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(429)
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	default:
+		return errors.Errorf("unexpected response type: %T", response)
+	}
+}
+
+func encodeRemoveFileBookmarksResponse(response RemoveFileBookmarksRes, w http.ResponseWriter, span trace.Span) error {
+	switch response := response.(type) {
+	case *RemoveFileBookmarksNoContent:
+		w.WriteHeader(204)
+
+		return nil
+
+	case *ErrorEnvelope:
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(401)
 
 		e := new(jx.Encoder)
 		response.Encode(e)

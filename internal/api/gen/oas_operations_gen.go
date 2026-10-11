@@ -8,6 +8,7 @@ type OperationName = string
 const (
 	AbortPublicShareUploadOperation            OperationName = "AbortPublicShareUpload"
 	AbortUploadOperation                       OperationName = "AbortUpload"
+	BookmarkFilesOperation                     OperationName = "BookmarkFiles"
 	BulkMoveFilesOperation                     OperationName = "BulkMoveFiles"
 	BulkTrashFilesOperation                    OperationName = "BulkTrashFiles"
 	CancelJobOperation                         OperationName = "CancelJob"
@@ -94,6 +95,7 @@ const (
 	PutUploadPartOperation                     OperationName = "PutUploadPart"
 	RefreshCookieSessionOperation              OperationName = "RefreshCookieSession"
 	RefreshSessionOperation                    OperationName = "RefreshSession"
+	RemoveFileBookmarksOperation               OperationName = "RemoveFileBookmarks"
 	ResetPeriodicJobsOperation                 OperationName = "ResetPeriodicJobs"
 	RestoreFileOperation                       OperationName = "RestoreFile"
 	ResumeJobQueueOperation                    OperationName = "ResumeJobQueue"

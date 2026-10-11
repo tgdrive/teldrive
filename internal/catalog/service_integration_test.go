@@ -39,6 +39,50 @@ func TestCatalogPreservesExactNames(t *testing.T) {
 	}
 }
 
+func TestBookmarksAreOwnerScopedAndFilterActiveFilesAndFolders(t *testing.T) {
+	db := testpostgres.New(t)
+	ctx := context.Background()
+	seedUser(t, db.Pool, 1001)
+	seedUser(t, db.Pool, 2002)
+	service := catalog.NewService(db.Pool, nil)
+	folder, err := service.CreateFolder(ctx, catalog.CreateFolderInput{UserID: 1001, Name: "notes"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fileID := uuid.New()
+	if _, err := db.Pool.Exec(ctx, `
+INSERT INTO files (id,user_id,parent_id,name,kind,size,encryption,status,mod_time)
+VALUES ($1,1001,$2,'readme.txt','file',12,false,'active',now())`, fileID, folder.ID); err != nil {
+		t.Fatal(err)
+	}
+	foreignID := uuid.New()
+	if _, err := db.Pool.Exec(ctx, `
+INSERT INTO files (id,user_id,name,kind,size,encryption,status,mod_time)
+VALUES ($1,2002,'private.txt','file',1,false,'active',now())`, foreignID); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.BookmarkFiles(ctx, 1001, []uuid.UUID{folder.ID.Bytes, fileID}); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.BookmarkFiles(ctx, 1001, []uuid.UUID{foreignID}); !errors.Is(err, catalog.ErrNotFound) {
+		t.Fatalf("bookmark another user's file error = %v", err)
+	}
+	rows, err := service.List(ctx, catalog.ListInput{UserID: 1001, Bookmarked: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 2 {
+		t.Fatalf("bookmarked entries = %d, want folder and file", len(rows))
+	}
+	if err := service.RemoveFileBookmarks(ctx, 1001, []uuid.UUID{folder.ID.Bytes}); err != nil {
+		t.Fatal(err)
+	}
+	rows, err = service.List(ctx, catalog.ListInput{UserID: 1001, Bookmarked: true})
+	if err != nil || len(rows) != 1 || rows[0].ID.Bytes != fileID {
+		t.Fatalf("bookmarks after remove = %#v, %v", rows, err)
+	}
+}
+
 func TestBulkMoveUsesSetBasedQueries(t *testing.T) {
 	db := testpostgres.New(t)
 	ctx := context.Background()

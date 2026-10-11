@@ -41,6 +41,7 @@ func findAuthorization(h http.Header, prefix string) (string, bool) {
 // operationRolesBearerAuth is a private map storing roles per operation.
 var operationRolesBearerAuth = map[string][]string{
 	AbortUploadOperation:               []string{},
+	BookmarkFilesOperation:             []string{},
 	BulkMoveFilesOperation:             []string{},
 	BulkTrashFilesOperation:            []string{},
 	CancelJobOperation:                 []string{},
@@ -105,6 +106,7 @@ var operationRolesBearerAuth = map[string][]string{
 	PurgeJobsOperation:                 []string{},
 	PutFileViewStateOperation:          []string{},
 	PutUploadPartOperation:             []string{},
+	RemoveFileBookmarksOperation:       []string{},
 	ResetPeriodicJobsOperation:         []string{},
 	RestoreFileOperation:               []string{},
 	ResumeJobQueueOperation:            []string{},
@@ -151,6 +153,7 @@ func GetRolesForBearerAuth(operation string) []string {
 // operationRolesCookieAuth is a private map storing roles per operation.
 var operationRolesCookieAuth = map[string][]string{
 	AbortUploadOperation:               []string{},
+	BookmarkFilesOperation:             []string{},
 	BulkMoveFilesOperation:             []string{},
 	BulkTrashFilesOperation:            []string{},
 	CancelJobOperation:                 []string{},
@@ -216,6 +219,7 @@ var operationRolesCookieAuth = map[string][]string{
 	PurgeJobsOperation:                 []string{},
 	PutFileViewStateOperation:          []string{},
 	PutUploadPartOperation:             []string{},
+	RemoveFileBookmarksOperation:       []string{},
 	ResetPeriodicJobsOperation:         []string{},
 	RestoreFileOperation:               []string{},
 	ResumeJobQueueOperation:            []string{},
@@ -287,6 +291,7 @@ func GetRolesForEventTicketAuth(operation string) []string {
 // operationRolesExternalApiKeyAuth is a private map storing roles per operation.
 var operationRolesExternalApiKeyAuth = map[string][]string{
 	AbortUploadOperation:               []string{},
+	BookmarkFilesOperation:             []string{},
 	BulkMoveFilesOperation:             []string{},
 	BulkTrashFilesOperation:            []string{},
 	CancelJobOperation:                 []string{},
@@ -343,6 +348,7 @@ var operationRolesExternalApiKeyAuth = map[string][]string{
 	PurgeJobsOperation:                 []string{},
 	PutFileViewStateOperation:          []string{},
 	PutUploadPartOperation:             []string{},
+	RemoveFileBookmarksOperation:       []string{},
 	ResetPeriodicJobsOperation:         []string{},
 	RestoreFileOperation:               []string{},
 	ResumeJobQueueOperation:            []string{},

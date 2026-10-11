@@ -76,6 +76,7 @@ async function installFileApi(page: Page) {
       file({ id: betaId, name: "beta.txt", kind: "file", mimeType: "text/plain", size: 20 }),
     ],
   ]);
+  const bookmarks = new Set<string>();
   const findNameConflict = (parentId: string | undefined, name: string, excludeId?: string) =>
     [...files.values()].find(
       (candidate) =>
@@ -138,20 +139,60 @@ async function installFileApi(page: Page) {
         },
       });
     }
+    if (path === "/v1/storage/stats" && method === "GET") {
+      return route.fulfill({
+        json: {
+          summary: { logicalBytes: 0, activeFiles: 0, activeFolders: 0, trashedFiles: 0, trashBytes: 0 },
+          growth: [],
+          categories: [],
+          channels: [],
+          cleanup: { trashBytes: 0, staleUploadBytes: 0, staleUploads: 0, totalReclaimableBytes: 0 },
+          activity: [],
+        },
+      });
+    }
+    if (path === "/v1/jobs" && method === "GET") {
+      return route.fulfill({ json: { tasks: [], meta: {} } });
+    }
+    if (path === "/v1/jobs/statistics" && method === "GET") {
+      return route.fulfill({ json: { available: 0, cancelled: 0, completed: 0, discarded: 0, pending: 0, retryable: 0, running: 0, scheduled: 0 } });
+    }
+    if (path === "/v1/jobs/queues" && method === "GET") {
+      return route.fulfill({ json: { queues: [] } });
+    }
+    if (path === "/v1/jobs/123" && method === "GET") {
+      return route.fulfill({
+        json: {
+          id: "123", status: "completed", type: "fixture", queue: "default",
+          attempt: 1, maxAttempts: 1, priority: 1, tags: [], args: {}, errors: [], attemptedBy: [],
+          createdAt: now, scheduledAt: now,
+        },
+      });
+    }
     if (path === "/v1/files" && method === "GET") {
       const parentId = url.searchParams.get("parentId") ?? undefined;
       const search = url.searchParams.get("search");
       const searchType = url.searchParams.get("searchType");
+      const bookmarked = url.searchParams.get("bookmarked") === "true";
       const items = [...files.values()].filter(
         (entry) =>
           entry.status === "active" &&
           entry.parentId === parentId &&
+          (!bookmarked || bookmarks.has(entry.id)) &&
           (!search ||
             (searchType === "regex"
               ? new RegExp(search, "i").test(entry.name)
               : entry.name.toLowerCase().includes(search.toLowerCase()))),
       );
       return route.fulfill({ json: { items } });
+    }
+    if (path === "/v1/files/bookmarks" && (method === "POST" || method === "DELETE")) {
+      const body = request.postDataJSON() as { fileIds: string[] };
+      for (const id of body.fileIds) {
+        if (method === "POST") bookmarks.add(id);
+        else bookmarks.delete(id);
+      }
+      return route.fulfill({ status: 204 });
     }
     if (path === `/v1/files/${alphaId}/content/alpha.txt` && method === "GET") {
       return route.fulfill({ contentType: "text/plain", body: "alpha preview" });
@@ -308,6 +349,29 @@ async function installFileApi(page: Page) {
 
 test.beforeEach(async ({ page }) => installFileApi(page));
 
+test("sidebar active state follows route path and bookmark search state", async ({ page, isMobile }) => {
+  const cases = [
+    ["/files?path=%2F&query=&view=list", "Files"],
+    ["/files?bookmarked=true", "Bookmarks"],
+    ["/shared?parentId=11111111-1111-4111-8111-111111111111&view=grid", "Shared"],
+    ["/shared-with-me?view=grid", "Shared with me"],
+    ["/storage", "Storage"],
+    ["/tasks", "Tasks"],
+    ["/tasks/123", "Tasks"],
+    ["/trash", "Trash"],
+  ] as const;
+  await page.goto("/files");
+  const mainNav = page.getByRole("navigation", { name: "Main navigation" });
+
+  for (const [path, activeLabel] of cases) {
+    await page.goto(path);
+    if (isMobile) await page.getByRole("button", { name: "Open navigation" }).click();
+    const activeLinks = mainNav.locator('a[class*="bg-accent/10"]');
+    await expect(activeLinks).toHaveCount(1);
+    await expect(activeLinks).toHaveText(activeLabel);
+  }
+});
+
 test("upload menu preserves folder hierarchy and exposes byte-weighted tree progress", async ({
   page,
 }) => {
@@ -460,7 +524,9 @@ test("React Aria file selection supports replacement, ranges, select all, and es
     page.getByRole("button", { name: "Move selected items", exact: true }),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: "Rename selected item" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Duplicate selected item" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Duplicate selected item" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Copy selected items", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Bookmark selected items", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Download selected file" })).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Copy selected file download link" }),
@@ -469,7 +535,7 @@ test("React Aria file selection supports replacement, ranges, select all, and es
   await beta.click({ modifiers: ["Shift"] });
   await expect(page.getByText("2 selected", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Rename selected item" })).toBeHidden();
-  await expect(page.getByRole("button", { name: "Duplicate selected item" })).toBeHidden();
+  await expect(page.getByRole("button", { name: "Duplicate selected item" })).toHaveCount(0);
   await expect(
     page.getByRole("button", { name: "Move selected items", exact: true }),
   ).toBeVisible();
@@ -478,6 +544,21 @@ test("React Aria file selection supports replacement, ranges, select all, and es
   await expect(page.getByText("3 selected", { exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByText(/selected$/)).toBeHidden();
+});
+
+test("files and folders can be bookmarked from the shared file manager", async ({ page }) => {
+  await page.goto("/files");
+  await page.getByRole("row", { name: /alpha\.txt/ }).click();
+  await page.getByRole("button", { name: "Bookmark selected items", exact: true }).click();
+  await expect(page.getByText("1 item bookmarked", { exact: true })).toBeVisible();
+
+  await page.goto("/files?bookmarked=true");
+  await expect(page.getByRole("row", { name: /alpha\.txt/ })).toBeVisible();
+  await expect(page.getByRole("row", { name: /beta\.txt/ })).toHaveCount(0);
+  await page.getByRole("row", { name: /alpha\.txt/ }).click();
+  await page.getByRole("button", { name: "Remove bookmarks from selected items", exact: true }).click();
+  await expect(page.getByText("1 bookmark removed", { exact: true })).toBeVisible();
+  await expect(page.getByText("No bookmarks yet", { exact: true })).toBeVisible();
 });
 
 test("selected file downloads and copies its attachment URL on an insecure host", async ({

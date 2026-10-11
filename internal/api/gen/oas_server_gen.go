@@ -19,6 +19,12 @@ type Handler interface {
 	//
 	// DELETE /v1/uploads/{uploadId}
 	AbortUpload(ctx context.Context, params AbortUploadParams) (AbortUploadRes, error)
+	// BookmarkFiles implements bookmarkFiles operation.
+	//
+	// Bookmark selected active files and folders.
+	//
+	// POST /v1/files/bookmarks
+	BookmarkFiles(ctx context.Context, req *BookmarkFilesRequest) (BookmarkFilesRes, error)
 	// BulkMoveFiles implements bulkMoveFiles operation.
 	//
 	// Transactionally move multiple files or folders.
@@ -423,6 +429,12 @@ type Handler interface {
 	//
 	// POST /v1/auth/refresh
 	RefreshSession(ctx context.Context, req *RefreshTokenRequest) (RefreshSessionRes, error)
+	// RemoveFileBookmarks implements removeFileBookmarks operation.
+	//
+	// Remove bookmarks from selected files and folders.
+	//
+	// DELETE /v1/files/bookmarks
+	RemoveFileBookmarks(ctx context.Context, req *BookmarkFilesRequest) (RemoveFileBookmarksRes, error)
 	// ResetPeriodicJobs implements resetPeriodicJobs operation.
 	//
 	// POST /v1/periodic-jobs/reset

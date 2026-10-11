@@ -328,6 +328,38 @@ func (s *BearerAuth) SetRoles(val []string) {
 	s.Roles = val
 }
 
+// BookmarkFilesNoContent is response for BookmarkFiles operation.
+type BookmarkFilesNoContent struct{}
+
+func (*BookmarkFilesNoContent) bookmarkFilesRes() {}
+
+type BookmarkFilesNotFound ErrorEnvelope
+
+func (*BookmarkFilesNotFound) bookmarkFilesRes() {}
+
+// Ref: #/components/schemas/BookmarkFilesRequest
+type BookmarkFilesRequest struct {
+	FileIds []UUID `json:"fileIds"`
+}
+
+// GetFileIds returns the value of FileIds.
+func (s *BookmarkFilesRequest) GetFileIds() []UUID {
+	return s.FileIds
+}
+
+// SetFileIds sets the value of FileIds.
+func (s *BookmarkFilesRequest) SetFileIds(val []UUID) {
+	s.FileIds = val
+}
+
+type BookmarkFilesUnauthorized ErrorEnvelope
+
+func (*BookmarkFilesUnauthorized) bookmarkFilesRes() {}
+
+type BookmarkFilesUnprocessableEntity ErrorEnvelope
+
+func (*BookmarkFilesUnprocessableEntity) bookmarkFilesRes() {}
+
 // Ref: #/components/schemas/BotBulkProvisionResponse
 type BotBulkProvisionResponse struct {
 	JobIds []string `json:"jobIds"`
@@ -3293,6 +3325,7 @@ func (*ErrorEnvelope) listSharedRes()                {}
 func (*ErrorEnvelope) listSharedWithMeRes()          {}
 func (*ErrorEnvelope) logoutCookieSessionRes()       {}
 func (*ErrorEnvelope) logoutSessionRes()             {}
+func (*ErrorEnvelope) removeFileBookmarksRes()       {}
 func (*ErrorEnvelope) resetPeriodicJobsRes()         {}
 
 // Ref: #/components/schemas/EventStreamTicket
@@ -9374,6 +9407,11 @@ func (s *RefreshTokenRequest) GetRefreshToken() string {
 func (s *RefreshTokenRequest) SetRefreshToken(val string) {
 	s.RefreshToken = val
 }
+
+// RemoveFileBookmarksNoContent is response for RemoveFileBookmarks operation.
+type RemoveFileBookmarksNoContent struct{}
+
+func (*RemoveFileBookmarksNoContent) removeFileBookmarksRes() {}
 
 type RestoreFileConflict ErrorEnvelope
 

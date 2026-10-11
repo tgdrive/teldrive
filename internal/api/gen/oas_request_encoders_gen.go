@@ -10,6 +10,20 @@ import (
 	ht "github.com/ogen-go/ogen/http"
 )
 
+func encodeBookmarkFilesRequest(
+	req *BookmarkFilesRequest,
+	r *http.Request,
+) error {
+	const contentType = "application/json"
+	e := new(jx.Encoder)
+	{
+		req.Encode(e)
+	}
+	encoded := e.Bytes()
+	ht.SetBody(r, bytes.NewReader(encoded), contentType)
+	return nil
+}
+
 func encodeBulkMoveFilesRequest(
 	req *FileBulkMoveRequest,
 	r *http.Request,
@@ -312,6 +326,20 @@ func encodePutUploadPartRequest(
 
 func encodeRefreshSessionRequest(
 	req *RefreshTokenRequest,
+	r *http.Request,
+) error {
+	const contentType = "application/json"
+	e := new(jx.Encoder)
+	{
+		req.Encode(e)
+	}
+	encoded := e.Bytes()
+	ht.SetBody(r, bytes.NewReader(encoded), contentType)
+	return nil
+}
+
+func encodeRemoveFileBookmarksRequest(
+	req *BookmarkFilesRequest,
 	r *http.Request,
 ) error {
 	const contentType = "application/json"

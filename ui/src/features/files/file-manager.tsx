@@ -63,6 +63,7 @@ export type FilesLocation = PaneLocation & {
   secondaryParentId?: string;
   secondaryQuery?: string;
   secondaryView?: FileBrowserView;
+  bookmarked?: boolean;
 };
 
 export function FileManagerPage({
@@ -153,6 +154,7 @@ export function FileManagerPage({
       ...sorting,
       view: primaryLocation.view,
       ...(criteria ? driveSearchOptions(criteria) : {}),
+      bookmarked: search.bookmarked,
     },
     "active",
     activeSearch && !missingFolder && !invalidDates,
@@ -164,6 +166,7 @@ export function FileManagerPage({
       q: secondaryLocation.query || undefined,
       ...sorting,
       view: secondaryLocation.view,
+      bookmarked: search.bookmarked,
     },
     "active",
     Boolean(search.split) && !searchMode,
@@ -174,6 +177,7 @@ export function FileManagerPage({
   const primaryCriteriaKey = JSON.stringify({
     ...sorting,
     path: primaryLocation.path,
+    bookmarked: search.bookmarked,
     ...(criteria
       ? driveSearchOptions(criteria)
       : {
@@ -333,6 +337,20 @@ export function FileManagerPage({
     );
   };
 
+  const toggleBookmarks = async (pane: PaneId) => {
+    const files = paneSelectedFiles(pane);
+    if (files.length === 0 || pending) return;
+    const ids = files.map((file) => file.id);
+    await performAction(
+      () => search.bookmarked ? fileActions.removeBookmarks(ids) : fileActions.bookmarkFiles(ids),
+      search.bookmarked
+        ? `${ids.length} bookmark${ids.length === 1 ? "" : "s"} removed`
+        : `${ids.length} item${ids.length === 1 ? "" : "s"} bookmarked`,
+      search.bookmarked ? "Bookmarks could not be removed" : "Items could not be bookmarked",
+      () => setPaneSelectedKeys(pane, new Set()),
+    );
+  };
+
   const renameSelected = async () => {
     if (!renameFile || !renameName.trim() || pending) return;
     await performAction(
@@ -346,21 +364,6 @@ export function FileManagerPage({
       },
       true,
     );
-  };
-
-  const duplicateFile = async (file: FileEntry, pane: PaneId) => {
-    try {
-      await fileActions.copy(file, paneLocation(pane).parentId, `${file.name} copy`, "rename");
-      setPaneSelectedKeys(pane, new Set());
-      toast.success("Item duplicated");
-    } catch (error) {
-      toast.error("Item could not be duplicated", { description: userMessage(error) });
-    }
-  };
-
-  const duplicateSelected = async (pane: PaneId) => {
-    const selected = paneSelectedFiles(pane);
-    if (selected.length === 1) await duplicateFile(selected[0], pane);
   };
 
   const transferSelected = async (parentId?: string) => {
@@ -518,7 +521,7 @@ export function FileManagerPage({
     setActivePane(pane);
     if (file.kind === "folder") {
       const location = paneLocation(pane);
-      if (searchMode) {
+      if (searchMode || search.bookmarked) {
         void navigateTo({
           to: "/files",
           search: {
@@ -526,6 +529,7 @@ export function FileManagerPage({
             parentId: file.id,
             query: "",
             view: location.view,
+            bookmarked: undefined,
           },
         });
         return;
@@ -748,8 +752,10 @@ export function FileManagerPage({
       <FileSelectionToolbar
         selectedFiles={selectedFiles}
         pending={pending}
-        onCut={searchMode ? undefined : () => stageClipboard("cut", pane)}
+        onCut={searchMode || search.bookmarked ? undefined : () => stageClipboard("cut", pane)}
         onCopy={() => stageClipboard("copy", pane)}
+        onBookmark={() => void toggleBookmarks(pane)}
+        bookmarked={search.bookmarked}
         onRename={() => {
           const file = selectedFiles[0];
           setActivePane(pane);
@@ -757,7 +763,6 @@ export function FileManagerPage({
           setRenameName(file.name);
           setActionError(undefined);
         }}
-        onDuplicate={searchMode ? undefined : () => void duplicateSelected(pane)}
         onShare={() => {
           setActivePane(pane);
           setShareFile(selectedFiles[0]);
@@ -784,7 +789,7 @@ export function FileManagerPage({
       <FileBrowser
         files={files}
         path={location.path}
-        rootLabel={searchMode ? "Search results" : "My files"}
+        rootLabel={searchMode ? "Search results" : search.bookmarked ? "Bookmarks" : "My files"}
         view={location.view}
         loading={fileQuery.isPending}
         onNavigatePath={(path) => navigatePane(pane, { path, query: "", view: location.view })}
@@ -809,11 +814,11 @@ export function FileManagerPage({
         selectionOverlay={fileQuery.isPlaceholderData ? undefined : renderSelectionOverlay(pane)}
         dimmedIds={cutIds}
         hideFolderControls={Boolean(searchMode)}
-        showLocations={Boolean(searchMode)}
-        emptyTitle={searchMode ? "No matching files" : undefined}
-        emptyHint={searchMode ? "Try another name or adjust your filters." : undefined}
+        showLocations={Boolean(searchMode || search.bookmarked)}
+        emptyTitle={searchMode ? "No matching files" : search.bookmarked ? "No bookmarks yet" : undefined}
+        emptyHint={searchMode ? "Try another name or adjust your filters." : search.bookmarked ? "Select files or folders and bookmark them from the action bar." : undefined}
         onOpenContainingFolder={
-          searchMode
+          searchMode || search.bookmarked
             ? (file) => {
                 void navigateTo({
                   to: "/files",
@@ -822,6 +827,7 @@ export function FileManagerPage({
                     parentId: file.parentId,
                     query: "",
                     view: location.view,
+                    bookmarked: undefined,
                   },
                 });
               }

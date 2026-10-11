@@ -16,6 +16,8 @@ export function useFileActions() {
   const cleanTrashMutation = $api.useMutation("delete", "/v1/files/trash");
   const bulkMoveMutation = $api.useMutation("post", "/v1/files/bulk/move");
   const bulkTrashMutation = $api.useMutation("post", "/v1/files/bulk/trash");
+  const bookmarkMutation = $api.useMutation("post", "/v1/files/bookmarks");
+  const removeBookmarksMutation = $api.useMutation("delete", "/v1/files/bookmarks");
 
   async function invalidateFiles() {
     await Promise.all([
@@ -153,6 +155,18 @@ export function useFileActions() {
     return result;
   }
 
+  async function bookmarkFiles(fileIds: string[]) {
+    const result = await bookmarkMutation.mutateAsync({ body: { fileIds } });
+    await invalidateFiles();
+    return result;
+  }
+
+  async function removeBookmarks(fileIds: string[]) {
+    const result = await removeBookmarksMutation.mutateAsync({ body: { fileIds } });
+    await invalidateFiles();
+    return result;
+  }
+
   async function bulkRestore(fileIds: string[]) {
     await Promise.all(
       fileIds.map((fileId) =>
@@ -179,6 +193,8 @@ export function useFileActions() {
     cleanTrashMutation,
     bulkMoveMutation,
     bulkTrashMutation,
+    bookmarkMutation,
+    removeBookmarksMutation,
   ];
 
   return {
@@ -195,6 +211,8 @@ export function useFileActions() {
     cleanTrash,
     bulkMove,
     bulkTrash,
+    bookmarkFiles,
+    removeBookmarks,
     bulkRestore,
     pending: mutations.some((mutation) => mutation.isPending),
     error: mutations.find((mutation) => mutation.isError)?.error,

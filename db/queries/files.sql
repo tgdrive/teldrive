@@ -4,6 +4,24 @@ FROM /* TEMPLATE: schema */files
 WHERE id = sqlc.arg(file_id)
   AND user_id = sqlc.arg(user_id);
 
+-- name: CountBookmarkableFiles :one
+SELECT count(DISTINCT file.id)::integer
+FROM /* TEMPLATE: schema */files AS file
+WHERE file.user_id = sqlc.arg(user_id)
+  AND file.id = ANY(sqlc.arg(file_ids)::uuid[])
+  AND file.status = 'active';
+
+-- name: AddFileBookmarks :exec
+INSERT INTO /* TEMPLATE: schema */file_bookmarks (user_id, file_id)
+SELECT sqlc.arg(user_id), input.file_id
+FROM unnest(sqlc.arg(file_ids)::uuid[]) AS input(file_id)
+ON CONFLICT (user_id, file_id) DO NOTHING;
+
+-- name: RemoveFileBookmarks :exec
+DELETE FROM /* TEMPLATE: schema */file_bookmarks
+WHERE user_id = sqlc.arg(user_id)
+  AND file_id = ANY(sqlc.arg(file_ids)::uuid[]);
+
 -- name: GetActiveFolderForUser :one
 SELECT *
 FROM /* TEMPLATE: schema */files
@@ -242,6 +260,13 @@ WHERE f.user_id = sqlc.arg(user_id)
     )
   )
   AND f.status = sqlc.arg(status)::/* TEMPLATE: schema */file_status
+  AND (
+    NOT sqlc.arg(bookmarked)::boolean
+    OR EXISTS (
+      SELECT 1 FROM /* TEMPLATE: schema */file_bookmarks bookmark
+      WHERE bookmark.user_id = f.user_id AND bookmark.file_id = f.id
+    )
+  )
   AND (sqlc.narg(kind)::/* TEMPLATE: schema */file_kind IS NULL OR f.kind = sqlc.narg(kind)::/* TEMPLATE: schema */file_kind)
   AND (
     sqlc.narg(search)::text IS NULL

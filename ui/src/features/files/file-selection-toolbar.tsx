@@ -8,6 +8,7 @@ import PencilIcon from "~icons/gravity-ui/pencil";
 import CutIcon from "~icons/gravity-ui/scissors";
 import TrashIcon from "~icons/gravity-ui/trash-bin";
 import CloseIcon from "~icons/gravity-ui/xmark";
+import BookmarkIcon from "~icons/gravity-ui/bookmark";
 import type { FileEntry } from "../../api/types";
 
 export function FileSelectionToolbar({
@@ -15,8 +16,9 @@ export function FileSelectionToolbar({
   pending,
   onCut,
   onCopy,
+  onBookmark,
+  bookmarked = false,
   onRename,
-  onDuplicate,
   onShare,
   onDownload,
   onCopyDownloadLinks,
@@ -28,8 +30,9 @@ export function FileSelectionToolbar({
   pending: boolean;
   onCut?: () => void;
   onCopy?: () => void;
+  onBookmark?: () => void;
+  bookmarked?: boolean;
   onRename?: () => void;
-  onDuplicate?: () => void;
   onShare?: () => void;
   onDownload?: () => void;
   onCopyDownloadLinks?: () => void;
@@ -75,6 +78,18 @@ export function FileSelectionToolbar({
             <CopyIcon className="size-4" />
           </Button>
         ) : null}
+        {onBookmark ? (
+          <Button
+            isIconOnly
+            size="sm"
+            variant="ghost"
+            aria-label={bookmarked ? "Remove bookmarks from selected items" : "Bookmark selected items"}
+            isDisabled={pending}
+            onPress={onBookmark}
+          >
+            <BookmarkIcon className="size-4" />
+          </Button>
+        ) : null}
         {singleSelectedFile && onRename ? (
           <Button
             isIconOnly
@@ -85,18 +100,6 @@ export function FileSelectionToolbar({
             onPress={onRename}
           >
             <PencilIcon className="size-4" />
-          </Button>
-        ) : null}
-        {singleSelectedFile && onDuplicate ? (
-          <Button
-            isIconOnly
-            size="sm"
-            variant="ghost"
-            aria-label="Duplicate selected item"
-            isDisabled={pending}
-            onPress={onDuplicate}
-          >
-            <CopyIcon className="size-4" />
           </Button>
         ) : null}
         {singleSelectedFile && onShare ? (

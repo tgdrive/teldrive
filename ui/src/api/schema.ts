@@ -605,6 +605,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/files/bookmarks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Bookmark selected active files and folders. */
+        post: operations["bookmarkFiles"];
+        /** @description Remove bookmarks from selected files and folders. */
+        delete: operations["removeFileBookmarks"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/files/{fileId}": {
         parameters: {
             query?: never;
@@ -1772,6 +1790,9 @@ export interface components {
             /** @description Location path, included for drive and recursive listings. */
             parentPath?: string;
         };
+        BookmarkFilesRequest: {
+            fileIds: components["schemas"]["Uuid"][];
+        };
         FileUpdateRequest: {
             name?: string;
             /** Format: date-time */
@@ -2323,6 +2344,8 @@ export interface components {
         "FileListQuery.updatedBefore": string;
         "FileListQuery.sort": components["schemas"]["FileSort"];
         "FileListQuery.order": components["schemas"]["SortOrder"];
+        /** @description Restrict results to the authenticated user's bookmarked files and folders. */
+        "FileListQuery.bookmarked": boolean;
         OptionalIfMatchHeader: components["schemas"]["ETag"];
         "FileContentRequestOptions.range": string;
         "FileContentRequestOptions.ifNoneMatch": components["schemas"]["ETag"];
@@ -4266,6 +4289,8 @@ export interface operations {
                 updatedBefore?: components["parameters"]["FileListQuery.updatedBefore"];
                 sort?: components["parameters"]["FileListQuery.sort"];
                 order?: components["parameters"]["FileListQuery.order"];
+                /** @description Restrict results to the authenticated user's bookmarked files and folders. */
+                bookmarked?: components["parameters"]["FileListQuery.bookmarked"];
             };
             header?: never;
             path?: never;
@@ -4305,6 +4330,86 @@ export interface operations {
             };
             /** @description Client error */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    bookmarkFiles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookmarkFilesRequest"];
+            };
+        };
+        responses: {
+            /** @description There is no content to send for this request, but the headers may be useful. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    removeFileBookmarks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookmarkFilesRequest"];
+            };
+        };
+        responses: {
+            /** @description There is no content to send for this request, but the headers may be useful. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Access is unauthorized. */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

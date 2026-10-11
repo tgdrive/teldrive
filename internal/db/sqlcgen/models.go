@@ -494,6 +494,12 @@ type FileAccessGrant struct {
 	RevokedAt  pgtype.Timestamptz `json:"revoked_at"`
 }
 
+type FileBookmark struct {
+	UserID    int64              `json:"user_id"`
+	FileID    pgtype.UUID        `json:"file_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
 type FilePart struct {
 	FileID     pgtype.UUID        `json:"file_id"`
 	PartNo     int32              `json:"part_no"`

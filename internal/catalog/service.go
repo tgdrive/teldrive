@@ -261,11 +261,18 @@ type ListInput struct {
 	AfterValue    string
 	AfterID       *uuid.UUID
 	Limit         int32
+	Bookmarked    bool
 }
 
 func (s *Service) List(ctx context.Context, in ListInput) ([]*sqlcgen.File, error) {
 	if in.UserID <= 0 {
 		return nil, ErrInvalidOwner
+	}
+	if in.Bookmarked {
+		if in.Status != "" && in.Status != sqlcgen.FileStatusActive || in.ParentID != nil || strings.TrimSpace(in.Path) != "" {
+			return nil, ErrInvalidParent
+		}
+		in.Scope = "drive"
 	}
 	if in.ParentID != nil && strings.TrimSpace(in.Path) != "" {
 		return nil, ErrInvalidParent
@@ -317,7 +324,7 @@ func (s *Service) List(ctx context.Context, in ListInput) ([]*sqlcgen.File, erro
 	if in.Order == "" {
 		in.Order = "asc"
 	}
-	if in.Scope != "folder" || len(in.Categories) > 0 || in.UpdatedAfter != nil || in.UpdatedBefore != nil || in.SearchType != "text" || in.Sort != "name" || in.Order != "asc" || in.AfterValue != "" {
+	if in.Bookmarked || in.Scope != "folder" || len(in.Categories) > 0 || in.UpdatedAfter != nil || in.UpdatedBefore != nil || in.SearchType != "text" || in.Sort != "name" || in.Order != "asc" || in.AfterValue != "" {
 		return s.listAdvanced(ctx, in)
 	}
 	var kind sqlcgen.NullFileKind
@@ -348,6 +355,54 @@ func (s *Service) List(ctx context.Context, in ListInput) ([]*sqlcgen.File, erro
 		return nil, fmt.Errorf("list files: %w", err)
 	}
 	return items, nil
+}
+
+// BookmarkFiles adds active files and folders to the user's bookmarks.
+func (s *Service) BookmarkFiles(ctx context.Context, userID int64, fileIDs []uuid.UUID) error {
+	if userID <= 0 {
+		return ErrInvalidOwner
+	}
+	if len(fileIDs) == 0 || len(fileIDs) > 500 {
+		return ErrNotFound
+	}
+	unique := make(map[uuid.UUID]struct{}, len(fileIDs))
+	ids := make([]uuid.UUID, 0, len(fileIDs))
+	for _, id := range fileIDs {
+		if id == uuid.Nil {
+			return ErrNotFound
+		}
+		if _, exists := unique[id]; exists {
+			continue
+		}
+		unique[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	pgIDs := pgUUIDs(ids)
+	count, err := s.queries.CountBookmarkableFiles(ctx, sqlcgen.CountBookmarkableFilesParams{UserID: userID, FileIds: pgIDs})
+	if err != nil {
+		return fmt.Errorf("validate bookmark files: %w", err)
+	}
+	if int(count) != len(ids) {
+		return ErrNotFound
+	}
+	if err := s.queries.AddFileBookmarks(ctx, sqlcgen.AddFileBookmarksParams{UserID: userID, FileIds: pgIDs}); err != nil {
+		return fmt.Errorf("add file bookmarks: %w", err)
+	}
+	return nil
+}
+
+// RemoveFileBookmarks removes bookmarks owned by the user. Missing bookmarks are ignored.
+func (s *Service) RemoveFileBookmarks(ctx context.Context, userID int64, fileIDs []uuid.UUID) error {
+	if userID <= 0 {
+		return ErrInvalidOwner
+	}
+	if len(fileIDs) == 0 || len(fileIDs) > 500 {
+		return ErrNotFound
+	}
+	if err := s.queries.RemoveFileBookmarks(ctx, sqlcgen.RemoveFileBookmarksParams{UserID: userID, FileIds: pgUUIDs(fileIDs)}); err != nil {
+		return fmt.Errorf("remove file bookmarks: %w", err)
+	}
+	return nil
 }
 
 func (s *Service) Rename(ctx context.Context, userID int64, fileID uuid.UUID, expectedGeneration *int64, rawName string) (*sqlcgen.File, error) {

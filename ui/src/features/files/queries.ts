@@ -59,6 +59,7 @@ export type FileRouteSearch = {
   preview?: string;
   read?: string;
   action?: FileRouteAction;
+  bookmarked?: boolean;
 };
 
 export function filePageInit(search: FileRouteSearch, status: FileStatus, cursor = search.cursor) {
@@ -87,6 +88,7 @@ export function filePageInit(search: FileRouteSearch, status: FileStatus, cursor
         updatedBefore: search.updatedBefore,
         sort: search.sort,
         order: search.order,
+        bookmarked: search.bookmarked || undefined,
         cursor,
         limit: 100,
       },
@@ -119,6 +121,7 @@ export function useInfiniteFilePages(search: FileRouteSearch, status: FileStatus
       q: search.q,
       sort: search.sort,
       order: search.order,
+      bookmarked: search.bookmarked,
       category: search.category,
       scope: search.scope,
       kind: search.kind,

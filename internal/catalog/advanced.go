@@ -186,7 +186,7 @@ func (s *Service) listAdvanced(ctx context.Context, in ListInput) ([]*sqlcgen.Fi
 		UpdatedBefore: dbtypes.OptionalTime(in.UpdatedBefore), AfterID: dbtypes.OptionalUUID(in.AfterID),
 		SortBy: in.Sort, AfterName: dbtypes.OptionalText(afterName), SortOrder: in.Order,
 		AfterUpdatedAt: dbtypes.OptionalTime(afterUpdatedAt), AfterSize: dbtypes.OptionalInt8(afterSize),
-		PageSize: in.Limit,
+		PageSize: in.Limit, Bookmarked: in.Bookmarked,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("advanced file list: %w", err)
