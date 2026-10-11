@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { expect, type Page, test } from "@playwright/test";
 import { strToU8, zipSync } from "fflate";
+import { makeLargePdf } from "./fixtures/viewers/large-pdf";
 
 const now = "2026-08-01T12:00:00Z";
 const pdfId = "71111111-1111-4111-8111-111111111111";
@@ -64,6 +65,7 @@ async function installViewerApi(
   writes: StateWrite[],
   initialStates: Partial<Record<string, Record<string, unknown>>> = {},
   stats?: ViewerApiStats,
+  pdfContent = pdf,
 ) {
   await page.route("**/api/v1/**", async (route) => {
     const request = route.request();
@@ -99,7 +101,7 @@ async function installViewerApi(
     const content = path.match(/^\/v1\/files\/([^/]+)\/content(?:\/[^/]+)?$/)?.[1];
     if (content === pdfId) {
       if (stats) stats.pdfContentRequests += 1;
-      return route.fulfill({ body: pdf, contentType: "application/pdf" });
+      return route.fulfill({ body: pdfContent, contentType: "application/pdf" });
     }
     if (content === outlinePdfId) {
       return route.fulfill({ body: outlinePdf, contentType: "application/pdf" });
@@ -166,6 +168,23 @@ async function pdfTool(page: Page, name: string) {
   await expect(page.locator('[data-slot="popover-dialog"]')).toHaveCount(0);
 }
 
+test("PDF text selection shows a floating highlight action", async ({ page }) => {
+  const dialog = await openPdfWorkspace(page);
+  const text = dialog.locator(".textLayer span").filter({ hasText: "TelDrive" }).first();
+  await expect(text).toBeVisible();
+  await text.evaluate((element) => {
+    const range = document.createRange();
+    range.selectNodeContents(element);
+    const selection = window.getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range);
+  });
+  const highlight = dialog.locator(".highlightButton");
+  await expect(highlight).toBeVisible();
+  await highlight.click();
+  await expect(dialog.locator(".highlightEditor")).toHaveCount(1);
+});
+
 async function slider(page: Page, name: string, value: number) {
   const control = page.getByRole("slider", { name, exact: true });
   await expect(control).toBeEnabled();
@@ -181,6 +200,104 @@ async function slider(page: Page, name: string, value: number) {
   for (let current = minimum; current < value; current += step) await control.press("ArrowRight");
   await expect(control).toHaveValue(String(value));
 }
+
+test("large PDF sidebar scrolling and outline navigation performance", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "Desktop profile");
+  await installViewerApi(page, [], {}, undefined, makeLargePdf());
+  await page.goto("/files?view=list");
+  await openFile(page, "reader-sample.pdf");
+  const dialog = page.getByRole("dialog", { name: "reader-sample.pdf" });
+  await expect(dialog.locator(".pdfViewer .page canvas").first()).toBeVisible();
+  const panel = dialog.getByRole("tabpanel", { name: "Pages", exact: true });
+  const profile = await panel.evaluate(async (panel) => {
+    const element = panel.querySelector("[data-pdf-thumbnails]") || panel;
+    const frames: number[] = [];
+    const longTasks: number[] = [];
+    const observer = new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) longTasks.push(entry.duration);
+    });
+    observer.observe({ type: "longtask", buffered: false });
+    let previous = performance.now();
+    const start = previous;
+    await new Promise<void>((resolve) => {
+      const tick = (now: number) => {
+        frames.push(now - previous);
+        previous = now;
+        element.scrollTop = ((now - start) / 2000) * 18000;
+        if (now - start < 2000) requestAnimationFrame(tick);
+        else resolve();
+      };
+      requestAnimationFrame(tick);
+    });
+    observer.disconnect();
+    frames.sort((a, b) => a - b);
+    return {
+      mountedThumbnails: element.querySelectorAll("canvas").length,
+      p95FrameMs: frames[Math.floor(frames.length * 0.95)],
+      frames: frames.length,
+      longTasks,
+    };
+  });
+  console.log("PDF performance", JSON.stringify(profile));
+  expect(profile.mountedThumbnails).toBeLessThan(16);
+  await testInfo.attach("pdf-performance", {
+    body: JSON.stringify(profile, null, 2),
+    contentType: "application/json",
+  });
+  const thumbnails = dialog.locator("[data-pdf-thumbnails]");
+  await thumbnails.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+  });
+  await expect(dialog.getByRole("button", { name: "Go to page 240", exact: true })).toBeVisible();
+  await expect
+    .poll(() =>
+      dialog
+        .getByRole("button", { name: "Go to page 240", exact: true })
+        .locator("canvas")
+        .evaluate((canvas) => canvas.width),
+    )
+    .toBeGreaterThan(0);
+  await dialog.getByRole("button", { name: "Go to page 240", exact: true }).click();
+  await expect(dialog.getByRole("textbox", { name: "PDF page number", exact: true })).toHaveValue(
+    "240",
+  );
+  await dialog.getByRole("tab", { name: "Outline", exact: true }).click();
+  const width = (await dialog.locator(".pdfViewer .page").first().boundingBox())!.width;
+  await dialog.getByRole("button", { name: "Middle chapter", exact: true }).click();
+  await expect(dialog.getByRole("textbox", { name: "PDF page number", exact: true })).toHaveValue(
+    "121",
+  );
+  await expect
+    .poll(async () => (await dialog.locator(".pdfViewer .page").first().boundingBox())!.width)
+    .toBeCloseTo(width, 0);
+  const mainProfile = await dialog
+    .locator("[data-pdf-viewer-container]")
+    .evaluate(async (element) => {
+      const frames: number[] = [];
+      let previous = performance.now();
+      const start = previous;
+      const top = element.scrollTop;
+      await new Promise<void>((resolve) => {
+        const tick = (now: number) => {
+          frames.push(now - previous);
+          previous = now;
+          element.scrollTop = top + (now - start) * 2;
+          if (now - start < 2000) requestAnimationFrame(tick);
+          else resolve();
+        };
+        requestAnimationFrame(tick);
+      });
+      frames.sort((a, b) => a - b);
+      return { frames: frames.length, p95FrameMs: frames[Math.floor(frames.length * 0.95)] };
+    });
+  console.log("PDF main scrolling", JSON.stringify(mainProfile));
+  await testInfo.attach("pdf-main-performance", {
+    body: JSON.stringify(mainProfile),
+    contentType: "application/json",
+  });
+});
 
 test("PDF page fields, fit presets, search closing, and menu shortcuts stay consistent", async ({
   page,

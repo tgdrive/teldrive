@@ -205,7 +205,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
     const viewerAbort = new AbortController();
     let loadingTask: ReturnType<typeof getDocument> | undefined;
     const eventBus = new EventBus();
-    const linkService = new PDFLinkService({ eventBus });
+    const linkService = new PDFLinkService({ eventBus, ignoreDestinationZoom: true });
     const findController = new PDFFindController({ eventBus, linkService });
     const viewerOptions = {
       container,
@@ -217,6 +217,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
       annotationMode: AnnotationMode.ENABLE_FORMS,
       annotationEditorMode: AnnotationEditorType.NONE,
       annotationEditorHighlightColors: PDFJS_HIGHLIGHT_COLORS,
+      enableHighlightFloatingButton: true,
       removePageBorders: true,
       abortSignal: viewerAbort.signal,
     };
@@ -285,6 +286,15 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
       applyEditorSettings(eventBus, tool, settings);
       setToolSwitching(false);
     };
+    const onEditorModeRequest = (event: { mode?: number }) => {
+      if (!active || savingRef.current || event.mode === undefined) return;
+      const tool = editorToolFromMode(event.mode);
+      if (tool) {
+        annotationToolRef.current = tool;
+        setAnnotationTool(tool);
+      }
+      viewer.annotationEditorMode = { mode: event.mode };
+    };
 
     eventBus.on("pagechanging", onPageChanging);
     eventBus.on("scalechanging", onScaleChanging);
@@ -294,6 +304,8 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
     eventBus.on("editingstateschanged", onEditingState);
     eventBus.on("annotationeditorparamschanged", onEditorParams);
     eventBus.on("annotationeditormodechanged", onEditorMode);
+    eventBus.on("showannotationeditorui", onEditorModeRequest);
+    eventBus.on("switchannotationeditormode", onEditorModeRequest);
 
     let resizeFrame = 0;
     const resizeObserver = new ResizeObserver(() => {
@@ -408,6 +420,8 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
       eventBus.off("editingstateschanged", onEditingState);
       eventBus.off("annotationeditorparamschanged", onEditorParams);
       eventBus.off("annotationeditormodechanged", onEditorMode);
+      eventBus.off("showannotationeditorui", onEditorModeRequest);
+      eventBus.off("switchannotationeditormode", onEditorModeRequest);
       resizeObserver.disconnect();
       cancelAnimationFrame(resizeFrame);
       const pdf = runtimeRef.current?.document;
@@ -749,7 +763,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
     >
       <header
         data-pdf-toolbar
-        className="relative z-30 flex min-h-14 shrink-0 items-center gap-1.5 border-b border-border bg-background/95 px-2 backdrop-blur-xl sm:px-3"
+        className="relative z-30 flex min-h-14 shrink-0 items-center gap-1.5 border-b border-border bg-background px-2 sm:px-3"
       >
         <Button
           isIconOnly
@@ -1662,22 +1676,17 @@ function PdfSidebar({
             </Tabs.Tab>
           </Tabs.List>
         </Tabs.ListContainer>
-        <Tabs.Panel id="thumbnails" className="min-h-0 flex-1 overflow-y-auto py-2">
+        <Tabs.Panel id="thumbnails" className="min-h-0 flex-1">
           {document ? (
-            <div className="grid grid-cols-1 gap-2 px-1 pb-3">
-              {Array.from({ length: document.numPages }, (_, index) => index + 1).map((page) => (
-                <PdfThumbnail
-                  key={page}
-                  document={document}
-                  pageNumber={page}
-                  current={page === pageNumber}
-                  onPress={() => {
-                    onPage(page);
-                    onNavigateMobile();
-                  }}
-                />
-              ))}
-            </div>
+            <PdfThumbnailList
+              key={file.id}
+              document={document}
+              pageNumber={pageNumber}
+              onPage={(page) => {
+                onPage(page);
+                onNavigateMobile();
+              }}
+            />
           ) : (
             <SidebarEmpty label="Preparing pages" />
           )}
@@ -1704,73 +1713,156 @@ function PdfSidebar({
   );
 }
 
+const THUMBNAIL_ROW_HEIGHT = 224;
+
+function PdfThumbnailList({
+  document,
+  pageNumber,
+  onPage,
+}: {
+  document: PDFDocumentProxy;
+  pageNumber: number;
+  onPage: (page: number) => void;
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const lastScrollRef = useRef(0);
+  const [windowRange, setWindowRange] = useState({ start: 0, end: 8 });
+  const queue = useMemo(() => {
+    let tail = Promise.resolve();
+    return (render: () => Promise<void>) => {
+      // Never race all thumbnail canvases against the main document renderer.
+      tail = tail
+        .then(async () => {
+          // While the user is moving the list, prioritize scrolling over previews.
+          while (performance.now() - lastScrollRef.current < 120) {
+            await new Promise<void>((resolve) => window.setTimeout(resolve, 120));
+          }
+          await render();
+        })
+        .catch(() => undefined);
+    };
+  }, [document]);
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+    let frame = 0;
+    const update = () => {
+      const start = Math.max(0, Math.floor(element.scrollTop / THUMBNAIL_ROW_HEIGHT) - 2);
+      const end = Math.min(
+        document.numPages,
+        Math.ceil((element.scrollTop + element.clientHeight) / THUMBNAIL_ROW_HEIGHT) + 2,
+      );
+      setWindowRange((previous) =>
+        previous.start === start && previous.end === end ? previous : { start, end },
+      );
+    };
+    const onScroll = () => {
+      lastScrollRef.current = performance.now();
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        update();
+      });
+    };
+    const resize = new ResizeObserver(onScroll);
+    resize.observe(element);
+    element.addEventListener("scroll", onScroll, { passive: true });
+    update();
+    return () => {
+      resize.disconnect();
+      element.removeEventListener("scroll", onScroll);
+      cancelAnimationFrame(frame);
+    };
+  }, [document]);
+  const end = Math.min(document.numPages, windowRange.end);
+  return (
+    <div
+      ref={scrollRef}
+      data-pdf-thumbnails
+      className="h-full min-h-0 overflow-y-auto"
+      style={{ contain: "strict" }}
+    >
+      <div className="relative" style={{ height: document.numPages * THUMBNAIL_ROW_HEIGHT }}>
+        {Array.from({ length: Math.max(0, end - windowRange.start) }, (_, index) => {
+          const page = windowRange.start + index + 1;
+          return (
+            <div
+              key={page}
+              className="absolute inset-x-0 px-1"
+              style={{ top: (page - 1) * THUMBNAIL_ROW_HEIGHT, height: THUMBNAIL_ROW_HEIGHT }}
+            >
+              <PdfThumbnail
+                document={document}
+                pageNumber={page}
+                current={page === pageNumber}
+                onPress={() => onPage(page)}
+                queue={queue}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function PdfThumbnail({
   document,
   pageNumber,
   current,
   onPress,
+  queue,
 }: {
   document: PDFDocumentProxy;
   pageNumber: number;
   current: boolean;
   onPress: () => void;
+  queue: (render: () => Promise<void>) => void;
 }) {
-  const hostRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [visible, setVisible] = useState(false);
-  const [ratio, setRatio] = useState(1.294);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    const host = hostRef.current;
-    if (!host) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) setVisible(true);
-      },
-      { rootMargin: "300px" },
-    );
-    observer.observe(host);
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    if (!visible || loaded) return;
     const canvas = canvasRef.current;
     if (!canvas) return;
     let active = true;
     let renderTask:
       | ReturnType<Awaited<ReturnType<PDFDocumentProxy["getPage"]>>["render"]>
       | undefined;
-    void document
-      .getPage(pageNumber)
-      .then((page) => {
-        if (!active) return;
-        const natural = page.getViewport({ scale: 1 });
-        setRatio(natural.height / natural.width);
-        const cssWidth = 142;
-        const scale = cssWidth / natural.width;
-        const dpr = Math.min(window.devicePixelRatio || 1, 2);
-        const viewport = page.getViewport({ scale: scale * dpr });
-        canvas.width = Math.ceil(viewport.width);
-        canvas.height = Math.ceil(viewport.height);
-        canvas.style.width = `${cssWidth}px`;
-        canvas.style.height = `${Math.round(cssWidth * (natural.height / natural.width))}px`;
-        renderTask = page.render({ canvas, viewport });
-        return renderTask.promise;
-      })
-      .then(() => {
-        if (active) setLoaded(true);
-      })
-      .catch(() => undefined);
+    let resumeFrame = 0;
+    queue(async () => {
+      if (!active) return;
+      const page = await document.getPage(pageNumber);
+      if (!active) return;
+      const natural = page.getViewport({ scale: 1 });
+      const cssWidth = Math.min(142, (184 * natural.width) / natural.height);
+      const scale = cssWidth / natural.width;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const viewport = page.getViewport({ scale: scale * dpr });
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+      canvas.style.width = `${cssWidth}px`;
+      canvas.style.height = `${Math.round(cssWidth * (natural.height / natural.width))}px`;
+      renderTask = page.render({ canvas, viewport });
+      renderTask.onContinue = (resume: () => void) => {
+        resumeFrame = requestAnimationFrame(() => {
+          if (active) resume();
+        });
+      };
+      await renderTask.promise;
+      if (active) setLoaded(true);
+    });
     return () => {
       active = false;
       renderTask?.cancel();
+      cancelAnimationFrame(resumeFrame);
+      canvas.width = 0;
+      canvas.height = 0;
     };
-  }, [document, loaded, pageNumber, visible]);
+  }, [document, pageNumber, queue]);
 
   return (
-    <div ref={hostRef} className="flex justify-center py-1">
+    <div className="flex justify-center py-1">
       <Button
         variant={current ? "secondary" : "ghost"}
         className={cn(
@@ -1780,12 +1872,9 @@ function PdfThumbnail({
         aria-label={`Go to page ${pageNumber}`}
         onPress={onPress}
       >
-        <div
-          className="relative w-35.5 max-w-full overflow-hidden rounded-sm border border-border bg-white shadow-sm"
-          style={{ aspectRatio: `1 / ${ratio}` }}
-        >
+        <div className="relative flex h-46 w-35.5 max-w-full items-center justify-center overflow-hidden rounded-sm border border-border bg-white shadow-sm">
           <canvas ref={canvasRef} className={cn("block max-w-full", !loaded && "opacity-0")} />
-          {!loaded ? <div className="absolute inset-0 animate-pulse bg-default/20" /> : null}
+          {!loaded ? <div className="absolute inset-0 bg-default/20" /> : null}
         </div>
         <span className="text-[10px] font-medium tabular-nums text-muted">{pageNumber}</span>
       </Button>
