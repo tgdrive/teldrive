@@ -181,6 +181,9 @@ func TestLoginRefreshAPIKeyAndLogoutAgainstRealPostgres(t *testing.T) {
 	if _, err := service.AuthenticateAPIKey(ctx, createdKey.Secret); !errors.Is(err, ErrInvalidCredential) {
 		t.Fatalf("revoked API key error = %v", err)
 	}
+	if remaining, err := service.ListAPIKeys(ctx, ListAPIKeysInput{UserID: 1001}); err != nil || len(remaining) != 1 || remaining[0].ID == createdKey.Row.ID {
+		t.Fatalf("ListAPIKeys(after revoke) = %#v, %v", remaining, err)
+	}
 	secondKeyID, _ := dbtypes.GoogleUUID(secondKey.Row.ID)
 	if err := service.RevokeAPIKey(ctx, 1001, secondKeyID); err != nil {
 		t.Fatalf("RevokeAPIKey(second) error = %v", err)
