@@ -428,6 +428,40 @@ test("sidebar active state follows route path and bookmark search state", async 
   }
 });
 
+test("Recent lists files modified within 30 days across the drive", async ({ page }) => {
+  const requests: URL[] = [];
+  await page.route("**/api/v1/files?*", async (route) => {
+    const url = new URL(route.request().url());
+    requests.push(url);
+    return route.fulfill({
+      json: {
+        items: [
+          file({
+            id: crypto.randomUUID(),
+            name: "recent.txt",
+            kind: "file",
+            updatedAt: new Date().toISOString(),
+          }),
+        ],
+      },
+    });
+  });
+  await page.goto("/files?recent=true");
+  await expect(
+    page
+      .getByRole("grid", { name: "Files and folders", exact: true })
+      .getByRole("row", { name: /recent.txt/ }),
+  ).toBeVisible();
+  const query = requests.find((url) => url.searchParams.get("scope") === "drive")!.searchParams;
+  expect(query.get("kind")).toBe("file");
+  expect(query.get("sort")).toBe("updatedAt");
+  expect(query.get("order")).toBe("desc");
+  expect(query.get("parentId")).toBeNull();
+  const age = Date.now() - new Date(query.get("updatedAfter")!).valueOf();
+  expect(age).toBeGreaterThanOrEqual(30 * 86400000);
+  expect(age).toBeLessThan(30 * 86400000 + 60000);
+});
+
 test("completed upload appears in the current directory without reloading", async ({ page }) => {
   await page.goto("/files?view=list");
   const row = page.getByRole("row", { name: /fresh-upload.txt/ });

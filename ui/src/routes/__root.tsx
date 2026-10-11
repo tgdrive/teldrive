@@ -46,6 +46,7 @@ import { getQueryClient } from "../lib/queryClient";
 
 const mainNav = [
   { label: "Files", icon: GridIcon, path: "/files" },
+  { label: "Recent", icon: TasksIcon, path: "/files", recent: true },
   { label: "Bookmarks", icon: BookmarkIcon, path: "/files", bookmarked: true },
   { label: "Shared", icon: FolderIcon, path: "/shared" },
   { label: "Shared with me", icon: FolderIcon, path: "/shared-with-me" },
@@ -76,7 +77,9 @@ function Sidebar({
 }) {
   const navigate = useNavigate();
   const matchRoute = useMatchRoute();
-  const routeSearch = useLocation({ select: (location) => location.search as Record<string, unknown> });
+  const routeSearch = useLocation({
+    select: (location) => location.search as Record<string, unknown>,
+  });
   const { data: user } = useQuery(currentUserQueryOptions());
   const logout = $api.useMutation("post", "/v1/auth/cookie/logout");
   const visibleMainNav = mainNav.filter(
@@ -111,11 +114,14 @@ function Sidebar({
   };
   const renderItem = (item: (typeof mainNav)[number]) => {
     const routeMatches = Boolean(matchRoute({ to: item.path, fuzzy: true }));
-    const active = routeMatches && (
-      item.path !== "/files" || ("bookmarked" in item
-        ? routeSearch.bookmarked === true
-        : routeSearch.bookmarked !== true)
-    );
+    const active =
+      routeMatches &&
+      (item.path !== "/files" ||
+        ("recent" in item
+          ? routeSearch.recent === true
+          : "bookmarked" in item
+            ? routeSearch.bookmarked === true && routeSearch.recent !== true
+            : routeSearch.bookmarked !== true && routeSearch.recent !== true));
     const children = (
       <>
         <item.icon className="size-4 shrink-0" />
@@ -134,13 +140,17 @@ function Sidebar({
       <Link
         key={item.label}
         to={item.path}
-        search={"bookmarked" in item ? { bookmarked: true } : {}}
+        search={
+          "recent" in item ? { recent: true } : "bookmarked" in item ? { bookmarked: true } : {}
+        }
         activeOptions={{ includeSearch: false }}
         preload="intent"
         className={cn(
           buttonVariants({ variant: active ? "secondary" : "ghost" }),
           className,
-          active ? "bg-accent/10 text-accent" : "text-muted hover:bg-default/30 hover:text-foreground",
+          active
+            ? "bg-accent/10 text-accent"
+            : "text-muted hover:bg-default/30 hover:text-foreground",
         )}
         onClick={() => onNavigate?.()}
       >
@@ -264,7 +274,12 @@ function TopBar({
     select: (location) => location.search as Record<string, unknown>,
   });
   const locationKey = useLocation({ select: (location) => location.href });
-  const title = pathname === "/files" && routeSearch.bookmarked ? "Bookmarks" : getPageTitle(pathname);
+  const title =
+    pathname === "/files" && routeSearch.recent
+      ? "Recent"
+      : pathname === "/files" && routeSearch.bookmarked
+        ? "Bookmarks"
+        : getPageTitle(pathname);
   const scheduleSearch = (value: string) => {
     if (searchTimer.current) window.clearTimeout(searchTimer.current);
     searchTimer.current = undefined;

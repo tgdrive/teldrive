@@ -24,6 +24,7 @@ export const Route = createFileRoute("/files")({
         ? search.secondaryView
         : undefined,
     bookmarked: search.bookmarked === true || search.bookmarked === "true",
+    recent: search.recent === true || search.recent === "true",
   }),
   component: FilesPage,
   pendingComponent: () => (

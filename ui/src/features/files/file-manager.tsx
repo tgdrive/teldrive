@@ -64,6 +64,7 @@ export type FilesLocation = PaneLocation & {
   secondaryQuery?: string;
   secondaryView?: FileBrowserView;
   bookmarked?: boolean;
+  recent?: boolean;
 };
 
 export function FileManagerPage({
@@ -80,7 +81,21 @@ export function FileManagerPage({
 }) {
   const navigateTo = useNavigate();
   const [savedSort, setSavedSort] = useState(loadSortPreference);
-  const sorting = { sort: search.sort ?? savedSort.sort, order: search.order ?? savedSort.order };
+  const sorting = search.recent
+    ? { sort: "updatedAt" as const, order: "desc" as const }
+    : { sort: search.sort ?? savedSort.sort, order: search.order ?? savedSort.order };
+  const [recentAfter] = useState(() =>
+    new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+  );
+  const recentCriteria = search.recent
+    ? {
+        scope: "drive" as const,
+        kind: "file" as const,
+        updatedAfter: recentAfter,
+        parentId: undefined,
+        bookmarked: undefined,
+      }
+    : {};
   const changeSorting = (next: typeof sorting) => {
     setSavedSort(next);
     saveSortPreference(next);
@@ -155,6 +170,7 @@ export function FileManagerPage({
       view: primaryLocation.view,
       ...(criteria ? driveSearchOptions(criteria) : {}),
       bookmarked: search.bookmarked,
+      ...recentCriteria,
     },
     "active",
     activeSearch && !missingFolder && !invalidDates,
@@ -167,6 +183,7 @@ export function FileManagerPage({
       ...sorting,
       view: secondaryLocation.view,
       bookmarked: search.bookmarked,
+      ...recentCriteria,
     },
     "active",
     Boolean(search.split) && !searchMode,
@@ -178,6 +195,7 @@ export function FileManagerPage({
     ...sorting,
     path: primaryLocation.path,
     bookmarked: search.bookmarked,
+    recent: search.recent,
     ...(criteria
       ? driveSearchOptions(criteria)
       : {
@@ -342,7 +360,7 @@ export function FileManagerPage({
     if (files.length === 0 || pending) return;
     const ids = files.map((file) => file.id);
     await performAction(
-      () => search.bookmarked ? fileActions.removeBookmarks(ids) : fileActions.bookmarkFiles(ids),
+      () => (search.bookmarked ? fileActions.removeBookmarks(ids) : fileActions.bookmarkFiles(ids)),
       search.bookmarked
         ? `${ids.length} bookmark${ids.length === 1 ? "" : "s"} removed`
         : `${ids.length} item${ids.length === 1 ? "" : "s"} bookmarked`,
@@ -478,12 +496,12 @@ export function FileManagerPage({
         stageClipboard("copy", pane);
         return;
       }
-      if (!searchMode && command && key === "x" && selectedFiles.length > 0) {
+      if (!searchMode && !search.recent && command && key === "x" && selectedFiles.length > 0) {
         event.preventDefault();
         stageClipboard("cut", pane);
         return;
       }
-      if (!searchMode && command && key === "v" && hasClipboard) {
+      if (!searchMode && !search.recent && command && key === "v" && hasClipboard) {
         event.preventDefault();
         void pasteClipboard(pane);
         return;
@@ -501,7 +519,13 @@ export function FileManagerPage({
         void trashSelected(pane);
         return;
       }
-      if (!searchMode && command && event.shiftKey && event.key.toLowerCase() === "n") {
+      if (
+        !searchMode &&
+        !search.recent &&
+        command &&
+        event.shiftKey &&
+        event.key.toLowerCase() === "n"
+      ) {
         event.preventDefault();
         setActivePane(pane);
         setFolderDialogOpen(true);
@@ -563,7 +587,7 @@ export function FileManagerPage({
   };
 
   const renderToolbar = (pane: PaneId) => {
-    if (searchMode) return undefined;
+    if (searchMode || search.recent) return undefined;
     const location = paneLocation(pane);
     const uploadFilesTriggerRef =
       pane === "secondary" ? secondaryUploadFilesTriggerRef : primaryUploadFilesTriggerRef;
@@ -714,7 +738,10 @@ export function FileManagerPage({
           : "primary"
         : "primary";
     const showClipboard =
-      !searchMode && hasClipboard && (!search.split || pane === clipboardTargetPane);
+      !searchMode &&
+      !search.recent &&
+      hasClipboard &&
+      (!search.split || pane === clipboardTargetPane);
     const canPasteHere =
       showClipboard &&
       !(clipboardMode === "cut" && clipboardSourceParentId === paneLocation(pane).parentId);
@@ -752,7 +779,11 @@ export function FileManagerPage({
       <FileSelectionToolbar
         selectedFiles={selectedFiles}
         pending={pending}
-        onCut={searchMode || search.bookmarked ? undefined : () => stageClipboard("cut", pane)}
+        onCut={
+          searchMode || search.bookmarked || search.recent
+            ? undefined
+            : () => stageClipboard("cut", pane)
+        }
         onCopy={() => stageClipboard("copy", pane)}
         onBookmark={() => void toggleBookmarks(pane)}
         bookmarked={search.bookmarked}
@@ -789,7 +820,15 @@ export function FileManagerPage({
       <FileBrowser
         files={files}
         path={location.path}
-        rootLabel={searchMode ? "Search results" : search.bookmarked ? "Bookmarks" : "My files"}
+        rootLabel={
+          searchMode
+            ? "Search results"
+            : search.recent
+              ? "Recent"
+              : search.bookmarked
+                ? "Bookmarks"
+                : "My files"
+        }
         view={location.view}
         loading={fileQuery.isPending}
         onNavigatePath={(path) => navigatePane(pane, { path, query: "", view: location.view })}
@@ -813,12 +852,28 @@ export function FileManagerPage({
         toolbar={renderToolbar(pane)}
         selectionOverlay={fileQuery.isPlaceholderData ? undefined : renderSelectionOverlay(pane)}
         dimmedIds={cutIds}
-        hideFolderControls={Boolean(searchMode)}
-        showLocations={Boolean(searchMode || search.bookmarked)}
-        emptyTitle={searchMode ? "No matching files" : search.bookmarked ? "No bookmarks yet" : undefined}
-        emptyHint={searchMode ? "Try another name or adjust your filters." : search.bookmarked ? "Select files or folders and bookmark them from the action bar." : undefined}
+        hideFolderControls={Boolean(searchMode || search.recent)}
+        showLocations={Boolean(searchMode || search.bookmarked || search.recent)}
+        emptyTitle={
+          searchMode
+            ? "No matching files"
+            : search.recent
+              ? "No recent files"
+              : search.bookmarked
+                ? "No bookmarks yet"
+                : undefined
+        }
+        emptyHint={
+          searchMode
+            ? "Try another name or adjust your filters."
+            : search.recent
+              ? "Files modified in the last 30 days appear here."
+              : search.bookmarked
+                ? "Select files or folders and bookmark them from the action bar."
+                : undefined
+        }
         onOpenContainingFolder={
-          searchMode || search.bookmarked
+          searchMode || search.bookmarked || search.recent
             ? (file) => {
                 void navigateTo({
                   to: "/files",
