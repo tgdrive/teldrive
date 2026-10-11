@@ -203,20 +203,59 @@ func requestIsSecure(r *http.Request) bool {
 }
 
 func (s *requestSecurity) isTrustedProxy(r *http.Request) bool {
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		host = r.RemoteAddr
-	}
-	address, err := netip.ParseAddr(strings.TrimSpace(host))
-	if err != nil {
-		return false
-	}
+	address, ok := remoteAddress(r)
+	return ok && s.trusts(address)
+}
+
+func (s *requestSecurity) trusts(address netip.Addr) bool {
+	address = address.Unmap()
 	for _, prefix := range s.trustedProxies {
 		if prefix.Contains(address) {
 			return true
 		}
 	}
 	return false
+}
+
+// clientIP returns the originating client address. X-Forwarded-For is honored
+// only when the direct peer is a trusted proxy, and is walked right-to-left so
+// clients cannot spoof their address by prepending entries.
+func (s *requestSecurity) clientIP(r *http.Request) string {
+	peer, ok := remoteAddress(r)
+	if !ok {
+		return r.RemoteAddr
+	}
+	if !s.trusts(peer) {
+		return peer.String()
+	}
+	client := peer
+	hops := r.Header.Values("X-Forwarded-For")
+	for i := len(hops) - 1; i >= 0; i-- {
+		entries := strings.Split(hops[i], ",")
+		for j := len(entries) - 1; j >= 0; j-- {
+			address, err := netip.ParseAddr(strings.TrimSpace(entries[j]))
+			if err != nil {
+				return client.String()
+			}
+			client = address.Unmap()
+			if !s.trusts(client) {
+				return client.String()
+			}
+		}
+	}
+	return client.String()
+}
+
+func remoteAddress(r *http.Request) (netip.Addr, bool) {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		host = r.RemoteAddr
+	}
+	address, err := netip.ParseAddr(strings.TrimSpace(host))
+	if err != nil {
+		return netip.Addr{}, false
+	}
+	return address.Unmap(), true
 }
 
 func forwardedProto(r *http.Request) string {

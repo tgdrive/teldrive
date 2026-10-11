@@ -220,11 +220,11 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 	}
 	mux := chi.NewRouter()
 	mux.Use(requestIDMiddleware)
-	mux.Use(httpRequestLogger(dependencies.Logger))
 	requestSecurity, err := newRequestSecurity(cfg.HTTP.TrustedProxies)
 	if err != nil {
 		return nil, fmt.Errorf("configure trusted proxies: %w", err)
 	}
+	mux.Use(httpRequestLogger(dependencies.Logger, requestSecurity))
 	routeApplication(mux, requestSecurity.middleware(browserCSRFMiddleware(sessionRenewalMiddleware(authService, httpServer))), webUI)
 
 	application := &App{
