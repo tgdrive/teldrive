@@ -4,19 +4,20 @@
 
 - Use `justfile` for supported workflows; it loads a root `.env` automatically.
 - TypeSpec files in `typespec/` own the HTTP contract. Do not hand-edit `openapi/teldrive.openapi.yaml`, `internal/api/gen/`, or `ui/src/api/schema.ts`; run `just generate-api`, `just generate-ui`, or `just generate` as appropriate.
-- SQL lives in `db/queries/` and migrations in `db/migrations/`. Do not edit `internal/db/sqlcgen/` manually.
+- SQL lives in `db/queries/` and migrations in `db/migrations/`. Do not edit `internal/db/sqlcgen/` manually; always run `just generate-db` after SQL changes. Bare `sqlc generate` omits the required `patchsqlc` step and breaks configurable PostgreSQL schema rewriting.
 - Go config structs in `internal/config` own the NixOS/Home Manager option schema. Do not hand-edit `nix/modules/generated-options.nix` or `nix/modules/generated-leaf-maps.nix`; run `just nix-generate`.
-- Always run `just generate-db` after SQL changes. A bare `sqlc generate` omits the required `go run ./internal/tools/patchsqlc` step and breaks configurable PostgreSQL schema rewriting in `internal/db/sqlcgen/db.go`.
+- The same Go config structs own `docs/content/docs/configuration/reference.mdx`; do not hand-edit it. Run `just docs-generate`.
 - Preserve `/* TEMPLATE: schema */` markers in SQL; the generated DB wrapper replaces them with the configured schema at runtime.
 
 ## Commands
 
-- Install pinned JS dependencies: `just install-tools` (uses Bun for both `typespec/` and `ui/`).
+- Install pinned JS dependencies: `just install-tools` (uses Bun for `typespec/`, `ui/`, and `docs/`).
 - Backend unit tests: `go test ./...`; focused package/test: `go test ./internal/transfer -run '^TestName$'`.
-- Integration tests require Podman and must use the harness: `scripts/test-postgres.sh go test -tags=integration ./internal/uploads`; use `just test-integration` for all packages.
+- Integration tests must use the PostgreSQL harness: `scripts/test-postgres.sh go test -tags=integration ./internal/uploads`; use `just test-integration` for all packages. The harness prefers Podman and falls back to Docker only when Podman is not installed.
 - Race tests also require the PostgreSQL harness: `just test-race`.
-- Full project validation: `just check`. This regenerates artifacts and runs lint, UI checks/build, unit tests, and the Podman-backed 80% core coverage gate; it is intentionally expensive.
+- Full project validation: `just check`. This regenerates artifacts and runs lint, UI checks/build, docs build, unit tests, and the PostgreSQL-harness-backed 80% core coverage gate; it is intentionally expensive.
 - UI checks: `just ui-check` (includes browser E2E with mocked API responses).
+- Documentation: edit pages in `docs/content/docs/`; use `just docs-dev` to preview or `just docs-build` to generate references and build the site.
 - Format only handwritten code with `just format`; generated Go directories are deliberately excluded.
 
 ## Architecture

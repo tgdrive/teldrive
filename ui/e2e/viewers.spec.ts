@@ -168,7 +168,7 @@ async function pdfTool(page: Page, name: string) {
   await expect(page.locator('[data-slot="popover-dialog"]')).toHaveCount(0);
 }
 
-test("PDF text selection shows a floating highlight action", async ({ page }) => {
+test("PDF text selection does not show the native floating highlight action", async ({ page }) => {
   const dialog = await openPdfWorkspace(page);
   const text = dialog.locator(".textLayer span").filter({ hasText: "TelDrive" }).first();
   await expect(text).toBeVisible();
@@ -180,9 +180,7 @@ test("PDF text selection shows a floating highlight action", async ({ page }) =>
     selection.addRange(range);
   });
   const highlight = dialog.locator(".highlightButton");
-  await expect(highlight).toBeVisible();
-  await highlight.click();
-  await expect(dialog.locator(".highlightEditor")).toHaveCount(1);
+  await expect(highlight).toHaveCount(0);
 });
 
 async function slider(page: Page, name: string, value: number) {

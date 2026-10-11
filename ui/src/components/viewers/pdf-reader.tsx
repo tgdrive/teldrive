@@ -217,7 +217,6 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
       annotationMode: AnnotationMode.ENABLE_FORMS,
       annotationEditorMode: AnnotationEditorType.NONE,
       annotationEditorHighlightColors: PDFJS_HIGHLIGHT_COLORS,
-      enableHighlightFloatingButton: true,
       removePageBorders: true,
       abortSignal: viewerAbort.signal,
     };
@@ -286,15 +285,6 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
       applyEditorSettings(eventBus, tool, settings);
       setToolSwitching(false);
     };
-    const onEditorModeRequest = (event: { mode?: number }) => {
-      if (!active || savingRef.current || event.mode === undefined) return;
-      const tool = editorToolFromMode(event.mode);
-      if (tool) {
-        annotationToolRef.current = tool;
-        setAnnotationTool(tool);
-      }
-      viewer.annotationEditorMode = { mode: event.mode };
-    };
 
     eventBus.on("pagechanging", onPageChanging);
     eventBus.on("scalechanging", onScaleChanging);
@@ -304,8 +294,6 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
     eventBus.on("editingstateschanged", onEditingState);
     eventBus.on("annotationeditorparamschanged", onEditorParams);
     eventBus.on("annotationeditormodechanged", onEditorMode);
-    eventBus.on("showannotationeditorui", onEditorModeRequest);
-    eventBus.on("switchannotationeditormode", onEditorModeRequest);
 
     let resizeFrame = 0;
     const resizeObserver = new ResizeObserver(() => {
@@ -420,8 +408,6 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
       eventBus.off("editingstateschanged", onEditingState);
       eventBus.off("annotationeditorparamschanged", onEditorParams);
       eventBus.off("annotationeditormodechanged", onEditorMode);
-      eventBus.off("showannotationeditorui", onEditorModeRequest);
-      eventBus.off("switchannotationeditormode", onEditorModeRequest);
       resizeObserver.disconnect();
       cancelAnimationFrame(resizeFrame);
       const pdf = runtimeRef.current?.document;
