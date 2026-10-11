@@ -1,6 +1,12 @@
-# Teldrive v2.0.0-drive-es.1
+# Teldrive v2.0.0-drive-es.2
 
 Edición basada en la rama v2 de tgdrive/teldrive, con interfaz en español, temas configurables, navegación táctil, almacenamiento, papelera y Spam. La UI se incluye en los seis servidores CLI para Windows, Linux y macOS, en x64 y ARM64.
+
+## Cambios de esta actualización
+
+Integra las correcciones recientes de la rama original v2: ordenación de archivos persistente, modo claro/oscuro/automático conservado al reiniciar, notificaciones que siguen el tema, mejoras en bots/canales y documentación actualizada. Conserva los temas personalizados y los controles en español. Las preferencias del tema anterior se importan automáticamente. El lanzador de pruebas de la UI funciona en Windows y Unix.
+
+Los binarios de esta edición se recompilan desde estas fuentes. Android mantiene la misma clave de firma y aumenta su código de versión para instalarse como actualización. Antes de actualizar Windows, cierra la aplicación y conserva una copia de tu carpeta de datos; sustituye el ejecutable, sin borrar la configuración ni la base de datos. Las migraciones se aplican al iniciar el servidor.
 
 ## Windows completo
 

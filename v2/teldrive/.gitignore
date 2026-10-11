@@ -12,6 +12,7 @@ desktop/Payload.zip
 .env.*
 coverage/
 bin/
+/completions/
 *.log
 .DS_Store
 

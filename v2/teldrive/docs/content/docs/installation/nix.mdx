@@ -1,0 +1,30 @@
+---
+title: Nix
+description: Install with Nix or configure a NixOS/Home Manager service.
+---
+
+## Packages
+
+The flake provides `teldrive` (built from source) and `teldrive-bin` (a pinned release binary for Linux amd64/arm64).
+
+```bash
+nix profile add github:tgdrive/teldrive#teldrive-bin
+```
+
+The binary package becomes available after the first 2.x release is published and pinned. Until then use `#teldrive`.
+
+## NixOS and Home Manager
+
+Add `github:tgdrive/teldrive` to your flake inputs. Import its `nixosModules.default` or `homeManagerModules.default`, and add `overlays.default` to `nixpkgs.overlays`.
+
+```nix
+services.teldrive = {
+  enable = true;
+  package = pkgs.teldrive-bin;
+  environmentFile = "/path/to/teldrive.env";
+};
+```
+
+Keep secrets outside the Nix store. Configure PostgreSQL separately; see [Configuration](/configuration/overview).
+
+Both packages install Bash, Zsh, and Fish completions. Enable completion in your shell configuration.

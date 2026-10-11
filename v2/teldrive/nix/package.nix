@@ -1,4 +1,4 @@
-{ lib, buildGoModule, version, commit, buildDate, uiDist }:
+{ lib, stdenv, installShellFiles, buildGoModule, version, commit, buildDate, uiDist }:
 buildGoModule {
   pname = "teldrive";
   inherit version;
@@ -29,4 +29,11 @@ buildGoModule {
     chmod -R u+w ui/dist
   '';
   doCheck = false;
+  nativeBuildInputs = [ installShellFiles ];
+  postInstall = lib.optionalString (stdenv.buildPlatform.canExecute stdenv.hostPlatform) ''
+    installShellCompletion --cmd teldrive \
+      --bash <($out/bin/teldrive completion bash) \
+      --zsh <($out/bin/teldrive completion zsh) \
+      --fish <($out/bin/teldrive completion fish)
+  '';
 }

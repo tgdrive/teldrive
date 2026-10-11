@@ -3,6 +3,50 @@ title: Database
 description: Configure PostgreSQL schema, pooling, migrations, and connectivity.
 ---
 
+## PgDog
+
+You can place [PgDog](https://docs.pgdog.dev/) between Teldrive and PostgreSQL to manage database connections. It is optional; direct PostgreSQL connections remain the simplest setup.
+
+The example below uses your transaction-pooling setup with passthrough authentication and pub/sub enabled. It is not yet covered by Teldrive integration tests. Verify migrations, background jobs, and live events before relying on it in production.
+
+For a Nix-managed PgDog configuration, use these settings:
+
+```nix
+general = {
+  host = "0.0.0.0";
+  port = 6432;
+  default_pool_size = 100;
+  pooler_mode = "transaction";
+  passthrough_auth = "enabled_plain";
+  pub_sub_channel_size = 4096;
+};
+databases = [
+  {
+    name = "postgres";
+    host = "postgres";
+    port = 5432;
+    database_name = "postgres";
+    role = "primary";
+  }
+];
+```
+
+These are settings, not a complete NixOS module declaration. For other deployments, translate them to `pgdog.toml` using the [PgDog configuration reference](https://docs.pgdog.dev/configuration/pgdog.toml/general/). Passthrough authentication uses the client's PostgreSQL credentials to create pools automatically; this example does not require a static `users.toml` entry.
+
+Point Teldrive at PgDog rather than PostgreSQL:
+
+```bash
+TELDRIVE_DATABASE_URL='postgres://teldrive:YOUR_DATABASE_PASSWORD@pgdog:6432/postgres?sslmode=require'
+```
+
+Here `pgdog` and `postgres` are network-resolvable service names. The database route is `postgres`; change both `name` and `database_name` if using a dedicated `teldrive` database. Create the PostgreSQL role/database separately and URL-encode special characters in passwords.
+
+`enabled_plain` permits plaintext password authentication. Configure PgDog TLS before using the `sslmode=require` URL above, and consider `tls_client_required = true`. Do not expose port `6432` publicly simply because PgDog listens on all interfaces. Keep both database services on a private network.
+
+`default_pool_size = 100` is per pool, not a global connection limit. Budget all user/database pools against PostgreSQL capacity and leave room for administration. Route Teldrive to the primary; do not enable sharding or read-replica routing without testing.
+
+Before production use, run `teldrive check` against PgDog, start Teldrive, and verify uploads, downloads, task processing, live events, and concurrent replica startup.
+
 ## Configuration
 
 ```yaml
@@ -10,12 +54,6 @@ database:
   schema: teldrive
   url: postgres://teldrive:password@127.0.0.1:5432/teldrive?sslmode=disable
   application-name: teldrive-v2
-  max-connections: 25
-  min-connections: 2
-  max-connection-idle: 5m
-  max-connection-life: 30m
-  health-check-interval: 30s
-  connect-timeout: 10s
   auto-migrate-legacy: true
 ```
 

@@ -17,9 +17,10 @@ const ThemeContext = createContext({ ...defaults, resolvedTheme: "light" as Them
 
 function readPreferences(): Preferences {
   try {
+    const legacyMode = localStorage.getItem("theme");
     const saved = JSON.parse(localStorage.getItem("teldrive-v2-appearance") || "{}");
     return {
-      mode: ["light", "dark", "system"].includes(saved.mode) ? saved.mode : defaults.mode,
+      mode: ["light", "dark", "system"].includes(saved.mode) ? saved.mode : (["light", "dark", "system"].includes(legacyMode || "") ? legacyMode as ThemeMode : defaults.mode),
       palette: visualThemes.some(theme => theme.id === saved.palette) ? saved.palette : defaults.palette,
       customColor: /^#[\da-f]{6}$/i.test(saved.customColor || "") ? saved.customColor : "",
       density: saved.density === "compact" ? "compact" : "comfortable",
@@ -35,6 +36,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const media = matchMedia("(prefers-color-scheme: dark)");
     const changed = () => setSystemDark(media.matches);
+    changed();
     media.addEventListener("change", changed);
     return () => media.removeEventListener("change", changed);
   }, []);
@@ -52,7 +54,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     root.style.setProperty("--background", resolvedTheme === "dark" ? "#10141c" : selected.background);
     root.style.setProperty("--surface", resolvedTheme === "dark" ? "#191f2b" : "#ffffff");
     root.style.setProperty("--sidebar", resolvedTheme === "dark" ? "#151b25" : selected.background);
-    try { localStorage.setItem("teldrive-v2-appearance", JSON.stringify(preferences)); localStorage.setItem("theme", resolvedTheme); } catch { /* Session preferences still apply. */ }
+    try { localStorage.setItem("teldrive-v2-appearance", JSON.stringify(preferences)); localStorage.setItem("theme", preferences.mode); } catch { /* Session preferences still apply. */ }
   }, [preferences, resolvedTheme]);
   const setPreferences = useCallback((next: Partial<Preferences>) => update(previous => ({ ...previous, ...next })), []);
   const setTheme = useCallback((mode: ThemeMode) => update(previous => ({ ...previous, mode })), []);

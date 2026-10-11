@@ -1,5 +1,5 @@
 param(
-    [string]$Version = 'v2.0.0-drive-es.1',
+    [string]$Version = 'v2.0.0-drive-es.2',
     [string]$Output = '',
     [string]$Go = 'go',
     [string]$Bun = 'bun'

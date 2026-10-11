@@ -6,7 +6,7 @@ description: Minimum production hardening for Teldrive.
 ## Pin the image
 
 ```yaml
-image: ghcr.io/tgdrive/teldrive:vX.Y.Z
+image: ghcr.io/tgdrive/teldrive:X.Y.Z
 ```
 
 ## HTTPS and proxy
@@ -68,16 +68,7 @@ Monitor CPU, memory, PostgreSQL connections, transfer throughput, Telegram error
 
 ## Upgrade
 
-```bash
-docker compose pull teldrive
-docker compose run --rm teldrive check
-docker compose up -d teldrive
-docker compose logs --tail=200 teldrive
-```
-
-Back up PostgreSQL first. After upgrading, test login, listing, upload/download, file operations, shares, and tasks.
-
-Do not assume an older binary can use a schema migrated by a newer version.
+Follow [Upgrading](/deployment/upgrading) for backups, compatibility checks, and upgrade commands.
 
 ## Topology
 

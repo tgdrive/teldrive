@@ -2,7 +2,7 @@
 
 ## Teldrive v2 en español
 
-La edición v2 está en [`v2/`](v2/README.md), con las fuentes de Teldrive, rclone adaptado, Windows Desktop y clientes Android/iOS. [Descargar v2.0.0-drive-es.1](https://github.com/webr0m/teldrive/releases/tag/v2.0.0-drive-es.1).
+La edición v2 está en [`v2/`](v2/README.md), con las fuentes de Teldrive, rclone adaptado, Windows Desktop y clientes Android/iOS. [Descargar v2.0.0-drive-es.2](https://github.com/webr0m/teldrive/releases/tag/v2.0.0-drive-es.2).
 
 La release incluye Windows completo, seis paquetes CLI y Android APK. Para iOS se entrega el proyecto fuente; no hay una IPA compilada. Consulta las instrucciones y los límites de validación en [`v2/README.md`](v2/README.md).
 

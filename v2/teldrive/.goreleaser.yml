@@ -1,15 +1,14 @@
 version: 2
 project_name: teldrive
 
-snapshot:
-  # The v2 image workflow builds from the v2 branch with --snapshot, which
-  # would otherwise derive the version from v1 git tags (e.g. 1.8.x).
-  version_template: "2.0.0-SNAPSHOT-{{ .ShortCommit }}"
-
 before:
   hooks:
     - bun ci --cwd ui
     - bun run --cwd ui build
+    - mkdir -p completions
+    - sh -c 'go run ./cmd/teldrive completion bash > completions/teldrive.bash'
+    - sh -c 'go run ./cmd/teldrive completion zsh > completions/teldrive.zsh'
+    - sh -c 'go run ./cmd/teldrive completion fish > completions/teldrive.fish'
 
 builds:
   - id: teldrive
@@ -47,6 +46,7 @@ archives:
         formats: [zip]
     files:
       - README*.md
+      - completions/*
 
 dockers_v2:
   - id: teldrive
@@ -56,7 +56,7 @@ dockers_v2:
       - "ghcr.io/tgdrive/{{ .ProjectName }}"
     tags:
       - "{{ .Tag }}"
-      - "latest"
+      - "{{ .Major }}"
     dockerfile: .goreleaser.Dockerfile
     platforms:
       - linux/amd64
