@@ -69,6 +69,8 @@ Defaults are runtime values, not production recommendations.
 
 <ConfigOption name={"http.idle-timeout"} flag={"--http-idle-timeout"} env={"TELDRIVE_HTTP_IDLE_TIMEOUT"} defaultValue={"2m0s"} description={"HTTP keep-alive idle timeout"} />
 
+<ConfigOption name={"http.public-url"} flag={"--http-public-url"} env={"TELDRIVE_HTTP_PUBLIC_URL"} defaultValue={""} description={"Public HTTP or HTTPS origin used for shared links; empty uses the browser origin"} />
+
 <ConfigOption name={"http.read-header-timeout"} flag={"--http-read-header-timeout"} env={"TELDRIVE_HTTP_READ_HEADER_TIMEOUT"} defaultValue={"10s"} description={"Maximum time to read request headers"} />
 
 <ConfigOption name={"http.read-timeout"} flag={"--http-read-timeout"} env={"TELDRIVE_HTTP_READ_TIMEOUT"} defaultValue={"1h0m0s"} description={"Maximum time to read an entire request; zero disables it for streaming uploads"} />
@@ -88,6 +90,16 @@ Defaults are runtime values, not production recommendations.
 <ConfigOption name={"logging.log-format"} flag={"--logging-log-format"} env={"TELDRIVE_LOGGING_LOG_FORMAT"} defaultValue={"text"} description={"Log format: json or text"} />
 
 <ConfigOption name={"logging.log-level"} flag={"--logging-log-level"} env={"TELDRIVE_LOGGING_LOG_LEVEL"} defaultValue={"info"} description={"Log level: debug, info, warn, or error"} />
+
+## Media
+
+<ConfigOption name={"media.enabled"} flag={"--media-enabled"} env={"TELDRIVE_MEDIA_ENABLED"} defaultValue={"true"} description={"Enable compatible multimedia playback with FFmpeg"} />
+
+<ConfigOption name={"media.ffmpeg-path"} flag={"--media-ffmpeg-path"} env={"TELDRIVE_MEDIA_FFMPEG_PATH"} defaultValue={"ffmpeg"} description={"FFmpeg executable path"} />
+
+<ConfigOption name={"media.max-concurrent"} flag={"--media-max-concurrent"} env={"TELDRIVE_MEDIA_MAX_CONCURRENT"} defaultValue={"2"} description={"Maximum simultaneous media conversions"} />
+
+<ConfigOption name={"media.timeout"} flag={"--media-timeout"} env={"TELDRIVE_MEDIA_TIMEOUT"} defaultValue={"2h0m0s"} description={"Maximum conversion duration"} />
 
 ## Security
 

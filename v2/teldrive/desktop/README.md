@@ -2,6 +2,14 @@
 
 Aplicación para Windows 10/11 de 64 bits, construida con .NET 10, WPF y WebView2. El paquete incluye el servidor Teldrive, el rclone compatible con la API v2, PostgreSQL, FFmpeg/FFprobe y los instaladores oficiales de WinFsp, WebView2 y Visual C++. El primer inicio presenta la configuración del servidor y abre la UI en la propia ventana.
 
+## Dominio para enlaces compartidos
+
+En **Configuración → Configuración avanzada**, agrega `public-url = "https://drive.tudominio.com"`
+en la sección `[http]` existente y guarda. El servidor generará los enlaces públicos
+con ese dominio aunque estés usando la ventana local de Desktop. Configura el túnel
+o proxy por separado; dejar `public-url` vacío conserva los enlaces con la dirección
+de la interfaz. Los tokens de enlaces anteriores siguen funcionando con el nuevo dominio.
+
 ## Integración de rclone
 
 En **Configuración → Rclone**, crea una clave de API de Teldrive y guarda la conexión en este equipo. El explorador integrado permite:

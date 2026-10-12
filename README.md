@@ -1,4 +1,4 @@
-> **Teldrive v2.0.0-drive-es.6:** UI móvil legible, audio automático, montajes persistentes, doble clic corregido y diez idiomas. [Descargar](https://github.com/webr0m/teldrive/releases/tag/v2.0.0-drive-es.6).
+> **Teldrive v2.0.0-drive-es.7:** Enlaces públicos con dominio propio desde localhost y Desktop. [Descargar](https://github.com/webr0m/teldrive/releases/tag/v2.0.0-drive-es.7).
 
 # Teldrive
 
