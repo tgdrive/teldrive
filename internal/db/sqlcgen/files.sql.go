@@ -85,7 +85,7 @@ INSERT INTO /* TEMPLATE: schema */files (
     $4,
     'folder',
     'inode/directory',
-    NULL,
+    0,
     false,
     'active',
     $5
@@ -1807,6 +1807,44 @@ type RevokeSharesForFileSubtreesParams struct {
 func (q *Queries) RevokeSharesForFileSubtrees(ctx context.Context, arg RevokeSharesForFileSubtreesParams) error {
 	_, err := q.db.Exec(ctx, revokeSharesForFileSubtrees, arg.UserID, arg.FileIds)
 	return err
+}
+
+const rollupFolderSizes = `-- name: RollupFolderSizes :execrows
+WITH RECURSIVE folder_hierarchy AS (
+  SELECT id, id AS root_id
+  FROM /* TEMPLATE: schema */files
+  WHERE kind = 'folder'
+  UNION ALL
+  SELECT f.id, fh.root_id
+  FROM /* TEMPLATE: schema */files f
+  JOIN folder_hierarchy fh ON f.parent_id = fh.id
+),
+folder_totals AS (
+  SELECT fh.root_id AS id, COALESCE(SUM(f.size), 0)::bigint AS total
+  FROM folder_hierarchy fh
+  JOIN /* TEMPLATE: schema */files f ON f.id = fh.id
+  WHERE f.kind = 'file'
+    AND f.status = 'active'
+  GROUP BY fh.root_id
+)
+UPDATE /* TEMPLATE: schema */files AS folder
+SET size = COALESCE(desired.total, 0)
+FROM (
+  SELECT f.id AS id, folder_totals.total AS total
+  FROM /* TEMPLATE: schema */files AS f
+  LEFT JOIN folder_totals ON folder_totals.id = f.id
+  WHERE f.kind = 'folder'
+) AS desired
+WHERE folder.id = desired.id
+  AND (folder.size IS NULL OR folder.size <> desired.total)
+`
+
+func (q *Queries) RollupFolderSizes(ctx context.Context) (int64, error) {
+	result, err := q.db.Exec(ctx, rollupFolderSizes)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const sumFilePartSizes = `-- name: SumFilePartSizes :one

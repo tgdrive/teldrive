@@ -168,6 +168,7 @@ type Querier interface {
 	RevokeSession(ctx context.Context, arg RevokeSessionParams) (int64, error)
 	RevokeSharesForFileSubtree(ctx context.Context, arg RevokeSharesForFileSubtreeParams) error
 	RevokeSharesForFileSubtrees(ctx context.Context, arg RevokeSharesForFileSubtreesParams) error
+	RollupFolderSizes(ctx context.Context) (int64, error)
 	RotateSessionRefreshToken(ctx context.Context, arg RotateSessionRefreshTokenParams) (*Session, error)
 	SearchUsersForShare(ctx context.Context, arg SearchUsersForShareParams) ([]*User, error)
 	SelectChannel(ctx context.Context, arg SelectChannelParams) (*Channel, error)

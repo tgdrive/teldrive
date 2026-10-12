@@ -82,7 +82,7 @@ INSERT INTO /* TEMPLATE: schema */files (
     sqlc.arg(name),
     'folder',
     'inode/directory',
-    NULL,
+    0,
     false,
     'active',
     sqlc.arg(mod_time)
@@ -707,3 +707,34 @@ FROM jsonb_to_recordset(sqlc.arg(parts)::jsonb) AS input(
 WHERE part.file_id = sqlc.arg(file_id)
   AND part.part_no = input.part_no
   AND (part.plain_size IS NULL OR part.stored_size IS NULL);
+
+
+
+-- name: RollupFolderSizes :execrows
+WITH RECURSIVE folder_hierarchy AS (
+  SELECT id, id AS root_id
+  FROM /* TEMPLATE: schema */files
+  WHERE kind = 'folder'
+  UNION ALL
+  SELECT f.id, fh.root_id
+  FROM /* TEMPLATE: schema */files f
+  JOIN folder_hierarchy fh ON f.parent_id = fh.id
+),
+folder_totals AS (
+  SELECT fh.root_id AS id, COALESCE(SUM(f.size), 0)::bigint AS total
+  FROM folder_hierarchy fh
+  JOIN /* TEMPLATE: schema */files f ON f.id = fh.id
+  WHERE f.kind = 'file'
+    AND f.status = 'active'
+  GROUP BY fh.root_id
+)
+UPDATE /* TEMPLATE: schema */files AS folder
+SET size = COALESCE(desired.total, 0)
+FROM (
+  SELECT f.id AS id, folder_totals.total AS total
+  FROM /* TEMPLATE: schema */files AS f
+  LEFT JOIN folder_totals ON folder_totals.id = f.id
+  WHERE f.kind = 'folder'
+) AS desired
+WHERE folder.id = desired.id
+  AND (folder.size IS NULL OR folder.size <> desired.total);

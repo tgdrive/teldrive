@@ -368,7 +368,9 @@ function GridFile({
           <LocationButton location={location} onPress={onOpenContainingFolder} className="mt-1" />
         )}
         <p className="mt-1 text-[11px] text-muted">
-          {file.kind === "folder" ? t("browser.folderKind") : formatBytes(file.size ?? 0)}
+          {file.kind === "folder"
+            ? (file.size != null ? formatBytes(file.size) : t("browser.folderKind"))
+            : formatBytes(file.size ?? 0)}
         </p>
       </div>
     </>
@@ -419,7 +421,9 @@ function ListFile({
         </div>
       </div>
       <span className="hidden text-xs text-muted sm:block">
-        {file.kind === "folder" ? t("browser.folderKind") : formatBytes(file.size ?? 0)}
+        {file.kind === "folder"
+          ? (file.size != null ? formatBytes(file.size) : t("browser.folderKind"))
+          : formatBytes(file.size ?? 0)}
       </span>
       <span className="hidden min-w-0 text-xs text-muted lg:block">
         {location ? (

@@ -303,6 +303,12 @@ func (r *Runtime) PeriodicJobCatalog() []PeriodicTemplate {
 			DefaultQueue: CleanupQueue, DefaultPriority: 2, DefaultMaxAttempts: 3,
 			DefaultCronExpression: eventCleanupDefaultCron, DefaultCronTimezone: maintenanceTimezone,
 		},
+		{
+			ID: folderSizeRollupPeriodicID, Label: "Folder size rollup", Description: "Recompute cumulative folder sizes for the whole drive.",
+			Kind: FolderSizeRollupKind, DefaultArgs: rawArgs(FolderSizeRollupArgs{}),
+			DefaultQueue: CleanupQueue, DefaultPriority: 3, DefaultMaxAttempts: 1,
+			DefaultCronExpression: folderSizeRollupDefaultCron, DefaultCronTimezone: maintenanceTimezone,
+		},
 	}
 	if r.purgeEnabled {
 		templates = append(templates,

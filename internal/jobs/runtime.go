@@ -28,11 +28,13 @@ import (
 const (
 	uploadCleanupPeriodicID           = "teldrive-upload-cleanup"
 	eventCleanupPeriodicID            = "teldrive-user-event-cleanup"
+	folderSizeRollupPeriodicID        = "teldrive-folder-size-rollup"
 	trashCleanupPeriodicID            = "teldrive-trash-cleanup"
 	purgePeriodicID                   = "teldrive-pending-file-purge"
 	orphanCleanupPeriodicID           = "teldrive-orphaned-telegram-part-cleanup"
 	uploadCleanupDefaultCron          = "@every 12h"
 	eventCleanupDefaultCron           = "0 0 * * *"
+	folderSizeRollupDefaultCron       = "@every 1h"
 	eventCleanupDefaultRetention      = "48h"
 	trashCleanupDefaultCron           = "@every 12h"
 	pendingDeletionCleanupDefaultCron = "@every 12h"
@@ -92,6 +94,9 @@ func newRuntimeWithSchema(pool *pgxpool.Pool, storage telegramstore.Storage, sch
 	}
 	if err := river.AddWorkerSafely(workers, NewEventCleanupWorker(pool)); err != nil {
 		return nil, fmt.Errorf("register event cleanup worker: %w", err)
+	}
+	if err := river.AddWorkerSafely(workers, NewFolderSizeRollupWorker(pool)); err != nil {
+		return nil, fmt.Errorf("register folder size rollup worker: %w", err)
 	}
 	var purgeService PurgeService
 	if len(purgeServices) > 0 {
