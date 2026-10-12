@@ -1,3 +1,4 @@
+import { t } from "@/lib/localization";
 import { Button } from "@heroui/react";
 import { lazy, Suspense, useState, useEffect, useRef, useCallback } from "react";
 import { apiFetch } from "@/api/client";
@@ -27,7 +28,7 @@ type Track = {
   bitmap: boolean;
 };
 function trackLabel(track: Track) {
-  return `${track.title || `${track.kind === "audio" ? "Audio" : "Subtítulos"} ${track.index + 1}`} · ${track.language || "sin idioma"} · ${track.codec}${track.default ? " (predeterminada)" : ""}${track.bitmap ? " · imagen" : ""}`;
+  return `${track.title || `${track.kind === "audio" ? t("Audio") : t("Subtítulos")} ${track.index + 1}`} · ${track.language || t("sin idioma")} · ${track.codec}${track.default ? t(" (predeterminada)") : ""}${track.bitmap ? t(" · imagen") : ""}`;
 }
 
 export function CompatibleMedia({
@@ -81,9 +82,27 @@ export function CompatibleMedia({
         ).json()) as { available: boolean; tracks: Track[] };
         if (active) {
           setTracks(data.tracks);
+          const audioTracks = data.tracks.filter((track) => track.kind === "audio");
+          const preferred = audioTracks.find((track) => track.default) ?? audioTracks[0];
+          setAudio(preferred?.index);
+          // Some browsers decode an MKV's video while silently dropping its audio.
+          // Select its declared default track and convert before playback starts.
+          const containerNeedsConversion = /\.(mkv|avi|wmv|flv|m2ts|ts|vob)$/i.test(file.name);
+          const audioNeedsConversion =
+            preferred && !["aac", "mp3", "opus", "vorbis", "flac"].includes(preferred.codec);
+          const nonFirstDefault = preferred && preferred.index !== audioTracks[0]?.index;
+          if (
+            next.conversionAvailable &&
+            (containerNeedsConversion || audioNeedsConversion || nonFirstDefault)
+          ) {
+            setSource(playbackUrl(next.ticket, "video", 0, preferred?.index));
+            setConverted(true);
+          }
           if (!data.available)
             setTracksNotice(
-              "Instala FFprobe junto a FFmpeg en el servidor para detectar pistas de audio y subtítulos.",
+              t(
+                "Instala FFprobe junto a FFmpeg en el servidor para detectar pistas de audio y subtítulos.",
+              ),
             );
         }
       })
@@ -93,8 +112,11 @@ export function CompatibleMedia({
     return () => {
       active = false;
     };
-  }, [ensureGrant, kind]);
+  }, [ensureGrant, kind, file.name]);
   const chooseTracks = async (nextAudio: number | undefined, nextSubtitle: number | undefined) => {
+    nextAudio ??=
+      tracks.find((track) => track.kind === "audio" && track.default)?.index ??
+      tracks.find((track) => track.kind === "audio")?.index;
     setAudio(nextAudio);
     setSubtitle(nextSubtitle);
     const selected = tracks.find((track) => track.index === nextSubtitle);
@@ -105,7 +127,7 @@ export function CompatibleMedia({
       const next = await ensureGrant();
       if (!next.conversionAvailable)
         throw new Error(
-          "La selección de pistas del contenedor necesita FFmpeg. Desktop lo incluye.",
+          t("La selección de pistas del contenedor necesita FFmpeg. Desktop lo incluye."),
         );
       const seconds = Math.min(86400, sourceStart + (getVideo()?.currentTime || 0));
       setSourceStart(seconds);
@@ -130,7 +152,7 @@ export function CompatibleMedia({
     if (pending) return;
     const seconds = Number(start);
     if (!Number.isFinite(seconds) || seconds < 0 || seconds > 86400) {
-      setError("Introduce una posición entre 0 y 86400 segundos.");
+      setError(t("Introduce una posición entre 0 y 86400 segundos."));
       return;
     }
     setPending(true);
@@ -140,7 +162,9 @@ export function CompatibleMedia({
       setGrant(next);
       if (!next.conversionAvailable)
         throw new Error(
-          "La reproducción compatible necesita FFmpeg en el servidor. El programa de Windows ya lo incluye.",
+          t(
+            "La reproducción compatible necesita FFmpeg en el servidor. El programa de Windows ya lo incluye.",
+          ),
         );
       setSourceStart(seconds);
       setSource(
@@ -165,7 +189,7 @@ export function CompatibleMedia({
     <div ref={root} className="flex h-full min-h-0 w-full flex-col bg-black text-white">
       <div className="relative z-0 min-h-0 flex-1 overflow-hidden">
         {kind === "video" ? (
-          <Suspense fallback={<p className="p-6">Cargando vídeo…</p>}>
+          <Suspense fallback={<p className="p-6">{t("Cargando vídeo…")}</p>}>
             <VideoViewer
               file={file}
               url={source}
@@ -179,7 +203,7 @@ export function CompatibleMedia({
                         id: `embedded-${subtitle}`,
                         src: `/api/v1/playback/subtitles?${new URLSearchParams({ ticket: grant.ticket, track: String(subtitle), start: String(converted ? sourceStart : 0) })}`,
                         lang: tracks.find((track) => track.index === subtitle)?.language || "und",
-                        label: "Pista seleccionada",
+                        label: t("Pista seleccionada"),
                         default: true,
                       },
                     ]
@@ -188,8 +212,10 @@ export function CompatibleMedia({
               onError={() =>
                 setError(
                   converted
-                    ? "La conversión falló. Puedes reintentar o descargar el archivo."
-                    : "El navegador no puede reproducir este formato o códec. Prueba la reproducción compatible.",
+                    ? t("La conversión falló. Puedes reintentar o descargar el archivo.")
+                    : t(
+                        "El navegador no puede reproducir este formato o códec. Prueba la reproducción compatible.",
+                      ),
                 )
               }
             />
@@ -208,8 +234,8 @@ export function CompatibleMedia({
                 onError={() =>
                   setError(
                     converted
-                      ? "La conversión falló. Puedes reintentar o descargar el archivo."
-                      : "Este audio necesita otro códec. Prueba la reproducción compatible.",
+                      ? t("La conversión falló. Puedes reintentar o descargar el archivo.")
+                      : t("Este audio necesita otro códec. Prueba la reproducción compatible."),
                   )
                 }
               />
@@ -233,13 +259,13 @@ export function CompatibleMedia({
                   .catch((cause) => setError(userMessage(cause)));
               }}
             >
-              Transmitir
+              {t("Transmitir")}
             </Button>
             {tracks.some((track) => track.kind === "audio") ? (
               <label className="flex items-center gap-2 text-sm">
-                Audio
+                {t("Audio")}
                 <select
-                  aria-label="Pista de audio"
+                  aria-label={t("Pista de audio")}
                   className="min-h-11 max-w-64 rounded-lg border border-white/30 bg-black px-3"
                   value={audio ?? ""}
                   disabled={pending}
@@ -250,7 +276,7 @@ export function CompatibleMedia({
                     )
                   }
                 >
-                  <option value="">Predeterminada</option>
+                  <option value="">{t("Predeterminada")}</option>
                   {tracks
                     .filter((track) => track.kind === "audio")
                     .map((track) => (
@@ -263,9 +289,9 @@ export function CompatibleMedia({
             ) : null}
             {tracks.some((track) => track.kind === "subtitle") ? (
               <label className="flex items-center gap-2 text-sm">
-                Subtítulos
+                {t("Subtítulos")}
                 <select
-                  aria-label="Pista de subtítulos"
+                  aria-label={t("Pista de subtítulos")}
                   className="min-h-11 max-w-64 rounded-lg border border-white/30 bg-black px-3"
                   value={subtitle ?? ""}
                   disabled={pending}
@@ -276,7 +302,7 @@ export function CompatibleMedia({
                     )
                   }
                 >
-                  <option value="">Desactivados</option>
+                  <option value="">{t("Desactivados")}</option>
                   {tracks
                     .filter((track) => track.kind === "subtitle")
                     .map((track) => (
@@ -302,15 +328,15 @@ export function CompatibleMedia({
           onPress={() => void convert()}
         >
           {pending
-            ? "Preparando…"
+            ? t("Preparando…")
             : converted
-              ? "Reiniciar desde esta posición"
-              : "Reproducción compatible"}
+              ? t("Reiniciar desde esta posición")
+              : t("Reproducción compatible")}
         </Button>
         <label className="flex items-center gap-2 text-sm">
-          Comenzar en (segundos)
+          {t("Comenzar en (segundos)")}
           <input
-            aria-label="Comenzar en segundos"
+            aria-label={t("Comenzar en segundos")}
             type="number"
             min="0"
             max="86400"
@@ -332,7 +358,7 @@ export function CompatibleMedia({
               setError(undefined);
             }}
           >
-            Versión original
+            {t("Versión original")}
           </Button>
         ) : null}
       </div>

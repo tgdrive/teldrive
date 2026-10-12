@@ -1,4 +1,4 @@
-> **Teldrive v2.0.0-drive-es.5:** selección de pistas de audio/subtítulos, transmisión, edición de rclone.conf y mejoras de Windows Desktop. [Descargar](https://github.com/webr0m/teldrive/releases/tag/v2.0.0-drive-es.5).
+> **Teldrive v2.0.0-drive-es.6:** UI móvil legible, audio automático, montajes persistentes, doble clic corregido y diez idiomas. [Descargar](https://github.com/webr0m/teldrive/releases/tag/v2.0.0-drive-es.6).
 
 # Teldrive
 

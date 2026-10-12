@@ -1,3 +1,4 @@
+import { t } from "@/lib/localization";
 type MobileRequest = {
   id: string;
   method: "download" | "save";
@@ -70,7 +71,7 @@ async function nativeRequest(request: MobileRequest): Promise<boolean> {
     const timeout = setTimeout(
       () => {
         pending.delete(request.id);
-        reject(new Error("La app no pudo completar el guardado."));
+        reject(new Error(t("La app no pudo completar el guardado.")));
       },
       request.method === "save" ? 300_000 : 15_000,
     );
@@ -80,7 +81,7 @@ async function nativeRequest(request: MobileRequest): Promise<boolean> {
     } catch (cause) {
       clearTimeout(timeout);
       pending.delete(request.id);
-      reject(cause instanceof Error ? cause : new Error("No se pudo iniciar el guardado."));
+      reject(cause instanceof Error ? cause : new Error(t("No se pudo iniciar el guardado.")));
     }
   });
   return true;

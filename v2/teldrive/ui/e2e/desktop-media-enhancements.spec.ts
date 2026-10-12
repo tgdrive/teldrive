@@ -79,6 +79,7 @@ test("custom config imports and edits multiple remotes without losing comments",
 test("MKV selects audio, text/bitmap subtitles and sends selected tracks to DLNA", async ({
   page,
 }) => {
+  await page.emulateMedia({ colorScheme: "light" });
   const movie = {
     id: alphaId,
     name: "varias-pistas.mkv",
@@ -119,7 +120,7 @@ test("MKV selects audio, text/bitmap subtitles and sends selected tracks to DLNA
             codec: "aac",
             language: "spa",
             title: "Español",
-            default: true,
+            default: false,
             bitmap: false,
           },
           {
@@ -128,7 +129,7 @@ test("MKV selects audio, text/bitmap subtitles and sends selected tracks to DLNA
             codec: "aac",
             language: "eng",
             title: "Inglés",
-            default: false,
+            default: true,
             bitmap: false,
           },
           {
@@ -180,6 +181,13 @@ test("MKV selects audio, text/bitmap subtitles and sends selected tracks to DLNA
   });
   await page.goto("/files");
   await page.getByRole("row", { name: /varias-pistas.mkv/ }).dblclick();
+  const header = page.locator(".glass-panel").first();
+  await expect(header).toBeVisible();
+  expect(await header.evaluate(el => getComputedStyle(el).backgroundColor)).toBe(await page.locator("html").evaluate(el => getComputedStyle(el).getPropertyValue("--overlay").trim()));
+  await expect(page.getByLabel("Pista de audio")).toHaveValue("2");
+  await expect(page.locator("video")).toHaveAttribute("src", /audio=2/);
+  await page.getByLabel("Pista de audio").selectOption("1");
+  await expect(page.locator("video")).toHaveAttribute("src", /audio=1/);
   await page.getByLabel("Pista de audio").selectOption("2");
   await expect(page.locator("video")).toHaveAttribute("src", /audio=2/);
   await page.getByLabel("Pista de subtítulos").selectOption("4");

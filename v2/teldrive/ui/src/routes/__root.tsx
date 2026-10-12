@@ -1,3 +1,4 @@
+import { t } from "@/lib/localization";
 import {
   RouterProvider as AriaRouterProvider,
   Avatar,
@@ -43,20 +44,20 @@ import { StorageSummary } from "../components/storage-summary";
 import { getQueryClient } from "../lib/queryClient";
 
 const mainNav = [
-  { label: "Archivos", icon: GridIcon, path: "/files" },
-  { label: "Compartidos", icon: FolderIcon, path: "/shared" },
-  { label: "Compartido conmigo", icon: FolderIcon, path: "/shared-with-me" },
-  { label: "Tareas", icon: TasksIcon, path: "/tasks", capability: "system.manageJobs" },
-  { label: "Spam", icon: GridIcon, path: "/spam" },
-  { label: "Papelera", icon: GridIcon, path: "/trash" },
-  { label: "Almacenamiento", icon: StorageIcon, path: "/storage" },
+  { label: t("Archivos"), icon: GridIcon, path: "/files" },
+  { label: t("Compartidos"), icon: FolderIcon, path: "/shared" },
+  { label: t("Compartido conmigo"), icon: FolderIcon, path: "/shared-with-me" },
+  { label: t("Tareas"), icon: TasksIcon, path: "/tasks", capability: "system.manageJobs" },
+  { label: t("Spam"), icon: GridIcon, path: "/spam" },
+  { label: t("Papelera"), icon: GridIcon, path: "/trash" },
+  { label: t("Almacenamiento"), icon: StorageIcon, path: "/storage" },
 ] as const;
 
 const DESKTOP_BREAKPOINT = 1024;
 
 function getPageTitle(pathname: string) {
-  if (pathname === "/search") return "Buscar";
-  if (pathname.startsWith("/settings")) return "Configuración";
+  if (pathname === "/search") return t("Buscar");
+  if (pathname.startsWith("/settings")) return t("Configuración");
   const item = mainNav.find(
     (entry) => pathname === entry.path || pathname.startsWith(`${entry.path}/`),
   );
@@ -82,12 +83,12 @@ function Sidebar({
   const displayName =
     user?.displayName?.trim() ||
     user?.username?.trim() ||
-    (user ? `Usuario ${user.userId}` : "Cuenta");
+    (user ? t("Usuario {0}", [user.userId]) : t("Cuenta"));
   const secondaryLabel = user?.username
     ? `@${user.username}`
     : user?.premium
-      ? "Telegram Premium"
-      : "Telegram";
+      ? t("Telegram Premium")
+      : t("Telegram");
   const initials =
     displayName
       .split(/\s+/)
@@ -102,7 +103,7 @@ function Sidebar({
       onNavigate?.();
       await navigate({ to: "/login", search: { redirect: "/files" }, replace: true });
     } catch (error) {
-      toast.error("No se pudo cerrar la sesión", { description: userMessage(error) });
+      toast.error(t("No se pudo cerrar la sesión"), { description: userMessage(error) });
     }
   };
   const renderItem = (item: (typeof mainNav)[number]) => {
@@ -148,7 +149,7 @@ function Sidebar({
   return (
     <aside
       className={cn(
-        "flex h-full flex-col overflow-hidden border-r border-border bg-sidebar/95 backdrop-blur-xl",
+        "flex h-full flex-col overflow-hidden border-r border-border bg-sidebar text-sidebar-foreground",
         !mobile && "transition-[width] duration-200",
         mobile ? "w-[min(19rem,86vw)] shadow-2xl" : collapsed ? "w-16" : "w-60",
       )}
@@ -164,7 +165,9 @@ function Sidebar({
           )}
         >
           <p className="text-base font-semibold tracking-tight">Teldrive</p>
-          <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Unidad en la nube</p>
+          <p className="text-[10px] uppercase tracking-[0.16em] text-muted">
+            {t("Unidad en la nube")}
+          </p>
         </div>
       </div>
 
@@ -189,7 +192,7 @@ function Sidebar({
           ) : (
             <Button
               variant="ghost"
-              aria-label={`Abrir menú de cuenta de ${displayName}`}
+              aria-label={t("Abrir menú de cuenta de {0}", [displayName])}
               className="flex h-14 w-full items-center justify-start gap-3 rounded-xl px-2 text-muted hover:bg-default/30 hover:text-foreground"
             >
               <Avatar className="size-9 shrink-0">
@@ -204,14 +207,14 @@ function Sidebar({
           )}
           <Dropdown.Popover placement="top start" className="min-w-52">
             <Dropdown.Menu
-              aria-label="Cuenta"
+              aria-label={t("Cuenta")}
               onAction={(key) => {
                 if (key === "logout") void signOut();
               }}
             >
               <Dropdown.Item
                 id="settings"
-                textValue="Configuración"
+                textValue={t("Configuración")}
                 render={({ ref, ...itemProps }) => {
                   return (
                     // @ts-expect-error HeroUI types render props for a menu item div; this render target is an anchor.
@@ -229,11 +232,15 @@ function Sidebar({
                 }}
               >
                 <SettingsIcon className="size-4" />
-                <Label>Configuración</Label>
+                <Label>{t("Configuración")}</Label>
               </Dropdown.Item>
-              <Dropdown.Item id="logout" textValue="Log out" isDisabled={logout.isPending}>
+              <Dropdown.Item
+                id="logout"
+                textValue={t("Cerrar sesión")}
+                isDisabled={logout.isPending}
+              >
                 <LogoutIcon className="size-4" />
-                <Label>{logout.isPending ? "Logging out…" : "Log out"}</Label>
+                <Label>{logout.isPending ? t("Cerrando sesión…") : t("Cerrar sesión")}</Label>
               </Dropdown.Item>
             </Dropdown.Menu>
           </Dropdown.Popover>
@@ -315,9 +322,9 @@ function TopBar({
         aria-label={
           desktop
             ? collapsed
-              ? "Expandir menú lateral"
-              : "Contraer menú lateral"
-            : "Abrir navegación"
+              ? t("Expandir menú lateral")
+              : t("Contraer menú lateral")
+            : t("Abrir navegación")
         }
       >
         {desktop ? (
@@ -336,7 +343,7 @@ function TopBar({
       </div>
 
       <search
-        aria-label="Buscar en la unidad"
+        aria-label={t("Buscar en la unidad")}
         className="flex min-w-0 flex-1 items-center md:max-w-md"
       >
         <form
@@ -371,7 +378,7 @@ function TopBar({
             </InputGroup.Prefix>
             <InputGroup.Input
               ref={searchRef}
-              aria-label="Buscar archivos"
+              aria-label={t("Buscar archivos")}
               value={searchText}
               maxLength={512}
               enterKeyHint="search"
@@ -386,7 +393,7 @@ function TopBar({
               }}
               onKeyDown={(event) => {
                 if (
-                  event.key === "Enter" &&
+                  event.key === t("Enter") &&
                   (event.nativeEvent.isComposing || composingSearch.current)
                 )
                   event.preventDefault();
@@ -396,11 +403,11 @@ function TopBar({
                 setSearchText(value);
                 scheduleSearch(value);
               }}
-              placeholder="Buscar archivos"
+              placeholder={t("Buscar archivos")}
               className="min-w-0 text-sm"
             />
             <InputGroup.Suffix className="hidden md:flex">
-              <Kbd>Ctrl K</Kbd>
+              <Kbd>{t("Ctrl K")}</Kbd>
             </InputGroup.Suffix>
           </InputGroup>
         </form>
@@ -410,7 +417,7 @@ function TopBar({
         variant="ghost"
         className="size-9 rounded-xl"
         onPress={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-        aria-label="Cambiar tema de color"
+        aria-label={t("Cambiar tema de color")}
       >
         {resolvedTheme === "dark" ? (
           <SunIcon className="size-4" />
@@ -444,7 +451,7 @@ function Layout() {
 
   useEffect(() => {
     const handler = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMobileOpen(false);
+      if (event.key === t("Escape")) setMobileOpen(false);
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
@@ -464,12 +471,12 @@ function Layout() {
             className="fixed inset-0 z-50 flex"
             role="dialog"
             aria-modal="true"
-            aria-label="Navegación"
+            aria-label={t("Navegación")}
           >
             <Button
               type="button"
               variant="ghost"
-              aria-label="Cerrar navegación"
+              aria-label={t("Cerrar navegación")}
               className="absolute inset-0 h-full w-full rounded-none bg-black/55 backdrop-blur-sm"
               onPress={() => setMobileOpen(false)}
             />
@@ -480,7 +487,7 @@ function Layout() {
                 variant="ghost"
                 className="absolute right-3 top-3 size-9 rounded-xl"
                 onPress={() => setMobileOpen(false)}
-                aria-label="Cerrar navegación"
+                aria-label={t("Cerrar navegación")}
               >
                 <CloseIcon className="size-4" />
               </Button>
@@ -511,6 +518,20 @@ export type RouterContext = {
 
 export const Route = createRootRouteWithContext<RouterContext>()({
   beforeLoad: async ({ context, location }) => {
+    if (location.pathname === "/my-drive" || location.pathname === "/recent") {
+      throw redirect({
+        to: "/files",
+        search: {
+          path: "/",
+          query: "",
+          view: "list",
+          ...(location.pathname === "/recent" ? { sort: "updatedAt", order: "desc" } : {}),
+        },
+        replace: true,
+      });
+    }
+    if (location.pathname === "/settings/account")
+      throw redirect({ to: "/settings", replace: true });
     if (
       location.pathname === "/login" ||
       location.pathname === "/cast" ||
@@ -529,4 +550,19 @@ export const Route = createRootRouteWithContext<RouterContext>()({
     }
   },
   component: Layout,
+  notFoundComponent: () => (
+    <div className="mx-auto max-w-lg rounded-xl border border-border bg-surface p-6 text-foreground">
+      <h1 className="text-xl font-semibold">{t("Página no encontrada")}</h1>
+      <p className="my-4 text-muted">
+        {t("Esta dirección no está disponible. Puedes volver a tus archivos.")}
+      </p>
+      <Link
+        to="/files"
+        search={{ path: "/", query: "", view: "list", split: false }}
+        className={buttonVariants({ variant: "primary" })}
+      >
+        {t("Ir a mis archivos")}
+      </Link>
+    </div>
+  ),
 });

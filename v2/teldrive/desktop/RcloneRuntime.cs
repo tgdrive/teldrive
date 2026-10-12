@@ -19,9 +19,19 @@ public sealed class RcloneRuntime : IAsyncDisposable, IRcloneExecutor
     public bool Encrypted => File.Exists(ConfigPath) && File.ReadLines(ConfigPath).Take(5).Any(line => line == "RCLONE_ENCRYPT_V0:");
     public bool Locked => Encrypted && password is null;
     public Func<bool>? AutomationReady { get; set; }
-    public string? BlockReason => AutomationReady is not null && !AutomationReady() ? "Inicia el servidor para continuar la cola." : !File.Exists(ConfigPath) ? "Guarda la conexión en Configuración → Rclone." : Locked ? "Desbloquea la configuración de rclone para continuar la cola." : null;
-    public int AvailableSlots { get { lock (sync) return Math.Max(0, 3 - tasks.Values.Count(task => !task.Process.HasExited)); } }
-    public string StartDefinition(RcloneTaskDefinition definition, bool dryRun) => Start(definition.Name, false, definition.Arguments(dryRun));
+    public string? BlockReason => AutomationReady is not null && !AutomationReady() ? L.T("Inicia el servidor para continuar la cola.") : !File.Exists(ConfigPath) ? L.T("Guarda la conexión en Configuración → Rclone.") : Locked ? L.T("Desbloquea la configuración de rclone para continuar la cola.") : null;
+    public int AvailableSlots { get { lock (sync) return Math.Max(0, 3 - tasks.Values.Count(task => !task.Mount && !task.Process.HasExited)); } }
+    public string StartDefinition(RcloneTaskDefinition definition, bool dryRun)
+    {
+        var arguments = definition.Arguments(dryRun);
+        if (!definition.IsMount || dryRun) return Start(definition.Name, false, arguments);
+        if (!DriverInstalled) throw new IOException(L.T("Prepara WinFsp desde este panel antes de montar la unidad."));
+        var drive = definition.Destination.Trim().ToUpperInvariant();
+        lock (sync) {
+            if (DriveInfo.GetDrives().Any(item => item.Name.StartsWith(drive, StringComparison.OrdinalIgnoreCase)) || tasks.Values.Any(task => task.Mount && !task.Process.HasExited && task.Arguments[2].Equals(drive, StringComparison.OrdinalIgnoreCase))) throw new IOException(L.T("Esa letra de unidad ya está en uso."));
+            return Start(definition.Name, true, [.. arguments, "--cache-dir", Path.Combine(runtime.DataRoot, "cache", "rclone", drive[..1])]);
+        }
+    }
     public RcloneJobStatus? Snapshot(string id)
     {
         lock (sync) {
@@ -38,12 +48,12 @@ public sealed class RcloneRuntime : IAsyncDisposable, IRcloneExecutor
     {
         await configuration.WaitAsync();
         try {
-        if (Locked) throw new IOException("Desbloquea la configuración antes de modificar la conexión.");
-        if (connection.ApiKey.Length < 8 || (connection.ApiKey + connection.LinkPassword).IndexOfAny(['\r', '\n', '\0']) >= 0) throw new ArgumentException("Introduce una clave de API válida.");
-        if (connection.ChunkMiB is < 64 or > 2000 || connection.ChunkMiB % 16 != 0 || connection.Concurrency is < 1 or > 32) throw new ArgumentException("Revisa el tamaño de fragmento y la concurrencia.");
-        lock (sync) { if (tasks.Values.Any(task => !task.Process.HasExited)) throw new IOException("Detén las operaciones de rclone antes de cambiar su conexión."); }
+        if (Locked) throw new IOException(L.T("Desbloquea la configuración antes de modificar la conexión."));
+        if (connection.ApiKey.Length < 8 || (connection.ApiKey + connection.LinkPassword).IndexOfAny(['\r', '\n', '\0']) >= 0) throw new ArgumentException(L.T("Introduce una clave de API válida."));
+        if (connection.ChunkMiB is < 64 or > 2000 || connection.ChunkMiB % 16 != 0 || connection.Concurrency is < 1 or > 32) throw new ArgumentException(L.T("Revisa el tamaño de fragmento y la concurrencia."));
+        lock (sync) { if (tasks.Values.Any(task => !task.Process.HasExited)) throw new IOException(L.T("Detén las operaciones de rclone antes de cambiar su conexión.")); }
         var config = File.Exists(ConfigPath) ? Encrypted ? await ExecuteAsync(CommandFor(ConfigPath, password, "config", "show")) : await File.ReadAllTextAsync(ConfigPath) : "";
-        var options = new Dictionary<string, string> { ["type"] = "teldrive", ["api_host"] = runtime.ServerUri!.GetLeftPart(UriPartial.Authority), ["api_key"] = connection.ApiKey, ["chunk_size"] = connection.ChunkMiB + "Mi", ["upload_concurrency"] = connection.Concurrency.ToString(), ["encrypt_files"] = connection.Encrypt.ToString().ToLowerInvariant(), ["hash_enabled"] = connection.Hash.ToString().ToLowerInvariant(), ["page_size"] = "200" };
+        var options = new Dictionary<string, string> { ["type"] = "teldrive", ["api_host"] = runtime.ServerUri!.GetLeftPart(UriPartial.Authority), ["api_key"] = connection.ApiKey, ["chunk_size"] = connection.ChunkMiB + L.T("Mi"), ["upload_concurrency"] = connection.Concurrency.ToString(), ["encrypt_files"] = connection.Encrypt.ToString().ToLowerInvariant(), ["hash_enabled"] = connection.Hash.ToString().ToLowerInvariant(), ["page_size"] = "200" };
         foreach (var option in options) config = RcloneConfigDocument.Set(config, "teldrive", option.Key, option.Value);
         config = RcloneConfigDocument.Set(config, "teldrive", "link_password", string.IsNullOrEmpty(connection.LinkPassword) ? null : connection.LinkPassword);
         var temp = ConfigPath + ".new";
@@ -61,7 +71,7 @@ public sealed class RcloneRuntime : IAsyncDisposable, IRcloneExecutor
         await configuration.WaitAsync();
         try {
             if (!File.Exists(ConfigPath)) return "";
-            if (Locked) throw new IOException("Desbloquea rclone para editar su configuración.");
+            if (Locked) throw new IOException(L.T("Desbloquea rclone para editar su configuración."));
             if (!Encrypted) return await File.ReadAllTextAsync(ConfigPath);
             return await ExecuteAsync(CommandFor(ConfigPath, password, "config", "show"));
         } finally { configuration.Release(); }
@@ -71,11 +81,11 @@ public sealed class RcloneRuntime : IAsyncDisposable, IRcloneExecutor
         await configuration.WaitAsync();
         var temporary = ConfigPath + ".editing";
         try {
-            if (Locked) throw new IOException("Desbloquea rclone antes de guardar los cambios.");
-            if (content.Length > 2 * 1024 * 1024 || content.Contains('\0') || content.Contains("RCLONE_ENCRYPT_V0:")) throw new IOException("Introduce una configuración INI de rclone de hasta 2 MB.");
+            if (Locked) throw new IOException(L.T("Desbloquea rclone antes de guardar los cambios."));
+            if (content.Length > 2 * 1024 * 1024 || content.Contains('\0') || content.Contains("RCLONE_ENCRYPT_V0:")) throw new IOException(L.T("Introduce una configuración INI de rclone de hasta 2 MB."));
             await File.WriteAllTextAsync(temporary, content);
             try { _ = await ExecuteAsync(CommandFor(temporary, null, "config", "dump")); }
-            catch { throw new IOException("rclone no pudo leer esta configuración. Revisa las secciones [conexión] y las opciones clave = valor."); }
+            catch { throw new IOException(L.T("rclone no pudo leer esta configuración. Revisa las secciones [conexión] y las opciones clave = valor.")); }
             var encrypted = Encrypted;
             if (encrypted) await EncryptFileAsync(temporary, password!);
             lock (sync) {
@@ -87,7 +97,7 @@ public sealed class RcloneRuntime : IAsyncDisposable, IRcloneExecutor
     }
     public async Task ImportConfigAsync(string path)
     {
-        if (!File.Exists(path) || new FileInfo(path).Length > 2 * 1024 * 1024) throw new IOException("Selecciona un rclone.conf de hasta 2 MB.");
+        if (!File.Exists(path) || new FileInfo(path).Length > 2 * 1024 * 1024) throw new IOException(L.T("Selecciona un rclone.conf de hasta 2 MB."));
         if (Path.GetFullPath(path).Equals(Path.GetFullPath(ConfigPath), StringComparison.OrdinalIgnoreCase)) return;
         var content = await File.ReadAllTextAsync(path);
         if (!content.StartsWith("RCLONE_ENCRYPT_V0:", StringComparison.Ordinal) && !content.Contains("\nRCLONE_ENCRYPT_V0:")) { await SaveConfigAsync(content); return; }
@@ -100,7 +110,7 @@ public sealed class RcloneRuntime : IAsyncDisposable, IRcloneExecutor
     }
     private void RequireIdleConfiguration()
     {
-        if (tasks.Values.Any(task => !task.Process.HasExited)) throw new IOException("Detén las transferencias y montajes antes de cambiar rclone.conf.");
+        if (tasks.Values.Any(task => !task.Process.HasExited)) throw new IOException(L.T("Detén las transferencias y montajes antes de cambiar rclone.conf."));
     }
     private void BackupConfig()
     {
@@ -110,8 +120,8 @@ public sealed class RcloneRuntime : IAsyncDisposable, IRcloneExecutor
     {
         await configuration.WaitAsync();
         try {
-            if (!Encrypted) throw new IOException("La configuración todavía no está cifrada.");
-            if (string.IsNullOrWhiteSpace(value)) throw new ArgumentException("Introduce la contraseña de rclone.");
+            if (!Encrypted) throw new IOException(L.T("La configuración todavía no está cifrada."));
+            if (string.IsNullOrWhiteSpace(value)) throw new ArgumentException(L.T("Introduce la contraseña de rclone."));
             await ExecuteAsync(CommandFor(ConfigPath, value, "config", "encryption", "check"));
             password = value;
         } finally { configuration.Release(); }
@@ -121,10 +131,10 @@ public sealed class RcloneRuntime : IAsyncDisposable, IRcloneExecutor
         await configuration.WaitAsync();
         var temp = ConfigPath + ".encrypted";
         try {
-            if (!File.Exists(ConfigPath)) throw new IOException("Guarda primero la conexión.");
-            if (Encrypted) throw new IOException("La configuración ya está cifrada.");
-            if (value.Trim().Length < 12 || value.Contains('\n') || value.Contains('\r') || value.Contains('\0')) throw new ArgumentException("Usa una contraseña de al menos 12 caracteres, sin saltos de línea.");
-            lock (sync) { if (tasks.Values.Any(task => !task.Process.HasExited)) throw new IOException("Detén las operaciones antes de cifrar la configuración."); }
+            if (!File.Exists(ConfigPath)) throw new IOException(L.T("Guarda primero la conexión."));
+            if (Encrypted) throw new IOException(L.T("La configuración ya está cifrada."));
+            if (value.Trim().Length < 12 || value.Contains('\n') || value.Contains('\r') || value.Contains('\0')) throw new ArgumentException(L.T("Usa una contraseña de al menos 12 caracteres, sin saltos de línea."));
+            lock (sync) { if (tasks.Values.Any(task => !task.Process.HasExited)) throw new IOException(L.T("Detén las operaciones antes de cifrar la configuración.")); }
             File.Copy(ConfigPath, temp, true);
             await EncryptFileAsync(temp, value);
             File.Move(temp, ConfigPath, true); password = value;
@@ -134,20 +144,20 @@ public sealed class RcloneRuntime : IAsyncDisposable, IRcloneExecutor
     {
         var info = CommandFor(path, null, "config", "encryption", "set");
         await ExecuteAsync(info, value + "\n" + value + "\n");
-        if (!File.ReadLines(path).Take(5).Any(line => line == "RCLONE_ENCRYPT_V0:")) throw new IOException("rclone no pudo cifrar la configuración.");
+        if (!File.ReadLines(path).Take(5).Any(line => line == "RCLONE_ENCRYPT_V0:")) throw new IOException(L.T("rclone no pudo cifrar la configuración."));
         await ExecuteAsync(CommandFor(path, value, "config", "encryption", "check"));
         File.Delete(path + ".old");
     }
     public async Task LockAsync() { await StopAllAsync(); password = null; }
     internal (ProcessStartInfo Command, Uri Url, string Secret) MediaCommand(string path)
     {
-        if (Locked || !File.Exists(ConfigPath)) throw new IOException("Guarda y desbloquea la conexión de rclone.");
+        if (Locked || !File.Exists(ConfigPath)) throw new IOException(L.T("Guarda y desbloquea la conexión de rclone."));
         _ = Remote(path);
         var slash = path.LastIndexOf('/');
         var folder = slash < 0 ? "/" : path[..slash];
         var name = slash < 0 ? path : path[(slash + 1)..];
         var allowed = new[] {".mp3", ".mp4", ".flac", ".m4a", ".mkv", ".avi", ".wmv", ".flv", ".ogg", ".opus", ".wav", ".webm", ".mov", ".aac", ".aiff", ".ape", ".wma", ".ogv", ".m4v", ".m2ts", ".ts", ".3gp", ".mpeg", ".mpg", ".vob", ".mp2", ".alac"};
-        if (!allowed.Contains(Path.GetExtension(name).ToLowerInvariant())) throw new ArgumentException("Selecciona un archivo de audio o vídeo compatible con el reproductor.");
+        if (!allowed.Contains(Path.GetExtension(name).ToLowerInvariant())) throw new ArgumentException(L.T("Selecciona un archivo de audio o vídeo compatible con el reproductor."));
         var listener = new TcpListener(IPAddress.Loopback, 0); listener.Start(); var port = ((IPEndPoint)listener.LocalEndpoint).Port; listener.Stop();
         var secret = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
         var command = Command("serve", "http", Remote(folder), "--addr", $"127.0.0.1:{port}", "--read-only", "--vfs-cache-mode", "off", "--buffer-size", "16Mi");
@@ -160,23 +170,23 @@ public sealed class RcloneRuntime : IAsyncDisposable, IRcloneExecutor
     public async Task CreateFolderAsync(string path) => _ = await QueryAsync("mkdir", Remote(path));
     public async Task RenameAsync(string source, string target)
     {
-        if (source.Trim('/') == "") throw new ArgumentException("No se puede renombrar la raíz.");
+        if (source.Trim('/') == "") throw new ArgumentException(L.T("No se puede renombrar la raíz."));
         _ = await QueryAsync("moveto", Remote(source), Remote(target), "--immutable");
     }
     public async Task TrashAsync(string path, bool directory)
     {
-        if (path.Trim('/') == "") throw new ArgumentException("No se puede eliminar la raíz.");
+        if (path.Trim('/') == "") throw new ArgumentException(L.T("No se puede eliminar la raíz."));
         _ = await QueryAsync(directory ? "purge" : "deletefile", Remote(path));
     }
     private async Task<string> QueryAsync(params string[] args)
     {
-        if (!File.Exists(ConfigPath)) throw new IOException("Guarda primero la conexión de rclone.");
-        if (Locked) throw new IOException("Desbloquea la configuración de rclone.");
+        if (!File.Exists(ConfigPath)) throw new IOException(L.T("Guarda primero la conexión de rclone."));
+        if (Locked) throw new IOException(L.T("Desbloquea la configuración de rclone."));
         return await ExecuteAsync(Command(args));
     }
     private async Task<string> ExecuteAsync(ProcessStartInfo info, string? input = null)
     {
-        using var process = Process.Start(info) ?? throw new IOException("No se pudo iniciar rclone.");
+        using var process = Process.Start(info) ?? throw new IOException(L.T("No se pudo iniciar rclone."));
         owner.Attach(process);
         using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(90));
         var output = process.StandardOutput.ReadToEndAsync(deadline.Token); var errors = process.StandardError.ReadToEndAsync(deadline.Token);
@@ -184,7 +194,7 @@ public sealed class RcloneRuntime : IAsyncDisposable, IRcloneExecutor
         process.StandardInput.Close();
         try { await process.WaitForExitAsync(deadline.Token); } catch { if (!process.HasExited) process.Kill(true); throw; }
         var result = await output;
-        if (result.Length > 32 * 1024 * 1024) throw new IOException("La carpeta contiene demasiados elementos. Abre una subcarpeta.");
+        if (result.Length > 32 * 1024 * 1024) throw new IOException(L.T("La carpeta contiene demasiados elementos. Abre una subcarpeta."));
         if (process.ExitCode != 0) throw new IOException((await errors).Trim());
         return result;
     }
@@ -205,46 +215,41 @@ public sealed class RcloneRuntime : IAsyncDisposable, IRcloneExecutor
     }
     public string Mount(string drive)
     {
-        if (!DriverInstalled) throw new IOException("Prepara WinFsp desde este panel antes de montar la unidad.");
-        drive = drive.Trim().ToUpperInvariant();
-        if (!Regex.IsMatch(drive, "^[D-Z]:$")) throw new ArgumentException("Elige una letra libre entre D: y Z:.");
-        if (DriveInfo.GetDrives().Any(item => item.Name.StartsWith(drive, StringComparison.OrdinalIgnoreCase))) throw new IOException("Esa letra de unidad ya está en uso.");
-        lock (sync) { if (tasks.Values.Any(task => task.Mount && !task.Process.HasExited)) throw new IOException("Ya hay una unidad montada. Detén el montaje anterior."); }
-        return Start($"Unidad {drive}", true, "mount", "teldrive:/", drive, "--vfs-cache-mode", "full", "--cache-dir", Path.Combine(runtime.DataRoot, "cache", "rclone"), "--vfs-cache-max-size", "10Gi", "--vfs-cache-max-age", "24h", "--volname", "Teldrive v2");
+        return StartDefinition(new() { Name = L.T("Unidad {0}", drive), Operation = "mount", Source = "/", Destination = drive }, false);
     }
     public string Upload(string localFile, string remoteFolder)
     {
-        if (!File.Exists(localFile)) throw new IOException("El archivo seleccionado ya no existe.");
+        if (!File.Exists(localFile)) throw new IOException(L.T("El archivo seleccionado ya no existe."));
         var destination = Remote(remoteFolder).TrimEnd('/') + "/" + Path.GetFileName(localFile);
-        return Start($"Subir {Path.GetFileName(localFile)}", false, "copyto", localFile, destination, "--immutable", "--stats", "2s");
+        return Start(L.T("Subir {0}", Path.GetFileName(localFile)), false, "copyto", localFile, destination, "--immutable", "--stats", "2s");
     }
     public string UploadFolder(string localFolder, string remoteFolder)
     {
-        if (!Directory.Exists(localFolder)) throw new IOException("La carpeta seleccionada ya no existe.");
-        return Start($"Subir carpeta {Path.GetFileName(localFolder)}", false, "copy", localFolder, Remote(remoteFolder).TrimEnd('/') + "/" + Path.GetFileName(localFolder), "--immutable", "--stats", "2s");
+        if (!Directory.Exists(localFolder)) throw new IOException(L.T("La carpeta seleccionada ya no existe."));
+        return Start(L.T("Subir carpeta {0}", Path.GetFileName(localFolder)), false, "copy", localFolder, Remote(remoteFolder).TrimEnd('/') + "/" + Path.GetFileName(localFolder), "--immutable", "--stats", "2s");
     }
     public string Retry(string id)
     {
-        RcloneTask task; lock (sync) { if (!tasks.TryGetValue(id, out task!) || !task.Process.HasExited || task.Mount) throw new IOException("Solo se pueden reintentar transferencias finalizadas."); }
+        RcloneTask task; lock (sync) { if (!tasks.TryGetValue(id, out task!) || !task.Process.HasExited || task.Mount) throw new IOException(L.T("Solo se pueden reintentar transferencias finalizadas.")); }
         return Start(task.Label, false, task.Arguments);
     }
     public string Download(string remotePath, string localFolder)
     {
-        if (!Directory.Exists(localFolder)) throw new IOException("La carpeta seleccionada ya no existe.");
-        return Start($"Descargar {remotePath}", false, "copy", Remote(remotePath), localFolder, "--immutable", "--stats", "2s");
+        if (!Directory.Exists(localFolder)) throw new IOException(L.T("La carpeta seleccionada ya no existe."));
+        return Start(L.T("Descargar {0}", remotePath), false, "copy", Remote(remotePath), localFolder, "--immutable", "--stats", "2s");
     }
     internal static string Remote(string path, string remoteName = "teldrive")
     {
-        if (path.Contains(':') || path.Contains('\0') || path.Contains('\\') || path.Split('/').Any(part => part is ".." or ".")) throw new ArgumentException("Introduce una ruta de Teldrive sin '..' ni nombres de conexiones.");
-        if (!Regex.IsMatch(remoteName, @"^[A-Za-z][\w .-]{0,63}$")) throw new ArgumentException("Selecciona una conexión válida de rclone.conf.");
+        if (path.Contains(':') || path.Contains('\0') || path.Contains('\\') || path.Split('/').Any(part => part is ".." or ".")) throw new ArgumentException(L.T("Introduce una ruta de Teldrive sin '..' ni nombres de conexiones."));
+        if (!Regex.IsMatch(remoteName, @"^[A-Za-z][\w .-]{0,63}$")) throw new ArgumentException(L.T("Selecciona una conexión válida de rclone.conf."));
         return remoteName + ":/" + path.Trim('/');
     }
     private string Start(string label, bool mount, params string[] args)
     {
-        if (!File.Exists(ConfigPath)) throw new IOException("Guarda primero la conexión de rclone.");
-        if (Locked) throw new IOException("Desbloquea la configuración de rclone.");
+        if (!File.Exists(ConfigPath)) throw new IOException(L.T("Guarda primero la conexión de rclone."));
+        if (Locked) throw new IOException(L.T("Desbloquea la configuración de rclone."));
         lock (sync) {
-            if (tasks.Values.Count(task => !task.Process.HasExited) >= 3) throw new IOException("Ya hay tres operaciones en curso. Espera o detén una.");
+            if (!mount && tasks.Values.Count(task => !task.Mount && !task.Process.HasExited) >= 3) throw new IOException(L.T("Ya hay tres transferencias en curso. Espera o detén una."));
             foreach (var id in tasks.Where(pair => pair.Value.Process.HasExited).Select(pair => pair.Key).Take(Math.Max(0, tasks.Count - 20)).ToArray()) { tasks[id].Process.Dispose(); tasks.Remove(id); }
             var idNew = Guid.NewGuid().ToString("N");
             var info = Command(args);
@@ -252,7 +257,7 @@ public sealed class RcloneRuntime : IAsyncDisposable, IRcloneExecutor
             var task = new RcloneTask(process, label, mount, args);
             process.OutputDataReceived += (_, item) => Append(task, item.Data);
             process.ErrorDataReceived += (_, item) => Append(task, item.Data);
-            if (!process.Start()) throw new IOException("No se pudo iniciar rclone.");
+            if (!process.Start()) throw new IOException(L.T("No se pudo iniciar rclone."));
             owner.Attach(process); process.StandardInput.Close(); process.BeginOutputReadLine(); process.BeginErrorReadLine(); tasks.Add(idNew, task);
             return idNew;
         }
@@ -260,7 +265,7 @@ public sealed class RcloneRuntime : IAsyncDisposable, IRcloneExecutor
     private void Append(RcloneTask task, string? line) { if (line is null) return; lock (sync) { task.Log += line + "\n"; if (task.Log.Length > 12000) task.Log = task.Log[^12000..]; } }
     public async Task StopAsync(string id)
     {
-        RcloneTask task; lock (sync) { if (!tasks.TryGetValue(id, out task!)) throw new ArgumentException("La operación ya no existe."); if (task.Process.HasExited) return; task.Cancelled = true; }
+        RcloneTask task; lock (sync) { if (!tasks.TryGetValue(id, out task!)) throw new ArgumentException(L.T("La operación ya no existe.")); if (task.Process.HasExited) return; task.Cancelled = true; }
         if (!task.Process.HasExited) { task.Process.Kill(true); await task.Process.WaitForExitAsync(); }
     }
     public async Task StopAllAsync() { string[] ids; lock (sync) ids = tasks.Keys.ToArray(); foreach (var id in ids) await StopAsync(id); }

@@ -1,3 +1,4 @@
+import { t } from "@/lib/localization";
 import { Button, Input, Spinner } from "@heroui/react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -51,7 +52,7 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
     try {
       return await desktopRequest<T>(method, params);
     } catch (cause) {
-      const message = cause instanceof Error ? cause.message : "La operación de rclone falló.";
+      const message = cause instanceof Error ? cause.message : t("La operación de rclone falló.");
       setError(message);
       toast.error(message);
       return undefined;
@@ -68,7 +69,7 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
       setSelected(undefined);
       setPage(0);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "No se pudo abrir la carpeta.");
+      setError(cause instanceof Error ? cause.message : t("No se pudo abrir la carpeta."));
     } finally {
       setPending(false);
     }
@@ -114,7 +115,7 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
   const edit = async () => {
     const clean = name.trim();
     if (!clean || /[\\/\0]/.test(clean) || clean === "." || clean === "..") {
-      setError("Introduce un nombre de archivo o carpeta válido.");
+      setError(t("Introduce un nombre de archivo o carpeta válido."));
       return;
     }
     const result =
@@ -132,24 +133,26 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
       path: method === "rclone.upload" ? path : target,
     });
     if (id) {
-      toast.success("Transferencia iniciada");
+      toast.success(t("Transferencia iniciada"));
       setTab("jobs");
     }
   };
   return (
     <SettingsSection
-      title="Explorador de rclone"
-      description="Explora tu conexión, reproduce multimedia y gestiona transferencias y montajes desde esta ventana."
+      title={t("Explorador de rclone")}
+      description={t(
+        "Explora tu conexión, reproduce multimedia y gestiona transferencias y montajes desde esta ventana.",
+      )}
     >
       <div className="space-y-4 p-4 sm:p-5">
-        <fieldset className="flex flex-wrap gap-2" aria-label="Secciones de rclone">
+        <fieldset className="flex flex-wrap gap-2" aria-label={t("Secciones de rclone")}>
           {(["files", "jobs", "mount"] as const).map((value, index) => (
             <Button
               key={value}
               variant={tab === value ? "primary" : "secondary"}
               onPress={() => setTab(value)}
             >
-              {["Archivos", "Transferencias", "Montajes"][index]}
+              {[t("Archivos"), t("Transferencias"), t("Montajes")][index]}
             </Button>
           ))}
           <Button
@@ -157,7 +160,7 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
             isDisabled={pending}
             onPress={() => void execute("rclone.advanced")}
           >
-            Opciones adicionales de rclone
+            {t("Opciones adicionales de rclone")}
           </Button>
         </fieldset>
         {error ? (
@@ -167,24 +170,26 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
         ) : null}
         {!info?.configured ? (
           <p className="text-sm text-muted">
-            Introduce tu clave de API y pulsa «Guardar conexión en este equipo» para empezar.
+            {t("Introduce tu clave de API y pulsa «Guardar conexión en este equipo» para empezar.")}
           </p>
         ) : null}
         {info?.configured ? (
           <div className="space-y-3 rounded-xl border border-border p-3">
-            <h3 className="font-semibold">Protección de la conexión</h3>
+            <h3 className="font-semibold">{t("Protección de la conexión")}</h3>
             <p className="text-sm text-muted">
               {info.encrypted
                 ? info.locked
-                  ? "La configuración está cifrada. Desbloquéala para usar rclone."
-                  : "Configuración cifrada y desbloqueada para esta sesión."
-                : "La clave de API se guarda en la configuración local. Puedes cifrarla con una contraseña de rclone."}
+                  ? t("La configuración está cifrada. Desbloquéala para usar rclone.")
+                  : t("Configuración cifrada y desbloqueada para esta sesión.")
+                : t(
+                    "La clave de API se guarda en la configuración local. Puedes cifrarla con una contraseña de rclone.",
+                  )}
             </p>
             {!info.encrypted || info.locked ? (
               <div className="flex flex-wrap items-center gap-2">
                 <Input
                   type="password"
-                  aria-label="Contraseña de rclone"
+                  aria-label={t("Contraseña de rclone")}
                   autoComplete="off"
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
@@ -193,7 +198,7 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
                 {!info.encrypted ? (
                   <Input
                     type="password"
-                    aria-label="Repetir contraseña de rclone"
+                    aria-label={t("Repetir contraseña de rclone")}
                     autoComplete="off"
                     value={repeatPassword}
                     onChange={(event) => setRepeatPassword(event.target.value)}
@@ -217,7 +222,7 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
                     if (value) setInfo(value);
                   }}
                 >
-                  {info.encrypted ? "Desbloquear rclone" : "Cifrar configuración"}
+                  {info.encrypted ? t("Desbloquear rclone") : t("Cifrar configuración")}
                 </Button>
               </div>
             ) : (
@@ -229,7 +234,7 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
                   if (value) setInfo(value);
                 }}
               >
-                Bloquear y detener rclone
+                {t("Bloquear y detener rclone")}
               </Button>
             )}
           </div>
@@ -242,7 +247,7 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
                 isDisabled={pending || path === "/"}
                 onPress={() => setPath(parent(path))}
               >
-                Subir carpeta
+                {t("Subir carpeta")}
               </Button>
               <Button
                 variant="secondary"
@@ -252,16 +257,16 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
                   if (path === "/") void browse();
                 }}
               >
-                Raíz
+                {t("Raíz")}
               </Button>
               <span className="min-w-0 break-all text-sm">teldrive:{path}</span>
               <Button variant="secondary" isDisabled={pending} onPress={() => void browse()}>
-                Actualizar
+                {t("Actualizar")}
               </Button>
             </div>
             <div className="flex flex-wrap gap-2">
               <Button isDisabled={pending} onPress={() => void transfer("rclone.upload")}>
-                Subir archivo local
+                {t("Subir archivo local")}
               </Button>
               <Button
                 variant="secondary"
@@ -271,14 +276,14 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
                   if (id) setTab("jobs");
                 }}
               >
-                Subir carpeta local
+                {t("Subir carpeta local")}
               </Button>
               <Button
                 variant="secondary"
                 isDisabled={pending}
                 onPress={() => void transfer("rclone.download")}
               >
-                {selected ? "Descargar selección" : "Descargar carpeta"}
+                {selected ? t("Descargar selección") : t("Descargar carpeta")}
               </Button>
               <Button
                 variant="secondary"
@@ -288,7 +293,7 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
                   setEditor("mkdir");
                 }}
               >
-                Nueva carpeta
+                {t("Nueva carpeta")}
               </Button>
               <Button
                 variant="secondary"
@@ -298,14 +303,14 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
                   setEditor("rename");
                 }}
               >
-                Renombrar
+                {t("Renombrar")}
               </Button>
               <Button
                 variant="danger"
                 isDisabled={pending || !selected}
                 onPress={() => setDeleting(true)}
               >
-                Eliminar
+                {t("Eliminar")}
               </Button>
             </div>
             <Button
@@ -320,15 +325,15 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
               }
               onPress={() => void execute("rclone.play", { path: target })}
             >
-              Reproducir con mpv integrado
+              {t("Reproducir con mpv integrado")}
             </Button>
             <div className="grid min-w-0 gap-4 xl:grid-cols-2">
               <div className="min-w-0 rounded-xl border border-border p-3">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="font-semibold">Teldrive remoto</h3>
+                  <h3 className="font-semibold">{t("Teldrive remoto")}</h3>
                   <Input
-                    aria-label="Buscar en rclone"
-                    placeholder="Buscar en esta carpeta"
+                    aria-label={t("Buscar en rclone")}
+                    placeholder={t("Buscar en esta carpeta")}
                     value={query}
                     onChange={(event) => {
                       setQuery(event.target.value);
@@ -337,8 +342,8 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
                     className="max-w-xs"
                   />
                 </div>
-                {pending ? <Spinner aria-label="Consultando rclone" /> : null}
-                <ul aria-label="Archivos de rclone" className="max-h-96 overflow-y-auto">
+                {pending ? <Spinner aria-label={t("Consultando rclone")} /> : null}
+                <ul aria-label={t("Archivos de rclone")} className="max-h-96 overflow-y-auto">
                   {filtered.slice(page * 100, (page + 1) * 100).map((entry) => (
                     <li
                       key={entry.Path}
@@ -348,7 +353,7 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
                         <input
                           type="radio"
                           name="rclone-selection"
-                          aria-label={`Seleccionar ${entry.Name}`}
+                          aria-label={t("Seleccionar {0}", [entry.Name])}
                           checked={selected?.Path === entry.Path}
                           onChange={() => setSelected(entry)}
                           className="size-5"
@@ -366,7 +371,7 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
                         <span className="min-w-0 break-all">
                           {entry.Name}
                           <small className="block text-xs text-muted">
-                            {entry.IsDir ? "Carpeta" : bytes(entry.Size)} ·{" "}
+                            {entry.IsDir ? t("Carpeta") : bytes(entry.Size)} ·{" "}
                             {new Date(entry.ModTime).toLocaleDateString("es")}
                           </small>
                         </span>
@@ -375,7 +380,7 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
                   ))}
                 </ul>
                 {!pending && !filtered.length ? (
-                  <p className="py-5 text-sm text-muted">No hay elementos que mostrar.</p>
+                  <p className="py-5 text-sm text-muted">{t("No hay elementos que mostrar.")}</p>
                 ) : null}
                 <div className="mt-3 flex items-center justify-between gap-2">
                   <Button
@@ -383,7 +388,7 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
                     isDisabled={page === 0}
                     onPress={() => setPage(page - 1)}
                   >
-                    Anterior
+                    {t("Anterior")}
                   </Button>
                   <span className="text-xs">{filtered.length} elementos</span>
                   <Button
@@ -391,13 +396,13 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
                     isDisabled={(page + 1) * 100 >= filtered.length}
                     onPress={() => setPage(page + 1)}
                   >
-                    Siguiente
+                    {t("Siguiente")}
                   </Button>
                 </div>
               </div>
               <div className="min-w-0 rounded-xl border border-border p-3">
                 <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="font-semibold">Archivos de Windows</h3>
+                  <h3 className="font-semibold">{t("Archivos de Windows")}</h3>
                   <Button
                     variant="secondary"
                     isDisabled={pending}
@@ -406,7 +411,7 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
                       if (value) setLocal(value);
                     }}
                   >
-                    Elegir carpeta local
+                    {t("Elegir carpeta local")}
                   </Button>
                 </div>
                 {local ? (
@@ -422,7 +427,7 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
                           if (value) setLocal(value);
                         }}
                       >
-                        Subir carpeta local
+                        {t("Subir carpeta local")}
                       </Button>
                       <span className="min-w-0 break-all text-xs">{local.name}</span>
                     </div>
@@ -436,7 +441,7 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
                           <span className="min-w-0 flex-1 break-all text-sm">
                             {entry.name}
                             <small className="block text-xs text-muted">
-                              {entry.directory ? "Carpeta" : bytes(entry.size)}
+                              {entry.directory ? t("Carpeta") : bytes(entry.size)}
                             </small>
                           </span>
                           <Button
@@ -457,7 +462,7 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
                               }
                             }}
                           >
-                            {entry.directory ? "Abrir" : "Subir"}
+                            {entry.directory ? t("Abrir") : t("Subir")}
                           </Button>
                           {entry.directory ? (
                             <Button
@@ -471,7 +476,7 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
                                 if (id) setTab("jobs");
                               }}
                             >
-                              Subir carpeta
+                              {t("Subir carpeta")}
                             </Button>
                           ) : null}
                         </div>
@@ -480,7 +485,7 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
                   </>
                 ) : (
                   <p className="py-5 text-sm text-muted">
-                    El selector de Windows limita el acceso a la carpeta que elijas.
+                    {t("El selector de Windows limita el acceso a la carpeta que elijas.")}
                   </p>
                 )}
               </div>
@@ -496,7 +501,7 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
                   if (value) toast.info(`${value.count} archivos · ${bytes(value.bytes)}`);
                 }}
               >
-                Calcular tamaño
+                {t("Calcular tamaño")}
               </Button>
               <Button
                 variant="secondary"
@@ -506,17 +511,17 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
                   if (value) {
                     try {
                       await copyText(value);
-                      toast.success("Enlace público creado y copiado");
+                      toast.success(t("Enlace público creado y copiado"));
                     } catch (cause) {
                       const message =
-                        cause instanceof Error ? cause.message : "No se pudo copiar el enlace.";
+                        cause instanceof Error ? cause.message : t("No se pudo copiar el enlace.");
                       setError(message);
                       toast.error(message);
                     }
                   }
                 }}
               >
-                Crear enlace público
+                {t("Crear enlace público")}
               </Button>
               <Button
                 variant="secondary"
@@ -531,7 +536,7 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
                   setTimeout(() => URL.revokeObjectURL(url), 1000);
                 }}
               >
-                Exportar lista
+                {t("Exportar lista")}
               </Button>
             </div>
           </>
@@ -547,12 +552,12 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
                       <p className="text-xs text-muted">
                         {
                           {
-                            running: "En curso",
-                            waiting: "En cola",
-                            interrupted: "Interrumpida; puedes reintentar",
-                            completed: "Completada",
-                            cancelled: "Detenida",
-                            failed: "Fallida",
+                            running: t("En curso"),
+                            waiting: t("En cola"),
+                            interrupted: t("Interrumpida; puedes reintentar"),
+                            completed: t("Completada"),
+                            cancelled: t("Detenida"),
+                            failed: t("Fallida"),
                           }[job.status]
                         }
                       </p>
@@ -563,7 +568,7 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
                         isDisabled={pending || info?.locked}
                         onPress={() => void execute("rclone.retry", { id: job.id })}
                       >
-                        Reintentar
+                        {t("Reintentar")}
                       </Button>
                     ) : null}
                     {job.status === "running" || job.status === "waiting" ? (
@@ -572,21 +577,23 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
                         isDisabled={pending}
                         onPress={() => void execute("rclone.stop", { id: job.id })}
                       >
-                        Detener
+                        {t("Detener")}
                       </Button>
                     ) : null}
                   </div>
                   <details className="mt-3">
-                    <summary className="cursor-pointer py-2 text-sm">Progreso y registro</summary>
+                    <summary className="cursor-pointer py-2 text-sm">
+                      {t("Progreso y registro")}
+                    </summary>
                     <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-all rounded-lg bg-default/30 p-3 text-xs">
-                      {job.log || "Esperando la respuesta de rclone…"}
+                      {job.log || t("Esperando la respuesta de rclone…")}
                     </pre>
                   </details>
                 </div>
               ))
             ) : (
               <p className="text-sm text-muted">
-                Las transferencias y los montajes aparecerán aquí.
+                {t("Las transferencias y los montajes aparecerán aquí.")}
               </p>
             )}
           </div>
@@ -594,12 +601,13 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
         {tab === "mount" ? (
           <div className="space-y-4">
             <p className="text-sm text-muted">
-              Monta Teldrive como una unidad de Windows. La caché usa un máximo de 10 GiB; los
-              archivos permanecen en Telegram.
+              {t(
+                "Monta Teldrive como una unidad de Windows. La caché usa un máximo de 10 GiB; los archivos permanecen en Telegram.",
+              )}
             </p>
             <div className="flex flex-wrap items-center gap-3">
               <Input
-                aria-label="Letra de unidad"
+                aria-label={t("Letra de unidad")}
                 value={drive}
                 onChange={(event) => setDrive(event.target.value)}
                 className="max-w-32"
@@ -611,7 +619,7 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
                   if (id) setTab("jobs");
                 }}
               >
-                Montar unidad
+                {t("Montar unidad")}
               </Button>
               <Button
                 variant="secondary"
@@ -621,16 +629,16 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
                   if (value) setInfo(value);
                 }}
               >
-                Preparar WinFsp integrado
+                {t("Preparar WinFsp integrado")}
               </Button>
             </div>
             <p className="text-sm">
               {info?.driverInstalled
-                ? "WinFsp está preparado."
-                : "El controlador requiere la confirmación de Windows al instalarlo."}
+                ? t("WinFsp está preparado.")
+                : t("El controlador requiere la confirmación de Windows al instalarlo.")}
             </p>
             <p className="text-sm text-muted">
-              Para desmontar, abre Transferencias y detén la operación «Unidad».
+              {t("Para desmontar, abre Transferencias y detén la operación «Unidad».")}
             </p>
           </div>
         ) : null}
@@ -640,16 +648,16 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
         onOpenChange={(open) => {
           if (!open && !pending) setEditor(undefined);
         }}
-        title={editor === "mkdir" ? "Nueva carpeta de rclone" : "Renombrar en rclone"}
+        title={editor === "mkdir" ? t("Nueva carpeta de rclone") : t("Renombrar en rclone")}
         isCloseDisabled={pending}
         footer={
           <Button isDisabled={pending} onPress={() => void edit()}>
-            Guardar
+            {t("Guardar")}
           </Button>
         }
       >
         <Input
-          aria-label="Nombre en rclone"
+          aria-label={t("Nombre en rclone")}
           value={name}
           onChange={(event) => setName(event.target.value)}
         />
@@ -657,10 +665,13 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
       <ConfirmDialog
         open={deleting}
         onOpenChange={setDeleting}
-        title="¿Eliminar este elemento mediante rclone?"
-        message={`Se eliminará «${selected?.Name ?? ""}» y, si es una carpeta, su contenido. Comprueba el elemento antes de continuar.`}
+        title={t("¿Eliminar este elemento mediante rclone?")}
+        message={t(
+          "Se eliminará «{0}» y, si es una carpeta, su contenido. Comprueba el elemento antes de continuar.",
+          [selected?.Name ?? ""],
+        )}
         isPending={pending}
-        confirmLabel="Eliminar"
+        confirmLabel={t("Eliminar")}
         onConfirm={async () => {
           const value = await execute("rclone.trash", {
             path: target,

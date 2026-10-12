@@ -1,3 +1,4 @@
+import { t } from "@/lib/localization";
 import { Label, ListBox, NumberField, Select, Switch } from "@heroui/react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useRef, useState } from "react";
@@ -13,19 +14,23 @@ function UploadSettings() {
   return (
     <div className="space-y-6">
       <SettingsPageHeader
-        title="Subidas"
-        description="Configura subidas simultáneas, cifrado, conflictos de nombre y tamaño de fragmentos."
+        title={t("Subidas")}
+        description={t(
+          "Configura subidas simultáneas, cifrado, conflictos de nombre y tamaño de fragmentos.",
+        )}
       />
       <SettingsSection
-        title="Comportamiento de subidas"
-        description="Estas preferencias se guardan en este navegador y se aplican a las nuevas subidas."
+        title={t("Comportamiento de subidas")}
+        description={t(
+          "Estas preferencias se guardan en este navegador y se aplican a las nuevas subidas.",
+        )}
       >
         <SettingsRow
-          label="Cifrado"
-          description="Cifra los fragmentos con la clave del servidor antes de almacenarlos."
+          label={t("Cifrado")}
+          description={t("Cifra los fragmentos con la clave del servidor antes de almacenarlos.")}
         >
           <Switch
-            aria-label="Cifrar archivos subidos"
+            aria-label={t("Cifrar archivos subidos")}
             isSelected={settings.encryption}
             onChange={(isSelected) => setSettings({ encryption: isSelected })}
           >
@@ -33,16 +38,18 @@ function UploadSettings() {
               <Switch.Control>
                 <Switch.Thumb />
               </Switch.Control>
-              <Label>Cifrar archivos subidos</Label>
+              <Label>{t("Cifrar archivos subidos")}</Label>
             </Switch.Content>
           </Switch>
         </SettingsRow>
         <SettingsRow
-          label="Conflictos de nombre"
-          description="Elige qué hacer si el destino ya contiene un elemento con el mismo nombre."
+          label={t("Conflictos de nombre")}
+          description={t(
+            "Elige qué hacer si el destino ya contiene un elemento con el mismo nombre.",
+          )}
         >
           <Select
-            aria-label="Conflictos de nombre"
+            aria-label={t("Conflictos de nombre")}
             selectedKey={settings.conflictPolicy}
             onSelectionChange={(key) =>
               setSettings({ conflictPolicy: String(key) as typeof settings.conflictPolicy })
@@ -54,25 +61,25 @@ function UploadSettings() {
             </Select.Trigger>
             <Select.Popover>
               <ListBox>
-                <ListBox.Item id="rename" textValue="Renombrar el nuevo archivo">
-                  Renombrar el nuevo archivo
+                <ListBox.Item id="rename" textValue={t("Renombrar el nuevo archivo")}>
+                  {t("Renombrar el nuevo archivo")}
                 </ListBox.Item>
-                <ListBox.Item id="replace" textValue="Reemplazar existente">
-                  Reemplazar existente
+                <ListBox.Item id="replace" textValue={t("Reemplazar existente")}>
+                  {t("Reemplazar existente")}
                 </ListBox.Item>
-                <ListBox.Item id="error" textValue="Detener con error">
-                  Detener con error
+                <ListBox.Item id="error" textValue={t("Detener con error")}>
+                  {t("Detener con error")}
                 </ListBox.Item>
               </ListBox>
             </Select.Popover>
           </Select>
         </SettingsRow>
         <SettingsRow
-          label="Subidas simultáneas"
-          description="Cantidad de archivos que este navegador sube simultáneamente."
+          label={t("Subidas simultáneas")}
+          description={t("Cantidad de archivos que este navegador sube simultáneamente.")}
         >
           <NumberField
-            aria-label="Subidas simultáneas"
+            aria-label={t("Subidas simultáneas")}
             value={settings.concurrency}
             minValue={1}
             maxValue={12}
@@ -80,7 +87,7 @@ function UploadSettings() {
               setSettings({ concurrency: Math.max(1, Math.min(12, value ?? 1)) })
             }
           >
-            <Label className="sr-only">Subidas simultáneas</Label>
+            <Label className="sr-only">{t("Subidas simultáneas")}</Label>
             <NumberField.Group>
               <NumberField.DecrementButton />
               <NumberField.Input />
@@ -89,8 +96,10 @@ function UploadSettings() {
           </NumberField>
         </SettingsRow>
         <SettingsRow
-          label="Tamaño preferido de fragmento"
-          description="El valor inicial es 512 MiB. En subidas cifradas se ajusta a múltiplos de 16 MiB; el servidor puede elegir otro tamaño."
+          label={t("Tamaño preferido de fragmento")}
+          description={t(
+            "El valor inicial es 512 MiB. En subidas cifradas se ajusta a múltiplos de 16 MiB; el servidor puede elegir otro tamaño.",
+          )}
         >
           <PartSizeField />
         </SettingsRow>
@@ -114,7 +123,7 @@ function PartSizeField() {
 
   return (
     <NumberField
-      aria-label="Tamaño preferido de fragmento en MiB"
+      aria-label={t("Tamaño preferido de fragmento en MiB")}
       value={value}
       maxValue={MAX_PART_SIZE_MIB}
       onChange={(next) => {
@@ -123,7 +132,7 @@ function PartSizeField() {
       }}
       onBlur={commit}
     >
-      <Label className="sr-only">Tamaño preferido de fragmento en MiB</Label>
+      <Label className="sr-only">{t("Tamaño preferido de fragmento en MiB")}</Label>
       <NumberField.Group>
         <NumberField.DecrementButton />
         <NumberField.Input />

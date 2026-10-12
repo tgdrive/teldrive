@@ -1,3 +1,4 @@
+import { t } from "@/lib/localization";
 import { $api } from "@/api/client";
 import { useTheme } from "@/lib/theme";
 function bytes(value: number) {
@@ -14,17 +15,20 @@ export function StorageSummary() {
   const total = storageLimitGiB ? storageLimitGiB * 1024 ** 3 : null;
   const percent = total ? Math.min(100, Math.round((used / total) * 100)) : 0;
   return (
-    <section className="mb-3 space-y-2 px-3 text-xs text-muted" aria-label="Uso de almacenamiento">
+    <section
+      className="mb-3 space-y-2 px-3 text-xs text-muted"
+      aria-label={t("Uso de almacenamiento")}
+    >
       <div
         role="progressbar"
-        aria-label="Almacenamiento utilizado"
+        aria-label={t("Almacenamiento utilizado")}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={percent}
         aria-valuetext={
           data
-            ? `${bytes(used)} utilizados${total ? ` de ${bytes(total)}` : "; sin límite configurado"}`
-            : "Cargando almacenamiento"
+            ? `${bytes(used)} utilizados${total ? ` de ${bytes(total)}` : t("; sin límite configurado")}`
+            : t("Cargando almacenamiento")
         }
         className="h-1.5 overflow-hidden rounded-full bg-default"
       >
@@ -35,10 +39,10 @@ export function StorageSummary() {
       </div>
       <p>
         {isError
-          ? "No se pudo consultar el almacenamiento"
+          ? t("No se pudo consultar el almacenamiento")
           : !data
-            ? "Calculando…"
-            : `${bytes(used)} utilizados${total ? ` de ${bytes(total)}` : " · sin límite"}`}
+            ? t("Calculando…")
+            : `${bytes(used)} utilizados${total ? ` de ${bytes(total)}` : t(" · sin límite")}`}
       </p>
       {data && total ? <p>{bytes(Math.max(0, total - used))} disponibles</p> : null}
     </section>

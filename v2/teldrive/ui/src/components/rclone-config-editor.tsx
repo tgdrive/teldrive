@@ -1,3 +1,4 @@
+import { t } from "@/lib/localization";
 import { Button, Input } from "@heroui/react";
 import { useRef, useState } from "react";
 import { SettingsSection } from "./settings-layout";
@@ -50,8 +51,12 @@ export function RcloneConfigEditor({ onSaved }: { onSaved: () => void }) {
       title="rclone.conf personalizado"
       description={
         isDesktop()
-          ? "Importa y edita todas las conexiones. Al guardar se valida el archivo y se conserva un respaldo."
-          : "Importa un archivo de tu equipo, edita sus opciones y descarga la configuración actualizada para utilizarla con rclone."
+          ? t(
+              "Importa y edita todas las conexiones. Al guardar se valida el archivo y se conserva un respaldo.",
+            )
+          : t(
+              "Importa un archivo de tu equipo, edita sus opciones y descarga la configuración actualizada para utilizarla con rclone.",
+            )
       }
     >
       <div className="space-y-4 p-5">
@@ -70,14 +75,16 @@ export function RcloneConfigEditor({ onSaved }: { onSaved: () => void }) {
                 if (!result) return;
                 if (result.locked) {
                   setMessage(
-                    "Archivo cifrado importado. Desbloquéalo en el explorador de rclone y pulsa Cargar configuración.",
+                    t(
+                      "Archivo cifrado importado. Desbloquéalo en el explorador de rclone y pulsa Cargar configuración.",
+                    ),
                   );
                   onSaved();
                   return;
                 }
                 load(result.content ?? "");
                 onSaved();
-                setMessage("Configuración importada; el archivo original se conserva.");
+                setMessage(t("Configuración importada; el archivo original se conserva."));
               });
             }}
           >
@@ -93,14 +100,14 @@ export function RcloneConfigEditor({ onSaved }: { onSaved: () => void }) {
                 })
               }
             >
-              Cargar configuración
+              {t("Cargar configuración")}
             </Button>
           ) : null}
           <Button
             isDisabled={busy || !content || Boolean(invalid)}
             onPress={() => void action(exportFile)}
           >
-            Exportar archivo editado
+            {t("Exportar archivo editado")}
           </Button>
           {isDesktop() ? (
             <Button
@@ -109,11 +116,11 @@ export function RcloneConfigEditor({ onSaved }: { onSaved: () => void }) {
                 void action(async () => {
                   await desktopRequest("rclone.config-save", { content });
                   onSaved();
-                  setMessage("Configuración guardada. Respaldo: rclone.conf.previous.");
+                  setMessage(t("Configuración guardada. Respaldo: rclone.conf.previous."));
                 })
               }
             >
-              Guardar en Desktop
+              {t("Guardar en Desktop")}
             </Button>
           ) : null}
         </div>
@@ -126,9 +133,9 @@ export function RcloneConfigEditor({ onSaved }: { onSaved: () => void }) {
             const file = event.target.files?.[0];
             if (file)
               void action(async () => {
-                if (file.size > 2 * 1024 * 1024) throw new Error("El archivo supera 2 MB.");
+                if (file.size > 2 * 1024 * 1024) throw new Error(t("El archivo supera 2 MB."));
                 load(await file.text());
-                setMessage("Archivo cargado localmente. Descárgalo cuando termines de editar.");
+                setMessage(t("Archivo cargado localmente. Descárgalo cuando termines de editar."));
               });
             event.target.value = "";
           }}
@@ -145,7 +152,7 @@ export function RcloneConfigEditor({ onSaved }: { onSaved: () => void }) {
         ) : null}
         {sections.length ? (
           <label className="flex flex-wrap items-center gap-3">
-            Conexión
+            {t("Conexión")}
             <select
               aria-label="Conexión del archivo rclone.conf"
               className="min-h-11 rounded-lg border border-border bg-field-background px-3"
@@ -179,7 +186,7 @@ export function RcloneConfigEditor({ onSaved }: { onSaved: () => void }) {
         </div>
         <label className="flex min-h-11 items-center gap-2">
           <input type="checkbox" checked={raw} onChange={(event) => setRaw(event.target.checked)} />
-          Editar contenido completo
+          {t("Editar contenido completo")}
         </label>
         {raw ? (
           <textarea

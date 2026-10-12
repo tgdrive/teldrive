@@ -1,3 +1,4 @@
+import { t } from "@/lib/localization";
 import { Button, Card, Checkbox, Spinner } from "@heroui/react";
 import type { ReactNode } from "react";
 import {
@@ -69,8 +70,8 @@ export function FileBrowser({
   hasNextPage = false,
   isLoadingMore = false,
   onLoadMore,
-  emptyHint = "Esta carpeta está vacía.",
-  emptyTitle = "Esta carpeta está vacía",
+  emptyHint = t("Esta carpeta está vacía."),
+  emptyTitle = t("Esta carpeta está vacía"),
   hideFolderControls = false,
   showLocations = false,
   onOpenContainingFolder,
@@ -80,7 +81,7 @@ export function FileBrowser({
       <Card.Header className="shrink-0 border-b border-border px-3 py-3 sm:px-4">
         <div className="file-browser-header flex min-w-0 items-center gap-1.5">
           {onBack ? (
-            <Button isIconOnly size="sm" variant="ghost" aria-label="Volver" onPress={onBack}>
+            <Button isIconOnly size="sm" variant="ghost" aria-label={t("Volver")} onPress={onBack}>
               <BackIcon className="size-4" />
             </Button>
           ) : null}
@@ -89,7 +90,7 @@ export function FileBrowser({
               isIconOnly
               size="sm"
               variant="ghost"
-              aria-label="Subir una carpeta"
+              aria-label={t("Subir una carpeta")}
               isDisabled={path === "/"}
               onPress={() => {
                 const parts = path.split("/").filter(Boolean);
@@ -115,7 +116,7 @@ export function FileBrowser({
               isIconOnly
               size="sm"
               variant={view === "list" ? "secondary" : "ghost"}
-              aria-label="Vista de lista"
+              aria-label={t("Vista de lista")}
               onPress={() => onViewChange("list")}
             >
               <ListIcon className="size-4" />
@@ -124,7 +125,7 @@ export function FileBrowser({
               isIconOnly
               size="sm"
               variant={view === "grid" ? "secondary" : "ghost"}
-              aria-label="Vista de cuadrícula"
+              aria-label={t("Vista de cuadrícula")}
               onPress={() => onViewChange("grid")}
             >
               <GridIcon className="size-4" />
@@ -200,7 +201,7 @@ function FileCollection({
   return (
     <Virtualizer key={view} layout={grid ? GridLayout : ListLayout}>
       <GridList
-        aria-label="Archivos y carpetas"
+        aria-label={t("Archivos y carpetas")}
         layout={grid ? "grid" : "stack"}
         selectionMode={selection ? "multiple" : "none"}
         selectionBehavior="replace"
@@ -305,7 +306,7 @@ function SelectionCheckbox({ file, isVisible }: { file: FileEntry; isVisible: bo
   return (
     <Checkbox
       slot="selection"
-      aria-label={`Seleccionar ${file.name}`}
+      aria-label={t("Seleccionar {0}", [file.name])}
       className={({ isSelected }) =>
         [
           "shrink-0 transition-opacity",
@@ -353,7 +354,7 @@ function GridFile({
           <LocationButton location={location} onPress={onOpenContainingFolder} className="mt-1" />
         )}
         <p className="mt-1 text-[11px] text-muted">
-          {file.kind === "folder" ? "Carpeta" : formatFileBytes(file.size ?? 0)}
+          {file.kind === "folder" ? t("Carpeta") : formatFileBytes(file.size ?? 0)}
         </p>
       </div>
     </>
@@ -401,7 +402,7 @@ function ListFile({
         </div>
       </div>
       <span className="hidden text-xs text-muted sm:block">
-        {file.kind === "folder" ? "Carpeta" : formatFileBytes(file.size ?? 0)}
+        {file.kind === "folder" ? t("Carpeta") : formatFileBytes(file.size ?? 0)}
       </span>
       <span className="hidden min-w-0 text-xs text-muted lg:block">
         {location ? (
@@ -428,7 +429,7 @@ function LocationButton({
       size="sm"
       variant="ghost"
       className={`h-auto min-h-0 max-w-full justify-start rounded-sm px-0 py-0 text-[11px] text-muted ${className}`}
-      aria-label={`Abrir carpeta contenedora ${location}`}
+      aria-label={t("Abrir carpeta contenedora {0}", [location])}
       onPress={onPress}
     >
       <span className="truncate">{location}</span>
@@ -449,7 +450,7 @@ function FileBrowserBreadcrumb({
   const lastIndex = parts.length - 1;
   return (
     <nav
-      aria-label="Carpeta actual"
+      aria-label={t("Carpeta actual")}
       className="flex min-w-0 items-center gap-1 overflow-hidden text-sm"
     >
       <Button

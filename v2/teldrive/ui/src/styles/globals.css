@@ -4,8 +4,13 @@
 @source not "../../test-results";
 @source not "../../playwright-report";
 
-html[data-density="compact"] td { padding-top: 0.35rem; padding-bottom: 0.35rem; }
-html[data-density="compact"] [role="row"] { min-height: 2.25rem; }
+html[data-density="compact"] td {
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+}
+html[data-density="compact"] [role="row"] {
+  min-height: 2.25rem;
+}
 
 /* ─── Font ─── */
 @font-face {
@@ -18,6 +23,11 @@ html[data-density="compact"] [role="row"] { min-height: 2.25rem; }
 
 /* ─── Theme tokens ─── */
 @theme inline {
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-muted-background: var(--muted-background);
+  --color-field-background: var(--field-background);
   --font-sans:
     "Geist", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
     "Segoe UI Symbol", "Noto Color Emoji";
@@ -53,7 +63,9 @@ html[data-density="compact"] [role="row"] { min-height: 2.25rem; }
   }
 
   /* ─── Light theme ─── */
-  :root {
+  :root,
+  .light,
+  [data-theme="light"] {
     color-scheme: light;
 
     --spacing: 0.25rem;
@@ -145,20 +157,22 @@ html[data-density="compact"] [role="row"] { min-height: 2.25rem; }
 /* ─── Component layer ─── */
 @layer components {
   .glass-panel {
-    background-color: oklch(0.21 0.008 70 / 0.6);
+    background-color: var(--overlay);
+    color: var(--overlay-foreground);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
-    border: 1px solid oklch(0.95 0.02 70 / 0.08);
+    border: 1px solid var(--border);
     box-shadow:
       0 4px 24px oklch(0 0 0 / 0.3),
       inset 0 1px 0 oklch(1 1 0 / 0.04);
   }
 
   .glass-panel-lg {
-    background-color: oklch(0.23 0.01 70 / 0.7);
+    background-color: var(--overlay);
+    color: var(--overlay-foreground);
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
-    border: 1px solid oklch(0.95 0.02 70 / 0.1);
+    border: 1px solid var(--border);
     box-shadow:
       0 8px 32px oklch(0 0 0 / 0.35),
       inset 0 1px 0 oklch(1 1 0 / 0.05);
@@ -328,7 +342,10 @@ foliate-view::part(foot) {
   }
 }
 @media (pointer: coarse) {
-  button, [role="button"], [role="menuitem"], [role="option"] {
+  button,
+  [role="button"],
+  [role="menuitem"],
+  [role="option"] {
     min-height: 44px;
     min-width: 44px;
     touch-action: manipulation;
@@ -346,8 +363,14 @@ foliate-view::part(foot) {
     overflow: visible;
     margin-bottom: env(safe-area-inset-bottom, 0px);
   }
-  .file-browser-header { flex-wrap: wrap; }
-  .file-browser-controls { flex-basis: 100%; justify-content: flex-end; flex-wrap: wrap; }
+  .file-browser-header {
+    flex-wrap: wrap;
+  }
+  .file-browser-controls {
+    flex-basis: 100%;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
   [role="grid"]:has([aria-selected="true"]) {
     padding-bottom: calc(14rem + env(safe-area-inset-bottom, 0px));
   }

@@ -1,3 +1,4 @@
+import { t } from "@/lib/localization";
 import { Button, Input, Label, Spinner, TextField } from "@heroui/react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
@@ -174,14 +175,14 @@ function PublicSharePage() {
 
   const copyDownloadLink = async (file: FileEntry) => {
     if (activePassword) {
-      toast.error("Los enlaces protegidos con contraseña se abren desde la página compartida");
+      toast.error(t("Los enlaces protegidos con contraseña se abren desde la página compartida"));
       return;
     }
     try {
       await copyText(publicContentUrl(file));
-      toast.success("Enlace directo copiado");
+      toast.success(t("Enlace directo copiado"));
     } catch (cause) {
-      toast.error("No se pudo copiar el enlace directo", {
+      toast.error(t("No se pudo copiar el enlace directo"), {
         description: userMessage(cause),
       });
     }
@@ -214,9 +215,9 @@ function PublicSharePage() {
       setFolderName("");
       setFolderDialogOpen(false);
       await refreshItems();
-      toast.success("Carpeta creada");
+      toast.success(t("Carpeta creada"));
     } catch (cause) {
-      toast.error("No se pudo crear la carpeta", {
+      toast.error(t("No se pudo crear la carpeta"), {
         description: userMessage(cause),
       });
     }
@@ -241,9 +242,9 @@ function PublicSharePage() {
       setRenameName("");
       setSelectedKeys(new Set());
       await refreshItems();
-      toast.success("Elemento renombrado");
+      toast.success(t("Elemento renombrado"));
     } catch (cause) {
-      toast.error("No se pudo renombrar el elemento", {
+      toast.error(t("No se pudo renombrar el elemento"), {
         description: userMessage(cause),
       });
     }
@@ -267,7 +268,7 @@ function PublicSharePage() {
         `${selectedFiles.length} elemento${selectedFiles.length === 1 ? "" : "s"} enviado a la papelera`,
       );
     } catch (cause) {
-      toast.error("No se pudieron mover los elementos a la papelera", {
+      toast.error(t("No se pudieron mover los elementos a la papelera"), {
         description: userMessage(cause),
       });
     }
@@ -333,7 +334,7 @@ function PublicSharePage() {
           },
         ).catch(() => undefined);
       }
-      toast.error("Subida fallida", { description: userMessage(cause) });
+      toast.error(t("Subida fallida"), { description: userMessage(cause) });
     } finally {
       setUploading(false);
     }
@@ -350,8 +351,8 @@ function PublicSharePage() {
             <p className="text-sm font-semibold">Teldrive</p>
             <p className="truncate text-xs text-muted">
               {share
-                ? `${share.file.name} · ${share.file.kind === "folder" ? "Carpeta compartida" : formatFileBytes(share.file.size ?? 0)}`
-                : "Elemento compartido"}
+                ? `${share.file.name} · ${share.file.kind === "folder" ? t("Carpeta compartida") : formatFileBytes(share.file.size ?? 0)}`
+                : t("Elemento compartido")}
             </p>
           </div>
           {share ? (
@@ -365,13 +366,13 @@ function PublicSharePage() {
       <main className="flex min-h-0 w-full flex-1 overflow-hidden p-4 sm:p-6">
         {loading && !share && !needsPassword ? (
           <div className="flex min-h-72 flex-1 items-center justify-center">
-            <Spinner aria-label="Cargando enlace compartido" />
+            <Spinner aria-label={t("Cargando enlace compartido")} />
           </div>
         ) : needsPassword ? (
           <div className="mx-auto mt-8 h-fit w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-sm">
-            <h1 className="text-lg font-semibold">Contraseña obligatoria</h1>
+            <h1 className="text-lg font-semibold">{t("Contraseña obligatoria")}</h1>
             <p className="mt-1 text-sm text-muted">
-              Introduce la contraseña que te dio quien compartió este elemento.
+              {t("Introduce la contraseña que te dio quien compartió este elemento.")}
             </p>
             <form
               className="mt-5 space-y-4"
@@ -381,7 +382,7 @@ function PublicSharePage() {
               }}
             >
               <TextField value={password} onChange={setPassword}>
-                <Label>Contraseña</Label>
+                <Label>{t("Contraseña")}</Label>
                 <Input type="password" autoFocus />
               </TextField>
               <Button
@@ -390,7 +391,7 @@ function PublicSharePage() {
                 className="w-full"
                 isDisabled={!password.trim()}
               >
-                Abrir elemento compartido
+                {t("Abrir elemento compartido")}
               </Button>
             </form>
           </div>
@@ -424,7 +425,7 @@ function PublicSharePage() {
                           isIconOnly
                           size="sm"
                           variant="secondary"
-                          aria-label="Nueva carpeta"
+                          aria-label={t("Nueva carpeta")}
                           onPress={() => setFolderDialogOpen(true)}
                         >
                           <PlusIcon className="size-4" />
@@ -439,7 +440,7 @@ function PublicSharePage() {
                             isIconOnly
                             size="sm"
                             variant="primary"
-                            aria-label="Subir archivo"
+                            aria-label={t("Subir archivo")}
                             isDisabled={uploading}
                           >
                             {uploading ? <Spinner size="sm" /> : <UploadIcon className="size-4" />}
@@ -460,7 +461,7 @@ function PublicSharePage() {
                               isIconOnly
                               size="sm"
                               variant="ghost"
-                              aria-label="Renombrar elemento seleccionado"
+                              aria-label={t("Renombrar elemento seleccionado")}
                               onPress={() => {
                                 setRenameFile(singleSelected);
                                 setRenameName(singleSelected.name);
@@ -475,7 +476,7 @@ function PublicSharePage() {
                               variant="secondary"
                               onPress={() => void openPreview(singleSelected)}
                             >
-                              Vista previa
+                              {t("Vista previa")}
                             </Button>
                           ) : null}
                           {singleSelected?.kind === "file" ? (
@@ -483,7 +484,7 @@ function PublicSharePage() {
                               isIconOnly
                               size="sm"
                               variant="ghost"
-                              aria-label="Descargar archivo seleccionado"
+                              aria-label={t("Descargar archivo seleccionado")}
                               onPress={() => void download(singleSelected)}
                             >
                               <DownloadIcon className="size-4" />
@@ -494,7 +495,7 @@ function PublicSharePage() {
                               isIconOnly
                               size="sm"
                               variant="ghost"
-                              aria-label="Copiar enlace de descarga"
+                              aria-label={t("Copiar enlace de descarga")}
                               onPress={() => void copyDownloadLink(singleSelected)}
                             >
                               <LinkIcon className="size-4" />
@@ -505,7 +506,7 @@ function PublicSharePage() {
                               isIconOnly
                               size="sm"
                               variant="danger"
-                              aria-label="Mover elementos seleccionados a la papelera"
+                              aria-label={t("Mover elementos seleccionados a la papelera")}
                               onPress={() => void trashSelected()}
                             >
                               <TrashIcon className="size-4" />
@@ -515,7 +516,7 @@ function PublicSharePage() {
                             isIconOnly
                             size="sm"
                             variant="ghost"
-                            aria-label="Borrar selección"
+                            aria-label={t("Borrar selección")}
                             onPress={() => setSelectedKeys(new Set())}
                           >
                             <CloseIcon className="size-4" />
@@ -524,14 +525,14 @@ function PublicSharePage() {
                       </div>
                     ) : undefined
                   }
-                  emptyHint="No hay archivos disponibles en esta carpeta compartida."
+                  emptyHint={t("No hay archivos disponibles en esta carpeta compartida.")}
                 />
               </div>
             </PageContent>
           </Page>
         ) : error ? (
           <div className="mx-auto mt-8 h-fit max-w-lg rounded-2xl border border-border bg-surface p-6 text-center">
-            <h1 className="text-lg font-semibold">Elemento compartido no disponible</h1>
+            <h1 className="text-lg font-semibold">{t("Elemento compartido no disponible")}</h1>
             <p className="mt-2 text-sm text-muted">{error}</p>
           </div>
         ) : null}
@@ -552,25 +553,25 @@ function PublicSharePage() {
       <AppDialog
         open={folderDialogOpen}
         onOpenChange={setFolderDialogOpen}
-        title="Crear carpeta"
+        title={t("Crear carpeta")}
         footer={
           <>
             <Button variant="secondary" onPress={() => setFolderDialogOpen(false)}>
-              Cancelar
+              {t("Cancelar")}
             </Button>
             <Button
               variant="primary"
               isDisabled={!folderName.trim()}
               onPress={() => void createFolder()}
             >
-              Crear carpeta
+              {t("Crear carpeta")}
             </Button>
           </>
         }
       >
         <TextField value={folderName} onChange={setFolderName}>
-          <Label>Nombre de carpeta</Label>
-          <Input autoFocus placeholder="Nueva carpeta" />
+          <Label>{t("Nombre de carpeta")}</Label>
+          <Input autoFocus placeholder={t("Nueva carpeta")} />
         </TextField>
       </AppDialog>
 
@@ -579,24 +580,24 @@ function PublicSharePage() {
         onOpenChange={(open) => {
           if (!open) setRenameFile(undefined);
         }}
-        title="Renombrar elemento"
+        title={t("Renombrar elemento")}
         footer={
           <>
             <Button variant="secondary" onPress={() => setRenameFile(undefined)}>
-              Cancelar
+              {t("Cancelar")}
             </Button>
             <Button
               variant="primary"
               isDisabled={!renameName.trim()}
               onPress={() => void renameSelected()}
             >
-              Renombrar
+              {t("Renombrar")}
             </Button>
           </>
         }
       >
         <TextField value={renameName} onChange={setRenameName}>
-          <Label>Nuevo nombre</Label>
+          <Label>{t("Nuevo nombre")}</Label>
           <Input autoFocus />
         </TextField>
       </AppDialog>

@@ -1,3 +1,4 @@
+import { t } from "@/lib/localization";
 import { Button, Chip, Spinner } from "@heroui/react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { toast } from "sonner";
@@ -41,32 +42,35 @@ function AccountSettings() {
       getQueryClient().clear();
       await navigate({ to: "/login", search: { redirect: "/files" }, replace: true });
     } catch (error) {
-      toast.error("No se pudo cerrar la sesión", { description: userMessage(error) });
+      toast.error(t("No se pudo cerrar la sesión"), { description: userMessage(error) });
     }
   };
 
-  const displayName = user.data.displayName || user.data.username || `Usuario ${user.data.userId}`;
+  const displayName =
+    user.data.displayName || user.data.username || t("Usuario {0}", [user.data.userId]);
 
   return (
     <div className="space-y-6">
       <SettingsPageHeader
-        title="Cuenta"
-        description="Tu perfil de Teldrive, uso de almacenamiento y sesión actual."
+        title={t("Cuenta")}
+        description={t("Tu perfil de Teldrive, uso de almacenamiento y sesión actual.")}
         actions={
           <Button variant="danger" onPress={logOut} isDisabled={logout.isPending}>
             <LogoutIcon className="size-4" />
-            Cerrar sesión
+            {t("Cerrar sesión")}
           </Button>
         }
       />
       <SettingsSection
-        title="Perfil"
-        description="Esta identidad corresponde a tu cuenta de Telegram autenticada."
+        title={t("Perfil")}
+        description={t("Esta identidad corresponde a tu cuenta de Telegram autenticada.")}
       >
         <SettingsRow
           label={displayName}
           description={
-            user.data.username ? `@${user.data.username}` : `Usuario de Telegram ${user.data.userId}`
+            user.data.username
+              ? `@${user.data.username}`
+              : t("Usuario de Telegram {0}", [user.data.userId])
           }
         >
           <div className="flex justify-end">
@@ -80,13 +84,17 @@ function AccountSettings() {
                     : "default"
               }
             >
-              {user.data.role === "owner" ? "Propietario" : user.data.role === "admin" ? "Administrador" : "Usuario"}
+              {user.data.role === "owner"
+                ? t("Propietario")
+                : user.data.role === "admin"
+                  ? t("Administrador")
+                  : t("Usuario")}
             </Chip>
           </div>
         </SettingsRow>
         <SettingsRow
-          label="Cuenta creada"
-          description="Fecha de creación de este perfil de Teldrive."
+          label={t("Cuenta creada")}
+          description={t("Fecha de creación de este perfil de Teldrive.")}
         >
           <p className="text-right text-sm text-muted">
             {new Date(user.data.createdAt).toLocaleString()}
@@ -94,16 +102,16 @@ function AccountSettings() {
         </SettingsRow>
       </SettingsSection>
       <SettingsSection
-        title="Estadísticas de la unidad"
-        description="Uso actual de almacenamiento de esta cuenta."
+        title={t("Estadísticas de la unidad")}
+        description={t("Uso actual de almacenamiento de esta cuenta.")}
       >
-        <SettingsRow label="Archivos">
+        <SettingsRow label={t("Archivos")}>
           <p className="text-right font-mono text-sm">{stats.data.totalFiles.toLocaleString()}</p>
         </SettingsRow>
-        <SettingsRow label="Datos almacenados">
+        <SettingsRow label={t("Datos almacenados")}>
           <p className="text-right font-mono text-sm">{formatBytes(stats.data.totalBytes)}</p>
         </SettingsRow>
-        <SettingsRow label="Abrir subidas">
+        <SettingsRow label={t("Abrir subidas")}>
           <p className="text-right font-mono text-sm">{stats.data.openUploads.toLocaleString()}</p>
         </SettingsRow>
       </SettingsSection>

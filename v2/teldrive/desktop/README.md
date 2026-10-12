@@ -56,3 +56,19 @@ El botón superior **Teldrive** recupera el Drive desde Actividad, Configuració
 FFprobe detecta las pistas de audio y subtítulos de MKV y otros contenedores. FFmpeg aplica el audio seleccionado, convierte subtítulos de texto a WebVTT e integra los de imagen en el vídeo compatible. La conversión incluye las pistas elegidas al transmitir. Los resultados dependen de los códecs disponibles y del dispositivo.
 
 `--smoke-enhancements --data-root RUTA_NUEVA` comprueba el botón Teldrive, el registro de Actividad sin capa blanca, importación/edición/cifrado/respaldos de rclone.conf y una transferencia real hacia una conexión personalizada. Usa PostgreSQL y carpetas de prueba aisladas, sin Telegram ni televisores físicos.
+
+## Corrección del doble clic (2.0.0.6)
+
+Desktop suprime el evento de botón duplicado que el SDK WebView2 de composición reenvía durante un doble clic. Se conservan los eventos normales de ratón y los manejadores táctiles/teclado del SDK. La corrección permite abrir carpetas y archivos con doble clic, sin recuperar la superposición blanca de Actividad. La UI del servidor y los seis CLI se actualizan también a v2.0.0-drive-es.6.
+
+`--smoke-input --data-root RUTA_DE_PRUEBA` verifica el doble clic nativo dentro de WebView2 y la apertura de carpetas en lista y cuadrícula. Usa una base local aislada y respuestas de API simuladas; no modifica los archivos del usuario. La secuencia pasa por el manejador WPF de doble clic y el controlador de composición, con un registro de los eventos recibidos por la página.
+
+## Montajes persistentes e idiomas (2.0.0.6)
+
+En Opciones adicionales de rclone → Tareas elige «Montar unidad persistente», la conexión de rclone.conf, la carpeta remota (por ejemplo /) y una letra libre de D: a Z:. Puedes configurar caché VFS, límite, duración y solo lectura. Activa «Montar automáticamente al iniciar Teldrive Desktop», guarda la tarea y habilita «Iniciar automáticamente con Windows» en Preferencias. El montaje espera al servidor y a que rclone.conf esté desbloqueado. No guarda contraseñas. La cola puede continuar transfiriendo mientras la unidad está montada. «Cancelar / detener» desmonta la unidad; al cerrar Desktop también se desmonta y vuelve a montarse en el siguiente inicio. Una cola pausada espera a que se reanude. Las tareas importadas requieren activar nuevamente el montaje al iniciar.
+
+Preferencias incluye español, inglés, portugués, francés, alemán, italiano, ruso, chino simplificado, japonés y árabe. La UI del CLI tiene el selector en Configuración → Apariencia. Las traducciones se incluyen sin conexión; son una primera traducción automática que puede revisarse en localization/catalog.json. Los nombres de archivos, las rutas y las credenciales se conservan. Árabe usa dirección de lectura de derecha a izquierda y conserva los campos técnicos de Desktop de izquierda a derecha. La ayuda técnica del terminal conserva su idioma original.
+
+El tema claro utiliza un menú móvil opaco y las mismas variables de color en controles y menús. Los marcadores /my-drive, /recent y /settings/account redirigen a las pantallas actuales. El reproductor elige la pista predeterminada declarada por el contenedor; MKV y audio no compatible se convierten automáticamente cuando FFmpeg está disponible.
+
+`--smoke-automation` añade una prueba real de montaje WinFsp, reinicio, espera del servidor/desbloqueo, supresión de duplicados, transferencia simultánea y desmontaje al cancelar. Usa exclusivamente una conexión alias y carpetas aisladas.

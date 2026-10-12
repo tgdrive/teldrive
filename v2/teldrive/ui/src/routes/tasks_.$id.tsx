@@ -1,3 +1,4 @@
+import { t } from "@/lib/localization";
 import { Accordion, Button, Card, Chip, Spinner, Typography } from "@heroui/react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
@@ -62,7 +63,9 @@ function TaskDetailPage() {
   }, [id, qc, task?.status]);
 
   if (!task) {
-    return <div className="py-20 text-center text-sm text-muted">No se encontró la tarea.</div>;
+    return (
+      <div className="py-20 text-center text-sm text-muted">{t("No se encontró la tarea.")}</div>
+    );
   }
 
   const retry = async () => {
@@ -72,10 +75,10 @@ function TaskDetailPage() {
     });
     setRetrying(false);
     if (error) {
-      toast.error("No se pudo reintentar la tarea");
+      toast.error(t("No se pudo reintentar la tarea"));
       return;
     }
-    toast.success("Tarea programada para reintentar");
+    toast.success(t("Tarea programada para reintentar"));
     await invalidateTaskQueries(qc, id);
   };
 
@@ -88,13 +91,15 @@ function TaskDetailPage() {
     if (error) {
       toast.error(
         ACTIVE_STATES.includes(task.status)
-          ? "No se pudo cancelar la tarea"
-          : "No se pudo eliminar la tarea",
+          ? t("No se pudo cancelar la tarea")
+          : t("No se pudo eliminar la tarea"),
       );
       return;
     }
     toast.success(
-      ACTIVE_STATES.includes(task.status) ? "Cancelación de tarea solicitada" : "Tarea eliminada",
+      ACTIVE_STATES.includes(task.status)
+        ? t("Cancelación de tarea solicitada")
+        : t("Tarea eliminada"),
     );
     await invalidateTaskQueries(qc, id);
     navigate({
@@ -118,7 +123,7 @@ function TaskDetailPage() {
             to="/tasks"
             search={{ status: "running", query: "" }}
             className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg text-muted transition hover:bg-muted/40 hover:text-foreground"
-            aria-label="Volver a tareas"
+            aria-label={t("Volver a tareas")}
           >
             <BackIcon className="size-4" />
           </Link>
@@ -135,7 +140,8 @@ function TaskDetailPage() {
                   params={{ id: task.parentId }}
                   className="hover:text-foreground"
                 >
-                  Tarea principal {task.parentId}
+                  {t("Tarea principal") + " "}
+                  {task.parentId}
                 </Link>
               )}
             </div>
@@ -144,11 +150,11 @@ function TaskDetailPage() {
 
         <div className="flex flex-wrap gap-2 lg:justify-end">
           <Button size="sm" variant="tertiary" onPress={refresh}>
-            <RefreshIcon className="size-3.5" /> Actualizar
+            <RefreshIcon className="size-3.5" /> {" " + t("Actualizar")}
           </Button>
           {["cancelled", "discarded", "retryable"].includes(task.status) && (
             <Button size="sm" variant="primary" isPending={retrying} onPress={retry}>
-              Reintentar
+              {t("Reintentar")}
             </Button>
           )}
           <Button
@@ -157,34 +163,34 @@ function TaskDetailPage() {
             isPending={deleting}
             onPress={remove}
           >
-            {ACTIVE_STATES.includes(task.status) ? "Cancelar" : "Eliminar"}
+            {ACTIVE_STATES.includes(task.status) ? t("Cancelar") : t("Eliminar")}
           </Button>
         </div>
       </header>
 
       <Card className="overflow-hidden p-0">
         <Card.Header className="flex-col items-start gap-1 border-border border-b px-5 py-4">
-          <Card.Title className="text-sm font-semibold">Ejecución</Card.Title>
+          <Card.Title className="text-sm font-semibold">{t("Ejecución")}</Card.Title>
           <Card.Description className="text-xs">
-            Estado actual, ciclo de ejecución y detalles de la operación.
+            {t("Estado actual, ciclo de ejecución y detalles de la operación.")}
           </Card.Description>
         </Card.Header>
         <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.85fr)]">
           <div className="border-border p-5 lg:border-r sm:p-6">
             <div className="grid gap-x-8 gap-y-5 sm:grid-cols-3">
-              <Fact label="Estado" value={taskStatusLabel(task.status)}>
+              <Fact label={t("Estado")} value={taskStatusLabel(task.status)}>
                 <TaskStatusChip status={task.status} />
               </Fact>
-              <Fact label="Intento" value={`${task.attempt} / ${task.maxAttempts}`} />
-              <Fact label="Prioridad" value={String(task.priority)} />
-              <Fact label="Cola" value={task.queue || "default"} />
-              <Fact label="Etiquetas" value={task.tags?.length ? task.tags.join(", ") : "—"} />
-              <Fact label="Creado" value={formatRelative(task.createdAt)} />
+              <Fact label={t("Intento")} value={`${task.attempt} / ${task.maxAttempts}`} />
+              <Fact label={t("Prioridad")} value={String(task.priority)} />
+              <Fact label={t("Cola")} value={task.queue || "default"} />
+              <Fact label={t("Etiquetas")} value={task.tags?.length ? task.tags.join(", ") : "—"} />
+              <Fact label={t("Creado")} value={formatRelative(task.createdAt)} />
             </div>
 
             <div className="mt-6 border-border border-t pt-5">
               <div className="text-[11px] font-semibold text-muted uppercase tracking-[0.14em]">
-                Estado actual
+                {t("Estado actual")}
               </div>
               <div className="mt-2 text-base font-semibold">
                 {task.message || statusSummary(task.status)}
@@ -193,7 +199,7 @@ function TaskDetailPage() {
           </div>
 
           <div className="p-5 sm:p-6">
-            <h2 className="text-sm font-semibold">Ciclo de ejecución</h2>
+            <h2 className="text-sm font-semibold">{t("Ciclo de ejecución")}</h2>
             <div className="mt-4">
               <Timeline task={task} />
             </div>
@@ -202,11 +208,15 @@ function TaskDetailPage() {
       </Card>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <JsonPanel title="Parámetros" value={task.args} empty="Esta tarea no tiene parámetros." />
         <JsonPanel
-          title="Resultado"
+          title={t("Parámetros")}
+          value={task.args}
+          empty={t("Esta tarea no tiene parámetros.")}
+        />
+        <JsonPanel
+          title={t("Resultado")}
           value={task.output}
-          empty="No se registró ningún resultado."
+          empty={t("No se registró ningún resultado.")}
           downloadName={`task-${task.id}-output.json`}
         />
       </div>
@@ -218,9 +228,9 @@ function TaskDetailPage() {
       <Card className="overflow-hidden p-0">
         <div className="flex items-center justify-between border-border border-b px-5 py-4">
           <div>
-            <h2 className="text-sm font-semibold">Intentos</h2>
+            <h2 className="text-sm font-semibold">{t("Intentos")}</h2>
             <p className="mt-1 text-xs text-muted">
-              Historial de ejecución y errores registrados por River.
+              {t("Historial de ejecución y errores registrados por River.")}
             </p>
           </div>
           <Chip size="sm" variant="tertiary">
@@ -257,15 +267,15 @@ function Fact({
 function Timeline({ task }: { task: TaskOut }) {
   const errors = task.errors ?? [];
   const steps = [
-    { label: "Creado", at: task.createdAt, state: "done", kind: "created" },
+    { label: t("Creado"), at: task.createdAt, state: "done", kind: "created" },
     {
-      label: "Programada",
+      label: t("Programada"),
       at: task.scheduledAt,
       state: timelineState(task, "scheduled"),
       kind: "scheduled",
     },
     {
-      label: "En ejecución",
+      label: t("En ejecución"),
       at: task.startedAt,
       state: timelineState(task, "running"),
       kind: "running",
@@ -273,7 +283,7 @@ function Timeline({ task }: { task: TaskOut }) {
     ...(errors.length > 0
       ? [
           {
-            label: "Con error",
+            label: t("Con error"),
             at: errors.at(-1)?.at,
             state: task.status === "discarded" ? "error" : "done",
             kind: "error",
@@ -281,15 +291,15 @@ function Timeline({ task }: { task: TaskOut }) {
         ]
       : []),
     ...(task.status === "retryable"
-      ? [{ label: "Esperando reintento", at: task.scheduledAt, state: "current", kind: "retry" }]
+      ? [{ label: t("Esperando reintento"), at: task.scheduledAt, state: "current", kind: "retry" }]
       : []),
     {
       label:
         task.status === "cancelled"
-          ? "Cancelada"
+          ? t("Cancelada")
           : task.status === "discarded"
-            ? "Descartada"
-            : "Completa",
+            ? t("Descartada")
+            : t("Completa"),
       at: task.completedAt,
       state: ["completed", "cancelled", "discarded"].includes(task.status)
         ? task.status === "discarded"
@@ -401,7 +411,7 @@ function AttemptRow({ attempt }: { attempt: AttemptView }) {
               <Accordion.Item id="trace">
                 <Accordion.Heading>
                   <Accordion.Trigger className="text-xs font-medium text-muted hover:text-foreground">
-                    Trace
+                    {t("Trace")}
                     <Accordion.Indicator />
                   </Accordion.Trigger>
                 </Accordion.Heading>
@@ -444,7 +454,7 @@ function JsonPanel({
             variant="tertiary"
             onPress={() => downloadJsonFile(downloadName, value)}
           >
-            <DownloadIcon className="size-3.5" /> Descargar
+            <DownloadIcon className="size-3.5" /> {" " + t("Descargar")}
           </Button>
         )}
       </div>
@@ -492,9 +502,11 @@ function BrokenFilesCard({ files, truncated }: { files: BrokenFileEntry[]; trunc
     <Card className="overflow-hidden p-0">
       <div className="flex flex-wrap items-center justify-between gap-2 border-border border-b px-5 py-3.5">
         <div>
-          <h2 className="text-sm font-semibold">Archivos incompletos</h2>
+          <h2 className="text-sm font-semibold">{t("Archivos incompletos")}</h2>
           <p className="mt-0.5 text-xs text-muted">
-            Archivos con partes ausentes en Telegram. Vuelve a subir los originales para repararlos.
+            {t(
+              "Archivos con partes ausentes en Telegram. Vuelve a subir los originales para repararlos.",
+            )}
             {truncated ? " Lista recortada; descarga para consultar el contenido completo." : ""}
           </p>
         </div>
@@ -503,7 +515,7 @@ function BrokenFilesCard({ files, truncated }: { files: BrokenFileEntry[]; trunc
           variant="tertiary"
           onPress={() => downloadJsonFile("broken-files.json", files)}
         >
-          <DownloadIcon className="size-3.5" /> Descargar lista
+          <DownloadIcon className="size-3.5" /> {" " + t("Descargar lista")}
         </Button>
       </div>
       <div className="divide-y divide-border">
@@ -513,7 +525,7 @@ function BrokenFilesCard({ files, truncated }: { files: BrokenFileEntry[]; trunc
             className="flex flex-wrap items-center gap-x-6 gap-y-1 px-5 py-3"
           >
             <span className="min-w-0 flex-1 truncate text-sm font-medium">
-              {typeof file.name === "string" && file.name ? file.name : "Archivo sin nombre"}
+              {typeof file.name === "string" && file.name ? file.name : t("Archivo sin nombre")}
             </span>
             <span className="text-xs text-muted">{formatBytes(file.size)}</span>
             <span className="text-xs text-muted">
@@ -591,21 +603,21 @@ function attemptDot(state: AttemptView["state"]) {
 }
 
 function attemptLabel(state: AttemptView["state"]) {
-  if (state === "completed") return "Completada";
-  if (state === "failed") return "Error";
-  if (state === "running") return "En ejecución";
-  return "En espera";
+  if (state === "completed") return t("Completada");
+  if (state === "failed") return t("Error");
+  if (state === "running") return t("En ejecución");
+  return t("En espera");
 }
 
 function statusSummary(status: string) {
-  if (status === "pending") return "Esperando programación";
-  if (status === "scheduled") return "Programada para una ejecución futura";
-  if (status === "available") return "Esperando un proceso disponible";
-  if (status === "retryable") return "Esperando otro reintento";
-  if (status === "running") return "La tarea se está ejecutando";
-  if (status === "completed") return "Tarea completada";
-  if (status === "discarded") return "La tarea agotó sus reintentos";
-  if (status === "cancelled") return "La tarea se canceló";
+  if (status === "pending") return t("Esperando programación");
+  if (status === "scheduled") return t("Programada para una ejecución futura");
+  if (status === "available") return t("Esperando un proceso disponible");
+  if (status === "retryable") return t("Esperando otro reintento");
+  if (status === "running") return t("La tarea se está ejecutando");
+  if (status === "completed") return t("Tarea completada");
+  if (status === "discarded") return t("La tarea agotó sus reintentos");
+  if (status === "cancelled") return t("La tarea se canceló");
   return taskStatusLabel(status);
 }
 

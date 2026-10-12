@@ -1,3 +1,4 @@
+import { t } from "@/lib/localization";
 type NativeReply = { id: string; result?: unknown; error?: string };
 type NativeView = {
   postMessage: (message: unknown) => void;
@@ -13,7 +14,7 @@ export function isDesktop() {
 export function desktopRequest<T>(method: string, params: unknown = {}): Promise<T> {
   const view = bridge();
   if (!view)
-    return Promise.reject(new Error("Esta función requiere Teldrive Desktop para Windows."));
+    return Promise.reject(new Error(t("Esta función requiere Teldrive Desktop para Windows.")));
   return new Promise((resolve, reject) => {
     const id = crypto.randomUUID();
     const handler = (event: MessageEvent<NativeReply>) => {
@@ -25,7 +26,9 @@ export function desktopRequest<T>(method: string, params: unknown = {}): Promise
     };
     const timeout = setTimeout(() => {
       view.removeEventListener("message", handler);
-      reject(new Error("El programa no respondió. Consulta Actividad en la ventana de Windows."));
+      reject(
+        new Error(t("El programa no respondió. Consulta Actividad en la ventana de Windows.")),
+      );
     }, 120_000);
     view.addEventListener("message", handler);
     view.postMessage({ id, method, params });

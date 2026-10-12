@@ -1,3 +1,4 @@
+import { t } from "@/lib/localization";
 import { create } from "zustand";
 import { apiFetch } from "@/api/client";
 import { invalidResponse, normalizeApiError, userMessage } from "@/api/errors";
@@ -144,7 +145,7 @@ export const useUploadStore = create<UploadState>((set, get) => ({
     if (!files.has(taskId)) {
       get().patchTask(taskId, {
         status: "failed",
-        error: "El archivo original ya no está disponible. Inicia la subida de nuevo.",
+        error: t("El archivo original ya no está disponible. Inicia la subida de nuevo."),
       });
       return;
     }
@@ -220,7 +221,7 @@ async function getOrCreateSession(task: UploadTask, signal: AbortSignal): Promis
         { signal },
       );
       if (!validUploadSession(existing))
-        throw invalidResponse("La respuesta de la sesión de subida no es válida.");
+        throw invalidResponse(t("La respuesta de la sesión de subida no es válida."));
       return existing;
     } catch (error) {
       if (![404, 410].includes(normalizeApiError(error).status)) throw error;
@@ -247,7 +248,7 @@ async function getOrCreateSession(task: UploadTask, signal: AbortSignal): Promis
     signal,
   });
   if (!validUploadSession(created))
-    throw invalidResponse("La respuesta de la sesión de subida no es válida.");
+    throw invalidResponse(t("La respuesta de la sesión de subida no es válida."));
   return created;
 }
 
@@ -356,11 +357,11 @@ function uploadPart(
     });
     request.addEventListener("error", () => {
       signal.removeEventListener("abort", abort);
-      reject(new Error("No se pudo transferir el fragmento de subida."));
+      reject(new Error(t("No se pudo transferir el fragmento de subida.")));
     });
     request.addEventListener("abort", () => {
       signal.removeEventListener("abort", abort);
-      reject(new DOMException("Subida en pausa", "AbortError"));
+      reject(new DOMException(t("Subida en pausa"), "AbortError"));
     });
     signal.addEventListener("abort", abort, { once: true });
     if (signal.aborted) {
@@ -389,7 +390,7 @@ async function runTask(taskId: string) {
     if (task) {
       store.patchTask(taskId, {
         status: "failed",
-        error: "El archivo original ya no está disponible. Inicia la subida de nuevo.",
+        error: t("El archivo original ya no está disponible. Inicia la subida de nuevo."),
       });
     }
     return;
@@ -409,7 +410,7 @@ async function runTask(taskId: string) {
       });
       return;
     }
-    if (session.state !== "open") throw new Error(`Upload session is ${session.state}.`);
+    if (session.state !== "open") throw new Error(t("Upload session is {0}.", [session.state]));
     store.patchTask(taskId, { uploadId: session.id, partSize: session.partSize });
     const storedParts = await listStoredParts(session.id, controller.signal);
     const stored = new Map(storedParts.map((part) => [part.partNo, part.plainSize]));
@@ -420,7 +421,7 @@ async function runTask(taskId: string) {
     });
     const totalParts = task.size === 0 ? 0 : Math.ceil(task.size / session.partSize);
     for (let partNo = 1; partNo <= totalParts; partNo++) {
-      if (controller.signal.aborted) throw new DOMException("Subida en pausa", "AbortError");
+      if (controller.signal.aborted) throw new DOMException(t("Subida en pausa"), "AbortError");
       if (stored.has(partNo)) continue;
       const start = (partNo - 1) * session.partSize;
       const end = Math.min(task.size, start + session.partSize);

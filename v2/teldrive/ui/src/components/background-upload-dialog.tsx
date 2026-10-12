@@ -1,3 +1,4 @@
+import { t } from "@/lib/localization";
 import {
   Accordion,
   Button,
@@ -86,25 +87,27 @@ export function BackgroundUploadDialog({
   const queueUpload = async () => {
     try {
       const target = destination.trim();
-      if (!target) throw new Error("El destino es obligatorio");
+      if (!target) throw new Error(t("El destino es obligatorio"));
       if (!target.startsWith("/") && !isUUID(target)) {
-        throw new Error("El destino debe ser una ruta absoluta de la unidad o el UUID de una carpeta");
+        throw new Error(
+          t("El destino debe ser una ruta absoluta de la unidad o el UUID de una carpeta"),
+        );
       }
       const bodySources = sources.map<ImportSource>((source, index) => {
         const location = source.location.trim();
-        if (!location) throw new Error(`El origen ${index + 1} está vacío`);
+        if (!location) throw new Error(t("El origen {0} está vacío", [index + 1]));
         if (source.type === "local" && !/^(\/|[a-zA-Z]:[\\/]|\\\\)/.test(location)) {
-          throw new Error(`El origen local ${index + 1} debe usar una ruta absoluta`);
+          throw new Error(t("El origen local {0} debe usar una ruta absoluta", [index + 1]));
         }
         if (source.type === "http") {
           const url = new URL(location);
           if (url.protocol !== "http:" && url.protocol !== "https:") {
-            throw new Error(`El origen HTTP ${index + 1} debe usar http o https`);
+            throw new Error(t("El origen HTTP {0} debe usar http o https", [index + 1]));
           }
         }
         const destinationPath = source.destinationPath.trim();
         if (destinationPath.startsWith("/") || destinationPath.split("/").includes("..")) {
-          throw new Error(`El destino ${index + 1} debe ser una ruta relativa`);
+          throw new Error(t("El destino {0} debe ser una ruta relativa", [index + 1]));
         }
         const item: ImportSource = {
           type: source.type,
@@ -129,12 +132,16 @@ export function BackgroundUploadDialog({
       };
       setSubmitting(true);
       const { error } = await fetchClient.POST("/v1/uploads/imports", { body });
-      if (error) throw new Error("El servidor rechazó la subida en segundo plano");
-      toast.success("Subida en segundo plano programada");
+      if (error) throw new Error(t("El servidor rechazó la subida en segundo plano"));
+      toast.success(t("Subida en segundo plano programada"));
       reset();
       onOpenChange(false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "No se pudo programar la subida en segundo plano");
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : t("No se pudo programar la subida en segundo plano"),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -145,27 +152,27 @@ export function BackgroundUploadDialog({
       open={open}
       onOpenChange={(next) => (next ? onOpenChange(true) : close())}
       isDismissable={!submitting}
-      title="Subida en segundo plano"
-      description={`Importa archivos del servidor y URLs remotas a ${currentPath}.`}
+      title={t("Subida en segundo plano")}
+      description={t("Importa archivos del servidor y URLs remotas a {0}.", [currentPath])}
       className="min-w-0 sm:w-[min(94vw,46rem)] sm:max-w-none bg-surface"
       bodyClassName="p-0"
       footer={
         <>
           <Button variant="secondary" isDisabled={submitting} onPress={close}>
-            Cancelar
+            {t("Cancelar")}
           </Button>
           <Button variant="primary" isPending={submitting} onPress={() => void queueUpload()}>
-            Queue upload
+            {t("Queue upload")}
           </Button>
         </>
       }
     >
       <div className="grid gap-4 p-4 sm:p-5">
         <TextField value={destination} onChange={setDestination} isRequired>
-          <Label>Destino</Label>
+          <Label>{t("Destino")}</Label>
           <Input placeholder="/Movies/Incoming or a folder UUID" />
           <div className="mt-1 text-xs text-muted">
-            Introduce una ruta absoluta desde la raíz o el UUID de una carpeta existente.
+            {t("Introduce una ruta absoluta desde la raíz o el UUID de una carpeta existente.")}
           </div>
         </TextField>
 
@@ -178,17 +185,20 @@ export function BackgroundUploadDialog({
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
                   <div className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
-                    Origen {index + 1}
+                    {t("Origen") + " "}
+                    {index + 1}
                   </div>
                   <div className="mt-0.5 text-xs text-muted">
-                    {source.type === "local" ? "Leer desde este servidor" : "Descargar por HTTP"}
+                    {source.type === "local"
+                      ? t("Leer desde este servidor")
+                      : t("Descargar por HTTP")}
                   </div>
                 </div>
                 <Button
                   isIconOnly
                   size="sm"
                   variant="ghost"
-                  aria-label={`Remove source ${index + 1}`}
+                  aria-label={t("Remove source {0}", [index + 1])}
                   isDisabled={sources.length === 1}
                   onPress={() =>
                     setSources((items) => items.filter((item) => item.id !== source.id))
@@ -206,7 +216,7 @@ export function BackgroundUploadDialog({
                     variant={source.type === type ? "secondary" : "ghost"}
                     onPress={() => patchSource(source.id, { type, location: "" })}
                   >
-                    {type === "local" ? "Local path" : "HTTP URL"}
+                    {type === "local" ? t("Local path") : "HTTP URL"}
                   </Button>
                 ))}
               </div>
@@ -216,7 +226,7 @@ export function BackgroundUploadDialog({
                   value={source.location}
                   onChange={(value) => patchSource(source.id, { location: value })}
                 >
-                  <Label>{source.type === "local" ? "Ruta absoluta del servidor" : "URL"}</Label>
+                  <Label>{source.type === "local" ? t("Ruta absoluta del servidor") : "URL"}</Label>
                   <Input
                     placeholder={
                       source.type === "local"
@@ -229,8 +239,8 @@ export function BackgroundUploadDialog({
                   value={source.destinationPath}
                   onChange={(value) => patchSource(source.id, { destinationPath: value })}
                 >
-                  <Label>Ruta de destino</Label>
-                  <Input placeholder="Ruta relativa opcional" />
+                  <Label>{t("Ruta de destino")}</Label>
+                  <Input placeholder={t("Ruta relativa opcional")} />
                 </TextField>
               </div>
 
@@ -238,7 +248,7 @@ export function BackgroundUploadDialog({
                 <Accordion.Item id={`source-options-${source.id}`}>
                   <Accordion.Heading>
                     <Accordion.Trigger className="rounded-lg text-xs font-medium text-muted hover:text-foreground">
-                      Opciones de origen
+                      {t("Opciones de origen")}
                       <Accordion.Indicator />
                     </Accordion.Trigger>
                   </Accordion.Heading>
@@ -246,7 +256,7 @@ export function BackgroundUploadDialog({
                     <Accordion.Body>
                       <div className="grid gap-3 border-border border-t pt-3 sm:grid-cols-2">
                         <TextField>
-                          <Label>Patrones de exclusión</Label>
+                          <Label>{t("Patrones de exclusión")}</Label>
                           <TextArea
                             value={source.exclude}
                             onChange={(event) =>
@@ -257,13 +267,13 @@ export function BackgroundUploadDialog({
                           />
                         </TextField>
                         <TextField isDisabled={source.type !== "http"}>
-                          <Label>Cabeceras HTTP</Label>
+                          <Label>{t("Cabeceras HTTP")}</Label>
                           <TextArea
                             value={source.headers}
                             onChange={(event) =>
                               patchSource(source.id, { headers: event.currentTarget.value })
                             }
-                            placeholder={"Authorization: Bearer …"}
+                            placeholder={t("Authorization: Bearer …")}
                             rows={3}
                           />
                         </TextField>
@@ -277,7 +287,7 @@ export function BackgroundUploadDialog({
         </div>
 
         <Button variant="secondary" onPress={() => setSources((items) => [...items, newSource()])}>
-          <PlusIcon className="size-3.5" /> Añadir origen
+          <PlusIcon className="size-3.5" /> {" " + t("Añadir origen")}
         </Button>
 
         <Accordion
@@ -288,7 +298,7 @@ export function BackgroundUploadDialog({
           <Accordion.Item id="advanced-settings">
             <Accordion.Heading>
               <Accordion.Trigger className="rounded-xl py-3 text-sm font-semibold">
-                Opciones avanzadas
+                {t("Opciones avanzadas")}
                 <Accordion.Indicator />
               </Accordion.Trigger>
             </Accordion.Heading>
@@ -297,15 +307,15 @@ export function BackgroundUploadDialog({
                 <div className="grid gap-4 border-border border-t py-4">
                   <div className="grid gap-3 sm:grid-cols-2">
                     <TextField value={minSize} onChange={setMinSize}>
-                      <Label>Minimum size</Label>
-                      <Input placeholder="Por ejemplo 10 MiB" />
+                      <Label>{t("Minimum size")}</Label>
+                      <Input placeholder={t("Por ejemplo 10 MiB")} />
                     </TextField>
                     <TextField value={maxSize} onChange={setMaxSize}>
-                      <Label>Maximum size</Label>
-                      <Input placeholder="Por ejemplo 20 GiB" />
+                      <Label>{t("Maximum size")}</Label>
+                      <Input placeholder={t("Por ejemplo 20 GiB")} />
                     </TextField>
                     <NumberField
-                      aria-label="Tamaño de fragmento en MiB"
+                      aria-label={t("Tamaño de fragmento en MiB")}
                       value={chunkSizeMiB}
                       minValue={64}
                       maxValue={2000}
@@ -313,7 +323,7 @@ export function BackgroundUploadDialog({
                         setChunkSizeMiB(Math.max(64, Math.min(2000, value ?? 512)))
                       }
                     >
-                      <Label>Tamaño de fragmento (MiB)</Label>
+                      <Label>{t("Tamaño de fragmento (MiB)")}</Label>
                       <NumberField.Group>
                         <NumberField.DecrementButton />
                         <NumberField.Input />
@@ -322,7 +332,7 @@ export function BackgroundUploadDialog({
                       </NumberField.Group>
                     </NumberField>
                     <NumberField
-                      aria-label="Fragmentos de subida simultáneos"
+                      aria-label={t("Fragmentos de subida simultáneos")}
                       value={partConcurrency}
                       minValue={1}
                       maxValue={16}
@@ -330,7 +340,7 @@ export function BackgroundUploadDialog({
                         setPartConcurrency(Math.max(1, Math.min(16, value ?? 4)))
                       }
                     >
-                      <Label>Fragmentos simultáneos</Label>
+                      <Label>{t("Fragmentos simultáneos")}</Label>
                       <NumberField.Group>
                         <NumberField.DecrementButton />
                         <NumberField.Input />
@@ -340,7 +350,7 @@ export function BackgroundUploadDialog({
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <TextField>
-                      <Label>Exclusiones de lotes</Label>
+                      <Label>{t("Exclusiones de lotes")}</Label>
                       <TextArea
                         value={exclude}
                         onChange={(event) => setExclude(event.currentTarget.value)}
@@ -349,11 +359,11 @@ export function BackgroundUploadDialog({
                       />
                     </TextField>
                     <TextField>
-                      <Label>Cabeceras HTTP predeterminadas</Label>
+                      <Label>{t("Cabeceras HTTP predeterminadas")}</Label>
                       <TextArea
                         value={headers}
                         onChange={(event) => setHeaders(event.currentTarget.value)}
-                        placeholder={"Authorization: Bearer …"}
+                        placeholder={t("Authorization: Bearer …")}
                         rows={3}
                       />
                     </TextField>
@@ -363,7 +373,7 @@ export function BackgroundUploadDialog({
                       <Switch.Control>
                         <Switch.Thumb />
                       </Switch.Control>
-                      <Label>Cifrar archivos subidos</Label>
+                      <Label>{t("Cifrar archivos subidos")}</Label>
                     </Switch.Content>
                   </Switch>
                 </div>
@@ -388,10 +398,10 @@ function parseHeaders(value: string) {
   const result: Record<string, string> = {};
   for (const line of lines(value) ?? []) {
     const separator = line.indexOf(":");
-    if (separator < 1) throw new Error(`Invalid header: ${line}`);
+    if (separator < 1) throw new Error(t("Invalid header: {0}", [line]));
     const name = line.slice(0, separator).trim();
     const headerValue = line.slice(separator + 1).trim();
-    if (!name || !headerValue) throw new Error(`Invalid header: ${line}`);
+    if (!name || !headerValue) throw new Error(t("Invalid header: {0}", [line]));
     result[name] = headerValue;
   }
   return Object.keys(result).length ? result : undefined;

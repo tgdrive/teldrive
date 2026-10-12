@@ -1,3 +1,4 @@
+import { t } from "@/lib/localization";
 import { Button, Input, Label, Spinner, TextField } from "@heroui/react";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
@@ -105,7 +106,7 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
       ? sharedWithMeQuery.isPending
       : sharedQuery.isPending
     : childrenQuery.isPending;
-  const rootLabel = mode === "with-me" ? "Compartido conmigo" : "Compartidos";
+  const rootLabel = mode === "with-me" ? t("Compartido conmigo") : t("Compartidos");
 
   const permissionFor = (file: FileEntry): Permission => {
     if (mode === "shared") return "edit";
@@ -135,9 +136,9 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
       setFolderName("");
       setFolderDialogOpen(false);
       await childrenQuery.refetch();
-      toast.success("Carpeta creada");
+      toast.success(t("Carpeta creada"));
     } catch (error) {
-      toast.error("No se pudo crear la carpeta", {
+      toast.error(t("No se pudo crear la carpeta"), {
         description: userMessage(error),
       });
     }
@@ -152,9 +153,9 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
       setSelectedKeys(new Set());
       if (atRoot) await refreshRoots();
       else await childrenQuery.refetch();
-      toast.success("Elemento renombrado");
+      toast.success(t("Elemento renombrado"));
     } catch (error) {
-      toast.error("No se pudo renombrar el elemento", {
+      toast.error(t("No se pudo renombrar el elemento"), {
         description: userMessage(error),
       });
     }
@@ -171,7 +172,7 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
         `${selectedFiles.length} elemento${selectedFiles.length === 1 ? "" : "s"} enviado a la papelera`,
       );
     } catch (error) {
-      toast.error("No se pudieron mover los elementos a la papelera", {
+      toast.error(t("No se pudieron mover los elementos a la papelera"), {
         description: userMessage(error),
       });
     }
@@ -232,7 +233,7 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
         `${selectedFiles.length} elemento${selectedFiles.length === 1 ? "" : "s"} ya no se comparte`,
       );
     } catch (error) {
-      toast.error("No se pudo dejar de compartir", {
+      toast.error(t("No se pudo dejar de compartir"), {
         description: userMessage(error),
       });
     }
@@ -290,7 +291,7 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
                   isIconOnly
                   size="sm"
                   variant="secondary"
-                  aria-label="Nueva carpeta"
+                  aria-label={t("Nueva carpeta")}
                   isDisabled={fileActions.pending}
                   onPress={() => setFolderDialogOpen(true)}
                 >
@@ -300,7 +301,7 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
                   isIconOnly
                   size="sm"
                   variant="primary"
-                  aria-label="Subir archivos"
+                  aria-label={t("Subir archivos")}
                   isDisabled={fileActions.pending}
                   onPress={() => uploadTriggerRef.current?.click()}
                 >
@@ -313,7 +314,7 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
                       if (list?.length) enqueue(Array.from(list), search.parentId, search.path);
                     }}
                   >
-                    <Button ref={uploadTriggerRef}>Elegir archivos para subir</Button>
+                    <Button ref={uploadTriggerRef}>{t("Elegir archivos para subir")}</Button>
                   </FileTrigger>
                 </span>
               </>
@@ -331,7 +332,7 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
                       isIconOnly
                       size="sm"
                       variant="ghost"
-                      aria-label="Renombrar elemento seleccionado"
+                      aria-label={t("Renombrar elemento seleccionado")}
                       isDisabled={fileActions.pending}
                       onPress={() => {
                         setRenameFile(singleSelected);
@@ -346,7 +347,7 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
                       isIconOnly
                       size="sm"
                       variant="ghost"
-                      aria-label="Compartir elemento seleccionado"
+                      aria-label={t("Compartir elemento seleccionado")}
                       onPress={() => setShareFile(singleSelected)}
                     >
                       <LinkIcon className="size-4" />
@@ -357,7 +358,7 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
                       isIconOnly
                       size="sm"
                       variant="ghost"
-                      aria-label="Descargar archivo seleccionado"
+                      aria-label={t("Descargar archivo seleccionado")}
                       onPress={() => startFileDownload(singleSelected)}
                     >
                       <DownloadIcon className="size-4" />
@@ -368,7 +369,7 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
                       isIconOnly
                       size="sm"
                       variant="danger"
-                      aria-label="Dejar de compartir los elementos seleccionados"
+                      aria-label={t("Dejar de compartir los elementos seleccionados")}
                       onPress={() => void stopSharingSelected()}
                     >
                       <LinkIcon className="size-4" />
@@ -378,7 +379,7 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
                       isIconOnly
                       size="sm"
                       variant="danger"
-                      aria-label="Mover elementos seleccionados a la papelera"
+                      aria-label={t("Mover elementos seleccionados a la papelera")}
                       isDisabled={fileActions.pending}
                       onPress={() => void trashSelected()}
                     >
@@ -397,20 +398,20 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
                             });
                           setSelectedKeys(new Set());
                           await refreshRoots();
-                          toast.success("Elementos enviados a Spam");
+                          toast.success(t("Elementos enviados a Spam"));
                         } catch (cause) {
                           toast.error(userMessage(cause));
                         }
                       }}
                     >
-                      Marcar como spam
+                      {t("Marcar como spam")}
                     </Button>
                   ) : null}
                   <Button
                     isIconOnly
                     size="sm"
                     variant="ghost"
-                    aria-label="Borrar selección"
+                    aria-label={t("Borrar selección")}
                     onPress={() => setSelectedKeys(new Set())}
                   >
                     <CloseIcon className="size-4" />
@@ -422,9 +423,9 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
           emptyHint={
             atRoot
               ? mode === "with-me"
-                ? "Aquí aparecerán los archivos y carpetas compartidos contigo."
-                : "Aquí aparecerán los archivos y carpetas que has compartido."
-              : "Esta carpeta compartida está vacía."
+                ? t("Aquí aparecerán los archivos y carpetas compartidos contigo.")
+                : t("Aquí aparecerán los archivos y carpetas que has compartido.")
+              : t("Esta carpeta compartida está vacía.")
           }
         />
       </PageContent>
@@ -432,24 +433,24 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
       <AppDialog
         open={folderDialogOpen}
         onOpenChange={setFolderDialogOpen}
-        title="Crear carpeta"
+        title={t("Crear carpeta")}
         footer={
           <>
             <Button variant="secondary" onPress={() => setFolderDialogOpen(false)}>
-              Cancelar
+              {t("Cancelar")}
             </Button>
             <Button
               variant="primary"
               isDisabled={!folderName.trim()}
               onPress={() => void createFolder()}
             >
-              Crear carpeta
+              {t("Crear carpeta")}
             </Button>
           </>
         }
       >
         <TextField value={folderName} onChange={setFolderName}>
-          <Label>Nombre</Label>
+          <Label>{t("Nombre")}</Label>
           <Input autoFocus />
         </TextField>
       </AppDialog>
@@ -459,24 +460,24 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
         onOpenChange={(open) => {
           if (!open) setRenameFile(undefined);
         }}
-        title="Renombrar elemento"
+        title={t("Renombrar elemento")}
         footer={
           <>
             <Button variant="secondary" onPress={() => setRenameFile(undefined)}>
-              Cancelar
+              {t("Cancelar")}
             </Button>
             <Button
               variant="primary"
               isDisabled={!renameName.trim()}
               onPress={() => void renameSelected()}
             >
-              Renombrar
+              {t("Renombrar")}
             </Button>
           </>
         }
       >
         <TextField value={renameName} onChange={setRenameName}>
-          <Label>Nombre</Label>
+          <Label>{t("Nombre")}</Label>
           <Input autoFocus />
         </TextField>
       </AppDialog>

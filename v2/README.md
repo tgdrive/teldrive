@@ -1,21 +1,19 @@
-# Teldrive v2.0.0-drive-es.5 en español
+# Teldrive v2.0.0-drive-es.6
 
-Descargas: [GitLab](https://gitlab.com/ridrogo/teldrive/-/releases/v2.0.0-drive-es.5) · [GitHub](https://github.com/webr0m/teldrive/releases/tag/v2.0.0-drive-es.5).
+[GitLab](https://gitlab.com/ridrogo/teldrive/-/releases/v2.0.0-drive-es.6) · [GitHub](https://github.com/webr0m/teldrive/releases/tag/v2.0.0-drive-es.6).
 
-Windows Desktop **2.0.0.5** añade el botón superior **Teldrive**, corrige la capa blanca de Actividad y finaliza correctamente al cerrar con los servicios detenidos.
+Actualiza la UI integrada de los seis CLI y Windows Desktop **2.0.0.6**.
 
-- Importación y edición gráfica de **rclone.conf**, con respaldo, conservación de otras conexiones/comentarios y del cifrado. Las tareas pueden usar una conexión personalizada.
-- Selección de **pistas de audio y subtítulos** en MKV y otros contenedores. Subtítulos de texto mediante WebVTT y de imagen incrustados mediante FFmpeg. El cambio de pistas conserva la posición del vídeo.
-- **Transmitir** con Google Cast, AirPlay y DLNA. Chromecast se abre en Chrome desde Desktop; AirPlay requiere Safari en un dispositivo Apple. DLNA permite descubrir receptores en la red del servidor y reproducir/pausar/detener.
-- Relay temporal de reproducción en la red local, limitado a enlaces autorizados con vencimiento. El receptor necesita una dirección accesible, no localhost. Puede requerir permitir el puerto en el firewall.
-- Almacenamiento después de Papelera; icono transparente unificado en UI y CLI Windows. Desktop incluye **FFmpeg/FFprobe 9.0.2** y mantiene rclone, PostgreSQL, mpv, WinFsp y componentes Microsoft.
-- Se recompilan los seis CLI: Windows, Linux y macOS, x64 y ARM64. Se conserva la corrección del HTTP 500 al abrir archivos migrados desde v1.
+- **Móvil, modo claro:** menú opaco, campos y barras del visor legibles. Los marcadores antiguos redirigen a las pantallas actuales. El cambio de tema conserva la navegación.
+- **Audio automático:** se elige la pista predeterminada declarada en el contenedor, aunque no sea la primera. MKV y audio no compatible utilizan conversión automática cuando FFmpeg está disponible. Se mantiene la selección manual de pistas y subtítulos y la transmisión.
+- **Montajes persistentes:** en Opciones adicionales de rclone → Tareas elige «Montar unidad persistente», conexión, carpeta y letra libre. Configura caché/solo lectura y marca el montaje al iniciar. Activa el inicio con Windows en Preferencias. Espera al servidor y al desbloqueo de rclone.conf; no guarda contraseñas. Un montaje no bloquea transferencias. Cancelar desmonta; el siguiente inicio recupera el montaje. Una cola pausada debe reanudarse.
+- **Diez idiomas sin conexión:** español, inglés, portugués, francés, alemán, italiano, ruso, chino simplificado, japonés y árabe. Selector en Apariencia/inicio de sesión web y Preferencias de Desktop; elección persistente. Árabe utiliza lectura de derecha a izquierda. Se conservan nombres, rutas y credenciales. Traducciones iniciales automáticas, revisables en localization/catalog.json. La ayuda técnica del terminal mantiene su idioma original.
+- **Doble clic de Desktop:** elimina el evento adicional que enviaba WebView2, y vuelve a abrir carpetas/archivos con doble clic en lista y cuadrícula. Se conserva Actividad sin la superposición blanca.
 
-**Actualizar:** cierra la versión anterior y conserva config.toml, claves y carpeta de datos. Sustituye el ejecutable. No regeneres claves ni repitas la migración. En Desktop conserva `%LOCALAPPDATA%\TeldriveV2`; en modo portátil conserva `TeldriveData`.
+**Verificado:** ejecutable final en WPF/WebView2, doble clic nativo, diez idiomas con bindings WPF, montaje WinFsp real, espera del servidor/desbloqueo, reinicio, transferencia concurrente y desmontaje. UI en Chromium de escritorio/móvil y WebKit iPhone, con renombrado/navegación en diez idiomas. Go completo y MKV real: la conversión predeterminada reproduce la segunda pista marcada por el contenedor, comprobada por su frecuencia de audio. CLI Windows x64 ejecutado; arquitecturas, metadatos, hashes y contenido de los seis paquetes comprobados. Desktop incluye exactamente el servidor CLI Windows x64 y los 22 componentes/licencias de la edición anterior.
 
-**Verificación:** Go y API PostgreSQL 15; MKV real con dos audios y subtítulos, selección de audio/conversión/WebVTT; DLNA y relay simulados; UI en Chromium de escritorio/móvil y WebKit iPhone; WPF nativo con importación, edición, cifrado y transferencia rclone real. CLI Windows x64 ejecutado y seis arquitecturas/metadatos comprobados. Desktop incluye el mismo servidor que CLI Windows x64.
+**Actualizar:** cierra Desktop desde «Salir y detener servicios», sustituye el ejecutable y conserva config.toml, claves y carpeta de datos. No regeneres claves ni repitas la migración. Conserva %LOCALAPPDATA%\TeldriveV2 o TeldriveData en modo portátil. Si cambias el nombre/ubicación, guarda de nuevo el inicio automático.
 
-No se probaron televisores físicos. La compatibilidad depende del receptor, códecs y red. macOS y ARM64 se compilaron y se verificaron sin ejecución nativa. En CLI configura FFmpeg/FFprobe por separado para las funciones de pistas/conversión. Android/iOS conservan la edición .2 y utilizan la UI actualizada del servidor; no se recompilan APK ni IPA en esta release.
+Linux/macOS/ARM64 se compilaron y verificaron sin ejecución nativa. CLI necesita FFmpeg/FFprobe configurados para conversión/pistas. No se probaron televisores físicos. Android/iOS conservan sus clientes .2 y utilizan la UI actualizada del servidor; esta release no recompila APK ni IPA. Fuentes, instrucciones y SHA256 incluidos.
 
-
-`teldrive/` contiene servidor, UI, Desktop y proyectos móviles; `rclone/` contiene el cliente adaptado. `source-revisions.json` registra los commits originales. Los blobs y permisos de las fuentes se conservan. Consulta LEEME-V2.md, VALIDACION.json y SHA256SUMS.txt en la release.
+Fuentes en teldrive/ y rclone/. source-revisions.json conserva los commits originales; blobs y permisos se preservan.

@@ -22,20 +22,20 @@ internal sealed class MediaSession : IAsyncDisposable
         lifetime.Token.ThrowIfCancellationRequested();
         Directory.CreateDirectory(folder);
         var stream = rclone.MediaCommand(path);
-        server = Process.Start(stream.Command) ?? throw new IOException("No se pudo iniciar el streaming.");
+        server = Process.Start(stream.Command) ?? throw new IOException(L.T("No se pudo iniciar el streaming."));
         owner.Attach(server); server.StandardInput.Close();
         var failures = server.StandardError.ReadToEndAsync(); _ = server.StandardOutput.ReadToEndAsync();
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
         var auth = Convert.ToBase64String(Encoding.UTF8.GetBytes("teldrive-player:" + stream.Secret));
-        http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", auth);
+        http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(L.T("Basic"), auth);
         var ready = false;
         for (var attempt = 0; attempt < 40; attempt++) {
             lifetime.Token.ThrowIfCancellationRequested();
-            if (server.HasExited) throw new IOException("El streaming no pudo iniciar: " + await failures);
+            if (server.HasExited) throw new IOException(L.T("El streaming no pudo iniciar: ") + await failures);
             try { using var request = new HttpRequestMessage(HttpMethod.Head, stream.Url); using var response = await http.SendAsync(request, lifetime.Token); if (response.IsSuccessStatusCode) { ready = true; break; } if (response.StatusCode is System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.NotFound) throw new IOException("rclone no pudo acceder al archivo multimedia."); } catch (HttpRequestException) {} catch (TaskCanceledException) { lifetime.Token.ThrowIfCancellationRequested(); }
             await Task.Delay(250, lifetime.Token);
         }
-        if (!ready) throw new IOException("El streaming no respondió.");
+        if (!ready) throw new IOException(L.T("El streaming no respondió."));
         // Keep the short-lived credential out of process arguments and logs.
         await File.WriteAllTextAsync(Path.Combine(folder, "mpv.conf"), "http-header-fields=\"Authorization: Basic " + auth + "\"\n", lifetime.Token);
         var command = new ProcessStartInfo(Path.Combine(runtime.Components, "mpv", "mpv.exe")) { UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = folder };
@@ -44,9 +44,9 @@ internal sealed class MediaSession : IAsyncDisposable
         else command.ArgumentList.Add("--wid=" + window.ToString());
         command.ArgumentList.Add(stream.Url.AbsoluteUri);
         lifetime.Token.ThrowIfCancellationRequested();
-        player = Process.Start(command) ?? throw new IOException("No se pudo iniciar el reproductor integrado."); owner.Attach(player);
+        player = Process.Start(command) ?? throw new IOException(L.T("No se pudo iniciar el reproductor integrado.")); owner.Attach(player);
         await player.WaitForExitAsync();
-        if (player.ExitCode != 0) { Failure = "mpv no pudo reproducir este archivo. Comprueba su integridad y conexión."; throw new IOException(Failure); }
+        if (player.ExitCode != 0) { Failure = L.T("mpv no pudo reproducir este archivo. Comprueba su integridad y conexión."); throw new IOException(Failure); }
     }
     public async ValueTask DisposeAsync()
     {

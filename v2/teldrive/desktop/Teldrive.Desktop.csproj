@@ -14,11 +14,12 @@
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <DebugType>none</DebugType>
-    <Version>2.0.0.5</Version>
+    <Version>2.0.0.6</Version>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Assets/Teldrive.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
+    <EmbeddedResource Include="../localization/catalog.json" LogicalName="Teldrive.Desktop.LocalizationCatalog" />
     <Resource Include="Assets/Teldrive.ico" />
     <Resource Include="Assets/Teldrive.png" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />

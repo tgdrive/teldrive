@@ -1,3 +1,4 @@
+import { t } from "@/lib/localization";
 export type ApiErrorDetails = Record<string, unknown>;
 
 export class ApiError extends Error {
@@ -55,8 +56,8 @@ export function normalizeApiError(error: unknown, response?: Response): ApiError
     error instanceof Error
       ? error.message
       : status
-        ? `La solicitud falló con el estado ${status}`
-        : "No se pudo conectar con el servidor";
+        ? t("La solicitud falló con el estado {0}", [status])
+        : t("No se pudo conectar con el servidor");
   return new ApiError({
     status,
     code:
@@ -80,7 +81,7 @@ export async function unwrap<T>(result: ApiResult<T> | Promise<ApiResult<T>>): P
     throw new ApiError({
       status: response.status,
       code: "invalid_response",
-      message: "El servidor devolvió una respuesta incompleta.",
+      message: t("El servidor devolvió una respuesta incompleta."),
     });
   }
   return data as T;
@@ -91,7 +92,7 @@ export function isUnauthorized(error: unknown) {
 }
 
 export function invalidResponse(
-  message = "La respuesta del servidor no coincide con el contrato actual de la API.",
+  message = t("La respuesta del servidor no coincide con el contrato actual de la API."),
 ) {
   return new ApiError({ status: 200, code: "invalid_response", message });
 }
@@ -100,32 +101,34 @@ export function userMessage(error: unknown): string {
   const normalized = normalizeApiError(error);
   switch (normalized.status) {
     case 0:
-      return "No se pudo conectar con el servidor. Comprueba la conexión y vuelve a intentarlo.";
+      return t("No se pudo conectar con el servidor. Comprueba la conexión y vuelve a intentarlo.");
     case 400:
-      return "La solicitud no era válida. Revisa los datos e inténtalo de nuevo.";
+      return t("La solicitud no era válida. Revisa los datos e inténtalo de nuevo.");
     case 401:
-      return "Tu sesión ha vencido. Inicia sesión de nuevo para continuar.";
+      return t("Tu sesión ha vencido. Inicia sesión de nuevo para continuar.");
     case 403:
-      return "No tienes permiso para realizar esta acción.";
+      return t("No tienes permiso para realizar esta acción.");
     case 404:
-      return "El elemento solicitado ya no existe.";
+      return t("El elemento solicitado ya no existe.");
     case 409:
-      return "El cambio entra en conflicto con un elemento existente. Actualiza la vista y revisa el nombre o la ubicación.";
+      return t(
+        "El cambio entra en conflicto con un elemento existente. Actualiza la vista y revisa el nombre o la ubicación.",
+      );
     case 410:
-      return "Esta subida o enlace compartido ha vencido.";
+      return t("Esta subida o enlace compartido ha vencido.");
     case 412:
-      return "Este elemento cambió en otro dispositivo. Actualiza antes de reintentarlo.";
+      return t("Este elemento cambió en otro dispositivo. Actualiza antes de reintentarlo.");
     case 413:
-      return "El archivo seleccionado supera el tamaño permitido por el servidor.";
+      return t("El archivo seleccionado supera el tamaño permitido por el servidor.");
     case 416:
-      return "El intervalo solicitado del archivo no está disponible.";
+      return t("El intervalo solicitado del archivo no está disponible.");
     case 422:
-      return "No se puede procesar este elemento. Revisa el formato y los valores indicados.";
+      return t("No se puede procesar este elemento. Revisa el formato y los valores indicados.");
     case 429:
-      return "Teldrive está recibiendo demasiadas solicitudes. Reintenta en unos momentos.";
+      return t("Teldrive está recibiendo demasiadas solicitudes. Reintenta en unos momentos.");
     default:
       return normalized.status >= 500
-        ? "El servidor devolvió un error. Actualiza la vista antes de reintentar."
+        ? t("El servidor devolvió un error. Actualiza la vista antes de reintentar.")
         : normalized.message;
   }
 }

@@ -15,14 +15,14 @@ internal sealed class MediaWindow : Window
     public MediaWindow(RuntimeSession runtime, RcloneRuntime rclone, string path)
     {
         session = new MediaSession(runtime);
-        Title = "Teldrive · " + System.IO.Path.GetFileName(path); Width = 1000; Height = 700; MinWidth = 500; MinHeight = 350; Background = Brushes.Black;
+        Title = L.T("Teldrive · ") + System.IO.Path.GetFileName(path); Width = 1000; Height = 700; MinWidth = 500; MinHeight = 350; Background = Brushes.Black;
         var panel = new DockPanel();
-        var note = new TextBlock {Text = "Controles de mpv: espacio para pausar · flechas para avanzar o retroceder · doble clic para pantalla completa", Foreground = Brushes.White, Margin = new Thickness(12), TextWrapping = TextWrapping.Wrap};
+        var note = new TextBlock {Text = L.T("Controles de mpv: espacio para pausar · flechas para avanzar o retroceder · doble clic para pantalla completa"), Foreground = Brushes.White, Margin = new Thickness(12), TextWrapping = TextWrapping.Wrap};
         DockPanel.SetDock(note, Dock.Bottom); panel.Children.Add(note);
         var surface = new PlayerSurface(); panel.Children.Add(surface); Content = panel;
         Loaded += async (_, _) => {
             try { await session.StartAsync(rclone, path, surface.Window); }
-            catch (Exception error) { if (!disposed) MessageBox.Show(this, error.Message, "Reproducción multimedia"); }
+            catch (Exception error) { if (!disposed) MessageBox.Show(this, error.Message, L.T("Reproducción multimedia")); }
             finally { if (!disposed) Close(); }
         };
         Closing += async (_, e) => { if (disposed) return; e.Cancel = true; disposed = true; try { await session.DisposeAsync(); Close(); } finally { stopped.TrySetResult(); } };
@@ -33,7 +33,7 @@ internal sealed class MediaWindow : Window
         protected override HandleRef BuildWindowCore(HandleRef parent)
         {
             Window = CreateWindowEx(0, "static", "", 0x40000000 | 0x10000000 | 0x02000000, 0, 0, 1, 1, parent.Handle, 0, 0, 0);
-            if (Window == 0) throw new InvalidOperationException("No se pudo crear la superficie de vídeo.");
+            if (Window == 0) throw new InvalidOperationException(L.T("No se pudo crear la superficie de vídeo."));
             return new HandleRef(this, Window);
         }
         protected override void DestroyWindowCore(HandleRef hwnd) { _ = DestroyWindow(hwnd.Handle); Window = 0; }
