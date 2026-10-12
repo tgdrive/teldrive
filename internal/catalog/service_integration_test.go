@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -140,6 +141,61 @@ FROM generate_series(1,1000) AS value`, fileID); err != nil {
 	}
 	if got := tracer.Count("UpdateFilePartSizes"); got != 0 {
 		t.Fatalf("UpdateFilePartSizes queries = %d, want 0", got)
+	}
+}
+
+func TestUpdatePartSizesManyAcrossQueryModes(t *testing.T) {
+	db := testpostgres.New(t)
+	ctx := context.Background()
+	seedUser(t, db.Pool, 1001)
+	if _, err := db.Pool.Exec(ctx, "INSERT INTO channels (channel_id,user_id,name,selected) VALUES (9001,1001,'storage',true)"); err != nil {
+		t.Fatal(err)
+	}
+	for i, mode := range []pgx.QueryExecMode{
+		pgx.QueryExecModeCacheStatement, pgx.QueryExecModeCacheDescribe,
+		pgx.QueryExecModeDescribeExec, pgx.QueryExecModeExec, pgx.QueryExecModeSimpleProtocol,
+	} {
+		t.Run(mode.String(), func(t *testing.T) {
+			fileID := uuid.New()
+			if _, err := db.Pool.Exec(ctx, `INSERT INTO files (id,user_id,name,kind,size,encryption,status,mod_time)
+VALUES ($1,1001,$2,'file',300,false,'active',now())`, fileID, "legacy-"+mode.String()); err != nil {
+				t.Fatal(err)
+			}
+			for partNo := int32(1); partNo <= 2; partNo++ {
+				if _, err := db.Pool.Exec(ctx, `INSERT INTO file_parts (file_id,part_no,channel_id,message_id)
+VALUES ($1,$2,9001,$3)`, fileID, partNo, (i+1)*10+int(partNo)); err != nil {
+					t.Fatal(err)
+				}
+			}
+			config, err := pgxpool.ParseConfig(db.URL)
+			if err != nil {
+				t.Fatal(err)
+			}
+			config.ConnConfig.DefaultQueryExecMode = mode
+			pool, err := pgxpool.NewWithConfig(ctx, config)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(pool.Close)
+			svc := catalog.NewService(pool, nil)
+			if err := svc.UpdatePartSizesMany(ctx, fileID, map[int32][2]int64{1: {100, 100}, 2: {200, 200}}); err != nil {
+				t.Fatalf("backfill migrated parts: %v", err)
+			}
+			// A later backfill must preserve sizes that have already been resolved.
+			if err := svc.UpdatePartSizesMany(ctx, fileID, map[int32][2]int64{1: {999, 999}}); err != nil {
+				t.Fatal(err)
+			}
+			parts, err := svc.Parts(ctx, 1001, fileID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(parts) != 2 || !parts[0].PlainSize.Valid || !parts[0].StoredSize.Valid ||
+				parts[0].PlainSize.Int64 != 100 || parts[0].StoredSize.Int64 != 100 ||
+				!parts[1].PlainSize.Valid || !parts[1].StoredSize.Valid ||
+				parts[1].PlainSize.Int64 != 200 || parts[1].StoredSize.Int64 != 200 {
+				t.Fatalf("backfilled parts = %+v", parts)
+			}
+		})
 	}
 }
 

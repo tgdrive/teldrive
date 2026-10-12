@@ -676,7 +676,7 @@ WHERE file_id = sqlc.arg(file_id)
 UPDATE /* TEMPLATE: schema */file_parts AS part
 SET plain_size = input.plain_size,
     stored_size = input.stored_size
-FROM jsonb_to_recordset(sqlc.arg(parts)::jsonb) AS input(
+FROM jsonb_to_recordset(sqlc.arg(parts)::text::jsonb) AS input(
     part_no integer, plain_size bigint, stored_size bigint
 )
 WHERE part.file_id = sqlc.arg(file_id)

@@ -2054,7 +2054,7 @@ const updateFilePartSizesMany = `-- name: UpdateFilePartSizesMany :execrows
 UPDATE /* TEMPLATE: schema */file_parts AS part
 SET plain_size = input.plain_size,
     stored_size = input.stored_size
-FROM jsonb_to_recordset($2::jsonb) AS input(
+FROM jsonb_to_recordset($2::text::jsonb) AS input(
     part_no integer, plain_size bigint, stored_size bigint
 )
 WHERE part.file_id = $1
@@ -2064,7 +2064,7 @@ WHERE part.file_id = $1
 
 type UpdateFilePartSizesManyParams struct {
 	FileID pgtype.UUID `json:"file_id"`
-	Parts  []byte      `json:"parts"`
+	Parts  string      `json:"parts"`
 }
 
 func (q *Queries) UpdateFilePartSizesMany(ctx context.Context, arg UpdateFilePartSizesManyParams) (int64, error) {
