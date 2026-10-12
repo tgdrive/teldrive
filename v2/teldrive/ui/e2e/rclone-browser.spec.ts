@@ -9,7 +9,7 @@ test.beforeEach(async ({ page }) => {
     const state = {configured: true, encrypted: false, locked: false, driverInstalled: true, version: "test"};
     let name = "documento.txt";
     const jobs: {id: string; label: string; mount: boolean; status: string; log: string}[] = [];
-    Object.assign(window, {nativeRequests: requests});
+    Object.assign(window, {nativeRequests: requests, nativeTestJobs: jobs});
     Object.assign(window.chrome ?? (window.chrome = {}), {webview: {
       addEventListener: (_: string, listener: (event: {data: unknown}) => void) => listeners.add(listener),
       removeEventListener: (_: string, listener: (event: {data: unknown}) => void) => listeners.delete(listener),
@@ -67,4 +67,27 @@ test("transfer controls start, stop and retry a native job", async ({ page }) =>
   await expect(page.getByText("Detenida", {exact:true})).toBeVisible();
   await page.getByRole("button", {name:"Reintentar", exact:true}).click();
   await expect(page.getByText("En curso", {exact:true})).toBeVisible();
+});
+
+test("additional options use the native panel and queued jobs remain cancellable", async ({ page }) => {
+  await page.goto("/settings/rclone");
+  await page.getByRole("button", { name: "Opciones adicionales de rclone", exact: true }).click();
+  await expect.poll(() => page.evaluate(() =>
+    (window as Window & { nativeRequests: { method: string }[] }).nativeRequests.some(item => item.method === "rclone.advanced")
+  )).toBe(true);
+  await page.evaluate(() => {
+    const jobs = (window as Window & { nativeTestJobs: { id: string; label: string; mount: boolean; status: string; log: string }[] }).nativeTestJobs;
+    jobs.push({ id: "waiting-job", label: "Pendiente de prueba", mount: false, status: "waiting", log: "La cola está pausada" });
+    jobs.push({ id: "interrupted-job", label: "Interrumpida de prueba", mount: false, status: "interrupted", log: "El programa se cerró" });
+  });
+  await page.getByRole("button", { name: "Transferencias", exact: true }).click();
+  const waiting = page.locator("div.rounded-xl.border").filter({ has: page.getByRole("heading", { name: "Pendiente de prueba", exact: true }) });
+  await expect(waiting.getByText("En cola", { exact: true })).toBeVisible();
+  await expect(waiting.getByRole("button", { name: "Reintentar", exact: true })).toHaveCount(0);
+  await waiting.getByRole("button", { name: "Detener", exact: true }).click();
+  await expect(waiting.getByText("Detenida", { exact: true })).toBeVisible();
+  const interrupted = page.locator("div.rounded-xl.border").filter({ has: page.getByRole("heading", { name: "Interrumpida de prueba", exact: true }) });
+  await expect(interrupted.getByText("Interrumpida; puedes reintentar", { exact: true })).toBeVisible();
+  await interrupted.getByRole("button", { name: "Reintentar", exact: true }).click();
+  await expect(interrupted.getByText("En curso", { exact: true })).toBeVisible();
 });

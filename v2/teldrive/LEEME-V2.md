@@ -10,6 +10,8 @@ Los binarios de esta edición se recompilan desde estas fuentes. Android mantien
 
 ## Windows completo
 
+La actualización **Windows Desktop 2.0.0.3** añade tareas guardadas, cola de transferencias, programador y preferencias de bandeja en **Opciones adicionales de rclone**, junto con el nuevo icono del avión con fondo transparente. Las transferencias del explorador utilizan la cola. Esta actualización se concentra en Windows portátil; las descargas CLI, Android e iOS de la publicación `v2.0.0-drive-es.2` continúan disponibles sin sustituirlas. Los horarios necesitan el programa abierto, incluso oculto en la bandeja. Consulta `desktop/README.md` para las opciones y validación.
+
 Abre `Teldrive Desktop v2.exe`. La ventana de .NET 10/WPF presenta la configuración inicial y después la UI mediante WebView2. Incluye Teldrive, rclone compatible con v2, PostgreSQL, FFmpeg, mpv y los instaladores oficiales de WinFsp, WebView2 y Visual C++. No necesitas instalar .NET por separado. WinFsp requiere el permiso de administrador de Windows para instalar su controlador; solo es necesario para montar unidades.
 
 En **Configuración → Rclone** puedes guardar y cifrar la conexión, explorar archivos locales y remotos, subir, descargar, renombrar, crear carpetas, revisar y reintentar transferencias, montar una unidad y reproducir multimedia con mpv. Consulta `desktop/README.md` para el modo portátil y los detalles.

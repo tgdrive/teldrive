@@ -1,3 +1,5 @@
+> **Windows Desktop 2.0.0.3:** tareas, cola y programador de rclone, bandeja e inicio automático opcional, y nuevo icono transparente. [Descargar](https://github.com/webr0m/teldrive/releases/tag/v2.0.0-drive-es.3). Los CLI y móviles de .2 continúan disponibles.
+
 # Teldrive
 
 ## Teldrive v2 en español
