@@ -9,6 +9,7 @@ import { ConfirmDialog } from "@/components/dialogs/confirm-dialog";
 import { SettingsPageHeader, SettingsRow, SettingsSection } from "@/components/settings-layout";
 import { newIdempotencyKey } from "@/features/shared/idempotency";
 import { getQueryClient } from "@/lib/queryClient";
+import { useAppLocale } from "@/lib/locale";
 
 export const Route = createFileRoute("/_settings/settings/bots")({
   component: BotsSettings,
@@ -25,6 +26,7 @@ function BotsSettings() {
   const [deleteBot, setDeleteBot] = useState<{ id: number; name: string } | null>(null);
   const [provisionBot, setProvisionBot] = useState<{ id: number; name: string } | null>(null);
   const [provisionAllOpen, setProvisionAllOpen] = useState(false);
+  const { t } = useAppLocale();
   const query = $api.useSuspenseQuery(
     "get",
     "/v1/bots",
@@ -35,41 +37,42 @@ function BotsSettings() {
   const provision = $api.useMutation("post", "/v1/bots/{botId}/provision", {
     onSuccess: () => {
       setProvisionBot(null);
-      toast.success("Bot provisioning queued", {
-        description:
-          "Check Tasks for progress. Telegram may temporarily delay channel admin changes.",
+      toast.success(t("bots.provisionQueued"), {
+        description: t("bots.provisionQueuedDesc"),
       });
     },
     onError: (error) => {
-      toast.error("Bot provisioning could not be queued", { description: userMessage(error) });
+      toast.error(t("bots.provisionFailed"), { description: userMessage(error) });
     },
   });
   const provisionAll = $api.useMutation("post", "/v1/bots/provision", {
     onSuccess: (result) => {
       setProvisionAllOpen(false);
       if (result.jobIds.length === 0) {
-        toast.info("No bots to provision");
+        toast.info(t("bots.noBots"));
         return;
       }
       toast.success(
-        `${result.jobIds.length} bot${result.jobIds.length === 1 ? "" : "s"} queued for provisioning`,
+        t(result.jobIds.length === 1 ? "bots.queuedOne" : "bots.queuedMany", {
+          count: result.jobIds.length,
+        }),
         {
-          description: "Each bot has its own task. Check Tasks for progress.",
+          description: t("bots.queuedDesc"),
         },
       );
     },
     onError: (error) => {
-      toast.error("Bots could not be queued for provisioning", { description: userMessage(error) });
+      toast.error(t("bots.queueAllFailed"), { description: userMessage(error) });
     },
   });
   const remove = $api.useMutation("delete", "/v1/bots/{botId}", {
     onSuccess: () => {
       setDeleteBot(null);
       void refresh();
-      toast.success("Telegram bot deleted");
+      toast.success(t("bots.deleted"));
     },
     onError: (error) => {
-      toast.error("Telegram bot could not be deleted", { description: userMessage(error) });
+      toast.error(t("bots.deleteFailed"), { description: userMessage(error) });
     },
   });
   const refresh = () =>
@@ -97,16 +100,20 @@ function BotsSettings() {
       await refresh();
       if (result.bots.length > 0) {
         toast.success(
-          `${result.bots.length} bot${result.bots.length === 1 ? "" : "s"} queued for verification`,
+          t(result.bots.length === 1 ? "bots.verifiedOne" : "bots.verifiedMany", {
+            count: result.bots.length,
+          }),
         );
       }
       if (result.failedIndexes.length > 0) {
         toast.warning(
-          `${result.failedIndexes.length} token${result.failedIndexes.length === 1 ? "" : "s"} had an invalid format`,
+          t(result.failedIndexes.length === 1 ? "bots.invalidOne" : "bots.invalidMany", {
+            count: result.failedIndexes.length,
+          }),
         );
       }
     } catch (error) {
-      toast.error("Bots could not be queued", { description: userMessage(error) });
+      toast.error(t("bots.addFailed"), { description: userMessage(error) });
     } finally {
       setIsAddingBots(false);
     }
@@ -114,21 +121,12 @@ function BotsSettings() {
 
   return (
     <div className="space-y-6">
-      <SettingsPageHeader
-        title="Telegram bots"
-        description="Bot accounts used for parallel Telegram API throughput."
-      />
-      <SettingsSection
-        title="Add bots"
-        description="Paste one BotFather token per line. Each bot is verified and added to existing channels in its own background task."
-      >
-        <SettingsRow
-          label="Bot tokens"
-          description="Tokens are sent only to your Teldrive server and are never shown again."
-        >
+      <SettingsPageHeader title={t("bots.title")} description={t("bots.desc")} />
+      <SettingsSection title={t("bots.add")} description={t("bots.addDesc")}>
+        <SettingsRow label={t("bots.tokens")} description={t("bots.tokensDesc")}>
           <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-end">
             <TextField className="min-w-0 flex-1">
-              <Label className="sr-only">Bot tokens</Label>
+              <Label className="sr-only">{t("bots.tokens")}</Label>
               <TextArea
                 value={token}
                 onChange={(event) => setToken(event.currentTarget.value)}
@@ -143,14 +141,14 @@ function BotsSettings() {
               isDisabled={!token.trim() || isAddingBots}
               isPending={isAddingBots}
             >
-              Add bots
+              {t("bots.addBtn")}
             </Button>
           </div>
         </SettingsRow>
       </SettingsSection>
       <SettingsSection
-        title="Configured bots"
-        description="Healthy enabled bots are used automatically. After migration, use Provision to verify a bot and repair its channel access."
+        title={t("bots.configured")}
+        description={t("bots.configuredDesc")}
         actions={
           <Button
             size="sm"
@@ -164,7 +162,7 @@ function BotsSettings() {
             isPending={provisionAll.isPending}
             onPress={() => setProvisionAllOpen(true)}
           >
-            Provision all bots
+            {t("bots.provisionAll")}
           </Button>
         }
       >
@@ -173,28 +171,30 @@ function BotsSettings() {
             <SettingsRow
               key={bot.id}
               label={`@${bot.username || `bot-${bot.id}`}`}
-              description={`Added ${new Date(bot.createdAt).toLocaleString()}`}
+              description={t("bots.addedAt", {
+                date: new Date(bot.createdAt).toLocaleString(),
+              })}
             >
               <div className="flex items-center justify-end gap-2">
                 <Chip color={bot.enabled ? "success" : "warning"} variant="tertiary">
-                  {bot.enabled ? "Enabled" : "Disabled"}
+                  {t(bot.enabled ? "bots.enabled" : "bots.disabled")}
                 </Chip>
                 <Button
                   size="sm"
                   variant="secondary"
-                  aria-label={`Provision bot ${bot.username || bot.id}`}
+                  aria-label={t("bots.provisionAria", { name: bot.username || bot.id })}
                   isDisabled={provision.isPending || provisionAll.isPending || remove.isPending}
                   onPress={() =>
                     setProvisionBot({ id: bot.id, name: bot.username || `bot-${bot.id}` })
                   }
                 >
-                  Provision
+                  {t("bots.provision")}
                 </Button>
                 <Button
                   isIconOnly
                   size="sm"
                   variant="ghost"
-                  aria-label={`Delete bot ${bot.username || bot.id}`}
+                  aria-label={t("bots.deleteAria", { name: bot.username || bot.id })}
                   isDisabled={remove.isPending && deleteBot?.id === bot.id}
                   onPress={() =>
                     setDeleteBot({ id: bot.id, name: bot.username || `bot-${bot.id}` })
@@ -206,7 +206,7 @@ function BotsSettings() {
             </SettingsRow>
           ))
         ) : (
-          <div className="px-5 py-8 text-sm text-muted">No Telegram bots are configured.</div>
+          <div className="px-5 py-8 text-sm text-muted">{t("bots.empty")}</div>
         )}
       </SettingsSection>
       <ConfirmDialog
@@ -214,9 +214,9 @@ function BotsSettings() {
         onOpenChange={(open) => {
           if (!provisionAll.isPending) setProvisionAllOpen(open);
         }}
-        title="Provision all Telegram bots?"
-        message="Verify every configured bot and repair its admin access to your registered Telegram channels using your logged-in account. Each bot runs in its own background task, including bots not shown on this page. Track progress in Tasks."
-        confirmLabel="Provision all bots"
+        title={t("bots.allTitle")}
+        message={t("bots.allMsg")}
+        confirmLabel={t("bots.allConfirm")}
         isDestructive={false}
         isPending={provisionAll.isPending}
         onConfirm={() => {
@@ -230,9 +230,9 @@ function BotsSettings() {
         onOpenChange={(open) => {
           if (!open && !provision.isPending) setProvisionBot(null);
         }}
-        title="Provision Telegram bot?"
-        message={`Verify “${provisionBot?.name ?? ""}” and add it as an admin to your registered Telegram channels. This runs in the background using your logged-in Telegram account. Track progress in Tasks.`}
-        confirmLabel="Provision bot"
+        title={t("bots.oneTitle")}
+        message={t("bots.oneMsg", { name: provisionBot?.name ?? "" })}
+        confirmLabel={t("bots.oneConfirm")}
         isDestructive={false}
         isPending={provision.isPending}
         onConfirm={() => {
@@ -251,9 +251,9 @@ function BotsSettings() {
         onOpenChange={(open) => {
           if (!open && !remove.isPending) setDeleteBot(null);
         }}
-        title="Delete Telegram bot?"
-        message={`Uploads using other bots or your user session will continue after “${deleteBot?.name ?? ""}” is removed.`}
-        confirmLabel="Delete bot"
+        title={t("bots.delTitle")}
+        message={t("bots.delMsg", { name: deleteBot?.name ?? "" })}
+        confirmLabel={t("bots.delConfirm")}
         isPending={remove.isPending}
         onConfirm={() => {
           if (deleteBot) {

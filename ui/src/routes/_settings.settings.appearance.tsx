@@ -1,6 +1,7 @@
 import { Button } from "@heroui/react";
 import { createFileRoute } from "@tanstack/react-router";
 import { SettingsPageHeader, SettingsRow, SettingsSection } from "@/components/settings-layout";
+import { APP_LOCALES, useAppLocale } from "@/lib/locale";
 import { useTheme } from "@/lib/theme";
 import MoonIcon from "~icons/gravity-ui/moon";
 import SunIcon from "~icons/gravity-ui/sun";
@@ -11,38 +12,57 @@ export const Route = createFileRoute("/_settings/settings/appearance")({
 
 function AppearanceSettings() {
   const { theme, setTheme } = useTheme();
+  const { locale, setLocale, t } = useAppLocale();
   return (
     <div className="space-y-6">
-      <SettingsPageHeader
-        title="Appearance"
-        description="Control how Teldrive looks in this browser."
-      />
+      <SettingsPageHeader title={t("appearance.title")} description={t("appearance.description")} />
       <SettingsSection
-        title="Color theme"
-        description="The choice is stored locally and applies immediately."
+        title={t("appearance.themeTitle")}
+        description={t("appearance.themeDescription")}
       >
-        <SettingsRow label="Theme" description="Follow your system, or choose light or dark.">
+        <SettingsRow label={t("appearance.themeLabel")} description={t("appearance.themeHint")}>
           <div className="grid grid-cols-3 gap-2">
             <Button
               variant={theme === "system" ? "primary" : "secondary"}
               onPress={() => setTheme("system")}
             >
-              System
+              {t("appearance.system")}
             </Button>
             <Button
               variant={theme === "light" ? "primary" : "secondary"}
               onPress={() => setTheme("light")}
             >
               <SunIcon className="size-4" />
-              Light
+              {t("appearance.light")}
             </Button>
             <Button
               variant={theme === "dark" ? "primary" : "secondary"}
               onPress={() => setTheme("dark")}
             >
               <MoonIcon className="size-4" />
-              Dark
+              {t("appearance.dark")}
             </Button>
+          </div>
+        </SettingsRow>
+      </SettingsSection>
+      <SettingsSection
+        title={t("appearance.languageTitle")}
+        description={t("appearance.languageDescription")}
+      >
+        <SettingsRow
+          label={t("appearance.languageLabel")}
+          description={t("appearance.languageHint")}
+        >
+          <div className="grid grid-cols-2 gap-2">
+            {APP_LOCALES.map((entry) => (
+              <Button
+                key={entry.code}
+                variant={locale === entry.code ? "primary" : "secondary"}
+                onPress={() => setLocale(entry.code)}
+              >
+                {entry.nativeLabel}
+              </Button>
+            ))}
           </div>
         </SettingsRow>
       </SettingsSection>

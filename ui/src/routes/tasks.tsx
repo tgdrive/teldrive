@@ -13,6 +13,7 @@ import type { components } from "@/api/schema";
 import { $api as api, fetchClient } from "@/api/client";
 import { queryClient } from "@/api/query-client";
 import { invalidateTaskQueries } from "@/api/tasks";
+import { useAppLocale } from "@/lib/locale";
 
 type TaskOut = components["schemas"]["Job"];
 type TaskCounts = components["schemas"]["JobStatistics"];
@@ -26,14 +27,14 @@ const PAGE_SIZE = 20;
 const CANCELLABLE_STATUSES = ["pending", "scheduled", "available", "running", "retryable"];
 
 const STATUS_TABS = [
-  { key: "pending", label: "Pending" },
-  { key: "scheduled", label: "Scheduled" },
-  { key: "available", label: "Available" },
-  { key: "running", label: "Running" },
-  { key: "retryable", label: "Retryable" },
-  { key: "cancelled", label: "Cancelled" },
-  { key: "discarded", label: "Discarded" },
-  { key: "completed", label: "Completed" },
+  { key: "pending" },
+  { key: "scheduled" },
+  { key: "available" },
+  { key: "running" },
+  { key: "retryable" },
+  { key: "cancelled" },
+  { key: "discarded" },
+  { key: "completed" },
 ] as const;
 
 export const Route = createFileRoute("/tasks")({
@@ -88,6 +89,7 @@ function TasksPage() {
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
   const qc = queryClient;
+  const { t } = useAppLocale();
   const [cursor, setCursor] = useState<string | undefined>();
   const [cursorHistory, setCursorHistory] = useState<(string | undefined)[]>([]);
   const { data } = api.useSuspenseQuery("get", "/v1/jobs", {
@@ -211,10 +213,10 @@ function TasksPage() {
     });
     setRetryingId(null);
     if (error) {
-      toast.error("Failed to retry task");
+      toast.error(t("tasks.retryFailed"));
       return;
     }
-    toast.success("Task queued for retry");
+    toast.success(t("tasks.retryOk"));
     refreshTasks();
   };
 
@@ -230,14 +232,12 @@ function TasksPage() {
     setDeletingId(null);
     if (error) {
       toast.error(
-        CANCELLABLE_STATUSES.includes(task.status)
-          ? "Failed to cancel task"
-          : "Failed to remove task",
+        t(CANCELLABLE_STATUSES.includes(task.status) ? "tasks.cancelFailed" : "tasks.removeFailed"),
       );
       return;
     }
     toast.success(
-      CANCELLABLE_STATUSES.includes(task.status) ? "Task cancellation requested" : "Task removed",
+      t(CANCELLABLE_STATUSES.includes(task.status) ? "tasks.cancelOk" : "tasks.removeOk"),
     );
     refreshTasks();
   };
@@ -250,7 +250,7 @@ function TasksPage() {
     });
     setCleaning(false);
     if (error) {
-      toast.error(`Failed to clean ${cleanupStatus} tasks`);
+      toast.error(t("tasks.cleanFailed", { status: cleanupStatus }));
       return;
     }
 
@@ -258,22 +258,24 @@ function TasksPage() {
     setCleanupStatus(null);
     setCursor(undefined);
     setCursorHistory([]);
-    toast.success(`Removed ${response.count} ${status} task${response.count === 1 ? "" : "s"}`);
+    toast.success(
+      t(response.count === 1 ? "tasks.removedOne" : "tasks.removedMany", {
+        count: response.count,
+        status,
+      }),
+    );
     refreshTasks();
   };
 
   return (
     <Page>
-      <PageHeader
-        title="Tasks"
-        description="Monitor, retry, and inspect background work."
-      />
+      <PageHeader title={t("tasks.title")} description={t("tasks.desc")} />
 
       <PageToolbar className="items-stretch">
         <div className="flex min-w-0 flex-1 flex-col gap-2 md:flex-row md:items-center">
           <Input
-            aria-label="Search tasks"
-            placeholder="Search tasks by type, queue, path, or ID"
+            aria-label={t("tasks.search")}
+            placeholder={t("tasks.searchPh")}
             value={search.query}
             onChange={(event) => setSearch({ query: event.currentTarget.value })}
             className="min-w-0 flex-1"
@@ -298,7 +300,7 @@ function TasksPage() {
                     isDisabled={(taskStats?.[purgeStatus] ?? 0) === 0}
                     onPress={() => setCleanupStatus(purgeStatus)}
                   >
-                    <TrashIcon className="size-3.5" /> Clean
+                    <TrashIcon className="size-3.5" /> {t("tasks.clean")}
                   </Button>
                 ) : null;
               })()}
@@ -309,17 +311,17 @@ function TasksPage() {
 
       <Card className="overflow-hidden p-0">
         <div className="flex items-center justify-between border-border border-b px-4 py-3">
-          <div className="text-sm font-semibold">Task activity</div>
+          <div className="text-sm font-semibold">{t("tasks.activity")}</div>
           {hasActiveTasks && (
             <span className="flex items-center gap-2 text-xs text-muted">
               <span className="size-2 animate-pulse rounded-full bg-accent" />
-              Live updates
+              {t("tasks.live")}
             </span>
           )}
         </div>
         {filteredTasks.length > 0 ? (
           <ListBox
-            aria-label="Tasks"
+            aria-label={t("tasks.listAria")}
             selectionMode="none"
             className="w-full min-w-0 divide-y divide-border overflow-hidden p-0"
           >
@@ -335,10 +337,7 @@ function TasksPage() {
             ))}
           </ListBox>
         ) : (
-          <EmptyState
-            title="No tasks match these filters"
-            description="Adjust the active filters to find existing tasks."
-          />
+          <EmptyState title={t("tasks.empty")} description={t("tasks.emptyDesc")} />
         )}
       </Card>
 
@@ -350,13 +349,13 @@ function TasksPage() {
             isDisabled={cursorHistory.length === 0}
             onPress={goPrevious}
           >
-            <PrevIcon className="size-3.5" /> Previous
+            <PrevIcon className="size-3.5" /> {t("tasks.prev")}
           </Button>
           <span className="min-w-20 text-center text-xs text-muted">
-            Page {cursorHistory.length + 1}
+            {t("tasks.page", { n: cursorHistory.length + 1 })}
           </span>
           <Button size="sm" variant="tertiary" isDisabled={!meta?.nextCursor} onPress={goNext}>
-            Next <NextIcon className="size-3.5" />
+            {t("tasks.next")} <NextIcon className="size-3.5" />
           </Button>
         </div>
       )}
@@ -365,9 +364,12 @@ function TasksPage() {
         open={cleanupStatus != null}
         onOpenChange={(open) => !open && setCleanupStatus(null)}
         onConfirm={cleanTasks}
-        title={`Clean ${cleanupStatus ?? ""} tasks?`}
-        message={`This permanently removes all ${cleanupStatus ? (taskStats?.[cleanupStatus] ?? 0) : 0} ${cleanupStatus ?? ""} task records. Other task statuses are not affected.`}
-        confirmLabel="Clean"
+        title={t("tasks.cleanTitle", { status: cleanupStatus ?? "" })}
+        message={t("tasks.cleanMsg", {
+          count: cleanupStatus ? (taskStats?.[cleanupStatus] ?? 0) : 0,
+          status: cleanupStatus ?? "",
+        })}
+        confirmLabel={t("tasks.clean")}
         isPending={cleaning}
       />
     </Page>
@@ -389,6 +391,7 @@ function TaskRow({
 }) {
   const title = `${task.type} #${task.id}`;
   const canRetry = ["cancelled", "discarded", "retryable"].includes(task.status);
+  const { t } = useAppLocale();
 
   return (
     <ListBox.Item
@@ -402,7 +405,7 @@ function TaskRow({
             <TaskStatusChip status={task.status} />
             {task.parentId ? (
               <Chip size="sm" variant="tertiary">
-                Child task
+                {t("tasks.child")}
               </Chip>
             ) : null}
           </div>
@@ -416,21 +419,28 @@ function TaskRow({
           </Link>
 
           <div className="mt-1.5 flex min-w-0 items-center gap-2 overflow-hidden text-[11px] text-muted sm:flex-wrap sm:gap-x-3 sm:gap-y-1">
-            <span className="shrink-0">{task.queue || "default"} queue</span>
+            <span className="shrink-0">
+              {t("tasks.queueLine", { queue: task.queue || "default" })}
+            </span>
             <span className="shrink-0">{taskDuration(task)}</span>
             <span className="truncate" title={formatDate(task.createdAt)}>
-              {formatRelativeDate(task.createdAt)}
+              {formatRelativeDate(t, task.createdAt)}
             </span>
             {(task.attempt ?? 0) > 0 ? (
               <span className="hidden shrink-0 sm:inline lg:hidden">
-                Attempt {task.attempt} of {task.maxAttempts || "—"}
+                {t("tasks.attemptLine", {
+                  attempt: task.attempt,
+                  max: task.maxAttempts || "—",
+                })}
               </span>
             ) : null}
           </div>
         </div>
 
         <div className="hidden lg:block">
-          <div className="text-[10px] font-medium uppercase tracking-wide text-muted">Attempts</div>
+          <div className="text-[10px] font-medium uppercase tracking-wide text-muted">
+            {t("tasks.attemptsCol")}
+          </div>
           <div className="mt-1 text-xs font-semibold tabular-nums">
             {task.attempt ?? 0} / {task.maxAttempts || "—"}
           </div>
@@ -443,9 +453,9 @@ function TaskRow({
               variant="primary"
               isPending={retryPending}
               onPress={onRetry}
-              aria-label={`Retry ${title}`}
+              aria-label={t("tasks.retryAria", { title })}
             >
-              Retry
+              {t("tasks.retry")}
             </Button>
           ) : null}
           {task.status === "running" ? (
@@ -454,9 +464,9 @@ function TaskRow({
               variant="danger-soft"
               isPending={deletePending}
               onPress={onDelete}
-              aria-label={`Cancel ${title}`}
+              aria-label={t("tasks.cancelAria", { title })}
             >
-              Cancel
+              {t("tasks.cancel")}
             </Button>
           ) : (
             <Button
@@ -465,7 +475,7 @@ function TaskRow({
               isIconOnly
               isPending={deletePending}
               onPress={onDelete}
-              aria-label={`Delete ${title}`}
+              aria-label={t("tasks.deleteAria", { title })}
             >
               <TrashIcon className="size-3.5" />
             </Button>
@@ -486,10 +496,11 @@ function TaskStatusSelect({
   onChange: (value: string) => void;
 }) {
   const selected = STATUS_TABS.find((item) => item.key === value) ?? STATUS_TABS[0];
+  const { t } = useAppLocale();
 
   return (
     <Select
-      aria-label="Task status"
+      aria-label={t("tasks.statusAria")}
       selectedKey={value}
       onSelectionChange={(key) => onChange(String(key))}
       className="w-44 shrink-0"
@@ -497,7 +508,7 @@ function TaskStatusSelect({
       <Select.Trigger className="h-8 min-h-8 py-1.5">
         <Select.Value>
           <div className="flex min-w-0 items-center justify-between gap-3">
-            <span className="truncate">{selected.label}</span>
+            <span className="truncate">{t(`tasks.status.${selected.key}`)}</span>
             <span className="text-xs tabular-nums text-muted">{counts?.[selected.key] ?? 0}</span>
           </div>
         </Select.Value>
@@ -506,7 +517,7 @@ function TaskStatusSelect({
       <Select.Popover>
         <ListBox>
           {STATUS_TABS.map((item) => (
-            <ListBox.Item key={item.key} id={item.key} textValue={item.label}>
+            <ListBox.Item key={item.key} id={item.key} textValue={t(`tasks.status.${item.key}`)}>
               <div className="flex w-full items-center justify-between gap-4">
                 <TaskStatusChip status={item.key} />
                 <span className="text-xs font-medium tabular-nums text-muted">
@@ -523,6 +534,7 @@ function TaskStatusSelect({
 
 function QueueManager({ queues, onChanged }: { queues: TaskQueueOut[]; onChanged: () => void }) {
   const [pendingQueue, setPendingQueue] = useState<string | null>(null);
+  const { t } = useAppLocale();
 
   const toggleQueue = async (queue: TaskQueueOut) => {
     setPendingQueue(queue.name);
@@ -532,25 +544,35 @@ function QueueManager({ queues, onChanged }: { queues: TaskQueueOut[]; onChanged
     const { error } = await fetchClient.POST(endpoint, { params: { path: { queue: queue.name } } });
     setPendingQueue(null);
     if (error) {
-      toast.error(`Failed to ${queue.paused ? "resume" : "pause"} ${queue.name}`);
+      toast.error(
+        t("tasks.queueToggleFailed", {
+          action: t(queue.paused ? "tasks.verbResume" : "tasks.verbPause"),
+          name: queue.name,
+        }),
+      );
       return;
     }
-    toast.success(`${queue.name} ${queue.paused ? "resumed" : "paused"}`);
+    toast.success(
+      t("tasks.queueToggled", {
+        name: queue.name,
+        state: t(queue.paused ? "tasks.stateResumed" : "tasks.statePaused"),
+      }),
+    );
     onChanged();
   };
 
   return (
     <Popover>
       <Button size="sm" variant="tertiary">
-        <FilterIcon className="size-3.5" /> Queues
+        <FilterIcon className="size-3.5" /> {t("tasks.queues")}
       </Button>
       <Popover.Content placement="bottom end" offset={8} className="w-[min(92vw,28rem)]">
         <Popover.Dialog className="p-0">
           <div className="border-border border-b px-4 py-3">
-            <Popover.Heading className="text-sm font-semibold">Worker queues</Popover.Heading>
-            <p className="mt-0.5 text-xs text-muted">
-              Pause or resume River queues without stopping workers.
-            </p>
+            <Popover.Heading className="text-sm font-semibold">
+              {t("tasks.queuesTitle")}
+            </Popover.Heading>
+            <p className="mt-0.5 text-xs text-muted">{t("tasks.queuesDesc")}</p>
           </div>
           <div className="max-h-80 divide-y divide-border overflow-y-auto">
             {queues.length > 0 ? (
@@ -563,12 +585,12 @@ function QueueManager({ queues, onChanged }: { queues: TaskQueueOut[]; onChanged
                         className={`size-2 rounded-full ${queue.paused ? "bg-warning" : "bg-success"}`}
                       />
                       <span className="text-[10px] text-muted">
-                        {queue.paused ? "Paused" : "Active"}
+                        {t(queue.paused ? "tasks.pausedQ" : "tasks.activeQ")}
                       </span>
                     </div>
                     <div className="mt-1 flex gap-3 text-[11px] text-muted">
-                      <span>{queue.available} available</span>
-                      <span>{queue.running} running</span>
+                      <span>{t("tasks.avail", { count: queue.available })}</span>
+                      <span>{t("tasks.runningCount", { count: queue.running })}</span>
                     </div>
                   </div>
                   <Button
@@ -577,14 +599,12 @@ function QueueManager({ queues, onChanged }: { queues: TaskQueueOut[]; onChanged
                     isPending={pendingQueue === queue.name}
                     onPress={() => toggleQueue(queue)}
                   >
-                    {queue.paused ? "Resume" : "Pause"}
+                    {t(queue.paused ? "tasks.resume" : "tasks.pause")}
                   </Button>
                 </div>
               ))
             ) : (
-              <div className="px-4 py-8 text-center text-sm text-muted">
-                No active River queues.
-              </div>
+              <div className="px-4 py-8 text-center text-sm text-muted">{t("tasks.noQueues")}</div>
             )}
           </div>
         </Popover.Dialog>
@@ -596,15 +616,18 @@ function QueueManager({ queues, onChanged }: { queues: TaskQueueOut[]; onChanged
 function formatDate(value: string) {
   return new Date(value).toLocaleString();
 }
-function formatRelativeDate(value: string) {
+function formatRelativeDate(
+  t: (key: string, vars?: Record<string, string | number>) => string,
+  value: string,
+) {
   const seconds = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 1000));
-  if (seconds < 60) return "just now";
+  if (seconds < 60) return t("tasks.time.now");
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 60) return t("tasks.time.min", { m: minutes });
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return t("tasks.time.hour", { h: hours });
   const days = Math.floor(hours / 24);
-  return days < 7 ? `${days}d ago` : new Date(value).toLocaleDateString();
+  return days < 7 ? t("tasks.time.day", { d: days }) : new Date(value).toLocaleDateString();
 }
 
 function taskDuration(task: TaskOut) {

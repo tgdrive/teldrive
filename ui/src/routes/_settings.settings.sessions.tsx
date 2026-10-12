@@ -8,6 +8,7 @@ import { userMessage } from "@/api/errors";
 import { ConfirmDialog } from "@/components/dialogs/confirm-dialog";
 import { SettingsPageHeader, SettingsRow, SettingsSection } from "@/components/settings-layout";
 import { getQueryClient } from "@/lib/queryClient";
+import { useAppLocale } from "@/lib/locale";
 
 export const Route = createFileRoute("/_settings/settings/sessions")({
   component: SessionsSettings,
@@ -20,6 +21,7 @@ export const Route = createFileRoute("/_settings/settings/sessions")({
 
 function SessionsSettings() {
   const [revokeSessionId, setRevokeSessionId] = useState<string | null>(null);
+  const { t } = useAppLocale();
   const query = $api.useSuspenseQuery(
     "get",
     "/v1/sessions",
@@ -34,41 +36,38 @@ function SessionsSettings() {
     onSuccess: () => {
       setRevokeSessionId(null);
       void refresh();
-      toast.success("Session revoked");
+      toast.success(t("sessions.revoked"));
     },
     onError: (error) => {
-      toast.error("Session could not be revoked", { description: userMessage(error) });
+      toast.error(t("sessions.revokeFailed"), { description: userMessage(error) });
     },
   });
 
   return (
     <div className="space-y-6">
-      <SettingsPageHeader
-        title="Sessions"
-        description="Sessions currently authorized for this account."
-      />
-      <SettingsSection
-        title="Active sessions"
-        description="Revoke any session you no longer recognize or use."
-      >
+      <SettingsPageHeader title={t("sessions.title")} description={t("sessions.desc")} />
+      <SettingsSection title={t("sessions.active")} description={t("sessions.activeDesc")}>
         {query.data.items.length ? (
           query.data.items.map((session) => (
             <SettingsRow
               key={session.id}
-              label={session.current ? "Current session" : "Teldrive session"}
-              description={`Created ${new Date(session.createdAt).toLocaleString()} · expires ${new Date(session.expiresAt).toLocaleString()}`}
+              label={t(session.current ? "sessions.current" : "sessions.other")}
+              description={t("sessions.createdLine", {
+                created: new Date(session.createdAt).toLocaleString(),
+                expires: new Date(session.expiresAt).toLocaleString(),
+              })}
             >
               <div className="flex items-center justify-end gap-2">
                 {session.current ? (
                   <Chip color="success" variant="tertiary">
-                    Current
+                    {t("sessions.currentChip")}
                   </Chip>
                 ) : (
                   <Button
                     isIconOnly
                     size="sm"
                     variant="ghost"
-                    aria-label="Revoke session"
+                    aria-label={t("sessions.revokeAria")}
                     isDisabled={revoke.isPending && revokeSessionId === session.id}
                     onPress={() => setRevokeSessionId(session.id)}
                   >
@@ -79,7 +78,7 @@ function SessionsSettings() {
             </SettingsRow>
           ))
         ) : (
-          <div className="px-5 py-8 text-sm text-muted">No sessions found.</div>
+          <div className="px-5 py-8 text-sm text-muted">{t("sessions.empty")}</div>
         )}
       </SettingsSection>
       <ConfirmDialog
@@ -87,9 +86,9 @@ function SessionsSettings() {
         onOpenChange={(open) => {
           if (!open && !revoke.isPending) setRevokeSessionId(null);
         }}
-        title="Revoke session?"
-        message="This client will need to sign in again."
-        confirmLabel="Revoke session"
+        title={t("sessions.dialogTitle")}
+        message={t("sessions.dialogMsg")}
+        confirmLabel={t("sessions.dialogConfirm")}
         isPending={revoke.isPending}
         onConfirm={() => {
           if (revokeSessionId) {

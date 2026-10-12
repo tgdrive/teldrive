@@ -3,6 +3,7 @@ import { type CSSProperties, useState } from "react";
 import { Button as AriaButton, Tree, TreeItem, TreeItemContent } from "react-aria-components";
 import { type UploadTask, useUploadStore } from "@/features/uploads/store";
 import { FileTypeIcon } from "@/features/files/file-type-icon";
+import { useAppLocale } from "@/lib/locale";
 import UploadIcon from "~icons/gravity-ui/arrow-up-from-line";
 import ChevronDownIcon from "~icons/gravity-ui/chevron-down";
 import ChevronRightIcon from "~icons/gravity-ui/chevron-right";
@@ -101,6 +102,7 @@ function TaskActions({ task }: { task: UploadTask }) {
   const retry = useUploadStore((state) => state.retry);
   const cancel = useUploadStore((state) => state.cancel);
   const remove = useUploadStore((state) => state.remove);
+  const { t } = useAppLocale();
 
   return (
     <div className="ml-auto flex shrink-0 items-center gap-0.5">
@@ -109,7 +111,7 @@ function TaskActions({ task }: { task: UploadTask }) {
           isIconOnly
           size="sm"
           variant="ghost"
-          aria-label={`Pause ${task.name}`}
+          aria-label={t("uploads.pauseName", { name: task.name })}
           onPress={() => pause(task.id)}
         >
           <PauseIcon className="size-3.5" />
@@ -120,7 +122,7 @@ function TaskActions({ task }: { task: UploadTask }) {
           isIconOnly
           size="sm"
           variant="ghost"
-          aria-label={`Resume ${task.name}`}
+          aria-label={t("uploads.resumeName", { name: task.name })}
           onPress={() => retry(task.id)}
         >
           <PlayIcon className="size-3.5" />
@@ -131,7 +133,7 @@ function TaskActions({ task }: { task: UploadTask }) {
           isIconOnly
           size="sm"
           variant="ghost"
-          aria-label={`Cancel ${task.name}`}
+          aria-label={t("uploads.cancelName", { name: task.name })}
           onPress={() => void cancel(task.id)}
         >
           <CloseIcon className="size-3.5" />
@@ -141,7 +143,7 @@ function TaskActions({ task }: { task: UploadTask }) {
           isIconOnly
           size="sm"
           variant="ghost"
-          aria-label={`Remove ${task.name}`}
+          aria-label={t("uploads.removeName", { name: task.name })}
           onPress={() => remove(task.id)}
         >
           <TrashIcon className="size-3.5" />
@@ -153,11 +155,20 @@ function TaskActions({ task }: { task: UploadTask }) {
 
 function UploadTreeItem({ node, root = false }: { node: UploadNode; root?: boolean }) {
   const summary = summarize(node.tasks);
+  const { t } = useAppLocale();
   const hasChildren = node.children.length > 0;
   const detail =
     node.kind === "file"
-      ? `${formatBytes(summary.uploadedBytes)} of ${formatBytes(summary.totalBytes)}`
-      : `${summary.completed} of ${summary.total} files - ${formatBytes(summary.uploadedBytes)} of ${formatBytes(summary.totalBytes)}`;
+      ? t("uploads.fileDetail", {
+          uploaded: formatBytes(summary.uploadedBytes),
+          total: formatBytes(summary.totalBytes),
+        })
+      : t("uploads.batchDetail", {
+          completed: summary.completed,
+          files: summary.total,
+          uploaded: formatBytes(summary.uploadedBytes),
+          total: formatBytes(summary.totalBytes),
+        });
 
   return (
     <TreeItem
@@ -198,13 +209,13 @@ function UploadTreeItem({ node, root = false }: { node: UploadNode; root?: boole
               <span className="truncate text-sm font-medium">{node.name}</span>
               {node.task ? (
                 <Chip size="sm" variant="tertiary" className="capitalize">
-                  {node.task.status.replace("_", " ")}
+                  {t(`uploads.status.${node.task.status}`)}
                 </Chip>
               ) : null}
             </span>
             <span className="mt-0.5 block truncate text-[11px] text-muted">{detail}</span>
             <ProgressBar
-              aria-label={`${node.name} upload progress`}
+              aria-label={t("uploads.itemProgress", { name: node.name })}
               value={summary.progress}
               className="mt-1.5 h-1"
             />
@@ -226,6 +237,7 @@ export function UploadShelf() {
   const tasks = useUploadStore((state) => state.tasks);
   const clearCompleted = useUploadStore((state) => state.clearCompleted);
   const [expanded, setExpanded] = useState(true);
+  const { t } = useAppLocale();
   if (tasks.length === 0) return null;
 
   const tree = buildTree(tasks);
@@ -250,22 +262,27 @@ export function UploadShelf() {
             <UploadIcon className="size-4" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold">Uploads</p>
+            <p className="text-sm font-semibold">{t("uploads.title")}</p>
             <p className="truncate text-[11px] text-muted">
               {active
-                ? `${active} active - ${summary.progress}% - ${formatBytes(summary.uploadedBytes)} of ${formatBytes(summary.totalBytes)}`
-                : `${summary.completed} files completed`}
-              {failed ? ` - ${failed} failed` : ""}
+                ? t("uploads.headerActive", {
+                    active,
+                    progress: summary.progress,
+                    uploaded: formatBytes(summary.uploadedBytes),
+                    total: formatBytes(summary.totalBytes),
+                  })
+                : t("uploads.headerDone", { completed: summary.completed })}
+              {failed ? ` - ${t("uploads.headerFailed", { failed })}` : ""}
             </p>
           </div>
           <Button size="sm" variant="ghost" onPress={clearCompleted}>
-            Clear
+            {t("uploads.clear")}
           </Button>
           <Button
             isIconOnly
             size="sm"
             variant="ghost"
-            aria-label={expanded ? "Collapse uploads" : "Expand uploads"}
+            aria-label={expanded ? t("uploads.collapse") : t("uploads.expand")}
             onPress={() => setExpanded((value) => !value)}
           >
             {expanded ? (
@@ -276,11 +293,11 @@ export function UploadShelf() {
           </Button>
         </div>
       </Card.Header>
-      <ProgressBar aria-label="Overall upload progress" value={summary.progress} className="h-1" />
+      <ProgressBar aria-label={t("uploads.overall")} value={summary.progress} className="h-1" />
       {expanded ? (
         <Card.Content className="max-h-[min(65vh,34rem)] overflow-y-auto px-2 pb-2">
           <Tree
-            aria-label="Upload queue"
+            aria-label={t("uploads.queue")}
             defaultExpandedKeys={expandedKeys}
             className="outline-none"
           >

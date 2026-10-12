@@ -1,6 +1,8 @@
 import { expect, type Route, test } from "@playwright/test";
 
-test("QR login serializes slow polls and completes two-step password verification", async ({ page }) => {
+test("QR login serializes slow polls and completes two-step password verification", async ({
+  page,
+}) => {
   const time = new Date("2026-10-11T12:00:00Z");
   await page.clock.install({ time });
   await page.clock.pauseAt(time);
@@ -8,24 +10,54 @@ test("QR login serializes slow polls and completes two-step password verificatio
   let pollRequests = 0;
   let authenticated = false;
   let capturePoll!: (route: Route) => void;
-  const pendingPoll = new Promise<Route>((resolve) => { capturePoll = resolve; });
+  const pendingPoll = new Promise<Route>((resolve) => {
+    capturePoll = resolve;
+  });
   await page.route("**/api/v1/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path === "/api/v1/me") {
-      if (!authenticated) return route.fulfill({ status: 401, json: { error: { code: "unauthorized", message: "Sign in" } } });
-      return route.fulfill({ json: { userId: 1, displayName: "QR User", role: "owner", capabilities: [], premium: false, createdAt: time.toISOString() } });
+      if (!authenticated)
+        return route.fulfill({
+          status: 401,
+          json: { error: { code: "unauthorized", message: "Sign in" } },
+        });
+      return route.fulfill({
+        json: {
+          userId: 1,
+          displayName: "QR User",
+          role: "owner",
+          capabilities: [],
+          premium: false,
+          createdAt: time.toISOString(),
+        },
+      });
     }
     if (path === "/api/v1/auth/telegram/qr/start") {
-      return route.fulfill({ json: {
-        flowId, state: "pending", expiresAt: "2026-10-11T12:10:00Z",
-        qrUrl: "tg://login?token=fixture", qrExpiresAt: "2026-10-11T12:05:00Z",
-      } });
+      return route.fulfill({
+        json: {
+          flowId,
+          state: "pending",
+          expiresAt: "2026-10-11T12:10:00Z",
+          qrUrl: "tg://login?token=fixture",
+          qrExpiresAt: "2026-10-11T12:05:00Z",
+        },
+      });
     }
     if (path === "/api/v1/auth/cookie/telegram/qr/poll") {
       expect(route.request().postDataJSON()).toEqual({ flowId });
       pollRequests++;
-      if (pollRequests === 1) { capturePoll(route); return; }
-      return route.fulfill({ json: { flowId, state: "pending", expiresAt: "2026-10-11T12:10:00Z", qrUrl: "tg://login?token=consumed" } });
+      if (pollRequests === 1) {
+        capturePoll(route);
+        return;
+      }
+      return route.fulfill({
+        json: {
+          flowId,
+          state: "pending",
+          expiresAt: "2026-10-11T12:10:00Z",
+          qrUrl: "tg://login?token=consumed",
+        },
+      });
     }
     if (path === "/api/v1/auth/cookie/telegram/verify-password") {
       expect(route.request().postDataJSON()).toEqual({ flowId, password: "correct-password" });
@@ -42,7 +74,9 @@ test("QR login serializes slow polls and completes two-step password verificatio
   const poll = await pendingPoll;
   await page.clock.runFor(7500);
   expect(pollRequests).toBe(1);
-  await poll.fulfill({ json: { flowId, state: "password_required", expiresAt: "2026-10-11T12:10:00Z" } });
+  await poll.fulfill({
+    json: { flowId, state: "password_required", expiresAt: "2026-10-11T12:10:00Z" },
+  });
   await expect(page.getByLabel("Two-step verification password", { exact: true })).toBeVisible();
   await page.clock.runFor(7500);
   expect(pollRequests).toBe(1);
@@ -136,10 +170,21 @@ test("bots can be manually provisioned after migration", async ({ page }) => {
   await page.route("**/api/v1/**", async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === "/api/v1/me") {
-      return route.fulfill({ json: { userId: 1, displayName: "Fixture", role: "owner", capabilities: [], premium: false, createdAt: "2026-07-22T12:00:00Z" } });
+      return route.fulfill({
+        json: {
+          userId: 1,
+          displayName: "Fixture",
+          role: "owner",
+          capabilities: [],
+          premium: false,
+          createdAt: "2026-07-22T12:00:00Z",
+        },
+      });
     }
     if (url.pathname === "/api/v1/bots") {
-      return route.fulfill({ json: { items: [{ id: 777, enabled: true, createdAt: "2026-07-22T12:00:00Z" }] } });
+      return route.fulfill({
+        json: { items: [{ id: 777, enabled: true, createdAt: "2026-07-22T12:00:00Z" }] },
+      });
     }
     if (url.pathname === "/api/v1/bots/777/provision") {
       expect(route.request().method()).toBe("POST");
@@ -155,7 +200,10 @@ test("bots can be manually provisioned after migration", async ({ page }) => {
   await page.getByRole("button", { name: "Provision bot 777", exact: true }).click();
   await expect(page.getByRole("alertdialog")).toBeVisible();
   expect(provisionRequests).toBe(0);
-  await page.getByRole("alertdialog").getByRole("button", { name: "Provision bot", exact: true }).click();
+  await page
+    .getByRole("alertdialog")
+    .getByRole("button", { name: "Provision bot", exact: true })
+    .click();
   await expect(page.getByText("Bot provisioning queued", { exact: true })).toBeVisible();
   expect(provisionRequests).toBe(1);
   await expect(page.getByRole("alertdialog")).toHaveCount(0);
@@ -166,13 +214,27 @@ test("bulk bot provisioning keeps single actions and can retry queue errors", as
   await page.route("**/api/v1/**", async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === "/api/v1/me") {
-      return route.fulfill({ json: { userId: 1, displayName: "Fixture", role: "owner", capabilities: [], premium: false, createdAt: "2026-07-22T12:00:00Z" } });
+      return route.fulfill({
+        json: {
+          userId: 1,
+          displayName: "Fixture",
+          role: "owner",
+          capabilities: [],
+          premium: false,
+          createdAt: "2026-07-22T12:00:00Z",
+        },
+      });
     }
     if (url.pathname === "/api/v1/bots") {
-      return route.fulfill({ json: { items: [
-        { id: 777, enabled: true, createdAt: "2026-07-22T12:00:00Z" },
-        { id: 778, enabled: false, createdAt: "2026-07-22T12:00:00Z" },
-      ], nextCursor: "more-bots" } });
+      return route.fulfill({
+        json: {
+          items: [
+            { id: 777, enabled: true, createdAt: "2026-07-22T12:00:00Z" },
+            { id: 778, enabled: false, createdAt: "2026-07-22T12:00:00Z" },
+          ],
+          nextCursor: "more-bots",
+        },
+      });
     }
     if (url.pathname === "/api/v1/bots/provision") {
       expect(route.request().method()).toBe("POST");
@@ -180,7 +242,10 @@ test("bulk bot provisioning keeps single actions and can retry queue errors", as
       expect(route.request().postData()).toBeNull(); // Server selects all owned bots, not just this page.
       bulkRequests++;
       if (bulkRequests === 1) {
-        return route.fulfill({ status: 503, json: { error: { code: "unavailable", message: "Try again" } } });
+        return route.fulfill({
+          status: 503,
+          json: { error: { code: "unavailable", message: "Try again" } },
+        });
       }
       return route.fulfill({ status: 202, json: { jobIds: ["123", "124", "125"] } });
     }
@@ -189,13 +254,20 @@ test("bulk bot provisioning keeps single actions and can retry queue errors", as
   await page.goto("/settings/bots");
   await expect(page.getByRole("button", { name: "Provision bot 777", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Provision bot 778", exact: true })).toBeVisible();
-  const configuredBots = page.locator('[data-slot="card"]').filter({ has: page.getByText("Configured bots", { exact: true }) });
-  await configuredBots.locator('[data-slot="card-header"]').getByRole("button", { name: "Provision all bots", exact: true }).click();
+  const configuredBots = page
+    .locator('[data-slot="card"]')
+    .filter({ has: page.getByText("Configured bots", { exact: true }) });
+  await configuredBots
+    .locator('[data-slot="card-header"]')
+    .getByRole("button", { name: "Provision all bots", exact: true })
+    .click();
   const dialog = page.getByRole("alertdialog");
   await expect(dialog).toContainText("including bots not shown on this page");
   expect(bulkRequests).toBe(0);
   await dialog.getByRole("button", { name: "Provision all bots", exact: true }).click();
-  await expect(page.getByText("Bots could not be queued for provisioning", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("Bots could not be queued for provisioning", { exact: true }),
+  ).toBeVisible();
   await expect(dialog).toBeVisible();
   // On mobile, dismiss the bottom toast before retrying the bottom-sheet action.
   await page.locator('[data-sonner-toast][data-type="error"] [data-close-button]').click();
@@ -211,13 +283,24 @@ test("adding bots supports independent provisioning task IDs", async ({ page }) 
   await page.route("**/api/v1/**", async (route) => {
     const url = new URL(route.request().url());
     if (url.pathname === "/api/v1/me") {
-      return route.fulfill({ json: { userId: 1, displayName: "Fixture", role: "owner", capabilities: [], premium: false, createdAt: "2026-07-22T12:00:00Z" } });
+      return route.fulfill({
+        json: {
+          userId: 1,
+          displayName: "Fixture",
+          role: "owner",
+          capabilities: [],
+          premium: false,
+          createdAt: "2026-07-22T12:00:00Z",
+        },
+      });
     }
     if (url.pathname === "/api/v1/bots") {
       if (route.request().method() === "POST") {
         expect(route.request().postDataJSON()).toEqual({ tokens: ["777:secret", "778:secret"] });
         added = true;
-        return route.fulfill({ json: { bots, failedIndexes: [], jobId: "123", jobIds: ["123", "124"] } });
+        return route.fulfill({
+          json: { bots, failedIndexes: [], jobId: "123", jobIds: ["123", "124"] },
+        });
       }
       return route.fulfill({ json: { items: added ? bots : [] } });
     }
@@ -226,7 +309,9 @@ test("adding bots supports independent provisioning task IDs", async ({ page }) 
   await page.goto("/settings/bots");
   const bulk = page.getByRole("button", { name: "Provision all bots", exact: true });
   await expect(bulk).toBeDisabled();
-  await page.getByRole("textbox", { name: "Bot tokens", exact: true }).fill("777:secret\n778:secret");
+  await page
+    .getByRole("textbox", { name: "Bot tokens", exact: true })
+    .fill("777:secret\n778:secret");
   await page.getByRole("button", { name: "Add bots", exact: true }).click();
   await expect(page.getByText("2 bots queued for verification", { exact: true })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Bot tokens", exact: true })).toHaveValue("");
@@ -236,7 +321,16 @@ test("adding bots supports independent provisioning task IDs", async ({ page }) 
 test("appearance applies light tokens and persists across reloads", async ({ page }) => {
   await page.route("**/api/v1/**", async (route) => {
     if (new URL(route.request().url()).pathname === "/api/v1/me") {
-      return route.fulfill({ json: { userId: 1, displayName: "Fixture", role: "owner", capabilities: [], premium: false, createdAt: "2026-07-22T12:00:00Z" } });
+      return route.fulfill({
+        json: {
+          userId: 1,
+          displayName: "Fixture",
+          role: "owner",
+          capabilities: [],
+          premium: false,
+          createdAt: "2026-07-22T12:00:00Z",
+        },
+      });
     }
     if (new URL(route.request().url()).pathname === "/api/v1/files/statistics/drive") {
       return route.fulfill({ json: { totalFiles: 0, totalBytes: 0, openUploads: 0 } });
@@ -247,12 +341,16 @@ test("appearance applies light tokens and persists across reloads", async ({ pag
   await page.emulateMedia({ colorScheme: "dark" });
   const root = page.locator("html");
   await expect(root).toHaveAttribute("data-theme", "dark");
-  const darkBackground = await root.evaluate((el) => getComputedStyle(el).getPropertyValue("--background"));
+  const darkBackground = await root.evaluate((el) =>
+    getComputedStyle(el).getPropertyValue("--background"),
+  );
   await page.getByRole("button", { name: "Light", exact: true }).click();
   await expect(root).toHaveAttribute("data-theme", "light");
   await expect(root).not.toHaveClass(/dark/);
   await expect(root).toHaveCSS("color-scheme", "light");
-  await expect.poll(() => root.evaluate((el) => getComputedStyle(el).getPropertyValue("--background"))).not.toBe(darkBackground);
+  await expect
+    .poll(() => root.evaluate((el) => getComputedStyle(el).getPropertyValue("--background")))
+    .not.toBe(darkBackground);
   await page.reload();
   await expect(root).toHaveAttribute("data-theme", "light");
   await page.emulateMedia({ colorScheme: "dark" });
@@ -288,7 +386,40 @@ test("appearance applies light tokens and persists across reloads", async ({ pag
   await expect(errorToast).toHaveCSS("backdrop-filter", "blur(16px)");
   await page.emulateMedia({ colorScheme: "light" });
   await expect(page.locator("[data-sonner-toaster]")).toHaveAttribute("data-sonner-theme", "light");
-  await expect.poll(() => errorToast.evaluate((el) => getComputedStyle(el).backgroundColor)).not.toBe(darkToastColors.background);
+  await expect
+    .poll(() => errorToast.evaluate((el) => getComputedStyle(el).backgroundColor))
+    .not.toBe(darkToastColors.background);
+});
+
+test("language switch translates shell and persists across reloads", async ({ page }) => {
+  await page.route("**/api/v1/**", async (route) => {
+    if (new URL(route.request().url()).pathname === "/api/v1/me") {
+      return route.fulfill({
+        json: {
+          userId: 1,
+          displayName: "Fixture",
+          role: "owner",
+          capabilities: [],
+          premium: false,
+          createdAt: "2026-07-22T12:00:00Z",
+        },
+      });
+    }
+    return route.fulfill({ status: 404, json: {} });
+  });
+  await page.goto("/settings/appearance");
+  await expect(page.getByRole("heading", { name: "Appearance", exact: true, level: 1 })).toBeVisible();
+  await page.getByRole("button", { name: "Español", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Apariencia", exact: true, level: 1 })).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("lang", "es");
+  await expect(page.getByPlaceholder("Buscar archivos")).toBeVisible();
+  const openNav = page.getByRole("button", { name: "Abrir navegación", exact: true });
+  if (await openNav.isVisible()) await openNav.click();
+  await expect(page.getByRole("link", { name: "Archivos", exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Apariencia", exact: true, level: 1 })).toBeVisible();
+  await page.getByRole("button", { name: "English", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Appearance", exact: true, level: 1 })).toBeVisible();
 });
 
 test("users search is debounced and stays usable while results load", async ({ page }) => {

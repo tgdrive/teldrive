@@ -7,6 +7,7 @@ import { $api } from "@/api/client";
 import { userMessage } from "@/api/errors";
 import { SettingsPageHeader, SettingsRow, SettingsSection } from "@/components/settings-layout";
 import { getQueryClient } from "@/lib/queryClient";
+import { useAppLocale } from "@/lib/locale";
 import { useDebouncedValue } from "@/lib/use-debounced-value";
 import RefreshIcon from "~icons/gravity-ui/arrow-rotate-left";
 
@@ -21,6 +22,7 @@ export const Route = createFileRoute("/_settings/settings/users")({
 
 function UsersSettings() {
   const [search, setSearch] = useState("");
+  const { t } = useAppLocale();
   const debouncedSearch = useDebouncedValue(search.trim(), 300);
   const query = $api.useQuery(
     "get",
@@ -39,37 +41,34 @@ function UsersSettings() {
     try {
       await updateUser.mutateAsync({ params: { path: { userId } }, body });
       await refresh();
-      toast.success("User updated");
+      toast.success(t("users.updated"));
     } catch (error) {
-      toast.error("User could not be updated", { description: userMessage(error) });
+      toast.error(t("users.updateFailed"), { description: userMessage(error) });
     }
   };
 
   return (
     <div className="space-y-6">
       <SettingsPageHeader
-        title="Users & roles"
-        description="Manage who can use this Teldrive instance and which users can administer system-wide features."
+        title={t("users.title")}
+        description={t("users.desc")}
         actions={
           <Button variant="secondary" onPress={() => void refresh()}>
             <RefreshIcon className="size-4" />
-            Refresh
+            {t("users.refresh")}
           </Button>
         }
       />
 
-      <SettingsSection
-        title="Users"
-        description="The first account is the instance owner and cannot be demoted or disabled."
-      >
+      <SettingsSection title={t("users.users")} description={t("users.usersDesc")}>
         <div className="border-b border-border p-4">
           <TextField value={search} onChange={setSearch} className="max-w-md">
-            <Label>Search users</Label>
-            <Input placeholder="Name, username, or Telegram user ID" />
+            <Label>{t("users.search")}</Label>
+            <Input placeholder={t("users.searchPh")} />
           </TextField>
         </div>
         {query.isPending ? (
-          <div className="flex justify-center p-6" role="status" aria-label="Loading users">
+          <div className="flex justify-center p-6" role="status" aria-label={t("users.loading")}>
             <Spinner />
           </div>
         ) : query.data?.length ? (
@@ -81,7 +80,7 @@ function UsersSettings() {
               <SettingsRow
                 key={user.userId}
                 label={displayName}
-                description={`${user.username ? `@${user.username} · ` : ""}Telegram ID ${user.userId}`}
+                description={`${user.username ? `@${user.username} · ` : ""}${t("users.telegramId", { id: user.userId })}`}
               >
                 <div className="flex flex-wrap items-center justify-end gap-2">
                   <Chip
@@ -92,7 +91,7 @@ function UsersSettings() {
                   </Chip>
                   {user.disabled ? (
                     <Chip variant="tertiary" color="danger">
-                      Disabled
+                      {t("users.disabled")}
                     </Chip>
                   ) : null}
                   {!owner ? (
@@ -104,7 +103,7 @@ function UsersSettings() {
                         void update(user.userId, { role: user.role === "admin" ? "user" : "admin" })
                       }
                     >
-                      {user.role === "admin" ? "Make user" : "Make admin"}
+                      {t(user.role === "admin" ? "users.makeUser" : "users.makeAdmin")}
                     </Button>
                   ) : null}
                   {!owner ? (
@@ -114,7 +113,7 @@ function UsersSettings() {
                       isDisabled={updateUser.isPending}
                       onPress={() => void update(user.userId, { disabled: !user.disabled })}
                     >
-                      {user.disabled ? "Enable" : "Disable"}
+                      {t(user.disabled ? "users.enable" : "users.disable")}
                     </Button>
                   ) : null}
                   {!owner ? (
@@ -127,15 +126,15 @@ function UsersSettings() {
                           await revokeAccess.mutateAsync({
                             params: { path: { userId: user.userId } },
                           });
-                          toast.success("Sessions and API keys revoked");
+                          toast.success(t("users.revoked"));
                         } catch (error) {
-                          toast.error("Access could not be revoked", {
+                          toast.error(t("users.revokeFailed"), {
                             description: userMessage(error),
                           });
                         }
                       }}
                     >
-                      Revoke access
+                      {t("users.revoke")}
                     </Button>
                   ) : null}
                 </div>
@@ -143,7 +142,7 @@ function UsersSettings() {
             );
           })
         ) : (
-          <p className="p-6 text-sm text-muted">No users match this search.</p>
+          <p className="p-6 text-sm text-muted">{t("users.empty")}</p>
         )}
       </SettingsSection>
     </div>

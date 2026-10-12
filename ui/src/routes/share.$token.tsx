@@ -19,6 +19,7 @@ import { Page, PageContent } from "@/components/page";
 import { FileBrowser, formatFileBytes, type FileBrowserView } from "@/features/files/file-browser";
 import { copyText } from "@/features/files/download";
 import { newIdempotencyKey } from "@/features/shared/idempotency";
+import { useAppLocale } from "@/lib/locale";
 
 export const Route = createFileRoute("/share/$token")({
   component: PublicSharePage,
@@ -45,6 +46,7 @@ function PublicSharePage() {
   const [renameFile, setRenameFile] = useState<FileEntry>();
   const [renameName, setRenameName] = useState("");
   const [uploading, setUploading] = useState(false);
+  const { t } = useAppLocale();
   const editable = share?.permission === "edit" && share.file.kind === "folder";
   const selectedIds =
     selectedKeys === "all" ? items.map((item) => item.id) : Array.from(selectedKeys, String);
@@ -158,14 +160,14 @@ function PublicSharePage() {
 
   const copyDownloadLink = async (file: FileEntry) => {
     if (activePassword) {
-      toast.error("Direct links are unavailable for password-protected shares");
+      toast.error(t("pub.directUnavailable"));
       return;
     }
     try {
       await copyText(publicContentUrl(file));
-      toast.success("Direct link copied");
+      toast.success(t("pub.directCopied"));
     } catch (cause) {
-      toast.error("Direct link could not be copied", {
+      toast.error(t("pub.directCopyFailed"), {
         description: userMessage(cause),
       });
     }
@@ -197,9 +199,9 @@ function PublicSharePage() {
       setFolderName("");
       setFolderDialogOpen(false);
       await refreshItems();
-      toast.success("Folder created");
+      toast.success(t("files.folderCreated"));
     } catch (cause) {
-      toast.error("Folder could not be created", {
+      toast.error(t("files.folderCreateFailed"), {
         description: userMessage(cause),
       });
     }
@@ -224,9 +226,9 @@ function PublicSharePage() {
       setRenameName("");
       setSelectedKeys(new Set());
       await refreshItems();
-      toast.success("Item renamed");
+      toast.success(t("files.renamed"));
     } catch (cause) {
-      toast.error("Item could not be renamed", {
+      toast.error(t("files.renameFailed"), {
         description: userMessage(cause),
       });
     }
@@ -247,10 +249,12 @@ function PublicSharePage() {
       setSelectedKeys(new Set());
       await refreshItems();
       toast.success(
-        `${selectedFiles.length} item${selectedFiles.length === 1 ? "" : "s"} moved to trash`,
+        t(selectedFiles.length === 1 ? "files.trashedOne" : "files.trashedMany", {
+          count: selectedFiles.length,
+        }),
       );
     } catch (cause) {
-      toast.error("Items could not be moved to trash", {
+      toast.error(t("files.trashFailed"), {
         description: userMessage(cause),
       });
     }
@@ -305,7 +309,7 @@ function PublicSharePage() {
         },
       );
       await refreshItems();
-      toast.success(`${file.name} uploaded`);
+      toast.success(t("pub.uploaded", { name: file.name }));
     } catch (cause) {
       if (uploadId) {
         void apiFetch(
@@ -316,7 +320,7 @@ function PublicSharePage() {
           },
         ).catch(() => undefined);
       }
-      toast.error("Upload failed", { description: userMessage(cause) });
+      toast.error(t("pub.uploadFailed"), { description: userMessage(cause) });
     } finally {
       setUploading(false);
     }
@@ -333,13 +337,13 @@ function PublicSharePage() {
             <p className="text-sm font-semibold">Teldrive</p>
             <p className="truncate text-xs text-muted">
               {share
-                ? `${share.file.name} · ${share.file.kind === "folder" ? "Shared folder" : formatFileBytes(share.file.size ?? 0)}`
-                : "Shared item"}
+                ? `${share.file.name} · ${share.file.kind === "folder" ? t("pub.sharedFolder") : formatFileBytes(share.file.size ?? 0)}`
+                : t("pub.sharedItem")}
             </p>
           </div>
           {share ? (
             <span className="text-xs font-medium capitalize text-muted">
-              {share.permission} access
+              {t(share.permission === "read" ? "pub.accessRead" : "pub.accessEdit")}
             </span>
           ) : null}
         </div>
@@ -348,14 +352,12 @@ function PublicSharePage() {
       <main className="flex min-h-0 w-full flex-1 overflow-hidden p-4 sm:p-6">
         {loading && !share && !needsPassword ? (
           <div className="flex min-h-72 flex-1 items-center justify-center">
-            <Spinner aria-label="Loading share" />
+            <Spinner aria-label={t("pub.loading")} />
           </div>
         ) : needsPassword ? (
           <div className="mx-auto mt-8 h-fit w-full max-w-md rounded-2xl border border-border bg-surface p-6 shadow-sm">
-            <h1 className="text-lg font-semibold">Password required</h1>
-            <p className="mt-1 text-sm text-muted">
-              Enter the password provided by the person who shared this item.
-            </p>
+            <h1 className="text-lg font-semibold">{t("pub.passwordTitle")}</h1>
+            <p className="mt-1 text-sm text-muted">{t("pub.passwordHint")}</p>
             <form
               className="mt-5 space-y-4"
               onSubmit={(event) => {
@@ -364,7 +366,7 @@ function PublicSharePage() {
               }}
             >
               <TextField value={password} onChange={setPassword}>
-                <Label>Password</Label>
+                <Label>{t("share.password")}</Label>
                 <Input type="password" autoFocus />
               </TextField>
               <Button
@@ -373,7 +375,7 @@ function PublicSharePage() {
                 className="w-full"
                 isDisabled={!password.trim()}
               >
-                Open share
+                {t("pub.open")}
               </Button>
             </form>
           </div>
@@ -407,7 +409,7 @@ function PublicSharePage() {
                           isIconOnly
                           size="sm"
                           variant="secondary"
-                          aria-label="New folder"
+                          aria-label={t("files.newFolder")}
                           onPress={() => setFolderDialogOpen(true)}
                         >
                           <PlusIcon className="size-4" />
@@ -422,7 +424,7 @@ function PublicSharePage() {
                             isIconOnly
                             size="sm"
                             variant="primary"
-                            aria-label="Upload file"
+                            aria-label={t("pub.uploadFile")}
                             isDisabled={uploading}
                           >
                             {uploading ? <Spinner size="sm" /> : <UploadIcon className="size-4" />}
@@ -436,14 +438,14 @@ function PublicSharePage() {
                       <div className="pointer-events-none absolute inset-x-0 bottom-4 z-30 flex justify-center px-4">
                         <div className="pointer-events-auto flex max-w-full items-center gap-1.5 overflow-x-auto rounded-full border border-border bg-surface/95 p-1.5 shadow-xl backdrop-blur">
                           <span className="shrink-0 rounded-full bg-accent/10 px-3 py-2 text-sm font-medium text-accent">
-                            {selectedFiles.length} selected
+                            {t("selection.count", { count: selectedFiles.length })}
                           </span>
                           {editable && singleSelected ? (
                             <Button
                               isIconOnly
                               size="sm"
                               variant="ghost"
-                              aria-label="Rename selected item"
+                              aria-label={t("selection.rename")}
                               onPress={() => {
                                 setRenameFile(singleSelected);
                                 setRenameName(singleSelected.name);
@@ -457,7 +459,7 @@ function PublicSharePage() {
                               isIconOnly
                               size="sm"
                               variant="ghost"
-                              aria-label="Download selected file"
+                              aria-label={t("selection.download")}
                               onPress={() => void download(singleSelected)}
                             >
                               <DownloadIcon className="size-4" />
@@ -468,7 +470,7 @@ function PublicSharePage() {
                               isIconOnly
                               size="sm"
                               variant="ghost"
-                              aria-label="Copy download link"
+                              aria-label={t("pub.copyLink")}
                               onPress={() => void copyDownloadLink(singleSelected)}
                             >
                               <LinkIcon className="size-4" />
@@ -479,7 +481,7 @@ function PublicSharePage() {
                               isIconOnly
                               size="sm"
                               variant="danger"
-                              aria-label="Move selected items to trash"
+                              aria-label={t("selection.trash")}
                               onPress={() => void trashSelected()}
                             >
                               <TrashIcon className="size-4" />
@@ -489,7 +491,7 @@ function PublicSharePage() {
                             isIconOnly
                             size="sm"
                             variant="ghost"
-                            aria-label="Clear selection"
+                            aria-label={t("selection.clear")}
                             onPress={() => setSelectedKeys(new Set())}
                           >
                             <CloseIcon className="size-4" />
@@ -498,14 +500,14 @@ function PublicSharePage() {
                       </div>
                     ) : undefined
                   }
-                  emptyHint="No files are available in this shared folder."
+                  emptyHint={t("pub.noFiles")}
                 />
               </div>
             </PageContent>
           </Page>
         ) : error ? (
           <div className="mx-auto mt-8 h-fit max-w-lg rounded-2xl border border-border bg-surface p-6 text-center">
-            <h1 className="text-lg font-semibold">Share unavailable</h1>
+            <h1 className="text-lg font-semibold">{t("pub.unavailable")}</h1>
             <p className="mt-2 text-sm text-muted">{error}</p>
           </div>
         ) : null}
@@ -514,25 +516,25 @@ function PublicSharePage() {
       <AppDialog
         open={folderDialogOpen}
         onOpenChange={setFolderDialogOpen}
-        title="Create folder"
+        title={t("files.createFolder")}
         footer={
           <>
             <Button variant="secondary" onPress={() => setFolderDialogOpen(false)}>
-              Cancel
+              {t("dialog.cancel")}
             </Button>
             <Button
               variant="primary"
               isDisabled={!folderName.trim()}
               onPress={() => void createFolder()}
             >
-              Create folder
+              {t("files.createFolder")}
             </Button>
           </>
         }
       >
         <TextField value={folderName} onChange={setFolderName}>
-          <Label>Folder name</Label>
-          <Input autoFocus placeholder="New folder" />
+          <Label>{t("files.folderName")}</Label>
+          <Input autoFocus placeholder={t("files.newFolderPlaceholder")} />
         </TextField>
       </AppDialog>
 
@@ -541,24 +543,24 @@ function PublicSharePage() {
         onOpenChange={(open) => {
           if (!open) setRenameFile(undefined);
         }}
-        title="Rename item"
+        title={t("dialog.renameTitle")}
         footer={
           <>
             <Button variant="secondary" onPress={() => setRenameFile(undefined)}>
-              Cancel
+              {t("dialog.cancel")}
             </Button>
             <Button
               variant="primary"
               isDisabled={!renameName.trim()}
               onPress={() => void renameSelected()}
             >
-              Rename
+              {t("dialog.rename")}
             </Button>
           </>
         }
       >
         <TextField value={renameName} onChange={setRenameName}>
-          <Label>New name</Label>
+          <Label>{t("dialog.newName")}</Label>
           <Input autoFocus />
         </TextField>
       </AppDialog>

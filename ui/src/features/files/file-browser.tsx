@@ -11,6 +11,7 @@ import {
   Virtualizer,
 } from "react-aria-components";
 import type { FileEntry } from "@/api/types";
+import { useAppLocale } from "@/lib/locale";
 import BackIcon from "~icons/gravity-ui/arrow-left";
 import UpIcon from "~icons/gravity-ui/chevron-up";
 import FolderIcon from "~icons/gravity-ui/folder";
@@ -69,18 +70,27 @@ export function FileBrowser({
   hasNextPage = false,
   isLoadingMore = false,
   onLoadMore,
-  emptyHint = "This folder is empty.",
-  emptyTitle = "This folder is empty",
+  emptyHint,
+  emptyTitle,
   hideFolderControls = false,
   showLocations = false,
   onOpenContainingFolder,
 }: FileBrowserProps) {
+  const { t } = useAppLocale();
+  const resolvedEmptyHint = emptyHint ?? t("browser.emptyHint");
+  const resolvedEmptyTitle = emptyTitle ?? t("browser.emptyTitle");
   return (
     <Card className="@container/file-browser relative flex min-h-0 min-w-0 flex-1 flex-col gap-0 overflow-hidden border border-border bg-surface/80 shadow-sm">
       <Card.Header className="shrink-0 border-b border-border px-3 py-3 sm:px-4">
         <div className="flex min-w-0 items-center gap-1.5">
           {onBack ? (
-            <Button isIconOnly size="sm" variant="ghost" aria-label="Back" onPress={onBack}>
+            <Button
+              isIconOnly
+              size="sm"
+              variant="ghost"
+              aria-label={t("browser.back")}
+              onPress={onBack}
+            >
               <BackIcon className="size-4" />
             </Button>
           ) : null}
@@ -89,7 +99,7 @@ export function FileBrowser({
               isIconOnly
               size="sm"
               variant="ghost"
-              aria-label="Up one folder"
+              aria-label={t("browser.up")}
               isDisabled={path === "/"}
               onPress={() => {
                 const parts = path.split("/").filter(Boolean);
@@ -115,7 +125,7 @@ export function FileBrowser({
               isIconOnly
               size="sm"
               variant={view === "list" ? "secondary" : "ghost"}
-              aria-label="List view"
+              aria-label={t("browser.listView")}
               onPress={() => onViewChange("list")}
             >
               <ListIcon className="size-4" />
@@ -124,7 +134,7 @@ export function FileBrowser({
               isIconOnly
               size="sm"
               variant={view === "grid" ? "secondary" : "ghost"}
-              aria-label="Grid view"
+              aria-label={t("browser.gridView")}
               onPress={() => onViewChange("grid")}
             >
               <GridIcon className="size-4" />
@@ -149,8 +159,8 @@ export function FileBrowser({
               hasNextPage={hasNextPage}
               isLoadingMore={isLoadingMore}
               onLoadMore={onLoadMore}
-              emptyHint={emptyHint}
-              emptyTitle={emptyTitle}
+              emptyHint={resolvedEmptyHint}
+              emptyTitle={resolvedEmptyTitle}
               showLocations={showLocations}
               onOpenContainingFolder={onOpenContainingFolder}
             />
@@ -194,13 +204,14 @@ function FileCollection({
   onOpenContainingFolder?: (file: FileEntry) => void;
 }) {
   const grid = view === "grid";
+  const { t } = useAppLocale();
   const selectedKeys = selection?.selectedKeys ?? new Set<React.Key>();
   const hasSelection = selection ? selectedKeys === "all" || selectedKeys.size > 0 : false;
 
   return (
     <Virtualizer key={view} layout={grid ? GridLayout : ListLayout}>
       <GridList
-        aria-label="Files and folders"
+        aria-label={t("browser.files")}
         layout={grid ? "grid" : "stack"}
         selectionMode={selection ? "multiple" : "none"}
         selectionBehavior="replace"
@@ -302,10 +313,11 @@ function FileCollection({
 }
 
 function SelectionCheckbox({ file, isVisible }: { file: FileEntry; isVisible: boolean }) {
+  const { t } = useAppLocale();
   return (
     <Checkbox
       slot="selection"
-      aria-label={`Select ${file.name}`}
+      aria-label={t("browser.selectName", { name: file.name })}
       className={({ isSelected }) =>
         [
           "shrink-0 transition-opacity",
@@ -335,6 +347,7 @@ function GridFile({
   location?: string;
   onOpenContainingFolder?: () => void;
 }) {
+  const { t } = useAppLocale();
   return (
     <>
       <div className="flex items-start gap-2">
@@ -353,7 +366,7 @@ function GridFile({
           <LocationButton location={location} onPress={onOpenContainingFolder} className="mt-1" />
         )}
         <p className="mt-1 text-[11px] text-muted">
-          {file.kind === "folder" ? "Folder" : formatFileBytes(file.size ?? 0)}
+          {file.kind === "folder" ? t("browser.folderKind") : formatFileBytes(file.size ?? 0)}
         </p>
       </div>
     </>
@@ -373,6 +386,7 @@ function ListFile({
   location?: string;
   onOpenContainingFolder?: () => void;
 }) {
+  const { t } = useAppLocale();
   return (
     <>
       <div className="flex min-w-0 items-center gap-3">
@@ -401,7 +415,7 @@ function ListFile({
         </div>
       </div>
       <span className="hidden text-xs text-muted sm:block">
-        {file.kind === "folder" ? "Folder" : formatFileBytes(file.size ?? 0)}
+        {file.kind === "folder" ? t("browser.folderKind") : formatFileBytes(file.size ?? 0)}
       </span>
       <span className="hidden min-w-0 text-xs text-muted lg:block">
         {location ? (
@@ -423,12 +437,13 @@ function LocationButton({
   onPress?: () => void;
   className?: string;
 }) {
+  const { t } = useAppLocale();
   return (
     <Button
       size="sm"
       variant="ghost"
       className={`h-auto min-h-0 max-w-full justify-start rounded-sm px-0 py-0 text-[11px] text-muted ${className}`}
-      aria-label={`Open containing folder ${location}`}
+      aria-label={t("browser.openFolder", { location })}
       onPress={onPress}
     >
       <span className="truncate">{location}</span>
@@ -447,9 +462,10 @@ function FileBrowserBreadcrumb({
 }) {
   const parts = path.split("/").filter(Boolean);
   const lastIndex = parts.length - 1;
+  const { t } = useAppLocale();
   return (
     <nav
-      aria-label="Current folder"
+      aria-label={t("browser.currentFolder")}
       className="flex min-w-0 items-center gap-1 overflow-hidden text-sm"
     >
       <Button

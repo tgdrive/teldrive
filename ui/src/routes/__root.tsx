@@ -21,6 +21,7 @@ import {
   useNavigate,
 } from "@tanstack/react-router";
 import { useTheme } from "@/lib/theme";
+import { useAppLocale } from "@/lib/locale";
 import { type Ref, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import LogoutIcon from "~icons/gravity-ui/arrow-right-from-square";
@@ -45,25 +46,25 @@ import { UploadShelf } from "../components/upload-shelf";
 import { getQueryClient } from "../lib/queryClient";
 
 const mainNav = [
-  { label: "Files", icon: GridIcon, path: "/files" },
-  { label: "Recent", icon: TasksIcon, path: "/files", recent: true },
-  { label: "Bookmarks", icon: BookmarkIcon, path: "/files", bookmarked: true },
-  { label: "Shared", icon: FolderIcon, path: "/shared" },
-  { label: "Shared with me", icon: FolderIcon, path: "/shared-with-me" },
-  { label: "Storage", icon: StorageIcon, path: "/storage" },
-  { label: "Tasks", icon: TasksIcon, path: "/tasks", capability: "system.manageJobs" },
-  { label: "Trash", icon: GridIcon, path: "/trash" },
+  { key: "files", icon: GridIcon, path: "/files" },
+  { key: "recent", icon: TasksIcon, path: "/files", recent: true },
+  { key: "bookmarks", icon: BookmarkIcon, path: "/files", bookmarked: true },
+  { key: "shared", icon: FolderIcon, path: "/shared" },
+  { key: "sharedWithMe", icon: FolderIcon, path: "/shared-with-me" },
+  { key: "storage", icon: StorageIcon, path: "/storage" },
+  { key: "tasks", icon: TasksIcon, path: "/tasks", capability: "system.manageJobs" },
+  { key: "trash", icon: GridIcon, path: "/trash" },
 ] as const;
 
 const DESKTOP_BREAKPOINT = 1024;
 
-function getPageTitle(pathname: string) {
-  if (pathname === "/search") return "Search";
-  if (pathname.startsWith("/settings")) return "Settings";
+function getPageTitle(pathname: string, t: (key: string) => string) {
+  if (pathname === "/search") return t("title.search");
+  if (pathname.startsWith("/settings")) return t("title.settings");
   const item = mainNav.find(
     (entry) => pathname === entry.path || pathname.startsWith(`${entry.path}/`),
   );
-  return item?.label ?? "Teldrive";
+  return item ? t(`nav.${item.key}`) : t("title.app");
 }
 
 function Sidebar({
@@ -77,6 +78,7 @@ function Sidebar({
 }) {
   const navigate = useNavigate();
   const matchRoute = useMatchRoute();
+  const { t } = useAppLocale();
   const routeSearch = useLocation({
     select: (location) => location.search as Record<string, unknown>,
   });
@@ -109,7 +111,7 @@ function Sidebar({
       onNavigate?.();
       await navigate({ to: "/login", search: { redirect: "/files" }, replace: true });
     } catch (error) {
-      toast.error("Unable to log out", { description: userMessage(error) });
+      toast.error(t("account.logoutFailed"), { description: userMessage(error) });
     }
   };
   const renderItem = (item: (typeof mainNav)[number]) => {
@@ -131,14 +133,14 @@ function Sidebar({
             collapsed && !mobile ? "ml-0 max-w-0 opacity-0" : "ml-3 max-w-52 opacity-100",
           )}
         >
-          {item.label}
+          {t(`nav.${item.key}`)}
         </span>
       </>
     );
     const className = "h-10 w-full justify-start rounded-full px-3 text-sm font-medium";
     return (
       <Link
-        key={item.label}
+        key={item.key}
         to={item.path}
         search={
           "recent" in item ? { recent: true } : "bookmarked" in item ? { bookmarked: true } : {}
@@ -178,12 +180,12 @@ function Sidebar({
           )}
         >
           <p className="text-base font-semibold tracking-tight">Teldrive</p>
-          <p className="text-[10px] uppercase tracking-[0.16em] text-muted">Cloud drive</p>
+          <p className="text-[10px] uppercase tracking-[0.16em] text-muted">{t("app.tagline")}</p>
         </div>
       </div>
 
       <Separator className="mx-3 w-auto" />
-      <nav aria-label="Main navigation" className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+      <nav aria-label={t("sidebar.nav")} className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
         {visibleMainNav.map(renderItem)}
       </nav>
       <div className="border-t border-border px-3 py-3">
@@ -198,7 +200,7 @@ function Sidebar({
           ) : (
             <Button
               variant="ghost"
-              aria-label={`Open account menu for ${displayName}`}
+              aria-label={t("account.menu")}
               className="flex h-14 w-full items-center justify-start gap-3 rounded-xl px-2 text-muted hover:bg-default/30 hover:text-foreground"
             >
               <Avatar className="size-9 shrink-0">
@@ -213,14 +215,14 @@ function Sidebar({
           )}
           <Dropdown.Popover placement="top start" className="min-w-52">
             <Dropdown.Menu
-              aria-label="Account"
+              aria-label={t("account.menu")}
               onAction={(key) => {
                 if (key === "logout") void signOut();
               }}
             >
               <Dropdown.Item
                 id="settings"
-                textValue="Settings"
+                textValue={t("account.settings")}
                 render={({ ref, ...itemProps }) => {
                   return (
                     // @ts-expect-error HeroUI types render props for a menu item div; this render target is an anchor.
@@ -238,11 +240,15 @@ function Sidebar({
                 }}
               >
                 <SettingsIcon className="size-4" />
-                <Label>Settings</Label>
+                <Label>{t("account.settings")}</Label>
               </Dropdown.Item>
-              <Dropdown.Item id="logout" textValue="Log out" isDisabled={logout.isPending}>
+              <Dropdown.Item
+                id="logout"
+                textValue={t("account.logout")}
+                isDisabled={logout.isPending}
+              >
                 <LogoutIcon className="size-4" />
-                <Label>{logout.isPending ? "Logging out…" : "Log out"}</Label>
+                <Label>{logout.isPending ? t("account.loggingOut") : t("account.logout")}</Label>
               </Dropdown.Item>
             </Dropdown.Menu>
           </Dropdown.Popover>
@@ -264,6 +270,7 @@ function TopBar({
   onOpenMobile: () => void;
 }) {
   const { resolvedTheme, setTheme } = useTheme();
+  const { t } = useAppLocale();
   const navigate = useNavigate();
   const searchRef = useRef<HTMLInputElement>(null);
   const searchTimer = useRef<number | undefined>(undefined);
@@ -276,10 +283,10 @@ function TopBar({
   const locationKey = useLocation({ select: (location) => location.href });
   const title =
     pathname === "/files" && routeSearch.recent
-      ? "Recent"
+      ? t("title.recent")
       : pathname === "/files" && routeSearch.bookmarked
-        ? "Bookmarks"
-        : getPageTitle(pathname);
+        ? t("title.bookmarks")
+        : getPageTitle(pathname, t);
   const scheduleSearch = (value: string) => {
     if (searchTimer.current) window.clearTimeout(searchTimer.current);
     searchTimer.current = undefined;
@@ -327,7 +334,7 @@ function TopBar({
         className="size-9 rounded-xl"
         onPress={desktop ? onToggleSidebar : onOpenMobile}
         aria-label={
-          desktop ? (collapsed ? "Expand sidebar" : "Collapse sidebar") : "Open navigation"
+          desktop ? (collapsed ? t("sidebar.expand") : t("sidebar.collapse")) : t("sidebar.open")
         }
       >
         {desktop ? (
@@ -345,7 +352,10 @@ function TopBar({
         <p className="truncate text-sm font-semibold sm:text-base">{title}</p>
       </div>
 
-      <search aria-label="Search drive" className="flex min-w-0 flex-1 items-center md:max-w-md">
+      <search
+        aria-label={t("search.navLabel")}
+        className="flex min-w-0 flex-1 items-center md:max-w-md"
+      >
         <form
           className="w-full"
           onSubmit={(event) => {
@@ -378,7 +388,7 @@ function TopBar({
             </InputGroup.Prefix>
             <InputGroup.Input
               ref={searchRef}
-              aria-label="Search files"
+              aria-label={t("search.aria")}
               value={searchText}
               maxLength={512}
               enterKeyHint="search"
@@ -403,7 +413,7 @@ function TopBar({
                 setSearchText(value);
                 scheduleSearch(value);
               }}
-              placeholder="Search files"
+              placeholder={t("search.placeholder")}
               className="min-w-0 text-sm"
             />
             <InputGroup.Suffix className="hidden md:flex">
@@ -417,7 +427,7 @@ function TopBar({
         variant="ghost"
         className="size-9 rounded-xl"
         onPress={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-        aria-label="Toggle color theme"
+        aria-label={t("theme.toggle")}
       >
         {resolvedTheme === "dark" ? (
           <SunIcon className="size-4" />
@@ -431,6 +441,7 @@ function TopBar({
 
 function Layout() {
   const navigate = useNavigate();
+  const { t } = useAppLocale();
   const pathname = useLocation({ select: (location) => location.pathname });
   const [collapsed, setCollapsed] = useState(false);
   const [desktop, setDesktop] = useState(() =>
@@ -470,12 +481,12 @@ function Layout() {
             className="fixed inset-0 z-50 flex"
             role="dialog"
             aria-modal="true"
-            aria-label="Navigation"
+            aria-label={t("sidebar.dialog")}
           >
             <Button
               type="button"
               variant="ghost"
-              aria-label="Close navigation"
+              aria-label={t("sidebar.close")}
               className="absolute inset-0 h-full w-full rounded-none bg-black/55 backdrop-blur-sm"
               onPress={() => setMobileOpen(false)}
             />
@@ -486,7 +497,7 @@ function Layout() {
                 variant="ghost"
                 className="absolute right-3 top-3 size-9 rounded-xl"
                 onPress={() => setMobileOpen(false)}
-                aria-label="Close navigation"
+                aria-label={t("sidebar.close")}
               >
                 <CloseIcon className="size-4" />
               </Button>

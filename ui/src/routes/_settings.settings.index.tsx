@@ -6,6 +6,7 @@ import { userMessage } from "@/api/errors";
 import { useCurrentUser } from "@/auth/use-current-user";
 import { SettingsPageHeader, SettingsRow, SettingsSection } from "@/components/settings-layout";
 import { getQueryClient } from "@/lib/queryClient";
+import { useAppLocale } from "@/lib/locale";
 import LogoutIcon from "~icons/gravity-ui/arrow-right-from-square";
 
 export const Route = createFileRoute("/_settings/settings/")({
@@ -26,6 +27,7 @@ function formatBytes(bytes: number) {
 
 function AccountSettings() {
   const navigate = useNavigate();
+  const { t } = useAppLocale();
   const user = useCurrentUser();
   const stats = $api.useSuspenseQuery(
     "get",
@@ -41,7 +43,7 @@ function AccountSettings() {
       getQueryClient().clear();
       await navigate({ to: "/login", search: { redirect: "/files" }, replace: true });
     } catch (error) {
-      toast.error("Unable to log out", { description: userMessage(error) });
+      toast.error(t("account.logoutFailed"), { description: userMessage(error) });
     }
   };
 
@@ -50,23 +52,22 @@ function AccountSettings() {
   return (
     <div className="space-y-6">
       <SettingsPageHeader
-        title="Account"
-        description="Your authenticated Teldrive profile, storage usage, and current session."
+        title={t("account.title")}
+        description={t("account.desc")}
         actions={
           <Button variant="danger" onPress={logOut} isDisabled={logout.isPending}>
             <LogoutIcon className="size-4" />
-            Log out
+            {t("account.logout")}
           </Button>
         }
       />
-      <SettingsSection
-        title="Profile"
-        description="This identity comes from your authenticated Telegram account."
-      >
+      <SettingsSection title={t("account.profile")} description={t("account.profileDesc")}>
         <SettingsRow
           label={displayName}
           description={
-            user.data.username ? `@${user.data.username}` : `Telegram user ${user.data.userId}`
+            user.data.username
+              ? `@${user.data.username}`
+              : t("account.telegramUser", { id: user.data.userId })
           }
         >
           <div className="flex justify-end">
@@ -80,30 +81,30 @@ function AccountSettings() {
                     : "default"
               }
             >
-              {user.data.role === "owner" ? "Owner" : user.data.role === "admin" ? "Admin" : "User"}
+              {t(
+                user.data.role === "owner"
+                  ? "account.roleOwner"
+                  : user.data.role === "admin"
+                    ? "account.roleAdmin"
+                    : "account.roleUser",
+              )}
             </Chip>
           </div>
         </SettingsRow>
-        <SettingsRow
-          label="Account created"
-          description="When this Teldrive profile was first created."
-        >
+        <SettingsRow label={t("account.created")} description={t("account.createdDesc")}>
           <p className="text-right text-sm text-muted">
             {new Date(user.data.createdAt).toLocaleString()}
           </p>
         </SettingsRow>
       </SettingsSection>
-      <SettingsSection
-        title="Drive statistics"
-        description="Current storage totals for this account."
-      >
-        <SettingsRow label="Files">
+      <SettingsSection title={t("account.stats")} description={t("account.statsDesc")}>
+        <SettingsRow label={t("account.files")}>
           <p className="text-right font-mono text-sm">{stats.data.totalFiles.toLocaleString()}</p>
         </SettingsRow>
-        <SettingsRow label="Stored data">
+        <SettingsRow label={t("account.stored")}>
           <p className="text-right font-mono text-sm">{formatBytes(stats.data.totalBytes)}</p>
         </SettingsRow>
-        <SettingsRow label="Open uploads">
+        <SettingsRow label={t("account.openUploads")}>
           <p className="text-right font-mono text-sm">{stats.data.openUploads.toLocaleString()}</p>
         </SettingsRow>
       </SettingsSection>

@@ -19,6 +19,7 @@ import { AppDialog } from "@/components/dialogs/app-dialog";
 import { copyText } from "@/features/files/download";
 import { newIdempotencyKey } from "@/features/shared/idempotency";
 import { getQueryClient } from "@/lib/queryClient";
+import { useAppLocale } from "@/lib/locale";
 
 type Permission = "read" | "edit";
 type ExpirationMode = "never" | "1h" | "1d" | "7d" | "30d" | "custom";
@@ -52,6 +53,7 @@ export function ShareDialog({
   const [linkExpirationMode, setLinkExpirationMode] = useState<ExpirationMode>("never");
   const [linkDuration, setLinkDuration] = useState("1d");
   const [createdUrl, setCreatedUrl] = useState("");
+  const { t } = useAppLocale();
 
   useEffect(() => {
     setPeopleSearch("");
@@ -111,14 +113,14 @@ export function ShareDialog({
         body: {
           granteeUserId: userId,
           permission: peoplePermission,
-          expiresAt: expirationDate(peopleExpirationMode, peopleDuration),
+          expiresAt: expirationDate(peopleExpirationMode, peopleDuration, t),
         },
       });
       setPeopleSearch("");
       await refreshGrants();
-      toast.success("Access granted");
+      toast.success(t("share.granted"));
     } catch (error) {
-      toast.error("Access could not be granted", {
+      toast.error(t("share.grantFailed"), {
         description: userMessage(error),
       });
     }
@@ -135,16 +137,16 @@ export function ShareDialog({
         body: {
           password: linkPassword.trim() || undefined,
           permission: linkPermission,
-          expiresAt: expirationDate(linkExpirationMode, linkDuration),
+          expiresAt: expirationDate(linkExpirationMode, linkDuration, t),
         },
       });
       const publicUrl = new URL(result.publicUrl, window.location.origin).toString();
       setCreatedUrl(publicUrl);
       await copyText(publicUrl);
       await refreshLinks();
-      toast.success("Public link created and copied");
+      toast.success(t("share.linkCreated"));
     } catch (error) {
-      toast.error("Public link could not be created", {
+      toast.error(t("share.linkCreateFailed"), {
         description: userMessage(error),
       });
     }
@@ -154,36 +156,34 @@ export function ShareDialog({
     <AppDialog
       open={Boolean(file)}
       onOpenChange={onOpenChange}
-      title={file ? `Share ${file.name}` : "Share item"}
-      description="Manage who can access this item and create public links."
+      title={file ? t("share.titleName", { name: file.name }) : t("share.titleItem")}
+      description={t("share.description")}
       size="lg"
       className="sm:w-[min(92vw,46rem)]"
       bodyClassName="py-4"
       footer={
         <Button variant="secondary" onPress={() => onOpenChange(false)}>
-          Close
+          {t("share.close")}
         </Button>
       }
     >
       <div className="grid gap-5">
         <section className="grid gap-4 rounded-2xl border border-border bg-default/10 p-4">
           <div>
-            <h3 className="text-sm font-semibold">People with access</h3>
-            <p className="mt-1 text-xs text-muted">
-              Access applies to this item and its descendants.
-            </p>
+            <h3 className="text-sm font-semibold">{t("share.people")}</h3>
+            <p className="mt-1 text-xs text-muted">{t("share.peopleHint")}</p>
           </div>
 
           <TextField value={peopleSearch} onChange={setPeopleSearch}>
-            <Label>Add a user</Label>
-            <Input placeholder="Search by name, username, or Telegram ID" />
+            <Label>{t("share.addUser")}</Label>
+            <Input placeholder={t("share.searchPlaceholder")} />
           </TextField>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <ControlField label="Permission">
+            <ControlField label={t("share.permission")}>
               <PermissionPicker value={peoplePermission} onChange={setPeoplePermission} />
             </ControlField>
-            <ControlField label="Expiration">
+            <ControlField label={t("share.expiration")}>
               <ExpirationPicker
                 mode={peopleExpirationMode}
                 duration={peopleDuration}
@@ -210,17 +210,20 @@ export function ShareDialog({
                   >
                     <span className="min-w-0">
                       <span className="block truncate text-sm font-medium">
-                        {user.displayName?.trim() || user.username?.trim() || `User ${user.userId}`}
+                        {user.displayName?.trim() ||
+                          user.username?.trim() ||
+                          t("share.userFallback", { id: user.userId })}
                       </span>
                       <span className="block truncate text-xs text-muted">
-                        {user.username ? `@${user.username} · ` : ""}Telegram ID {user.userId}
+                        {user.username ? `@${user.username} · ` : ""}
+                        {t("share.telegramId", { id: user.userId })}
                       </span>
                     </span>
                   </Button>
                 ))}
               </div>
             ) : (
-              <p className="text-xs text-muted">No users found.</p>
+              <p className="text-xs text-muted">{t("share.noUsers")}</p>
             )
           ) : null}
 
@@ -239,28 +242,35 @@ export function ShareDialog({
                     <p className="truncate text-sm font-medium">
                       {grant.granteeDisplayName?.trim() ||
                         grant.granteeUsername?.trim() ||
-                        `User ${grant.granteeUserId}`}
+                        t("share.userFallback", { id: grant.granteeUserId })}
                     </p>
                     <p className="truncate text-xs text-muted">
                       {grant.granteeUsername ? `@${grant.granteeUsername} · ` : ""}
-                      Telegram ID {grant.granteeUserId}
+                      {t("share.telegramId", { id: grant.granteeUserId })}
                     </p>
                     <p className="mt-0.5 truncate text-xs text-muted">
                       {grant.expiresAt
-                        ? `Expires ${new Date(grant.expiresAt).toLocaleString()}`
-                        : "No expiration"}
+                        ? t("share.expiresOn", {
+                            date: new Date(grant.expiresAt).toLocaleString(),
+                          })
+                        : t("share.noExpiration")}
                     </p>
                   </div>
                   <Chip variant="tertiary">
-                    {grant.permission === "read" ? "Viewer" : "Editor"}
+                    {t(grant.permission === "read" ? "share.viewer" : "share.editor")}
                   </Chip>
                   <Dropdown>
-                    <Button isIconOnly size="sm" variant="ghost" aria-label="Grant actions">
+                    <Button
+                      isIconOnly
+                      size="sm"
+                      variant="ghost"
+                      aria-label={t("share.grantActions")}
+                    >
                       <span className="text-lg leading-none">⋯</span>
                     </Button>
                     <Dropdown.Popover className="min-w-48">
                       <Dropdown.Menu
-                        aria-label="Grant actions"
+                        aria-label={t("share.grantActions")}
                         onAction={(key) => {
                           if (key === "permission") {
                             void (async () => {
@@ -274,7 +284,7 @@ export function ShareDialog({
                                 });
                                 await refreshGrants();
                               } catch (error) {
-                                toast.error("Permission could not be changed", {
+                                toast.error(t("share.permFailed"), {
                                   description: userMessage(error),
                                 });
                               }
@@ -287,9 +297,9 @@ export function ShareDialog({
                                   params: { path: { grantId: grant.id } },
                                 });
                                 await refreshGrants();
-                                toast.success("Access removed");
+                                toast.success(t("share.removed"));
                               } catch (error) {
-                                toast.error("Access could not be removed", {
+                                toast.error(t("share.removeFailed"), {
                                   description: userMessage(error),
                                 });
                               }
@@ -297,11 +307,15 @@ export function ShareDialog({
                           }
                         }}
                       >
-                        <Dropdown.Item id="permission" textValue="Change permission">
-                          <Label>Make {grant.permission === "read" ? "editor" : "viewer"}</Label>
+                        <Dropdown.Item id="permission" textValue={t("share.changePermission")}>
+                          <Label>
+                            {t(
+                              grant.permission === "read" ? "share.makeEditor" : "share.makeViewer",
+                            )}
+                          </Label>
                         </Dropdown.Item>
-                        <Dropdown.Item id="remove" textValue="Remove access">
-                          <Label>Remove access</Label>
+                        <Dropdown.Item id="remove" textValue={t("share.removeAccess")}>
+                          <Label>{t("share.removeAccess")}</Label>
                         </Dropdown.Item>
                       </Dropdown.Menu>
                     </Dropdown.Popover>
@@ -309,26 +323,22 @@ export function ShareDialog({
                 </div>
               ))
             ) : (
-              <p className="flex min-h-12 items-center text-xs text-muted">
-                No Teldrive users have access yet.
-              </p>
+              <p className="flex min-h-12 items-center text-xs text-muted">{t("share.noGrants")}</p>
             )}
           </div>
         </section>
 
         <section className="grid gap-4 rounded-2xl border border-border bg-default/10 p-4">
           <div>
-            <h3 className="text-sm font-semibold">Public links</h3>
-            <p className="mt-1 text-xs text-muted">
-              Anyone with a link can use the selected permission. Password protection is optional.
-            </p>
+            <h3 className="text-sm font-semibold">{t("share.links")}</h3>
+            <p className="mt-1 text-xs text-muted">{t("share.linksHint")}</p>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
-            <ControlField label="Permission">
+            <ControlField label={t("share.permission")}>
               <PermissionPicker value={linkPermission} onChange={setLinkPermission} />
             </ControlField>
-            <ControlField label="Expiration">
+            <ControlField label={t("share.expiration")}>
               <ExpirationPicker
                 mode={linkExpirationMode}
                 duration={linkDuration}
@@ -339,8 +349,8 @@ export function ShareDialog({
           </div>
 
           <TextField value={linkPassword} onChange={setLinkPassword}>
-            <Label>Password</Label>
-            <Input type="password" placeholder="Optional password" />
+            <Label>{t("share.password")}</Label>
+            <Input type="password" placeholder={t("share.passwordPlaceholder")} />
           </TextField>
 
           <div>
@@ -349,7 +359,7 @@ export function ShareDialog({
               isDisabled={createLink.isPending}
               onPress={() => void createPublicLink()}
             >
-              Create public link
+              {t("share.createLink")}
             </Button>
           </div>
 
@@ -362,15 +372,15 @@ export function ShareDialog({
                 onPress={async () => {
                   try {
                     await copyText(createdUrl);
-                    toast.success("Link copied");
+                    toast.success(t("share.linkCopied"));
                   } catch (error) {
-                    toast.error("Link could not be copied", {
+                    toast.error(t("share.linkCopyFailed"), {
                       description: userMessage(error),
                     });
                   }
                 }}
               >
-                Copy
+                {t("share.copy")}
               </Button>
             </div>
           ) : null}
@@ -388,25 +398,35 @@ export function ShareDialog({
                 >
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium">
-                      Public {link.permission === "read" ? "viewer" : "editor"} link
+                      {t("share.linkTitle", {
+                        role: t(link.permission === "read" ? "share.viewer" : "share.editor"),
+                      })}
                     </p>
                     <p className="truncate text-xs text-muted">
-                      {link.passwordProtected ? "Password protected · " : ""}
-                      {link.downloadCount} download
-                      {link.downloadCount === 1 ? "" : "s"}
+                      {link.passwordProtected ? `${t("share.protected")} · ` : ""}
+                      {t(link.downloadCount === 1 ? "share.downloadsOne" : "share.downloadsMany", {
+                        count: link.downloadCount,
+                      })}
                       {link.expiresAt
-                        ? ` · Expires ${new Date(link.expiresAt).toLocaleString()}`
-                        : " · No expiration"}
+                        ? ` · ${t("share.expiresOn", { date: new Date(link.expiresAt).toLocaleString() })}`
+                        : ` · ${t("share.noExpiration")}`}
                     </p>
                   </div>
-                  <Chip variant="tertiary">{link.permission === "read" ? "Viewer" : "Editor"}</Chip>
+                  <Chip variant="tertiary">
+                    {t(link.permission === "read" ? "share.viewer" : "share.editor")}
+                  </Chip>
                   <Dropdown>
-                    <Button isIconOnly size="sm" variant="ghost" aria-label="Public link actions">
+                    <Button
+                      isIconOnly
+                      size="sm"
+                      variant="ghost"
+                      aria-label={t("share.linkActions")}
+                    >
                       <span className="text-lg leading-none">⋯</span>
                     </Button>
                     <Dropdown.Popover className="min-w-40">
                       <Dropdown.Menu
-                        aria-label="Public link actions"
+                        aria-label={t("share.linkActions")}
                         onAction={(key) => {
                           if (key !== "revoke") return;
                           void (async () => {
@@ -415,17 +435,17 @@ export function ShareDialog({
                                 params: { path: { shareId: link.id } },
                               });
                               await refreshLinks();
-                              toast.success("Public link revoked");
+                              toast.success(t("share.linkRevoked"));
                             } catch (error) {
-                              toast.error("Public link could not be revoked", {
+                              toast.error(t("share.linkRevokeFailed"), {
                                 description: userMessage(error),
                               });
                             }
                           })();
                         }}
                       >
-                        <Dropdown.Item id="revoke" textValue="Revoke link">
-                          <Label>Revoke link</Label>
+                        <Dropdown.Item id="revoke" textValue={t("share.revokeLink")}>
+                          <Label>{t("share.revokeLink")}</Label>
                         </Dropdown.Item>
                       </Dropdown.Menu>
                     </Dropdown.Popover>
@@ -433,9 +453,7 @@ export function ShareDialog({
                 </div>
               ))
             ) : (
-              <p className="flex min-h-12 items-center text-xs text-muted">
-                No public links exist for this item.
-              </p>
+              <p className="flex min-h-12 items-center text-xs text-muted">{t("share.noLinks")}</p>
             )}
           </div>
         </section>
@@ -460,24 +478,25 @@ function PermissionPicker({
   value: Permission;
   onChange: (value: Permission) => void;
 }) {
+  const { t } = useAppLocale();
   return (
     <Select
-      aria-label="Share permission"
+      aria-label={t("share.permissionAria")}
       className="w-full"
       selectedKey={value}
       onSelectionChange={(key) => onChange(String(key) as Permission)}
     >
       <Select.Trigger className="h-9 min-h-9 py-1.5">
-        <Select.Value>{value === "read" ? "Viewer" : "Editor"}</Select.Value>
+        <Select.Value>{t(value === "read" ? "share.viewer" : "share.editor")}</Select.Value>
         <Select.Indicator />
       </Select.Trigger>
       <Select.Popover>
         <ListBox>
-          <ListBox.Item id="read" textValue="Viewer">
-            Viewer
+          <ListBox.Item id="read" textValue={t("share.viewer")}>
+            {t("share.viewer")}
           </ListBox.Item>
-          <ListBox.Item id="edit" textValue="Editor">
-            Editor
+          <ListBox.Item id="edit" textValue={t("share.editor")}>
+            {t("share.editor")}
           </ListBox.Item>
         </ListBox>
       </Select.Popover>
@@ -496,81 +515,86 @@ function ExpirationPicker({
   onModeChange: (value: ExpirationMode) => void;
   onDurationChange: (value: string) => void;
 }) {
+  const { t } = useAppLocale();
   return (
     <div className="grid gap-2">
       <Select
-        aria-label="Expiration"
+        aria-label={t("share.expirationAria")}
         className="w-full"
         selectedKey={mode}
         onSelectionChange={(key) => onModeChange(String(key) as ExpirationMode)}
       >
         <Select.Trigger className="h-9 min-h-9 py-1.5">
-          <Select.Value>{expirationLabel(mode)}</Select.Value>
+          <Select.Value>{expirationLabel(mode, t)}</Select.Value>
           <Select.Indicator />
         </Select.Trigger>
         <Select.Popover>
           <ListBox>
-            <ListBox.Item id="never" textValue="No expiration">
-              No expiration
+            <ListBox.Item id="never" textValue={t("share.noExpiration")}>
+              {t("share.noExpiration")}
             </ListBox.Item>
-            <ListBox.Item id="1h" textValue="1 hour">
-              1 hour
+            <ListBox.Item id="1h" textValue={t("share.expHour")}>
+              {t("share.expHour")}
             </ListBox.Item>
-            <ListBox.Item id="1d" textValue="1 day">
-              1 day
+            <ListBox.Item id="1d" textValue={t("share.expDay")}>
+              {t("share.expDay")}
             </ListBox.Item>
-            <ListBox.Item id="7d" textValue="7 days">
-              7 days
+            <ListBox.Item id="7d" textValue={t("share.exp7")}>
+              {t("share.exp7")}
             </ListBox.Item>
-            <ListBox.Item id="30d" textValue="30 days">
-              30 days
+            <ListBox.Item id="30d" textValue={t("share.exp30")}>
+              {t("share.exp30")}
             </ListBox.Item>
-            <ListBox.Item id="custom" textValue="Custom">
-              Custom…
+            <ListBox.Item id="custom" textValue={t("share.expCustom")}>
+              {t("share.expCustomMore")}
             </ListBox.Item>
           </ListBox>
         </Select.Popover>
       </Select>
       {mode === "custom" ? (
         <TextField value={duration} onChange={onDurationChange}>
-          <Input aria-label="Custom expiration duration" placeholder="1h, 1d12h, 1y" />
+          <Input aria-label={t("share.customAria")} placeholder={t("share.customPlaceholder")} />
         </TextField>
       ) : null}
     </div>
   );
 }
 
-function expirationLabel(mode: ExpirationMode) {
-  if (mode === "never") return "No expiration";
-  if (mode === "1h") return "1 hour";
-  if (mode === "1d") return "1 day";
-  if (mode === "7d") return "7 days";
-  if (mode === "30d") return "30 days";
-  return "Custom";
+function expirationLabel(mode: ExpirationMode, t: (key: string) => string) {
+  if (mode === "never") return t("share.noExpiration");
+  if (mode === "1h") return t("share.expHour");
+  if (mode === "1d") return t("share.expDay");
+  if (mode === "7d") return t("share.exp7");
+  if (mode === "30d") return t("share.exp30");
+  return t("share.expCustom");
 }
 
-function expirationDate(mode: ExpirationMode, duration: string): string | undefined {
+function expirationDate(
+  mode: ExpirationMode,
+  duration: string,
+  t: (key: string) => string,
+): string | undefined {
   if (mode === "never") return undefined;
-  const milliseconds = parseDuration(mode === "custom" ? duration : mode);
+  const milliseconds = parseDuration(mode === "custom" ? duration : mode, t);
   const expiresAt = new Date(Date.now() + milliseconds);
-  if (!Number.isFinite(expiresAt.getTime())) throw new Error("Expiration duration is too large");
+  if (!Number.isFinite(expiresAt.getTime())) throw new Error(t("share.tooLarge"));
   return expiresAt.toISOString();
 }
 
-function parseDuration(input: string): number {
+function parseDuration(input: string, t: (key: string) => string): number {
   const value = input.trim();
-  if (!value) throw new Error("Enter an expiration duration such as 1h, 1d, or 1y");
+  if (!value) throw new Error(t("share.enterDuration"));
 
   const pattern = /(\d+(?:\.\d+)?)(ms|s|m|h|d|w|M|y)/g;
   let total = 0;
   let offset = 0;
   for (const match of value.matchAll(pattern)) {
-    if (match.index !== offset) throw new Error("Invalid expiration duration");
+    if (match.index !== offset) throw new Error(t("share.invalidDuration"));
     total += Number(match[1]) * DURATION_UNITS[match[2]];
     offset = match.index + match[0].length;
   }
   if (offset !== value.length || !Number.isFinite(total) || total <= 0) {
-    throw new Error("Invalid expiration duration. Try 1h, 1d, 1w, or 1y");
+    throw new Error(t("share.invalidHint"));
   }
   return total;
 }

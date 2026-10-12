@@ -13,14 +13,15 @@ import UploadIcon from "~icons/gravity-ui/arrow-up-from-line";
 import CloseIcon from "~icons/gravity-ui/xmark";
 import ClockIcon from "~icons/gravity-ui/clock";
 import { currentUserQueryOptions } from "@/auth/queries";
+import { useAppLocale } from "@/lib/locale";
 
 const SETTINGS_GROUPS = [
   {
-    label: "Account",
+    key: "account",
     items: [
-      { label: "Overview", path: "/settings", icon: PersonIcon },
+      { key: "overview", path: "/settings", icon: PersonIcon },
       {
-        label: "Users & roles",
+        key: "users",
         path: "/settings/users",
         icon: PersonIcon,
         capability: "system.manageUsers",
@@ -28,31 +29,31 @@ const SETTINGS_GROUPS = [
     ],
   },
   {
-    label: "Telegram storage",
+    key: "storage",
     items: [
-      { label: "Channels", path: "/settings/channels", icon: StorageIcon },
-      { label: "Bots", path: "/settings/bots", icon: RobotIcon },
+      { key: "channels", path: "/settings/channels", icon: StorageIcon },
+      { key: "bots", path: "/settings/bots", icon: RobotIcon },
     ],
   },
   {
-    label: "Security",
+    key: "security",
     items: [
-      { label: "Sessions", path: "/settings/sessions", icon: SessionsIcon },
-      { label: "API keys", path: "/settings/api-keys", icon: KeyIcon },
+      { key: "sessions", path: "/settings/sessions", icon: SessionsIcon },
+      { key: "apiKeys", path: "/settings/api-keys", icon: KeyIcon },
     ],
   },
   {
-    label: "Preferences",
+    key: "preferences",
     items: [
-      { label: "Uploads", path: "/settings/uploads", icon: UploadIcon },
-      { label: "Appearance", path: "/settings/appearance", icon: PaletteIcon },
+      { key: "uploads", path: "/settings/uploads", icon: UploadIcon },
+      { key: "appearance", path: "/settings/appearance", icon: PaletteIcon },
     ],
   },
   {
-    label: "System",
+    key: "system",
     items: [
       {
-        label: "Periodic Jobs",
+        key: "jobs",
         path: "/settings/periodic-jobs",
         icon: ClockIcon,
         capability: "system.maintenance",
@@ -65,11 +66,17 @@ export const Route = createFileRoute("/_settings")({ component: SettingsLayout }
 
 function SettingsLayout() {
   const location = useLocation();
+  const { t } = useAppLocale();
   const { data: user } = useQuery(currentUserQueryOptions());
   const [mobileOpen, setMobileOpen] = useState(false);
   const visibleGroups = settingsGroupsFor(user?.capabilities ?? []);
   const activeLabel = visibleGroups.reduce<string | undefined>(
-    (found, group) => found ?? group.items.find((item) => item.path === location.pathname)?.label,
+    (found, group) =>
+      found ??
+      (() => {
+        const item = group.items.find((entry) => entry.path === location.pathname);
+        return item ? t(`settings.item.${item.key}`) : undefined;
+      })(),
     undefined,
   );
 
@@ -79,10 +86,10 @@ function SettingsLayout() {
         <div className="sticky top-0 flex max-h-[calc(100dvh-7rem)] flex-col gap-5 overflow-y-auto border-r border-border pr-5">
           <div>
             <Typography type="h2" className="text-lg font-semibold">
-              Settings
+              {t("settings.title")}
             </Typography>
             <Typography.Paragraph className="mt-1 text-xs text-muted">
-              Configure Teldrive and this browser.
+              {t("settings.description")}
             </Typography.Paragraph>
           </div>
           <SettingsNavigation currentPath={location.pathname} groups={visibleGroups} />
@@ -92,17 +99,17 @@ function SettingsLayout() {
         <div className="mb-5 flex items-center justify-between border-b border-border pb-4 lg:hidden">
           <div>
             <Typography type="h2" className="text-base font-semibold">
-              {activeLabel ?? "Settings"}
+              {activeLabel ?? t("settings.title")}
             </Typography>
             <Typography.Paragraph className="text-xs text-muted">
-              Teldrive settings
+              {t("settings.mobileDescription")}
             </Typography.Paragraph>
           </div>
           <Button
             isIconOnly
             size="sm"
             variant="tertiary"
-            aria-label="Open settings navigation"
+            aria-label={t("settings.openNav")}
             onPress={() => setMobileOpen(true)}
           >
             <MenuIcon className="size-4" />
@@ -115,16 +122,16 @@ function SettingsLayout() {
           <Modal.Dialog className="h-full rounded-none">
             <Modal.Header className="flex-row items-center justify-between border-b border-border">
               <div>
-                <Modal.Heading>Settings</Modal.Heading>
+                <Modal.Heading>{t("settings.dialogTitle")}</Modal.Heading>
                 <Typography.Paragraph className="text-xs text-muted">
-                  Choose a settings area.
+                  {t("settings.dialogDescription")}
                 </Typography.Paragraph>
               </div>
               <Button
                 isIconOnly
                 size="sm"
                 variant="tertiary"
-                aria-label="Close settings navigation"
+                aria-label={t("settings.closeNav")}
                 onPress={() => setMobileOpen(false)}
               >
                 <CloseIcon className="size-4" />
@@ -153,13 +160,14 @@ function SettingsNavigation({
   groups: SettingsGroup[];
   onNavigate?: () => void;
 }) {
+  const { t } = useAppLocale();
   return (
-    <nav aria-label="Settings navigation" className="flex flex-col gap-5">
+    <nav aria-label={t("settings.navLabel")} className="flex flex-col gap-5">
       {groups.map((group, groupIndex) => (
-        <div key={group.label} className="flex flex-col gap-1.5">
+        <div key={group.key} className="flex flex-col gap-1.5">
           {groupIndex > 0 ? <Separator className="mb-3" /> : null}
           <p className="px-2 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-muted">
-            {group.label}
+            {t(`settings.group.${group.key}`)}
           </p>
           {group.items.map((item) => {
             const active = currentPath === item.path;
@@ -171,7 +179,7 @@ function SettingsNavigation({
                 className={`flex min-h-10 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors ${active ? "bg-accent/10 text-accent" : "text-muted hover:bg-default/30 hover:text-foreground"}`}
               >
                 <item.icon className="size-4 shrink-0" />
-                <span>{item.label}</span>
+                <span>{t(`settings.item.${item.key}`)}</span>
               </Link>
             );
           })}
@@ -182,12 +190,12 @@ function SettingsNavigation({
 }
 
 type SettingsItem = (typeof SETTINGS_GROUPS)[number]["items"][number];
-type SettingsGroup = { label: string; items: SettingsItem[] };
+type SettingsGroup = { key: string; items: SettingsItem[] };
 
 function settingsGroupsFor(capabilities: string[]): SettingsGroup[] {
   const allowed = new Set(capabilities);
   return SETTINGS_GROUPS.map((group) => ({
-    label: group.label,
+    key: group.key,
     items: group.items.filter((item) => !("capability" in item) || allowed.has(item.capability)),
   })).filter((group) => group.items.length > 0) as SettingsGroup[];
 }

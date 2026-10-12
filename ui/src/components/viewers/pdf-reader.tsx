@@ -39,6 +39,7 @@ import {
 
 import type { FileEntry } from "@/api/types";
 import { AppDialog } from "@/components/dialogs/app-dialog";
+import { useAppLocale } from "@/lib/locale";
 import UndoIcon from "~icons/gravity-ui/arrow-rotate-left";
 import DownloadIcon from "~icons/gravity-ui/arrow-down-to-line";
 import RotateIcon from "~icons/gravity-ui/arrow-rotate-right";
@@ -167,6 +168,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [passwordChallenge, setPasswordChallenge] = useState<PasswordChallenge>();
   const [passwordDraft, setPasswordDraft] = useState("");
+  const { t } = useAppLocale();
 
   closeRef.current = onClose;
   const activeEditorTool =
@@ -393,7 +395,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
 
     void open().catch((reason: unknown) => {
       if (!active) return;
-      setError(reason instanceof Error ? reason.message : "This PDF could not be opened.");
+      setError(reason instanceof Error ? reason.message : t("pdf.openFailed"));
     });
 
     return () => {
@@ -480,7 +482,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
         closeSearch();
         return;
       }
-      if (event.key === "Escape" && target?.getAttribute("aria-label") === "PDF page number") {
+      if (event.key === "Escape" && target?.hasAttribute("data-pdf-page-input")) {
         event.preventDefault();
         event.stopPropagation();
         pageDraftRef.current = String(runtimeRef.current?.viewer.currentPageNumber || 1);
@@ -690,9 +692,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
       }
       return true;
     } catch (reason) {
-      setSaveError(
-        reason instanceof Error ? reason.message : "The edited PDF could not be saved. Try again.",
-      );
+      setSaveError(reason instanceof Error ? reason.message : t("pdf.saveFailed"));
       return false;
     } finally {
       savingRef.current = false;
@@ -709,11 +709,11 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
   };
 
   const zoomLabel = useMemo(() => {
-    if (scaleValue === "page-width") return "Fit width";
-    if (scaleValue === "page-fit") return "Fit page";
-    if (scaleValue === "page-actual") return "Actual size";
+    if (scaleValue === "page-width") return t("pdf.fitWidth");
+    if (scaleValue === "page-fit") return t("pdf.fitPage");
+    if (scaleValue === "page-actual") return t("pdf.actualSize");
     return `${Math.round(scale * 100)}%`;
-  }, [scale, scaleValue]);
+  }, [scale, scaleValue, t]);
 
   const sidebar = (
     <PdfSidebar
@@ -755,7 +755,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
           isIconOnly
           size="sm"
           variant="ghost"
-          aria-label="Close PDF reader"
+          aria-label={t("pdf.close")}
           isDisabled={saving}
           onPress={requestClose}
         >
@@ -765,7 +765,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
           isIconOnly
           size="sm"
           variant={sidebarOpen ? "secondary" : "ghost"}
-          aria-label="Toggle PDF sidebar"
+          aria-label={t("pdf.toggleSidebar")}
           className="hidden lg:inline-flex"
           onPress={() => setSidebarOpen((value) => !value)}
         >
@@ -776,7 +776,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
             isIconOnly
             size="sm"
             variant="ghost"
-            aria-label="Open PDF sidebar"
+            aria-label={t("pdf.openSidebar")}
             className="lg:hidden"
           >
             <MenuIcon className="size-4" />
@@ -785,7 +785,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
             <Drawer.Content placement="left" className="w-[min(88vw,20rem)]">
               <Drawer.Dialog>
                 <Drawer.Header className="border-b border-border">
-                  <Drawer.Heading>Document navigation</Drawer.Heading>
+                  <Drawer.Heading>{t("pdf.docNav")}</Drawer.Heading>
                   <Drawer.CloseTrigger />
                 </Drawer.Header>
                 <Drawer.Body className="min-h-0 p-0">{sidebar}</Drawer.Body>
@@ -805,7 +805,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
           isIconOnly
           size="sm"
           variant="ghost"
-          aria-label="Previous PDF page"
+          aria-label={t("pdf.prevPage")}
           isDisabled={!ready || pageNumber <= 1}
           onPress={() => goToPage(pageNumber - 1)}
         >
@@ -814,7 +814,8 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
         <div className="flex items-center gap-1 text-xs tabular-nums">
           <InputGroup className="w-14" variant="secondary">
             <InputGroup.Input
-              aria-label="PDF page number"
+              data-pdf-page-input
+              aria-label={t("pdf.pageNumber")}
               inputMode="numeric"
               value={pageDraft}
               onChange={(event) => {
@@ -837,7 +838,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
           isIconOnly
           size="sm"
           variant="ghost"
-          aria-label="Next PDF page"
+          aria-label={t("pdf.nextPage")}
           isDisabled={!ready || pageNumber >= numPages}
           onPress={() => goToPage(pageNumber + 1)}
         >
@@ -849,7 +850,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
           isIconOnly
           size="sm"
           variant="ghost"
-          aria-label="Zoom out"
+          aria-label={t("pdf.zoomOut")}
           className="hidden md:inline-flex"
           isDisabled={!ready}
           onPress={() => setPdfScale(scale / 1.1)}
@@ -861,7 +862,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
             size="sm"
             variant="ghost"
             className="hidden min-w-20 px-2 text-xs md:inline-flex"
-            aria-label="PDF zoom options"
+            aria-label={t("pdf.zoomOptions")}
             isDisabled={!ready}
           >
             {zoomLabel}
@@ -869,9 +870,9 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
           <Popover.Content placement="bottom" offset={8} className="w-44">
             <Popover.Dialog className="space-y-1 p-1.5">
               {[
-                ["Fit width", "page-width"],
-                ["Fit page", "page-fit"],
-                ["Actual size", "page-actual"],
+                [t("pdf.fitWidth"), "page-width"],
+                [t("pdf.fitPage"), "page-fit"],
+                [t("pdf.actualSize"), "page-actual"],
               ].map(([label, value]) => (
                 <Button
                   key={value}
@@ -910,7 +911,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
           isIconOnly
           size="sm"
           variant="ghost"
-          aria-label="Zoom in"
+          aria-label={t("pdf.zoomIn")}
           className="hidden md:inline-flex"
           isDisabled={!ready}
           onPress={() => setPdfScale(scale * 1.1)}
@@ -921,7 +922,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
           isIconOnly
           size="sm"
           variant="ghost"
-          aria-label="Rotate PDF clockwise"
+          aria-label={t("pdf.rotate")}
           className="hidden md:inline-flex"
           isDisabled={!ready}
           onPress={rotate}
@@ -933,24 +934,24 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
         <div
           className="hidden items-center gap-0.5 xl:flex"
           role="toolbar"
-          aria-label="PDF annotation tools"
+          aria-label={t("pdf.tools")}
         >
           <ToolButton
-            label="Select text"
+            label={t("pdf.toolSelect")}
             active={annotationTool === "select"}
             onPress={() => setTool("select")}
           >
             <TextIcon className="size-4" />
           </ToolButton>
           <ToolButton
-            label="Hand tool"
+            label={t("pdf.toolHand")}
             active={annotationTool === "pan"}
             onPress={() => setTool("pan")}
           >
             <HandIcon className="size-4" />
           </ToolButton>
           <ToolButton
-            label="Highlight"
+            label={t("pdf.toolHighlight")}
             disabled={!canAnnotate || saving || toolSwitching}
             active={annotationTool === "highlight"}
             onPress={() => setTool("highlight")}
@@ -958,7 +959,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
             <BrushIcon className="size-4" />
           </ToolButton>
           <ToolButton
-            label="Add text"
+            label={t("pdf.toolText")}
             disabled={!canAnnotate || saving || toolSwitching}
             active={annotationTool === "text"}
             onPress={() => setTool("text")}
@@ -966,7 +967,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
             <TextIcon className="size-4" />
           </ToolButton>
           <ToolButton
-            label="Draw"
+            label={t("pdf.toolDraw")}
             disabled={!canAnnotate || saving || toolSwitching}
             active={annotationTool === "ink"}
             onPress={() => setTool("ink")}
@@ -977,7 +978,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
             isIconOnly
             size="sm"
             variant="ghost"
-            aria-label="Undo PDF edit"
+            aria-label={t("pdf.undo")}
             isDisabled={!canUndo || saving}
             onPress={() => editAction("undo")}
           >
@@ -987,7 +988,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
             isIconOnly
             size="sm"
             variant="ghost"
-            aria-label="Redo PDF edit"
+            aria-label={t("pdf.redo")}
             isDisabled={!canRedo || saving}
             onPress={() => editAction("redo")}
           >
@@ -1001,7 +1002,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
             size="sm"
             variant="ghost"
             className="xl:hidden"
-            aria-label="PDF reader tools"
+            aria-label={t("pdf.readerTools")}
             isDisabled={!ready}
             // Restore focus to the document, not a previously edited annotation,
             // when the mobile tools menu closes after a tool switch.
@@ -1016,7 +1017,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
           >
             <Popover.Dialog className="p-2">
               <p className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
-                View
+                {t("pdf.viewSection")}
               </p>
               <div className="grid grid-cols-2 gap-1">
                 <Button
@@ -1024,23 +1025,23 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
                   variant={scaleValue === "page-width" ? "secondary" : "ghost"}
                   onPress={() => setPdfScaleValue("page-width")}
                 >
-                  Fit width
+                  {t("pdf.fitWidth")}
                 </Button>
                 <Button
                   size="sm"
                   variant={scaleValue === "page-fit" ? "secondary" : "ghost"}
                   onPress={() => setPdfScaleValue("page-fit")}
                 >
-                  Fit page
+                  {t("pdf.fitPage")}
                 </Button>
                 <Button size="sm" variant="ghost" onPress={() => setPdfScale(scale / 1.1)}>
-                  <ZoomOutIcon className="size-4" /> Zoom out
+                  <ZoomOutIcon className="size-4" /> {t("pdf.zoomOut")}
                 </Button>
                 <Button size="sm" variant="ghost" onPress={() => setPdfScale(scale * 1.1)}>
-                  <ZoomInIcon className="size-4" /> Zoom in
+                  <ZoomInIcon className="size-4" /> {t("pdf.zoomIn")}
                 </Button>
                 <Button size="sm" variant="ghost" className="col-span-2" onPress={rotate}>
-                  <RotateIcon className="size-4" /> Rotate clockwise
+                  <RotateIcon className="size-4" /> {t("pdf.rotate")}
                 </Button>
                 <Button
                   size="sm"
@@ -1048,7 +1049,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
                   className="col-span-2"
                   onPress={() => setTool("pan")}
                 >
-                  <HandIcon className="size-4" /> Hand tool
+                  <HandIcon className="size-4" /> {t("pdf.toolHand")}
                 </Button>
               </div>
               <div className="mt-2 border-t border-border px-2 pt-2">
@@ -1061,7 +1062,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
 
               <div className="mt-2 border-t border-border pt-2">
                 <p className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">
-                  Annotate
+                  {t("pdf.annotateSection")}
                 </p>
                 <div className="grid grid-cols-2 gap-1">
                   <Button
@@ -1069,7 +1070,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
                     variant={annotationTool === "select" ? "secondary" : "ghost"}
                     onPress={() => setTool("select")}
                   >
-                    <TextIcon className="size-4" /> Select
+                    <TextIcon className="size-4" /> {t("pdf.select")}
                   </Button>
                   <Button
                     size="sm"
@@ -1077,7 +1078,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
                     isDisabled={!canAnnotate || saving || toolSwitching}
                     onPress={() => setTool("highlight")}
                   >
-                    <BrushIcon className="size-4" /> Highlight
+                    <BrushIcon className="size-4" /> {t("pdf.highlight")}
                   </Button>
                   <Button
                     size="sm"
@@ -1085,7 +1086,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
                     isDisabled={!canAnnotate || saving || toolSwitching}
                     onPress={() => setTool("text")}
                   >
-                    <TextIcon className="size-4" /> Add text
+                    <TextIcon className="size-4" /> {t("pdf.addText")}
                   </Button>
                   <Button
                     size="sm"
@@ -1093,7 +1094,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
                     isDisabled={!canAnnotate || saving || toolSwitching}
                     onPress={() => setTool("ink")}
                   >
-                    <PencilIcon className="size-4" /> Draw
+                    <PencilIcon className="size-4" /> {t("pdf.draw")}
                   </Button>
                 </div>
               </div>
@@ -1102,20 +1103,20 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
                 <Button
                   size="sm"
                   variant="ghost"
-                  aria-label="Undo PDF edit"
+                  aria-label={t("pdf.undo")}
                   isDisabled={!canUndo || saving}
                   onPress={() => editAction("undo")}
                 >
-                  <UndoIcon className="size-4" /> Undo
+                  <UndoIcon className="size-4" /> {t("pdf.undoShort")}
                 </Button>
                 <Button
                   size="sm"
                   variant="ghost"
-                  aria-label="Redo PDF edit"
+                  aria-label={t("pdf.redo")}
                   isDisabled={!canRedo || saving}
                   onPress={() => editAction("redo")}
                 >
-                  <RotateIcon className="size-4" /> Redo
+                  <RotateIcon className="size-4" /> {t("pdf.redoShort")}
                 </Button>
               </div>
 
@@ -1126,10 +1127,11 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
                   isDisabled={saving}
                   onPress={() => void saveModified()}
                 >
-                  {saving ? <Spinner size="sm" /> : <SaveIcon className="size-4" />} Save copy
+                  {saving ? <Spinner size="sm" /> : <SaveIcon className="size-4" />}{" "}
+                  {t("pdf.saveCopy")}
                 </Button>
                 <Button size="sm" variant="ghost" onPress={downloadOriginal}>
-                  <DownloadIcon className="size-4" /> Original
+                  <DownloadIcon className="size-4" /> {t("pdf.original")}
                 </Button>
               </div>
             </Popover.Dialog>
@@ -1141,7 +1143,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
           isIconOnly
           size="sm"
           variant={searchOpen ? "secondary" : "ghost"}
-          aria-label="Search in PDF"
+          aria-label={t("pdf.search")}
           onPress={() => {
             if (searchOpen) closeSearch();
             else setSearchOpen(true);
@@ -1154,7 +1156,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
           size="sm"
           variant="ghost"
           className="hidden xl:inline-flex"
-          aria-label="Save edited PDF copy"
+          aria-label={t("pdf.saveCopyHint")}
           isDisabled={!ready || saving}
           onPress={() => void saveModified()}
         >
@@ -1165,7 +1167,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
           size="sm"
           variant="ghost"
           className="hidden xl:inline-flex"
-          aria-label="Download original PDF"
+          aria-label={t("pdf.downloadOriginal")}
           onPress={downloadOriginal}
         >
           <DownloadIcon className="size-4" />
@@ -1186,14 +1188,14 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
           role="alert"
           className="flex shrink-0 items-center justify-between gap-3 border-b border-danger/20 bg-danger/10 px-3 py-2 text-sm"
         >
-          <span>Could not save the PDF: {saveError}</span>
+          <span>{t("pdf.saveError", { error: saveError })}</span>
           <Button
             size="sm"
             variant="secondary"
             isDisabled={saving}
             onPress={() => void saveModified()}
           >
-            Try again
+            {t("pdf.retry")}
           </Button>
         </div>
       ) : null}
@@ -1224,11 +1226,11 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
           {!ready && !error && !passwordChallenge ? (
             <div className="absolute inset-0 z-20 grid place-items-center bg-background/70 backdrop-blur-sm">
               <div className="text-center">
-                <Spinner size="lg" aria-label="Loading PDF" />
+                <Spinner size="lg" aria-label={t("pdf.loadingPdf")} />
                 <p className="mt-3 text-xs text-muted">
                   {loadingProgress === undefined
-                    ? "Opening document"
-                    : `Loading ${loadingProgress}%`}
+                    ? t("pdf.opening")
+                    : t("pdf.loadingPct", { progress: loadingProgress })}
                 </p>
               </div>
             </div>
@@ -1236,18 +1238,16 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
           {passwordChallenge ? (
             <div className="absolute inset-0 z-30 grid place-items-center bg-background/80 p-5 backdrop-blur-md">
               <div className="w-full max-w-sm rounded-2xl border border-border bg-surface p-5 shadow-2xl">
-                <p className="text-sm font-semibold">Protected PDF</p>
+                <p className="text-sm font-semibold">{t("pdf.protected")}</p>
                 <p className="mt-1 text-xs leading-5 text-muted">
-                  {passwordChallenge.incorrect
-                    ? "That password was not accepted. Try again."
-                    : "Enter the document password to open this PDF."}
+                  {passwordChallenge.incorrect ? t("pdf.badPassword") : t("pdf.needPassword")}
                 </p>
                 <InputGroup className="mt-4" variant="secondary">
                   <InputGroup.Input
                     autoFocus
                     type="password"
-                    aria-label="PDF password"
-                    placeholder="Document password"
+                    aria-label={t("pdf.passwordAria")}
+                    placeholder={t("pdf.passwordPlaceholder")}
                     value={passwordDraft}
                     onChange={(event) => setPasswordDraft(event.target.value)}
                     onKeyDown={(event: ReactKeyboardEvent<HTMLInputElement>) => {
@@ -1260,7 +1260,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
                 </InputGroup>
                 <div className="mt-4 flex justify-end gap-2">
                   <Button size="sm" variant="ghost" onPress={requestClose}>
-                    Cancel
+                    {t("dialog.cancel")}
                   </Button>
                   <Button
                     size="sm"
@@ -1271,7 +1271,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
                       setPasswordChallenge(undefined);
                     }}
                   >
-                    Unlock
+                    {t("pdf.unlock")}
                   </Button>
                 </div>
               </div>
@@ -1280,14 +1280,14 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
           {error ? (
             <div className="absolute inset-0 z-20 grid place-items-center p-6 text-center">
               <div className="max-w-lg">
-                <p className="font-semibold">Unable to open this PDF</p>
+                <p className="font-semibold">{t("pdf.unable")}</p>
                 <p className="mt-2 text-sm text-muted">{error}</p>
                 <Button
                   className="mt-4"
                   variant="secondary"
                   onPress={() => setLoadAttempt((value) => value + 1)}
                 >
-                  Try again
+                  {t("pdf.retry")}
                 </Button>
               </div>
             </div>
@@ -1297,7 +1297,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
             ref={containerRef}
             data-pdf-viewer-container
             role="region"
-            aria-label="PDF document"
+            aria-label={t("pdf.docAria")}
             // biome-ignore lint/a11y/noNoninteractiveTabindex: The document viewport is keyboard navigable.
             tabIndex={0}
             inert={saving}
@@ -1312,7 +1312,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
           </div>
           {saving ? (
             <div className="absolute inset-0 z-30 grid place-items-center bg-background/50 backdrop-blur-sm">
-              <Spinner size="lg" aria-label="Saving PDF copy" />
+              <Spinner size="lg" aria-label={t("pdf.saving")} />
             </div>
           ) : null}
         </main>
@@ -1322,11 +1322,11 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
         onOpenChange={setClosePrompt}
         isCloseDisabled={saving}
         isDismissable={!saving}
-        title="Unsaved PDF changes"
+        title={t("pdf.unsavedTitle")}
         footer={
           <div className="flex flex-wrap justify-end gap-2">
             <Button variant="tertiary" isDisabled={saving} onPress={() => setClosePrompt(false)}>
-              Keep editing
+              {t("pdf.keepEditing")}
             </Button>
             <Button
               variant="danger"
@@ -1337,7 +1337,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
                 closeRef.current();
               }}
             >
-              Discard changes
+              {t("pdf.discard")}
             </Button>
             <Button
               variant="primary"
@@ -1348,18 +1348,15 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
                 })
               }
             >
-              Save copy and close
+              {t("pdf.saveClose")}
             </Button>
           </div>
         }
       >
-        <p className="text-sm text-muted">
-          Your changes are only in this reader. Save an edited copy before closing, or discard them.
-          The original file is unchanged.
-        </p>
+        <p className="text-sm text-muted">{t("pdf.unsavedHint")}</p>
         {saveError ? (
           <p role="alert" className="mt-3 text-sm text-danger">
-            Could not save the PDF: {saveError}
+            {t("pdf.saveError", { error: saveError })}
           </p>
         ) : null}
       </AppDialog>
@@ -1376,11 +1373,12 @@ function PdfBrightnessControl({
   disabled: boolean;
   onChange: (value: number) => void;
 }) {
+  const { t } = useAppLocale();
   return (
     <div className="flex items-center gap-2 text-xs">
-      Brightness
+      {t("pdf.brightness")}
       <Slider
-        aria-label="PDF page brightness"
+        aria-label={t("pdf.brightnessAria")}
         minValue={50}
         maxValue={150}
         step={5}
@@ -1412,18 +1410,23 @@ function PdfAnnotationSettings({
   disabled: boolean;
   onChange: (key: keyof ToolSettings, value: string | number) => void;
 }) {
+  const { t } = useAppLocale();
   const colors = tool === "highlight" ? HIGHLIGHT_COLORS : ANNOTATION_COLORS;
   return (
     <div
       role="toolbar"
-      aria-label="Annotation settings"
+      aria-label={t("pdf.annotSettings")}
       className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-2 border-b border-border bg-surface px-3 py-2"
     >
       <span className="text-xs font-semibold">
-        {tool === "highlight" ? "Highlight" : tool === "text" ? "Text" : "Draw"}
+        {tool === "highlight"
+          ? t("pdf.highlight")
+          : tool === "text"
+            ? t("pdf.textName")
+            : t("pdf.draw")}
       </span>
       <fieldset
-        aria-label="Annotation colors"
+        aria-label={t("pdf.annotColors")}
         className="flex items-center gap-1"
         disabled={disabled}
       >
@@ -1433,7 +1436,7 @@ function PdfAnnotationSettings({
             isIconOnly
             size="sm"
             variant={settings.color === color ? "secondary" : "ghost"}
-            aria-label={`Use annotation color ${color}`}
+            aria-label={t("pdf.useColor", { color })}
             aria-pressed={settings.color === color}
             isDisabled={disabled}
             onPress={() => onChange("color", color)}
@@ -1447,9 +1450,9 @@ function PdfAnnotationSettings({
       </fieldset>
       {tool === "text" ? (
         <div className="flex items-center gap-2 text-xs">
-          Font size
+          {t("pdf.fontSize")}
           <Slider
-            aria-label="PDF text font size"
+            aria-label={t("pdf.fontSizeAria")}
             minValue={6}
             maxValue={72}
             step={1}
@@ -1471,9 +1474,9 @@ function PdfAnnotationSettings({
       {tool === "ink" ? (
         <>
           <div className="flex items-center gap-2 text-xs">
-            Stroke width
+            {t("pdf.strokeWidth")}
             <Slider
-              aria-label="PDF ink stroke width"
+              aria-label={t("pdf.strokeAria")}
               minValue={1}
               maxValue={20}
               step={0.5}
@@ -1492,9 +1495,9 @@ function PdfAnnotationSettings({
             <span className="min-w-9 tabular-nums">{settings.thickness} pt</span>
           </div>
           <div className="flex items-center gap-2 text-xs">
-            Opacity
+            {t("pdf.opacity")}
             <Slider
-              aria-label="PDF ink opacity"
+              aria-label={t("pdf.opacityAria")}
               minValue={0}
               maxValue={100}
               step={5}
@@ -1543,6 +1546,7 @@ function PdfFindBar({
   onNext: () => void;
   onClose: () => void;
 }) {
+  const { t } = useAppLocale();
   return (
     <div
       data-pdf-findbar
@@ -1552,8 +1556,8 @@ function PdfFindBar({
       <InputGroup className="max-w-md flex-1" variant="secondary">
         <InputGroup.Input
           autoFocus
-          aria-label="Find in PDF"
-          placeholder="Find in document"
+          aria-label={t("pdf.find")}
+          placeholder={t("pdf.findPlaceholder")}
           value={query}
           onChange={(event) => onQuery(event.target.value)}
           onKeyDown={(event: ReactKeyboardEvent<HTMLInputElement>) => {
@@ -1567,7 +1571,7 @@ function PdfFindBar({
         />
         <InputGroup.Suffix className="text-[11px] tabular-nums text-muted">
           {query && state === FindState.NOT_FOUND
-            ? "No matches"
+            ? t("pdf.noMatches")
             : query
               ? `${count.current} / ${count.total}`
               : ""}
@@ -1577,7 +1581,7 @@ function PdfFindBar({
         isIconOnly
         size="sm"
         variant="ghost"
-        aria-label="Previous search result"
+        aria-label={t("pdf.prevResult")}
         isDisabled={!count.total}
         onPress={onPrevious}
       >
@@ -1587,7 +1591,7 @@ function PdfFindBar({
         isIconOnly
         size="sm"
         variant="ghost"
-        aria-label="Next search result"
+        aria-label={t("pdf.nextResult")}
         isDisabled={!count.total}
         onPress={onNext}
       >
@@ -1597,7 +1601,7 @@ function PdfFindBar({
         size="sm"
         variant={caseSensitive ? "secondary" : "ghost"}
         className="hidden min-w-8 px-2 text-xs font-semibold sm:inline-flex"
-        aria-label="Match case"
+        aria-label={t("pdf.matchCase")}
         onPress={() => onCaseSensitive(!caseSensitive)}
       >
         Aa
@@ -1606,12 +1610,18 @@ function PdfFindBar({
         size="sm"
         variant={wholeWord ? "secondary" : "ghost"}
         className="hidden px-2 text-xs sm:inline-flex"
-        aria-label="Match whole words"
+        aria-label={t("pdf.matchWords")}
         onPress={() => onWholeWord(!wholeWord)}
       >
-        Word
+        {t("pdf.wordBtn")}
       </Button>
-      <Button isIconOnly size="sm" variant="ghost" aria-label="Close PDF search" onPress={onClose}>
+      <Button
+        isIconOnly
+        size="sm"
+        variant="ghost"
+        aria-label={t("pdf.closeSearch")}
+        onPress={onClose}
+      >
         <CloseIcon className="size-4" />
       </Button>
     </div>
@@ -1639,12 +1649,13 @@ function PdfSidebar({
   onOutline: (item: OutlineItem) => void;
   onNavigateMobile: () => void;
 }) {
+  const { t } = useAppLocale();
   return (
     <div className="flex h-full min-h-0 flex-col bg-surface/75">
       <div className="border-b border-border px-4 py-3">
         <p className="truncate text-xs font-semibold">{file.name}</p>
         <p className="mt-0.5 text-[10px] text-muted">
-          {document ? `${document.numPages} pages` : "Loading document"}
+          {document ? t("pdf.pagesCount", { count: document.numPages }) : t("pdf.loadingDoc")}
         </p>
       </div>
       <Tabs
@@ -1653,12 +1664,12 @@ function PdfSidebar({
         className="flex min-h-0 flex-1 flex-col px-2 pt-2"
       >
         <Tabs.ListContainer>
-          <Tabs.List aria-label="PDF sidebar" className="w-full">
+          <Tabs.List aria-label={t("pdf.sidebarAria")} className="w-full">
             <Tabs.Tab id="thumbnails" className="flex-1 gap-1.5 text-xs">
-              <MenuIcon className="size-3.5" /> Pages
+              <MenuIcon className="size-3.5" /> {t("pdf.tabPages")}
             </Tabs.Tab>
             <Tabs.Tab id="outline" className="flex-1 gap-1.5 text-xs">
-              <BookmarkIcon className="size-3.5" /> Outline
+              <BookmarkIcon className="size-3.5" /> {t("pdf.tabOutline")}
             </Tabs.Tab>
           </Tabs.List>
         </Tabs.ListContainer>
@@ -1674,7 +1685,7 @@ function PdfSidebar({
               }}
             />
           ) : (
-            <SidebarEmpty label="Preparing pages" />
+            <SidebarEmpty label={t("pdf.preparing")} />
           )}
         </Tabs.Panel>
         <Tabs.Panel id="outline" className="min-h-0 flex-1 overflow-y-auto py-2">
@@ -1691,7 +1702,7 @@ function PdfSidebar({
               />
             </div>
           ) : (
-            <SidebarEmpty label="This PDF has no outline" />
+            <SidebarEmpty label={t("pdf.noOutline")} />
           )}
         </Tabs.Panel>
       </Tabs>
@@ -1805,6 +1816,7 @@ function PdfThumbnail({
   onPress: () => void;
   queue: (render: () => Promise<void>) => void;
 }) {
+  const { t } = useAppLocale();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [loaded, setLoaded] = useState(false);
 
@@ -1855,7 +1867,7 @@ function PdfThumbnail({
           "h-auto w-full flex-col gap-2 rounded-xl px-2 py-2",
           current && "ring-1 ring-accent/40",
         )}
-        aria-label={`Go to page ${pageNumber}`}
+        aria-label={t("pdf.goToPage", { page: pageNumber })}
         onPress={onPress}
       >
         <div className="relative flex h-46 w-35.5 max-w-full items-center justify-center overflow-hidden rounded-sm border border-border bg-white shadow-sm">
@@ -1906,7 +1918,8 @@ function OutlineNode({
   const hasChildren = children.length > 0;
   // Top-level parents start expanded; deeper levels start collapsed like Adobe.
   const [expanded, setExpanded] = useState(depth < 1);
-  const title = item.title || "Untitled section";
+  const { t } = useAppLocale();
+  const title = item.title || t("pdf.untitled");
   return (
     <div>
       <div
@@ -1919,7 +1932,7 @@ function OutlineNode({
             size="sm"
             variant="ghost"
             className="h-7 w-7 shrink-0"
-            aria-label={`${expanded ? "Collapse" : "Expand"} ${title}`}
+            aria-label={t(expanded ? "pdf.collapseSection" : "pdf.expandSection", { title })}
             aria-expanded={expanded}
             onPress={() => setExpanded((value) => !value)}
           >

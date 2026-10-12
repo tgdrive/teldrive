@@ -3,6 +3,7 @@ import { createRouter, RouterProvider } from "@tanstack/react-router";
 import ReactDOM from "react-dom/client";
 import { Toaster } from "sonner";
 import { ThemeProvider, useTheme } from "@/lib/theme";
+import { AppI18nProvider, LocaleProvider } from "@/lib/locale";
 import { getQueryClient } from "./lib/queryClient";
 import { routeTree } from "./routeTree.gen";
 import "./styles/globals.css";
@@ -52,8 +53,12 @@ async function startApp() {
     root.render(
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
-          <RouterProvider router={router} />
-          <ThemeToaster />
+          <LocaleProvider>
+            <AppI18nProvider>
+              <RouterProvider router={router} />
+              <ThemeToaster />
+            </AppI18nProvider>
+          </LocaleProvider>
         </ThemeProvider>
       </QueryClientProvider>,
     );

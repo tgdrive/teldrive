@@ -21,6 +21,7 @@ import { FileBrowser, type FileBrowserView } from "@/features/files/file-browser
 import { useFileActions } from "@/features/files/mutations";
 import { ShareDialog } from "@/features/files/share-dialog";
 import { useUploadStore } from "@/features/uploads/store";
+import { useAppLocale } from "@/lib/locale";
 import { getQueryClient } from "@/lib/queryClient";
 
 type Permission = "read" | "edit";
@@ -61,6 +62,7 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
   const uploadTriggerRef = useRef<HTMLButtonElement>(null);
   const enqueue = useUploadStore((state) => state.enqueue);
   const fileActions = useFileActions();
+  const { t } = useAppLocale();
   const atRoot = !search.parentId;
 
   const sharedQuery = useQuery({
@@ -105,7 +107,7 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
       ? sharedWithMeQuery.isPending
       : sharedQuery.isPending
     : childrenQuery.isPending;
-  const rootLabel = mode === "with-me" ? "Shared with me" : "Shared";
+  const rootLabel = mode === "with-me" ? t("nav.sharedWithMe") : t("nav.shared");
 
   const permissionFor = (file: FileEntry): Permission => {
     if (mode === "shared") return "edit";
@@ -135,9 +137,9 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
       setFolderName("");
       setFolderDialogOpen(false);
       await childrenQuery.refetch();
-      toast.success("Folder created");
+      toast.success(t("files.folderCreated"));
     } catch (error) {
-      toast.error("Folder could not be created", {
+      toast.error(t("files.folderCreateFailed"), {
         description: userMessage(error),
       });
     }
@@ -152,9 +154,9 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
       setSelectedKeys(new Set());
       if (atRoot) await refreshRoots();
       else await childrenQuery.refetch();
-      toast.success("Item renamed");
+      toast.success(t("files.renamed"));
     } catch (error) {
-      toast.error("Item could not be renamed", {
+      toast.error(t("files.renameFailed"), {
         description: userMessage(error),
       });
     }
@@ -168,10 +170,12 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
       if (atRoot) await refreshRoots();
       else await childrenQuery.refetch();
       toast.success(
-        `${selectedFiles.length} item${selectedFiles.length === 1 ? "" : "s"} moved to trash`,
+        t(selectedFiles.length === 1 ? "files.trashedOne" : "files.trashedMany", {
+          count: selectedFiles.length,
+        }),
       );
     } catch (error) {
-      toast.error("Items could not be moved to trash", {
+      toast.error(t("files.trashFailed"), {
         description: userMessage(error),
       });
     }
@@ -229,10 +233,12 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
       setSelectedKeys(new Set());
       await refreshRoots();
       toast.success(
-        `${selectedFiles.length} item${selectedFiles.length === 1 ? "" : "s"} no longer shared`,
+        t(selectedFiles.length === 1 ? "files.unsharedOne" : "files.unsharedMany", {
+          count: selectedFiles.length,
+        }),
       );
     } catch (error) {
-      toast.error("Sharing could not be removed", {
+      toast.error(t("files.unshareFailed"), {
         description: userMessage(error),
       });
     }
@@ -290,7 +296,7 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
                   isIconOnly
                   size="sm"
                   variant="secondary"
-                  aria-label="New folder"
+                  aria-label={t("files.newFolder")}
                   isDisabled={fileActions.pending}
                   onPress={() => setFolderDialogOpen(true)}
                 >
@@ -300,7 +306,7 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
                   isIconOnly
                   size="sm"
                   variant="primary"
-                  aria-label="Upload files"
+                  aria-label={t("files.uploadFiles")}
                   isDisabled={fileActions.pending}
                   onPress={() => uploadTriggerRef.current?.click()}
                 >
@@ -313,7 +319,7 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
                       if (list?.length) enqueue(Array.from(list), search.parentId, search.path);
                     }}
                   >
-                    <Button ref={uploadTriggerRef}>Choose upload files</Button>
+                    <Button ref={uploadTriggerRef}>{t("files.chooseUpload")}</Button>
                   </FileTrigger>
                 </span>
               </>
@@ -324,14 +330,14 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
               <div className="pointer-events-none absolute inset-x-0 bottom-4 z-30 flex justify-center px-4">
                 <div className="pointer-events-auto flex max-w-full items-center gap-1.5 overflow-x-auto rounded-full border border-border bg-surface/95 p-1.5 shadow-xl backdrop-blur">
                   <span className="shrink-0 rounded-full bg-accent/10 px-3 py-2 text-sm font-medium text-accent">
-                    {selectedCount} selected
+                    {t("selection.count", { count: selectedCount })}
                   </span>
                   {singleSelected && selectedWritable ? (
                     <Button
                       isIconOnly
                       size="sm"
                       variant="ghost"
-                      aria-label="Rename selected item"
+                      aria-label={t("selection.rename")}
                       isDisabled={fileActions.pending}
                       onPress={() => {
                         setRenameFile(singleSelected);
@@ -346,7 +352,7 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
                       isIconOnly
                       size="sm"
                       variant="ghost"
-                      aria-label="Share selected item"
+                      aria-label={t("selection.share")}
                       onPress={() => setShareFile(singleSelected)}
                     >
                       <LinkIcon className="size-4" />
@@ -357,7 +363,7 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
                       isIconOnly
                       size="sm"
                       variant="ghost"
-                      aria-label="Download selected file"
+                      aria-label={t("selection.download")}
                       onPress={() => startFileDownload(singleSelected)}
                     >
                       <DownloadIcon className="size-4" />
@@ -368,7 +374,7 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
                       isIconOnly
                       size="sm"
                       variant="danger"
-                      aria-label="Stop sharing selected items"
+                      aria-label={t("selection.stopSharing")}
                       onPress={() => void stopSharingSelected()}
                     >
                       <LinkIcon className="size-4" />
@@ -378,7 +384,7 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
                       isIconOnly
                       size="sm"
                       variant="danger"
-                      aria-label="Move selected items to trash"
+                      aria-label={t("selection.trash")}
                       isDisabled={fileActions.pending}
                       onPress={() => void trashSelected()}
                     >
@@ -389,7 +395,7 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
                     isIconOnly
                     size="sm"
                     variant="ghost"
-                    aria-label="Clear selection"
+                    aria-label={t("selection.clear")}
                     onPress={() => setSelectedKeys(new Set())}
                   >
                     <CloseIcon className="size-4" />
@@ -401,9 +407,9 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
           emptyHint={
             atRoot
               ? mode === "with-me"
-                ? "Files and folders shared with you appear here."
-                : "Files and folders you shared appear here."
-              : "This shared folder is empty."
+                ? t("shared.emptyWithMe")
+                : t("shared.emptyShared")
+              : t("shared.emptyFolder")
           }
         />
       </PageContent>
@@ -411,24 +417,24 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
       <AppDialog
         open={folderDialogOpen}
         onOpenChange={setFolderDialogOpen}
-        title="Create folder"
+        title={t("files.createFolder")}
         footer={
           <>
             <Button variant="secondary" onPress={() => setFolderDialogOpen(false)}>
-              Cancel
+              {t("dialog.cancel")}
             </Button>
             <Button
               variant="primary"
               isDisabled={!folderName.trim()}
               onPress={() => void createFolder()}
             >
-              Create folder
+              {t("files.createFolder")}
             </Button>
           </>
         }
       >
         <TextField value={folderName} onChange={setFolderName}>
-          <Label>Name</Label>
+          <Label>{t("files.nameLabel")}</Label>
           <Input autoFocus />
         </TextField>
       </AppDialog>
@@ -438,24 +444,24 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
         onOpenChange={(open) => {
           if (!open) setRenameFile(undefined);
         }}
-        title="Rename item"
+        title={t("dialog.renameTitle")}
         footer={
           <>
             <Button variant="secondary" onPress={() => setRenameFile(undefined)}>
-              Cancel
+              {t("dialog.cancel")}
             </Button>
             <Button
               variant="primary"
               isDisabled={!renameName.trim()}
               onPress={() => void renameSelected()}
             >
-              Rename
+              {t("dialog.rename")}
             </Button>
           </>
         }
       >
         <TextField value={renameName} onChange={setRenameName}>
-          <Label>Name</Label>
+          <Label>{t("files.nameLabel")}</Label>
           <Input autoFocus />
         </TextField>
       </AppDialog>

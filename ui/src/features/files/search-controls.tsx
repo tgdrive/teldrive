@@ -1,5 +1,6 @@
 import { Button, Checkbox, Input, Label, ListBox, Popover, Select, TextField } from "@heroui/react";
 import { useEffect, useState } from "react";
+import { useAppLocale } from "@/lib/locale";
 import { FolderPicker } from "./folder-picker";
 import { invalidSearchDates, type SearchState, searchCategories, searchDate } from "./search-state";
 
@@ -15,6 +16,7 @@ export function SearchControls({
   onOpenChange: (open: boolean) => void;
 }) {
   const [draft, setDraft] = useState(search);
+  const { t } = useAppLocale();
   useEffect(() => setDraft(search), [search, isOpen]);
   const invalidDates = invalidSearchDates(draft);
   const missingFolder = draft.scope === "recursive" && !draft.parentId;
@@ -36,10 +38,10 @@ export function SearchControls({
   return (
     <>
       <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-surface/80 p-4 shadow-sm">
-        <h1 className="mr-auto text-sm font-semibold">Search results</h1>
+        <h1 className="mr-auto text-sm font-semibold">{t("search.results")}</h1>
         <Popover isOpen={isOpen} onOpenChange={onOpenChange}>
           <Button variant="secondary" size="sm">
-            Filters
+            {t("search.filters")}
           </Button>
           <Popover.Content placement="bottom end" className="w-[min(92vw,26rem)]">
             <Popover.Dialog className="max-h-[min(80dvh,44rem)] overflow-y-auto p-4">
@@ -53,22 +55,24 @@ export function SearchControls({
                 }}
               >
                 <Popover.Heading className="text-sm font-semibold">
-                  Refine your search
+                  {t("search.refine")}
                 </Popover.Heading>
                 <SearchSelect
-                  label="Search in"
+                  label={t("search.scope")}
                   value={draft.scope ?? "drive"}
                   onChange={(scope) => setFilter("scope", scope)}
                   options={[
-                    { value: "drive", label: "All my files" },
-                    { value: "recursive", label: "Folder and subfolders" },
+                    { value: "drive", label: t("search.scopeDrive") },
+                    { value: "recursive", label: t("search.scopeFolder") },
                   ]}
                 />
                 {draft.scope === "recursive" &&
                   (draft.parentId ? (
                     <div className="flex items-center justify-between gap-2 text-xs text-muted">
                       <span className="min-w-0 truncate" title={draft.folderPath}>
-                        Folder: {draft.folderPath ?? "Selected folder"}
+                        {t("search.folderLabel", {
+                          path: draft.folderPath ?? t("search.folderUnnamed"),
+                        })}
                       </span>
                       <Button
                         size="sm"
@@ -81,14 +85,14 @@ export function SearchControls({
                           }))
                         }
                       >
-                        Change folder
+                        {t("search.changeFolder")}
                       </Button>
                     </div>
                   ) : (
                     <div className="rounded-xl border border-border p-3">
-                      <p className="mb-2 text-xs text-muted">Choose a folder to search within.</p>
+                      <p className="mb-2 text-xs text-muted">{t("search.chooseFolder")}</p>
                       <FolderPicker
-                        confirmLabel="Use this folder"
+                        confirmLabel={t("picker.useFolder")}
                         requireFolder
                         onConfirm={(parentId, path) => {
                           if (parentId)
@@ -98,17 +102,17 @@ export function SearchControls({
                     </div>
                   ))}
                 <SearchSelect
-                  label="Type"
+                  label={t("search.type")}
                   value={draft.kind ?? "all"}
                   onChange={(kind) => setFilter("kind", kind === "all" ? undefined : kind)}
                   options={[
-                    { value: "all", label: "Files and folders" },
-                    { value: "file", label: "Files" },
-                    { value: "folder", label: "Folders" },
+                    { value: "all", label: t("search.typeAll") },
+                    { value: "file", label: t("search.typeFile") },
+                    { value: "folder", label: t("search.typeFolder") },
                   ]}
                 />
                 <fieldset className="grid grid-cols-2 gap-2">
-                  <legend className="mb-2 text-sm">Categories</legend>
+                  <legend className="mb-2 text-sm">{t("search.categories")}</legend>
                   {searchCategories.map((category) => (
                     <Checkbox
                       key={category}
@@ -134,30 +138,30 @@ export function SearchControls({
                     value={draft.updatedAfter?.slice(0, 10) ?? ""}
                     onChange={(value) => setFilter("updatedAfter", searchDate(value))}
                   >
-                    <Label className="text-xs">Modified after</Label>
+                    <Label className="text-xs">{t("search.after")}</Label>
                     <Input type="date" />
                   </TextField>
                   <TextField
                     value={draft.updatedBefore?.slice(0, 10) ?? ""}
                     onChange={(value) => setFilter("updatedBefore", searchDate(value))}
                   >
-                    <Label className="text-xs">Modified before</Label>
+                    <Label className="text-xs">{t("search.before")}</Label>
                     <Input type="date" />
                   </TextField>
                 </div>
                 {invalidDates && (
                   <p role="alert" className="text-xs text-danger">
-                    Start date must be before end date.
+                    {t("search.dateError")}
                   </p>
                 )}
                 {missingFolder && (
                   <p role="alert" className="text-xs text-danger">
-                    Choose a folder before applying this scope.
+                    {t("search.folderError")}
                   </p>
                 )}
                 <div className="flex justify-between">
                   <Button variant="ghost" size="sm" onPress={clear}>
-                    Clear filters
+                    {t("search.clear")}
                   </Button>
                   <Button
                     type="submit"
@@ -165,7 +169,7 @@ export function SearchControls({
                     size="sm"
                     isDisabled={invalidDates || missingFolder}
                   >
-                    Apply filters
+                    {t("search.apply")}
                   </Button>
                 </div>
               </form>
@@ -175,33 +179,40 @@ export function SearchControls({
         <div className="flex w-full gap-2 sm:w-auto">
           <SearchSelect
             compact
-            label="Sort results"
+            label={t("search.sort")}
             value={search.sort ?? "name"}
             onChange={(sort) => onChange({ ...search, sort })}
             options={[
-              { value: "name", label: "Name" },
-              { value: "updatedAt", label: "Modified date" },
-              { value: "size", label: "Size" },
+              { value: "name", label: t("search.sortName") },
+              { value: "updatedAt", label: t("search.sortModified") },
+              { value: "size", label: t("search.sortSize") },
             ]}
           />
           <SearchSelect
             compact
-            label="Sort order"
+            label={t("search.order")}
             value={search.order ?? "asc"}
             onChange={(order) => onChange({ ...search, order })}
             options={[
-              { value: "asc", label: "Ascending" },
-              { value: "desc", label: "Descending" },
+              { value: "asc", label: t("search.asc") },
+              { value: "desc", label: t("search.desc") },
             ]}
           />
         </div>
       </div>
       {(search.q || filtered) && (
-        <section className="flex flex-wrap items-center gap-2" aria-label="Active filters">
-          {search.q && <FilterChip label={`Name: ${search.q}`} onRemove={() => remove("q")} />}
+        <section className="flex flex-wrap items-center gap-2" aria-label={t("search.active")}>
+          {search.q && (
+            <FilterChip
+              label={t("search.chipName", { q: search.q })}
+              onRemove={() => remove("q")}
+            />
+          )}
           {search.scope === "recursive" && (
             <FilterChip
-              label={`In ${search.folderPath ?? "selected folder"}`}
+              label={t("search.chipIn", {
+                folder: search.folderPath ?? t("search.folderFallback"),
+              })}
               onRemove={() =>
                 onChange({ ...search, scope: "drive", parentId: undefined, folderPath: undefined })
               }
@@ -209,7 +220,7 @@ export function SearchControls({
           )}
           {search.kind && (
             <FilterChip
-              label={search.kind === "file" ? "Files" : "Folders"}
+              label={t(search.kind === "file" ? "search.typeFile" : "search.typeFolder")}
               onRemove={() => remove("kind")}
             />
           )}
@@ -227,19 +238,19 @@ export function SearchControls({
           ))}
           {search.updatedAfter && (
             <FilterChip
-              label={`After ${search.updatedAfter.slice(0, 10)}`}
+              label={t("search.chipAfter", { date: search.updatedAfter.slice(0, 10) })}
               onRemove={() => remove("updatedAfter")}
             />
           )}
           {search.updatedBefore && (
             <FilterChip
-              label={`Before ${search.updatedBefore.slice(0, 10)}`}
+              label={t("search.chipBefore", { date: search.updatedBefore.slice(0, 10) })}
               onRemove={() => remove("updatedBefore")}
             />
           )}
           {filtered && (
             <Button size="sm" variant="ghost" onPress={clear}>
-              Clear filters
+              {t("search.clear")}
             </Button>
           )}
         </section>
@@ -290,13 +301,14 @@ function SearchSelect<T extends string>({
 }
 
 function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
+  const { t } = useAppLocale();
   return (
     <Button
       size="sm"
       variant="secondary"
       className="max-w-full rounded-full"
       onPress={onRemove}
-      aria-label={`Remove ${label} filter`}
+      aria-label={t("search.removeFilter", { label })}
     >
       <span className="truncate">{label}</span>
       <span aria-hidden="true">×</span>

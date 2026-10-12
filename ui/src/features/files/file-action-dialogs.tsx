@@ -1,4 +1,5 @@
 import { Button, Input, Label, TextField } from "@heroui/react";
+import { useAppLocale } from "@/lib/locale";
 import type { FileEntry } from "../../api/types";
 import { AppDialog } from "../../components/dialogs/app-dialog";
 import { FilePreviewDialog } from "../../components/file-preview-dialog";
@@ -37,6 +38,17 @@ export function FileActionDialogs({
   previewFile?: FileEntry;
   onPreviewClose: () => void;
 }) {
+  const { t } = useAppLocale();
+  const destinationTitle =
+    destinationAction == null
+      ? ""
+      : destinationAction.count === 1
+        ? t(destinationAction.mode === "move" ? "dialog.moveOne" : "dialog.copyOne", {
+            count: destinationAction.count,
+          })
+        : t(destinationAction.mode === "move" ? "dialog.moveMany" : "dialog.copyMany", {
+            count: destinationAction.count,
+          });
   return (
     <>
       <AppDialog
@@ -44,17 +56,17 @@ export function FileActionDialogs({
         onOpenChange={(open) => {
           if (!open) onRenameClose();
         }}
-        title="Rename item"
+        title={t("dialog.renameTitle")}
         isDismissable={!pending}
         isCloseDisabled={pending}
         size="md"
         footer={
           <>
             <Button variant="secondary" isDisabled={pending} onPress={onRenameClose}>
-              Cancel
+              {t("dialog.cancel")}
             </Button>
             <Button variant="primary" isDisabled={!renameName.trim() || pending} onPress={onRename}>
-              Rename
+              {t("dialog.rename")}
             </Button>
           </>
         }
@@ -71,7 +83,7 @@ export function FileActionDialogs({
             } else event.continuePropagation();
           }}
         >
-          <Label>New name</Label>
+          <Label>{t("dialog.newName")}</Label>
           <Input />
         </TextField>
         {error && (
@@ -87,8 +99,8 @@ export function FileActionDialogs({
           onOpenChange={(open) => {
             if (!open) destinationAction.onClose();
           }}
-          title={`${destinationAction.mode === "move" ? "Move" : "Copy"} ${destinationAction.count} item${destinationAction.count === 1 ? "" : "s"}`}
-          description="Choose the destination folder."
+          title={destinationTitle}
+          description={t("dialog.destinationHint")}
           isDismissable={!pending}
           isCloseDisabled={pending}
         >
@@ -99,7 +111,9 @@ export function FileActionDialogs({
           )}
           <FolderPicker
             initialPath="/"
-            confirmLabel={destinationAction.mode === "move" ? "Move here" : "Copy here"}
+            confirmLabel={t(
+              destinationAction.mode === "move" ? "picker.moveHere" : "picker.copyHere",
+            )}
             isDisabled={pending}
             onConfirm={(parentId) => destinationAction.onConfirm(parentId)}
           />

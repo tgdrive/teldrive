@@ -1,5 +1,6 @@
 import { AlertDialog, Button } from "@heroui/react";
 import TrashBinIcon from "~icons/gravity-ui/trash-bin";
+import { useAppLocale } from "@/lib/locale";
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -18,10 +19,11 @@ export function ConfirmDialog({
   onConfirm,
   title,
   message,
-  confirmLabel = "Delete",
+  confirmLabel,
   isPending = false,
   isDestructive = true,
 }: ConfirmDialogProps) {
+  const { t } = useAppLocale();
   return (
     <AlertDialog.Backdrop isOpen={open} onOpenChange={onOpenChange}>
       <AlertDialog.Container>
@@ -40,7 +42,7 @@ export function ConfirmDialog({
           </AlertDialog.Body>
           <AlertDialog.Footer>
             <Button slot="close" variant="tertiary">
-              Cancel
+              {t("dialog.cancel")}
             </Button>
             <Button
               variant={isDestructive ? "danger" : "primary"}
@@ -49,7 +51,7 @@ export function ConfirmDialog({
                 onConfirm();
               }}
             >
-              {confirmLabel}
+              {confirmLabel ?? t("dialog.delete")}
             </Button>
           </AlertDialog.Footer>
         </AlertDialog.Dialog>

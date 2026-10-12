@@ -16,6 +16,7 @@ import type { components } from "@/api/schema";
 import { $api as api, fetchClient } from "@/api/client";
 import { queryClient } from "@/api/query-client";
 import { invalidateTaskQueries } from "@/api/tasks";
+import { useAppLocale } from "@/lib/locale";
 
 type TaskOut = components["schemas"]["Job"];
 type TaskAttemptError = components["schemas"]["JobAttemptError"];
@@ -49,6 +50,7 @@ function TaskDetailPage() {
   });
   const [retrying, setRetrying] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const { t } = useAppLocale();
   const task = data;
 
   useEffect(() => {
@@ -62,7 +64,7 @@ function TaskDetailPage() {
   }, [id, qc, task?.status]);
 
   if (!task) {
-    return <div className="py-20 text-center text-sm text-muted">Task not found.</div>;
+    return <div className="py-20 text-center text-sm text-muted">{t("taskDetail.notFound")}</div>;
   }
 
   const retry = async () => {
@@ -72,10 +74,10 @@ function TaskDetailPage() {
     });
     setRetrying(false);
     if (error) {
-      toast.error("Failed to retry task");
+      toast.error(t("tasks.retryFailed"));
       return;
     }
-    toast.success("Task queued for retry");
+    toast.success(t("tasks.retryOk"));
     await invalidateTaskQueries(qc, id);
   };
 
@@ -87,13 +89,11 @@ function TaskDetailPage() {
     setDeleting(false);
     if (error) {
       toast.error(
-        ACTIVE_STATES.includes(task.status) ? "Failed to cancel task" : "Failed to remove task",
+        t(ACTIVE_STATES.includes(task.status) ? "tasks.cancelFailed" : "tasks.removeFailed"),
       );
       return;
     }
-    toast.success(
-      ACTIVE_STATES.includes(task.status) ? "Task cancellation requested" : "Task removed",
-    );
+    toast.success(t(ACTIVE_STATES.includes(task.status) ? "tasks.cancelOk" : "tasks.removeOk"));
     await invalidateTaskQueries(qc, id);
     navigate({
       to: "/tasks",
@@ -116,7 +116,7 @@ function TaskDetailPage() {
             to="/tasks"
             search={{ status: "running", query: "" }}
             className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg text-muted transition hover:bg-muted/40 hover:text-foreground"
-            aria-label="Back to tasks"
+            aria-label={t("taskDetail.back")}
           >
             <BackIcon className="size-4" />
           </Link>
@@ -133,7 +133,7 @@ function TaskDetailPage() {
                   params={{ id: task.parentId }}
                   className="hover:text-foreground"
                 >
-                  Parent {task.parentId}
+                  {t("taskDetail.parent", { id: task.parentId })}
                 </Link>
               )}
             </div>
@@ -142,11 +142,11 @@ function TaskDetailPage() {
 
         <div className="flex flex-wrap gap-2 lg:justify-end">
           <Button size="sm" variant="tertiary" onPress={refresh}>
-            <RefreshIcon className="size-3.5" /> Refresh
+            <RefreshIcon className="size-3.5" /> {t("tasks.refresh")}
           </Button>
           {["cancelled", "discarded", "retryable"].includes(task.status) && (
             <Button size="sm" variant="primary" isPending={retrying} onPress={retry}>
-              Retry
+              {t("tasks.retry")}
             </Button>
           )}
           <Button
@@ -155,43 +155,50 @@ function TaskDetailPage() {
             isPending={deleting}
             onPress={remove}
           >
-            {ACTIVE_STATES.includes(task.status) ? "Cancel" : "Delete"}
+            {t(ACTIVE_STATES.includes(task.status) ? "tasks.cancel" : "taskDetail.delete")}
           </Button>
         </div>
       </header>
 
       <Card className="overflow-hidden p-0">
         <Card.Header className="flex-col items-start gap-1 border-border border-b px-5 py-4">
-          <Card.Title className="text-sm font-semibold">Execution</Card.Title>
-          <Card.Description className="text-xs">
-            Current state, worker lifecycle, and operational details.
-          </Card.Description>
+          <Card.Title className="text-sm font-semibold">{t("taskDetail.exec")}</Card.Title>
+          <Card.Description className="text-xs">{t("taskDetail.execDesc")}</Card.Description>
         </Card.Header>
         <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.85fr)]">
           <div className="border-border p-5 lg:border-r sm:p-6">
             <div className="grid gap-x-8 gap-y-5 sm:grid-cols-3">
-              <Fact label="State" value={taskStatusLabel(task.status)}>
+              <Fact label={t("taskDetail.state")} value={taskStatusLabel(t, task.status)}>
                 <TaskStatusChip status={task.status} />
               </Fact>
-              <Fact label="Attempt" value={`${task.attempt} / ${task.maxAttempts}`} />
-              <Fact label="Priority" value={String(task.priority)} />
-              <Fact label="Queue" value={task.queue || "default"} />
-              <Fact label="Tags" value={task.tags?.length ? task.tags.join(", ") : "—"} />
-              <Fact label="Created" value={formatRelative(task.createdAt)} />
+              <Fact
+                label={t("taskDetail.attempt")}
+                value={`${task.attempt} / ${task.maxAttempts}`}
+              />
+              <Fact label={t("taskDetail.priority")} value={String(task.priority)} />
+              <Fact
+                label={t("taskDetail.queue")}
+                value={task.queue || t("taskDetail.defaultQueue")}
+              />
+              <Fact
+                label={t("taskDetail.tags")}
+                value={task.tags?.length ? task.tags.join(", ") : "—"}
+              />
+              <Fact label={t("taskDetail.created")} value={formatRelative(t, task.createdAt)} />
             </div>
 
             <div className="mt-6 border-border border-t pt-5">
               <div className="text-[11px] font-semibold text-muted uppercase tracking-[0.14em]">
-                Current status
+                {t("taskDetail.currentStatus")}
               </div>
               <div className="mt-2 text-base font-semibold">
-                {task.message || statusSummary(task.status)}
+                {task.message || statusSummary(t, task.status)}
               </div>
             </div>
           </div>
 
           <div className="p-5 sm:p-6">
-            <h2 className="text-sm font-semibold">Lifecycle</h2>
+            <h2 className="text-sm font-semibold">{t("taskDetail.lifecycle")}</h2>
             <div className="mt-4">
               <Timeline task={task} />
             </div>
@@ -200,11 +207,15 @@ function TaskDetailPage() {
       </Card>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <JsonPanel title="Arguments" value={task.args} empty="This task has no arguments." />
         <JsonPanel
-          title="Output"
+          title={t("taskDetail.args")}
+          value={task.args}
+          empty={t("taskDetail.argsEmpty")}
+        />
+        <JsonPanel
+          title={t("taskDetail.output")}
           value={task.output}
-          empty="No output was recorded."
+          empty={t("taskDetail.outputEmpty")}
           downloadName={`task-${task.id}-output.json`}
         />
       </div>
@@ -216,8 +227,8 @@ function TaskDetailPage() {
       <Card className="overflow-hidden p-0">
         <div className="flex items-center justify-between border-border border-b px-5 py-4">
           <div>
-            <h2 className="text-sm font-semibold">Attempts</h2>
-            <p className="mt-1 text-xs text-muted">Execution history and recorded River errors.</p>
+            <h2 className="text-sm font-semibold">{t("taskDetail.attempts")}</h2>
+            <p className="mt-1 text-xs text-muted">{t("taskDetail.attemptsDesc")}</p>
           </div>
           <Chip size="sm" variant="tertiary">
             {Math.max(task.attempt ?? 0, errors.length)}
@@ -251,17 +262,18 @@ function Fact({
 }
 
 function Timeline({ task }: { task: TaskOut }) {
+  const { t } = useAppLocale();
   const errors = task.errors ?? [];
   const steps = [
-    { label: "Created", at: task.createdAt, state: "done", kind: "created" },
+    { label: t("taskDetail.tl.created"), at: task.createdAt, state: "done", kind: "created" },
     {
-      label: "Scheduled",
+      label: t("taskDetail.tl.scheduled"),
       at: task.scheduledAt,
       state: timelineState(task, "scheduled"),
       kind: "scheduled",
     },
     {
-      label: "Running",
+      label: t("taskDetail.tl.running"),
       at: task.startedAt,
       state: timelineState(task, "running"),
       kind: "running",
@@ -269,7 +281,7 @@ function Timeline({ task }: { task: TaskOut }) {
     ...(errors.length > 0
       ? [
           {
-            label: "Errored",
+            label: t("taskDetail.tl.errored"),
             at: errors.at(-1)?.at,
             state: task.status === "discarded" ? "error" : "done",
             kind: "error",
@@ -277,15 +289,22 @@ function Timeline({ task }: { task: TaskOut }) {
         ]
       : []),
     ...(task.status === "retryable"
-      ? [{ label: "Awaiting retry", at: task.scheduledAt, state: "current", kind: "retry" }]
+      ? [
+          {
+            label: t("taskDetail.tl.awaiting"),
+            at: task.scheduledAt,
+            state: "current",
+            kind: "retry",
+          },
+        ]
       : []),
     {
       label:
         task.status === "cancelled"
-          ? "Cancelled"
+          ? t("taskDetail.tl.cancelled")
           : task.status === "discarded"
-            ? "Discarded"
-            : "Complete",
+            ? t("taskDetail.tl.discarded")
+            : t("taskDetail.tl.complete"),
       at: task.completedAt,
       state: ["completed", "cancelled", "discarded"].includes(task.status)
         ? task.status === "discarded"
@@ -316,7 +335,7 @@ function Timeline({ task }: { task: TaskOut }) {
           <div className="min-w-0">
             <div className="text-sm font-medium">{step.label}</div>
             <div className="mt-0.5 text-xs text-muted">
-              {step.at ? `${formatRelative(step.at)} · ${formatDate(step.at)}` : "—"}
+              {step.at ? `${formatRelative(t, step.at)} · ${formatDate(step.at)}` : "—"}
             </div>
           </div>
         </li>
@@ -374,6 +393,7 @@ function buildAttempts(task: TaskOut, errors: TaskAttemptError[]): AttemptView[]
 }
 
 function AttemptRow({ attempt }: { attempt: AttemptView }) {
+  const { t } = useAppLocale();
   return (
     <div className="px-5 py-4">
       <div className="flex items-start gap-3">
@@ -381,11 +401,13 @@ function AttemptRow({ attempt }: { attempt: AttemptView }) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="text-sm font-semibold">
-              {attemptLabel(attempt.state)}{" "}
-              <span className="font-normal text-muted">(Attempt {attempt.attempt})</span>
+              {attemptLabel(t, attempt.state)}{" "}
+              <span className="font-normal text-muted">
+                ({t("taskDetail.attemptWord", { n: attempt.attempt })})
+              </span>
             </div>
             <div className="text-xs text-muted">
-              {attempt.at ? formatRelative(attempt.at) : "—"}
+              {attempt.at ? formatRelative(t, attempt.at) : "—"}
             </div>
           </div>
           {attempt.worker && (
@@ -397,7 +419,7 @@ function AttemptRow({ attempt }: { attempt: AttemptView }) {
               <Accordion.Item id="trace">
                 <Accordion.Heading>
                   <Accordion.Trigger className="text-xs font-medium text-muted hover:text-foreground">
-                    Trace
+                    {t("taskDetail.trace")}
                     <Accordion.Indicator />
                   </Accordion.Trigger>
                 </Accordion.Heading>
@@ -430,6 +452,7 @@ function JsonPanel({
   tall?: boolean;
   downloadName?: string;
 }) {
+  const { t } = useAppLocale();
   return (
     <Card className="overflow-hidden p-0">
       <div className="flex items-center justify-between gap-2 border-border border-b px-5 py-3.5">
@@ -440,7 +463,7 @@ function JsonPanel({
             variant="tertiary"
             onPress={() => downloadJsonFile(downloadName, value)}
           >
-            <DownloadIcon className="size-3.5" /> Download
+            <DownloadIcon className="size-3.5" /> {t("taskDetail.download")}
           </Button>
         )}
       </div>
@@ -484,14 +507,15 @@ function missingPartCount(entry: BrokenFileEntry): number {
 }
 
 function BrokenFilesCard({ files, truncated }: { files: BrokenFileEntry[]; truncated: boolean }) {
+  const { t } = useAppLocale();
   return (
     <Card className="overflow-hidden p-0">
       <div className="flex flex-wrap items-center justify-between gap-2 border-border border-b px-5 py-3.5">
         <div>
-          <h2 className="text-sm font-semibold">Broken files</h2>
+          <h2 className="text-sm font-semibold">{t("taskDetail.broken")}</h2>
           <p className="mt-0.5 text-xs text-muted">
-            Files with messages missing from Telegram — re-upload the originals to repair them.
-            {truncated ? " List truncated; download for the full set shown here." : ""}
+            {t("taskDetail.brokenDesc")}
+            {truncated ? ` ${t("taskDetail.brokenTruncated")}` : ""}
           </p>
         </div>
         <Button
@@ -499,7 +523,7 @@ function BrokenFilesCard({ files, truncated }: { files: BrokenFileEntry[]; trunc
           variant="tertiary"
           onPress={() => downloadJsonFile("broken-files.json", files)}
         >
-          <DownloadIcon className="size-3.5" /> Download list
+          <DownloadIcon className="size-3.5" /> {t("taskDetail.downloadList")}
         </Button>
       </div>
       <div className="divide-y divide-border">
@@ -509,11 +533,14 @@ function BrokenFilesCard({ files, truncated }: { files: BrokenFileEntry[]; trunc
             className="flex flex-wrap items-center gap-x-6 gap-y-1 px-5 py-3"
           >
             <span className="min-w-0 flex-1 truncate text-sm font-medium">
-              {typeof file.name === "string" && file.name ? file.name : "Unnamed file"}
+              {typeof file.name === "string" && file.name ? file.name : t("taskDetail.unnamed")}
             </span>
             <span className="text-xs text-muted">{formatBytes(file.size)}</span>
             <span className="text-xs text-muted">
-              {missingPartCount(file)} missing part{missingPartCount(file) === 1 ? "" : "s"}
+              {t(
+                missingPartCount(file) === 1 ? "taskDetail.missingOne" : "taskDetail.missingMany",
+                { count: missingPartCount(file) },
+              )}
             </span>
           </div>
         ))}
@@ -586,23 +613,29 @@ function attemptDot(state: AttemptView["state"]) {
   return "bg-warning";
 }
 
-function attemptLabel(state: AttemptView["state"]) {
-  if (state === "completed") return "Completed";
-  if (state === "failed") return "Failed";
-  if (state === "running") return "Running";
-  return "Waiting";
+function attemptLabel(
+  t: (key: string, vars?: Record<string, string | number>) => string,
+  state: AttemptView["state"],
+) {
+  if (state === "completed") return t("tasks.status.completed");
+  if (state === "failed") return t("taskDetail.failed");
+  if (state === "running") return t("tasks.status.running");
+  return t("taskDetail.waiting");
 }
 
-function statusSummary(status: string) {
-  if (status === "pending") return "Waiting to be scheduled";
-  if (status === "scheduled") return "Scheduled for future execution";
-  if (status === "available") return "Waiting for an available worker";
-  if (status === "retryable") return "Waiting for another retry attempt";
-  if (status === "running") return "Task is currently running";
-  if (status === "completed") return "Task completed successfully";
-  if (status === "discarded") return "Task exhausted its retry attempts";
-  if (status === "cancelled") return "Task was cancelled";
-  return taskStatusLabel(status);
+function statusSummary(
+  t: (key: string, vars?: Record<string, string | number>) => string,
+  status: string,
+) {
+  if (status === "pending") return t("taskDetail.sum.pending");
+  if (status === "scheduled") return t("taskDetail.sum.scheduled");
+  if (status === "available") return t("taskDetail.sum.available");
+  if (status === "retryable") return t("taskDetail.sum.retryable");
+  if (status === "running") return t("taskDetail.sum.running");
+  if (status === "completed") return t("taskDetail.sum.completed");
+  if (status === "discarded") return t("taskDetail.sum.discarded");
+  if (status === "cancelled") return t("taskDetail.sum.cancelled");
+  return taskStatusLabel(t, status);
 }
 
 function defaultTaskDescription(task: TaskOut) {
@@ -620,13 +653,16 @@ function formatDate(value: string) {
   return new Date(value).toLocaleString();
 }
 
-function formatRelative(value: string) {
+function formatRelative(
+  t: (key: string, vars?: Record<string, string | number>) => string,
+  value: string,
+) {
   const seconds = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 1000));
-  if (seconds < 60) return "just now";
+  if (seconds < 60) return t("tasks.time.now");
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 60) return t("tasks.time.min", { m: minutes });
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return t("tasks.time.hour", { h: hours });
   const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+  return t("tasks.time.day", { d: days });
 }

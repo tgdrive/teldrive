@@ -3,29 +3,22 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { SettingsPageHeader, SettingsRow, SettingsSection } from "@/components/settings-layout";
 import { MAX_PART_SIZE_MIB, normalizePartSizeMiB, useUploadStore } from "@/features/uploads/store";
+import { useAppLocale } from "@/lib/locale";
 
 export const Route = createFileRoute("/_settings/settings/uploads")({ component: UploadSettings });
 
 function UploadSettings() {
   const settings = useUploadStore((state) => state.settings);
   const setSettings = useUploadStore((state) => state.setSettings);
+  const { t } = useAppLocale();
 
   return (
     <div className="space-y-6">
-      <SettingsPageHeader
-        title="Uploads"
-        description="Browser upload concurrency, encryption, conflict handling, and multipart sizing."
-      />
-      <SettingsSection
-        title="Upload behavior"
-        description="These preferences are stored in this browser and apply to new uploads."
-      >
-        <SettingsRow
-          label="Encryption"
-          description="Encrypt file parts with Teldrive's server-managed key before storage."
-        >
+      <SettingsPageHeader title={t("uploads.title")} description={t("uploads.desc")} />
+      <SettingsSection title={t("uploads.behavior")} description={t("uploads.behaviorDesc")}>
+        <SettingsRow label={t("uploads.encryption")} description={t("uploads.encryptionDesc")}>
           <Switch
-            aria-label="Encrypt uploaded files"
+            aria-label={t("uploads.encryptLabel")}
             isSelected={settings.encryption}
             onChange={(isSelected) => setSettings({ encryption: isSelected })}
           >
@@ -33,16 +26,13 @@ function UploadSettings() {
               <Switch.Control>
                 <Switch.Thumb />
               </Switch.Control>
-              <Label>Encrypt uploaded files</Label>
+              <Label>{t("uploads.encryptLabel")}</Label>
             </Switch.Content>
           </Switch>
         </SettingsRow>
-        <SettingsRow
-          label="Name conflicts"
-          description="Choose what happens when the destination already contains the same name."
-        >
+        <SettingsRow label={t("uploads.conflicts")} description={t("uploads.conflictsDesc")}>
           <Select
-            aria-label="Name conflicts"
+            aria-label={t("uploads.conflicts")}
             selectedKey={settings.conflictPolicy}
             onSelectionChange={(key) =>
               setSettings({ conflictPolicy: String(key) as typeof settings.conflictPolicy })
@@ -54,25 +44,22 @@ function UploadSettings() {
             </Select.Trigger>
             <Select.Popover>
               <ListBox>
-                <ListBox.Item id="rename" textValue="Rename new file">
-                  Rename new file
+                <ListBox.Item id="rename" textValue={t("uploads.optRename")}>
+                  {t("uploads.optRename")}
                 </ListBox.Item>
-                <ListBox.Item id="replace" textValue="Replace existing">
-                  Replace existing
+                <ListBox.Item id="replace" textValue={t("uploads.optReplace")}>
+                  {t("uploads.optReplace")}
                 </ListBox.Item>
-                <ListBox.Item id="error" textValue="Stop with error">
-                  Stop with error
+                <ListBox.Item id="error" textValue={t("uploads.optError")}>
+                  {t("uploads.optError")}
                 </ListBox.Item>
               </ListBox>
             </Select.Popover>
           </Select>
         </SettingsRow>
-        <SettingsRow
-          label="Concurrent uploads"
-          description="Number of browser uploads processed at the same time."
-        >
+        <SettingsRow label={t("uploads.concurrency")} description={t("uploads.concurrencyDesc")}>
           <NumberField
-            aria-label="Concurrent uploads"
+            aria-label={t("uploads.concurrency")}
             value={settings.concurrency}
             minValue={1}
             maxValue={12}
@@ -80,7 +67,7 @@ function UploadSettings() {
               setSettings({ concurrency: Math.max(1, Math.min(12, value ?? 1)) })
             }
           >
-            <Label className="sr-only">Concurrent uploads</Label>
+            <Label className="sr-only">{t("uploads.concurrency")}</Label>
             <NumberField.Group>
               <NumberField.DecrementButton />
               <NumberField.Input />
@@ -88,10 +75,7 @@ function UploadSettings() {
             </NumberField.Group>
           </NumberField>
         </SettingsRow>
-        <SettingsRow
-          label="Preferred part size"
-          description="Defaults to 512 MiB. Values are rounded to the nearest 16 MiB for encrypted uploads; the server may choose a different size."
-        >
+        <SettingsRow label={t("uploads.partSize")} description={t("uploads.partSizeDesc")}>
           <PartSizeField />
         </SettingsRow>
       </SettingsSection>
@@ -104,6 +88,7 @@ function PartSizeField() {
   const setSettings = useUploadStore((state) => state.setSettings);
   const [value, setValue] = useState(preferredPartSize / 1024 / 1024);
   const valueRef = useRef(value);
+  const { t } = useAppLocale();
 
   const commit = () => {
     const normalized = normalizePartSizeMiB(valueRef.current);
@@ -114,7 +99,7 @@ function PartSizeField() {
 
   return (
     <NumberField
-      aria-label="Preferred part size in MiB"
+      aria-label={t("uploads.partSizeAria")}
       value={value}
       maxValue={MAX_PART_SIZE_MIB}
       onChange={(next) => {
@@ -123,7 +108,7 @@ function PartSizeField() {
       }}
       onBlur={commit}
     >
-      <Label className="sr-only">Preferred part size in MiB</Label>
+      <Label className="sr-only">{t("uploads.partSizeAria")}</Label>
       <NumberField.Group>
         <NumberField.DecrementButton />
         <NumberField.Input />
