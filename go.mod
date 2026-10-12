@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/dgraph-io/ristretto/v2 v2.4.2
-	github.com/divyam234/riverpro v0.0.0-20261004114628-04c4cb1fea2c
+	github.com/divyam234/riverpro v0.0.0-20261012170352-c1cb2a3c669a
 	github.com/go-chi/chi/v5 v5.3.2
 	github.com/go-faster/errors v0.8.0
 	github.com/go-faster/jx v1.2.0
