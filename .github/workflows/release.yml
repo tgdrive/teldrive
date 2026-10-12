@@ -23,7 +23,7 @@ jobs:
         uses: actions/setup-go@v7
         with:
           go-version: stable
-          cache: true
+          cache: false
           cache-dependency-path: |
             go.mod
             go.sum

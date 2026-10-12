@@ -84,6 +84,7 @@ changelog:
       - '^Update'
       - '^Version'
       - '^ci:'
+      - '^chore:'
       - '^docs:'
       - Merge pull request
       - Merge branch
