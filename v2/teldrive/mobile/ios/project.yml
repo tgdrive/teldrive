@@ -42,4 +42,5 @@ schemes:
       targets:
         Teldrive: all
     test:
+      config: Debug
       targets: [TeldriveTests, TeldriveUITests]

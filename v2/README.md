@@ -26,3 +26,5 @@ Sustituye el ejemplo por tu dominio y reinicia Teldrive. En Desktop edita Config
 Linux/macOS/ARM64 se compilaron sin ejecución nativa. No se ha configurado ni probado el dominio real del usuario. CLI requiere PostgreSQL y FFmpeg/FFprobe externos. Android/iOS conservan los clientes .2 y utilizan la UI actualizada del servidor; esta release no recompila APK o IPA.
 
 Fuentes en teldrive/ y rclone/. source-revisions.json conserva los commits originales; blobs y permisos se preservan.
+
+Corrección posterior a la release .7: los tests de iOS utilizan Debug para permitir @testable import; la app de simulador Release se compila por separado. Se conserva la release publicada.

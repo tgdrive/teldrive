@@ -22,7 +22,12 @@ jobs:
         run: |
           set -euo pipefail
           device=$(xcrun simctl list devices available -j | python3 -c 'import sys,json; d=json.load(sys.stdin); print(next(x["udid"] for devices in d["devices"].values() for x in devices if x["isAvailable"] and x["name"].startswith("iPhone")))')
-          xcodebuild -project Teldrive.xcodeproj -scheme Teldrive -configuration Release -sdk iphonesimulator -destination "platform=iOS Simulator,id=$device" -derivedDataPath build/DerivedData -resultBundlePath build/Tests.xcresult CODE_SIGNING_ALLOWED=NO test
+          xcodebuild -project Teldrive.xcodeproj -scheme Teldrive -configuration Debug -sdk iphonesimulator -destination "platform=iOS Simulator,id=$device" -derivedDataPath build/DerivedData -resultBundlePath build/Tests.xcresult CODE_SIGNING_ALLOWED=NO test
+      - name: Build the Release simulator app
+        working-directory: v2/teldrive/mobile/ios
+        run: |
+          set -euo pipefail
+          xcodebuild -project Teldrive.xcodeproj -scheme Teldrive -configuration Release -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' -derivedDataPath build/DerivedData CODE_SIGNING_ALLOWED=NO build
           ditto -c -k --sequesterRsrc --keepParent build/DerivedData/Build/Products/Release-iphonesimulator/Teldrive.app build/Teldrive-iOS-Simulator.zip
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f
         if: always()
