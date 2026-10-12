@@ -30,6 +30,24 @@ teldrive run --config /etc/teldrive/config.toml
 
 Supported formats: TOML, YAML, YML.
 
+Match the file extension to the example format. Do not paste a YAML example into `config.toml`. For example, these configurations are equivalent:
+
+`config.toml`:
+
+```toml
+[telegram]
+upload-threads = 8
+```
+
+`config.yaml`:
+
+```yaml
+telegram:
+  upload-threads: 8
+```
+
+Most guides use YAML for brevity. Use a `.yaml` file for those examples, or translate their nested sections to TOML tables as shown above.
+
 In the official Docker/Podman image, `~` is `/home/nonroot`. Mount your host config file read-only at `/home/nonroot/.teldrive/config.toml`; see [Mount a config file](/installation/containers#mount-a-config-file) for examples and permissions.
 
 ## Name mapping

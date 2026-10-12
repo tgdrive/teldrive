@@ -55,10 +55,11 @@ func newRunCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			logger, err := logging.NewLogger(os.Stdout, cfg.Logging.LogLevel, cfg.Logging.LogFormat)
+			logger, closeLog, err := logging.NewLoggerWithFile(os.Stdout, cfg.Logging.LogLevel, cfg.Logging.LogFormat, cfg.Logging.LogFile)
 			if err != nil {
 				return err
 			}
+			defer closeLog()
 			slog.SetDefault(logger)
 			application, err := app.New(cmd.Context(), cfg, app.Dependencies{Logger: logger, Version: buildVersion()})
 			if err != nil {
@@ -88,10 +89,11 @@ func newCheckCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			logger, err := logging.NewLogger(os.Stdout, cfg.Logging.LogLevel, cfg.Logging.LogFormat)
+			logger, closeLog, err := logging.NewLoggerWithFile(os.Stdout, cfg.Logging.LogLevel, cfg.Logging.LogFormat, cfg.Logging.LogFile)
 			if err != nil {
 				return err
 			}
+			defer closeLog()
 			slog.SetDefault(logger)
 			application, err := app.New(cmd.Context(), cfg, app.Dependencies{Logger: logger, Version: buildVersion()})
 			if err != nil {

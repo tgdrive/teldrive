@@ -11,7 +11,7 @@ The flake provides `teldrive` (built from source) and `teldrive-bin` (a pinned r
 nix profile add github:tgdrive/teldrive#teldrive-bin
 ```
 
-The binary package becomes available after the first 2.x release is published and pinned. Until then use `#teldrive`.
+Use `#teldrive-bin` for the release binary pinned by the flake, or `#teldrive` to build from source. Update the Teldrive flake input to pick up a newer release pin.
 
 ## NixOS and Home Manager
 
@@ -53,7 +53,7 @@ Merge the Teldrive input, overlay, and module into your existing `flake.nix`. Ke
 }
 ```
 
-Use `aarch64-linux` on ARM64. After a release is pinned, switch `package` to `pkgs.teldrive-bin` to avoid building from source.
+Use `aarch64-linux` on ARM64. Set `package = pkgs.teldrive-bin` to use the pinned release without building from source.
 
 Create the environment file outside the Nix store with your database URL and security keys; see [Configuration](/configuration/overview). Configure PostgreSQL separately. Then apply your host configuration:
 

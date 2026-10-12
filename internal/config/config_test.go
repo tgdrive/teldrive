@@ -89,6 +89,7 @@ func TestLoadFromAppliesEnvironment(t *testing.T) {
 		"TELDRIVE_JOBS_RUN_WORKERS":                "false",
 		"TELDRIVE_LOGGING_LOG_LEVEL":               "debug",
 		"TELDRIVE_LOGGING_LOG_FORMAT":              "text",
+		"TELDRIVE_LOGGING_LOG_FILE":                "/var/log/teldrive.log",
 	}
 	cfg, err := LoadFrom(func(key string) (string, bool) {
 		value, ok := values[key]
@@ -109,7 +110,7 @@ func TestLoadFromAppliesEnvironment(t *testing.T) {
 	if cfg.Encryption.ActiveKeyVersion != 2 || cfg.Encryption.Keys[2] != "second-secret" {
 		t.Fatalf("encryption config = %#v", cfg.Encryption)
 	}
-	if cfg.Logging.LogLevel != "debug" || cfg.Logging.LogFormat != "text" {
+	if cfg.Logging.LogLevel != "debug" || cfg.Logging.LogFormat != "text" || cfg.Logging.LogFile != values["TELDRIVE_LOGGING_LOG_FILE"] {
 		t.Fatalf("logging config = %#v", cfg.Logging)
 	}
 	if cfg.Uploads.SessionTTL != 72*time.Hour || cfg.Uploads.HashingEnabled {

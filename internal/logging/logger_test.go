@@ -4,10 +4,79 @@ import (
 	"bytes"
 	"context"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestLoggerWithFile(t *testing.T) {
+	t.Parallel()
+	for _, format := range []string{"text", "json"} {
+		t.Run(format, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "teldrive.log")
+			var console bytes.Buffer
+			for range 2 {
+				logger, closeLog, err := NewLoggerWithFile(&console, "info", format, path)
+				if err != nil {
+					t.Fatal(err)
+				}
+				logger.Debug("filtered")
+				logger.With("component", "test").Info("started")
+				if err := closeLog(); err != nil {
+					t.Fatal(err)
+				}
+			}
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(data) != console.String() || strings.Count(string(data), "started") != 2 || strings.Contains(string(data), "filtered") || strings.Contains(string(data), "\x1b[") {
+				t.Fatalf("unexpected file output: %q; console: %q", data, console.String())
+			}
+			info, err := os.Stat(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if info.Mode().Perm()&0o077 != 0 {
+				t.Fatalf("log file permissions = %o", info.Mode().Perm())
+			}
+		})
+	}
+}
+
+func TestLoggerWithFileDisabled(t *testing.T) {
+	t.Parallel()
+	var console bytes.Buffer
+	logger, closeLog, err := NewLoggerWithFile(&console, "info", "text", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	logger.Info("started")
+	if err := closeLog(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(console.String(), "started") {
+		t.Fatal("console output missing")
+	}
+}
+
+func TestLoggerWithFileErrors(t *testing.T) {
+	t.Parallel()
+	var console bytes.Buffer
+	path := filepath.Join(t.TempDir(), "missing", "teldrive.log")
+	if _, _, err := NewLoggerWithFile(&console, "info", "json", path); err == nil {
+		t.Fatal("missing parent directory should fail")
+	}
+	path = filepath.Join(t.TempDir(), "teldrive.log")
+	if _, _, err := NewLoggerWithFile(&console, "invalid", "json", path); err == nil {
+		t.Fatal("invalid level should fail")
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("invalid options created file: %v", err)
+	}
+}
 
 func TestPrettyHandlerColorsLevels(t *testing.T) {
 	t.Parallel()

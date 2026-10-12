@@ -64,6 +64,10 @@ logging:
   log-format: json
 ```
 
+Console output is always enabled. For systemd or containers, collect it with the journal or your container logging driver.
+
+To also append logs to a file, add `logging.log-file`. See [File logging](/operations/troubleshooting#file-logging) for permissions, container mounts, and rotation limitations.
+
 Monitor CPU, memory, PostgreSQL connections, transfer throughput, Telegram errors, and failed jobs.
 
 ## Upgrade

@@ -113,7 +113,7 @@ docker compose up -d caddy
 docker compose logs --tail=100 caddy
 ```
 
-The example follows current varc source; validation must use an image containing its dynamic-upstream support. It has not been exercised end-to-end here.
+This configuration requires a varc build with dynamic-upstream support. It is not covered by Teldrive's end-to-end tests. Validate the Caddyfile with the image you deploy, then test downloads, seeking, and authentication failures before enabling the cache for users.
 
 ## nginx
 

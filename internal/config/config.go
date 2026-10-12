@@ -81,6 +81,7 @@ type Security struct {
 }
 
 type Logging struct {
+	LogFile   string `koanf:"log-file" description:"Optional log file path; append logs to this file in addition to console output (parent directory must exist)"`
 	LogLevel  string `koanf:"log-level" default:"info" validate:"oneof=debug info warn error" description:"Log level: debug, info, warn, or error"`
 	LogFormat string `koanf:"log-format" default:"text" validate:"oneof=json text" description:"Log format: json or text"`
 }

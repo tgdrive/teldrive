@@ -297,6 +297,11 @@
     };
   };
   "logging" = {
+    "log-file" = lib.mkOption {
+      type = lib.types.nullOr (lib.types.str);
+      default = null;
+      description = "Optional log file path; append logs to this file in addition to console output (parent directory must exist) (No default; upstream applies its own.)";
+    };
     "log-level" = lib.mkOption {
       type = lib.types.nullOr (lib.types.str);
       default = null;
