@@ -56,3 +56,9 @@ El botón superior **Teldrive** recupera el Drive desde Actividad, Configuració
 FFprobe detecta las pistas de audio y subtítulos de MKV y otros contenedores. FFmpeg aplica el audio seleccionado, convierte subtítulos de texto a WebVTT e integra los de imagen en el vídeo compatible. La conversión incluye las pistas elegidas al transmitir. Los resultados dependen de los códecs disponibles y del dispositivo.
 
 `--smoke-enhancements --data-root RUTA_NUEVA` comprueba el botón Teldrive, el registro de Actividad sin capa blanca, importación/edición/cifrado/respaldos de rclone.conf y una transferencia real hacia una conexión personalizada. Usa PostgreSQL y carpetas de prueba aisladas, sin Telegram ni televisores físicos.
+
+## Corrección del doble clic (2.0.0.6)
+
+Desktop suprime el evento de botón duplicado que el SDK WebView2 de composición reenvía durante un doble clic. Se conservan los eventos normales de ratón y los manejadores táctiles/teclado del SDK. La corrección permite abrir carpetas y archivos con doble clic, sin recuperar la superposición blanca de Actividad. El servidor, la UI web y los CLI mantienen la edición v2.0.0-drive-es.5.
+
+`--smoke-input --data-root RUTA_DE_PRUEBA` verifica el doble clic nativo dentro de WebView2 y la apertura de carpetas en lista y cuadrícula. Usa una base local aislada y respuestas de API simuladas; no modifica los archivos del usuario. La secuencia pasa por el manejador WPF de doble clic y el controlador de composición, con un registro de los eventos recibidos por la página.

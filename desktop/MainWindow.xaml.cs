@@ -57,6 +57,10 @@ public partial class MainWindow : Window
                 if (requestedStartHidden) { Opacity = 0; ShowInTaskbar = false; ShowActivated = false; tray!.HideWindowIcon(); }
             }
             await runtime.PrepareAsync();
+            if (args.Contains("--smoke-input")) {
+                var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0); listener.Start(); var port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port; listener.Stop();
+                await runtime.ConfigureAsync(port, true, "", ""); await VerifyFolderInputAsync(); await runtime.StopAsync(); Close(); return;
+            }
             if (args.Contains("--smoke-enhancements")) { await DesktopEnhancementSmoke.RunAsync(runtime, this); Close(); return; }
             if (args.Contains("--smoke-automation")) { await RcloneAutomationSmokeTest.RunAsync(runtime, this); Close(); return; }
             if (args.Contains("--smoke-rclone")) { await RcloneSmokeTest.RunAsync(runtime); Close(); return; }
