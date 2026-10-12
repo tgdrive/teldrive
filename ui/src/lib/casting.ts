@@ -40,14 +40,45 @@ export function prepareGoogleCast(): Promise<void> {
       }
       resolve();
     };
-    const script = document.createElement("script");
-    script.src = "https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1";
-    script.async = true;
-    script.onerror = () => {
-      clearTimeout(timeout);
-      reject(new Error("No se pudo cargar Google Cast. Comprueba la conexión a Internet."));
+    const loadScript = (url: string, onload?: () => void) => {
+      const script = document.createElement("script");
+      script.src = url;
+      script.async = true;
+      script.onload = () => onload?.();
+      script.onerror = () => {
+        clearTimeout(timeout);
+        reject(new Error("No se pudo cargar Google Cast. Comprueba la conexión a Internet."));
+      };
+      document.head.append(script);
     };
-    document.head.append(script);
+    if (window.location.protocol === "http:") {
+      // Google's bootstrap chooses protocol-relative URLs. Load its two official
+      // SDK components over HTTPS when Teldrive is served on a local HTTP origin.
+      let baseAvailable = false;
+      let frameworkLoaded = false;
+      const ready = () => {
+        if (baseAvailable && frameworkLoaded && target.cast?.framework && target.chrome?.cast) {
+          clearTimeout(timeout);
+          resolve();
+        }
+      };
+      const available = target.__onGCastApiAvailable;
+      target.__onGCastApiAvailable = (value) => {
+        if (!value) {
+          available?.(false);
+          return;
+        }
+        baseAvailable = true;
+        ready();
+      };
+      loadScript("https://www.gstatic.com/cast/sdk/libs/sender/1.0/cast_framework.js", () => {
+        frameworkLoaded = true;
+        ready();
+      });
+      loadScript("https://www.gstatic.com/eureka/clank/cast_sender.js");
+    } else {
+      loadScript("https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1");
+    }
   }).catch((error) => {
     loading = undefined;
     throw error;

@@ -3,6 +3,39 @@ import { installFileApi, alphaId } from "./file-api.fixture";
 
 test.beforeEach(async ({ page }) => installFileApi(page));
 
+test("HTTP casting loads both Google SDK components through HTTPS", async ({ page }) => {
+  const requests: string[] = [];
+  await page.route("**/www.gstatic.com/**", async (route) => {
+    const url = route.request().url();
+    requests.push(url);
+    if (url.includes("cast_framework.js")) {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      await route.fulfill({
+        contentType: "application/javascript",
+        body: `window.cast={framework:{CastContext:{getInstance:()=>({setOptions(){},getCurrentSession(){return {loadMedia:async()=>{window.didCast=true}}},endCurrentSession(){}})}}};`,
+      });
+    } else {
+      await route.fulfill({
+        contentType: "application/javascript",
+        body: `window.chrome=window.chrome||{};window.chrome.cast={AutoJoinPolicy:{ORIGIN_SCOPED:"origin"},media:{DEFAULT_MEDIA_RECEIVER_APP_ID:"CC1AD845",MediaInfo:class{},GenericMediaMetadata:class{},LoadRequest:class{}}};window.__onGCastApiAvailable(true);`,
+      });
+    }
+  });
+  await page.goto(
+    "/cast#" +
+      new URLSearchParams({
+        url: "http://192.168.1.50/playback?ticket=temporary",
+        type: "video/mp4",
+      }),
+  );
+  await page.getByRole("button", { name: "Chromecast / Google Cast", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("Vídeo enviado");
+  expect(requests).toHaveLength(2);
+  expect(requests.every((url) => new URL(url).protocol === "https:")).toBe(true);
+  expect(requests.some((url) => url.includes("cast_framework.js"))).toBe(true);
+  expect(requests.some((url) => url.includes("clank/cast_sender.js"))).toBe(true);
+});
+
 test("storage follows trash and shared UI uses the application icon", async ({ page }) => {
   await page.goto("/files");
   if (test.info().project.name !== "chromium")
@@ -168,7 +201,12 @@ test("MKV selects audio, text/bitmap subtitles and sends selected tracks to DLNA
 test("casting page opens without a browser login and hands off to Google Cast", async ({
   page,
 }) => {
-  await page.route("**/api/v1/me", (route) => route.fulfill({status:401,json:{error:{code:"unauthorized",message:"Inicia sesión"}}}));
+  await page.route("**/api/v1/me", (route) =>
+    route.fulfill({
+      status: 401,
+      json: { error: { code: "unauthorized", message: "Inicia sesión" } },
+    }),
+  );
   await page.addInitScript(() => {
     let loaded: unknown;
     const session = {
