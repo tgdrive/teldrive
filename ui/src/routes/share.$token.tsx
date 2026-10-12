@@ -16,10 +16,11 @@ import { ApiError, userMessage } from "@/api/errors";
 import type { FileEntry, PublicShare } from "@/api/types";
 import { AppDialog } from "@/components/dialogs/app-dialog";
 import { Page, PageContent } from "@/components/page";
-import { FileBrowser, formatFileBytes, type FileBrowserView } from "@/features/files/file-browser";
+import { FileBrowser, type FileBrowserView } from "@/features/files/file-browser";
 import { copyText } from "@/features/files/download";
 import { newIdempotencyKey } from "@/features/shared/idempotency";
 import { useAppLocale } from "@/lib/locale";
+import { useFormatBytes } from "@/lib/format";
 
 export const Route = createFileRoute("/share/$token")({
   component: PublicSharePage,
@@ -47,6 +48,7 @@ function PublicSharePage() {
   const [renameName, setRenameName] = useState("");
   const [uploading, setUploading] = useState(false);
   const { t } = useAppLocale();
+  const formatBytes = useFormatBytes();
   const editable = share?.permission === "edit" && share.file.kind === "folder";
   const selectedIds =
     selectedKeys === "all" ? items.map((item) => item.id) : Array.from(selectedKeys, String);
@@ -337,7 +339,7 @@ function PublicSharePage() {
             <p className="text-sm font-semibold">Teldrive</p>
             <p className="truncate text-xs text-muted">
               {share
-                ? `${share.file.name} · ${share.file.kind === "folder" ? t("pub.sharedFolder") : formatFileBytes(share.file.size ?? 0)}`
+                ? `${share.file.name} · ${share.file.kind === "folder" ? t("pub.sharedFolder") : formatBytes(share.file.size ?? 0)}`
                 : t("pub.sharedItem")}
             </p>
           </div>

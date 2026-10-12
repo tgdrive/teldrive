@@ -12,6 +12,7 @@ import {
 } from "react-aria-components";
 import type { FileEntry } from "@/api/types";
 import { useAppLocale } from "@/lib/locale";
+import { useDateTimeFormatter, useFormatBytes } from "@/lib/format";
 import BackIcon from "~icons/gravity-ui/arrow-left";
 import UpIcon from "~icons/gravity-ui/chevron-up";
 import FolderIcon from "~icons/gravity-ui/folder";
@@ -348,6 +349,7 @@ function GridFile({
   onOpenContainingFolder?: () => void;
 }) {
   const { t } = useAppLocale();
+  const formatBytes = useFormatBytes();
   return (
     <>
       <div className="flex items-start gap-2">
@@ -366,7 +368,7 @@ function GridFile({
           <LocationButton location={location} onPress={onOpenContainingFolder} className="mt-1" />
         )}
         <p className="mt-1 text-[11px] text-muted">
-          {file.kind === "folder" ? t("browser.folderKind") : formatFileBytes(file.size ?? 0)}
+          {file.kind === "folder" ? t("browser.folderKind") : formatBytes(file.size ?? 0)}
         </p>
       </div>
     </>
@@ -387,6 +389,8 @@ function ListFile({
   onOpenContainingFolder?: () => void;
 }) {
   const { t } = useAppLocale();
+  const formatBytes = useFormatBytes();
+  const formatDateTime = useDateTimeFormatter();
   return (
     <>
       <div className="flex min-w-0 items-center gap-3">
@@ -415,13 +419,13 @@ function ListFile({
         </div>
       </div>
       <span className="hidden text-xs text-muted sm:block">
-        {file.kind === "folder" ? t("browser.folderKind") : formatFileBytes(file.size ?? 0)}
+        {file.kind === "folder" ? t("browser.folderKind") : formatBytes(file.size ?? 0)}
       </span>
       <span className="hidden min-w-0 text-xs text-muted lg:block">
         {location ? (
           <LocationButton location={location} onPress={onOpenContainingFolder} />
         ) : (
-          new Date(file.modTime).toLocaleString()
+          formatDateTime.format(new Date(file.modTime))
         )}
       </span>
     </>
@@ -513,11 +517,4 @@ function FileBrowserBreadcrumb({
       })}
     </nav>
   );
-}
-
-export function formatFileBytes(bytes: number) {
-  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-  return `${(bytes / 1024 ** index).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
 }

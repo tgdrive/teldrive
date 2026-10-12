@@ -10,6 +10,7 @@ import { $api } from "@/api/client";
 import { userMessage } from "@/api/errors";
 import { newIdempotencyKey } from "@/features/shared/idempotency";
 import { useAppLocale } from "@/lib/locale";
+import { useTimeOnlyFormatter } from "@/lib/format";
 import { getQueryClient } from "@/lib/queryClient";
 import { currentUserQueryOptions } from "@/auth/queries";
 
@@ -41,6 +42,7 @@ function isSession(value: unknown): value is CookieSession {
 function LoginPage() {
   const navigate = useNavigate();
   const { t } = useAppLocale();
+  const formatTime = useTimeOnlyFormatter();
   const { redirect } = Route.useSearch();
   const [method, setMethod] = useState<"phone" | "qr">("phone");
   const [step, setStep] = useState<Step>("phone");
@@ -266,7 +268,7 @@ function LoginPage() {
                   <p className="mt-1 text-xs text-muted">{t("login.scanHint")}</p>
                   <p className="mt-2 text-xs text-muted">
                     {t("login.expires")}{" "}
-                    {qrExpiry ? new Date(qrExpiry).toLocaleTimeString() : "soon"}
+                    {qrExpiry ? formatTime.format(new Date(qrExpiry)) : t("login.qrSoon")}
                   </p>
                 </div>
               </Tabs.Panel>

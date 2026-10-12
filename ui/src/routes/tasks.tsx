@@ -14,6 +14,7 @@ import { $api as api, fetchClient } from "@/api/client";
 import { queryClient } from "@/api/query-client";
 import { invalidateTaskQueries } from "@/api/tasks";
 import { useAppLocale } from "@/lib/locale";
+import { useDateOnlyFormatter, useDateTimeFormatter } from "@/lib/format";
 
 type TaskOut = components["schemas"]["Job"];
 type TaskCounts = components["schemas"]["JobStatistics"];
@@ -392,6 +393,8 @@ function TaskRow({
   const title = `${task.type} #${task.id}`;
   const canRetry = ["cancelled", "discarded", "retryable"].includes(task.status);
   const { t } = useAppLocale();
+  const formatDateTime = useDateTimeFormatter();
+  const formatDateOnly = useDateOnlyFormatter();
 
   return (
     <ListBox.Item
@@ -423,8 +426,8 @@ function TaskRow({
               {t("tasks.queueLine", { queue: task.queue || "default" })}
             </span>
             <span className="shrink-0">{taskDuration(task)}</span>
-            <span className="truncate" title={formatDate(task.createdAt)}>
-              {formatRelativeDate(t, task.createdAt)}
+            <span className="truncate" title={formatDateTime.format(new Date(task.createdAt))}>
+              {formatRelativeDate(t, formatDateOnly, task.createdAt)}
             </span>
             {(task.attempt ?? 0) > 0 ? (
               <span className="hidden shrink-0 sm:inline lg:hidden">
@@ -613,11 +616,9 @@ function QueueManager({ queues, onChanged }: { queues: TaskQueueOut[]; onChanged
   );
 }
 
-function formatDate(value: string) {
-  return new Date(value).toLocaleString();
-}
 function formatRelativeDate(
   t: (key: string, vars?: Record<string, string | number>) => string,
+  formatDateOnly: Intl.DateTimeFormat,
   value: string,
 ) {
   const seconds = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 1000));
@@ -627,7 +628,7 @@ function formatRelativeDate(
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return t("tasks.time.hour", { h: hours });
   const days = Math.floor(hours / 24);
-  return days < 7 ? t("tasks.time.day", { d: days }) : new Date(value).toLocaleDateString();
+  return days < 7 ? t("tasks.time.day", { d: days }) : formatDateOnly.format(new Date(value));
 }
 
 function taskDuration(task: TaskOut) {

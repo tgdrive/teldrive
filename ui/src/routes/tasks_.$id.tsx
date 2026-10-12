@@ -17,6 +17,7 @@ import { $api as api, fetchClient } from "@/api/client";
 import { queryClient } from "@/api/query-client";
 import { invalidateTaskQueries } from "@/api/tasks";
 import { useAppLocale } from "@/lib/locale";
+import { useDateTimeFormatter, useFormatBytes } from "@/lib/format";
 
 type TaskOut = components["schemas"]["Job"];
 type TaskAttemptError = components["schemas"]["JobAttemptError"];
@@ -263,6 +264,7 @@ function Fact({
 
 function Timeline({ task }: { task: TaskOut }) {
   const { t } = useAppLocale();
+  const formatDateTime = useDateTimeFormatter();
   const errors = task.errors ?? [];
   const steps = [
     { label: t("taskDetail.tl.created"), at: task.createdAt, state: "done", kind: "created" },
@@ -335,7 +337,9 @@ function Timeline({ task }: { task: TaskOut }) {
           <div className="min-w-0">
             <div className="text-sm font-medium">{step.label}</div>
             <div className="mt-0.5 text-xs text-muted">
-              {step.at ? `${formatRelative(t, step.at)} · ${formatDate(step.at)}` : "—"}
+              {step.at
+                ? `${formatRelative(t, step.at)} · ${formatDateTime.format(new Date(step.at))}`
+                : "—"}
             </div>
           </div>
         </li>
@@ -508,6 +512,9 @@ function missingPartCount(entry: BrokenFileEntry): number {
 
 function BrokenFilesCard({ files, truncated }: { files: BrokenFileEntry[]; truncated: boolean }) {
   const { t } = useAppLocale();
+  const formatBytes = useFormatBytes();
+  const formatPartSize = (value: unknown) =>
+    typeof value !== "number" || !Number.isFinite(value) || value < 0 ? "—" : formatBytes(value);
   return (
     <Card className="overflow-hidden p-0">
       <div className="flex flex-wrap items-center justify-between gap-2 border-border border-b px-5 py-3.5">
@@ -535,7 +542,7 @@ function BrokenFilesCard({ files, truncated }: { files: BrokenFileEntry[]; trunc
             <span className="min-w-0 flex-1 truncate text-sm font-medium">
               {typeof file.name === "string" && file.name ? file.name : t("taskDetail.unnamed")}
             </span>
-            <span className="text-xs text-muted">{formatBytes(file.size)}</span>
+            <span className="text-xs text-muted">{formatPartSize(file.size)}</span>
             <span className="text-xs text-muted">
               {t(
                 missingPartCount(file) === 1 ? "taskDetail.missingOne" : "taskDetail.missingMany",
@@ -559,14 +566,6 @@ function downloadJsonFile(filename: string, value: unknown) {
   anchor.click();
   anchor.remove();
   URL.revokeObjectURL(url);
-}
-
-function formatBytes(value: unknown): string {
-  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return "—";
-  if (value === 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  const index = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1);
-  return `${(value / 1024 ** index).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
 }
 
 function sortJsonKeys(value: unknown): unknown {
@@ -647,10 +646,6 @@ function hasJsonValue(value: unknown) {
   if (Array.isArray(value)) return value.length > 0;
   if (typeof value === "object") return Object.keys(value).length > 0;
   return true;
-}
-
-function formatDate(value: string) {
-  return new Date(value).toLocaleString();
 }
 
 function formatRelative(

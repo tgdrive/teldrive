@@ -14,6 +14,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { FileEntry } from "@/api/types";
 import { startFileDownload } from "@/features/files/download";
 import { useAppLocale } from "@/lib/locale";
+import { useFormatBytes } from "@/lib/format";
 import {
   applyPublicationAppearance,
   closePublication,
@@ -477,6 +478,7 @@ function EpubNavigation({
   onNavigate: (href: string) => void;
 }) {
   const { t } = useAppLocale();
+  const formatBytes = useFormatBytes();
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="border-b border-(--reader-border) px-5 py-4">
@@ -779,13 +781,6 @@ function locationLabel(
   if (location.current !== undefined && location.total)
     return t("reader.pageOf", { current: location.current + 1, total: location.total });
   return `${Math.round(progress * 100)}%`;
-}
-
-function formatBytes(value: number) {
-  if (!value) return "0 B";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  const index = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1);
-  return `${(value / 1024 ** index).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
 }
 
 function isEditableTarget(target: EventTarget | null) {

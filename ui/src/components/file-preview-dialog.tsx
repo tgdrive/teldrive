@@ -5,6 +5,7 @@ import { fileContentUrl, startFileDownload } from "@/features/files/download";
 import { previewMedia, supportsCodePreview } from "@/features/files/preview-support";
 import { readerKind } from "@/features/files/reader-support";
 import { useAppLocale } from "@/lib/locale";
+import { useFormatBytes } from "@/lib/format";
 type ViewerKind = "image" | "video" | "audio" | "pdf" | "ebook" | "text";
 import DownloadIcon from "~icons/gravity-ui/arrow-down-to-line";
 import RotateIcon from "~icons/gravity-ui/arrow-rotate-left";
@@ -31,6 +32,7 @@ export function FilePreviewDialog({
 }) {
   const closeFrame = useRef<number>(undefined);
   const { t } = useAppLocale();
+  const formatBytes = useFormatBytes();
   const contentUrl = file ? fileContentUrl(file) : "";
   const kind = file ? viewerKind(file) : undefined;
   const isReader = kind === "pdf" || kind === "ebook";
@@ -296,13 +298,6 @@ function formatLabel(kind: ViewerKind, t: (key: string) => string) {
     text: t("preview.kindText"),
   }[kind];
 }
-function formatBytes(value: number) {
-  if (!value) return "0 B";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  const index = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1);
-  return `${(value / 1024 ** index).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
-}
-
 export function isPreviewable(file: FileEntry) {
   return viewerKind(file) !== undefined;
 }

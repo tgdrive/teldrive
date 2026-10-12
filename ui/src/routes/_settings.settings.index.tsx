@@ -7,6 +7,7 @@ import { useCurrentUser } from "@/auth/use-current-user";
 import { SettingsPageHeader, SettingsRow, SettingsSection } from "@/components/settings-layout";
 import { getQueryClient } from "@/lib/queryClient";
 import { useAppLocale } from "@/lib/locale";
+import { useCountFormatter, useDateTimeFormatter, useFormatBytes } from "@/lib/format";
 import LogoutIcon from "~icons/gravity-ui/arrow-right-from-square";
 
 export const Route = createFileRoute("/_settings/settings/")({
@@ -18,16 +19,12 @@ export const Route = createFileRoute("/_settings/settings/")({
   ),
 });
 
-function formatBytes(bytes: number) {
-  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB", "TB", "PB"];
-  const power = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-  return `${(bytes / 1024 ** power).toFixed(power === 0 ? 0 : 1)} ${units[power]}`;
-}
-
 function AccountSettings() {
   const navigate = useNavigate();
   const { t } = useAppLocale();
+  const formatBytes = useFormatBytes();
+  const formatCount = useCountFormatter();
+  const formatDateTime = useDateTimeFormatter();
   const user = useCurrentUser();
   const stats = $api.useSuspenseQuery(
     "get",
@@ -96,19 +93,23 @@ function AccountSettings() {
         </SettingsRow>
         <SettingsRow label={t("account.created")} description={t("account.createdDesc")}>
           <p className="text-right text-sm text-muted">
-            {new Date(user.data.createdAt).toLocaleString()}
+            {formatDateTime.format(new Date(user.data.createdAt))}
           </p>
         </SettingsRow>
       </SettingsSection>
       <SettingsSection title={t("account.stats")} description={t("account.statsDesc")}>
         <SettingsRow label={t("account.files")}>
-          <p className="text-right font-mono text-sm">{stats.data.totalFiles.toLocaleString()}</p>
+          <p className="text-right font-mono text-sm">
+            {formatCount.format(stats.data.totalFiles)}
+          </p>
         </SettingsRow>
         <SettingsRow label={t("account.stored")}>
           <p className="text-right font-mono text-sm">{formatBytes(stats.data.totalBytes)}</p>
         </SettingsRow>
         <SettingsRow label={t("account.openUploads")}>
-          <p className="text-right font-mono text-sm">{stats.data.openUploads.toLocaleString()}</p>
+          <p className="text-right font-mono text-sm">
+            {formatCount.format(stats.data.openUploads)}
+          </p>
         </SettingsRow>
       </SettingsSection>
     </div>

@@ -20,6 +20,7 @@ import { copyText } from "@/features/files/download";
 import { newIdempotencyKey } from "@/features/shared/idempotency";
 import { getQueryClient } from "@/lib/queryClient";
 import { useAppLocale } from "@/lib/locale";
+import { useDateTimeFormatter } from "@/lib/format";
 
 type Permission = "read" | "edit";
 type ExpirationMode = "never" | "1h" | "1d" | "7d" | "30d" | "custom";
@@ -54,6 +55,7 @@ export function ShareDialog({
   const [linkDuration, setLinkDuration] = useState("1d");
   const [createdUrl, setCreatedUrl] = useState("");
   const { t } = useAppLocale();
+  const formatDateTime = useDateTimeFormatter();
 
   useEffect(() => {
     setPeopleSearch("");
@@ -251,7 +253,7 @@ export function ShareDialog({
                     <p className="mt-0.5 truncate text-xs text-muted">
                       {grant.expiresAt
                         ? t("share.expiresOn", {
-                            date: new Date(grant.expiresAt).toLocaleString(),
+                            date: formatDateTime.format(new Date(grant.expiresAt)),
                           })
                         : t("share.noExpiration")}
                     </p>
@@ -408,7 +410,7 @@ export function ShareDialog({
                         count: link.downloadCount,
                       })}
                       {link.expiresAt
-                        ? ` · ${t("share.expiresOn", { date: new Date(link.expiresAt).toLocaleString() })}`
+                        ? ` · ${t("share.expiresOn", { date: formatDateTime.format(new Date(link.expiresAt)) })}`
                         : ` · ${t("share.noExpiration")}`}
                     </p>
                   </div>

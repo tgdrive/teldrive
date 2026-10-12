@@ -11,6 +11,7 @@ import type { FileEntry } from "@/api/types";
 import { ConfirmDialog } from "@/components/dialogs/confirm-dialog";
 import { EmptyState, Page, PageContent, PageHeader } from "@/components/page";
 import { useAppLocale } from "@/lib/locale";
+import { useDateTimeFormatter } from "@/lib/format";
 import { FileTypeIcon } from "@/features/files/file-type-icon";
 import { useFileActions } from "@/features/files/mutations";
 import { useFilePage } from "@/features/files/queries";
@@ -38,6 +39,7 @@ function TrashPage() {
   const [purging, setPurging] = useState<FileEntry>();
   const [cleaningTrash, setCleaningTrash] = useState(false);
   const { t } = useAppLocale();
+  const formatDateTime = useDateTimeFormatter();
 
   const restore = async (file: FileEntry) => {
     try {
@@ -115,7 +117,7 @@ function TrashPage() {
                       <p className="truncate text-sm font-medium">{file.name}</p>
                       <p className="mt-0.5 text-xs text-muted">
                         {t("trash.deletedOn", {
-                          date: new Date(file.updatedAt).toLocaleString(),
+                          date: formatDateTime.format(new Date(file.updatedAt)),
                         })}
                       </p>
                     </div>

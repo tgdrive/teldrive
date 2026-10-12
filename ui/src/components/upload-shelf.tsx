@@ -4,6 +4,7 @@ import { Button as AriaButton, Tree, TreeItem, TreeItemContent } from "react-ari
 import { type UploadTask, useUploadStore } from "@/features/uploads/store";
 import { FileTypeIcon } from "@/features/files/file-type-icon";
 import { useAppLocale } from "@/lib/locale";
+import { useFormatBytes } from "@/lib/format";
 import UploadIcon from "~icons/gravity-ui/arrow-up-from-line";
 import ChevronDownIcon from "~icons/gravity-ui/chevron-down";
 import ChevronRightIcon from "~icons/gravity-ui/chevron-right";
@@ -22,13 +23,6 @@ type UploadNode = {
   tasks: UploadTask[];
   task?: UploadTask;
 };
-
-function formatBytes(bytes: number) {
-  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  const power = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-  return `${(bytes / 1024 ** power).toFixed(power === 0 ? 0 : 1)} ${units[power]}`;
-}
 
 function buildTree(tasks: UploadTask[]) {
   const batches = new Map<string, UploadNode>();
@@ -156,6 +150,7 @@ function TaskActions({ task }: { task: UploadTask }) {
 function UploadTreeItem({ node, root = false }: { node: UploadNode; root?: boolean }) {
   const summary = summarize(node.tasks);
   const { t } = useAppLocale();
+  const formatBytes = useFormatBytes();
   const hasChildren = node.children.length > 0;
   const detail =
     node.kind === "file"
@@ -238,6 +233,7 @@ export function UploadShelf() {
   const clearCompleted = useUploadStore((state) => state.clearCompleted);
   const [expanded, setExpanded] = useState(true);
   const { t } = useAppLocale();
+  const formatBytes = useFormatBytes();
   if (tasks.length === 0) return null;
 
   const tree = buildTree(tasks);

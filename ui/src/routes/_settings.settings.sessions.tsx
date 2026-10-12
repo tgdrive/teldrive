@@ -9,6 +9,7 @@ import { ConfirmDialog } from "@/components/dialogs/confirm-dialog";
 import { SettingsPageHeader, SettingsRow, SettingsSection } from "@/components/settings-layout";
 import { getQueryClient } from "@/lib/queryClient";
 import { useAppLocale } from "@/lib/locale";
+import { useDateTimeFormatter } from "@/lib/format";
 
 export const Route = createFileRoute("/_settings/settings/sessions")({
   component: SessionsSettings,
@@ -22,6 +23,7 @@ export const Route = createFileRoute("/_settings/settings/sessions")({
 function SessionsSettings() {
   const [revokeSessionId, setRevokeSessionId] = useState<string | null>(null);
   const { t } = useAppLocale();
+  const formatDateTime = useDateTimeFormatter();
   const query = $api.useSuspenseQuery(
     "get",
     "/v1/sessions",
@@ -53,8 +55,8 @@ function SessionsSettings() {
               key={session.id}
               label={t(session.current ? "sessions.current" : "sessions.other")}
               description={t("sessions.createdLine", {
-                created: new Date(session.createdAt).toLocaleString(),
-                expires: new Date(session.expiresAt).toLocaleString(),
+                created: formatDateTime.format(new Date(session.createdAt)),
+                expires: formatDateTime.format(new Date(session.expiresAt)),
               })}
             >
               <div className="flex items-center justify-end gap-2">

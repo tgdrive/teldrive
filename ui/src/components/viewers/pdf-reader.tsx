@@ -40,6 +40,7 @@ import {
 import type { FileEntry } from "@/api/types";
 import { AppDialog } from "@/components/dialogs/app-dialog";
 import { useAppLocale } from "@/lib/locale";
+import { useFormatBytes } from "@/lib/format";
 import UndoIcon from "~icons/gravity-ui/arrow-rotate-left";
 import DownloadIcon from "~icons/gravity-ui/arrow-down-to-line";
 import RotateIcon from "~icons/gravity-ui/arrow-rotate-right";
@@ -169,6 +170,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
   const [passwordChallenge, setPasswordChallenge] = useState<PasswordChallenge>();
   const [passwordDraft, setPasswordDraft] = useState("");
   const { t } = useAppLocale();
+  const formatBytes = useFormatBytes();
 
   closeRef.current = onClose;
   const activeEditorTool =
@@ -2129,11 +2131,4 @@ function inNestedOverlay(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
   const overlay = target.closest('[role="dialog"]');
   return overlay !== null && overlay.querySelector("[data-pdf-reader]") === null;
-}
-
-function formatBytes(value: number) {
-  if (!value) return "0 B";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  const index = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1);
-  return `${(value / 1024 ** index).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
 }

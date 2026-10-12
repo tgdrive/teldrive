@@ -10,6 +10,7 @@ import { SettingsPageHeader, SettingsRow, SettingsSection } from "@/components/s
 import { newIdempotencyKey } from "@/features/shared/idempotency";
 import { getQueryClient } from "@/lib/queryClient";
 import { useAppLocale } from "@/lib/locale";
+import { useDateTimeFormatter } from "@/lib/format";
 
 export const Route = createFileRoute("/_settings/settings/bots")({
   component: BotsSettings,
@@ -27,6 +28,7 @@ function BotsSettings() {
   const [provisionBot, setProvisionBot] = useState<{ id: number; name: string } | null>(null);
   const [provisionAllOpen, setProvisionAllOpen] = useState(false);
   const { t } = useAppLocale();
+  const formatDateTime = useDateTimeFormatter();
   const query = $api.useSuspenseQuery(
     "get",
     "/v1/bots",
@@ -172,7 +174,7 @@ function BotsSettings() {
               key={bot.id}
               label={`@${bot.username || `bot-${bot.id}`}`}
               description={t("bots.addedAt", {
-                date: new Date(bot.createdAt).toLocaleString(),
+                date: formatDateTime.format(new Date(bot.createdAt)),
               })}
             >
               <div className="flex items-center justify-end gap-2">

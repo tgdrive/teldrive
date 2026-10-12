@@ -8,6 +8,7 @@ import type { components } from "@/api/schema";
 import { LinkButton } from "@/components/link-button";
 import { Page, PageHeader } from "@/components/page";
 import { useAppLocale } from "@/lib/locale";
+import { useCountFormatter, useDateOnlyFormatter, useFormatBytes } from "@/lib/format";
 
 type StorageActivity = components["schemas"]["StorageActivity"];
 type StorageGrowthPoint = components["schemas"]["StorageGrowthPoint"];
@@ -77,6 +78,8 @@ export const Route = createFileRoute("/storage")({
 function StoragePage() {
   const { data } = $api.useSuspenseQuery("get", "/v1/storage/stats");
   const { t } = useAppLocale();
+  const formatBytes = useFormatBytes();
+  const formatCount = useCountFormatter();
   const summary = data.summary;
   const configuredChannels = data.channels.length;
   const selectedChannels = data.channels.filter((channel) => channel.selected).length;
@@ -96,23 +99,25 @@ function StoragePage() {
         />
         <StatCard
           label={t("storage.active")}
-          value={summary.activeFiles.toLocaleString()}
-          detail={t("storage.folders", { count: summary.activeFolders.toLocaleString() })}
+          value={formatCount.format(summary.activeFiles)}
+          detail={t("storage.folders", { count: formatCount.format(summary.activeFolders) })}
         />
         <StatCard
           label={t("storage.trash")}
           value={formatBytes(summary.trashBytes)}
-          detail={t("storage.trashedFiles", { count: summary.trashedFiles.toLocaleString() })}
+          detail={t("storage.trashedFiles", { count: formatCount.format(summary.trashedFiles) })}
         />
         <StatCard
           label={t("storage.channels")}
-          value={configuredChannels.toLocaleString()}
-          detail={t("storage.selectedCount", { count: selectedChannels.toLocaleString() })}
+          value={formatCount.format(configuredChannels)}
+          detail={t("storage.selectedCount", { count: formatCount.format(selectedChannels) })}
         />
         <StatCard
           label={t("storage.reclaimable")}
           value={formatBytes(data.cleanup.totalReclaimableBytes)}
-          detail={t("storage.staleUploads", { count: data.cleanup.staleUploads.toLocaleString() })}
+          detail={t("storage.staleUploads", {
+            count: formatCount.format(data.cleanup.staleUploads),
+          })}
         />
       </div>
 
@@ -152,7 +157,7 @@ function StoragePage() {
                     <span className="text-muted">
                       {t("storage.filesLine", {
                         bytes: formatBytes(category.totalSize),
-                        count: category.totalFiles.toLocaleString(),
+                        count: formatCount.format(category.totalFiles),
                       })}
                     </span>
                   </div>
@@ -197,7 +202,7 @@ function StoragePage() {
                       </div>
                       <div className="mt-1 text-xs text-muted">
                         {t("storage.parts", {
-                          count: channel.partCount.toLocaleString(),
+                          count: formatCount.format(channel.partCount),
                           pct: percent.toFixed(1),
                         })}
                       </div>
@@ -231,7 +236,7 @@ function StoragePage() {
               label={t("storage.staleRow")}
               value={formatBytes(data.cleanup.staleUploadBytes)}
               detail={t("storage.sessions", {
-                count: data.cleanup.staleUploads.toLocaleString(),
+                count: formatCount.format(data.cleanup.staleUploads),
               })}
             />
             <MetricRow
@@ -323,6 +328,7 @@ function MetricRow({
 
 function ActivityRow({ activity }: { activity: StorageActivity }) {
   const { t } = useAppLocale();
+  const formatDateOnly = useDateOnlyFormatter();
   return (
     <div className="flex items-start justify-between gap-4 px-4 py-3">
       <div className="min-w-0">
@@ -330,7 +336,7 @@ function ActivityRow({ activity }: { activity: StorageActivity }) {
         <div className="truncate text-xs text-muted">{activity.label}</div>
       </div>
       <time className="shrink-0 text-xs text-muted" dateTime={activity.occurredAt}>
-        {formatRelative(t, activity.occurredAt)}
+        {formatRelative(t, formatDateOnly, activity.occurredAt)}
       </time>
     </div>
   );
@@ -338,6 +344,8 @@ function ActivityRow({ activity }: { activity: StorageActivity }) {
 
 function StorageGrowthChart({ points }: { points: StorageGrowthPoint[] }) {
   const { t } = useAppLocale();
+  const formatBytes = useFormatBytes();
+  const formatDateOnly = useDateOnlyFormatter();
   if (points.length === 0) return <EmptyCopy>{t("storage.noHistory")}</EmptyCopy>;
   const width = 960;
   const height = 220;
@@ -395,9 +403,9 @@ function StorageGrowthChart({ points }: { points: StorageGrowthPoint[] }) {
         </svg>
       </div>
       <div className="flex items-center justify-between text-xs text-muted">
-        <span>{new Date(points[0].day).toLocaleDateString()}</span>
+        <span>{formatDateOnly.format(new Date(points[0].day))}</span>
         <span>{formatBytes(points.at(-1)?.logicalBytes ?? 0)}</span>
-        <span>{new Date(points.at(-1)?.day ?? points[0].day).toLocaleDateString()}</span>
+        <span>{formatDateOnly.format(new Date(points.at(-1)?.day ?? points[0].day))}</span>
       </div>
     </div>
   );
@@ -407,16 +415,9 @@ function EmptyCopy({ children }: { children: React.ReactNode }) {
   return <div className="px-4 py-8 text-center text-sm text-muted">{children}</div>;
 }
 
-function formatBytes(bytes: number) {
-  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB", "TB", "PB"];
-  const power = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-  const value = bytes / 1024 ** power;
-  return `${value.toFixed(value >= 100 || power === 0 ? 0 : value >= 10 ? 1 : 2)} ${units[power]}`;
-}
-
 function formatRelative(
   t: (key: string, vars?: Record<string, string | number>) => string,
+  formatDateOnly: Intl.DateTimeFormat,
   value: string,
 ) {
   const delta = Math.max(0, Date.now() - new Date(value).getTime());
@@ -426,5 +427,5 @@ function formatRelative(
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return t("tasks.time.hour", { h: hours });
   const days = Math.floor(hours / 24);
-  return days < 7 ? t("tasks.time.day", { d: days }) : new Date(value).toLocaleDateString();
+  return days < 7 ? t("tasks.time.day", { d: days }) : formatDateOnly.format(new Date(value));
 }

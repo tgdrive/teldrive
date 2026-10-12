@@ -12,6 +12,7 @@ import { SettingsPageHeader, SettingsRow, SettingsSection } from "@/components/s
 import { newIdempotencyKey } from "@/features/shared/idempotency";
 import { getQueryClient } from "@/lib/queryClient";
 import { useAppLocale } from "@/lib/locale";
+import { useDateTimeFormatter } from "@/lib/format";
 
 export const Route = createFileRoute("/_settings/settings/api-keys")({
   component: ApiKeysSettings,
@@ -22,8 +23,8 @@ export const Route = createFileRoute("/_settings/settings/api-keys")({
   ),
 });
 
-function formatDate(value?: string | null) {
-  return value ? new Date(value).toLocaleString() : undefined;
+function formatDate(value: string | null | undefined, formatDateTime: Intl.DateTimeFormat) {
+  return value ? formatDateTime.format(new Date(value)) : undefined;
 }
 
 function ApiKeysSettings() {
@@ -31,6 +32,7 @@ function ApiKeysSettings() {
   const [created, setCreated] = useState<ApiKeyCreated>();
   const [revokeKey, setRevokeKey] = useState<{ id: string; name: string } | null>(null);
   const { t } = useAppLocale();
+  const formatDateTime = useDateTimeFormatter();
   const query = $api.useSuspenseQuery(
     "get",
     "/v1/api-keys",
@@ -114,8 +116,8 @@ function ApiKeysSettings() {
               key={item.id}
               label={item.name}
               description={t("keys.createdLine", {
-                created: formatDate(item.createdAt) ?? t("keys.never"),
-                used: formatDate(item.lastUsedAt) ?? t("keys.never"),
+                created: formatDate(item.createdAt, formatDateTime) ?? t("keys.never"),
+                used: formatDate(item.lastUsedAt, formatDateTime) ?? t("keys.never"),
               })}
             >
               <div className="flex justify-end">
