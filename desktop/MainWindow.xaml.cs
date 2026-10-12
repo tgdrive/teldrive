@@ -108,7 +108,16 @@ public partial class MainWindow : Window
             try {
                 if (currentOperation is not null) { try { await currentOperation; } catch { /* Guard already reports the operation failure; cleanup must still run. */ } }
                 if (automation is not null) await automation.DisposeAsync();
-                await StopPlayersAsync(); await rclone.DisposeAsync(); await runtime.DisposeAsync(); tray?.Dispose(); Browser.Dispose(); closed = true; Close(); Application.Current.Shutdown();
+                void ShutdownStage(string stage) { if (smoke) File.AppendAllText(Path.Combine(runtime.DataRoot, "shutdown-smoke.log"), stage + "\n"); }
+                ShutdownStage("players"); await StopPlayersAsync();
+                ShutdownStage("rclone"); await rclone.DisposeAsync();
+                ShutdownStage("runtime"); await runtime.DisposeAsync();
+                ShutdownStage("tray"); tray?.Dispose();
+                ShutdownStage("browser"); Browser.Dispose();
+                // Finish the current Closing event before requesting application shutdown.
+                // An already-stopped runtime can complete cleanup synchronously.
+                ShutdownStage("application"); closed = true;
+                _ = Dispatcher.BeginInvoke(() => Application.Current.Shutdown());
             }
             catch (Exception error) { closing = false; MessageBox.Show(error.Message, "No se pudieron detener los servicios"); }
         };

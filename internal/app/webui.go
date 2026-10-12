@@ -34,7 +34,7 @@ func (h webUIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	w.Header().Set("Content-Security-Policy", "default-src 'self' blob:; script-src 'self' https://www.gstatic.com; style-src 'self' 'unsafe-inline' blob:; img-src 'self' data: blob:; media-src 'self' blob: http: https:; font-src 'self' data: blob:; connect-src 'self' data: blob: https://www.gstatic.com https://www.google.com; worker-src 'self' blob:; frame-src blob: data: https://www.google.com; object-src 'none'; base-uri 'self'; form-action 'self'")
+	w.Header().Set("Content-Security-Policy", "default-src 'self' blob:; script-src 'self' https://www.gstatic.com; style-src 'self' 'unsafe-inline' blob:; img-src 'self' data: blob:; media-src 'self' blob: http: https:; font-src 'self' data: blob:; connect-src 'self' data: blob: https://www.gstatic.com https://www.google.com; worker-src 'self' blob:; frame-src blob: data: https://www.google.com https://www.gstatic.com; object-src 'none'; base-uri 'self'; form-action 'self'")
 	requested := strings.TrimPrefix(path.Clean("/"+r.URL.Path), "/")
 	if requested == "." || requested == "" {
 		requested = "index.html"
