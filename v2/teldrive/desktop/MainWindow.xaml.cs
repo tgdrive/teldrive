@@ -48,7 +48,7 @@ public partial class MainWindow : Window
                 if (automation is not null) tray?.QueueState(automation.State.Paused, automation.State.Queue.Count(item => item.State is "waiting" or "running"));
             } catch (Exception error) { automationTimer.Stop(); Status.Text = "Programador detenido: " + error.Message; RestoreFromTray(); }
         };
-        runtime.Activity += line => Dispatcher.BeginInvoke(() => { Logs.AppendText(line + "\n"); Logs.ScrollToEnd(); });
+        runtime.Activity += line => Dispatcher.BeginInvoke(() => { if (Logs.Text.Length > 200000) Logs.Text = Logs.Text[^100000..]; Logs.AppendText(line + "\n"); Logs.ScrollToEnd(); });
         Loaded += async (_, _) => await Guard(async () => {
             var startupSmoke = args.Contains("--smoke-startup-tray");
             if (!smoke || startupSmoke) {
@@ -57,6 +57,7 @@ public partial class MainWindow : Window
                 if (requestedStartHidden) { Opacity = 0; ShowInTaskbar = false; ShowActivated = false; tray!.HideWindowIcon(); }
             }
             await runtime.PrepareAsync();
+            if (args.Contains("--smoke-enhancements")) { await DesktopEnhancementSmoke.RunAsync(runtime, this); Close(); return; }
             if (args.Contains("--smoke-automation")) { await RcloneAutomationSmokeTest.RunAsync(runtime, this); Close(); return; }
             if (args.Contains("--smoke-rclone")) { await RcloneSmokeTest.RunAsync(runtime); Close(); return; }
             if (args.Contains("--smoke-server")) {
@@ -107,7 +108,16 @@ public partial class MainWindow : Window
             try {
                 if (currentOperation is not null) { try { await currentOperation; } catch { /* Guard already reports the operation failure; cleanup must still run. */ } }
                 if (automation is not null) await automation.DisposeAsync();
-                await StopPlayersAsync(); await rclone.DisposeAsync(); await runtime.DisposeAsync(); tray?.Dispose(); Browser.Dispose(); closed = true; Close();
+                void ShutdownStage(string stage) { if (smoke) File.AppendAllText(Path.Combine(runtime.DataRoot, "shutdown-smoke.log"), stage + "\n"); }
+                ShutdownStage("players"); await StopPlayersAsync();
+                ShutdownStage("rclone"); await rclone.DisposeAsync();
+                ShutdownStage("runtime"); await runtime.DisposeAsync();
+                ShutdownStage("tray"); tray?.Dispose();
+                ShutdownStage("browser"); Browser.Dispose();
+                // Finish the current Closing event before requesting application shutdown.
+                // An already-stopped runtime can complete cleanup synchronously.
+                ShutdownStage("application"); closed = true;
+                _ = Dispatcher.BeginInvoke(() => Application.Current.Shutdown());
             }
             catch (Exception error) { closing = false; MessageBox.Show(error.Message, "No se pudieron detener los servicios"); }
         };
@@ -132,6 +142,11 @@ public partial class MainWindow : Window
     private async Task InitializeBrowser()
     {
         if (Browser.CoreWebView2 is not null) return;
+        // Composition initialization needs a measured visual surface. Preparing
+        // it while collapsed leaves EnsureCoreWebView2Async waiting indefinitely.
+        Browser.Visibility = Visibility.Visible;
+        Browser.UpdateLayout();
+        await Dispatcher.Yield(DispatcherPriority.Loaded);
         try { _ = CoreWebView2Environment.GetAvailableBrowserVersionString(); }
         catch (WebView2RuntimeNotFoundException) {
             Status.Text = "Preparando WebView2 integrado…";
@@ -172,7 +187,7 @@ public partial class MainWindow : Window
         tray = new DesktopTray(RestoreFromTray, () => { RestoreFromTray(); ShowAdvanced(); }, () => { automation.ConfigureQueue(!automation.State.Paused, automation.State.ParallelJobs); AdvancedView.Refresh(); }, ExitDesktop);
         tray.Apply(preferences, false);
         automation.Finished += item => { if (preferences.NotifyFinished) tray.Notify(item); };
-        AdvancedView.Initialize(automation, preferences, SavePreferences, HideToTray, ExitDesktop);
+        AdvancedView.Initialize(automation, preferences, SavePreferences, HideToTray, ExitDesktop, rclone);
         automationTimer.Start();
     }
     private void SavePreferences(DesktopPreferences value)
@@ -223,20 +238,32 @@ public partial class MainWindow : Window
     private async void ReceiveNativeMessage(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
     {
         if (closing || !runtime.Running || runtime.ServerUri is null || !Uri.TryCreate(e.Source, UriKind.Absolute, out var source)
-            || source.GetLeftPart(UriPartial.Authority) != runtime.ServerUri.GetLeftPart(UriPartial.Authority)
-            || source.AbsolutePath is not ("/settings/rclone" or "/settings/server")) return;
+            || source.GetLeftPart(UriPartial.Authority) != runtime.ServerUri.GetLeftPart(UriPartial.Authority)) return;
         string? id = null;
         try {
-            if (e.WebMessageAsJson.Length > 1024 * 1024) throw new IOException("La solicitud es demasiado grande.");
+            if (e.WebMessageAsJson.Length > 4 * 1024 * 1024) throw new IOException("La solicitud es demasiado grande.");
             using var message = JsonDocument.Parse(e.WebMessageAsJson);
             id = message.RootElement.GetProperty("id").GetString();
             if (id is null || !Guid.TryParse(id, out _)) return;
-            await RequireOwnerAsync();
             var method = message.RootElement.GetProperty("method").GetString();
+            if (method != "casting.open-browser" && source.AbsolutePath is not ("/settings/rclone" or "/settings/server")) return;
+            await RequireOwnerAsync();
             var parameters = message.RootElement.GetProperty("params");
             string Get(string key) => parameters.GetProperty(key).GetString() ?? "";
             object? result;
             switch (method) {
+                case "casting.open-browser":
+                    if (!Uri.TryCreate(Get("url"), UriKind.Absolute, out var castingUrl) || castingUrl.GetLeftPart(UriPartial.Authority) != runtime.ServerUri.GetLeftPart(UriPartial.Authority) || castingUrl.AbsolutePath != "/cast") throw new ArgumentException("Enlace de transmisión no válido.");
+                    var chrome = new[] { Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Google", "Chrome", "Application", "chrome.exe"), Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Google", "Chrome", "Application", "chrome.exe"), Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Google", "Chrome", "Application", "chrome.exe") }.FirstOrDefault(File.Exists);
+                    if (chrome is null) throw new IOException("Instala Chrome para usar Chromecast o abre el enlace en un navegador compatible.");
+                    var castBrowser = new ProcessStartInfo(chrome) { UseShellExecute = false }; castBrowser.ArgumentList.Add(castingUrl.AbsoluteUri); Process.Start(castBrowser); result = true; break;
+                case "rclone.config-import":
+                    var configPicker = new Microsoft.Win32.OpenFileDialog { Title = "Seleccionar rclone.conf personalizado", Filter = "Configuración rclone (*.conf)|*.conf|Todos los archivos|*.*" };
+                    if (configPicker.ShowDialog(this) != true) { result = null; break; }
+                    await rclone.ImportConfigAsync(configPicker.FileName);
+                    result = new { locked = rclone.Locked, content = rclone.Locked ? null : await rclone.ReadConfigAsync() }; break;
+                case "rclone.config-read": result = new { content = await rclone.ReadConfigAsync(), path = rclone.ConfigFilePath }; break;
+                case "rclone.config-save": await rclone.SaveConfigAsync(Get("content")); result = rclone.Info(); break;
                 case "rclone.info": result = rclone.Info(); break;
                 case "rclone.protect": await rclone.ProtectAsync(Get("password")); result = rclone.Info(); break;
                 case "rclone.unlock": await rclone.UnlockAsync(Get("password")); result = rclone.Info(); break;

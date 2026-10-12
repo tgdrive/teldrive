@@ -23,6 +23,7 @@ import (
 	"github.com/tgdrive/teldrive/v2/internal/authn"
 	"github.com/tgdrive/teldrive/v2/internal/bots"
 	"github.com/tgdrive/teldrive/v2/internal/cache"
+	"github.com/tgdrive/teldrive/v2/internal/casting"
 	"github.com/tgdrive/teldrive/v2/internal/catalog"
 	"github.com/tgdrive/teldrive/v2/internal/channels"
 	"github.com/tgdrive/teldrive/v2/internal/config"
@@ -61,6 +62,7 @@ type App struct {
 	events            *userevents.Service
 	telegramDownloads *telegramstore.DownloadClientPool
 	globalCache       cache.Cacher
+	casting           *casting.Service
 
 	mu      sync.Mutex
 	running bool
@@ -212,6 +214,7 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 	).ConfigureDomains(authService, botService, channelService, fileService, shareService, telegramAccount).
 		ConfigureJobs(jobRuntime)
 	handler.Media = media.New(cfg.Media)
+	handler.Casting = casting.New()
 	httpServer, err := api.NewServer(handler, api.NewSecurity(authenticator, eventService))
 	if err != nil {
 		return nil, fmt.Errorf("create generated HTTP server: %w", err)
@@ -236,6 +239,7 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 		events:            eventService,
 		telegramDownloads: telegram.downloadClients,
 		globalCache:       globalCache,
+		casting:           handler.Casting,
 		http: &http.Server{
 			Addr:              cfg.HTTP.Address,
 			Handler:           mux,
@@ -409,6 +413,9 @@ func (a *App) Shutdown(ctx context.Context) error {
 		if err := a.jobs.Stop(ctx); err != nil && !errors.Is(err, jobs.ErrRuntimeNotConfigured) {
 			result = errors.Join(result, err)
 		}
+	}
+	if a.casting != nil {
+		result = errors.Join(result, a.casting.Close(ctx))
 	}
 	if closer, ok := a.globalCache.(interface{ Close() }); ok {
 		closer.Close()

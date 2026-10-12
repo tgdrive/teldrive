@@ -1,10 +1,10 @@
-> **Teldrive v2.0.0-drive-es.4:** corregido el HTTP 500 al abrir archivos migrados con PostgreSQL en modo `exec`. Seis CLI multiplataforma y Windows Desktop 2.0.0.4. [Descargar](https://github.com/webr0m/teldrive/releases/tag/v2.0.0-drive-es.4).
+> **Teldrive v2.0.0-drive-es.5:** selección de pistas de audio/subtítulos, transmisión, edición de rclone.conf y mejoras de Windows Desktop. [Descargar](https://github.com/webr0m/teldrive/releases/tag/v2.0.0-drive-es.5).
 
 # Teldrive
 
 ## Teldrive v2 en español
 
-La edición v2 está en [`v2/`](v2/README.md), con las fuentes de Teldrive, rclone adaptado, Windows Desktop y clientes Android/iOS. [Descargar v2.0.0-drive-es.4](https://github.com/webr0m/teldrive/releases/tag/v2.0.0-drive-es.4).
+La edición v2 está en [`v2/`](v2/README.md), con las fuentes de Teldrive, rclone adaptado, Windows Desktop y clientes Android/iOS. [Descargar v2.0.0-drive-es.5](https://github.com/webr0m/teldrive/releases/tag/v2.0.0-drive-es.5).
 
 La release actual incluye Windows completo y seis paquetes CLI. Android e iOS conservan la edición .2; para iOS se entrega el proyecto fuente sin IPA compilada. Consulta las instrucciones y los límites de validación en [`v2/README.md`](v2/README.md).
 

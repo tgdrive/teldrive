@@ -12,7 +12,7 @@ parser.add_argument("--rclone", type=Path, required=True)
 parser.add_argument("--output", type=Path, default=Path(__file__).resolve().parent / "Payload.zip")
 args = parser.parse_args()
 files = {"teldrive.exe": args.server, "rclone.exe": args.rclone}
-for name in ("ffmpeg.exe", "postgres.zip", "winfsp-2.1.25156.msi", "WebView2RuntimeInstaller.exe", "VC_redist.x64.exe"):
+for name in ("ffmpeg.exe", "ffprobe.exe", "postgres.zip", "winfsp-2.1.25156.msi", "WebView2RuntimeInstaller.exe", "VC_redist.x64.exe"):
     files[name] = args.components / name
 for directory in ("mpv", "licenses"):
     for path in (args.components / directory).rglob("*"):

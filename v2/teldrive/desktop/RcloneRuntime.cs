@@ -31,6 +31,7 @@ public sealed class RcloneRuntime : IAsyncDisposable, IRcloneExecutor
     }
     public RcloneRuntime(RuntimeSession runtime) { this.runtime = runtime; }
     private string ConfigPath => Path.Combine(runtime.DataRoot, "rclone.conf");
+    public string ConfigFilePath => ConfigPath;
     public bool DriverInstalled => File.Exists(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "WinFsp", "bin", "winfsp-x64.dll"));
 
     public async Task ConfigureAsync(RcloneConnection connection)
@@ -41,8 +42,10 @@ public sealed class RcloneRuntime : IAsyncDisposable, IRcloneExecutor
         if (connection.ApiKey.Length < 8 || (connection.ApiKey + connection.LinkPassword).IndexOfAny(['\r', '\n', '\0']) >= 0) throw new ArgumentException("Introduce una clave de API válida.");
         if (connection.ChunkMiB is < 64 or > 2000 || connection.ChunkMiB % 16 != 0 || connection.Concurrency is < 1 or > 32) throw new ArgumentException("Revisa el tamaño de fragmento y la concurrencia.");
         lock (sync) { if (tasks.Values.Any(task => !task.Process.HasExited)) throw new IOException("Detén las operaciones de rclone antes de cambiar su conexión."); }
-        var config = $"[teldrive]\ntype = teldrive\napi_host = {runtime.ServerUri!.GetLeftPart(UriPartial.Authority)}\napi_key = {connection.ApiKey}\nchunk_size = {connection.ChunkMiB}Mi\nupload_concurrency = {connection.Concurrency}\nencrypt_files = {connection.Encrypt.ToString().ToLowerInvariant()}\nhash_enabled = {connection.Hash.ToString().ToLowerInvariant()}\npage_size = 200\n";
-        if (!string.IsNullOrEmpty(connection.LinkPassword)) config += $"link_password = {connection.LinkPassword}\n";
+        var config = File.Exists(ConfigPath) ? Encrypted ? await ExecuteAsync(CommandFor(ConfigPath, password, "config", "show")) : await File.ReadAllTextAsync(ConfigPath) : "";
+        var options = new Dictionary<string, string> { ["type"] = "teldrive", ["api_host"] = runtime.ServerUri!.GetLeftPart(UriPartial.Authority), ["api_key"] = connection.ApiKey, ["chunk_size"] = connection.ChunkMiB + "Mi", ["upload_concurrency"] = connection.Concurrency.ToString(), ["encrypt_files"] = connection.Encrypt.ToString().ToLowerInvariant(), ["hash_enabled"] = connection.Hash.ToString().ToLowerInvariant(), ["page_size"] = "200" };
+        foreach (var option in options) config = RcloneConfigDocument.Set(config, "teldrive", option.Key, option.Value);
+        config = RcloneConfigDocument.Set(config, "teldrive", "link_password", string.IsNullOrEmpty(connection.LinkPassword) ? null : connection.LinkPassword);
         var temp = ConfigPath + ".new";
         try {
             await File.WriteAllTextAsync(temp, config);
@@ -53,6 +56,56 @@ public sealed class RcloneRuntime : IAsyncDisposable, IRcloneExecutor
     }
 
     public object Info() => new { configured = File.Exists(ConfigPath), encrypted = Encrypted, locked = Locked, driverInstalled = DriverInstalled, platform = "windows", version = "1.76.0-teldrive-v2.1" };
+    public async Task<string> ReadConfigAsync()
+    {
+        await configuration.WaitAsync();
+        try {
+            if (!File.Exists(ConfigPath)) return "";
+            if (Locked) throw new IOException("Desbloquea rclone para editar su configuración.");
+            if (!Encrypted) return await File.ReadAllTextAsync(ConfigPath);
+            return await ExecuteAsync(CommandFor(ConfigPath, password, "config", "show"));
+        } finally { configuration.Release(); }
+    }
+    public async Task SaveConfigAsync(string content)
+    {
+        await configuration.WaitAsync();
+        var temporary = ConfigPath + ".editing";
+        try {
+            if (Locked) throw new IOException("Desbloquea rclone antes de guardar los cambios.");
+            if (content.Length > 2 * 1024 * 1024 || content.Contains('\0') || content.Contains("RCLONE_ENCRYPT_V0:")) throw new IOException("Introduce una configuración INI de rclone de hasta 2 MB.");
+            await File.WriteAllTextAsync(temporary, content);
+            try { _ = await ExecuteAsync(CommandFor(temporary, null, "config", "dump")); }
+            catch { throw new IOException("rclone no pudo leer esta configuración. Revisa las secciones [conexión] y las opciones clave = valor."); }
+            var encrypted = Encrypted;
+            if (encrypted) await EncryptFileAsync(temporary, password!);
+            lock (sync) {
+                RequireIdleConfiguration();
+                BackupConfig();
+                File.Move(temporary, ConfigPath, true);
+            }
+        } finally { File.Delete(temporary); File.Delete(temporary + ".old"); configuration.Release(); }
+    }
+    public async Task ImportConfigAsync(string path)
+    {
+        if (!File.Exists(path) || new FileInfo(path).Length > 2 * 1024 * 1024) throw new IOException("Selecciona un rclone.conf de hasta 2 MB.");
+        if (Path.GetFullPath(path).Equals(Path.GetFullPath(ConfigPath), StringComparison.OrdinalIgnoreCase)) return;
+        var content = await File.ReadAllTextAsync(path);
+        if (!content.StartsWith("RCLONE_ENCRYPT_V0:", StringComparison.Ordinal) && !content.Contains("\nRCLONE_ENCRYPT_V0:")) { await SaveConfigAsync(content); return; }
+        await configuration.WaitAsync();
+        var temporary = ConfigPath + ".importing";
+        try {
+            File.Copy(path, temporary, true);
+            lock (sync) { RequireIdleConfiguration(); BackupConfig(); File.Move(temporary, ConfigPath, true); password = null; }
+        } finally { File.Delete(temporary); configuration.Release(); }
+    }
+    private void RequireIdleConfiguration()
+    {
+        if (tasks.Values.Any(task => !task.Process.HasExited)) throw new IOException("Detén las transferencias y montajes antes de cambiar rclone.conf.");
+    }
+    private void BackupConfig()
+    {
+        if (File.Exists(ConfigPath)) File.Copy(ConfigPath, ConfigPath + ".previous", true);
+    }
     public async Task UnlockAsync(string value)
     {
         await configuration.WaitAsync();
@@ -180,10 +233,11 @@ public sealed class RcloneRuntime : IAsyncDisposable, IRcloneExecutor
         if (!Directory.Exists(localFolder)) throw new IOException("La carpeta seleccionada ya no existe.");
         return Start($"Descargar {remotePath}", false, "copy", Remote(remotePath), localFolder, "--immutable", "--stats", "2s");
     }
-    internal static string Remote(string path)
+    internal static string Remote(string path, string remoteName = "teldrive")
     {
         if (path.Contains(':') || path.Contains('\0') || path.Contains('\\') || path.Split('/').Any(part => part is ".." or ".")) throw new ArgumentException("Introduce una ruta de Teldrive sin '..' ni nombres de conexiones.");
-        return "teldrive:/" + path.Trim('/');
+        if (!Regex.IsMatch(remoteName, @"^[A-Za-z][\w .-]{0,63}$")) throw new ArgumentException("Selecciona una conexión válida de rclone.conf.");
+        return remoteName + ":/" + path.Trim('/');
     }
     private string Start(string label, bool mount, params string[] args)
     {

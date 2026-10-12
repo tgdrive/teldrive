@@ -3,6 +3,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
 import { SettingsPageHeader, SettingsRow, SettingsSection } from "@/components/settings-layout";
+import { RcloneConfigEditor } from "@/components/rclone-config-editor";
 import { RcloneBrowser } from "@/components/rclone-browser";
 import { isDesktop, desktopRequest } from "@/lib/desktop";
 import { nativeTextSave } from "@/lib/mobile";
@@ -279,6 +280,7 @@ function RcloneSettings() {
           </p>
         </div>
       </SettingsSection>
+      <RcloneConfigEditor onSaved={() => setConnectionVersion((value) => value + 1)} />
     </div>
   );
 }

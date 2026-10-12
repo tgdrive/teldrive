@@ -52,6 +52,20 @@ func encodeBulkTrashFilesRequest(
 	return nil
 }
 
+func encodeControlCastingDeviceRequest(
+	req *ControlCastingDeviceReq,
+	r *http.Request,
+) error {
+	const contentType = "application/json"
+	e := new(jx.Encoder)
+	{
+		req.Encode(e)
+	}
+	encoded := e.Bytes()
+	ht.SetBody(r, bytes.NewReader(encoded), contentType)
+	return nil
+}
+
 func encodeCookieTelegramLoginVerifyCodeRequest(
 	req *TelegramCodeVerifyRequest,
 	r *http.Request,
@@ -124,6 +138,20 @@ func encodeCreateApiKeyRequest(
 
 func encodeCreateBotsRequest(
 	req *BotCreateRequest,
+	r *http.Request,
+) error {
+	const contentType = "application/json"
+	e := new(jx.Encoder)
+	{
+		req.Encode(e)
+	}
+	encoded := e.Bytes()
+	ht.SetBody(r, bytes.NewReader(encoded), contentType)
+	return nil
+}
+
+func encodeCreateCastingRelayRequest(
+	req *CreateCastingRelayReq,
 	r *http.Request,
 ) error {
 	const contentType = "application/json"
@@ -278,6 +306,20 @@ func encodeCreateUploadImportRequest(
 
 func encodeMoveFileRequest(
 	req *FileMoveRequest,
+	r *http.Request,
+) error {
+	const contentType = "application/json"
+	e := new(jx.Encoder)
+	{
+		req.Encode(e)
+	}
+	encoded := e.Bytes()
+	ht.SetBody(r, bytes.NewReader(encoded), contentType)
+	return nil
+}
+
+func encodePlayOnCastingDeviceRequest(
+	req *CastingStart,
 	r *http.Request,
 ) error {
 	const contentType = "application/json"

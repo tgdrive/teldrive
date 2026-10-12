@@ -492,6 +492,233 @@ type CancelJobUnauthorized ErrorEnvelope
 
 func (*CancelJobUnauthorized) cancelJobRes() {}
 
+// Ref: #/components/schemas/CastingDevice
+type CastingDevice struct {
+	ID       string                `json:"id"`
+	Name     string                `json:"name"`
+	Protocol CastingDeviceProtocol `json:"protocol"`
+}
+
+// GetID returns the value of ID.
+func (s *CastingDevice) GetID() string {
+	return s.ID
+}
+
+// GetName returns the value of Name.
+func (s *CastingDevice) GetName() string {
+	return s.Name
+}
+
+// GetProtocol returns the value of Protocol.
+func (s *CastingDevice) GetProtocol() CastingDeviceProtocol {
+	return s.Protocol
+}
+
+// SetID sets the value of ID.
+func (s *CastingDevice) SetID(val string) {
+	s.ID = val
+}
+
+// SetName sets the value of Name.
+func (s *CastingDevice) SetName(val string) {
+	s.Name = val
+}
+
+// SetProtocol sets the value of Protocol.
+func (s *CastingDevice) SetProtocol(val CastingDeviceProtocol) {
+	s.Protocol = val
+}
+
+type CastingDeviceProtocol string
+
+const (
+	CastingDeviceProtocolDlna CastingDeviceProtocol = "dlna"
+)
+
+// AllValues returns all CastingDeviceProtocol values.
+func (CastingDeviceProtocol) AllValues() []CastingDeviceProtocol {
+	return []CastingDeviceProtocol{
+		CastingDeviceProtocolDlna,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s CastingDeviceProtocol) MarshalText() ([]byte, error) {
+	switch s {
+	case CastingDeviceProtocolDlna:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *CastingDeviceProtocol) UnmarshalText(data []byte) error {
+	switch CastingDeviceProtocol(data) {
+	case CastingDeviceProtocolDlna:
+		*s = CastingDeviceProtocolDlna
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+// Ref: #/components/schemas/CastingDevices
+type CastingDevices struct {
+	Devices []CastingDevice `json:"devices"`
+}
+
+// GetDevices returns the value of Devices.
+func (s *CastingDevices) GetDevices() []CastingDevice {
+	return s.Devices
+}
+
+// SetDevices sets the value of Devices.
+func (s *CastingDevices) SetDevices(val []CastingDevice) {
+	s.Devices = val
+}
+
+func (*CastingDevices) listCastingDevicesRes() {}
+
+// Ref: #/components/schemas/CastingRelay
+type CastingRelay struct {
+	Addresses []string  `json:"addresses"`
+	ExpiresAt time.Time `json:"expiresAt"`
+}
+
+// GetAddresses returns the value of Addresses.
+func (s *CastingRelay) GetAddresses() []string {
+	return s.Addresses
+}
+
+// GetExpiresAt returns the value of ExpiresAt.
+func (s *CastingRelay) GetExpiresAt() time.Time {
+	return s.ExpiresAt
+}
+
+// SetAddresses sets the value of Addresses.
+func (s *CastingRelay) SetAddresses(val []string) {
+	s.Addresses = val
+}
+
+// SetExpiresAt sets the value of ExpiresAt.
+func (s *CastingRelay) SetExpiresAt(val time.Time) {
+	s.ExpiresAt = val
+}
+
+func (*CastingRelay) createCastingRelayRes() {}
+
+// Ref: #/components/schemas/CastingStart
+type CastingStart struct {
+	Ticket    string           `json:"ticket"`
+	ServerUrl string           `json:"serverUrl"`
+	Mode      CastingStartMode `json:"mode"`
+	Start     OptFloat64       `json:"start"`
+	Audio     OptInt32         `json:"audio"`
+	Subtitle  OptInt32         `json:"subtitle"`
+}
+
+// GetTicket returns the value of Ticket.
+func (s *CastingStart) GetTicket() string {
+	return s.Ticket
+}
+
+// GetServerUrl returns the value of ServerUrl.
+func (s *CastingStart) GetServerUrl() string {
+	return s.ServerUrl
+}
+
+// GetMode returns the value of Mode.
+func (s *CastingStart) GetMode() CastingStartMode {
+	return s.Mode
+}
+
+// GetStart returns the value of Start.
+func (s *CastingStart) GetStart() OptFloat64 {
+	return s.Start
+}
+
+// GetAudio returns the value of Audio.
+func (s *CastingStart) GetAudio() OptInt32 {
+	return s.Audio
+}
+
+// GetSubtitle returns the value of Subtitle.
+func (s *CastingStart) GetSubtitle() OptInt32 {
+	return s.Subtitle
+}
+
+// SetTicket sets the value of Ticket.
+func (s *CastingStart) SetTicket(val string) {
+	s.Ticket = val
+}
+
+// SetServerUrl sets the value of ServerUrl.
+func (s *CastingStart) SetServerUrl(val string) {
+	s.ServerUrl = val
+}
+
+// SetMode sets the value of Mode.
+func (s *CastingStart) SetMode(val CastingStartMode) {
+	s.Mode = val
+}
+
+// SetStart sets the value of Start.
+func (s *CastingStart) SetStart(val OptFloat64) {
+	s.Start = val
+}
+
+// SetAudio sets the value of Audio.
+func (s *CastingStart) SetAudio(val OptInt32) {
+	s.Audio = val
+}
+
+// SetSubtitle sets the value of Subtitle.
+func (s *CastingStart) SetSubtitle(val OptInt32) {
+	s.Subtitle = val
+}
+
+type CastingStartMode string
+
+const (
+	CastingStartModeOriginal CastingStartMode = "original"
+	CastingStartModeVideo    CastingStartMode = "video"
+)
+
+// AllValues returns all CastingStartMode values.
+func (CastingStartMode) AllValues() []CastingStartMode {
+	return []CastingStartMode{
+		CastingStartModeOriginal,
+		CastingStartModeVideo,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s CastingStartMode) MarshalText() ([]byte, error) {
+	switch s {
+	case CastingStartModeOriginal:
+		return []byte(s), nil
+	case CastingStartModeVideo:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *CastingStartMode) UnmarshalText(data []byte) error {
+	switch CastingStartMode(data) {
+	case CastingStartModeOriginal:
+		*s = CastingStartModeOriginal
+		return nil
+	case CastingStartModeVideo:
+		*s = CastingStartModeVideo
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
 // Ref: #/components/schemas/ChannelCreateRequest
 type ChannelCreateRequest struct {
 	// Optional display name. Telegram may choose the final title.
@@ -703,6 +930,89 @@ func (*CompleteUploadUnauthorized) completeUploadRes() {}
 type CompleteUploadUnprocessableEntity ErrorEnvelope
 
 func (*CompleteUploadUnprocessableEntity) completeUploadRes() {}
+
+type ControlCastingDeviceForbidden ErrorEnvelope
+
+func (*ControlCastingDeviceForbidden) controlCastingDeviceRes() {}
+
+// ControlCastingDeviceNoContent is response for ControlCastingDevice operation.
+type ControlCastingDeviceNoContent struct{}
+
+func (*ControlCastingDeviceNoContent) controlCastingDeviceRes() {}
+
+type ControlCastingDeviceNotFound ErrorEnvelope
+
+func (*ControlCastingDeviceNotFound) controlCastingDeviceRes() {}
+
+type ControlCastingDeviceReq struct {
+	Command ControlCastingDeviceReqCommand `json:"command"`
+}
+
+// GetCommand returns the value of Command.
+func (s *ControlCastingDeviceReq) GetCommand() ControlCastingDeviceReqCommand {
+	return s.Command
+}
+
+// SetCommand sets the value of Command.
+func (s *ControlCastingDeviceReq) SetCommand(val ControlCastingDeviceReqCommand) {
+	s.Command = val
+}
+
+type ControlCastingDeviceReqCommand string
+
+const (
+	ControlCastingDeviceReqCommandPlay  ControlCastingDeviceReqCommand = "play"
+	ControlCastingDeviceReqCommandPause ControlCastingDeviceReqCommand = "pause"
+	ControlCastingDeviceReqCommandStop  ControlCastingDeviceReqCommand = "stop"
+)
+
+// AllValues returns all ControlCastingDeviceReqCommand values.
+func (ControlCastingDeviceReqCommand) AllValues() []ControlCastingDeviceReqCommand {
+	return []ControlCastingDeviceReqCommand{
+		ControlCastingDeviceReqCommandPlay,
+		ControlCastingDeviceReqCommandPause,
+		ControlCastingDeviceReqCommandStop,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s ControlCastingDeviceReqCommand) MarshalText() ([]byte, error) {
+	switch s {
+	case ControlCastingDeviceReqCommandPlay:
+		return []byte(s), nil
+	case ControlCastingDeviceReqCommandPause:
+		return []byte(s), nil
+	case ControlCastingDeviceReqCommandStop:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *ControlCastingDeviceReqCommand) UnmarshalText(data []byte) error {
+	switch ControlCastingDeviceReqCommand(data) {
+	case ControlCastingDeviceReqCommandPlay:
+		*s = ControlCastingDeviceReqCommandPlay
+		return nil
+	case ControlCastingDeviceReqCommandPause:
+		*s = ControlCastingDeviceReqCommandPause
+		return nil
+	case ControlCastingDeviceReqCommandStop:
+		*s = ControlCastingDeviceReqCommandStop
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+type ControlCastingDeviceServiceUnavailable ErrorEnvelope
+
+func (*ControlCastingDeviceServiceUnavailable) controlCastingDeviceRes() {}
+
+type ControlCastingDeviceUnauthorized ErrorEnvelope
+
+func (*ControlCastingDeviceUnauthorized) controlCastingDeviceRes() {}
 
 type CookieAuth struct {
 	APIKey string
@@ -942,6 +1252,36 @@ func (*CreateBotsUnauthorized) createBotsRes() {}
 type CreateBotsUnprocessableEntity ErrorEnvelope
 
 func (*CreateBotsUnprocessableEntity) createBotsRes() {}
+
+type CreateCastingRelayForbidden ErrorEnvelope
+
+func (*CreateCastingRelayForbidden) createCastingRelayRes() {}
+
+type CreateCastingRelayNotFound ErrorEnvelope
+
+func (*CreateCastingRelayNotFound) createCastingRelayRes() {}
+
+type CreateCastingRelayReq struct {
+	Ticket string `json:"ticket"`
+}
+
+// GetTicket returns the value of Ticket.
+func (s *CreateCastingRelayReq) GetTicket() string {
+	return s.Ticket
+}
+
+// SetTicket sets the value of Ticket.
+func (s *CreateCastingRelayReq) SetTicket(val string) {
+	s.Ticket = val
+}
+
+type CreateCastingRelayServiceUnavailable ErrorEnvelope
+
+func (*CreateCastingRelayServiceUnavailable) createCastingRelayRes() {}
+
+type CreateCastingRelayUnauthorized ErrorEnvelope
+
+func (*CreateCastingRelayUnauthorized) createCastingRelayRes() {}
 
 type CreateChannelConflict ErrorEnvelope
 
@@ -4909,6 +5249,173 @@ type GetJobUnauthorized ErrorEnvelope
 
 func (*GetJobUnauthorized) getJobRes() {}
 
+type GetPlaybackSubtitlesNotFound ErrorEnvelope
+
+func (*GetPlaybackSubtitlesNotFound) getPlaybackSubtitlesRes() {}
+
+type GetPlaybackSubtitlesOK struct {
+	Data io.Reader
+}
+
+// Read reads data from the Data reader.
+//
+// Kept to satisfy the io.Reader interface.
+func (s GetPlaybackSubtitlesOK) Read(p []byte) (n int, err error) {
+	if s.Data == nil {
+		return 0, io.EOF
+	}
+	return s.Data.Read(p)
+}
+
+type GetPlaybackSubtitlesOKAcceptRanges string
+
+const (
+	GetPlaybackSubtitlesOKAcceptRangesBytes GetPlaybackSubtitlesOKAcceptRanges = "bytes"
+)
+
+// AllValues returns all GetPlaybackSubtitlesOKAcceptRanges values.
+func (GetPlaybackSubtitlesOKAcceptRanges) AllValues() []GetPlaybackSubtitlesOKAcceptRanges {
+	return []GetPlaybackSubtitlesOKAcceptRanges{
+		GetPlaybackSubtitlesOKAcceptRangesBytes,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s GetPlaybackSubtitlesOKAcceptRanges) MarshalText() ([]byte, error) {
+	switch s {
+	case GetPlaybackSubtitlesOKAcceptRangesBytes:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *GetPlaybackSubtitlesOKAcceptRanges) UnmarshalText(data []byte) error {
+	switch GetPlaybackSubtitlesOKAcceptRanges(data) {
+	case GetPlaybackSubtitlesOKAcceptRangesBytes:
+		*s = GetPlaybackSubtitlesOKAcceptRangesBytes
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+// GetPlaybackSubtitlesOKHeaders wraps GetPlaybackSubtitlesOK with response headers.
+type GetPlaybackSubtitlesOKHeaders struct {
+	AcceptRanges       GetPlaybackSubtitlesOKAcceptRanges
+	ContentDisposition string
+	ContentLength      int64
+	Etag               ETag
+	LastModified       time.Time
+	Response           GetPlaybackSubtitlesOK
+}
+
+// GetAcceptRanges returns the value of AcceptRanges.
+func (s *GetPlaybackSubtitlesOKHeaders) GetAcceptRanges() GetPlaybackSubtitlesOKAcceptRanges {
+	return s.AcceptRanges
+}
+
+// GetContentDisposition returns the value of ContentDisposition.
+func (s *GetPlaybackSubtitlesOKHeaders) GetContentDisposition() string {
+	return s.ContentDisposition
+}
+
+// GetContentLength returns the value of ContentLength.
+func (s *GetPlaybackSubtitlesOKHeaders) GetContentLength() int64 {
+	return s.ContentLength
+}
+
+// GetEtag returns the value of Etag.
+func (s *GetPlaybackSubtitlesOKHeaders) GetEtag() ETag {
+	return s.Etag
+}
+
+// GetLastModified returns the value of LastModified.
+func (s *GetPlaybackSubtitlesOKHeaders) GetLastModified() time.Time {
+	return s.LastModified
+}
+
+// GetResponse returns the value of Response.
+func (s *GetPlaybackSubtitlesOKHeaders) GetResponse() GetPlaybackSubtitlesOK {
+	return s.Response
+}
+
+// SetAcceptRanges sets the value of AcceptRanges.
+func (s *GetPlaybackSubtitlesOKHeaders) SetAcceptRanges(val GetPlaybackSubtitlesOKAcceptRanges) {
+	s.AcceptRanges = val
+}
+
+// SetContentDisposition sets the value of ContentDisposition.
+func (s *GetPlaybackSubtitlesOKHeaders) SetContentDisposition(val string) {
+	s.ContentDisposition = val
+}
+
+// SetContentLength sets the value of ContentLength.
+func (s *GetPlaybackSubtitlesOKHeaders) SetContentLength(val int64) {
+	s.ContentLength = val
+}
+
+// SetEtag sets the value of Etag.
+func (s *GetPlaybackSubtitlesOKHeaders) SetEtag(val ETag) {
+	s.Etag = val
+}
+
+// SetLastModified sets the value of LastModified.
+func (s *GetPlaybackSubtitlesOKHeaders) SetLastModified(val time.Time) {
+	s.LastModified = val
+}
+
+// SetResponse sets the value of Response.
+func (s *GetPlaybackSubtitlesOKHeaders) SetResponse(val GetPlaybackSubtitlesOK) {
+	s.Response = val
+}
+
+// GetPlaybackSubtitlesOKRawApplicationOctetStream represents raw HTTP response for GetPlaybackSubtitles application/octet-stream.
+type GetPlaybackSubtitlesOKRawApplicationOctetStream struct {
+	Response *http.Response `json:"-"`
+}
+
+// GetResponse returns the value of Response.
+func (s *GetPlaybackSubtitlesOKRawApplicationOctetStream) GetResponse() *http.Response {
+	return s.Response
+}
+
+// SetResponse sets the value of Response.
+func (s *GetPlaybackSubtitlesOKRawApplicationOctetStream) SetResponse(val *http.Response) {
+	s.Response = val
+}
+
+func (*GetPlaybackSubtitlesOKRawApplicationOctetStream) getPlaybackSubtitlesRes() {}
+
+type GetPlaybackSubtitlesServiceUnavailable ErrorEnvelope
+
+func (*GetPlaybackSubtitlesServiceUnavailable) getPlaybackSubtitlesRes() {}
+
+type GetPlaybackSubtitlesUnauthorized ErrorEnvelope
+
+func (*GetPlaybackSubtitlesUnauthorized) getPlaybackSubtitlesRes() {}
+
+type GetPlaybackSubtitlesUnprocessableEntity ErrorEnvelope
+
+func (*GetPlaybackSubtitlesUnprocessableEntity) getPlaybackSubtitlesRes() {}
+
+type GetPlaybackTracksNotFound ErrorEnvelope
+
+func (*GetPlaybackTracksNotFound) getPlaybackTracksRes() {}
+
+type GetPlaybackTracksServiceUnavailable ErrorEnvelope
+
+func (*GetPlaybackTracksServiceUnavailable) getPlaybackTracksRes() {}
+
+type GetPlaybackTracksUnauthorized ErrorEnvelope
+
+func (*GetPlaybackTracksUnauthorized) getPlaybackTracksRes() {}
+
+type GetPlaybackTracksUnprocessableEntity ErrorEnvelope
+
+func (*GetPlaybackTracksUnprocessableEntity) getPlaybackTracksRes() {}
+
 // GetProfilePhotoNoContent is response for GetProfilePhoto operation.
 type GetProfilePhotoNoContent struct{}
 
@@ -6568,6 +7075,18 @@ func (s *ListBotsOK) SetNextCursor(val OptCursor) {
 
 func (*ListBotsOK) listBotsRes() {}
 
+type ListCastingDevicesForbidden ErrorEnvelope
+
+func (*ListCastingDevicesForbidden) listCastingDevicesRes() {}
+
+type ListCastingDevicesServiceUnavailable ErrorEnvelope
+
+func (*ListCastingDevicesServiceUnavailable) listCastingDevicesRes() {}
+
+type ListCastingDevicesUnauthorized ErrorEnvelope
+
+func (*ListCastingDevicesUnauthorized) listCastingDevicesRes() {}
+
 type ListChannelsOK struct {
 	Items      []ChannelSummary `json:"items"`
 	NextCursor OptCursor        `json:"nextCursor"`
@@ -6883,6 +7402,163 @@ func (*MarkIncomingSpamNotFound) markIncomingSpamRes() {}
 type MarkIncomingSpamUnauthorized ErrorEnvelope
 
 func (*MarkIncomingSpamUnauthorized) markIncomingSpamRes() {}
+
+// Ref: #/components/schemas/MediaTrack
+type MediaTrack struct {
+	Index    int32          `json:"index"`
+	Kind     MediaTrackKind `json:"kind"`
+	Codec    string         `json:"codec"`
+	Language string         `json:"language"`
+	Title    string         `json:"title"`
+	Default  bool           `json:"default"`
+	Bitmap   bool           `json:"bitmap"`
+}
+
+// GetIndex returns the value of Index.
+func (s *MediaTrack) GetIndex() int32 {
+	return s.Index
+}
+
+// GetKind returns the value of Kind.
+func (s *MediaTrack) GetKind() MediaTrackKind {
+	return s.Kind
+}
+
+// GetCodec returns the value of Codec.
+func (s *MediaTrack) GetCodec() string {
+	return s.Codec
+}
+
+// GetLanguage returns the value of Language.
+func (s *MediaTrack) GetLanguage() string {
+	return s.Language
+}
+
+// GetTitle returns the value of Title.
+func (s *MediaTrack) GetTitle() string {
+	return s.Title
+}
+
+// GetDefault returns the value of Default.
+func (s *MediaTrack) GetDefault() bool {
+	return s.Default
+}
+
+// GetBitmap returns the value of Bitmap.
+func (s *MediaTrack) GetBitmap() bool {
+	return s.Bitmap
+}
+
+// SetIndex sets the value of Index.
+func (s *MediaTrack) SetIndex(val int32) {
+	s.Index = val
+}
+
+// SetKind sets the value of Kind.
+func (s *MediaTrack) SetKind(val MediaTrackKind) {
+	s.Kind = val
+}
+
+// SetCodec sets the value of Codec.
+func (s *MediaTrack) SetCodec(val string) {
+	s.Codec = val
+}
+
+// SetLanguage sets the value of Language.
+func (s *MediaTrack) SetLanguage(val string) {
+	s.Language = val
+}
+
+// SetTitle sets the value of Title.
+func (s *MediaTrack) SetTitle(val string) {
+	s.Title = val
+}
+
+// SetDefault sets the value of Default.
+func (s *MediaTrack) SetDefault(val bool) {
+	s.Default = val
+}
+
+// SetBitmap sets the value of Bitmap.
+func (s *MediaTrack) SetBitmap(val bool) {
+	s.Bitmap = val
+}
+
+type MediaTrackKind string
+
+const (
+	MediaTrackKindVideo    MediaTrackKind = "video"
+	MediaTrackKindAudio    MediaTrackKind = "audio"
+	MediaTrackKindSubtitle MediaTrackKind = "subtitle"
+)
+
+// AllValues returns all MediaTrackKind values.
+func (MediaTrackKind) AllValues() []MediaTrackKind {
+	return []MediaTrackKind{
+		MediaTrackKindVideo,
+		MediaTrackKindAudio,
+		MediaTrackKindSubtitle,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s MediaTrackKind) MarshalText() ([]byte, error) {
+	switch s {
+	case MediaTrackKindVideo:
+		return []byte(s), nil
+	case MediaTrackKindAudio:
+		return []byte(s), nil
+	case MediaTrackKindSubtitle:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *MediaTrackKind) UnmarshalText(data []byte) error {
+	switch MediaTrackKind(data) {
+	case MediaTrackKindVideo:
+		*s = MediaTrackKindVideo
+		return nil
+	case MediaTrackKindAudio:
+		*s = MediaTrackKindAudio
+		return nil
+	case MediaTrackKindSubtitle:
+		*s = MediaTrackKindSubtitle
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+// Ref: #/components/schemas/MediaTracks
+type MediaTracks struct {
+	Available bool         `json:"available"`
+	Tracks    []MediaTrack `json:"tracks"`
+}
+
+// GetAvailable returns the value of Available.
+func (s *MediaTracks) GetAvailable() bool {
+	return s.Available
+}
+
+// GetTracks returns the value of Tracks.
+func (s *MediaTracks) GetTracks() []MediaTrack {
+	return s.Tracks
+}
+
+// SetAvailable sets the value of Available.
+func (s *MediaTracks) SetAvailable(val bool) {
+	s.Available = val
+}
+
+// SetTracks sets the value of Tracks.
+func (s *MediaTracks) SetTracks(val []MediaTrack) {
+	s.Tracks = val
+}
+
+func (*MediaTracks) getPlaybackTracksRes() {}
 
 type MoveFileConflict ErrorEnvelope
 
@@ -9215,6 +9891,35 @@ func (s *PeriodicJobUpdateArgs) init() PeriodicJobUpdateArgs {
 	}
 	return m
 }
+
+type PlayOnCastingDeviceBadRequest ErrorEnvelope
+
+func (*PlayOnCastingDeviceBadRequest) playOnCastingDeviceRes() {}
+
+type PlayOnCastingDeviceForbidden ErrorEnvelope
+
+func (*PlayOnCastingDeviceForbidden) playOnCastingDeviceRes() {}
+
+// PlayOnCastingDeviceNoContent is response for PlayOnCastingDevice operation.
+type PlayOnCastingDeviceNoContent struct{}
+
+func (*PlayOnCastingDeviceNoContent) playOnCastingDeviceRes() {}
+
+type PlayOnCastingDeviceNotFound ErrorEnvelope
+
+func (*PlayOnCastingDeviceNotFound) playOnCastingDeviceRes() {}
+
+type PlayOnCastingDeviceServiceUnavailable ErrorEnvelope
+
+func (*PlayOnCastingDeviceServiceUnavailable) playOnCastingDeviceRes() {}
+
+type PlayOnCastingDeviceUnauthorized ErrorEnvelope
+
+func (*PlayOnCastingDeviceUnauthorized) playOnCastingDeviceRes() {}
+
+type PlayOnCastingDeviceUnprocessableEntity ErrorEnvelope
+
+func (*PlayOnCastingDeviceUnprocessableEntity) playOnCastingDeviceRes() {}
 
 // Ref: #/components/schemas/PlaybackSession
 type PlaybackSession struct {

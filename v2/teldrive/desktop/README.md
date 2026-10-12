@@ -1,6 +1,6 @@
 # Teldrive Desktop v2
 
-Aplicación para Windows 10/11 de 64 bits, construida con .NET 10, WPF y WebView2. El paquete incluye el servidor Teldrive, el rclone compatible con la API v2, PostgreSQL, FFmpeg y los instaladores oficiales de WinFsp, WebView2 y Visual C++. El primer inicio presenta la configuración del servidor y abre la UI en la propia ventana.
+Aplicación para Windows 10/11 de 64 bits, construida con .NET 10, WPF y WebView2. El paquete incluye el servidor Teldrive, el rclone compatible con la API v2, PostgreSQL, FFmpeg/FFprobe y los instaladores oficiales de WinFsp, WebView2 y Visual C++. El primer inicio presenta la configuración del servidor y abre la UI en la propia ventana.
 
 ## Integración de rclone
 
@@ -44,3 +44,15 @@ Por defecto, los datos se guardan en `%LOCALAPPDATA%\TeldriveV2`. No se reutiliz
 `--smoke-test --data-root RUTA_NUEVA` comprueba extracción e inicialización de WebView2. `--smoke-rclone --data-root RUTA_NUEVA` ejecuta el cliente incluido sobre una conexión local aislada y verifica cifrado, contraseña incorrecta, desbloqueo, navegación, carpetas, subida, descarga, renombrado, tamaño, reintento, eliminación y bloqueo. Estas pruebas no instalan controladores ni acceden a Telegram. La prueba de integración del backend verifica por separado rclone frente a la API v2 y PostgreSQL.
 
 `--smoke-server --data-root RUTA_NUEVA` prepara PostgreSQL, inicia Teldrive, verifica la pantalla de acceso en WebView2 y apaga los servicios. Para compilar, genera primero la UI y el servidor mediante `scripts/build-cli.ps1`; después prepara `Payload.zip` con `build-payload.py` y publica `dotnet publish desktop/Teldrive.Desktop.csproj -c Release -r win-x64`. Las compilaciones de la UI y del servidor se ejecutan consecutivamente para que el binario incluya el índice completo de la web.
+
+## Navegación, configuración personalizada y transmisión (2.0.0.5)
+
+El botón superior **Teldrive** recupera el Drive desde Actividad, Configuración u Opciones adicionales de rclone. El control WebView2 utiliza composición para evitar que una superficie del navegador oculte los paneles WPF. Actividad conserva una cola de texto acotada.
+
+**rclone.conf** importa una copia del archivo original, valida y edita sus conexiones sin borrar comentarios/opciones adicionales. Los valores privados están ocultos en la lista; el editor completo se abre expresamente. Guardar crea `rclone.conf.previous` y conserva el cifrado si estaba activado. Las transferencias y montajes deben estar detenidos al modificar el archivo. Las tareas pueden elegir el nombre de una conexión personalizada. En la UI web de un CLI, el editor importa y exporta el archivo local; no escribe en el servidor.
+
+**Transmitir** usa un enlace temporal del vídeo. DLNA se controla desde la red del servidor; la búsqueda requiere administrador. Chromecast utiliza Chrome, que se abre desde Desktop con un reproductor dedicado. AirPlay requiere Safari en iPhone, iPad o Mac; el enlace y QR permiten reproducir el vídeo allí. El enlace de red local solo sirve vídeos/subtítulos autorizados y se cierra con el servidor; no expone configuración ni la UI principal. La red y el cortafuegos deben permitir que el televisor acceda al servidor.
+
+FFprobe detecta las pistas de audio y subtítulos de MKV y otros contenedores. FFmpeg aplica el audio seleccionado, convierte subtítulos de texto a WebVTT e integra los de imagen en el vídeo compatible. La conversión incluye las pistas elegidas al transmitir. Los resultados dependen de los códecs disponibles y del dispositivo.
+
+`--smoke-enhancements --data-root RUTA_NUEVA` comprueba el botón Teldrive, el registro de Actividad sin capa blanca, importación/edición/cifrado/respaldos de rclone.conf y una transferencia real hacia una conexión personalizada. Usa PostgreSQL y carpetas de prueba aisladas, sin Telegram ni televisores físicos.

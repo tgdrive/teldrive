@@ -114,6 +114,7 @@ public sealed class RuntimeSession : IAsyncDisposable
     private ProcessStartInfo Command(string binary, params string[] arguments)
     {
         var info = new ProcessStartInfo(binary) { UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = DataRoot, RedirectStandardOutput = true, RedirectStandardError = true };
+        if (Path.GetFileName(binary).Equals("teldrive.exe", StringComparison.OrdinalIgnoreCase)) { info.StandardOutputEncoding = System.Text.Encoding.UTF8; info.StandardErrorEncoding = System.Text.Encoding.UTF8; }
         foreach (var argument in arguments) info.ArgumentList.Add(argument);
         info.Environment["PATH"] = Components + ";" + Path.Combine(Components, "pgsql", "bin") + ";" + Environment.GetEnvironmentVariable("PATH");
         foreach (var key in info.Environment.Keys.Where(key => key.StartsWith("TELDRIVE_", StringComparison.OrdinalIgnoreCase)).ToArray()) info.Environment.Remove(key);

@@ -16,11 +16,13 @@ public partial class RcloneAdvancedView : UserControl
     private Action? hideWindow;
     private Action? exit;
     private bool refreshing;
+    private RcloneRuntime? rclone;
+    private string configContent = "";
 
     public RcloneAdvancedView() { InitializeComponent(); ScheduleDate.SelectedDate = DateTime.Today.AddDays(1); }
-    public void Initialize(RcloneAutomation value, DesktopPreferences preferences, Action<DesktopPreferences> save, Action hide, Action quit)
+    public void Initialize(RcloneAutomation value, DesktopPreferences preferences, Action<DesktopPreferences> save, Action hide, Action quit, RcloneRuntime runtime)
     {
-        automation = value; savePreferences = save; hideWindow = hide; exit = quit;
+        rclone = runtime; RcloneConfigPath.Text = runtime.ConfigFilePath; automation = value; savePreferences = save; hideWindow = hide; exit = quit;
         AlwaysTray.IsChecked = preferences.AlwaysShowInTray; MinimizeTray.IsChecked = preferences.MinimizeToTray;
         CloseTray.IsChecked = preferences.CloseToTray; StartTray.IsChecked = preferences.StartInTray;
         StartWindows.IsChecked = preferences.StartWithWindows; NotifyFinished.IsChecked = preferences.NotifyFinished;
@@ -60,7 +62,7 @@ public partial class RcloneAdvancedView : UserControl
     private static void Select(ComboBox box, string value) => box.SelectedItem = box.Items.Cast<ComboBoxItem>().Single(item => item.Tag.ToString() == value);
     private static int Number(TextBox box) => int.TryParse(box.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out var value) ? value : throw new ArgumentException("Introduce un número entero en las opciones de transferencia.");
     private RcloneTaskDefinition ReadTask() => new() {
-        Id = editingTask ?? Guid.NewGuid().ToString("N"), Name = TaskName.Text.Trim(), Direction = SelectedTag(Direction), Operation = SelectedTag(Operation), Source = Source.Text.Trim(), Destination = Destination.Text.Trim(),
+        Id = editingTask ?? Guid.NewGuid().ToString("N"), Name = TaskName.Text.Trim(), Direction = SelectedTag(Direction), Operation = SelectedTag(Operation), RemoteName = TaskRemote.Text.Trim(), Source = Source.Text.Trim(), Destination = Destination.Text.Trim(),
         Transfers = Number(Transfers), Checkers = Number(Checkers), Retries = Number(Retries), LowLevelRetries = Number(LowRetries), ConnectTimeout = Number(ConnectTimeout), IdleTimeout = Number(IdleTimeout), MaxDepth = Number(MaxDepth),
         Bandwidth = Bandwidth.Text.Trim(), MinSize = MinSize.Text.Trim(), MaxSize = MaxSize.Text.Trim(), MinAge = MinAge.Text.Trim(), MaxAge = MaxAge.Text.Trim(), Compare = SelectedTag(Compare), DeleteMode = SelectedTag(DeleteMode),
         Immutable = Immutable.IsChecked == true, SkipExisting = SkipExisting.IsChecked == true, SkipNewer = SkipNewer.IsChecked == true, OneFileSystem = OneFileSystem.IsChecked == true, NoUpdateModTime = NoModTime.IsChecked == true,
@@ -69,7 +71,7 @@ public partial class RcloneAdvancedView : UserControl
     private void LoadTask(RcloneTaskDefinition item, bool isNew = false)
     {
         editingTask = isNew ? null : item.Id; EditorTitle.Text = isNew ? "Nueva tarea" : "Editar tarea";
-        TaskName.Text = item.Name; Source.Text = item.Source; Destination.Text = item.Destination; Select(Direction, item.Direction); Select(Operation, item.Operation);
+        TaskName.Text = item.Name; TaskRemote.Text = item.RemoteName; Source.Text = item.Source; Destination.Text = item.Destination; Select(Direction, item.Direction); Select(Operation, item.Operation);
         Transfers.Text = item.Transfers.ToString(); Checkers.Text = item.Checkers.ToString(); Retries.Text = item.Retries.ToString(); LowRetries.Text = item.LowLevelRetries.ToString(); ConnectTimeout.Text = item.ConnectTimeout.ToString(); IdleTimeout.Text = item.IdleTimeout.ToString(); MaxDepth.Text = item.MaxDepth.ToString();
         Bandwidth.Text = item.Bandwidth; MinSize.Text = item.MinSize; MaxSize.Text = item.MaxSize; MinAge.Text = item.MinAge; MaxAge.Text = item.MaxAge; Select(Compare, item.Compare); Select(DeleteMode, item.DeleteMode);
         Immutable.IsChecked = item.Immutable; SkipExisting.IsChecked = item.SkipExisting; SkipNewer.IsChecked = item.SkipNewer; OneFileSystem.IsChecked = item.OneFileSystem; NoModTime.IsChecked = item.NoUpdateModTime;
