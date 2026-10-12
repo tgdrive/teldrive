@@ -1,19 +1,17 @@
-# Teldrive Windows Desktop 2.0.0.3
+# Teldrive v2.0.0-drive-es.4 en español
 
-Actualización del Windows portátil de Teldrive v2. **Opciones adicionales de rclone** reúne tareas guardadas, cola, programador y preferencias de bandeja. El icono del avión y las nubes tiene fondo transparente.
+Corrige el HTTP 500 al abrir o descargar archivos migrados desde v1 con tamaños pendientes y conexiones PostgreSQL en modo `exec` o protocolo simple. El JSON de tamaños se envía como texto y funciona con los cinco modos de conexión de pgx. Incluye seis servidores CLI nuevos con UI integrada y Windows Desktop 2.0.0.4.
 
-Descargas: [GitLab](https://gitlab.com/ridrogo/teldrive/-/releases/v2.0.0-drive-es.3) · [GitHub](https://github.com/webr0m/teldrive/releases/tag/v2.0.0-drive-es.3).
+Descargas: [GitLab](https://gitlab.com/ridrogo/teldrive/-/releases/v2.0.0-drive-es.4) · [GitHub](https://github.com/webr0m/teldrive/releases/tag/v2.0.0-drive-es.4).
 
-Las tareas permiten copiar, mover, sincronizar, verificar y simular, con filtros, límites de velocidad, reintentos y comparación. La cola conserva pendientes e historial, controla hasta tres operaciones simultáneas y permite pausa, prioridades, cancelación y reintentos. El programador admite una ejecución, frecuencia diaria/semanal o intervalos y evita superponer una misma tarea. Las transferencias del explorador utilizan la cola.
+Cada paquete CLI incluye el rclone compatible con la API v2: Windows, Linux y macOS, en x64 y ARM64. El cliente rclone mantiene su versión anterior; la corrección está en el servidor. Windows completo conserva configuración gráfica, tareas, cola, programador, bandeja e inicio automático opcional, multimedia e icono transparente.
 
-En Preferencias puedes minimizar/cerrar hacia la bandeja, comenzar en ella e iniciar con Windows. Los horarios requieren el programa abierto, incluso en la bandeja. El inicio automático es opcional y se activa al guardar esa preferencia. La configuración cifrada de rclone requiere desbloqueo cada sesión.
+Para actualizar una instalación v2, cierra la edición anterior y reemplaza el ejecutable conservando `config.toml`, claves y carpeta de datos. Esta corrección no necesita regenerar claves ni repetir la migración. Consulta `LEEME-V2.md` de la release y `teldrive/desktop/README.md`.
 
-Esta release actualiza Windows x64 y sus fuentes. Los CLI multiplataforma, Android e iOS siguen en [v2.0.0-drive-es.2](https://gitlab.com/ridrogo/teldrive/-/releases/v2.0.0-drive-es.2). El paquete completo integra el servidor, rclone compatible, PostgreSQL, multimedia y los instaladores de WinFsp y Microsoft.
+## Fuentes y validación
 
-## Fuentes y verificación
+`teldrive/` contiene servidor, UI, Desktop y proyectos móviles; `rclone/` contiene el cliente adaptado. `source-revisions.json` registra los commits originales; la sincronización conserva blobs y permisos Unix. `Teldrive-v2-fuentes.zip` incluye ambos proyectos. Configuraciones personales, credenciales, bases de datos y claves privadas quedan fuera.
 
-`teldrive/` contiene backend, UI, Desktop .NET/WPF y los proyectos móviles; `rclone/` conserva el cliente compatible. `source-revisions.json` registra los commits originales y los archivos se verifican por blob y permisos Unix.
+Pruebas unitarias de Go y catálogo con PostgreSQL; regresión de los cinco modos de pgx en PostgreSQL 15 y 18. Se ejecutaron Windows x64 y Linux x64 y se verificaron metadatos, arquitectura y contenido de los seis paquetes. Se comprobó una descarga PDF completa y lecturas parciales de PDF/vídeo con Telegram real. Desktop incluye exactamente el mismo servidor que CLI Windows x64. Los resultados están en `VALIDACION.json`, `BUILD-MANIFEST.json` y `SHA256SUMS.txt`.
 
-El ejecutable pasó copias/descargas reales, filtros, simulación, pausa, prioridad, concurrencia, cifrado/bloqueo, cancelación, reintento, sincronización con autorización, persistencia de tareas/horarios, controles WPF y ciclo de bandeja. También se comprobó el servidor con PostgreSQL/migraciones, la pantalla de acceso, inicio oculto y actualización desde .2 conservando la configuración. Pasaron las cuatro pruebas del explorador en Chromium, la comprobación de tipos y la compilación de la UI. Windows detecta transparencia en el icono del ejecutable. No se utilizó una cuenta real de Telegram ni se modificó el inicio de Windows durante las pruebas.
-
-Consulta `teldrive/desktop/README.md`. La release contiene `VALIDACION.json`, `BUILD-MANIFEST.json` y `SHA256SUMS.txt`.
+macOS y ARM64 están compilados y sus binarios verificados, sin ejecución nativa en esos equipos. Android e iOS conservan la [edición .2](https://gitlab.com/ridrogo/teldrive/-/releases/v2.0.0-drive-es.2) y utilizan el servidor actualizado; iOS sigue siendo un proyecto fuente sin IPA. Las releases anteriores se conservan.

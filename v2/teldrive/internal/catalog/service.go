@@ -228,7 +228,8 @@ func (s *Service) UpdatePartSizesMany(ctx context.Context, fileID uuid.UUID, siz
 		return fmt.Errorf("encode file part sizes: %w", err)
 	}
 	_, err = s.queries.UpdateFilePartSizesMany(ctx, sqlcgen.UpdateFilePartSizesManyParams{
-		FileID: dbtypes.UUID(fileID), Parts: encoded,
+		// Bind JSON as text so pgx's exec/simple modes do not encode it as bytea.
+		FileID: dbtypes.UUID(fileID), Parts: string(encoded),
 	})
 	if err != nil {
 		return fmt.Errorf("update file part sizes: %w", err)

@@ -1,12 +1,12 @@
-> **Windows Desktop 2.0.0.3:** tareas, cola y programador de rclone, bandeja e inicio automático opcional, y nuevo icono transparente. [Descargar](https://github.com/webr0m/teldrive/releases/tag/v2.0.0-drive-es.3). Los CLI y móviles de .2 continúan disponibles.
+> **Teldrive v2.0.0-drive-es.4:** corregido el HTTP 500 al abrir archivos migrados con PostgreSQL en modo `exec`. Seis CLI multiplataforma y Windows Desktop 2.0.0.4. [Descargar](https://github.com/webr0m/teldrive/releases/tag/v2.0.0-drive-es.4).
 
 # Teldrive
 
 ## Teldrive v2 en español
 
-La edición v2 está en [`v2/`](v2/README.md), con las fuentes de Teldrive, rclone adaptado, Windows Desktop y clientes Android/iOS. [Descargar v2.0.0-drive-es.2](https://github.com/webr0m/teldrive/releases/tag/v2.0.0-drive-es.2).
+La edición v2 está en [`v2/`](v2/README.md), con las fuentes de Teldrive, rclone adaptado, Windows Desktop y clientes Android/iOS. [Descargar v2.0.0-drive-es.4](https://github.com/webr0m/teldrive/releases/tag/v2.0.0-drive-es.4).
 
-La release incluye Windows completo, seis paquetes CLI y Android APK. Para iOS se entrega el proyecto fuente; no hay una IPA compilada. Consulta las instrucciones y los límites de validación en [`v2/README.md`](v2/README.md).
+La release actual incluye Windows completo y seis paquetes CLI. Android e iOS conservan la edición .2; para iOS se entrega el proyecto fuente sin IPA compilada. Consulta las instrucciones y los límites de validación en [`v2/README.md`](v2/README.md).
 
 
 ## Edición personalizada para Windows en español
