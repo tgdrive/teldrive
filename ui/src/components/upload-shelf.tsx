@@ -1,3 +1,4 @@
+import { t } from "@/lib/localization";
 import { Button, Card, Chip, ProgressBar } from "@heroui/react";
 import { type CSSProperties, useState } from "react";
 import { Button as AriaButton, Tree, TreeItem, TreeItemContent } from "react-aria-components";
@@ -110,7 +111,7 @@ function TaskActions({ task }: { task: UploadTask }) {
           isIconOnly
           size="sm"
           variant="ghost"
-          aria-label={`Pausar ${task.name}`}
+          aria-label={t("Pausar {0}", [task.name])}
           onPress={() => pause(task.id)}
         >
           <PauseIcon className="size-3.5" />
@@ -121,7 +122,7 @@ function TaskActions({ task }: { task: UploadTask }) {
           isIconOnly
           size="sm"
           variant="ghost"
-          aria-label={`Reanudar ${task.name}`}
+          aria-label={t("Reanudar {0}", [task.name])}
           onPress={() => retry(task.id)}
         >
           <PlayIcon className="size-3.5" />
@@ -132,7 +133,7 @@ function TaskActions({ task }: { task: UploadTask }) {
           isIconOnly
           size="sm"
           variant="ghost"
-          aria-label={`Cancelar ${task.name}`}
+          aria-label={t("Cancelar {0}", [task.name])}
           onPress={() => void cancel(task.id)}
         >
           <CloseIcon className="size-3.5" />
@@ -142,7 +143,7 @@ function TaskActions({ task }: { task: UploadTask }) {
           isIconOnly
           size="sm"
           variant="ghost"
-          aria-label={`Eliminar ${task.name}`}
+          aria-label={t("Eliminar {0}", [task.name])}
           onPress={() => remove(task.id)}
         >
           <TrashIcon className="size-3.5" />
@@ -251,7 +252,7 @@ export function UploadShelf() {
             <UploadIcon className="size-4" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold">Subidas</p>
+            <p className="text-sm font-semibold">{t("Subidas")}</p>
             <p className="truncate text-[11px] text-muted">
               {active
                 ? `${active} activos - ${summary.progress}% - ${formatBytes(summary.uploadedBytes)} de ${formatBytes(summary.totalBytes)}`
@@ -260,13 +261,13 @@ export function UploadShelf() {
             </p>
           </div>
           <Button size="sm" variant="ghost" onPress={clearCompleted}>
-            Borrar
+            {t("Borrar")}
           </Button>
           <Button
             isIconOnly
             size="sm"
             variant="ghost"
-            aria-label={expanded ? "Contraer subidas" : "Expandir subidas"}
+            aria-label={expanded ? t("Contraer subidas") : t("Expandir subidas")}
             onPress={() => setExpanded((value) => !value)}
           >
             {expanded ? (
@@ -277,11 +278,15 @@ export function UploadShelf() {
           </Button>
         </div>
       </Card.Header>
-      <ProgressBar aria-label="Progreso total de subida" value={summary.progress} className="h-1" />
+      <ProgressBar
+        aria-label={t("Progreso total de subida")}
+        value={summary.progress}
+        className="h-1"
+      />
       {expanded ? (
         <Card.Content className="max-h-[min(65vh,34rem)] overflow-y-auto px-2 pb-2">
           <Tree
-            aria-label="Cola de subidas"
+            aria-label={t("Cola de subidas")}
             defaultExpandedKeys={expandedKeys}
             className="outline-none"
           >

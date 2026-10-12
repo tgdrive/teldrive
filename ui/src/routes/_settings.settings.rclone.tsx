@@ -1,3 +1,4 @@
+import { t } from "@/lib/localization";
 import { Button, Input } from "@heroui/react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
@@ -59,58 +60,64 @@ function RcloneSettings() {
   const copy = async (text: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      toast.success("Copiado al portapapeles");
+      toast.success(t("Copiado al portapapeles"));
     } catch {
-      toast.error("No se pudo copiar. Selecciona el texto y cópialo manualmente.");
+      toast.error(t("No se pudo copiar. Selecciona el texto y cópialo manualmente."));
     }
   };
   return (
     <div className="space-y-6">
       <SettingsPageHeader
         title="Rclone"
-        description="Conecta Teldrive v2, transfiere archivos y monta una unidad con el cliente compatible."
+        description={t(
+          "Conecta Teldrive v2, transfiere archivos y monta una unidad con el cliente compatible.",
+        )}
       />
       <SettingsSection
-        title="Conexión de Teldrive v2"
-        description="La clave se mantiene únicamente en esta página hasta que la cierres. El archivo descargado contiene tu credencial."
+        title={t("Conexión de Teldrive v2")}
+        description={t(
+          "La clave se mantiene únicamente en esta página hasta que la cierres. El archivo descargado contiene tu credencial.",
+        )}
       >
-        <SettingsRow label="Servidor">
+        <SettingsRow label={t("Servidor")}>
           <Input
-            aria-label="Servidor de rclone"
+            aria-label={t("Servidor de rclone")}
             value={host}
             onChange={(event) => setHost(event.target.value)}
           />
         </SettingsRow>
-        <SettingsRow label="Nombre de la conexión">
+        <SettingsRow label={t("Nombre de la conexión")}>
           <Input
-            aria-label="Nombre de la conexión"
+            aria-label={t("Nombre de la conexión")}
             value={remote}
             onChange={(event) => setRemote(event.target.value)}
           />
         </SettingsRow>
         <SettingsRow
-          label="Clave de API"
-          description="Crea una clave específica para este equipo y revócala cuando dejes de utilizarlo."
+          label={t("Clave de API")}
+          description={t(
+            "Crea una clave específica para este equipo y revócala cuando dejes de utilizarlo.",
+          )}
         >
           <div className="space-y-2">
             <Input
-              aria-label="Clave de API de rclone"
+              aria-label={t("Clave de API de rclone")}
               type="password"
               autoComplete="off"
               value={key}
               onChange={(event) => setKey(event.target.value)}
             />
             <Link to="/settings/api-keys" className="text-sm text-accent underline">
-              Administrar claves de API
+              {t("Administrar claves de API")}
             </Link>
           </div>
         </SettingsRow>
         <SettingsRow
-          label="Tamaño de fragmento (MiB)"
-          description="Entre 64 y 2000, en múltiplos de 16."
+          label={t("Tamaño de fragmento (MiB)")}
+          description={t("Entre 64 y 2000, en múltiplos de 16.")}
         >
           <Input
-            aria-label="Tamaño de fragmento"
+            aria-label={t("Tamaño de fragmento")}
             type="number"
             min={64}
             max={2000}
@@ -120,11 +127,11 @@ function RcloneSettings() {
           />
         </SettingsRow>
         <SettingsRow
-          label="Subidas simultáneas"
-          description="Más concurrencia requiere más memoria."
+          label={t("Subidas simultáneas")}
+          description={t("Más concurrencia requiere más memoria.")}
         >
           <Input
-            aria-label="Subidas simultáneas"
+            aria-label={t("Subidas simultáneas")}
             type="number"
             min={1}
             max={32}
@@ -132,34 +139,34 @@ function RcloneSettings() {
             onChange={(event) => setConcurrency(Number(event.target.value))}
           />
         </SettingsRow>
-        <SettingsRow label="Cifrado de Teldrive">
+        <SettingsRow label={t("Cifrado de Teldrive")}>
           <label className="flex items-center gap-2">
             <input
               type="checkbox"
               checked={encrypt}
               onChange={(event) => setEncrypt(event.target.checked)}
             />
-            Cifrar los archivos nuevos
+            {t("Cifrar los archivos nuevos")}
           </label>
         </SettingsRow>
-        <SettingsRow label="Integridad de los archivos">
+        <SettingsRow label={t("Integridad de los archivos")}>
           <label className="flex items-center gap-2">
             <input
               type="checkbox"
               checked={hash}
               onChange={(event) => setHash(event.target.checked)}
             />
-            Verificar mediante BLAKE3
+            {t("Verificar mediante BLAKE3")}
           </label>
         </SettingsRow>
         <SettingsRow
-          label="Contraseña de enlaces públicos"
-          description="Opcional; se aplica a los enlaces creados por rclone."
+          label={t("Contraseña de enlaces públicos")}
+          description={t("Opcional; se aplica a los enlaces creados por rclone.")}
         >
           <Input
             type="password"
             autoComplete="new-password"
-            aria-label="Contraseña de enlaces públicos"
+            aria-label={t("Contraseña de enlaces públicos")}
             value={linkPassword}
             onChange={(event) => setLinkPassword(event.target.value)}
           />
@@ -180,17 +187,17 @@ function RcloneSettings() {
                     linkPassword,
                   });
                   setConnectionVersion((value) => value + 1);
-                  toast.success("Conexión guardada en este equipo");
+                  toast.success(t("Conexión guardada en este equipo"));
                 } catch (cause) {
                   toast.error(
-                    cause instanceof Error ? cause.message : "No se pudo guardar la conexión.",
+                    cause instanceof Error ? cause.message : t("No se pudo guardar la conexión."),
                   );
                 } finally {
                   setSaving(false);
                 }
               }}
             >
-              Guardar conexión en este equipo
+              {t("Guardar conexión en este equipo")}
             </Button>
           ) : null}
           <Button
@@ -200,7 +207,7 @@ function RcloneSettings() {
                 if (await nativeTextSave(config, "rclone.conf")) return;
               } catch (cause) {
                 toast.error(
-                  cause instanceof Error ? cause.message : "No se pudo guardar el archivo.",
+                  cause instanceof Error ? cause.message : t("No se pudo guardar el archivo."),
                 );
                 return;
               }
@@ -217,24 +224,27 @@ function RcloneSettings() {
             Descargar rclone.conf
           </Button>
           <Button variant="secondary" isDisabled={!valid} onPress={() => void copy(config)}>
-            Copiar configuración
+            {t("Copiar configuración")}
           </Button>
         </div>
         {!valid ? (
           <p className="px-5 pb-4 text-sm text-muted">
-            Introduce una URL válida, una clave y un nombre de conexión sin espacios. Revisa también
-            los límites de fragmentos y concurrencia.
+            {t(
+              "Introduce una URL válida, una clave y un nombre de conexión sin espacios. Revisa también los límites de fragmentos y concurrencia.",
+            )}
           </p>
         ) : null}
       </SettingsSection>
       {isDesktop() ? <RcloneBrowser connectionVersion={connectionVersion} /> : null}
       <SettingsSection
-        title="Montar una unidad"
-        description="Coloca rclone.conf junto al ejecutable compatible. Los comandos se ejecutan en tu equipo."
+        title={t("Montar una unidad")}
+        description={t(
+          "Coloca rclone.conf junto al ejecutable compatible. Los comandos se ejecutan en tu equipo.",
+        )}
       >
-        <SettingsRow label="Sistema operativo">
+        <SettingsRow label={t("Sistema operativo")}>
           <select
-            aria-label="Sistema operativo"
+            aria-label={t("Sistema operativo")}
             className="w-full rounded-lg border border-border bg-surface p-2"
             value={platform}
             onChange={(event) => {
@@ -248,14 +258,14 @@ function RcloneSettings() {
               );
             }}
           >
-            <option value="windows">Windows (PowerShell)</option>
-            <option value="linux">Linux</option>
+            <option value="windows">{t("Windows (PowerShell)")}</option>
+            <option value="linux">{t("Linux")}</option>
             <option value="macos">macOS</option>
           </select>
         </SettingsRow>
-        <SettingsRow label="Unidad o carpeta de montaje">
+        <SettingsRow label={t("Unidad o carpeta de montaje")}>
           <Input
-            aria-label="Carpeta de montaje"
+            aria-label={t("Carpeta de montaje")}
             value={mount}
             onChange={(event) => setMount(event.target.value)}
           />
@@ -263,20 +273,25 @@ function RcloneSettings() {
         <div className="space-y-3 p-5">
           <p className="text-sm text-muted">
             {platform === "windows"
-              ? "Windows requiere el controlador WinFsp para montar una unidad. Puedes usar las transferencias y la UI sin ese controlador."
+              ? t(
+                  "Windows requiere el controlador WinFsp para montar una unidad. Puedes usar las transferencias y la UI sin ese controlador.",
+                )
               : platform === "macos"
-                ? "Las transferencias funcionan en macOS. El montaje necesita macFUSE y una compilación nativa adicional; todavía no está validado en esta edición."
-                : "Linux requiere FUSE para el montaje."}
+                ? t(
+                    "Las transferencias funcionan en macOS. El montaje necesita macFUSE y una compilación nativa adicional; todavía no está validado en esta edición.",
+                  )
+                : t("Linux requiere FUSE para el montaje.")}
           </p>
           <pre className="overflow-x-auto rounded-lg bg-default/30 p-4 text-xs">
             <code>{commands}</code>
           </pre>
           <Button variant="secondary" onPress={() => void copy(commands)}>
-            Copiar comandos
+            {t("Copiar comandos")}
           </Button>
           <p className="text-sm text-muted">
-            La edición 1.73.1 usa access_token. Para v2 utiliza el rclone de esta edición con
-            api_key.
+            {t(
+              "La edición 1.73.1 usa access_token. Para v2 utiliza el rclone de esta edición con api_key.",
+            )}
           </p>
         </div>
       </SettingsSection>

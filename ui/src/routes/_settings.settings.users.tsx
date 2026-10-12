@@ -1,3 +1,4 @@
+import { t } from "@/lib/localization";
 import { Button, Chip, Input, Label, Spinner, TextField } from "@heroui/react";
 import { keepPreviousData } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
@@ -39,43 +40,51 @@ function UsersSettings() {
     try {
       await updateUser.mutateAsync({ params: { path: { userId } }, body });
       await refresh();
-      toast.success("Usuario actualizado");
+      toast.success(t("Usuario actualizado"));
     } catch (error) {
-      toast.error("No se pudo actualizar el usuario", { description: userMessage(error) });
+      toast.error(t("No se pudo actualizar el usuario"), { description: userMessage(error) });
     }
   };
 
   return (
     <div className="space-y-6">
       <SettingsPageHeader
-        title="Usuarios y permisos"
-        description="Administra quién puede usar este servidor y quién puede gestionar sus funciones de sistema."
+        title={t("Usuarios y permisos")}
+        description={t(
+          "Administra quién puede usar este servidor y quién puede gestionar sus funciones de sistema.",
+        )}
         actions={
           <Button variant="secondary" onPress={() => void refresh()}>
             <RefreshIcon className="size-4" />
-            Actualizar
+            {t("Actualizar")}
           </Button>
         }
       />
 
       <SettingsSection
-        title="Usuarios"
-        description="La primera cuenta es la propietaria del servidor y no se puede degradar ni desactivar."
+        title={t("Usuarios")}
+        description={t(
+          "La primera cuenta es la propietaria del servidor y no se puede degradar ni desactivar.",
+        )}
       >
         <div className="border-b border-border p-4">
           <TextField value={search} onChange={setSearch} className="max-w-md">
-            <Label>Buscar usuarios</Label>
-            <Input placeholder="Nombre, usuario o ID de Telegram" />
+            <Label>{t("Buscar usuarios")}</Label>
+            <Input placeholder={t("Nombre, usuario o ID de Telegram")} />
           </TextField>
         </div>
         {query.isPending ? (
-          <div className="flex justify-center p-6" role="status" aria-label="Cargando usuarios">
+          <div
+            className="flex justify-center p-6"
+            role="status"
+            aria-label={t("Cargando usuarios")}
+          >
             <Spinner />
           </div>
         ) : query.data?.length ? (
           query.data.map((user) => {
             const displayName =
-              user.displayName?.trim() || user.username?.trim() || `Usuario ${user.userId}`;
+              user.displayName?.trim() || user.username?.trim() || t("Usuario {0}", [user.userId]);
             const owner = user.role === "owner";
             return (
               <SettingsRow
@@ -88,11 +97,15 @@ function UsersSettings() {
                     variant="tertiary"
                     color={owner ? "accent" : user.role === "admin" ? "warning" : "default"}
                   >
-                    {user.role === "owner" ? "Propietario" : user.role === "admin" ? "Administrador" : "Usuario"}
+                    {user.role === "owner"
+                      ? t("Propietario")
+                      : user.role === "admin"
+                        ? t("Administrador")
+                        : t("Usuario")}
                   </Chip>
                   {user.disabled ? (
                     <Chip variant="tertiary" color="danger">
-                      Desactivado
+                      {t("Desactivado")}
                     </Chip>
                   ) : null}
                   {!owner ? (
@@ -104,7 +117,7 @@ function UsersSettings() {
                         void update(user.userId, { role: user.role === "admin" ? "user" : "admin" })
                       }
                     >
-                      {user.role === "admin" ? "Asignar usuario" : "Asignar administrador"}
+                      {user.role === "admin" ? t("Asignar usuario") : t("Asignar administrador")}
                     </Button>
                   ) : null}
                   {!owner ? (
@@ -114,7 +127,7 @@ function UsersSettings() {
                       isDisabled={updateUser.isPending}
                       onPress={() => void update(user.userId, { disabled: !user.disabled })}
                     >
-                      {user.disabled ? "Activar" : "Desactivar"}
+                      {user.disabled ? t("Activar") : t("Desactivar")}
                     </Button>
                   ) : null}
                   {!owner ? (
@@ -127,15 +140,15 @@ function UsersSettings() {
                           await revokeAccess.mutateAsync({
                             params: { path: { userId: user.userId } },
                           });
-                          toast.success("Sesiones y claves de API revocadas");
+                          toast.success(t("Sesiones y claves de API revocadas"));
                         } catch (error) {
-                          toast.error("No se pudo revocar el acceso", {
+                          toast.error(t("No se pudo revocar el acceso"), {
                             description: userMessage(error),
                           });
                         }
                       }}
                     >
-                      Revocar acceso
+                      {t("Revocar acceso")}
                     </Button>
                   ) : null}
                 </div>
@@ -143,7 +156,7 @@ function UsersSettings() {
             );
           })
         ) : (
-          <p className="p-6 text-sm text-muted">Ningún usuario coincide con la búsqueda.</p>
+          <p className="p-6 text-sm text-muted">{t("Ningún usuario coincide con la búsqueda.")}</p>
         )}
       </SettingsSection>
     </div>

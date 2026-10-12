@@ -19,6 +19,7 @@
     <ApplicationIcon>Assets/Teldrive.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
+    <EmbeddedResource Include="../localization/catalog.json" LogicalName="Teldrive.Desktop.LocalizationCatalog" />
     <Resource Include="Assets/Teldrive.ico" />
     <Resource Include="Assets/Teldrive.png" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />

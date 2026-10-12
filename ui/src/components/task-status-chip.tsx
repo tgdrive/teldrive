@@ -1,3 +1,4 @@
+import { t } from "@/lib/localization";
 import { Chip } from "@heroui/react";
 
 const ACTIVE_STATUSES = new Set(["pending", "scheduled", "available", "running", "retryable"]);
@@ -6,17 +7,17 @@ export function taskStatusLabel(status: string) {
   return (
     (
       {
-        pending: "Pendiente",
-        queued: "En cola",
-        paused: "En pausa",
-        failed: "Fallida",
-        scheduled: "Programada",
-        available: "Disponible",
-        running: "En ejecución",
-        retryable: "Reintentable",
-        cancelled: "Cancelada",
-        discarded: "Descartada",
-        completed: "Completada",
+        pending: t("Pendiente"),
+        queued: t("En cola"),
+        paused: t("En pausa"),
+        failed: t("Fallida"),
+        scheduled: t("Programada"),
+        available: t("Disponible"),
+        running: t("En ejecución"),
+        retryable: t("Reintentable"),
+        cancelled: t("Cancelada"),
+        discarded: t("Descartada"),
+        completed: t("Completada"),
       } as Record<string, string>
     )[status] ?? status
   );

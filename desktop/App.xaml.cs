@@ -19,10 +19,10 @@ public partial class App : Application
         instance = new Mutex(true, mutexName, out var first);
         if (!first) {
             try { using var signal = EventWaitHandle.OpenExisting(mutexName + "-Show"); signal.Set(); }
-            catch (WaitHandleCannotBeOpenedException) { MessageBox.Show("Teldrive v2 ya está iniciándose. Busca su icono en la bandeja del sistema.", "Teldrive Desktop v2"); }
+            catch (WaitHandleCannotBeOpenedException) { MessageBox.Show(L.T("Teldrive v2 ya está iniciándose. Busca su icono en la bandeja del sistema."), L.T("Teldrive Desktop v2")); }
             Shutdown(); return;
         }
-        DispatcherUnhandledException += (_, error) => { MessageBox.Show(error.Exception.Message, "Teldrive Desktop v2"); error.Handled = true; };
+        DispatcherUnhandledException += (_, error) => { MessageBox.Show(error.Exception.Message, L.T("Teldrive Desktop v2")); error.Handled = true; };
         var window = new MainWindow(e.Args);
         MainWindow = window;
         showWindow = new EventWaitHandle(false, EventResetMode.AutoReset, mutexName + "-Show");

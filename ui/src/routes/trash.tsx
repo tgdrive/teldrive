@@ -1,3 +1,4 @@
+import { t } from "@/lib/localization";
 import { Button, Card, Chip, Spinner } from "@heroui/react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
@@ -25,7 +26,7 @@ export const Route = createFileRoute("/trash")({
 });
 
 export function QuarantinePage({ spam = false }: { spam?: boolean }) {
-  const title = spam ? "Spam" : "Papelera";
+  const title = spam ? t("Spam") : t("Papelera");
   const [category, setCategory] = useState<FileCategory | "folder" | "">("");
   const [after, setAfter] = useState("");
   const [before, setBefore] = useState("");
@@ -82,7 +83,7 @@ export function QuarantinePage({ spam = false }: { spam?: boolean }) {
       } else await actions.restore(file.id);
       toast.success(`${file.name} restaurado`);
     } catch (error) {
-      toast.error("No se pudo restaurar el archivo", { description: userMessage(error) });
+      toast.error(t("No se pudo restaurar el archivo"), { description: userMessage(error) });
     } finally {
       setIncomingPending(false);
     }
@@ -100,11 +101,11 @@ export function QuarantinePage({ spam = false }: { spam?: boolean }) {
       } else await actions.purge(file.id);
       toast.success(
         incomingIds.has(file.id)
-          ? `Acceso a ${file.name} retirado`
+          ? t("Acceso a {0} retirado", [file.name])
           : `${file.name} eliminado definitivamente`,
       );
     } catch (error) {
-      toast.error("No se pudo eliminar el archivo definitivamente", {
+      toast.error(t("No se pudo eliminar el archivo definitivamente"), {
         description: userMessage(error),
       });
     } finally {
@@ -115,9 +116,9 @@ export function QuarantinePage({ spam = false }: { spam?: boolean }) {
   const cleanTrash = async () => {
     try {
       await actions.cleanTrash();
-      toast.success("Papelera vaciada");
+      toast.success(t("Papelera vaciada"));
     } catch (error) {
-      toast.error("No se pudo vaciar la papelera", { description: userMessage(error) });
+      toast.error(t("No se pudo vaciar la papelera"), { description: userMessage(error) });
     }
   };
 
@@ -127,8 +128,10 @@ export function QuarantinePage({ spam = false }: { spam?: boolean }) {
         title={title}
         description={
           spam
-            ? "Elementos puestos en cuarentena durante 30 días. En los recibidos se retira tu acceso sin borrar el original del propietario. En los propios se retiran los enlaces; restaurarlos no vuelve a compartirlos."
-            : "Restaura los elementos eliminados o elimínalos definitivamente de Teldrive."
+            ? t(
+                "Elementos puestos en cuarentena durante 30 días. En los recibidos se retira tu acceso sin borrar el original del propietario. En los propios se retiran los enlaces; restaurarlos no vuelve a compartirlos.",
+              )
+            : t("Restaura los elementos eliminados o elimínalos definitivamente de Teldrive.")
         }
         actions={
           <div className="flex items-center gap-2">
@@ -139,7 +142,7 @@ export function QuarantinePage({ spam = false }: { spam?: boolean }) {
                 isDisabled={pending}
                 onPress={() => setCleaningTrash(true)}
               >
-                <TrashIcon className="size-4" /> Vaciar papelera
+                <TrashIcon className="size-4" /> {" " + t("Vaciar papelera")}
               </Button>
             ) : null}
             <Button
@@ -148,7 +151,7 @@ export function QuarantinePage({ spam = false }: { spam?: boolean }) {
               isDisabled={pending}
               onPress={() => void refresh()}
             >
-              <RefreshIcon className="size-4" /> Actualizar
+              <RefreshIcon className="size-4" /> {" " + t("Actualizar")}
             </Button>
           </div>
         }
@@ -156,27 +159,27 @@ export function QuarantinePage({ spam = false }: { spam?: boolean }) {
       <PageContent>
         <div className="mb-4 flex flex-wrap items-end gap-3">
           <label className="space-y-1 text-sm">
-            <span className="block">Tipo</span>
+            <span className="block">{t("Tipo")}</span>
             <select
-              aria-label="Tipo de archivo"
+              aria-label={t("Tipo de archivo")}
               className="rounded-lg border border-border bg-surface p-2"
               value={category}
               onChange={(event) => setCategory(event.target.value as typeof category)}
             >
-              <option value="">Todos los tipos</option>
-              <option value="folder">Carpetas</option>
-              <option value="image">Imágenes</option>
-              <option value="video">Vídeos</option>
-              <option value="audio">Audio</option>
-              <option value="document">Documentos</option>
-              <option value="archive">Archivos comprimidos</option>
-              <option value="other">Otros</option>
+              <option value="">{t("Todos los tipos")}</option>
+              <option value="folder">{t("Carpetas")}</option>
+              <option value="image">{t("Imágenes")}</option>
+              <option value="video">{t("Vídeos")}</option>
+              <option value="audio">{t("Audio")}</option>
+              <option value="document">{t("Documentos")}</option>
+              <option value="archive">{t("Archivos comprimidos")}</option>
+              <option value="other">{t("Otros")}</option>
             </select>
           </label>
           <label className="space-y-1 text-sm">
-            <span className="block">Modificado desde</span>
+            <span className="block">{t("Modificado desde")}</span>
             <input
-              aria-label="Modificado desde"
+              aria-label={t("Modificado desde")}
               className="rounded-lg border border-border bg-surface p-2"
               type="date"
               value={after}
@@ -184,9 +187,9 @@ export function QuarantinePage({ spam = false }: { spam?: boolean }) {
             />
           </label>
           <label className="space-y-1 text-sm">
-            <span className="block">Modificado hasta</span>
+            <span className="block">{t("Modificado hasta")}</span>
             <input
-              aria-label="Modificado hasta"
+              aria-label={t("Modificado hasta")}
               className="rounded-lg border border-border bg-surface p-2"
               type="date"
               value={before}
@@ -201,13 +204,13 @@ export function QuarantinePage({ spam = false }: { spam?: boolean }) {
               setBefore("");
             }}
           >
-            Borrar filtros
+            {t("Borrar filtros")}
           </Button>
           <div className="ml-auto flex gap-2">
             {(["list", "grid"] as const).map((choice, index) => (
               <Button
                 key={choice}
-                aria-label={["Vista de lista", "Vista de cuadrícula"][index]}
+                aria-label={[t("Vista de lista"), t("Vista de cuadrícula")][index]}
                 aria-pressed={view === choice}
                 variant={view === choice ? "primary" : "secondary"}
                 onPress={() => {
@@ -215,35 +218,36 @@ export function QuarantinePage({ spam = false }: { spam?: boolean }) {
                   localStorage.setItem("teldrive-v2-trash-view", choice);
                 }}
               >
-                {["Lista", "Cuadrícula"][index]}
+                {[t("Lista"), t("Cuadrícula")][index]}
               </Button>
             ))}
           </div>
         </div>
         {!validRange ? (
           <p role="alert" className="mb-4 text-danger">
-            La fecha inicial debe ser anterior a la final.
+            {t("La fecha inicial debe ser anterior a la final.")}
           </p>
         ) : null}
         {query.isError || (spam && incoming.isError) ? (
           <p role="alert" className="mb-4 text-danger">
-            No se pudo consultar {title}.{" "}
+            {t("No se pudo consultar") + " "}
+            {title}.{" "}
             <Button variant="secondary" onPress={() => void refresh()}>
-              Reintentar
+              {t("Reintentar")}
             </Button>
           </p>
         ) : null}
         {(query.isPending || (spam && incoming.isPending)) && validRange ? (
-          <Spinner aria-label={`Cargando ${title}`} />
+          <Spinner aria-label={t("Cargando {0}", [title])} />
         ) : files.length === 0 && !query.isError && !(spam && incoming.isError) && validRange ? (
           <EmptyState
-            title={spam ? "No hay elementos en Spam" : "La papelera está vacía"}
+            title={spam ? t("No hay elementos en Spam") : t("La papelera está vacía")}
             description={
               category || after || before
-                ? "No hay elementos que coincidan con los filtros."
+                ? t("No hay elementos que coincidan con los filtros.")
                 : spam
-                  ? "Los elementos marcados como spam aparecerán aquí."
-                  : "Los archivos y carpetas eliminados aparecerán aquí."
+                  ? t("Los elementos marcados como spam aparecerán aquí.")
+                  : t("Los archivos y carpetas eliminados aparecerán aquí.")
             }
           />
         ) : (
@@ -275,13 +279,13 @@ export function QuarantinePage({ spam = false }: { spam?: boolean }) {
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium">{file.name}</p>
                       <p className="mt-0.5 text-xs text-muted">
-                        {spam ? "Modificado" : "Eliminado"}{" "}
+                        {spam ? t("Modificado") : t("Eliminado")}{" "}
                         {new Date(file.updatedAt).toLocaleString("es-ES")}
                       </p>
                     </div>
                   </div>
                   <Chip size="sm" variant="tertiary" className="w-fit capitalize">
-                    {file.kind === "folder" ? "Carpeta" : "Archivo"}
+                    {file.kind === "folder" ? t("Carpeta") : t("Archivo")}
                   </Chip>
                   <div className="flex justify-end gap-2">
                     <Button
@@ -290,7 +294,7 @@ export function QuarantinePage({ spam = false }: { spam?: boolean }) {
                       isDisabled={pending}
                       onPress={() => void restore(file)}
                     >
-                      <RestoreIcon className="size-4" /> {spam ? "No es spam" : "Restaurar"}
+                      <RestoreIcon className="size-4" /> {spam ? t("No es spam") : t("Restaurar")}
                     </Button>
                     <Button
                       size="sm"
@@ -299,7 +303,9 @@ export function QuarantinePage({ spam = false }: { spam?: boolean }) {
                       onPress={() => setPurging(file)}
                     >
                       <TrashIcon className="size-4" />{" "}
-                      {incomingIds.has(file.id) ? "Retirar acceso" : "Eliminar definitivamente"}
+                      {incomingIds.has(file.id)
+                        ? t("Retirar acceso")
+                        : t("Eliminar definitivamente")}
                     </Button>
                   </div>
                 </div>
@@ -313,7 +319,7 @@ export function QuarantinePage({ spam = false }: { spam?: boolean }) {
               isDisabled={query.isFetchingNextPage}
               onPress={() => void query.fetchNextPage()}
             >
-              {query.isFetchingNextPage ? "Cargando…" : "Mostrar más"}
+              {query.isFetchingNextPage ? t("Cargando…") : t("Mostrar más")}
             </Button>
           </div>
         ) : null}
@@ -326,12 +332,16 @@ export function QuarantinePage({ spam = false }: { spam?: boolean }) {
         }}
         title={
           purging && incomingIds.has(purging.id)
-            ? "¿Retirar tu acceso a este elemento?"
-            : "¿Eliminar este elemento definitivamente?"
+            ? t("¿Retirar tu acceso a este elemento?")
+            : t("¿Eliminar este elemento definitivamente?")
         }
-        message="Elimina los elementos propios y sus datos en Telegram. En un elemento recibido retira solo tu acceso y conserva el original del propietario. Esta acción no se puede deshacer."
+        message={t(
+          "Elimina los elementos propios y sus datos en Telegram. En un elemento recibido retira solo tu acceso y conserva el original del propietario. Esta acción no se puede deshacer.",
+        )}
         confirmLabel={
-          purging && incomingIds.has(purging.id) ? "Retirar acceso" : "Eliminar definitivamente"
+          purging && incomingIds.has(purging.id)
+            ? t("Retirar acceso")
+            : t("Eliminar definitivamente")
         }
         isPending={pending}
         onConfirm={() => {
@@ -343,9 +353,11 @@ export function QuarantinePage({ spam = false }: { spam?: boolean }) {
       <ConfirmDialog
         open={cleaningTrash}
         onOpenChange={setCleaningTrash}
-        title="¿Vaciar toda la papelera?"
-        message="Elimina definitivamente todos los elementos de la papelera, incluidos los ocultos por filtros. Esta acción no se puede deshacer."
-        confirmLabel="Vaciar papelera"
+        title={t("¿Vaciar toda la papelera?")}
+        message={t(
+          "Elimina definitivamente todos los elementos de la papelera, incluidos los ocultos por filtros. Esta acción no se puede deshacer.",
+        )}
+        confirmLabel={t("Vaciar papelera")}
         isPending={pending}
         onConfirm={() => {
           void cleanTrash().finally(() => setCleaningTrash(false));

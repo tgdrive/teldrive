@@ -32,7 +32,7 @@ func TestMKVTracksSubtitlesAndSelectedAudio(t *testing.T) {
 	sub := filepath.Join(folder, "fixture.srt")
 	fixture := filepath.Join(folder, "multi.mkv")
 	os.WriteFile(sub, []byte("1\n00:00:00,200 --> 00:00:01,700\nSubtítulo de prueba\n"), 0600)
-	command := exec.Command(executable, "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=blue:s=160x90:d=2", "-f", "lavfi", "-i", "sine=frequency=440:duration=2", "-f", "lavfi", "-i", "sine=frequency=880:duration=2", "-i", sub, "-map", "0:v", "-map", "1:a", "-map", "2:a", "-map", "3:s", "-metadata:s:a:0", "language=spa", "-metadata:s:a:1", "language=eng", "-metadata:s:s:0", "language=spa", "-c:v", "ffv1", "-c:a", "pcm_s16le", "-c:s", "srt", "-y", fixture)
+	command := exec.Command(executable, "-hide_banner", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=blue:s=160x90:d=2", "-f", "lavfi", "-i", "sine=frequency=440:duration=2", "-f", "lavfi", "-i", "sine=frequency=880:duration=2", "-i", sub, "-map", "0:v", "-map", "1:a", "-map", "2:a", "-map", "3:s", "-metadata:s:a:0", "language=spa", "-metadata:s:a:1", "language=eng", "-metadata:s:s:0", "language=spa", "-disposition:a:0", "0", "-disposition:a:1", "default", "-c:v", "ffv1", "-c:a", "pcm_s16le", "-c:s", "srt", "-y", fixture)
 	if output, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("fixture: %v %s", err, output)
 	}
@@ -49,7 +49,7 @@ func TestMKVTracksSubtitlesAndSelectedAudio(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(tracks) != 4 || tracks[1].Language != "spa" || tracks[2].Language != "eng" || tracks[3].Kind != "subtitle" {
+	if len(tracks) != 4 || tracks[1].Language != "spa" || tracks[2].Language != "eng" || tracks[3].Kind != "subtitle" || tracks[1].Default || !tracks[2].Default {
 		t.Fatalf("tracks: %+v", tracks)
 	}
 	subtitles, err := service.Subtitles(context.Background(), source, tracks[3].Index)
@@ -61,28 +61,31 @@ func TestMKVTracksSubtitlesAndSelectedAudio(t *testing.T) {
 		t.Fatalf("subtitle seeking: %v %s", err, shifted)
 	}
 	selected := tracks[2].Index
-	response := httptest.NewRecorder()
-	if err = service.Convert(context.Background(), response, source, "video", 0, Selection{Audio: &selected}); err != nil {
-		t.Fatal(err)
-	}
-	decode := exec.Command(executable, "-hide_banner", "-loglevel", "error", "-i", "pipe:0", "-map", "0:a:0", "-t", "0.5", "-ar", "8000", "-ac", "1", "-f", "f64le", "pipe:1")
-	decode.Stdin = bytes.NewReader(response.Body.Bytes())
-	data, err := decode.Output()
-	if err != nil {
-		t.Fatal(err)
-	}
-	crossings := 0
-	last := 0.0
-	for i := 0; i+8 <= len(data); i += 8 {
-		value := math.Float64frombits(binary.LittleEndian.Uint64(data[i : i+8]))
-		if i > 0 && last < 0 && value >= 0 {
-			crossings++
+	var response *httptest.ResponseRecorder
+	for _, selection := range []Selection{{Audio: &selected}, {}} {
+		response = httptest.NewRecorder()
+		if err = service.Convert(context.Background(), response, source, "video", 0, selection); err != nil {
+			t.Fatal(err)
 		}
-		last = value
-	}
-	frequency := float64(crossings) / (float64(len(data)/8) / 8000)
-	if frequency < 830 || frequency > 930 {
-		t.Fatalf("wrong audio track frequency: %.1f", frequency)
+		decode := exec.Command(executable, "-hide_banner", "-loglevel", "error", "-i", "pipe:0", "-map", "0:a:0", "-t", "0.5", "-ar", "8000", "-ac", "1", "-f", "f64le", "pipe:1")
+		decode.Stdin = bytes.NewReader(response.Body.Bytes())
+		data, err := decode.Output()
+		if err != nil {
+			t.Fatal(err)
+		}
+		crossings := 0
+		last := 0.0
+		for i := 0; i+8 <= len(data); i += 8 {
+			value := math.Float64frombits(binary.LittleEndian.Uint64(data[i : i+8]))
+			if i > 0 && last < 0 && value >= 0 {
+				crossings++
+			}
+			last = value
+		}
+		frequency := float64(crossings) / (float64(len(data)/8) / 8000)
+		if frequency < 830 || frequency > 930 {
+			t.Fatalf("wrong audio track frequency: %.1f", frequency)
+		}
 	}
 	response = httptest.NewRecorder()
 	if err = service.Convert(context.Background(), response, source, "video", 0, Selection{Subtitle: &tracks[3]}); err != nil {

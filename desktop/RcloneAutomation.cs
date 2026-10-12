@@ -24,8 +24,8 @@ public sealed record RcloneSchedule
     public bool Enabled { get; set; } = true;
     public bool RunMissed { get; init; }
     public string LastResult { get; set; } = "";
-    public string NextDisplay => Enabled ? NextRun.ToLocalTime().ToString("dd/MM/yyyy HH:mm") : "Desactivado";
-    public string RepeatDisplay => Repeat switch { "daily" => "Diaria", "weekly" => "Semanal", "interval" => $"Cada {IntervalMinutes} min", _ => "Una vez" };
+    public string NextDisplay => Enabled ? NextRun.ToLocalTime().ToString("dd/MM/yyyy HH:mm") : L.T("Desactivado");
+    public string RepeatDisplay => Repeat switch { "daily" => L.T("Diaria"), "weekly" => L.T("Semanal"), "interval" => L.T("Cada {0} min", IntervalMinutes), _ => L.T("Una vez") };
 
     public void Advance(DateTimeOffset now)
     {
@@ -57,8 +57,8 @@ public sealed record RcloneQueueItem
     public DateTimeOffset? Started { get; set; }
     public DateTimeOffset? Finished { get; set; }
     public string Log { get; set; } = "";
-    public string Name => Definition.Name + (DryRun ? " (simulación)" : "");
-    public string StateDisplay => State switch { "waiting" => "En cola", "running" => "En curso", "completed" => "Completada", "failed" => "Fallida", "cancelled" => "Cancelada", "interrupted" => "Interrumpida; reintentar", _ => State };
+    public string Name => Definition.Name + (DryRun ? L.T(" (simulación)") : "");
+    public string StateDisplay => State switch { "waiting" => L.T("En cola"), "running" => L.T("En curso"), "completed" => L.T("Completada"), "failed" => L.T("Fallida"), "cancelled" => L.T("Cancelada"), "interrupted" => L.T("Interrumpida; reintentar"), _ => State };
     public string CreatedDisplay => Created.ToLocalTime().ToString("dd/MM HH:mm");
 }
 
@@ -78,6 +78,8 @@ public sealed class RcloneAutomation : IAsyncDisposable
     private readonly string path;
     private readonly IRcloneExecutor executor;
     private bool disposed;
+    private readonly RcloneTaskDefinition[] startupMounts;
+    private bool startupQueued;
     public RcloneAutomationState State { get; }
     public string? BlockReason => executor.BlockReason;
     public event Action<RcloneQueueItem>? Finished;
@@ -86,8 +88,9 @@ public sealed class RcloneAutomation : IAsyncDisposable
     {
         this.executor = executor;
         path = Path.Combine(dataRoot, "rclone-automation.json");
-        State = File.Exists(path) ? JsonSerializer.Deserialize<RcloneAutomationState>(File.ReadAllText(path)) ?? throw new IOException("El archivo de tareas está vacío.") : new();
-        if (State.Version != 1 || State.ParallelJobs is < 1 or > 3 || State.Tasks is null || State.Queue is null || State.Schedules is null) throw new IOException("El archivo de tareas tiene un formato no compatible. Conserva una copia antes de corregirlo.");
+        State = File.Exists(path) ? JsonSerializer.Deserialize<RcloneAutomationState>(File.ReadAllText(path)) ?? throw new IOException(L.T("El archivo de tareas está vacío.")) : new();
+        if (State.Version != 1 || State.ParallelJobs is < 1 or > 3 || State.Tasks is null || State.Queue is null || State.Schedules is null) throw new IOException(L.T("El archivo de tareas tiene un formato no compatible. Conserva una copia antes de corregirlo."));
+        startupMounts = State.Tasks.Where(item => item.IsMount && item.RunAtStartup).ToArray();
         foreach (var item in State.Queue.Where(item => item.State == "running")) {
             item.State = "interrupted"; item.ProcessId = null; item.Finished = DateTimeOffset.UtcNow;
             item.Log += "\nEl programa se cerró durante esta operación. Reinténtala para continuar.\n";
@@ -97,7 +100,8 @@ public sealed class RcloneAutomation : IAsyncDisposable
 
     public void SaveTask(RcloneTaskDefinition definition)
     {
-        _ = definition.Arguments(true, false);
+        _ = definition.Arguments(definition.IsMount ? false : true, false);
+        if (definition.RunAtStartup && State.Tasks.Any(item => item.Id != definition.Id && item.RunAtStartup && item.IsMount && item.Destination.Equals(definition.Destination, StringComparison.OrdinalIgnoreCase))) throw new ArgumentException(L.T("Ya existe un montaje al iniciar con esa letra de unidad."));
         var index = State.Tasks.FindIndex(item => item.Id == definition.Id);
         if (index >= 0) State.Tasks[index] = definition; else State.Tasks.Add(definition);
         State.Schedules = State.Schedules.Select(item => item.TaskId == definition.Id ? item with { Name = definition.Name } : item).ToList();
@@ -113,20 +117,21 @@ public sealed class RcloneAutomation : IAsyncDisposable
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         _ = definition.Arguments(dryRun, false);
-        if (State.Queue.Count(item => item.State is "waiting" or "running") >= 1000) throw new IOException("La cola alcanzó el límite de 1000 tareas pendientes.");
+        if (definition.IsMount && !dryRun && State.Queue.Any(item => item.Definition.IsMount && !item.DryRun && item.State is "waiting" or "running" && item.Definition.Destination.Equals(definition.Destination, StringComparison.OrdinalIgnoreCase))) throw new ArgumentException(L.T("Ese montaje ya está pendiente o en curso. Detén el anterior antes de volver a montarlo."));
+        if (State.Queue.Count(item => item.State is "waiting" or "running") >= 1000) throw new IOException(L.T("La cola alcanzó el límite de 1000 tareas pendientes."));
         var item = new RcloneQueueItem { Definition = definition, DryRun = dryRun };
         State.Queue.Add(item); TrimHistory(); Save(); return item;
     }
     public void Retry(string id)
     {
         var item = Find(id);
-        if (item.State is "waiting" or "running") throw new ArgumentException("La tarea todavía está pendiente o en curso.");
+        if (item.State is "waiting" or "running") throw new ArgumentException(L.T("La tarea todavía está pendiente o en curso."));
         Enqueue(item.Definition, item.DryRun);
     }
     public void Move(string id, int direction)
     {
         var index = State.Queue.FindIndex(item => item.Id == id);
-        if (index < 0 || State.Queue[index].State != "waiting") throw new ArgumentException("Solo se pueden ordenar tareas pendientes.");
+        if (index < 0 || State.Queue[index].State != "waiting") throw new ArgumentException(L.T("Solo se pueden ordenar tareas pendientes."));
         var other = index + Math.Sign(direction);
         while (other >= 0 && other < State.Queue.Count && State.Queue[other].State != "waiting") other += Math.Sign(direction);
         if (other < 0 || other >= State.Queue.Count) return;
@@ -141,21 +146,21 @@ public sealed class RcloneAutomation : IAsyncDisposable
     }
     public void Remove(string id)
     {
-        if (Find(id).State == "running") throw new ArgumentException("Detén la tarea antes de quitarla.");
+        if (Find(id).State == "running") throw new ArgumentException(L.T("Detén la tarea antes de quitarla."));
         State.Queue.RemoveAll(item => item.Id == id); Save();
     }
     public void ClearHistory() { State.Queue.RemoveAll(item => item.State is not ("waiting" or "running")); Save(); }
     public void ConfigureQueue(bool paused, int parallel)
     {
-        if (parallel is < 1 or > 3) throw new ArgumentException("La cola admite entre una y tres tareas simultáneas.");
+        if (parallel is < 1 or > 3) throw new ArgumentException(L.T("La cola admite entre una y tres tareas simultáneas."));
         State.Paused = paused; State.ParallelJobs = parallel; Save();
     }
     public void SaveSchedule(RcloneSchedule schedule)
     {
-        var definition = State.Tasks.SingleOrDefault(item => item.Id == schedule.TaskId) ?? throw new ArgumentException("Elige una tarea guardada.");
+        var definition = State.Tasks.SingleOrDefault(item => item.Id == schedule.TaskId) ?? throw new ArgumentException(L.T("Elige una tarea guardada."));
         _ = definition.Arguments(false, false);
-        if (schedule.Repeat is not ("once" or "daily" or "weekly" or "interval") || schedule.IntervalMinutes is < 1 or > 525600) throw new ArgumentException("Revisa la frecuencia del horario.");
-        if (schedule.NextRun <= DateTimeOffset.UtcNow) throw new ArgumentException("Selecciona una fecha y hora futuras.");
+        if (schedule.Repeat is not ("once" or "daily" or "weekly" or "interval") || schedule.IntervalMinutes is < 1 or > 525600) throw new ArgumentException(L.T("Revisa la frecuencia del horario."));
+        if (schedule.NextRun <= DateTimeOffset.UtcNow) throw new ArgumentException(L.T("Selecciona una fecha y hora futuras."));
         var index = State.Schedules.FindIndex(item => item.Id == schedule.Id);
         if (index < 0) State.Schedules.Add(schedule); else State.Schedules[index] = schedule;
         Save();
@@ -164,13 +169,20 @@ public sealed class RcloneAutomation : IAsyncDisposable
     public void ToggleSchedule(string id)
     {
         var schedule = State.Schedules.Single(item => item.Id == id);
-        if (!schedule.Enabled && schedule.NextRun <= DateTimeOffset.UtcNow) throw new ArgumentException("Edita el horario y elige una fecha futura para reactivarlo.");
+        if (!schedule.Enabled && schedule.NextRun <= DateTimeOffset.UtcNow) throw new ArgumentException(L.T("Edita el horario y elige una fecha futura para reactivarlo."));
         schedule.Enabled = !schedule.Enabled; Save();
     }
     public void Tick(DateTimeOffset now)
     {
         if (disposed) return;
         var changed = false;
+        if (!startupQueued) {
+            startupQueued = true;
+            foreach (var definition in startupMounts.Where(item => State.Tasks.Any(saved => saved.Id == item.Id && saved.RunAtStartup))) {
+                if (State.Queue.Any(item => item.Definition.IsMount && !item.DryRun && item.State is "waiting" or "running" && item.Definition.Destination.Equals(definition.Destination, StringComparison.OrdinalIgnoreCase))) continue;
+                Enqueue(definition);
+            }
+        }
         foreach (var item in State.Queue.Where(item => item.State == "running").ToArray()) {
             var status = item.ProcessId is null ? null : executor.Snapshot(item.ProcessId);
             if (status is null) { item.State = "interrupted"; item.Log += "\nEl proceso dejó de estar disponible."; }
@@ -182,7 +194,7 @@ public sealed class RcloneAutomation : IAsyncDisposable
             var missed = now - schedule.NextRun > TimeSpan.FromMinutes(2) && !schedule.RunMissed;
             var duplicate = State.Queue.Any(item => item.Definition.Id == schedule.TaskId && item.State is "waiting" or "running");
             schedule.Advance(now); changed = true;
-            schedule.LastResult = missed ? "Horario omitido: programa cerrado o equipo suspendido" : duplicate ? "Omitido: tarea pendiente o en curso" : definition is null ? "Tarea inexistente" : "Añadida a la cola";
+            schedule.LastResult = missed ? L.T("Horario omitido: programa cerrado o equipo suspendido") : duplicate ? L.T("Omitido: tarea pendiente o en curso") : definition is null ? L.T("Tarea inexistente") : L.T("Añadida a la cola");
             // Persist the next occurrence before admission; restarting cannot submit it twice.
             Save();
             if (definition is not null && !missed && !duplicate) {
@@ -191,8 +203,9 @@ public sealed class RcloneAutomation : IAsyncDisposable
             }
         }
         if (!State.Paused && executor.BlockReason is null) {
-            var slots = Math.Min(executor.AvailableSlots, State.ParallelJobs - State.Queue.Count(item => item.State == "running"));
-            foreach (var item in State.Queue.Where(item => item.State == "waiting").Take(Math.Max(0, slots)).ToArray()) {
+            foreach (var item in State.Queue.Where(item => item.State == "waiting").ToArray()) {
+                // A mounted drive lives until unmounted; it must not occupy a transfer slot.
+                if ((!item.Definition.IsMount || item.DryRun) && (executor.AvailableSlots <= 0 || State.Queue.Count(job => job.State == "running" && (!job.Definition.IsMount || job.DryRun)) >= State.ParallelJobs)) continue;
                 try { item.ProcessId = executor.StartDefinition(item.Definition, item.DryRun); item.State = "running"; item.Started = now; }
                 catch (Exception error) { item.State = "failed"; item.Log = error.Message; item.Finished = now; Finished?.Invoke(item); }
                 changed = true;
@@ -200,7 +213,7 @@ public sealed class RcloneAutomation : IAsyncDisposable
         }
         if (changed) { TrimHistory(); Save(); }
     }
-    private RcloneQueueItem Find(string id) => State.Queue.SingleOrDefault(item => item.Id == id) ?? throw new ArgumentException("La tarea ya no está en la cola.");
+    private RcloneQueueItem Find(string id) => State.Queue.SingleOrDefault(item => item.Id == id) ?? throw new ArgumentException(L.T("La tarea ya no está en la cola."));
     private void TrimHistory()
     {
         foreach (var item in State.Queue.Where(item => item.State is not ("waiting" or "running")).OrderByDescending(item => item.Finished).Skip(200).ToArray()) State.Queue.Remove(item);

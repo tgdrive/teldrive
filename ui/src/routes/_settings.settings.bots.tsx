@@ -1,3 +1,4 @@
+import { t } from "@/lib/localization";
 import { Button, Chip, Label, Spinner, TextArea, TextField } from "@heroui/react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
@@ -34,10 +35,10 @@ function BotsSettings() {
     onSuccess: () => {
       setDeleteBot(null);
       void refresh();
-      toast.success("Bot de Telegram eliminado");
+      toast.success(t("Bot de Telegram eliminado"));
     },
     onError: (error) => {
-      toast.error("No se pudo eliminar el bot de Telegram", { description: userMessage(error) });
+      toast.error(t("No se pudo eliminar el bot de Telegram"), { description: userMessage(error) });
     },
   });
   const refresh = () =>
@@ -74,7 +75,7 @@ function BotsSettings() {
         );
       }
     } catch (error) {
-      toast.error("No se pudieron programar los bots", { description: userMessage(error) });
+      toast.error(t("No se pudieron programar los bots"), { description: userMessage(error) });
     } finally {
       setIsAddingBots(false);
     }
@@ -83,20 +84,24 @@ function BotsSettings() {
   return (
     <div className="space-y-6">
       <SettingsPageHeader
-        title="Bots de Telegram"
-        description="Bots utilizados para transferir datos en paralelo a Telegram."
+        title={t("Bots de Telegram")}
+        description={t("Bots utilizados para transferir datos en paralelo a Telegram.")}
       />
       <SettingsSection
-        title="Añadir bots"
-        description="Pega una clave de BotFather por línea. Los bots se guardan al instante y los canales existentes se actualizan en segundo plano."
+        title={t("Añadir bots")}
+        description={t(
+          "Pega una clave de BotFather por línea. Los bots se guardan al instante y los canales existentes se actualizan en segundo plano.",
+        )}
       >
         <SettingsRow
-          label="Claves de bots"
-          description="Las claves se envían únicamente a tu servidor Teldrive y no se vuelven a mostrar."
+          label={t("Claves de bots")}
+          description={t(
+            "Las claves se envían únicamente a tu servidor Teldrive y no se vuelven a mostrar.",
+          )}
         >
           <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-end">
             <TextField className="min-w-0 flex-1">
-              <Label className="sr-only">Claves de bots</Label>
+              <Label className="sr-only">{t("Claves de bots")}</Label>
               <TextArea
                 value={token}
                 onChange={(event) => setToken(event.currentTarget.value)}
@@ -111,31 +116,33 @@ function BotsSettings() {
               isDisabled={!token.trim() || isAddingBots}
               isPending={isAddingBots}
             >
-              Añadir bots
+              {t("Añadir bots")}
             </Button>
           </div>
         </SettingsRow>
       </SettingsSection>
       <SettingsSection
-        title="Bots configurados"
-        description="Los bots activos disponibles se utilizan automáticamente para las transferencias."
+        title={t("Bots configurados")}
+        description={t(
+          "Los bots activos disponibles se utilizan automáticamente para las transferencias.",
+        )}
       >
         {query.data.items.length ? (
           query.data.items.map((bot) => (
             <SettingsRow
               key={bot.id}
               label={`@${bot.username || `bot-${bot.id}`}`}
-              description={`Added ${new Date(bot.createdAt).toLocaleString()}`}
+              description={t("Added {0}", [new Date(bot.createdAt).toLocaleString()])}
             >
               <div className="flex items-center justify-end gap-2">
                 <Chip color={bot.enabled ? "success" : "warning"} variant="tertiary">
-                  {bot.enabled ? "Activado" : "Desactivado"}
+                  {bot.enabled ? t("Activado") : t("Desactivado")}
                 </Chip>
                 <Button
                   isIconOnly
                   size="sm"
                   variant="ghost"
-                  aria-label={`Eliminar bot ${bot.username || bot.id}`}
+                  aria-label={t("Eliminar bot {0}", [bot.username || bot.id])}
                   isDisabled={remove.isPending && deleteBot?.id === bot.id}
                   onPress={() =>
                     setDeleteBot({ id: bot.id, name: bot.username || `bot-${bot.id}` })
@@ -147,7 +154,9 @@ function BotsSettings() {
             </SettingsRow>
           ))
         ) : (
-          <div className="px-5 py-8 text-sm text-muted">No Telegram bots are configured.</div>
+          <div className="px-5 py-8 text-sm text-muted">
+            {t("No Telegram bots are configured.")}
+          </div>
         )}
       </SettingsSection>
       <ConfirmDialog
@@ -155,9 +164,12 @@ function BotsSettings() {
         onOpenChange={(open) => {
           if (!open && !remove.isPending) setDeleteBot(null);
         }}
-        title="¿Eliminar este bot de Telegram?"
-        message={`Uploads using other bots or your user session will continue after “${deleteBot?.name ?? ""}” is removed.`}
-        confirmLabel="Eliminar bot"
+        title={t("¿Eliminar este bot de Telegram?")}
+        message={t(
+          "Uploads using other bots or your user session will continue after “{0}” is removed.",
+          [deleteBot?.name ?? ""],
+        )}
+        confirmLabel={t("Eliminar bot")}
         isPending={remove.isPending}
         onConfirm={() => {
           if (deleteBot) {

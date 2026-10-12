@@ -1,3 +1,4 @@
+import { t } from "@/lib/localization";
 import { Button } from "@heroui/react";
 import { useEffect, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
@@ -113,15 +114,15 @@ export function CastDialog({
     <AppDialog
       open={open}
       onOpenChange={onOpenChange}
-      title="Transmitir vídeo"
-      description="Chromecast / Google Cast, AirPlay y televisores DLNA de la red local."
+      title={t("Transmitir vídeo")}
+      description={t("Chromecast / Google Cast, AirPlay y televisores DLNA de la red local.")}
       className="sm:w-[min(94vw,44rem)]"
     >
       <div className="space-y-4">
         <label className="block space-y-1">
-          <span className="text-sm">Dirección accesible para el televisor</span>
+          <span className="text-sm">{t("Dirección accesible para el televisor")}</span>
           <input
-            aria-label="Dirección para transmitir"
+            aria-label={t("Dirección para transmitir")}
             list="casting-addresses"
             value={base}
             onChange={(event) => setBase(event.target.value)}
@@ -135,9 +136,9 @@ export function CastDialog({
           </datalist>
         </label>
         <p className="text-sm text-muted">
-          El televisor debe estar en la misma red que el servidor o poder acceder a su dirección
-          pública. El enlace temporal solo permite reproducir este archivo y vence al terminar su
-          sesión.
+          {t(
+            "El televisor debe estar en la misma red que el servidor o poder acceder a su dirección pública. El enlace temporal solo permite reproducir este archivo y vence al terminar su sesión.",
+          )}
         </p>
         <label className="flex min-h-11 items-center gap-2">
           <input
@@ -145,12 +146,13 @@ export function CastDialog({
             checked={compatible}
             onChange={(event) => setCompatible(event.target.checked)}
           />
-          Convertir a H.264/AAC compatible; aplicar las pistas seleccionadas
+          {t("Convertir a H.264/AAC compatible; aplicar las pistas seleccionadas")}
         </label>
         {compatible && grant && !grant.conversionAvailable ? (
           <p className="text-warning">
-            El servidor necesita FFmpeg para convertir. Desktop ya lo incluye; en CLI instala FFmpeg
-            o utiliza el formato original.
+            {t(
+              "El servidor necesita FFmpeg para convertir. Desktop ya lo incluye; en CLI instala FFmpeg o utiliza el formato original.",
+            )}
           </p>
         ) : null}
         <div className="flex flex-wrap gap-2">
@@ -160,11 +162,11 @@ export function CastDialog({
               onPress={() =>
                 void execute(async () => {
                   await desktopRequest("casting.open-browser", { url: browserPage.href });
-                  setStatus("Transmisión abierta en Chrome.");
+                  setStatus(t("Transmisión abierta en Chrome."));
                 })
               }
             >
-              Chromecast: abrir Chrome
+              {t("Chromecast: abrir Chrome")}
             </Button>
           ) : (
             <Button
@@ -178,11 +180,11 @@ export function CastDialog({
                     compatible ? 0 : start,
                   );
                   video()?.pause();
-                  setStatus("Vídeo enviado a Chromecast.");
+                  setStatus(t("Vídeo enviado a Chromecast."));
                 })
               }
             >
-              Chromecast / Google Cast
+              {t("Chromecast / Google Cast")}
             </Button>
           )}
           <Button
@@ -191,7 +193,7 @@ export function CastDialog({
               if (!mediaUrl) return;
               onAirPlaySource(mediaUrl);
               video()?.webkitShowPlaybackTargetPicker?.();
-              setStatus("Selecciona un dispositivo AirPlay.");
+              setStatus(t("Selecciona un dispositivo AirPlay."));
             }}
           >
             AirPlay
@@ -206,19 +208,22 @@ export function CastDialog({
                 setDevices(result.devices);
                 setStatus(
                   result.devices.length
-                    ? "Selecciona tu televisor DLNA."
-                    : "No se encontraron televisores DLNA. Comprueba que estén encendidos en la red del servidor.",
+                    ? t("Selecciona tu televisor DLNA.")
+                    : t(
+                        "No se encontraron televisores DLNA. Comprueba que estén encendidos en la red del servidor.",
+                      ),
                 );
               })
             }
           >
-            Buscar televisores DLNA
+            {t("Buscar televisores DLNA")}
           </Button>
         </div>
         {!airplayAvailable ? (
           <p className="text-sm text-muted">
-            AirPlay se utiliza desde Safari en iPhone, iPad o Mac. Abre el enlace del vídeo en
-            Safari mediante el QR o cópialo; los controles del vídeo permiten elegir AirPlay.
+            {t(
+              "AirPlay se utiliza desde Safari en iPhone, iPad o Mac. Abre el enlace del vídeo en Safari mediante el QR o cópialo; los controles del vídeo permiten elegir AirPlay.",
+            )}
           </p>
         ) : null}
         {devices.map((device) => (
@@ -245,11 +250,11 @@ export function CastDialog({
                   });
                   setActiveDevice(device.id);
                   video()?.pause();
-                  setStatus(`Reproduciendo en ${device.name}`);
+                  setStatus(t("Reproduciendo en {0}", [device.name]));
                 })
               }
             >
-              Transmitir a este TV
+              {t("Transmitir a este TV")}
             </Button>
           </div>
         ))}
@@ -257,9 +262,9 @@ export function CastDialog({
           <div className="flex flex-wrap gap-2">
             {(
               [
-                ["pause", "Pausar"],
-                ["play", "Reanudar"],
-                ["stop", "Detener"],
+                ["pause", t("Pausar")],
+                ["play", t("Reanudar")],
+                ["stop", t("Detener")],
               ] as const
             ).map(([command, label]) => (
               <Button
@@ -291,24 +296,24 @@ export function CastDialog({
               <QRCodeSVG value={mediaUrl} size={112} />
             </div>
             <div className="space-y-2">
-              <p className="text-sm">Abrir el vídeo en otro dispositivo</p>
+              <p className="text-sm">{t("Abrir el vídeo en otro dispositivo")}</p>
               <Button
                 onPress={() =>
                   void execute(async () => {
                     await navigator.clipboard.writeText(mediaUrl);
-                    setStatus("Enlace temporal copiado.");
+                    setStatus(t("Enlace temporal copiado."));
                   })
                 }
               >
-                Copiar enlace del vídeo
+                {t("Copiar enlace del vídeo")}
               </Button>
               <Button
                 onPress={() => {
                   stopGoogleCast();
-                  setStatus("Transmisión de Chromecast detenida.");
+                  setStatus(t("Transmisión de Chromecast detenida."));
                 }}
               >
-                Detener Chromecast
+                {t("Detener Chromecast")}
               </Button>
             </div>
           </div>

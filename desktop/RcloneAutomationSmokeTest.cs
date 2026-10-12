@@ -79,7 +79,8 @@ internal static class RcloneAutomationSmokeTest
         Check(startup.StartsWith('"') && startup.Contains("--start-in-tray --data-root \""), "El inicio automático no protege las rutas con espacios.");
         var portableStartup = DesktopStartup.Command(@"C:\Teldrive\Teldrive Desktop v2.exe", root, true);
         Check(portableStartup.EndsWith("--portable"), "El inicio automático perdió el modo portátil.");
-        var panel = new RcloneAdvancedView(); panel.Initialize(restored, prefs, _ => { }, () => { }, () => { }, client);
+        DesktopPreferences? chosenPreferences = null;
+        var panel = new RcloneAdvancedView(); panel.Initialize(restored, prefs, value => chosenPreferences = value, () => { }, () => { }, client);
         panel.Measure(new Size(752, 430)); panel.Arrange(new Rect(0, 0, 752, 430));
         Check(panel.FindName("TasksGrid") is DataGrid && panel.FindName("QueueGrid") is DataGrid && panel.FindName("SchedulesGrid") is DataGrid, "Las pestañas no se crearon.");
         using (var tray = new DesktopTray(() => { }, () => { }, () => { }, () => { })) {
@@ -106,9 +107,27 @@ internal static class RcloneAutomationSmokeTest
             using var stream = File.Create(Path.Combine(root, $"rclone-tab-{index}.png")); png.Save(stream);
         }
         previewWindow.Close();
+        Check(((ComboBox)panel.FindName("LanguageChoice")).Items.Count == 10, "Faltan idiomas en Desktop.");
+        foreach (var language in L.Languages) {
+            L.Current.Language = language.Id;
+            await panel.Dispatcher.InvokeAsync(() => { }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
+            Check((string)((Button)panel.FindName("SaveTaskButton")).Content == L.T("Guardar tarea"), "El botón no actualizó su traducción.");
+        }
+        ((ComboBox)panel.FindName("LanguageChoice")).SelectedValue = "en";
+        ((Button)panel.FindName("SavePreferencesButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Check(chosenPreferences?.Language == "en", "No se guardó el idioma elegido en Preferencias.");
+        L.Current.Language = "es";
+        ((ComboBox)panel.FindName("Operation")).SelectedIndex = 4;
+        ((TextBox)panel.FindName("TaskName")).Text = "Montaje creado desde el botón";
+        ((TextBox)panel.FindName("Source")).Text = "/";
+        ((TextBox)panel.FindName("Destination")).Text = "Y:";
+        ((CheckBox)panel.FindName("MountStartup")).IsChecked = true;
+        ((Button)panel.FindName("SaveTaskButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Check(restored.State.Tasks.Any(item => item.IsMount && item.RunAtStartup && item.Destination == "Y:"), "El editor no guardó el montaje persistente.");
         var json = await File.ReadAllTextAsync(Path.Combine(root, "rclone-automation.json"));
         Check(!json.Contains(password), "Las tareas guardaron una contraseña.");
-        await File.WriteAllTextAsync(Path.Combine(root, "automation-smoke-test.json"), JsonSerializer.Serialize(new { success = true, version = "2.0.0.3", scenarios = new[] { "real-rclone-copy", "filters", "download", "dry-run", "pause", "priority", "concurrency", "encrypted-lock", "failure-retry", "sync-consent", "sync-delete", "schedule", "duplicate-suppression", "missed-run", "cancellation", "restart-persistence", "preferences", "startup-quoting", "portable-startup", "wpf-controls", "save-task-button", "tray-icon", "minimize-to-tray", "restore-from-tray", "close-to-tray", "no-stored-password" } }));
+        await PersistentMountSmokeTest.RunAsync(runtime);
+        await File.WriteAllTextAsync(Path.Combine(root, "automation-smoke-test.json"), JsonSerializer.Serialize(new { success = true, version = "2.0.0.6", scenarios = new[] { "real-rclone-copy", "filters", "download", "dry-run", "pause", "priority", "concurrency", "encrypted-lock", "failure-retry", "sync-consent", "sync-delete", "schedule", "duplicate-suppression", "missed-run", "cancellation", "restart-persistence", "preferences", "startup-quoting", "portable-startup", "wpf-controls", "save-task-button", "tray-icon", "minimize-to-tray", "restore-from-tray", "close-to-tray", "no-stored-password", "persistent-winfsp-mount", "startup-server-wait", "startup-unlock-wait", "mount-restart", "mount-transfer-concurrency", "mount-cancellation", "ten-native-languages", "language-preference-button", "mount-task-editor-button" } }));
     }
     private static void Check(bool success, string error) { if (!success) throw new IOException(error); }
     private static async Task Wait(RcloneAutomation engine, RcloneQueueItem item)

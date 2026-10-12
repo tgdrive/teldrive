@@ -1,3 +1,4 @@
+import { t } from "@/lib/localization";
 type CastSession = { loadMedia: (request: unknown) => Promise<void> };
 type CastContext = {
   setOptions: (options: unknown) => void;
@@ -27,14 +28,14 @@ export function prepareGoogleCast(): Promise<void> {
   if (loading) return loading;
   loading = new Promise<void>((resolve, reject) => {
     const timeout = setTimeout(
-      () => reject(new Error("Google Cast no respondió. Utiliza Chrome y revisa la conexión.")),
+      () => reject(new Error(t("Google Cast no respondió. Utiliza Chrome y revisa la conexión."))),
       15000,
     );
     target.__onGCastApiAvailable = (available) => {
       clearTimeout(timeout);
       if (!available || !target.cast?.framework || !target.chrome?.cast) {
         reject(
-          new Error("Chromecast requiere un navegador compatible con Google Cast, como Chrome."),
+          new Error(t("Chromecast requiere un navegador compatible con Google Cast, como Chrome.")),
         );
         return;
       }
@@ -47,7 +48,7 @@ export function prepareGoogleCast(): Promise<void> {
       script.onload = () => onload?.();
       script.onerror = () => {
         clearTimeout(timeout);
-        reject(new Error("No se pudo cargar Google Cast. Comprueba la conexión a Internet."));
+        reject(new Error(t("No se pudo cargar Google Cast. Comprueba la conexión a Internet.")));
       };
       document.head.append(script);
     };
@@ -96,7 +97,7 @@ export async function googleCast(url: string, mime: string, title: string, start
   });
   if (!context.getCurrentSession()) await context.requestSession();
   const session = context.getCurrentSession();
-  if (!session) throw new Error("No se seleccionó ningún dispositivo Chromecast.");
+  if (!session) throw new Error(t("No se seleccionó ningún dispositivo Chromecast."));
   const media = new api.media.MediaInfo(url, mime);
   const metadata = new api.media.GenericMediaMetadata();
   metadata.title = title;
@@ -122,7 +123,7 @@ export function playbackCastUrl(
 ) {
   const url = new URL(`${base.replace(/\/$/, "")}/playback`);
   if (!["http:", "https:"].includes(url.protocol) || url.username || url.password)
-    throw new Error("Revisa la dirección del servidor para transmitir.");
+    throw new Error(t("Revisa la dirección del servidor para transmitir."));
   url.search = new URLSearchParams({
     ticket,
     mode,

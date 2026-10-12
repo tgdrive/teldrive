@@ -1,3 +1,4 @@
+import { t } from "@/lib/localization";
 import { Button } from "@heroui/react";
 import DownloadIcon from "~icons/gravity-ui/arrow-down-to-line";
 import CopyIcon from "~icons/gravity-ui/copy";
@@ -47,7 +48,7 @@ export function FileSelectionToolbar({
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-4 z-30 flex justify-center px-4">
       <fieldset
-        aria-label="Acciones de archivos seleccionados"
+        aria-label={t("Acciones de archivos seleccionados")}
         className="touch-action-toolbar pointer-events-auto flex max-w-full items-center gap-1.5 overflow-x-auto rounded-full border border-border bg-surface/95 p-1.5 shadow-xl backdrop-blur"
       >
         <span className="shrink-0 rounded-full bg-accent/10 px-3 py-2 text-sm font-medium text-accent">
@@ -58,7 +59,7 @@ export function FileSelectionToolbar({
             isIconOnly
             size="sm"
             variant="ghost"
-            aria-label="Cortar elementos seleccionados"
+            aria-label={t("Cortar elementos seleccionados")}
             isDisabled={pending}
             onPress={onCut}
           >
@@ -70,7 +71,7 @@ export function FileSelectionToolbar({
             isIconOnly
             size="sm"
             variant="ghost"
-            aria-label="Copiar elementos seleccionados"
+            aria-label={t("Copiar elementos seleccionados")}
             isDisabled={pending}
             onPress={onCopy}
           >
@@ -82,7 +83,7 @@ export function FileSelectionToolbar({
             isIconOnly
             size="sm"
             variant="ghost"
-            aria-label="Renombrar elemento seleccionado"
+            aria-label={t("Renombrar elemento seleccionado")}
             isDisabled={pending}
             onPress={onRename}
           >
@@ -94,7 +95,7 @@ export function FileSelectionToolbar({
             isIconOnly
             size="sm"
             variant="ghost"
-            aria-label="Duplicar elemento seleccionado"
+            aria-label={t("Duplicar elemento seleccionado")}
             isDisabled={pending}
             onPress={onDuplicate}
           >
@@ -106,7 +107,7 @@ export function FileSelectionToolbar({
             isIconOnly
             size="sm"
             variant="ghost"
-            aria-label="Compartir elemento seleccionado"
+            aria-label={t("Compartir elemento seleccionado")}
             isDisabled={pending}
             onPress={onShare}
           >
@@ -118,7 +119,7 @@ export function FileSelectionToolbar({
             isIconOnly
             size="sm"
             variant="ghost"
-            aria-label="Descargar archivo seleccionado"
+            aria-label={t("Descargar archivo seleccionado")}
             isDisabled={pending}
             onPress={onDownload}
           >
@@ -132,8 +133,8 @@ export function FileSelectionToolbar({
             variant="ghost"
             aria-label={
               selectedCount === 1
-                ? "Copiar enlace de descarga del archivo seleccionado"
-                : "Copiar enlaces de descarga de los archivos seleccionados"
+                ? t("Copiar enlace de descarga del archivo seleccionado")
+                : t("Copiar enlaces de descarga de los archivos seleccionados")
             }
             onPress={onCopyDownloadLinks}
             isDisabled={pending}
@@ -146,7 +147,7 @@ export function FileSelectionToolbar({
             isIconOnly
             size="sm"
             variant="ghost"
-            aria-label="Mover elementos seleccionados"
+            aria-label={t("Mover elementos seleccionados")}
             isDisabled={pending}
             onPress={onMove}
           >
@@ -158,7 +159,7 @@ export function FileSelectionToolbar({
             isIconOnly
             size="sm"
             variant="danger"
-            aria-label="Mover elementos seleccionados a la papelera"
+            aria-label={t("Mover elementos seleccionados a la papelera")}
             isDisabled={pending}
             onPress={onTrash}
           >
@@ -169,11 +170,11 @@ export function FileSelectionToolbar({
           <Button
             size="sm"
             variant="secondary"
-            aria-label="Marcar elementos seleccionados como spam"
+            aria-label={t("Marcar elementos seleccionados como spam")}
             isDisabled={pending}
             onPress={onSpam}
           >
-            Spam
+            {t("Spam")}
           </Button>
         ) : null}
         {onClear ? (
@@ -181,7 +182,7 @@ export function FileSelectionToolbar({
             isIconOnly
             size="sm"
             variant="ghost"
-            aria-label="Borrar selección"
+            aria-label={t("Borrar selección")}
             isDisabled={pending}
             onPress={onClear}
           >

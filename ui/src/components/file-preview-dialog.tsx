@@ -1,3 +1,4 @@
+import { t } from "@/lib/localization";
 import { Button, cn, Modal, Spinner } from "@heroui/react";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import type { FileEntry } from "@/api/types";
@@ -63,7 +64,7 @@ export function FilePreviewDialog({
         <Modal.Container size="full" scroll="inside" className="h-dvh max-h-dvh p-0">
           <Modal.Dialog className="h-dvh max-h-dvh w-screen max-w-none overflow-hidden rounded-none bg-background p-0 text-foreground">
             <Modal.Heading className="sr-only">{file.name}</Modal.Heading>
-            <Suspense fallback={<ViewerLoading label="Cargando motor de PDF" />}>
+            <Suspense fallback={<ViewerLoading label={t("Cargando motor de PDF")} />}>
               <PdfReader
                 key={file.id}
                 file={file}
@@ -89,7 +90,7 @@ export function FilePreviewDialog({
         <Modal.Container size="full" scroll="inside" className="h-dvh max-h-dvh p-0">
           <Modal.Dialog className="h-dvh max-h-dvh w-screen max-w-none overflow-hidden rounded-none bg-background p-0 text-foreground">
             <Modal.Heading className="sr-only">{file.name}</Modal.Heading>
-            <Suspense fallback={<ViewerLoading label="Cargando lector de EPUB" />}>
+            <Suspense fallback={<ViewerLoading label={t("Cargando lector de EPUB")} />}>
               <EpubReader
                 key={file.id}
                 file={file}
@@ -125,7 +126,7 @@ export function FilePreviewDialog({
               isIconOnly
               variant="ghost"
               size="sm"
-              aria-label="Cerrar visor"
+              aria-label={t("Cerrar visor")}
               onPress={() => changeOpen(false)}
             >
               <CloseIcon className="size-5" />
@@ -144,7 +145,7 @@ export function FilePreviewDialog({
               onPress={() => (onDownload ? onDownload() : startFileDownload(file))}
             >
               <DownloadIcon className="size-4" />
-              <span className="hidden sm:inline">Descargar</span>
+              <span className="hidden sm:inline">{t("Descargar")}</span>
             </Button>
           </Modal.Header>
           <Modal.Body
@@ -190,7 +191,7 @@ function ImageViewer({ file, url }: { file: FileEntry; url: string }) {
           isIconOnly
           size="sm"
           variant="ghost"
-          aria-label="Alejar"
+          aria-label={t("Alejar")}
           onPress={() => setZoom((value) => Math.max(0.25, value - 0.25))}
         >
           <ZoomOutIcon className="size-4" />
@@ -202,7 +203,7 @@ function ImageViewer({ file, url }: { file: FileEntry; url: string }) {
           isIconOnly
           size="sm"
           variant="ghost"
-          aria-label="Acercar"
+          aria-label={t("Acercar")}
           onPress={() => setZoom((value) => Math.min(5, value + 0.25))}
         >
           <ZoomInIcon className="size-4" />
@@ -211,7 +212,7 @@ function ImageViewer({ file, url }: { file: FileEntry; url: string }) {
           isIconOnly
           size="sm"
           variant="ghost"
-          aria-label="Girar imagen"
+          aria-label={t("Girar imagen")}
           onPress={() => setRotation((value) => value + 90)}
         >
           <RotateIcon className="size-4" />
@@ -231,12 +232,12 @@ function TextViewer({ url }: { url: string }) {
       .then((value) => setText(value.slice(0, 1_000_000)))
       .catch((reason: unknown) => {
         if (!controller.signal.aborted)
-          setError(reason instanceof Error ? reason.message : "La vista previa falló");
+          setError(reason instanceof Error ? reason.message : t("La vista previa falló"));
       });
     return () => controller.abort();
   }, [url]);
   if (error) return <ViewerError message={error} />;
-  if (text === undefined) return <ViewerLoading label="Cargando documento" />;
+  if (text === undefined) return <ViewerLoading label={t("Cargando documento")} />;
   return (
     <div className="h-full overflow-auto p-4 sm:p-8">
       <pre className="mx-auto min-h-full max-w-5xl whitespace-pre-wrap rounded-2xl border border-border bg-surface p-5 font-mono text-xs leading-6 shadow-xl sm:p-8">
@@ -259,7 +260,7 @@ function ViewerError({ message }: { message: string }) {
   return (
     <div className="grid h-full place-items-center p-6 text-center">
       <div>
-        <p className="font-semibold">No se pudo abrir este archivo</p>
+        <p className="font-semibold">{t("No se pudo abrir este archivo")}</p>
         <p className="mt-2 max-w-lg text-sm text-muted">{message}</p>
       </div>
     </div>
@@ -274,12 +275,12 @@ function viewerKind(file: FileEntry): ViewerKind | undefined {
 }
 function formatLabel(kind: ViewerKind) {
   return {
-    image: "Imagen",
-    video: "Vídeo",
-    audio: "Audio",
-    pdf: "Documento PDF",
-    ebook: "Libro electrónico",
-    text: "Documento de texto",
+    image: t("Imagen"),
+    video: t("Vídeo"),
+    audio: t("Audio"),
+    pdf: t("Documento PDF"),
+    ebook: t("Libro electrónico"),
+    text: t("Documento de texto"),
   }[kind];
 }
 function formatBytes(value: number) {

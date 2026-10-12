@@ -1,3 +1,4 @@
+import { t } from "@/lib/localization";
 import { Button, Chip, Input, Spinner, TextField, Label } from "@heroui/react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
@@ -37,10 +38,12 @@ function ChannelsSettings() {
     onSuccess: () => {
       setDeleteChannel(null);
       void refresh();
-      toast.success("Canal de almacenamiento eliminado");
+      toast.success(t("Canal de almacenamiento eliminado"));
     },
     onError: (error) => {
-      toast.error("No se pudo eliminar el canal de almacenamiento", { description: userMessage(error) });
+      toast.error(t("No se pudo eliminar el canal de almacenamiento"), {
+        description: userMessage(error),
+      });
     },
   });
   const refresh = () =>
@@ -51,8 +54,8 @@ function ChannelsSettings() {
   return (
     <div className="space-y-6">
       <SettingsPageHeader
-        title="Canales de almacenamiento"
-        description="Canales de Telegram utilizados para almacenar fragmentos cifrados."
+        title={t("Canales de almacenamiento")}
+        description={t("Canales de Telegram utilizados para almacenar fragmentos cifrados.")}
         actions={
           <Button
             variant="secondary"
@@ -62,33 +65,35 @@ function ChannelsSettings() {
                   params: { header: { "Idempotency-Key": newIdempotencyKey() } },
                 });
                 await refresh();
-                toast.success("Canales sincronizados");
+                toast.success(t("Canales sincronizados"));
               } catch (error) {
-                toast.error("No se pudieron sincronizar los canales", { description: userMessage(error) });
+                toast.error(t("No se pudieron sincronizar los canales"), {
+                  description: userMessage(error),
+                });
               }
             }}
             isDisabled={sync.isPending}
           >
             <RefreshIcon className="size-4" />
-            Buscar y sincronizar
+            {t("Buscar y sincronizar")}
           </Button>
         }
       />
       <SettingsSection
-        title="Crear canal"
-        description="Teldrive creará y configurará un canal de almacenamiento en Telegram."
+        title={t("Crear canal")}
+        description={t("Teldrive creará y configurará un canal de almacenamiento en Telegram.")}
       >
         <SettingsRow
-          label="Nombre del canal"
-          description="Usa un nombre que permita identificar este canal."
+          label={t("Nombre del canal")}
+          description={t("Usa un nombre que permita identificar este canal.")}
         >
           <div className="flex gap-2">
             <TextField className="min-w-0 flex-1">
-              <Label className="sr-only">Nombre del canal</Label>
+              <Label className="sr-only">{t("Nombre del canal")}</Label>
               <Input
                 value={name}
                 onChange={(event) => setName(event.currentTarget.value)}
-                placeholder="Teldrive Storage"
+                placeholder={t("Teldrive Storage")}
               />
             </TextField>
             <Button
@@ -101,34 +106,34 @@ function ChannelsSettings() {
                   });
                   setName("");
                   await refresh();
-                  toast.success("Canal de almacenamiento creado");
+                  toast.success(t("Canal de almacenamiento creado"));
                 } catch (error) {
-                  toast.error("No se pudo crear el canal", { description: userMessage(error) });
+                  toast.error(t("No se pudo crear el canal"), { description: userMessage(error) });
                 }
               }}
               isDisabled={!name.trim() || create.isPending}
             >
-              Crear
+              {t("Crear")}
             </Button>
           </div>
         </SettingsRow>
       </SettingsSection>
       <SettingsSection
-        title="Canales configurados"
-        description="Elige el canal activo o elimina los canales vacíos que no utilices."
+        title={t("Canales configurados")}
+        description={t("Elige el canal activo o elimina los canales vacíos que no utilices.")}
       >
         {query.data.items.length ? (
           query.data.items.map((channel) => (
             <SettingsRow
               key={channel.id}
               label={channel.name}
-              description={`Canal ${channel.id}`}
+              description={t("Canal {0}", [channel.id])}
             >
               <div className="flex items-center justify-end gap-2">
                 {channel.selected ? (
                   <Chip color="success" variant="tertiary">
                     <CheckIcon className="size-3" />
-                    Seleccionado
+                    {t("Seleccionado")}
                   </Chip>
                 ) : (
                   <Button
@@ -139,14 +144,14 @@ function ChannelsSettings() {
                       await refresh();
                     }}
                   >
-                    Usar canal
+                    {t("Usar canal")}
                   </Button>
                 )}
                 <Button
                   isIconOnly
                   size="sm"
                   variant="ghost"
-                  aria-label={`Eliminar ${channel.name}`}
+                  aria-label={t("Eliminar {0}", [channel.name])}
                   isDisabled={remove.isPending && deleteChannel?.id === channel.id}
                   onPress={() => setDeleteChannel({ id: channel.id, name: channel.name })}
                 >
@@ -156,7 +161,9 @@ function ChannelsSettings() {
             </SettingsRow>
           ))
         ) : (
-          <div className="px-5 py-8 text-sm text-muted">No hay canales de almacenamiento configurados.</div>
+          <div className="px-5 py-8 text-sm text-muted">
+            {t("No hay canales de almacenamiento configurados.")}
+          </div>
         )}
       </SettingsSection>
       <ConfirmDialog
@@ -164,9 +171,9 @@ function ChannelsSettings() {
         onOpenChange={(open) => {
           if (!open && !remove.isPending) setDeleteChannel(null);
         }}
-        title="¿Eliminar este canal de almacenamiento?"
+        title={t("¿Eliminar este canal de almacenamiento?")}
         message={`“${deleteChannel?.name ?? ""}” solo se puede eliminar si no contiene archivos.`}
-        confirmLabel="Eliminar canal"
+        confirmLabel={t("Eliminar canal")}
         isPending={remove.isPending}
         onConfirm={() => {
           if (deleteChannel) {

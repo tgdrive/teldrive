@@ -34,7 +34,7 @@ public sealed class RuntimeSession : IAsyncDisposable
     {
         DataRoot = root ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TeldriveV2");
         Directory.CreateDirectory(DataRoot);
-        var identity = WindowsIdentity.GetCurrent().User ?? throw new IOException("No se pudo identificar al usuario de Windows.");
+        var identity = WindowsIdentity.GetCurrent().User ?? throw new IOException(L.T("No se pudo identificar al usuario de Windows."));
         var security = new DirectorySecurity();
         security.SetAccessRuleProtection(true, false);
         security.AddAccessRule(new FileSystemAccessRule(identity, FileSystemRights.FullControl, InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit, PropagationFlags.None, AccessControlType.Allow));
@@ -46,7 +46,7 @@ public sealed class RuntimeSession : IAsyncDisposable
     public async Task PrepareAsync()
     {
         await Task.Run(() => {
-            using var payload = Assembly.GetExecutingAssembly().GetManifestResourceStream("Teldrive.Desktop.Payload.zip") ?? throw new IOException("Este ejecutable no contiene el paquete de componentes. Recompila con Payload.zip.");
+            using var payload = Assembly.GetExecutingAssembly().GetManifestResourceStream("Teldrive.Desktop.Payload.zip") ?? throw new IOException(L.T("Este ejecutable no contiene el paquete de componentes. Recompila con Payload.zip."));
             var digest = Convert.ToHexString(SHA256.HashData(payload)).ToLowerInvariant();
             payload.Position = 0;
             Components = Path.Combine(DataRoot, "components", digest[..16]);
@@ -55,7 +55,7 @@ public sealed class RuntimeSession : IAsyncDisposable
                 using var archive = new ZipArchive(payload, ZipArchiveMode.Read);
                 foreach (var entry in archive.Entries) {
                     var target = Path.GetFullPath(Path.Combine(Components, entry.FullName));
-                    if (!target.StartsWith(Path.GetFullPath(Components) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)) throw new IOException("Ruta de componente inválida.");
+                    if (!target.StartsWith(Path.GetFullPath(Components) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)) throw new IOException(L.T("Ruta de componente inválida."));
                     if (entry.FullName.EndsWith('/')) { Directory.CreateDirectory(target); continue; }
                     Directory.CreateDirectory(Path.GetDirectoryName(target)!);
                     entry.ExtractToFile(target, true);
@@ -65,15 +65,15 @@ public sealed class RuntimeSession : IAsyncDisposable
             var pgRoot = Path.Combine(Components, "pgsql");
             if (!File.Exists(Path.Combine(pgRoot, "share", "postgres.bki"))) ZipFile.ExtractToDirectory(Path.Combine(Components, "postgres.zip"), pgRoot, true);
         });
-        Log("Componentes preparados: Teldrive v2, rclone, PostgreSQL, FFmpeg y WinFsp.");
+        Log(L.T("Componentes preparados: Teldrive v2, rclone, PostgreSQL, FFmpeg y WinFsp."));
     }
 
     public async Task ConfigureAsync(int port, bool local, string databaseUrl, string username)
     {
-        if (port is < 1024 or > 65535) throw new ArgumentException("El puerto debe estar entre 1024 y 65535.");
-        if (!local && (!Uri.TryCreate(databaseUrl, UriKind.Absolute, out var url) || url.Scheme is not ("postgres" or "postgresql"))) throw new ArgumentException("Introduce una URL de PostgreSQL válida.");
+        if (port is < 1024 or > 65535) throw new ArgumentException(L.T("El puerto debe estar entre 1024 y 65535."));
+        if (!local && (!Uri.TryCreate(databaseUrl, UriKind.Absolute, out var url) || url.Scheme is not ("postgres" or "postgresql"))) throw new ArgumentException(L.T("Introduce una URL de PostgreSQL válida."));
         username = username.Trim().TrimStart('@');
-        if (username.Length > 0 && !System.Text.RegularExpressions.Regex.IsMatch(username, @"^[A-Za-z0-9_]{5,32}$")) throw new ArgumentException("Revisa el nombre de usuario de Telegram.");
+        if (username.Length > 0 && !System.Text.RegularExpressions.Regex.IsMatch(username, @"^[A-Za-z0-9_]{5,32}$")) throw new ArgumentException(L.T("Revisa el nombre de usuario de Telegram."));
         await StopAsync();
         var dbPort = State?.DatabasePort ?? FreePort();
         var dbPassword = State?.DatabasePassword ?? Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
@@ -124,7 +124,7 @@ public sealed class RuntimeSession : IAsyncDisposable
 
     private async Task<string> RunAsync(string binary, params string[] arguments)
     {
-        using var process = Process.Start(Command(binary, arguments)) ?? throw new IOException("No se pudo iniciar el componente.");
+        using var process = Process.Start(Command(binary, arguments)) ?? throw new IOException(L.T("No se pudo iniciar el componente."));
         var output = process.StandardOutput.ReadToEndAsync(); var error = process.StandardError.ReadToEndAsync();
         using var deadline = new CancellationTokenSource(TimeSpan.FromMinutes(2));
         try { await process.WaitForExitAsync(deadline.Token); } catch { if (!process.HasExited) process.Kill(true); throw; }
@@ -138,7 +138,7 @@ public sealed class RuntimeSession : IAsyncDisposable
         var process = new Process { StartInfo = Command(binary, arguments), EnableRaisingEvents = true };
         process.OutputDataReceived += (_, line) => { if (line.Data is not null) Log(line.Data); };
         process.ErrorDataReceived += (_, line) => { if (line.Data is not null) Log(line.Data); };
-        if (!process.Start()) throw new IOException("No se pudo iniciar el servicio.");
+        if (!process.Start()) throw new IOException(L.T("No se pudo iniciar el servicio."));
         processJob.Attach(process);
         process.BeginOutputReadLine(); process.BeginErrorReadLine(); return process;
     }
@@ -148,18 +148,18 @@ public sealed class RuntimeSession : IAsyncDisposable
         await operations.WaitAsync();
         try {
             if (Running) return;
-            if (State is null || !File.Exists(ConfigPath)) throw new IOException("Completa la configuración inicial.");
+            if (State is null || !File.Exists(ConfigPath)) throw new IOException(L.T("Completa la configuración inicial."));
             await ReadHttpPortAsync(ConfigPath);
             if (State.LocalDatabase) await StartDatabaseAsync();
             await ValidateConfigAsync(File.ReadAllText(ConfigPath));
             server = StartService(Binary("teldrive.exe"), "run", "--config", ConfigPath);
             using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(2) };
             for (var attempt = 0; attempt < 120; attempt++) {
-                if (server.HasExited) throw new IOException("Teldrive no pudo iniciar. Consulta Actividad para ver el motivo.");
-                try { using var response = await http.GetAsync(new Uri(ServerUri!, "/health/live")); if (response.IsSuccessStatusCode) { Log("Tu unidad está lista."); return; } } catch (HttpRequestException) {} catch (TaskCanceledException) {}
+                if (server.HasExited) throw new IOException(L.T("Teldrive no pudo iniciar. Consulta Actividad para ver el motivo."));
+                try { using var response = await http.GetAsync(new Uri(ServerUri!, "/health/live")); if (response.IsSuccessStatusCode) { Log(L.T("Tu unidad está lista.")); return; } } catch (HttpRequestException) {} catch (TaskCanceledException) {}
                 await Task.Delay(500);
             }
-            throw new IOException("El servidor tardó demasiado en iniciar. Consulta Actividad.");
+            throw new IOException(L.T("El servidor tardó demasiado en iniciar. Consulta Actividad."));
         } catch {
             await StopCoreAsync();
             throw;
@@ -176,10 +176,10 @@ public sealed class RuntimeSession : IAsyncDisposable
         if (postgres is not { HasExited: false }) postgres = StartService(Path.Combine(pg, "postgres.exe"), "-D", data, "-p", State!.DatabasePort.ToString(), "-h", "127.0.0.1");
         var ready = false;
         for (var attempt = 0; attempt < 60; attempt++) {
-            if (postgres.HasExited) throw new IOException("PostgreSQL no pudo iniciar. Revisa los componentes de Microsoft en Configuración.");
+            if (postgres.HasExited) throw new IOException(L.T("PostgreSQL no pudo iniciar. Revisa los componentes de Microsoft en Configuración."));
             try { await RunAsync(Path.Combine(pg, "psql.exe"), "-h", "127.0.0.1", "-p", State!.DatabasePort.ToString(), "-U", "teldrive", "-d", "postgres", "-tAc", "SELECT 1"); ready = true; break; } catch (IOException) { await Task.Delay(500); }
         }
-        if (!ready) throw new IOException("PostgreSQL no respondió.");
+        if (!ready) throw new IOException(L.T("PostgreSQL no respondió."));
         var exists = await RunAsync(Path.Combine(pg, "psql.exe"), "-h", "127.0.0.1", "-p", State!.DatabasePort.ToString(), "-U", "teldrive", "-d", "postgres", "-tAc", "SELECT 1 FROM pg_database WHERE datname='teldrive'");
         if (exists.Trim() != "1") await RunAsync(Path.Combine(pg, "createdb.exe"), "-h", "127.0.0.1", "-p", State.DatabasePort.ToString(), "-U", "teldrive", "teldrive");
     }
@@ -199,7 +199,7 @@ public sealed class RuntimeSession : IAsyncDisposable
             File.Move(temporary, ConfigPath, true);
             await SetDesktopEndpointAsync(endpoint);
         } finally { File.Delete(temporary); }
-        Log("Configuración guardada y validada.");
+        Log(L.T("Configuración guardada y validada."));
     }
     private async Task ReadHttpPortAsync(string path)
         => await SetDesktopEndpointAsync(await ReadDesktopEndpointAsync(path));
@@ -209,13 +209,13 @@ public sealed class RuntimeSession : IAsyncDisposable
     {
         using var data = JsonDocument.Parse(await RunAsync(Binary("teldrive.exe"), "check", "--config", path, "--desktop-info"));
         var address = data.RootElement.GetProperty("address").GetString();
-        if (!Uri.TryCreate("http://" + address, UriKind.Absolute, out var endpoint) || endpoint.Port is < 1 or > 65535 || endpoint.UserInfo.Length > 0 || endpoint.AbsolutePath != "/") throw new IOException("La dirección HTTP configurada no es válida para Desktop.");
+        if (!Uri.TryCreate("http://" + address, UriKind.Absolute, out var endpoint) || endpoint.Port is < 1 or > 65535 || endpoint.UserInfo.Length > 0 || endpoint.AbsolutePath != "/") throw new IOException(L.T("La dirección HTTP configurada no es válida para Desktop."));
         var localDatabase = State?.LocalDatabase ?? false;
         if (data.RootElement.TryGetProperty("databaseAddress", out var databaseAddress)) {
             localDatabase = State is not null && Uri.TryCreate("http://" + databaseAddress.GetString(), UriKind.Absolute, out var database) && database.IsLoopback && database.Port == State.DatabasePort;
         }
         if (endpoint.Host is "0.0.0.0" or "[::]") return new DesktopEndpoint(new UriBuilder("http", "127.0.0.1", endpoint.Port).Uri, localDatabase);
-        if (!endpoint.IsLoopback) throw new IOException("Desktop requiere una dirección local: 127.0.0.1, localhost, [::1], 0.0.0.0 o [::].");
+        if (!endpoint.IsLoopback) throw new IOException(L.T("Desktop requiere una dirección local: 127.0.0.1, localhost, [::1], 0.0.0.0 o [::]."));
         return new DesktopEndpoint(endpoint, localDatabase);
     }
     private async Task SetDesktopEndpointAsync(DesktopEndpoint info)
@@ -234,15 +234,15 @@ public sealed class RuntimeSession : IAsyncDisposable
             foreach (var process in rcloneJobs) { if (!process.HasExited) { process.Kill(true); await process.WaitForExitAsync(); } process.Dispose(); } rcloneJobs.Clear();
             if (server is not null) { if (!server.HasExited) { server.Kill(true); await server.WaitForExitAsync(); } server.Dispose(); server = null; }
             if (postgres is not null) { try { if (!postgres.HasExited) await RunAsync(Path.Combine(Components, "pgsql", "bin", "pg_ctl.exe"), "stop", "-D", Path.Combine(DataRoot, "database"), "-m", "fast", "-w", "-t", "20"); } finally { if (!postgres.HasExited) { postgres.Kill(true); await postgres.WaitForExitAsync(); } postgres.Dispose(); postgres = null; } }
-            Log("Servicios detenidos.");
+            Log(L.T("Servicios detenidos."));
     }
     public async Task InstallAsync(string filename, bool administrator, params string[] arguments)
     {
         var info = new ProcessStartInfo(Binary(filename)) { UseShellExecute = true, Verb = administrator ? "runas" : "open" };
         foreach (var argument in arguments) info.ArgumentList.Add(argument);
-        using var process = Process.Start(info) ?? throw new IOException("No se pudo abrir el instalador integrado."); await process.WaitForExitAsync();
-        if (process.ExitCode is not (0 or 3010)) throw new IOException($"El instalador terminó con código {process.ExitCode}.");
-        Log("Componente de Windows preparado.");
+        using var process = Process.Start(info) ?? throw new IOException(L.T("No se pudo abrir el instalador integrado.")); await process.WaitForExitAsync();
+        if (process.ExitCode is not (0 or 3010)) throw new IOException(L.T("El instalador termin\u00F3 con c\u00F3digo {0}.", process.ExitCode));
+        Log(L.T("Componente de Windows preparado."));
     }
     private void Log(string line) { lock (logLock) { var path = Path.Combine(DataRoot, "activity.log"); if (File.Exists(path) && new FileInfo(path).Length > 10 * 1024 * 1024) File.Move(path, path + ".previous", true); File.AppendAllText(path, $"{DateTime.Now:HH:mm:ss} {line}\n"); } Activity?.Invoke(line); }
     public async ValueTask DisposeAsync() { try { await StopAsync(); } finally { processJob.Dispose(); operations.Dispose(); } }

@@ -61,50 +61,59 @@ func (s *Service) Probe(ctx context.Context, source http.Handler) ([]Track, erro
 	defer cancel()
 	var result []Track
 	err := withSource(ctx, source, func(address string) error {
-		command := exec.CommandContext(ctx, s.probe, "-v", "error", "-protocol_whitelist", "http,tcp", "-format_whitelist", "mov,matroska,avi,flv,mpegts,mpeg,mpegvideo,asf,mp3,aac,wav,aiff,flac,ogg,amr,ac3,dts,ape", "-analyzeduration", "5000000", "-probesize", "10000000", "-show_streams", "-of", "json", address)
-		reader, err := command.StdoutPipe()
-		if err != nil {
-			return err
-		}
-		command.Stderr = io.Discard
-		if err = command.Start(); err != nil {
-			return err
-		}
-		data, err := io.ReadAll(io.LimitReader(reader, 2*1024*1024+1))
-		if err != nil || len(data) > 2*1024*1024 {
-			cancel()
-			_ = command.Wait()
-			return ErrFormat
-		}
-		if command.Wait() != nil {
-			return ErrFormat
-		}
-		var metadata struct {
-			Streams []struct {
-				Index       int32                            `json:"index"`
-				Kind        string                           `json:"codec_type"`
-				Codec       string                           `json:"codec_name"`
-				Tags        struct{ Language, Title string } `json:"tags"`
-				Disposition struct{ Default int }            `json:"disposition"`
-			} `json:"streams"`
-		}
-		if json.Unmarshal(data, &metadata) != nil {
-			return ErrFormat
-		}
-		for _, stream := range metadata.Streams {
-			if len(result) >= 128 {
-				break
-			}
-			if stream.Kind != "video" && stream.Kind != "audio" && stream.Kind != "subtitle" {
-				continue
-			}
-			bitmap := stream.Codec == "hdmv_pgs_subtitle" || stream.Codec == "dvd_subtitle" || stream.Codec == "dvb_subtitle" || stream.Codec == "xsub"
-			result = append(result, Track{Index: stream.Index, Kind: stream.Kind, Codec: stream.Codec, Language: stream.Tags.Language, Title: stream.Tags.Title, Default: stream.Disposition.Default != 0, Bitmap: bitmap})
-		}
-		return nil
+		var err error
+		result, err = s.probeAddress(ctx, address)
+		return err
 	})
 	return result, err
 }
+func (s *Service) probeAddress(ctx context.Context, address string) ([]Track, error) {
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+	var result []Track
+	command := exec.CommandContext(ctx, s.probe, "-v", "error", "-protocol_whitelist", "http,tcp", "-format_whitelist", "mov,matroska,avi,flv,mpegts,mpeg,mpegvideo,asf,mp3,aac,wav,aiff,flac,ogg,amr,ac3,dts,ape", "-analyzeduration", "5000000", "-probesize", "10000000", "-show_streams", "-of", "json", address)
+	reader, err := command.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+	command.Stderr = io.Discard
+	if err = command.Start(); err != nil {
+		return nil, err
+	}
+	data, err := io.ReadAll(io.LimitReader(reader, 2*1024*1024+1))
+	if err != nil || len(data) > 2*1024*1024 {
+		cancel()
+		_ = command.Wait()
+		return nil, ErrFormat
+	}
+	if command.Wait() != nil {
+		return nil, ErrFormat
+	}
+	var metadata struct {
+		Streams []struct {
+			Index       int32                            `json:"index"`
+			Kind        string                           `json:"codec_type"`
+			Codec       string                           `json:"codec_name"`
+			Tags        struct{ Language, Title string } `json:"tags"`
+			Disposition struct{ Default int }            `json:"disposition"`
+		} `json:"streams"`
+	}
+	if json.Unmarshal(data, &metadata) != nil {
+		return nil, ErrFormat
+	}
+	for _, stream := range metadata.Streams {
+		if len(result) >= 128 {
+			break
+		}
+		if stream.Kind != "video" && stream.Kind != "audio" && stream.Kind != "subtitle" {
+			continue
+		}
+		bitmap := stream.Codec == "hdmv_pgs_subtitle" || stream.Codec == "dvd_subtitle" || stream.Codec == "dvb_subtitle" || stream.Codec == "xsub"
+		result = append(result, Track{Index: stream.Index, Kind: stream.Kind, Codec: stream.Codec, Language: stream.Tags.Language, Title: stream.Tags.Title, Default: stream.Disposition.Default != 0, Bitmap: bitmap})
+	}
+	return result, nil
+}
+
 func (s *Service) subtitleData(ctx context.Context, address string, index int32, format string, starts ...float64) ([]byte, error) {
 	args := []string{"-hide_banner", "-loglevel", "error", "-nostdin", "-protocol_whitelist", "http,tcp", "-i", address}
 	if len(starts) > 0 && starts[0] > 0 {
@@ -148,6 +157,19 @@ func (s *Service) Subtitles(ctx context.Context, source http.Handler, index int3
 func (s *Service) selectionArguments(ctx context.Context, source, mode string, start float64, selection Selection) ([]string, func(), error) {
 	args := Arguments(source, mode, start)
 	cleanup := func() {}
+	if selection.Audio == nil && s.ProbeAvailable() {
+		if tracks, err := s.probeAddress(ctx, source); err == nil {
+			for _, track := range tracks {
+				if track.Kind == "audio" && (selection.Audio == nil || track.Default) {
+					index := track.Index
+					selection.Audio = &index
+					if track.Default {
+						break
+					}
+				}
+			}
+		}
+	}
 	if selection.Audio != nil {
 		for i, value := range args {
 			if value == "0:a:0" || value == "0:a:0?" {

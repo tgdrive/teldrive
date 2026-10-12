@@ -1,3 +1,4 @@
+import { t } from "@/lib/localization";
 import { Button, Card, Label, ListBox, NumberField, Select, Typography } from "@heroui/react";
 import { useStore } from "@tanstack/react-form";
 import { toast } from "sonner";
@@ -22,18 +23,18 @@ const GROUPS: {
   items: { key: TaskType; label: string; description: string; defaultQueue: string }[];
 }[] = [
   {
-    label: "Mantenimiento",
+    label: t("Mantenimiento"),
     items: [
       {
         key: "teldrive_upload_cleanup",
-        label: "Limpiar subidas abandonadas",
-        description: "Finaliza o elimina las sesiones de subida por fragmentos abandonadas.",
+        label: t("Limpiar subidas abandonadas"),
+        description: t("Finaliza o elimina las sesiones de subida por fragmentos abandonadas."),
         defaultQueue: "maintenance",
       },
       {
         key: "teldrive_pending_file_purge",
-        label: "Purgar archivos pendientes",
-        description: "Elimina los archivos pendientes vencidos y sus datos en Telegram.",
+        label: t("Purgar archivos pendientes"),
+        description: t("Elimina los archivos pendientes vencidos y sus datos en Telegram."),
         defaultQueue: "maintenance",
       },
     ],
@@ -53,7 +54,7 @@ export function TaskLauncher({ onQueued, onClose }: { onQueued: () => void; onCl
     defaultValues: DEFAULT_VALUES,
     validators: {
       onSubmit: ({ value }) => {
-        if (value.batchSize < 1) return "El tamaño del lote debe ser al menos 1";
+        if (value.batchSize < 1) return t("El tamaño del lote debe ser al menos 1");
         return undefined;
       },
     },
@@ -68,10 +69,10 @@ export function TaskLauncher({ onQueued, onClose }: { onQueued: () => void; onCl
       };
       const { error } = await fetchClient.POST("/v1/jobs", { body });
       if (error) {
-        toast.error("No se pudo programar la tarea");
-        throw new Error("No se pudo programar la tarea");
+        toast.error(t("No se pudo programar la tarea"));
+        throw new Error(t("No se pudo programar la tarea"));
       }
-      toast.success("Tarea programada");
+      toast.success(t("Tarea programada"));
       onQueued();
     },
   });
@@ -95,7 +96,7 @@ export function TaskLauncher({ onQueued, onClose }: { onQueued: () => void; onCl
         <Button
           type="button"
           variant="ghost"
-          aria-label="Cerrar panel de tareas"
+          aria-label={t("Cerrar panel de tareas")}
           className="absolute inset-0 h-full w-full rounded-none bg-black/40 backdrop-blur-[1px]"
           onPress={onClose}
         />
@@ -108,16 +109,16 @@ export function TaskLauncher({ onQueued, onClose }: { onQueued: () => void; onCl
         >
           <div className="flex items-start justify-between border-border border-b px-5 py-4 sm:px-6">
             <div>
-              <h2 className="text-lg font-semibold">Nueva tarea</h2>
+              <h2 className="text-lg font-semibold">{t("Nueva tarea")}</h2>
               <p className="mt-0.5 text-xs text-muted">
-                Elige una tarea y configura sus parámetros.
+                {t("Elige una tarea y configura sus parámetros.")}
               </p>
             </div>
             <Button
               isIconOnly
               size="sm"
               variant="tertiary"
-              aria-label="Cerrar panel de tareas"
+              aria-label={t("Cerrar panel de tareas")}
               onPress={onClose}
             >
               <CloseIcon className="size-4" />
@@ -127,11 +128,11 @@ export function TaskLauncher({ onQueued, onClose }: { onQueued: () => void; onCl
           <div className="min-h-0 flex-1 overflow-hidden">
             <div className="border-border border-b p-4 md:hidden">
               <Select
-                aria-label="Tipo de tarea"
+                aria-label={t("Tipo de tarea")}
                 selectedKey={values.taskType}
                 onSelectionChange={(key) => chooseTask(String(key) as TaskType)}
               >
-                <Label>Tipo de tarea</Label>
+                <Label>{t("Tipo de tarea")}</Label>
                 <Select.Trigger>
                   <Select.Value />
                   <Select.Indicator />
@@ -154,7 +155,7 @@ export function TaskLauncher({ onQueued, onClose }: { onQueued: () => void; onCl
             <div className="grid h-full min-h-0 md:grid-cols-[12rem_minmax(0,1fr)]">
               <nav
                 className="hidden overflow-y-auto border-border border-r px-3 py-4 md:block"
-                aria-label="Tipo de tarea"
+                aria-label={t("Tipo de tarea")}
               >
                 {GROUPS.map((group) => (
                   <div key={group.label} className="mb-5 last:mb-0">
@@ -205,7 +206,7 @@ export function TaskLauncher({ onQueued, onClose }: { onQueued: () => void; onCl
                       maxValue={1000}
                       onChange={(value) => form.setFieldValue("batchSize", value ?? 1)}
                     >
-                      <Label>Tamaño del lote</Label>
+                      <Label>{t("Tamaño del lote")}</Label>
                       <NumberField.Group>
                         <NumberField.DecrementButton />
                         <NumberField.Input />
@@ -215,8 +216,8 @@ export function TaskLauncher({ onQueued, onClose }: { onQueued: () => void; onCl
                     <form.AppField name="queue">
                       {(field) => (
                         <field.TextField
-                          label="Cola"
-                          description="Cola de River utilizada para esta tarea."
+                          label={t("Cola")}
+                          description={t("Cola de River utilizada para esta tarea.")}
                         />
                       )}
                     </form.AppField>
@@ -227,7 +228,7 @@ export function TaskLauncher({ onQueued, onClose }: { onQueued: () => void; onCl
                         maxValue={4}
                         onChange={(value) => form.setFieldValue("priority", value ?? 1)}
                       >
-                        <Label>Prioridad</Label>
+                        <Label>{t("Prioridad")}</Label>
                         <NumberField.Group>
                           <NumberField.DecrementButton />
                           <NumberField.Input />
@@ -239,7 +240,7 @@ export function TaskLauncher({ onQueued, onClose }: { onQueued: () => void; onCl
                         minValue={1}
                         onChange={(value) => form.setFieldValue("maxAttempts", value ?? 1)}
                       >
-                        <Label>Intentos máximos</Label>
+                        <Label>{t("Intentos máximos")}</Label>
                         <NumberField.Group>
                           <NumberField.DecrementButton />
                           <NumberField.Input />
@@ -255,10 +256,11 @@ export function TaskLauncher({ onQueued, onClose }: { onQueued: () => void; onCl
 
           <div className="flex items-center justify-end gap-2 border-border border-t px-5 py-4 sm:px-6">
             <Button type="button" variant="tertiary" isDisabled={submitting} onPress={onClose}>
-              Cancelar
+              {t("Cancelar")}
             </Button>
             <form.SubmitButton variant="primary">
-              Programar {selected.label.toLowerCase()}
+              {t("Programar") + " "}
+              {selected.label.toLowerCase()}
             </form.SubmitButton>
           </div>
         </form>

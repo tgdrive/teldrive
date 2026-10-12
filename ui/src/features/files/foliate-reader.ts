@@ -1,3 +1,4 @@
+import { t } from "@/lib/localization";
 export interface ReaderPreferences {
   theme: string;
   flow: string;
@@ -27,7 +28,7 @@ export async function openPublication({
   const book = await makeBook(file);
   book.transformTarget?.addEventListener("data", ({ detail }: CustomEvent) => {
     detail.data = Promise.resolve(detail.data).catch((error: unknown) => {
-      console.error(new Error(`Failed to load ${detail.name}`, { cause: error }));
+      console.error(new Error(t("Failed to load {0}", [detail.name]), { cause: error }));
       return "";
     });
   });
@@ -91,7 +92,7 @@ export function closePublication(element: FoliateViewElement) {
 }
 
 function readerFont(font: string) {
-  if (font === "serif") return 'Iowan Old Style, Charter, "Bitstream Charter", Georgia, serif';
-  if (font === "sans") return 'Avenir Next, Avenir, "Segoe UI", sans-serif';
+  if (font === "serif") return t('Iowan Old Style, Charter, "Bitstream Charter", Georgia, serif');
+  if (font === "sans") return t('Avenir Next, Avenir, "Segoe UI", sans-serif');
   return "inherit";
 }

@@ -1,3 +1,4 @@
+import { t } from "@/lib/localization";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { z } from "zod";
 import { $api, fetchClient } from "@/api/client";
@@ -27,7 +28,9 @@ function validateFileList(data: FileListResponse): FileListResponse {
   const result = fileListSchema.safeParse(data);
   if (!result.success) {
     throw invalidResponse(
-      "La versión de la API es incompatible. Actualiza el servidor y la UI juntos y vuelve a cargar.",
+      t(
+        "La versión de la API es incompatible. Actualiza el servidor y la UI juntos y vuelve a cargar.",
+      ),
     );
   }
   return data;
@@ -137,7 +140,7 @@ export function useInfiniteFilePages(search: FileRouteSearch, status: FileStatus
         signal,
       });
       if (!result.data) {
-        throw invalidResponse("Teldrive devolvió una respuesta vacía a la lista de archivos.");
+        throw invalidResponse(t("Teldrive devolvió una respuesta vacía a la lista de archivos."));
       }
       return validateFileList(result.data);
     },

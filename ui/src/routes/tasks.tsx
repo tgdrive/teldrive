@@ -1,3 +1,4 @@
+import { t } from "@/lib/localization";
 import { Button, Card, Chip, Input, ListBox, Popover, Select, Spinner } from "@heroui/react";
 import { createFileRoute, Link, stripSearchParams } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
@@ -28,14 +29,14 @@ const PAGE_SIZE = 20;
 const CANCELLABLE_STATUSES = ["pending", "scheduled", "available", "running", "retryable"];
 
 const STATUS_TABS = [
-  { key: "pending", label: "Pendiente" },
-  { key: "scheduled", label: "Programada" },
-  { key: "available", label: "Disponible" },
-  { key: "running", label: "En ejecución" },
-  { key: "retryable", label: "Retryable" },
-  { key: "cancelled", label: "Cancelada" },
-  { key: "discarded", label: "Descartada" },
-  { key: "completed", label: "Completada" },
+  { key: "pending", label: t("Pendiente") },
+  { key: "scheduled", label: t("Programada") },
+  { key: "available", label: t("Disponible") },
+  { key: "running", label: t("En ejecución") },
+  { key: "retryable", label: t("Retryable") },
+  { key: "cancelled", label: t("Cancelada") },
+  { key: "discarded", label: t("Descartada") },
+  { key: "completed", label: t("Completada") },
 ] as const;
 
 export const Route = createFileRoute("/tasks")({
@@ -214,10 +215,10 @@ function TasksPage() {
     });
     setRetryingId(null);
     if (error) {
-      toast.error("No se pudo reintentar la tarea");
+      toast.error(t("No se pudo reintentar la tarea"));
       return;
     }
-    toast.success("Tarea programada para reintentar");
+    toast.success(t("Tarea programada para reintentar"));
     refreshTasks();
   };
 
@@ -234,15 +235,15 @@ function TasksPage() {
     if (error) {
       toast.error(
         CANCELLABLE_STATUSES.includes(task.status)
-          ? "No se pudo cancelar la tarea"
-          : "No se pudo eliminar la tarea",
+          ? t("No se pudo cancelar la tarea")
+          : t("No se pudo eliminar la tarea"),
       );
       return;
     }
     toast.success(
       CANCELLABLE_STATUSES.includes(task.status)
-        ? "Cancelación de tarea solicitada"
-        : "Tarea eliminada",
+        ? t("Cancelación de tarea solicitada")
+        : t("Tarea eliminada"),
     );
     refreshTasks();
   };
@@ -255,7 +256,7 @@ function TasksPage() {
     });
     setCleaning(false);
     if (error) {
-      toast.error(`No se pudieron limpiar las tareas ${cleanupStatus} tareas`);
+      toast.error(t("No se pudieron limpiar las tareas {0} tareas", [cleanupStatus]));
       return;
     }
 
@@ -263,15 +264,17 @@ function TasksPage() {
     setCleanupStatus(null);
     setCursor(undefined);
     setCursorHistory([]);
-    toast.success(`Eliminadas ${response.count} ${status} tarea${response.count === 1 ? "" : "s"}`);
+    toast.success(
+      t("Eliminadas {0} {1} tarea{2}", [response.count, status, response.count === 1 ? "" : "s"]),
+    );
     refreshTasks();
   };
 
   return (
     <Page>
       <PageHeader
-        title="Tareas"
-        description="Crea, supervisa, reintenta y consulta tareas en segundo plano."
+        title={t("Tareas")}
+        description={t("Crea, supervisa, reintenta y consulta tareas en segundo plano.")}
         actions={
           <Button
             size="sm"
@@ -279,7 +282,7 @@ function TasksPage() {
             className="bg-accent text-accent-foreground"
             onPress={() => setComposerOpen(true)}
           >
-            <AddIcon className="size-3.5" /> Nueva tarea
+            <AddIcon className="size-3.5" /> {" " + t("Nueva tarea")}
           </Button>
         }
       />
@@ -297,8 +300,8 @@ function TasksPage() {
       <PageToolbar className="items-stretch">
         <div className="flex min-w-0 flex-1 flex-col gap-2 md:flex-row md:items-center">
           <Input
-            aria-label="Buscar tareas"
-            placeholder="Buscar tareas por tipo, cola, ruta o ID"
+            aria-label={t("Buscar tareas")}
+            placeholder={t("Buscar tareas por tipo, cola, ruta o ID")}
             value={search.query}
             onChange={(event) => setSearch({ query: event.currentTarget.value })}
             className="min-w-0 flex-1"
@@ -323,7 +326,7 @@ function TasksPage() {
                     isDisabled={(taskStats?.[purgeStatus] ?? 0) === 0}
                     onPress={() => setCleanupStatus(purgeStatus)}
                   >
-                    <TrashIcon className="size-3.5" /> Limpiar
+                    <TrashIcon className="size-3.5" /> {" " + t("Limpiar")}
                   </Button>
                 ) : null;
               })()}
@@ -334,17 +337,17 @@ function TasksPage() {
 
       <Card className="overflow-hidden p-0">
         <div className="flex items-center justify-between border-border border-b px-4 py-3">
-          <div className="text-sm font-semibold">Actividad de tareas</div>
+          <div className="text-sm font-semibold">{t("Actividad de tareas")}</div>
           {hasActiveTasks && (
             <span className="flex items-center gap-2 text-xs text-muted">
               <span className="size-2 animate-pulse rounded-full bg-accent" />
-              Live updates
+              {t("Live updates")}
             </span>
           )}
         </div>
         {filteredTasks.length > 0 ? (
           <ListBox
-            aria-label="Tareas"
+            aria-label={t("Tareas")}
             selectionMode="none"
             className="w-full min-w-0 divide-y divide-border overflow-hidden p-0"
           >
@@ -361,11 +364,11 @@ function TasksPage() {
           </ListBox>
         ) : (
           <EmptyState
-            title="Ninguna tarea coincide con los filtros"
-            description="Ajusta los filtros o programa una nueva tarea."
+            title={t("Ninguna tarea coincide con los filtros")}
+            description={t("Ajusta los filtros o programa una nueva tarea.")}
             action={
               <Button size="sm" variant="primary" onPress={() => setComposerOpen(true)}>
-                New Task
+                {t("New Task")}
               </Button>
             }
           />
@@ -380,13 +383,15 @@ function TasksPage() {
             isDisabled={cursorHistory.length === 0}
             onPress={goPrevious}
           >
-            <PrevIcon className="size-3.5" /> Anterior
+            <PrevIcon className="size-3.5" /> {" " + t("Anterior")}
           </Button>
           <span className="min-w-20 text-center text-xs text-muted">
-            Página {cursorHistory.length + 1}
+            {t("Página") + " "}
+            {cursorHistory.length + 1}
           </span>
           <Button size="sm" variant="tertiary" isDisabled={!meta?.nextCursor} onPress={goNext}>
-            Siguiente <NextIcon className="size-3.5" />
+            {t("Siguiente") + " "}
+            <NextIcon className="size-3.5" />
           </Button>
         </div>
       )}
@@ -395,9 +400,12 @@ function TasksPage() {
         open={cleanupStatus != null}
         onOpenChange={(open) => !open && setCleanupStatus(null)}
         onConfirm={cleanTasks}
-        title={`Limpiar ${cleanupStatus ?? ""} tareas?`}
-        message={`Esto elimina definitivamente los ${cleanupStatus ? (taskStats?.[cleanupStatus] ?? 0) : 0} ${cleanupStatus ?? ""} registros de tareas. Los otros estados no se modifican.`}
-        confirmLabel="Limpiar"
+        title={t("Limpiar {0} tareas?", [cleanupStatus ?? ""])}
+        message={t(
+          "Esto elimina definitivamente los {0} {1} registros de tareas. Los otros estados no se modifican.",
+          [cleanupStatus ? (taskStats?.[cleanupStatus] ?? 0) : 0, cleanupStatus ?? ""],
+        )}
+        confirmLabel={t("Limpiar")}
         isPending={cleaning}
       />
     </Page>
@@ -432,7 +440,7 @@ function TaskRow({
             <TaskStatusChip status={task.status} />
             {task.parentId ? (
               <Chip size="sm" variant="tertiary">
-                Subtarea
+                {t("Subtarea")}
               </Chip>
             ) : null}
           </div>
@@ -446,21 +454,27 @@ function TaskRow({
           </Link>
 
           <div className="mt-1.5 flex min-w-0 items-center gap-2 overflow-hidden text-[11px] text-muted sm:flex-wrap sm:gap-x-3 sm:gap-y-1">
-            <span className="shrink-0">Cola {task.queue || "default"}</span>
+            <span className="shrink-0">
+              {t("Cola") + " "}
+              {task.queue || "default"}
+            </span>
             <span className="shrink-0">{taskDuration(task)}</span>
             <span className="truncate" title={formatDate(task.createdAt)}>
               {formatRelativeDate(task.createdAt)}
             </span>
             {(task.attempt ?? 0) > 0 ? (
               <span className="hidden shrink-0 sm:inline lg:hidden">
-                Intento {task.attempt} of {task.maxAttempts || "—"}
+                {t("Intento") + " "}
+                {task.attempt} of {task.maxAttempts || "—"}
               </span>
             ) : null}
           </div>
         </div>
 
         <div className="hidden lg:block">
-          <div className="text-[10px] font-medium uppercase tracking-wide text-muted">Intentos</div>
+          <div className="text-[10px] font-medium uppercase tracking-wide text-muted">
+            {t("Intentos")}
+          </div>
           <div className="mt-1 text-xs font-semibold tabular-nums">
             {task.attempt ?? 0} / {task.maxAttempts || "—"}
           </div>
@@ -473,9 +487,9 @@ function TaskRow({
               variant="primary"
               isPending={retryPending}
               onPress={onRetry}
-              aria-label={`Reintentar ${title}`}
+              aria-label={t("Reintentar {0}", [title])}
             >
-              Reintentar
+              {t("Reintentar")}
             </Button>
           ) : null}
           {task.status === "running" ? (
@@ -484,9 +498,9 @@ function TaskRow({
               variant="danger-soft"
               isPending={deletePending}
               onPress={onDelete}
-              aria-label={`Cancelar ${title}`}
+              aria-label={t("Cancelar {0}", [title])}
             >
-              Cancelar
+              {t("Cancelar")}
             </Button>
           ) : (
             <Button
@@ -495,7 +509,7 @@ function TaskRow({
               isIconOnly
               isPending={deletePending}
               onPress={onDelete}
-              aria-label={`Eliminar ${title}`}
+              aria-label={t("Eliminar {0}", [title])}
             >
               <TrashIcon className="size-3.5" />
             </Button>
@@ -519,7 +533,7 @@ function TaskStatusSelect({
 
   return (
     <Select
-      aria-label="Estado de tarea"
+      aria-label={t("Estado de tarea")}
       selectedKey={value}
       onSelectionChange={(key) => onChange(String(key))}
       className="w-44 shrink-0"
@@ -562,7 +576,7 @@ function QueueManager({ queues, onChanged }: { queues: TaskQueueOut[]; onChanged
     const { error } = await fetchClient.POST(endpoint, { params: { path: { queue: queue.name } } });
     setPendingQueue(null);
     if (error) {
-      toast.error(`No se pudo ${queue.paused ? "reanudar" : "pausar"} ${queue.name}`);
+      toast.error(t("No se pudo {0} {1}", [queue.paused ? "reanudar" : "pausar", queue.name]));
       return;
     }
     toast.success(`${queue.name} ${queue.paused ? "reanudada" : "en pausa"}`);
@@ -572,14 +586,16 @@ function QueueManager({ queues, onChanged }: { queues: TaskQueueOut[]; onChanged
   return (
     <Popover>
       <Button size="sm" variant="tertiary">
-        <FilterIcon className="size-3.5" /> Colas
+        <FilterIcon className="size-3.5" /> {" " + t("Colas")}
       </Button>
       <Popover.Content placement="bottom end" offset={8} className="w-[min(92vw,28rem)]">
         <Popover.Dialog className="p-0">
           <div className="border-border border-b px-4 py-3">
-            <Popover.Heading className="text-sm font-semibold">Colas de procesos</Popover.Heading>
+            <Popover.Heading className="text-sm font-semibold">
+              {t("Colas de procesos")}
+            </Popover.Heading>
             <p className="mt-0.5 text-xs text-muted">
-              Pausa o reanuda colas de River sin detener los procesos.
+              {t("Pausa o reanuda colas de River sin detener los procesos.")}
             </p>
           </div>
           <div className="max-h-80 divide-y divide-border overflow-y-auto">
@@ -593,12 +609,14 @@ function QueueManager({ queues, onChanged }: { queues: TaskQueueOut[]; onChanged
                         className={`size-2 rounded-full ${queue.paused ? "bg-warning" : "bg-success"}`}
                       />
                       <span className="text-[10px] text-muted">
-                        {queue.paused ? "En pausa" : "Activo"}
+                        {queue.paused ? t("En pausa") : t("Activo")}
                       </span>
                     </div>
                     <div className="mt-1 flex gap-3 text-[11px] text-muted">
                       <span>{queue.available} disponibles</span>
-                      <span>{queue.running} en ejecución</span>
+                      <span>
+                        {queue.running} {" " + t("en ejecución")}
+                      </span>
                     </div>
                   </div>
                   <Button
@@ -607,13 +625,13 @@ function QueueManager({ queues, onChanged }: { queues: TaskQueueOut[]; onChanged
                     isPending={pendingQueue === queue.name}
                     onPress={() => toggleQueue(queue)}
                   >
-                    {queue.paused ? "Reanudar" : "Pausar"}
+                    {queue.paused ? t("Reanudar") : t("Pausar")}
                   </Button>
                 </div>
               ))
             ) : (
               <div className="px-4 py-8 text-center text-sm text-muted">
-                No hay colas de River activas.
+                {t("No hay colas de River activas.")}
               </div>
             )}
           </div>

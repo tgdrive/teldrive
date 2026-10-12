@@ -46,7 +46,7 @@ public partial class MainWindow : Window
                 automation?.Tick(DateTimeOffset.UtcNow);
                 if (AdvancedView.IsVisible) AdvancedView.Refresh();
                 if (automation is not null) tray?.QueueState(automation.State.Paused, automation.State.Queue.Count(item => item.State is "waiting" or "running"));
-            } catch (Exception error) { automationTimer.Stop(); Status.Text = "Programador detenido: " + error.Message; RestoreFromTray(); }
+            } catch (Exception error) { automationTimer.Stop(); Status.Text = L.T("Programador detenido: ") + error.Message; RestoreFromTray(); }
         };
         runtime.Activity += line => Dispatcher.BeginInvoke(() => { if (Logs.Text.Length > 200000) Logs.Text = Logs.Text[^100000..]; Logs.AppendText(line + "\n"); Logs.ScrollToEnd(); });
         Loaded += async (_, _) => await Guard(async () => {
@@ -65,34 +65,34 @@ public partial class MainWindow : Window
             if (args.Contains("--smoke-automation")) { await RcloneAutomationSmokeTest.RunAsync(runtime, this); Close(); return; }
             if (args.Contains("--smoke-rclone")) { await RcloneSmokeTest.RunAsync(runtime); Close(); return; }
             if (args.Contains("--smoke-server")) {
-                if (runtime.State is not null || File.Exists(runtime.ConfigPath)) throw new IOException("La prueba del servidor requiere una carpeta nueva.");
+                if (runtime.State is not null || File.Exists(runtime.ConfigPath)) throw new IOException(L.T("La prueba del servidor requiere una carpeta nueva."));
                 var probe = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0); probe.Start(); var port = ((System.Net.IPEndPoint)probe.LocalEndpoint).Port; probe.Stop();
                 await runtime.ConfigureAsync(port, true, "", ""); await ShowDrive();
                 var rendered = false;
                 for (var attempt = 0; attempt < 60; attempt++) {
                     var value = await Browser.CoreWebView2.ExecuteScriptAsync("JSON.stringify({title:document.title, text:document.body.innerText})");
                     var json = JsonSerializer.Deserialize<string>(value);
-                    if (json is not null && json.Contains("Iniciar sesión", StringComparison.OrdinalIgnoreCase)) { rendered = true; break; }
+                    if (json is not null && json.Contains(L.T("Iniciar sesión"), StringComparison.OrdinalIgnoreCase)) { rendered = true; break; }
                     await Task.Delay(500);
                 }
-                if (!rendered) throw new IOException("El servidor respondió, pero la pantalla de inicio de sesión no se mostró.");
+                if (!rendered) throw new IOException(L.T("El servidor respondió, pero la pantalla de inicio de sesión no se mostró."));
                 var originalConfig = await File.ReadAllTextAsync(runtime.ConfigPath);
                 var rejected = false;
                 try { await runtime.SaveConfigAsync(originalConfig.Replace($"127.0.0.1:{port}", $"203.0.113.2:{port}")); }
                 catch (IOException) { rejected = true; }
-                if (!rejected || await File.ReadAllTextAsync(runtime.ConfigPath) != originalConfig || runtime.ServerUri!.Port != port) throw new IOException("Una dirección no local modificó la configuración válida.");
+                if (!rejected || await File.ReadAllTextAsync(runtime.ConfigPath) != originalConfig || runtime.ServerUri!.Port != port) throw new IOException(L.T("Una dirección no local modificó la configuración válida."));
                 await runtime.StopAsync();
                 await File.WriteAllTextAsync(Path.Combine(runtime.DataRoot, "server-smoke-test.json"), JsonSerializer.Serialize(new {success=true, postgresql=true, migrations=true, loginUi=true, rejectedNonLocalAddress=rejected, stopped=!runtime.Running, port}));
                 Close(); return;
             }
             RefreshConfiguration();
-            Status.Text = "Listo para configurar tu unidad";
+            Status.Text = L.T("Listo para configurar tu unidad");
             if (runtime.State is not null && File.Exists(runtime.ConfigPath)) { await runtime.StartAsync(); await ShowDrive(); }
             if ((!smoke || startupSmoke) && requestedStartHidden && runtime.Running) { HideToTray(); if (!smoke) Opacity = 1; }
             if (startupSmoke) {
-                if (!runtime.Running || IsVisible || tray?.Visible != true) throw new IOException("El inicio automático no quedó activo en la bandeja.");
+                if (!runtime.Running || IsVisible || tray?.Visible != true) throw new IOException(L.T("El inicio automático no quedó activo en la bandeja."));
                 testingTray = true; RestoreFromTray(); testingTray = false;
-                if (!IsVisible || WindowState != WindowState.Normal) throw new IOException("La ventana iniciada en la bandeja no se pudo recuperar.");
+                if (!IsVisible || WindowState != WindowState.Normal) throw new IOException(L.T("La ventana iniciada en la bandeja no se pudo recuperar."));
                 await File.WriteAllTextAsync(Path.Combine(runtime.DataRoot, "startup-tray-smoke-test.json"), JsonSerializer.Serialize(new { success = true, serverRunning = runtime.Running, startedHidden = true, restored = true, windowsStartupRegistryModified = false }));
                 exitRequested = true; Close(); return;
             }
@@ -123,7 +123,7 @@ public partial class MainWindow : Window
                 ShutdownStage("application"); closed = true;
                 _ = Dispatcher.BeginInvoke(() => Application.Current.Shutdown());
             }
-            catch (Exception error) { closing = false; MessageBox.Show(error.Message, "No se pudieron detener los servicios"); }
+            catch (Exception error) { closing = false; MessageBox.Show(error.Message, L.T("No se pudieron detener los servicios")); }
         };
     }
     private async Task Guard(Func<Task> operation)
@@ -134,7 +134,7 @@ public partial class MainWindow : Window
         catch (Exception error) {
             Status.Text = error.Message;
             if (smoke) { await File.WriteAllTextAsync(Path.Combine(runtime.DataRoot, "smoke-test.json"), JsonSerializer.Serialize(new {success = false, error = error.ToString()})); Close(); }
-            else { RestoreFromTray(); MessageBox.Show(error.Message, "Teldrive Desktop v2", MessageBoxButton.OK, MessageBoxImage.Information); }
+            else { RestoreFromTray(); MessageBox.Show(error.Message, L.T("Teldrive Desktop v2"), MessageBoxButton.OK, MessageBoxImage.Information); }
         }
         finally { currentOperation = null; busy = false; StartButton.IsEnabled = !runtime.Running; StopButton.IsEnabled = runtime.Running; }
     }
@@ -153,14 +153,15 @@ public partial class MainWindow : Window
         await Dispatcher.Yield(DispatcherPriority.Loaded);
         try { _ = CoreWebView2Environment.GetAvailableBrowserVersionString(); }
         catch (WebView2RuntimeNotFoundException) {
-            Status.Text = "Preparando WebView2 integrado…";
+            Status.Text = L.T("Preparando WebView2 integrado…");
             await runtime.InstallAsync("WebView2RuntimeInstaller.exe", false, "/silent", "/install");
         }
         var environment = await CoreWebView2Environment.CreateAsync(userDataFolder: Path.Combine(runtime.DataRoot, "webview"));
         await Browser.EnsureCoreWebView2Async(environment);
-        if (Browser.CoreWebView2 is null) throw new IOException("No se pudo inicializar WebView2.");
+        if (Browser.CoreWebView2 is null) throw new IOException(L.T("No se pudo inicializar WebView2."));
         Browser.CoreWebView2.Settings.IsStatusBarEnabled = false;
         Browser.CoreWebView2.Settings.AreDevToolsEnabled = false;
+        await Browser.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync($"if (location.protocol === 'http:' && location.hostname === '127.0.0.1' && !localStorage.getItem('teldrive-language')) localStorage.setItem('teldrive-language', {JsonSerializer.Serialize(preferences.Language)});");
         Browser.CoreWebView2.WebMessageReceived += ReceiveNativeMessage;
         Browser.CoreWebView2.NavigationStarting += (_, e) => {
             if (runtime.ServerUri is null || !Uri.TryCreate(e.Uri, UriKind.Absolute, out var uri)) { e.Cancel = true; return; }
@@ -176,10 +177,10 @@ public partial class MainWindow : Window
         await InitializeBrowser();
         SetupView.Visibility = Visibility.Collapsed; LogsView.Visibility = Visibility.Collapsed; Browser.Visibility = Visibility.Visible;
         Browser.Source = new Uri(runtime.ServerUri!, path);
-        Status.Text = $"Conectado · {runtime.ServerUri} · Datos guardados en tu equipo";
+        Status.Text = L.T("Conectado \u00B7 {0} \u00B7 Datos guardados en tu equipo", runtime.ServerUri);
     }
     private async void StartClick(object sender, RoutedEventArgs e) => await Guard(async () => { await runtime.StartAsync(); await ShowDrive(); });
-    private async void StopClick(object sender, RoutedEventArgs e) => await Guard(async () => { if (automation is not null) automation.ConfigureQueue(true, automation.State.ParallelJobs); await StopPlayersAsync(); await rclone.StopAllAsync(); await runtime.StopAsync(); AdvancedView.Visibility = Visibility.Collapsed; Browser.Visibility = Visibility.Collapsed; SetupView.Visibility = Visibility.Visible; Status.Text = "Servicios detenidos; cola pausada"; });
+    private async void StopClick(object sender, RoutedEventArgs e) => await Guard(async () => { if (automation is not null) automation.ConfigureQueue(true, automation.State.ParallelJobs); await StopPlayersAsync(); await rclone.StopAllAsync(); await runtime.StopAsync(); AdvancedView.Visibility = Visibility.Collapsed; Browser.Visibility = Visibility.Collapsed; SetupView.Visibility = Visibility.Visible; Status.Text = L.T("Servicios detenidos; cola pausada"); });
     private void SetupClick(object sender, RoutedEventArgs e) { AdvancedView.Visibility = Visibility.Collapsed; RefreshConfiguration(); Browser.Visibility = Visibility.Collapsed; LogsView.Visibility = Visibility.Collapsed; SetupView.Visibility = Visibility.Visible; }
     private void LogsClick(object sender, RoutedEventArgs e) { AdvancedView.Visibility = Visibility.Collapsed; Browser.Visibility = Visibility.Collapsed; SetupView.Visibility = Visibility.Collapsed; LogsView.Visibility = Visibility.Visible; }
     private void AdvancedClick(object sender, RoutedEventArgs e) => ShowAdvanced();
@@ -187,6 +188,7 @@ public partial class MainWindow : Window
     private void InitializeAutomation()
     {
         preferences = DesktopPreferences.Load(runtime.DataRoot);
+        ApplyLanguage(preferences.Language);
         automation = new RcloneAutomation(runtime.DataRoot, rclone);
         tray = new DesktopTray(RestoreFromTray, () => { RestoreFromTray(); ShowAdvanced(); }, () => { automation.ConfigureQueue(!automation.State.Paused, automation.State.ParallelJobs); AdvancedView.Refresh(); }, ExitDesktop);
         tray.Apply(preferences, false);
@@ -198,6 +200,15 @@ public partial class MainWindow : Window
     {
         DesktopStartup.Apply(value.StartWithWindows, runtime.DataRoot, portable);
         value.Save(runtime.DataRoot); preferences = value; tray?.Apply(value, !IsVisible);
+        ApplyLanguage(value.Language);
+        if (Browser.CoreWebView2 is not null) _ = Browser.CoreWebView2.ExecuteScriptAsync($"localStorage.setItem('teldrive-language', {JsonSerializer.Serialize(value.Language)}); location.reload();");
+    }
+    private void ApplyLanguage(string language)
+    {
+        L.Current.Language = language;
+        FlowDirection = language == "ar" ? FlowDirection.RightToLeft : FlowDirection.LeftToRight;
+        foreach (var field in new[] { ConfigEditor, DatabaseUrl, HttpPort, AllowedUser, Logs }) field.FlowDirection = FlowDirection.LeftToRight;
+        Browser.FlowDirection = FlowDirection.LeftToRight;
     }
     internal void HideToTray()
     {
@@ -217,11 +228,11 @@ public partial class MainWindow : Window
         tray = new DesktopTray(RestoreFromTray, ShowAdvanced, () => { }, ExitDesktop);
         try {
             WindowState = WindowState.Minimized;
-            if (IsVisible || !tray.Visible) throw new IOException("Minimizar no ocultó la ventana en la bandeja.");
+            if (IsVisible || !tray.Visible) throw new IOException(L.T("Minimizar no ocultó la ventana en la bandeja."));
             RestoreFromTray();
-            if (!IsVisible || WindowState != WindowState.Normal) throw new IOException("La bandeja no recuperó la ventana.");
+            if (!IsVisible || WindowState != WindowState.Normal) throw new IOException(L.T("La bandeja no recuperó la ventana."));
             Close();
-            if (IsVisible || !tray.Visible || closing) throw new IOException("Cerrar no conservó el programa en la bandeja.");
+            if (IsVisible || !tray.Visible || closing) throw new IOException(L.T("Cerrar no conservó el programa en la bandeja."));
             RestoreFromTray();
         } finally { preferences = new(); tray.Dispose(); tray = null; testingTray = false; }
     }
@@ -229,12 +240,12 @@ public partial class MainWindow : Window
     private async void DriveClick(object sender, RoutedEventArgs e) => await Guard(() => ShowDrive());
     private async void RcloneClick(object sender, RoutedEventArgs e) => await Guard(() => ShowDrive("/settings/rclone"));
     private async void ConfigureClick(object sender, RoutedEventArgs e) => await Guard(async () => {
-        if (!int.TryParse(HttpPort.Text, out var port)) throw new ArgumentException("Introduce un puerto válido.");
-        Status.Text = "Preparando la base de datos y el servidor…";
+        if (!int.TryParse(HttpPort.Text, out var port)) throw new ArgumentException(L.T("Introduce un puerto válido."));
+        Status.Text = L.T("Preparando la base de datos y el servidor…");
         await StopPlayersAsync(); await rclone.StopAllAsync(); await runtime.ConfigureAsync(port, LocalDatabase.IsChecked == true, DatabaseUrl.Text.Trim(), AllowedUser.Text); RefreshConfiguration(); await ShowDrive();
     });
     private async void SaveConfigClick(object sender, RoutedEventArgs e) => await Guard(async () => { await runtime.SaveConfigAsync(ConfigEditor.Text); await StopPlayersAsync(); await rclone.StopAllAsync(); await runtime.StopAsync(); await runtime.StartAsync(); await ShowDrive(); });
-    private async void ValidateClick(object sender, RoutedEventArgs e) => await Guard(async () => { await runtime.ValidateConfigAsync(ConfigEditor.Text); Status.Text = "Configuración válida"; });
+    private async void ValidateClick(object sender, RoutedEventArgs e) => await Guard(async () => { await runtime.ValidateConfigAsync(ConfigEditor.Text); Status.Text = L.T("Configuración válida"); });
     private async void WinFspClick(object sender, RoutedEventArgs e) => await Guard(() => runtime.InstallAsync("winfsp-2.1.25156.msi", true));
     private async void RuntimeClick(object sender, RoutedEventArgs e) => await Guard(() => runtime.InstallAsync("VC_redist.x64.exe", false, "/install", "/passive", "/norestart"));
     private void DataClick(object sender, RoutedEventArgs e) => OpenExternal(runtime.DataRoot);
@@ -245,7 +256,7 @@ public partial class MainWindow : Window
             || source.GetLeftPart(UriPartial.Authority) != runtime.ServerUri.GetLeftPart(UriPartial.Authority)) return;
         string? id = null;
         try {
-            if (e.WebMessageAsJson.Length > 4 * 1024 * 1024) throw new IOException("La solicitud es demasiado grande.");
+            if (e.WebMessageAsJson.Length > 4 * 1024 * 1024) throw new IOException(L.T("La solicitud es demasiado grande."));
             using var message = JsonDocument.Parse(e.WebMessageAsJson);
             id = message.RootElement.GetProperty("id").GetString();
             if (id is null || !Guid.TryParse(id, out _)) return;
@@ -257,12 +268,12 @@ public partial class MainWindow : Window
             object? result;
             switch (method) {
                 case "casting.open-browser":
-                    if (!Uri.TryCreate(Get("url"), UriKind.Absolute, out var castingUrl) || castingUrl.GetLeftPart(UriPartial.Authority) != runtime.ServerUri.GetLeftPart(UriPartial.Authority) || castingUrl.AbsolutePath != "/cast") throw new ArgumentException("Enlace de transmisión no válido.");
-                    var chrome = new[] { Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Google", "Chrome", "Application", "chrome.exe"), Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "Google", "Chrome", "Application", "chrome.exe"), Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Google", "Chrome", "Application", "chrome.exe") }.FirstOrDefault(File.Exists);
-                    if (chrome is null) throw new IOException("Instala Chrome para usar Chromecast o abre el enlace en un navegador compatible.");
+                    if (!Uri.TryCreate(Get("url"), UriKind.Absolute, out var castingUrl) || castingUrl.GetLeftPart(UriPartial.Authority) != runtime.ServerUri.GetLeftPart(UriPartial.Authority) || castingUrl.AbsolutePath != "/cast") throw new ArgumentException(L.T("Enlace de transmisión no válido."));
+                    var chrome = new[] { Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), L.T("Google"), L.T("Chrome"), L.T("Application"), "chrome.exe"), Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), L.T("Google"), L.T("Chrome"), L.T("Application"), "chrome.exe"), Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), L.T("Google"), L.T("Chrome"), L.T("Application"), "chrome.exe") }.FirstOrDefault(File.Exists);
+                    if (chrome is null) throw new IOException(L.T("Instala Chrome para usar Chromecast o abre el enlace en un navegador compatible."));
                     var castBrowser = new ProcessStartInfo(chrome) { UseShellExecute = false }; castBrowser.ArgumentList.Add(castingUrl.AbsoluteUri); Process.Start(castBrowser); result = true; break;
                 case "rclone.config-import":
-                    var configPicker = new Microsoft.Win32.OpenFileDialog { Title = "Seleccionar rclone.conf personalizado", Filter = "Configuración rclone (*.conf)|*.conf|Todos los archivos|*.*" };
+                    var configPicker = new Microsoft.Win32.OpenFileDialog { Title = L.T("Seleccionar rclone.conf personalizado"), Filter = L.T("Configuración rclone (*.conf)|*.conf|Todos los archivos|*.*") };
                     if (configPicker.ShowDialog(this) != true) { result = null; break; }
                     await rclone.ImportConfigAsync(configPicker.FileName);
                     result = new { locked = rclone.Locked, content = rclone.Locked ? null : await rclone.ReadConfigAsync() }; break;
@@ -273,7 +284,7 @@ public partial class MainWindow : Window
                 case "rclone.unlock": await rclone.UnlockAsync(Get("password")); result = rclone.Info(); break;
                 case "rclone.lock": await StopPlayersAsync(); await rclone.LockAsync(); result = rclone.Info(); break;
                 case "rclone.play":
-                    if (players.Count >= 2) throw new IOException("Cierra un reproductor antes de abrir otro.");
+                    if (players.Count >= 2) throw new IOException(L.T("Cierra un reproductor antes de abrir otro."));
                     var media = new MediaWindow(runtime, rclone, Get("path")) {Owner = this};
                     players.Add(media); media.Closed += (_, _) => players.Remove(media); media.Show(); result = true; break;
                 case "rclone.advanced": ShowAdvanced(); result = true; break;
@@ -281,7 +292,7 @@ public partial class MainWindow : Window
                     if (automation is not null && automation.State.Queue.Any(item => item.Id == Get("id"))) { automation.Retry(Get("id")); result = automation.State.Queue.Last().Id; }
                     else result = rclone.Retry(Get("id")); break;
                 case "rclone.configure":
-                    await rclone.ConfigureAsync(parameters.Deserialize<RcloneConnection>(new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? throw new ArgumentException("Conexión no válida.")); result = rclone.Info(); break;
+                    await rclone.ConfigureAsync(parameters.Deserialize<RcloneConnection>(new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? throw new ArgumentException(L.T("Conexión no válida."))); result = rclone.Info(); break;
                 case "rclone.browse": result = await rclone.BrowseAsync(Get("path")); break;
                 case "rclone.size": result = await rclone.SizeAsync(Get("path")); break;
                 case "rclone.link": result = await rclone.LinkAsync(Get("path")); break;
@@ -298,7 +309,7 @@ public partial class MainWindow : Window
                     else await rclone.StopAsync(Get("id")); result = true; break;
                 case "rclone.winfsp": await runtime.InstallAsync("winfsp-2.1.25156.msi", true); result = rclone.Info(); break;
                 case "rclone.local-folder":
-                    var folder = new Microsoft.Win32.OpenFolderDialog { Title = "Carpeta local para Teldrive" };
+                    var folder = new Microsoft.Win32.OpenFolderDialog { Title = L.T("Carpeta local para Teldrive") };
                     if (folder.ShowDialog(this) == true) localFolder = Path.GetFullPath(folder.FolderName);
                     result = localFolder is null ? null : LocalFiles(""); break;
                 case "rclone.local-browse": result = LocalFiles(Get("path")); break;
@@ -306,15 +317,15 @@ public partial class MainWindow : Window
                     var localSource = LocalPath(Get("path"));
                     result = QueueUpload(localSource, Get("destination")); break;
                 case "rclone.upload-folder":
-                    var uploadFolder = new Microsoft.Win32.OpenFolderDialog { Title = "Carpeta para subir a Teldrive" };
+                    var uploadFolder = new Microsoft.Win32.OpenFolderDialog { Title = L.T("Carpeta para subir a Teldrive") };
                     result = uploadFolder.ShowDialog(this) == true ? QueueUpload(uploadFolder.FolderName, Get("path")) : null; break;
                 case "rclone.upload":
-                    var choose = new Microsoft.Win32.OpenFileDialog { Title = "Archivo para subir a Teldrive", Multiselect = false };
+                    var choose = new Microsoft.Win32.OpenFileDialog { Title = L.T("Archivo para subir a Teldrive"), Multiselect = false };
                     result = choose.ShowDialog(this) == true ? QueueUpload(choose.FileName, Get("path")) : null; break;
                 case "rclone.download":
-                    var destination = new Microsoft.Win32.OpenFolderDialog { Title = "Guardar archivos de Teldrive" };
-                    result = destination.ShowDialog(this) == true ? automation!.Enqueue(new RcloneTaskDefinition { Name = QueueLabel("Descargar " + Get("path")), Direction = "download", Source = Get("path"), Destination = destination.FolderName }).Id : null; break;
-                default: throw new ArgumentException("Operación no admitida.");
+                    var destination = new Microsoft.Win32.OpenFolderDialog { Title = L.T("Guardar archivos de Teldrive") };
+                    result = destination.ShowDialog(this) == true ? automation!.Enqueue(new RcloneTaskDefinition { Name = QueueLabel(L.T("Descargar ") + Get("path")), Direction = "download", Source = Get("path"), Destination = destination.FolderName }).Id : null; break;
+                default: throw new ArgumentException(L.T("Operación no admitida."));
             }
             if (!closing && Browser.CoreWebView2 is not null) Browser.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(new { id, result }));
         } catch (Exception error) { if (id is not null && !closing && Browser.CoreWebView2 is not null) Browser.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(new { id, error = error.Message })); }
@@ -322,7 +333,7 @@ public partial class MainWindow : Window
     private string QueueUpload(string source, string destination)
     {
         var folder = Directory.Exists(source);
-        return automation!.Enqueue(new RcloneTaskDefinition { Name = QueueLabel("Subir " + Path.GetFileName(source)), Source = source, Destination = folder ? destination.TrimEnd('/') + "/" + Path.GetFileName(source) : destination }).Id;
+        return automation!.Enqueue(new RcloneTaskDefinition { Name = QueueLabel(L.T("Subir ") + Path.GetFileName(source)), Source = source, Destination = folder ? destination.TrimEnd('/') + "/" + Path.GetFileName(source) : destination }).Id;
     }
     private static string QueueLabel(string value) => value.Length > 160 ? value[..157] + "…" : value;
     private async Task RequireOwnerAsync()
@@ -330,19 +341,19 @@ public partial class MainWindow : Window
         var cookies = await Browser.CoreWebView2.CookieManager.GetCookiesAsync(runtime.ServerUri!.AbsoluteUri);
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
         using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(runtime.ServerUri, "/api/v1/me"));
-        request.Headers.TryAddWithoutValidation("Cookie", string.Join("; ", cookies.Select(cookie => cookie.Name + "=" + cookie.Value)));
+        request.Headers.TryAddWithoutValidation(L.T("Cookie"), string.Join("; ", cookies.Select(cookie => cookie.Name + "=" + cookie.Value)));
         using var response = await http.SendAsync(request);
-        if (!response.IsSuccessStatusCode) throw new IOException("Inicia sesión de nuevo para usar las integraciones de Windows.");
+        if (!response.IsSuccessStatusCode) throw new IOException(L.T("Inicia sesión de nuevo para usar las integraciones de Windows."));
         using var user = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        if (user.RootElement.GetProperty("role").GetString() != "owner") throw new IOException("Solo el propietario del servidor puede gestionar sus integraciones locales.");
+        if (user.RootElement.GetProperty("role").GetString() != "owner") throw new IOException(L.T("Solo el propietario del servidor puede gestionar sus integraciones locales."));
     }
     private string LocalPath(string relative)
     {
-        if (localFolder is null || Path.IsPathRooted(relative)) throw new ArgumentException("Elige primero una carpeta local.");
+        if (localFolder is null || Path.IsPathRooted(relative)) throw new ArgumentException(L.T("Elige primero una carpeta local."));
         var target = Path.GetFullPath(Path.Combine(localFolder, relative));
-        if (target != localFolder && !target.StartsWith(localFolder.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)) throw new ArgumentException("La ruta está fuera de la carpeta seleccionada.");
+        if (target != localFolder && !target.StartsWith(localFolder.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)) throw new ArgumentException(L.T("La ruta está fuera de la carpeta seleccionada."));
         var current = target;
-        while (current != localFolder && current.Length > localFolder.Length) { if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0) throw new IOException("Abre la carpeta real desde el selector de Windows."); current = Path.GetDirectoryName(current)!; }
+        while (current != localFolder && current.Length > localFolder.Length) { if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0) throw new IOException(L.T("Abre la carpeta real desde el selector de Windows.")); current = Path.GetDirectoryName(current)!; }
         return target;
     }
     private object LocalFiles(string relative)

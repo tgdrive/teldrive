@@ -26,7 +26,7 @@ public static class RcloneConfigDocument
     }
     public static string Set(string content, string section, string key, string? value)
     {
-        if (string.IsNullOrWhiteSpace(section) || section.IndexOfAny(['[',']','\r','\n','\0']) >= 0 || !Regex.IsMatch(key, @"^[A-Za-z0-9_.-]+$") || value?.IndexOfAny(['\r','\n','\0']) >= 0) throw new ArgumentException("Revisa el nombre de conexión, la opción y su valor.");
+        if (string.IsNullOrWhiteSpace(section) || section.IndexOfAny(['[',']','\r','\n','\0']) >= 0 || !Regex.IsMatch(key, @"^[A-Za-z0-9_.-]+$") || value?.IndexOfAny(['\r','\n','\0']) >= 0) throw new ArgumentException(L.T("Revisa el nombre de conexión, la opción y su valor."));
         var lines = Lines(content).ToList();
         var start = lines.FindIndex(line => Section.Match(line) is { Success: true } match && match.Groups[1].Value == section);
         if (start < 0) { if (value is null) return content; lines.Add("[" + section + "]"); lines.Add(key + " = " + value); return string.Join('\n', lines) + "\n"; }

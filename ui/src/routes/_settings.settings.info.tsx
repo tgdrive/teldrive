@@ -1,3 +1,4 @@
+import { t } from "@/lib/localization";
 import { createFileRoute } from "@tanstack/react-router";
 import { SettingsPageHeader, SettingsRow, SettingsSection } from "@/components/settings-layout";
 import { buildInfo } from "@/lib/version";
@@ -9,34 +10,38 @@ function Information() {
   return (
     <div className="space-y-6">
       <SettingsPageHeader
-        title="Información"
-        description="Versión de esta interfaz, servidor conectado y recursos del proyecto."
+        title={t("Información")}
+        description={t("Versión de esta interfaz, servidor conectado y recursos del proyecto.")}
       />
       <SettingsSection
-        title="Teldrive v2"
-        description="Edición comunitaria en español con temas, controles táctiles e integración de rclone."
+        title={t("Teldrive v2")}
+        description={t(
+          "Edición comunitaria en español con temas, controles táctiles e integración de rclone.",
+        )}
       >
-        <SettingsRow label="Versión de la interfaz">
+        <SettingsRow label={t("Versión de la interfaz")}>
           <span className="break-all text-sm">{buildInfo.version}</span>
         </SettingsRow>
-        <SettingsRow label="Revisión del código">
+        <SettingsRow label={t("Revisión del código")}>
           <span className="break-all font-mono text-xs">{buildInfo.commit}</span>
         </SettingsRow>
-        <SettingsRow label="Fecha de compilación">
+        <SettingsRow label={t("Fecha de compilación")}>
           <span className="text-sm">{new Date(buildInfo.date).toLocaleString("es")}</span>
         </SettingsRow>
-        <SettingsRow label="Servidor conectado">
+        <SettingsRow label={t("Servidor conectado")}>
           <span className="break-all text-sm">{window.location.origin}</span>
         </SettingsRow>
-        <SettingsRow label="Interfaz actual">
+        <SettingsRow label={t("Interfaz actual")}>
           <span className="text-sm">
-            {isDesktop() ? "Teldrive Desktop para Windows" : "Interfaz web o app móvil"}
+            {isDesktop() ? t("Teldrive Desktop para Windows") : t("Interfaz web o app móvil")}
           </span>
         </SettingsRow>
       </SettingsSection>
       <SettingsSection
-        title="Código y descargas"
-        description="Consulta los binarios compatibles, el código fuente y las notas de cada edición."
+        title={t("Código y descargas")}
+        description={t(
+          "Consulta los binarios compatibles, el código fuente y las notas de cada edición.",
+        )}
       >
         <div className="flex flex-wrap gap-3 p-5">
           <a
@@ -61,7 +66,7 @@ function Information() {
             target="_blank"
             rel="noopener noreferrer"
           >
-            Proyecto original
+            {t("Proyecto original")}
           </a>
         </div>
       </SettingsSection>
