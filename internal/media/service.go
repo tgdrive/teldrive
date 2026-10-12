@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -23,6 +24,7 @@ var ErrFormat = errors.New("media cannot be converted")
 
 type Service struct {
 	executable string
+	probe      string
 	slots      chan struct{}
 	timeout    time.Duration
 	available  bool
@@ -38,6 +40,15 @@ func New(cfg config.Media) *Service {
 		return s
 	}
 	s.executable = executable
+	probeName := "ffprobe"
+	if strings.HasSuffix(strings.ToLower(executable), ".exe") {
+		probeName += ".exe"
+	}
+	if probe, err := exec.LookPath(filepath.Join(filepath.Dir(executable), probeName)); err == nil {
+		s.probe = probe
+	} else if probe, err := exec.LookPath(probeName); err == nil {
+		s.probe = probe
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	encoders, err := exec.CommandContext(ctx, executable, "-hide_banner", "-encoders").Output()
@@ -60,7 +71,7 @@ func Arguments(source, mode string, start float64) []string {
 
 // Convert exposes only this request's authorized file to FFmpeg; neither an
 // incoming Host header nor a user supplied URL can become the input source.
-func (s *Service) Convert(ctx context.Context, w http.ResponseWriter, source http.Handler, mode string, start float64) error {
+func (s *Service) Convert(ctx context.Context, w http.ResponseWriter, source http.Handler, mode string, start float64, selections ...Selection) error {
 	if !s.Available() {
 		return ErrUnavailable
 	}
@@ -97,7 +108,16 @@ func (s *Service) Convert(ctx context.Context, w http.ResponseWriter, source htt
 	})}
 	go func() { _ = server.Serve(listener) }()
 	defer server.Close()
-	command := exec.CommandContext(ctx, s.executable, Arguments("http://"+listener.Addr().String()+path, mode, start)...)
+	selection := Selection{}
+	if len(selections) > 0 {
+		selection = selections[0]
+	}
+	arguments, cleanup, err := s.selectionArguments(ctx, "http://"+listener.Addr().String()+path, mode, start, selection)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+	command := exec.CommandContext(ctx, s.executable, arguments...)
 	command.Stderr = io.Discard
 	output, err := command.StdoutPipe()
 	if err != nil {

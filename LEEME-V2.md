@@ -1,8 +1,17 @@
-# Teldrive v2.0.0-drive-es.2
+# Teldrive v2.0.0-drive-es.5
 
 Edición basada en la rama v2 de tgdrive/teldrive, con interfaz en español, temas configurables, navegación táctil, almacenamiento, papelera y Spam. La UI se incluye en los seis servidores CLI para Windows, Linux y macOS, en x64 y ARM64.
 
 ## Cambios de esta actualización
+
+Desktop añade un botón superior **Teldrive** para recuperar el Drive desde cualquier panel y corrige la capa de WebView2 que tapaba Actividad. **Opciones adicionales de rclone → rclone.conf** permite importar, exportar y editar conexiones con campos privados ocultos, respaldos y conservación del cifrado. Las tareas permiten elegir una conexión de un archivo personalizado. La UI de los CLI también importa, edita y exporta rclone.conf desde el navegador.
+
+Almacenamiento aparece al final, después de Papelera. La UI, los favicons y los ejecutables CLI Windows usan el icono transparente del avión.
+
+El reproductor añade **Transmitir**: Chromecast/Google Cast desde Chrome, AirPlay desde Safari y búsqueda/control de televisores DLNA desde una cuenta administradora. En Windows Desktop, Chromecast abre un reproductor con enlace temporal en Chrome; AirPlay puede utilizarse abriendo el enlace/QR en Safari de un dispositivo Apple. La conversión compatible aplica H.264/AAC y las pistas seleccionadas. El servidor puede habilitar un enlace limitado al vídeo en la red local al pedir Transmitir, sin cambiar la dirección de la UI principal; el enlace vence y respeta la revocación de acceso. Televisor y servidor deben poder comunicarse, y el cortafuegos debe permitir la conexión en la red privada.
+
+MKV y otros contenedores muestran las pistas detectadas por FFprobe: audio, idiomas, títulos y subtítulos. Los subtítulos de texto se ofrecen como WebVTT; los de imagen, como PGS, se integran en la conversión. Desktop incluye FFmpeg/FFprobe 9.0.2; los CLI requieren estas herramientas instaladas junto al ejecutable configurado de FFmpeg. No todos los formatos propietarios, archivos dañados o DRM admiten conversión.
+
 
 Integra las correcciones recientes de la rama original v2: ordenación de archivos persistente, modo claro/oscuro/automático conservado al reiniciar, notificaciones que siguen el tema, mejoras en bots/canales y documentación actualizada. Conserva los temas personalizados y los controles en español. Las preferencias del tema anterior se importan automáticamente. El lanzador de pruebas de la UI funciona en Windows y Unix.
 

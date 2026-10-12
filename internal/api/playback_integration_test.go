@@ -88,6 +88,10 @@ func TestPublicPlaybackRangesConsumeOneReservationAndRespectRevocation(t *testin
 		}
 	}
 	var count int64
+	response = performRequest(t, server, http.MethodGet, "/v1/playback/tracks?ticket="+playback.Ticket, nil, nil)
+	if response.Code != 200 {
+		t.Fatalf("tracks capability: %d %s", response.Code, response.Body.String())
+	}
 	if err := db.Pool.QueryRow(ctx, "SELECT download_count FROM file_shares WHERE id=$1", created.Row.ID).Scan(&count); err != nil {
 		t.Fatal(err)
 	}
@@ -108,6 +112,10 @@ func TestPublicPlaybackRangesConsumeOneReservationAndRespectRevocation(t *testin
 	response = performRequest(t, server, http.MethodGet, playbackPath, nil, nil)
 	if response.Code == 200 || response.Code == 206 {
 		t.Fatal("revoked share still streams")
+	}
+	response = performRequest(t, server, http.MethodGet, "/v1/playback/tracks?ticket="+playback.Ticket, nil, nil)
+	if response.Code == 200 {
+		t.Fatal("revoked share exposes media tracks")
 	}
 	response = performRequest(t, server, http.MethodGet, "/v1/playback?ticket=00000000000000000000000000000000", nil, nil)
 	if response.Code != 401 {

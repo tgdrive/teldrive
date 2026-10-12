@@ -1,0 +1,5 @@
+{
+  "RT_GROUP_ICON": { "APP": { "0000": "../../desktop/Assets/Teldrive.ico" } },
+  "RT_MANIFEST": { "#1": { "0409": { "identity": {"name": "Teldrive.CLI", "version": "2.0.0.5"}, "description": "Teldrive v2 - servidor y UI", "minimum-os": "win10", "execution-level": "as invoker", "dpi-awareness": "system" } } },
+  "RT_VERSION": { "#1": { "0409": { "fixed": {"file_version": "2.0.0.5", "product_version": "2.0.0.5"}, "info": {"0409": {"FileDescription": "Teldrive v2 CLI - servidor y UI", "ProductName": "Teldrive", "OriginalFilename": "teldrive.exe", "FileVersion": "2.0.0.5", "ProductVersion": "v2.0.0-drive-es.5"}} } } }
+}

@@ -12,6 +12,7 @@ public sealed record RcloneTaskDefinition
     public string Source { get; init; } = "";
     public string Destination { get; init; } = "/";
     public string Operation { get; init; } = "copy";
+    public string RemoteName { get; init; } = "teldrive";
     public int Transfers { get; init; } = 4;
     public int Checkers { get; init; } = 8;
     public int Retries { get; init; } = 3;
@@ -51,7 +52,7 @@ public sealed record RcloneTaskDefinition
         var fullLocal = Path.GetFullPath(local);
         if (requireExistingSource && Direction == "upload" && !File.Exists(fullLocal) && !Directory.Exists(fullLocal)) throw new IOException("El origen local no está disponible.");
         if (Direction == "upload" && File.Exists(fullLocal) && Operation is "sync" or "check") throw new ArgumentException("Sincronizar y verificar requieren una carpeta como origen.");
-        var remote = RcloneRuntime.Remote(Direction == "upload" ? Destination : Source);
+        var remote = RcloneRuntime.Remote(Direction == "upload" ? Destination : Source, RemoteName);
         // copy/move take a destination folder; sync/check compare complete directory trees.
         var result = new List<string> { Operation, Direction == "upload" ? fullLocal : remote, Direction == "upload" ? remote : fullLocal, "--stats", "2s", "--stats-one-line", "--transfers", Transfers.ToString(CultureInfo.InvariantCulture), "--checkers", Checkers.ToString(CultureInfo.InvariantCulture), "--retries", Retries.ToString(CultureInfo.InvariantCulture), "--low-level-retries", LowLevelRetries.ToString(CultureInfo.InvariantCulture), "--contimeout", ConnectTimeout + "s", "--timeout", IdleTimeout + "s" };
         if (dryRun) result.Add("--dry-run");

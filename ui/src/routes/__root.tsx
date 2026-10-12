@@ -29,7 +29,6 @@ import ChevronRightIcon from "~icons/gravity-ui/chevron-right";
 import StorageIcon from "~icons/gravity-ui/database";
 import FolderIcon from "~icons/gravity-ui/folder";
 import SettingsIcon from "~icons/gravity-ui/gear";
-import LogoIcon from "~icons/gravity-ui/layers";
 import GridIcon from "~icons/gravity-ui/layout-header-cells";
 import TasksIcon from "~icons/gravity-ui/list-ul";
 import SearchIcon from "~icons/gravity-ui/magnifier";
@@ -47,10 +46,10 @@ const mainNav = [
   { label: "Archivos", icon: GridIcon, path: "/files" },
   { label: "Compartidos", icon: FolderIcon, path: "/shared" },
   { label: "Compartido conmigo", icon: FolderIcon, path: "/shared-with-me" },
-  { label: "Almacenamiento", icon: StorageIcon, path: "/storage" },
   { label: "Tareas", icon: TasksIcon, path: "/tasks", capability: "system.manageJobs" },
   { label: "Spam", icon: GridIcon, path: "/spam" },
   { label: "Papelera", icon: GridIcon, path: "/trash" },
+  { label: "Almacenamiento", icon: StorageIcon, path: "/storage" },
 ] as const;
 
 const DESKTOP_BREAKPOINT = 1024;
@@ -155,8 +154,8 @@ function Sidebar({
       )}
     >
       <div className="flex h-16 items-center gap-3 px-4">
-        <div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-accent text-accent-foreground">
-          <LogoIcon className="size-4" />
+        <div className="flex size-9 shrink-0 items-center justify-center">
+          <img src="/images/teldrive.png" alt="" className="size-9 object-contain" />
         </div>
         <div
           className={cn(
@@ -451,7 +450,8 @@ function Layout() {
     return () => window.removeEventListener("keydown", handler);
   }, []);
 
-  if (pathname === "/login" || pathname.startsWith("/share/")) return <Outlet />;
+  if (pathname === "/login" || pathname === "/cast" || pathname.startsWith("/share/"))
+    return <Outlet />;
   return (
     <AriaRouterProvider
       navigate={(path) => navigate({ to: String(path) })}
@@ -511,7 +511,12 @@ export type RouterContext = {
 
 export const Route = createRootRouteWithContext<RouterContext>()({
   beforeLoad: async ({ context, location }) => {
-    if (location.pathname === "/login" || location.pathname.startsWith("/share/")) return;
+    if (
+      location.pathname === "/login" ||
+      location.pathname === "/cast" ||
+      location.pathname.startsWith("/share/")
+    )
+      return;
     try {
       await context.queryClient.ensureQueryData(currentUserQueryOptions());
     } catch (error) {

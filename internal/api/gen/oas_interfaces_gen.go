@@ -37,6 +37,10 @@ type CompleteUploadRes interface {
 	completeUploadRes()
 }
 
+type ControlCastingDeviceRes interface {
+	controlCastingDeviceRes()
+}
+
 type CookieTelegramLoginVerifyCodeRes interface {
 	cookieTelegramLoginVerifyCodeRes()
 }
@@ -59,6 +63,10 @@ type CreateApiKeyRes interface {
 
 type CreateBotsRes interface {
 	createBotsRes()
+}
+
+type CreateCastingRelayRes interface {
+	createCastingRelayRes()
 }
 
 type CreateChannelRes interface {
@@ -197,6 +205,14 @@ type GetPeriodicJobCatalogRes interface {
 	getPeriodicJobCatalogRes()
 }
 
+type GetPlaybackSubtitlesRes interface {
+	getPlaybackSubtitlesRes()
+}
+
+type GetPlaybackTracksRes interface {
+	getPlaybackTracksRes()
+}
+
 type GetProfilePhotoRes interface {
 	getProfilePhotoRes()
 }
@@ -255,6 +271,10 @@ type ListApiKeysRes interface {
 
 type ListBotsRes interface {
 	listBotsRes()
+}
+
+type ListCastingDevicesRes interface {
+	listCastingDevicesRes()
 }
 
 type ListChannelsRes interface {
@@ -335,6 +355,10 @@ type PauseJobQueueRes interface {
 
 type PausePeriodicJobRes interface {
 	pausePeriodicJobRes()
+}
+
+type PlayOnCastingDeviceRes interface {
+	playOnCastingDeviceRes()
 }
 
 type PurgeFileRes interface {

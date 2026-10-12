@@ -79,7 +79,7 @@ internal static class RcloneAutomationSmokeTest
         Check(startup.StartsWith('"') && startup.Contains("--start-in-tray --data-root \""), "El inicio automático no protege las rutas con espacios.");
         var portableStartup = DesktopStartup.Command(@"C:\Teldrive\Teldrive Desktop v2.exe", root, true);
         Check(portableStartup.EndsWith("--portable"), "El inicio automático perdió el modo portátil.");
-        var panel = new RcloneAdvancedView(); panel.Initialize(restored, prefs, _ => { }, () => { }, () => { });
+        var panel = new RcloneAdvancedView(); panel.Initialize(restored, prefs, _ => { }, () => { }, () => { }, client);
         panel.Measure(new Size(752, 430)); panel.Arrange(new Rect(0, 0, 752, 430));
         Check(panel.FindName("TasksGrid") is DataGrid && panel.FindName("QueueGrid") is DataGrid && panel.FindName("SchedulesGrid") is DataGrid, "Las pestañas no se crearon.");
         using (var tray = new DesktopTray(() => { }, () => { }, () => { }, () => { })) {

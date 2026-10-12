@@ -27,6 +27,7 @@ type playbackGrant struct {
 type playbackRegistry struct {
 	sync.Mutex
 	grants map[string]playbackGrant
+	tracks map[string]cachedTracks
 }
 
 func (h *Handler) addPlayback(grant playbackGrant) (*gen.PlaybackSession, error) {
@@ -100,37 +101,19 @@ func (h *RawHandler) StreamPlayback(ctx context.Context, params gen.StreamPlayba
 	if h.handler == nil || h.handler.Catalog == nil || h.handler.Downloader == nil {
 		return mapServiceError(ErrOperationUnavailable)
 	}
-	h.handler.playback.Lock()
-	grant, ok := h.handler.playback.grants[params.Ticket]
-	h.handler.playback.Unlock()
-	if !ok || !grant.expires.After(time.Now()) {
-		return problem(401, "playback_expired", "La sesión de reproducción venció. Vuelve a abrir el archivo", nil)
-	}
-	if grant.receipt != nil {
-		if err := h.handler.Shares.ValidateDownloadReceipt(ctx, grant.receipt, grant.fileID); err != nil {
-			return mapServiceError(err)
-		}
-	} else if h.handler.Shares != nil {
-		access, err := h.handler.Shares.ResolveAccess(ctx, grant.actorID, grant.fileID, false)
-		if err != nil {
-			return mapServiceError(err)
-		}
-		if access.OwnerID != grant.ownerID {
-			return mapServiceError(shares.ErrForbidden)
-		}
-	}
-	file, err := h.handler.Catalog.Get(ctx, grant.ownerID, grant.fileID)
+	grant, file, err := h.handler.resolvePlayback(ctx, params.Ticket)
 	if err != nil {
-		return mapServiceError(err)
-	}
-	if file.Status != sqlcgen.FileStatusActive || file.Generation != grant.generation {
-		return mapServiceError(shares.ErrNotFound)
+		return err
 	}
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Referrer-Policy", "no-referrer")
 	mode := string(params.Mode.Or(gen.StreamPlaybackModeOriginal))
 	if mode == "original" {
 		return h.streamFile(ctx, w, grant.ownerID, grant.fileID, file, params.Range, params.IfNoneMatch, params.Download.IsSet())
+	}
+	selection, err := h.handler.selectMediaTracks(ctx, grant, file, params.Audio, params.Subtitle)
+	if err != nil {
+		return err
 	}
 	err = h.handler.Media.Convert(ctx, w, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var rangeValue gen.OptString
@@ -140,7 +123,7 @@ func (h *RawHandler) StreamPlayback(ctx context.Context, params gen.StreamPlayba
 		if err := h.streamFile(r.Context(), w, grant.ownerID, grant.fileID, file, rangeValue, gen.OptETag{}, false); err != nil {
 			http.Error(w, "Source unavailable", 503)
 		}
-	}), mode, params.Start.Or(0))
+	}), mode, params.Start.Or(0), selection)
 	switch {
 	case errors.Is(err, media.ErrUnavailable):
 		return problem(503, "media_unavailable", "Instala FFmpeg con libx264 y libmp3lame en el servidor", err)
@@ -150,4 +133,37 @@ func (h *RawHandler) StreamPlayback(ctx context.Context, params gen.StreamPlayba
 		return problem(422, "media_format", "No se pudo convertir el archivo. Puedes descargarlo para abrirlo en otro reproductor", err)
 	}
 	return err
+}
+
+func (h *Handler) resolvePlayback(ctx context.Context, ticket string) (playbackGrant, *sqlcgen.File, error) {
+	if h == nil || h.Catalog == nil || h.Downloader == nil {
+		return playbackGrant{}, nil, mapServiceError(ErrOperationUnavailable)
+	}
+	h.playback.Lock()
+	grant, ok := h.playback.grants[ticket]
+	h.playback.Unlock()
+	if !ok || !grant.expires.After(time.Now()) {
+		return playbackGrant{}, nil, problem(401, "playback_expired", "La sesión de reproducción venció. Vuelve a abrir el archivo", nil)
+	}
+	if grant.receipt != nil {
+		if err := h.Shares.ValidateDownloadReceipt(ctx, grant.receipt, grant.fileID); err != nil {
+			return playbackGrant{}, nil, mapServiceError(err)
+		}
+	} else if h.Shares != nil {
+		access, err := h.Shares.ResolveAccess(ctx, grant.actorID, grant.fileID, false)
+		if err != nil {
+			return playbackGrant{}, nil, mapServiceError(err)
+		}
+		if access.OwnerID != grant.ownerID {
+			return playbackGrant{}, nil, mapServiceError(shares.ErrForbidden)
+		}
+	}
+	file, err := h.Catalog.Get(ctx, grant.ownerID, grant.fileID)
+	if err != nil {
+		return playbackGrant{}, nil, mapServiceError(err)
+	}
+	if file.Status != sqlcgen.FileStatusActive || file.Generation != grant.generation {
+		return playbackGrant{}, nil, mapServiceError(shares.ErrNotFound)
+	}
+	return grant, file, nil
 }

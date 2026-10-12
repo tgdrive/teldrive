@@ -3,6 +3,14 @@
 package gen
 
 // setDefaults set default value of fields.
+func (s *CastingStart) setDefaults() {
+	{
+		val := float64(0)
+		s.Start.SetTo(val)
+	}
+}
+
+// setDefaults set default value of fields.
 func (s *ChannelCreateRequest) setDefaults() {
 	{
 		val := bool(true)

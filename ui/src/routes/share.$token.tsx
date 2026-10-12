@@ -5,7 +5,6 @@ import { FileTrigger, type Selection } from "react-aria-components";
 import { toast } from "sonner";
 import DownloadIcon from "~icons/gravity-ui/arrow-down-to-line";
 import UploadIcon from "~icons/gravity-ui/arrow-up-from-line";
-import LogoIcon from "~icons/gravity-ui/layers";
 import LinkIcon from "~icons/gravity-ui/link";
 import PencilIcon from "~icons/gravity-ui/pencil";
 import PlusIcon from "~icons/gravity-ui/plus";
@@ -345,7 +344,7 @@ function PublicSharePage() {
       <header className="shrink-0 border-b border-border bg-surface/80 backdrop-blur-xl">
         <div className="mx-auto flex h-16 w-full max-w-[1600px] items-center gap-3 px-4 sm:px-6">
           <div className="flex size-9 items-center justify-center rounded-xl bg-accent/10 text-accent">
-            <LogoIcon className="size-5" />
+            <img src="/images/teldrive.png" alt="" className="size-7 object-contain" />
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold">Teldrive</p>

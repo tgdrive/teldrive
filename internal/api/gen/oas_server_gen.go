@@ -58,6 +58,10 @@ type Handler interface {
 	//
 	// POST /v1/uploads/{uploadId}/complete
 	CompleteUpload(ctx context.Context, params CompleteUploadParams) (CompleteUploadRes, error)
+	// ControlCastingDevice implements controlCastingDevice operation.
+	//
+	// POST /v1/casting/devices/{deviceId}/control
+	ControlCastingDevice(ctx context.Context, req *ControlCastingDeviceReq, params ControlCastingDeviceParams) (ControlCastingDeviceRes, error)
 	// CookieTelegramLoginVerifyCode implements cookieTelegramLoginVerifyCode operation.
 	//
 	// Complete Telegram code verification and establish an HttpOnly cookie session.
@@ -90,6 +94,10 @@ type Handler interface {
 	//
 	// POST /v1/bots
 	CreateBots(ctx context.Context, req *BotCreateRequest, params CreateBotsParams) (CreateBotsRes, error)
+	// CreateCastingRelay implements createCastingRelay operation.
+	//
+	// POST /v1/casting/relay
+	CreateCastingRelay(ctx context.Context, req *CreateCastingRelayReq) (CreateCastingRelayRes, error)
 	// CreateChannel implements createChannel operation.
 	//
 	// POST /v1/channels
@@ -222,6 +230,10 @@ type Handler interface {
 	//
 	// GET /v1/periodic-jobs/catalog
 	GetPeriodicJobCatalog(ctx context.Context) (GetPeriodicJobCatalogRes, error)
+	// GetPlaybackTracks implements getPlaybackTracks operation.
+	//
+	// GET /v1/playback/tracks
+	GetPlaybackTracks(ctx context.Context, params GetPlaybackTracksParams) (GetPlaybackTracksRes, error)
 	// GetProfilePhoto implements getProfilePhoto operation.
 	//
 	// Return the authenticated Telegram user's small profile photo.
@@ -302,6 +314,10 @@ type Handler interface {
 	//
 	// GET /v1/bots
 	ListBots(ctx context.Context, params ListBotsParams) (ListBotsRes, error)
+	// ListCastingDevices implements listCastingDevices operation.
+	//
+	// GET /v1/casting/devices
+	ListCastingDevices(ctx context.Context) (ListCastingDevicesRes, error)
 	// ListChannels implements listChannels operation.
 	//
 	// GET /v1/channels
@@ -398,6 +414,10 @@ type Handler interface {
 	//
 	// POST /v1/periodic-jobs/{periodicJobId}/pause
 	PausePeriodicJob(ctx context.Context, params PausePeriodicJobParams) (PausePeriodicJobRes, error)
+	// PlayOnCastingDevice implements playOnCastingDevice operation.
+	//
+	// POST /v1/casting/devices/{deviceId}/play
+	PlayOnCastingDevice(ctx context.Context, req *CastingStart, params PlayOnCastingDeviceParams) (PlayOnCastingDeviceRes, error)
 	// PurgeFile implements purgeFile operation.
 	//
 	// Permanently delete a trashed file or folder from the catalog.
@@ -598,6 +618,10 @@ type RawHandler interface {
 	//
 	// GET /v1/public/shares/{token}/content
 	DownloadPublicShareLegacy(ctx context.Context, params DownloadPublicShareLegacyParams, w http.ResponseWriter) error
+	// GetPlaybackSubtitles implements getPlaybackSubtitles operation.
+	//
+	// GET /v1/playback/subtitles
+	GetPlaybackSubtitles(ctx context.Context, params GetPlaybackSubtitlesParams, w http.ResponseWriter) error
 	// StreamEvents implements streamEvents operation.
 	//
 	// Subscribe to ordered, replayable events for the authenticated user.

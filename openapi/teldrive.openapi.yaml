@@ -145,6 +145,24 @@ paths:
             maximum: 86400
             default: 0
           explode: false
+        - name: audio
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+            maximum: 1024
+          explode: false
+        - name: subtitle
+          in: query
+          required: false
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+            maximum: 1024
+          explode: false
         - $ref: "#/components/parameters/FileContentRequestOptions.range"
         - $ref: "#/components/parameters/FileContentRequestOptions.ifNoneMatch"
         - $ref: "#/components/parameters/FileContentRequestOptions.download"
@@ -260,6 +278,351 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
       tags:
         - Files
+  /v1/playback/tracks:
+    get:
+      operationId: getPlaybackTracks
+      parameters:
+        - name: ticket
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 32
+            maxLength: 128
+          explode: false
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MediaTracks"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "503":
+          description: Service unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Files
+  /v1/playback/subtitles:
+    get:
+      operationId: getPlaybackSubtitles
+      parameters:
+        - name: ticket
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 32
+            maxLength: 128
+          explode: false
+        - name: track
+          in: query
+          required: true
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+            maximum: 1024
+          explode: false
+        - name: start
+          in: query
+          required: false
+          schema:
+            type: number
+            format: double
+            minimum: 0
+            maximum: 86400
+            default: 0
+          explode: false
+      responses:
+        "200":
+          description: The request has succeeded.
+          headers:
+            Content-Length:
+              required: true
+              schema:
+                type: integer
+                format: int64
+            Accept-Ranges:
+              required: true
+              schema:
+                type: string
+                enum:
+                  - bytes
+            Etag:
+              required: true
+              schema:
+                $ref: "#/components/schemas/ETag"
+            Last-Modified:
+              required: true
+              schema:
+                type: string
+                format: http-date
+            Content-Disposition:
+              required: true
+              schema:
+                type: string
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+              x-ogen-raw-response: true
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "503":
+          description: Service unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Files
+  /v1/casting/relay:
+    post:
+      operationId: createCastingRelay
+      parameters: []
+      responses:
+        "201":
+          description: The request has succeeded and a new resource has been created as a
+            result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CastingRelay"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Access is forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "503":
+          description: Service unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Files
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ticket:
+                  type: string
+                  minLength: 32
+                  maxLength: 128
+              required:
+                - ticket
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/casting/devices:
+    get:
+      operationId: listCastingDevices
+      parameters: []
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CastingDevices"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Access is forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "503":
+          description: Service unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/casting/devices/{deviceId}/play:
+    post:
+      operationId: playOnCastingDevice
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: "There is no content to send for this request, but the headers may
+            be useful. "
+        "400":
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Access is forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "503":
+          description: Service unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Files
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CastingStart"
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/casting/devices/{deviceId}/control:
+    post:
+      operationId: controlCastingDevice
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: "There is no content to send for this request, but the headers may
+            be useful. "
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Access is forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "503":
+          description: Service unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Files
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                command:
+                  type: string
+                  enum:
+                    - play
+                    - pause
+                    - stop
+              required:
+                - command
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+        - ExternalApiKeyAuth: []
   /health/live:
     get:
       operationId: healthLive
@@ -6253,6 +6616,117 @@ components:
           $ref: "#/components/schemas/ErrorDetail"
     ETag:
       type: string
+    MediaTrack:
+      type: object
+      required:
+        - index
+        - kind
+        - codec
+        - language
+        - title
+        - default
+        - bitmap
+      properties:
+        index:
+          type: integer
+          format: int32
+        kind:
+          type: string
+          enum:
+            - video
+            - audio
+            - subtitle
+        codec:
+          type: string
+        language:
+          type: string
+        title:
+          type: string
+        default:
+          type: boolean
+        bitmap:
+          type: boolean
+    MediaTracks:
+      type: object
+      required:
+        - available
+        - tracks
+      properties:
+        available:
+          type: boolean
+        tracks:
+          type: array
+          items:
+            $ref: "#/components/schemas/MediaTrack"
+    CastingRelay:
+      type: object
+      required:
+        - addresses
+        - expiresAt
+      properties:
+        addresses:
+          type: array
+          items:
+            type: string
+        expiresAt:
+          type: string
+          format: date-time
+    CastingDevice:
+      type: object
+      required:
+        - id
+        - name
+        - protocol
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        protocol:
+          type: string
+          enum:
+            - dlna
+    CastingDevices:
+      type: object
+      required:
+        - devices
+      properties:
+        devices:
+          type: array
+          items:
+            $ref: "#/components/schemas/CastingDevice"
+    CastingStart:
+      type: object
+      required:
+        - ticket
+        - serverUrl
+        - mode
+      properties:
+        ticket:
+          type: string
+        serverUrl:
+          type: string
+        mode:
+          type: string
+          enum:
+            - original
+            - video
+        start:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 86400
+          default: 0
+        audio:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 1024
+        subtitle:
+          type: integer
+          format: int32
+          minimum: 0
+          maximum: 1024
     HealthStatus:
       type: object
       required:

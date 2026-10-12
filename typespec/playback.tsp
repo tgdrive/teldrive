@@ -29,5 +29,44 @@ op streamPlayback(
   @query @minLength(32) @maxLength(128) ticket: string,
   @query mode?: "original" | "audio" | "video" = "original",
   @query @minValue(0) @maxValue(86400) start?: float64 = 0,
+  @query @minValue(0) @maxValue(1024) audio?: int32,
+  @query @minValue(0) @maxValue(1024) subtitle?: int32,
   ...FileContentRequestOptions,
 ): FileContentResponse | FilePartialContentResponse | EmptyResponse<304> | ErrorResponse<401> | ErrorResponse<404> | ErrorResponse<416> | ErrorResponse<422> | ErrorResponse<429> | ErrorResponse<503>;
+
+model MediaTrack {
+  index: int32;
+  kind: "video" | "audio" | "subtitle";
+  codec: string;
+  language: string;
+  title: string;
+  default: boolean;
+  bitmap: boolean;
+}
+model MediaTracks { available: boolean; tracks: MediaTrack[]; }
+
+@tag("Files") @route("/v1/playback/tracks") @get @operationId("getPlaybackTracks")
+op getPlaybackTracks(@query @minLength(32) @maxLength(128) ticket: string): JsonResponse<200, MediaTracks> | ErrorResponse<401> | ErrorResponse<404> | ErrorResponse<422> | ErrorResponse<503>;
+
+@tag("Files") @route("/v1/playback/subtitles") @get @operationId("getPlaybackSubtitles")
+op getPlaybackSubtitles(@query @minLength(32) @maxLength(128) ticket: string, @query @minValue(0) @maxValue(1024) track: int32, @query @minValue(0) @maxValue(86400) start?: float64 = 0): FileContentResponse | ErrorResponse<401> | ErrorResponse<404> | ErrorResponse<422> | ErrorResponse<503>;
+
+model CastingDevice { id: string; name: string; protocol: "dlna"; }
+model CastingDevices { devices: CastingDevice[]; }
+model CastingRelay { addresses: string[]; expiresAt: utcDateTime; }
+model CastingStart {
+  ticket: string;
+  serverUrl: string;
+  mode: "original" | "video";
+  @minValue(0) @maxValue(86400) start?: float64 = 0;
+  @minValue(0) @maxValue(1024) audio?: int32;
+  @minValue(0) @maxValue(1024) subtitle?: int32;
+}
+@tag("Files") @useAuth(TelDriveAuth) @route("/v1/casting/relay") @post @operationId("createCastingRelay")
+op createCastingRelay(@body body: { @minLength(32) @maxLength(128) ticket: string; }): JsonResponse<201, CastingRelay> | ErrorResponse<401> | ErrorResponse<403> | ErrorResponse<404> | ErrorResponse<503>;
+@tag("Files") @useAuth(TelDriveAuth) @route("/v1/casting/devices") @get @operationId("listCastingDevices")
+op listCastingDevices(): JsonResponse<200, CastingDevices> | ErrorResponse<401> | ErrorResponse<403> | ErrorResponse<503>;
+@tag("Files") @useAuth(TelDriveAuth) @route("/v1/casting/devices/{deviceId}/play") @post @operationId("playOnCastingDevice")
+op playOnCastingDevice(@path deviceId: string, @body body: CastingStart): EmptyResponse<204> | ErrorResponse<400> | ErrorResponse<401> | ErrorResponse<403> | ErrorResponse<404> | ErrorResponse<422> | ErrorResponse<503>;
+@tag("Files") @useAuth(TelDriveAuth) @route("/v1/casting/devices/{deviceId}/control") @post @operationId("controlCastingDevice")
+op controlCastingDevice(@path deviceId: string, @body body: { command: "play" | "pause" | "stop"; }): EmptyResponse<204> | ErrorResponse<401> | ErrorResponse<403> | ErrorResponse<404> | ErrorResponse<503>;
