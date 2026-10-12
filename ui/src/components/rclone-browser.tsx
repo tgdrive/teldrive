@@ -14,7 +14,7 @@ type Job = {
   id: string;
   label: string;
   mount: boolean;
-  status: "running" | "completed" | "cancelled" | "failed";
+  status: "waiting" | "running" | "completed" | "cancelled" | "failed" | "interrupted";
   exitCode?: number;
   log: string;
 };
@@ -152,6 +152,13 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
               {["Archivos", "Transferencias", "Montajes"][index]}
             </Button>
           ))}
+          <Button
+            variant="secondary"
+            isDisabled={pending}
+            onPress={() => void execute("rclone.advanced")}
+          >
+            Opciones adicionales de rclone
+          </Button>
         </fieldset>
         {error ? (
           <p role="alert" className="rounded-lg border border-danger/40 p-3 text-sm text-danger">
@@ -541,6 +548,8 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
                         {
                           {
                             running: "En curso",
+                            waiting: "En cola",
+                            interrupted: "Interrumpida; puedes reintentar",
                             completed: "Completada",
                             cancelled: "Detenida",
                             failed: "Fallida",
@@ -548,7 +557,7 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
                         }
                       </p>
                     </div>
-                    {job.status !== "running" && !job.mount ? (
+                    {job.status !== "running" && job.status !== "waiting" && !job.mount ? (
                       <Button
                         variant="secondary"
                         isDisabled={pending || info?.locked}
@@ -557,7 +566,7 @@ export function RcloneBrowser({ connectionVersion }: { connectionVersion: number
                         Reintentar
                       </Button>
                     ) : null}
-                    {job.status === "running" ? (
+                    {job.status === "running" || job.status === "waiting" ? (
                       <Button
                         variant="danger"
                         isDisabled={pending}

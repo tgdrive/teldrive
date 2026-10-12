@@ -8,7 +8,7 @@ using System.Net.Sockets;
 namespace Teldrive.Desktop;
 
 public sealed record RcloneConnection(string ApiKey, int ChunkMiB = 512, int Concurrency = 4, bool Encrypt = false, bool Hash = true, string LinkPassword = "");
-public sealed class RcloneRuntime : IAsyncDisposable
+public sealed class RcloneRuntime : IAsyncDisposable, IRcloneExecutor
 {
     private readonly RuntimeSession runtime;
     private readonly WindowsJob owner = new();
@@ -18,6 +18,17 @@ public sealed class RcloneRuntime : IAsyncDisposable
     private string? password;
     public bool Encrypted => File.Exists(ConfigPath) && File.ReadLines(ConfigPath).Take(5).Any(line => line == "RCLONE_ENCRYPT_V0:");
     public bool Locked => Encrypted && password is null;
+    public Func<bool>? AutomationReady { get; set; }
+    public string? BlockReason => AutomationReady is not null && !AutomationReady() ? "Inicia el servidor para continuar la cola." : !File.Exists(ConfigPath) ? "Guarda la conexión en Configuración → Rclone." : Locked ? "Desbloquea la configuración de rclone para continuar la cola." : null;
+    public int AvailableSlots { get { lock (sync) return Math.Max(0, 3 - tasks.Values.Count(task => !task.Process.HasExited)); } }
+    public string StartDefinition(RcloneTaskDefinition definition, bool dryRun) => Start(definition.Name, false, definition.Arguments(dryRun));
+    public RcloneJobStatus? Snapshot(string id)
+    {
+        lock (sync) {
+            if (!tasks.TryGetValue(id, out var task)) return null;
+            return new(task.Process.HasExited ? task.Cancelled ? "cancelled" : task.Process.ExitCode == 0 ? "completed" : "failed" : "running", task.Log, task.Process.HasExited ? task.Process.ExitCode : null);
+        }
+    }
     public RcloneRuntime(RuntimeSession runtime) { this.runtime = runtime; }
     private string ConfigPath => Path.Combine(runtime.DataRoot, "rclone.conf");
     public bool DriverInstalled => File.Exists(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86), "WinFsp", "bin", "winfsp-x64.dll"));
@@ -169,7 +180,7 @@ public sealed class RcloneRuntime : IAsyncDisposable
         if (!Directory.Exists(localFolder)) throw new IOException("La carpeta seleccionada ya no existe.");
         return Start($"Descargar {remotePath}", false, "copy", Remote(remotePath), localFolder, "--immutable", "--stats", "2s");
     }
-    private static string Remote(string path)
+    internal static string Remote(string path)
     {
         if (path.Contains(':') || path.Contains('\0') || path.Contains('\\') || path.Split('/').Any(part => part is ".." or ".")) throw new ArgumentException("Introduce una ruta de Teldrive sin '..' ni nombres de conexiones.");
         return "teldrive:/" + path.Trim('/');
@@ -195,7 +206,7 @@ public sealed class RcloneRuntime : IAsyncDisposable
     private void Append(RcloneTask task, string? line) { if (line is null) return; lock (sync) { task.Log += line + "\n"; if (task.Log.Length > 12000) task.Log = task.Log[^12000..]; } }
     public async Task StopAsync(string id)
     {
-        RcloneTask task; lock (sync) { if (!tasks.TryGetValue(id, out task!)) throw new ArgumentException("La operación ya no existe."); task.Cancelled = true; }
+        RcloneTask task; lock (sync) { if (!tasks.TryGetValue(id, out task!)) throw new ArgumentException("La operación ya no existe."); if (task.Process.HasExited) return; task.Cancelled = true; }
         if (!task.Process.HasExited) { task.Process.Kill(true); await task.Process.WaitForExitAsync(); }
     }
     public async Task StopAllAsync() { string[] ids; lock (sync) ids = tasks.Keys.ToArray(); foreach (var id in ids) await StopAsync(id); }

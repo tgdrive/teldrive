@@ -3,6 +3,7 @@ using System.IO;
 using System.Net.Http;
 using System.Text.Json;
 using System.Windows;
+using System.Windows.Threading;
 using Microsoft.Web.WebView2.Core;
 
 namespace Teldrive.Desktop;
@@ -19,17 +20,44 @@ public partial class MainWindow : Window
     private bool closing;
     private bool closed;
     private readonly string[] arguments;
+    private readonly bool portable;
+    private readonly bool smoke;
+    private DesktopPreferences preferences = new();
+    private DesktopTray? tray;
+    private RcloneAutomation? automation;
+    private readonly DispatcherTimer automationTimer = new() { Interval = TimeSpan.FromSeconds(1) };
+    private bool exitRequested;
+    private bool testingTray;
+    private bool requestedStartHidden;
     public MainWindow(string[] args)
     {
         InitializeComponent(); arguments = args;
-        if (args.Contains("--smoke-test") || args.Contains("--smoke-rclone") || args.Contains("--smoke-server")) { Opacity = 0; ShowInTaskbar = false; ShowActivated = false; }
+        smoke = args.Any(arg => arg.StartsWith("--smoke-", StringComparison.Ordinal));
+        if (smoke) { Opacity = 0; ShowInTaskbar = false; ShowActivated = false; }
         var rootIndex = Array.IndexOf(args, "--data-root");
-        var portable = args.Contains("--portable") || File.Exists(Path.Combine(AppContext.BaseDirectory, "Teldrive.portable"));
+        portable = args.Contains("--portable") || File.Exists(Path.Combine(AppContext.BaseDirectory, "Teldrive.portable"));
         runtime = new RuntimeSession(rootIndex >= 0 && rootIndex + 1 < args.Length ? args[rootIndex + 1] : portable ? Path.Combine(AppContext.BaseDirectory, "TeldriveData") : null);
         rclone = new RcloneRuntime(runtime);
+        rclone.AutomationReady = () => runtime.Running && !busy;
+        StateChanged += (_, _) => { if ((!smoke || testingTray) && WindowState == WindowState.Minimized && preferences.MinimizeToTray) HideToTray(); };
+        Application.Current.SessionEnding += (_, _) => { exitRequested = true; automationTimer.Stop(); };
+        automationTimer.Tick += (_, _) => {
+            try {
+                automation?.Tick(DateTimeOffset.UtcNow);
+                if (AdvancedView.IsVisible) AdvancedView.Refresh();
+                if (automation is not null) tray?.QueueState(automation.State.Paused, automation.State.Queue.Count(item => item.State is "waiting" or "running"));
+            } catch (Exception error) { automationTimer.Stop(); Status.Text = "Programador detenido: " + error.Message; RestoreFromTray(); }
+        };
         runtime.Activity += line => Dispatcher.BeginInvoke(() => { Logs.AppendText(line + "\n"); Logs.ScrollToEnd(); });
         Loaded += async (_, _) => await Guard(async () => {
+            var startupSmoke = args.Contains("--smoke-startup-tray");
+            if (!smoke || startupSmoke) {
+                InitializeAutomation();
+                requestedStartHidden = (preferences.StartInTray || args.Contains("--start-in-tray")) && runtime.State is not null && File.Exists(runtime.ConfigPath);
+                if (requestedStartHidden) { Opacity = 0; ShowInTaskbar = false; ShowActivated = false; tray!.HideWindowIcon(); }
+            }
             await runtime.PrepareAsync();
+            if (args.Contains("--smoke-automation")) { await RcloneAutomationSmokeTest.RunAsync(runtime, this); Close(); return; }
             if (args.Contains("--smoke-rclone")) { await RcloneSmokeTest.RunAsync(runtime); Close(); return; }
             if (args.Contains("--smoke-server")) {
                 if (runtime.State is not null || File.Exists(runtime.ConfigPath)) throw new IOException("La prueba del servidor requiere una carpeta nueva.");
@@ -55,6 +83,14 @@ public partial class MainWindow : Window
             RefreshConfiguration();
             Status.Text = "Listo para configurar tu unidad";
             if (runtime.State is not null && File.Exists(runtime.ConfigPath)) { await runtime.StartAsync(); await ShowDrive(); }
+            if ((!smoke || startupSmoke) && requestedStartHidden && runtime.Running) { HideToTray(); if (!smoke) Opacity = 1; }
+            if (startupSmoke) {
+                if (!runtime.Running || IsVisible || tray?.Visible != true) throw new IOException("El inicio automático no quedó activo en la bandeja.");
+                testingTray = true; RestoreFromTray(); testingTray = false;
+                if (!IsVisible || WindowState != WindowState.Normal) throw new IOException("La ventana iniciada en la bandeja no se pudo recuperar.");
+                await File.WriteAllTextAsync(Path.Combine(runtime.DataRoot, "startup-tray-smoke-test.json"), JsonSerializer.Serialize(new { success = true, serverRunning = runtime.Running, startedHidden = true, restored = true, windowsStartupRegistryModified = false }));
+                exitRequested = true; Close(); return;
+            }
             if (args.Contains("--smoke-test")) {
                 await InitializeBrowser();
                 await File.WriteAllTextAsync(Path.Combine(runtime.DataRoot, "smoke-test.json"), JsonSerializer.Serialize(new {success = true, webview = Browser.CoreWebView2.Environment.BrowserVersionString, runtime = Environment.Version.ToString(), components = runtime.Components}));
@@ -65,10 +101,13 @@ public partial class MainWindow : Window
             if (closed) return;
             e.Cancel = true;
             if (closing) return;
+            if ((!smoke || testingTray) && !exitRequested && preferences.CloseToTray && tray is not null) { HideToTray(); return; }
             closing = true;
+            automationTimer.Stop();
             try {
                 if (currentOperation is not null) { try { await currentOperation; } catch { /* Guard already reports the operation failure; cleanup must still run. */ } }
-                await StopPlayersAsync(); await rclone.DisposeAsync(); await runtime.DisposeAsync(); Browser.Dispose(); closed = true; Close();
+                if (automation is not null) await automation.DisposeAsync();
+                await StopPlayersAsync(); await rclone.DisposeAsync(); await runtime.DisposeAsync(); tray?.Dispose(); Browser.Dispose(); closed = true; Close();
             }
             catch (Exception error) { closing = false; MessageBox.Show(error.Message, "No se pudieron detener los servicios"); }
         };
@@ -80,8 +119,8 @@ public partial class MainWindow : Window
         try { currentOperation = operation(); await currentOperation; }
         catch (Exception error) {
             Status.Text = error.Message;
-            if (arguments.Contains("--smoke-test") || arguments.Contains("--smoke-rclone") || arguments.Contains("--smoke-server")) { await File.WriteAllTextAsync(Path.Combine(runtime.DataRoot, "smoke-test.json"), JsonSerializer.Serialize(new {success = false, error = error.ToString()})); Close(); }
-            else MessageBox.Show(error.Message, "Teldrive Desktop v2", MessageBoxButton.OK, MessageBoxImage.Information);
+            if (smoke) { await File.WriteAllTextAsync(Path.Combine(runtime.DataRoot, "smoke-test.json"), JsonSerializer.Serialize(new {success = false, error = error.ToString()})); Close(); }
+            else { RestoreFromTray(); MessageBox.Show(error.Message, "Teldrive Desktop v2", MessageBoxButton.OK, MessageBoxImage.Information); }
         }
         finally { currentOperation = null; busy = false; StartButton.IsEnabled = !runtime.Running; StopButton.IsEnabled = runtime.Running; }
     }
@@ -113,6 +152,7 @@ public partial class MainWindow : Window
     }
     private async Task ShowDrive(string path = "/")
     {
+        AdvancedView.Visibility = Visibility.Collapsed;
         if (!runtime.Running) { SetupView.Visibility = Visibility.Visible; Browser.Visibility = Visibility.Collapsed; LogsView.Visibility = Visibility.Collapsed; return; }
         await InitializeBrowser();
         SetupView.Visibility = Visibility.Collapsed; LogsView.Visibility = Visibility.Collapsed; Browser.Visibility = Visibility.Visible;
@@ -120,9 +160,53 @@ public partial class MainWindow : Window
         Status.Text = $"Conectado · {runtime.ServerUri} · Datos guardados en tu equipo";
     }
     private async void StartClick(object sender, RoutedEventArgs e) => await Guard(async () => { await runtime.StartAsync(); await ShowDrive(); });
-    private async void StopClick(object sender, RoutedEventArgs e) => await Guard(async () => { await StopPlayersAsync(); await rclone.StopAllAsync(); await runtime.StopAsync(); Browser.Visibility = Visibility.Collapsed; SetupView.Visibility = Visibility.Visible; Status.Text = "Servicios detenidos"; });
-    private void SetupClick(object sender, RoutedEventArgs e) { RefreshConfiguration(); Browser.Visibility = Visibility.Collapsed; LogsView.Visibility = Visibility.Collapsed; SetupView.Visibility = Visibility.Visible; }
-    private void LogsClick(object sender, RoutedEventArgs e) { Browser.Visibility = Visibility.Collapsed; SetupView.Visibility = Visibility.Collapsed; LogsView.Visibility = Visibility.Visible; }
+    private async void StopClick(object sender, RoutedEventArgs e) => await Guard(async () => { if (automation is not null) automation.ConfigureQueue(true, automation.State.ParallelJobs); await StopPlayersAsync(); await rclone.StopAllAsync(); await runtime.StopAsync(); AdvancedView.Visibility = Visibility.Collapsed; Browser.Visibility = Visibility.Collapsed; SetupView.Visibility = Visibility.Visible; Status.Text = "Servicios detenidos; cola pausada"; });
+    private void SetupClick(object sender, RoutedEventArgs e) { AdvancedView.Visibility = Visibility.Collapsed; RefreshConfiguration(); Browser.Visibility = Visibility.Collapsed; LogsView.Visibility = Visibility.Collapsed; SetupView.Visibility = Visibility.Visible; }
+    private void LogsClick(object sender, RoutedEventArgs e) { AdvancedView.Visibility = Visibility.Collapsed; Browser.Visibility = Visibility.Collapsed; SetupView.Visibility = Visibility.Collapsed; LogsView.Visibility = Visibility.Visible; }
+    private void AdvancedClick(object sender, RoutedEventArgs e) => ShowAdvanced();
+    private void ShowAdvanced() { Browser.Visibility = Visibility.Collapsed; SetupView.Visibility = Visibility.Collapsed; LogsView.Visibility = Visibility.Collapsed; AdvancedView.Visibility = Visibility.Visible; AdvancedView.Refresh(); }
+    private void InitializeAutomation()
+    {
+        preferences = DesktopPreferences.Load(runtime.DataRoot);
+        automation = new RcloneAutomation(runtime.DataRoot, rclone);
+        tray = new DesktopTray(RestoreFromTray, () => { RestoreFromTray(); ShowAdvanced(); }, () => { automation.ConfigureQueue(!automation.State.Paused, automation.State.ParallelJobs); AdvancedView.Refresh(); }, ExitDesktop);
+        tray.Apply(preferences, false);
+        automation.Finished += item => { if (preferences.NotifyFinished) tray.Notify(item); };
+        AdvancedView.Initialize(automation, preferences, SavePreferences, HideToTray, ExitDesktop);
+        automationTimer.Start();
+    }
+    private void SavePreferences(DesktopPreferences value)
+    {
+        DesktopStartup.Apply(value.StartWithWindows, runtime.DataRoot, portable);
+        value.Save(runtime.DataRoot); preferences = value; tray?.Apply(value, !IsVisible);
+    }
+    internal void HideToTray()
+    {
+        if (tray is null) return;
+        tray.HideWindowIcon(); Hide(); ShowInTaskbar = false;
+    }
+    internal void RestoreFromTray()
+    {
+        if ((smoke && !testingTray) || closed || closing) return;
+        requestedStartHidden = false; Opacity = smoke ? 0 : 1;
+        ShowInTaskbar = !smoke; Show(); WindowState = WindowState.Normal; if (!smoke) Activate(); tray?.Restored();
+    }
+    internal void VerifyTrayLifecycle()
+    {
+        testingTray = true;
+        preferences = new() { MinimizeToTray = true, CloseToTray = true };
+        tray = new DesktopTray(RestoreFromTray, ShowAdvanced, () => { }, ExitDesktop);
+        try {
+            WindowState = WindowState.Minimized;
+            if (IsVisible || !tray.Visible) throw new IOException("Minimizar no ocultó la ventana en la bandeja.");
+            RestoreFromTray();
+            if (!IsVisible || WindowState != WindowState.Normal) throw new IOException("La bandeja no recuperó la ventana.");
+            Close();
+            if (IsVisible || !tray.Visible || closing) throw new IOException("Cerrar no conservó el programa en la bandeja.");
+            RestoreFromTray();
+        } finally { preferences = new(); tray.Dispose(); tray = null; testingTray = false; }
+    }
+    private void ExitDesktop() { exitRequested = true; Close(); }
     private async void DriveClick(object sender, RoutedEventArgs e) => await Guard(() => ShowDrive());
     private async void RcloneClick(object sender, RoutedEventArgs e) => await Guard(() => ShowDrive("/settings/rclone"));
     private async void ConfigureClick(object sender, RoutedEventArgs e) => await Guard(async () => {
@@ -161,7 +245,10 @@ public partial class MainWindow : Window
                     if (players.Count >= 2) throw new IOException("Cierra un reproductor antes de abrir otro.");
                     var media = new MediaWindow(runtime, rclone, Get("path")) {Owner = this};
                     players.Add(media); media.Closed += (_, _) => players.Remove(media); media.Show(); result = true; break;
-                case "rclone.retry": result = rclone.Retry(Get("id")); break;
+                case "rclone.advanced": ShowAdvanced(); result = true; break;
+                case "rclone.retry":
+                    if (automation is not null && automation.State.Queue.Any(item => item.Id == Get("id"))) { automation.Retry(Get("id")); result = automation.State.Queue.Last().Id; }
+                    else result = rclone.Retry(Get("id")); break;
                 case "rclone.configure":
                     await rclone.ConfigureAsync(parameters.Deserialize<RcloneConnection>(new JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? throw new ArgumentException("Conexión no válida.")); result = rclone.Info(); break;
                 case "rclone.browse": result = await rclone.BrowseAsync(Get("path")); break;
@@ -170,9 +257,14 @@ public partial class MainWindow : Window
                 case "rclone.mkdir": await rclone.CreateFolderAsync(Get("path")); result = true; break;
                 case "rclone.rename": await rclone.RenameAsync(Get("source"), Get("target")); result = true; break;
                 case "rclone.trash": await rclone.TrashAsync(Get("path"), parameters.GetProperty("directory").GetBoolean()); result = true; break;
-                case "rclone.jobs": result = rclone.List(); break;
+                case "rclone.jobs":
+                    var ownedProcesses = automation?.State.Queue.Where(item => item.ProcessId is not null).Select(item => item.ProcessId!).ToHashSet() ?? [];
+                    var direct = rclone.List().Where(item => !ownedProcesses.Contains(JsonSerializer.SerializeToElement(item).GetProperty("id").GetString()!));
+                    result = direct.Concat(automation?.State.Queue.Select(item => (object)new { id = item.Id, label = item.Name, mount = false, status = item.State, log = item.Log }) ?? []).ToArray(); break;
                 case "rclone.mount": result = rclone.Mount(Get("drive")); break;
-                case "rclone.stop": await rclone.StopAsync(Get("id")); result = true; break;
+                case "rclone.stop":
+                    if (automation is not null && automation.State.Queue.Any(item => item.Id == Get("id"))) await automation.CancelAsync(Get("id"));
+                    else await rclone.StopAsync(Get("id")); result = true; break;
                 case "rclone.winfsp": await runtime.InstallAsync("winfsp-2.1.25156.msi", true); result = rclone.Info(); break;
                 case "rclone.local-folder":
                     var folder = new Microsoft.Win32.OpenFolderDialog { Title = "Carpeta local para Teldrive" };
@@ -181,21 +273,27 @@ public partial class MainWindow : Window
                 case "rclone.local-browse": result = LocalFiles(Get("path")); break;
                 case "rclone.upload-local":
                     var localSource = LocalPath(Get("path"));
-                    result = Directory.Exists(localSource) ? rclone.UploadFolder(localSource, Get("destination")) : rclone.Upload(localSource, Get("destination")); break;
+                    result = QueueUpload(localSource, Get("destination")); break;
                 case "rclone.upload-folder":
                     var uploadFolder = new Microsoft.Win32.OpenFolderDialog { Title = "Carpeta para subir a Teldrive" };
-                    result = uploadFolder.ShowDialog(this) == true ? rclone.UploadFolder(uploadFolder.FolderName, Get("path")) : null; break;
+                    result = uploadFolder.ShowDialog(this) == true ? QueueUpload(uploadFolder.FolderName, Get("path")) : null; break;
                 case "rclone.upload":
                     var choose = new Microsoft.Win32.OpenFileDialog { Title = "Archivo para subir a Teldrive", Multiselect = false };
-                    result = choose.ShowDialog(this) == true ? rclone.Upload(choose.FileName, Get("path")) : null; break;
+                    result = choose.ShowDialog(this) == true ? QueueUpload(choose.FileName, Get("path")) : null; break;
                 case "rclone.download":
                     var destination = new Microsoft.Win32.OpenFolderDialog { Title = "Guardar archivos de Teldrive" };
-                    result = destination.ShowDialog(this) == true ? rclone.Download(Get("path"), destination.FolderName) : null; break;
+                    result = destination.ShowDialog(this) == true ? automation!.Enqueue(new RcloneTaskDefinition { Name = QueueLabel("Descargar " + Get("path")), Direction = "download", Source = Get("path"), Destination = destination.FolderName }).Id : null; break;
                 default: throw new ArgumentException("Operación no admitida.");
             }
             if (!closing && Browser.CoreWebView2 is not null) Browser.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(new { id, result }));
         } catch (Exception error) { if (id is not null && !closing && Browser.CoreWebView2 is not null) Browser.CoreWebView2.PostWebMessageAsJson(JsonSerializer.Serialize(new { id, error = error.Message })); }
     }
+    private string QueueUpload(string source, string destination)
+    {
+        var folder = Directory.Exists(source);
+        return automation!.Enqueue(new RcloneTaskDefinition { Name = QueueLabel("Subir " + Path.GetFileName(source)), Source = source, Destination = folder ? destination.TrimEnd('/') + "/" + Path.GetFileName(source) : destination }).Id;
+    }
+    private static string QueueLabel(string value) => value.Length > 160 ? value[..157] + "…" : value;
     private async Task RequireOwnerAsync()
     {
         var cookies = await Browser.CoreWebView2.CookieManager.GetCookiesAsync(runtime.ServerUri!.AbsoluteUri);
