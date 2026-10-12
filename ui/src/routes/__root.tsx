@@ -91,7 +91,7 @@ function Sidebar({
   const displayName =
     user?.displayName?.trim() ||
     user?.username?.trim() ||
-    (user ? `User ${user.userId}` : "Account");
+    (user ? t("account.userFallback", { id: user.userId }) : t("account.title"));
   const secondaryLabel = user?.username
     ? `@${user.username}`
     : user?.premium

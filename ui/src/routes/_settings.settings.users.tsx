@@ -74,7 +74,9 @@ function UsersSettings() {
         ) : query.data?.length ? (
           query.data.map((user) => {
             const displayName =
-              user.displayName?.trim() || user.username?.trim() || `User ${user.userId}`;
+              user.displayName?.trim() ||
+              user.username?.trim() ||
+              t("account.userFallback", { id: user.userId });
             const owner = user.role === "owner";
             return (
               <SettingsRow

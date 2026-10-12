@@ -47,7 +47,10 @@ function AccountSettings() {
     }
   };
 
-  const displayName = user.data.displayName || user.data.username || `User ${user.data.userId}`;
+  const displayName =
+    user.data.displayName ||
+    user.data.username ||
+    t("account.userFallback", { id: user.data.userId });
 
   return (
     <div className="space-y-6">
