@@ -36,4 +36,13 @@ Selecciona tu equipo de Apple en Signing & Capabilities. Para comprobar el proye
 xcodebuild -project Teldrive.xcodeproj -scheme Teldrive -sdk iphonesimulator -configuration Release CODE_SIGNING_ALLOWED=NO build
 ```
 
+Ejecuta los tests en Debug, que habilita `@testable import`. Release se compila
+por separado para comprobar el paquete final sin habilitar testabilidad:
+
+```sh
+xcodebuild -project Teldrive.xcodeproj -scheme Teldrive -configuration Debug -destination 'platform=iOS Simulator,name=iPhone 16' CODE_SIGNING_ALLOWED=NO test
+```
+
+Selecciona un simulador instalado en tu Xcode (`xcrun simctl list devices available`).
+
 Las descargas usan WKDownload y la hoja de compartir para guardarlas en Archivos. Xcode/macOS y las credenciales de firma de Apple son necesarios para producir una IPA instalable o publicar en TestFlight/App Store. El código de iOS no constituye una IPA firmada.
