@@ -1,7 +1,7 @@
 {
-  "version": "2.0.3",
+  "version": "2.0.4",
   "hashes": {
-    "amd64": "sha256-K2PeeyKRCeKzhvpYR8gfCHo/TkmRa8fOBI29VwRm6Q8=",
-    "arm64": "sha256-Qjyq1qi1JRKschsIfpc6GkYq5jGg7vZKzPND8lY/2zU="
+    "amd64": "sha256-E4X5pMMhfYPOsHnVMgsFLvFbr0SpLXpLWbMEsyLe+M0=",
+    "arm64": "sha256-IMLBV/AFCjaUIwLA/gMGkjoYlqe2/pyYy8wudagclWI="
   }
 }
