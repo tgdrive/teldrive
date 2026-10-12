@@ -33,6 +33,37 @@ func TestRuntimeAppliesProductionDefaults(t *testing.T) {
 	}
 }
 
+func TestRuntimeSeedsFolderSizeRollupOnStart(t *testing.T) {
+	db := testpostgres.New(t)
+	ctx := context.Background()
+	runtime, err := NewRuntime(db.Pool, defaultsStorage{})
+	if err != nil {
+		t.Fatalf("NewRuntime() error = %v", err)
+	}
+	if err := runtime.Start(ctx); err != nil {
+		t.Fatalf("Start() error = %v", err)
+	}
+	t.Cleanup(func() { _ = runtime.Stop(context.Background()) })
+
+	jobs, err := runtime.ListPeriodicJobs(ctx)
+	if err != nil {
+		t.Fatalf("ListPeriodicJobs() error = %v", err)
+	}
+	for _, candidate := range jobs {
+		if candidate.ID != folderSizeRollupPeriodicID {
+			continue
+		}
+		if candidate.Kind != FolderSizeRollupKind {
+			t.Fatalf("rollup job kind = %q, want %q", candidate.Kind, FolderSizeRollupKind)
+		}
+		if candidate.Schedule.CronExpression != folderSizeRollupDefaultCron {
+			t.Fatalf("rollup cron = %q, want %q", candidate.Schedule.CronExpression, folderSizeRollupDefaultCron)
+		}
+		return
+	}
+	t.Fatalf("periodic job %q not found", folderSizeRollupPeriodicID)
+}
+
 func TestRuntimePreservesPeriodicJobConfigurationOnRestart(t *testing.T) {
 	db := testpostgres.New(t)
 	ctx := context.Background()
@@ -118,8 +149,8 @@ func TestRuntimeResetPeriodicJobsRestoresDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ResetPeriodicJobs() error = %v", err)
 	}
-	if len(reset) != 2 {
-		t.Fatalf("reset periodic jobs = %d, want 2", len(reset))
+	if len(reset) != 3 {
+		t.Fatalf("reset periodic jobs = %d, want 3", len(reset))
 	}
 	resetByID := make(map[string]PeriodicJob, len(reset))
 	for _, job := range reset {
@@ -131,12 +162,15 @@ func TestRuntimeResetPeriodicJobsRestoresDefaults(t *testing.T) {
 	if job := resetByID[eventCleanupPeriodicID]; job.Schedule.CronExpression != eventCleanupDefaultCron || string(job.Args["retention"]) != `"`+eventCleanupDefaultRetention+`"` {
 		t.Fatalf("reset event cleanup job = %#v", job)
 	}
+	if job := resetByID[folderSizeRollupPeriodicID]; job.Schedule.CronExpression != folderSizeRollupDefaultCron || len(job.Args) != 0 {
+		t.Fatalf("reset folder size rollup job = %#v", job)
+	}
 
 	persisted, err := runtime.ListPeriodicJobs(ctx)
 	if err != nil {
 		t.Fatalf("ListPeriodicJobs() error = %v", err)
 	}
-	if len(persisted) != 2 {
+	if len(persisted) != 3 {
 		t.Fatalf("persisted periodic jobs after reset = %#v", persisted)
 	}
 }

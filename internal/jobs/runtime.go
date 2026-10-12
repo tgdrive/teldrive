@@ -215,6 +215,24 @@ func (r *Runtime) Start(ctx context.Context) error {
 	}); err != nil && !errors.Is(err, riverpro.ErrPeriodicJobAlreadyExists) {
 		return fmt.Errorf("upsert event cleanup periodic job: %w", err)
 	}
+	rollupArgs, err := json.Marshal(FolderSizeRollupArgs{})
+	if err != nil {
+		return fmt.Errorf("marshal folder size rollup periodic args: %w", err)
+	}
+	if _, err := r.client.PeriodicJobInsert(ctx, &riverpro.PeriodicJobInsertOpts{
+		ID:          folderSizeRollupPeriodicID,
+		Kind:        FolderSizeRollupKind,
+		Args:        rollupArgs,
+		Queue:       CleanupQueue,
+		Priority:    3,
+		MaxAttempts: 1,
+		Schedule: &riverpro.PeriodicJobSchedule{
+			CronExpression: folderSizeRollupDefaultCron,
+			CronTimezone:   maintenanceTimezone,
+		},
+	}); err != nil && !errors.Is(err, riverpro.ErrPeriodicJobAlreadyExists) {
+		return fmt.Errorf("upsert folder size rollup periodic job: %w", err)
+	}
 	if r.purgeEnabled {
 		trashCleanupArgs, err := json.Marshal(TrashCleanupSweepArgs{Retention: "720h"})
 		if err != nil {
