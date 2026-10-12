@@ -195,7 +195,11 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 	if err != nil {
 		return nil, fmt.Errorf("create file operations service: %w", err)
 	}
-	shareService, err := shares.NewService(pool, catalogService)
+	publicURL, err := cfg.HTTP.PublicBaseURL()
+	if err != nil {
+		return nil, fmt.Errorf("configure public share URL: %w", err)
+	}
+	shareService, err := shares.NewService(pool, catalogService, shares.WithPublicURL(publicURL))
 	if err != nil {
 		return nil, fmt.Errorf("create share service: %w", err)
 	}

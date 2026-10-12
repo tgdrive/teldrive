@@ -1,5 +1,8 @@
 [http]
 address = "127.0.0.1:8080"
+# Optional public origin for shared links, including links copied from Desktop.
+# Example: "https://drive.example.com". Configure your tunnel or reverse proxy separately.
+public-url = ""
 read-header-timeout = "10s"
 read-timeout = "1h"
 write-timeout = "1h"

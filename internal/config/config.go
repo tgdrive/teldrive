@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
+	"net/url"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -20,12 +21,35 @@ var ErrInvalid = errors.New("invalid configuration")
 
 type HTTP struct {
 	Address           string        `koanf:"address" default:"127.0.0.1:8080" validate:"required" description:"HTTP listen address"`
+	PublicURL         string        `koanf:"public-url" default:"" description:"Public HTTP or HTTPS origin used for shared links; empty uses the browser origin"`
 	ReadHeaderTimeout time.Duration `koanf:"read-header-timeout" default:"10s" validate:"gte=0" description:"Maximum time to read request headers"`
 	ReadTimeout       time.Duration `koanf:"read-timeout" default:"1h" validate:"gte=0" description:"Maximum time to read an entire request; zero disables it for streaming uploads"`
 	WriteTimeout      time.Duration `koanf:"write-timeout" default:"1h" validate:"gte=0" description:"Maximum response write duration; zero disables it for streaming"`
 	IdleTimeout       time.Duration `koanf:"idle-timeout" default:"2m" validate:"gte=0" description:"HTTP keep-alive idle timeout"`
 	ShutdownTimeout   time.Duration `koanf:"shutdown-timeout" default:"10s" validate:"gte=0" description:"Graceful shutdown timeout"`
 	TrustedProxies    []string      `koanf:"trusted-proxies" default:"" description:"Proxy IP addresses or CIDRs trusted to set forwarding headers"`
+}
+
+// PublicBaseURL validates the optional public origin without exposing its contents
+// in configuration errors. Teldrive's UI is served at the root of the origin.
+func (h HTTP) PublicBaseURL() (url.URL, error) {
+	value := strings.TrimSpace(h.PublicURL)
+	if value == "" {
+		return url.URL{}, nil
+	}
+	base, err := url.Parse(value)
+	if err != nil || base == nil || (base.Scheme != "http" && base.Scheme != "https") ||
+		base.Hostname() == "" || base.User != nil || base.Opaque != "" ||
+		(base.Path != "" && base.Path != "/") || base.RawQuery != "" || base.ForceQuery || base.Fragment != "" || strings.Contains(value, "#") {
+		return url.URL{}, errors.New("http.public-url must be an absolute HTTP or HTTPS origin without credentials, a path, query or fragment")
+	}
+	if port := base.Port(); port != "" {
+		number, err := strconv.Atoi(port)
+		if err != nil || number < 1 || number > 65535 {
+			return url.URL{}, errors.New("http.public-url must use a port between 1 and 65535")
+		}
+	}
+	return url.URL{Scheme: base.Scheme, Host: base.Host}, nil
 }
 
 type TelegramMTProxy struct {
@@ -150,6 +174,9 @@ func (c Config) Validate() error {
 		return fmt.Errorf("%w: security.data-key is required; set security.data-key or TELDRIVE_SECURITY_DATA_KEY before starting Teldrive", ErrInvalid)
 	}
 	problems := validateTaggedFields(c)
+	if _, err := c.HTTP.PublicBaseURL(); err != nil {
+		problems = append(problems, err.Error())
+	}
 
 	if c.Database.MinConnections > c.Database.MaxConnections {
 		problems = append(problems, "database min connections cannot exceed max connections")

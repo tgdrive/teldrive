@@ -32,6 +32,11 @@
       default = null;
       description = "HTTP listen address (Default: 127.0.0.1:8080) [validate: required]";
     };
+    "public-url" = lib.mkOption {
+      type = lib.types.nullOr (lib.types.str);
+      default = null;
+      description = "Public HTTP or HTTPS origin used for shared links; empty uses the browser origin (No default; upstream applies its own.)";
+    };
     "read-header-timeout" = lib.mkOption {
       type = lib.types.nullOr (lib.types.str);
       default = null;

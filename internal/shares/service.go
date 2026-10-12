@@ -111,17 +111,33 @@ type PublicListInput struct {
 }
 
 type Service struct {
-	queries *sqlcgen.Queries
-	catalog *catalog.Service
-	random  io.Reader
-	now     func() time.Time
+	queries   *sqlcgen.Queries
+	catalog   *catalog.Service
+	random    io.Reader
+	now       func() time.Time
+	publicURL url.URL
 }
 
-func NewService(pool *pgxpool.Pool, catalogService *catalog.Service) (*Service, error) {
+type Option func(*Service)
+
+// WithPublicURL sets the validated public origin for links created by the service.
+func WithPublicURL(base url.URL) Option {
+	return func(s *Service) { s.publicURL = base }
+}
+
+func NewService(pool *pgxpool.Pool, catalogService *catalog.Service, options ...Option) (*Service, error) {
 	if pool == nil || catalogService == nil {
 		return nil, ErrInvalidInput
 	}
-	return &Service{queries: sqlcgen.New(pool), catalog: catalogService, random: rand.Reader, now: time.Now}, nil
+	service := &Service{queries: sqlcgen.New(pool), catalog: catalogService, random: rand.Reader, now: time.Now}
+	for _, option := range options {
+		option(service)
+	}
+	return service, nil
+}
+
+func (s *Service) publicShareURL(token string) url.URL {
+	return url.URL{Scheme: s.publicURL.Scheme, Host: s.publicURL.Host, Path: "/share/" + token}
 }
 
 func normalizePermission(permission sqlcgen.SharePermission) sqlcgen.SharePermission {
@@ -184,7 +200,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (*Created, error) 
 	if err != nil {
 		return nil, fmt.Errorf("create file share: %w", err)
 	}
-	publicURL := url.URL{Path: "/share/" + secret}
+	publicURL := s.publicShareURL(secret)
 	return &Created{Row: row, Token: secret, PublicURL: publicURL}, nil
 }
 
