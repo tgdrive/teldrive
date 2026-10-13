@@ -9770,6 +9770,9 @@ type PutUploadPartParams struct {
 	XPartChecksum OptChecksum `json:",omitempty,omitzero"`
 	UploadId      UUID
 	PartNo        int32
+	// Store the part in this owned channel instead of the selected channel. An explicit channel never
+	// rolls over: an unknown channel returns 404 and a full or unavailable channel returns 409.
+	ChannelId OptInt64 `json:",omitempty,omitzero"`
 }
 
 func unpackPutUploadPartParams(packed middleware.Parameters) (params PutUploadPartParams) {
@@ -9803,10 +9806,20 @@ func unpackPutUploadPartParams(packed middleware.Parameters) (params PutUploadPa
 		}
 		params.PartNo = packed[key].(int32)
 	}
+	{
+		key := middleware.ParameterKey{
+			Name: "channelId",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.ChannelId = v.(OptInt64)
+		}
+	}
 	return params
 }
 
 func decodePutUploadPartParams(args [2]string, argsEscaped bool, r *http.Request) (params PutUploadPartParams, _ error) {
+	q := uri.NewQueryDecoder(r.URL.Query())
 	h := uri.NewHeaderDecoder(r.Header)
 	// Decode header: Content-Length.
 	if err := func() error {
@@ -10018,6 +10031,47 @@ func decodePutUploadPartParams(args [2]string, argsEscaped bool, r *http.Request
 		return params, &ogenerrors.DecodeParamError{
 			Name: "partNo",
 			In:   "path",
+			Err:  err,
+		}
+	}
+	// Decode query: channelId.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "channelId",
+			Style:   uri.QueryStyleForm,
+			Explode: false,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotChannelIdVal int64
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToInt64(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotChannelIdVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.ChannelId.SetTo(paramsDotChannelIdVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "channelId",
+			In:   "query",
 			Err:  err,
 		}
 	}

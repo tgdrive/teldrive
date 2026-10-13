@@ -17844,6 +17844,10 @@ func (s *Server) handlePutUploadPartRequest(args [2]string, argsEscaped bool, w 
 					Name: "partNo",
 					In:   "path",
 				}: params.PartNo,
+				{
+					Name: "channelId",
+					In:   "query",
+				}: params.ChannelId,
 			},
 			Raw: r,
 		}

@@ -3149,6 +3149,21 @@ paths:
             type: integer
             format: int32
             minimum: 1
+        - name: channelId
+          in: query
+          required: false
+          description: >-
+            Store the part in this owned channel instead of the selected
+            channel.
+
+            An explicit channel never rolls over: an unknown channel returns 404
+            and a
+
+            full or unavailable channel returns 409.
+          schema:
+            type: integer
+            format: int64
+          explode: false
       responses:
         "200":
           description: The request has succeeded.
