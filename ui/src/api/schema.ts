@@ -5896,7 +5896,14 @@ export interface operations {
     };
     putUploadPart: {
         parameters: {
-            query?: never;
+            query?: {
+                /**
+                 * @description Store the part in this owned channel instead of the selected channel.
+                 *     An explicit channel never rolls over: an unknown channel returns 404 and a
+                 *     full or unavailable channel returns 409.
+                 */
+                channelId?: number;
+            };
             header: {
                 "Content-Length": components["parameters"]["UploadPartHeaders.contentLength"];
                 /** @description BLAKE3 checksum of the plaintext part. */

@@ -532,7 +532,8 @@ func (h *Handler) PutUploadPart(ctx context.Context, req gen.PutUploadPartReq, p
 	}
 	result, err := h.UploadPipeline.UploadPart(ctx, transfer.UploadPartRequest{
 		UserID: ownerID, UploadID: googleUUID(params.UploadId), PartNo: params.PartNo,
-		PlainSize: params.ContentLength, Checksum: checksum, Body: req.Data,
+		RequestedChannelID: params.ChannelId.Or(0),
+		PlainSize:          params.ContentLength, Checksum: checksum, Body: req.Data,
 	})
 	if err != nil {
 		return nil, mapServiceError(err)

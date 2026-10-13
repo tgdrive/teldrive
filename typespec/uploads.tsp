@@ -226,6 +226,14 @@ namespace Uploads {
     ...UploadPartHeaders,
     @path uploadId: Uuid,
     @path @minValue(1) partNo: int32,
+
+    /**
+     * Store the part in this owned channel instead of the selected channel.
+     * An explicit channel never rolls over: an unknown channel returns 404 and a
+     * full or unavailable channel returns 409.
+     */
+    @query channelId?: int64,
+
     @body body: bytes,
   ):
     | UploadPartStoredResponse
