@@ -18,7 +18,7 @@ telegram:
   rate-burst: 10
 ```
 
-Keep rate limiting enabled unless you have a specific reason to change it.
+Keep rate limiting enabled unless you have a specific reason to change it. The limit applies to each Telegram account separately: your user account and every bot each get their own `rate-interval`/`rate-burst` budget, so adding bots adds request capacity.
 
 ## Uploads
 
@@ -39,8 +39,8 @@ telegram:
   download-read-parallel: 4
 ```
 
-- `download-bots`: `0` uses the authenticated user; up to `32` enables configured bots for rotation.
-- `download-client-pool`: keeps authenticated download clients warm when enabled.
+- `download-bots`: `0` uses the authenticated user; up to `32` enables the first N enabled bots (by bot ID) for downloads.
+- `download-client-pool`: keeps one authenticated download client warm per download bot (or the user account) when enabled. Each download still goes to the least-loaded bot; idle warm clients do not count as load.
 - `download-read-buffers`: prefetched chunks per stream, range `1`–`256`.
 - `download-read-parallel`: concurrent chunk fetches per stream, range `1`–`32`.
 
@@ -65,7 +65,7 @@ telegram:
   bot-rotation-backend: memory
 ```
 
-Use `memory` for one instance and `database` when multiple instances must coordinate bot rotation.
+Each upload or download goes to the eligible bot with the fewest Telegram connections in use on this instance, so a busy bot is skipped while an idle one is available. When several bots are equally loaded, the rotation backend decides which goes next. Use `memory` for one instance and `database` when multiple instances must coordinate that rotation. Load is tracked per instance.
 
 ## Proxy
 

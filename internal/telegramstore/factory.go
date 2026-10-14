@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -48,11 +50,15 @@ type FactoryConfig struct {
 }
 
 // Factory creates unstarted gotd clients. Each caller must execute the client
-// with Client.Run for exactly one request-scoped operation.
+// with Client.Run for exactly one request-scoped operation. Rate limiting is
+// applied per Telegram account, so adding bots adds request budget.
 type Factory struct {
 	config     FactoryConfig
 	resolver   dcs.Resolver
 	middleware []telegram.Middleware
+
+	limitersMu sync.Mutex
+	limiters   map[int64]*ratelimit.RateLimiter
 }
 
 func NewFactory(config FactoryConfig) (*Factory, error) {
@@ -85,14 +91,14 @@ func NewFactory(config FactoryConfig) (*Factory, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrTelegramConfiguration, err)
 	}
-	middlewares := []telegram.Middleware{floodwait.NewSimpleWaiter(), retry}
-	if config.RateLimit {
-		if config.RateInterval <= 0 || config.RateBurst < 1 {
-			return nil, fmt.Errorf("%w: rate interval and burst must be positive", ErrTelegramConfiguration)
-		}
-		middlewares = append(middlewares, ratelimit.New(rate.Every(config.RateInterval), config.RateBurst))
+	if config.RateLimit && (config.RateInterval <= 0 || config.RateBurst < 1) {
+		return nil, fmt.Errorf("%w: rate interval and burst must be positive", ErrTelegramConfiguration)
 	}
-	return &Factory{config: config, resolver: resolver, middleware: middlewares}, nil
+	return &Factory{
+		config: config, resolver: resolver,
+		middleware: []telegram.Middleware{floodwait.NewSimpleWaiter(), retry},
+		limiters:   make(map[int64]*ratelimit.RateLimiter),
+	}, nil
 }
 
 func resolverFromConfig(config FactoryConfig) (dcs.Resolver, error) {
@@ -143,30 +149,72 @@ func resolverFromConfig(config FactoryConfig) (dcs.Resolver, error) {
 	return dcs.Plain(dcs.PlainOptions{Dial: dialer.DialContext}), nil
 }
 
+// New creates a client that is not bound to a known Telegram account, such as
+// a login or token verification client. It gets its own rate-limit budget.
 func (f *Factory) New(storage telegram.SessionStorage) (*telegram.Client, error) {
-	return f.newClient(storage, nil)
+	return f.newClient(storage, 0, nil)
+}
+
+// NewForAccount creates a client for an existing Telegram user or bot account.
+// All clients and connection pools for the same account share one rate-limit
+// budget, because Telegram enforces flood limits per account.
+func (f *Factory) NewForAccount(storage telegram.SessionStorage, accountID int64) (*telegram.Client, error) {
+	if accountID <= 0 {
+		return nil, ErrTelegramConfiguration
+	}
+	return f.newClient(storage, accountID, nil)
 }
 
 func (f *Factory) NewWithUpdates(storage telegram.SessionStorage, handler telegram.UpdateHandler) (*telegram.Client, error) {
 	if handler == nil {
 		return nil, ErrTelegramConfiguration
 	}
-	return f.newClient(storage, handler)
+	return f.newClient(storage, 0, handler)
 }
 
-func (f *Factory) PooledAPI(client *telegram.Client, size int) (*tg.Client, func() error, error) {
-	if f == nil || client == nil || size < 1 {
+// PooledAPI opens size connections on client and charges their requests to the
+// rate-limit budget of accountID.
+func (f *Factory) PooledAPI(client *telegram.Client, accountID int64, size int) (*tg.Client, func() error, error) {
+	if f == nil || client == nil || accountID <= 0 || size < 1 {
 		return nil, nil, ErrTelegramConfiguration
 	}
 	invoker, err := client.Pool(int64(size))
 	if err != nil {
 		return nil, nil, fmt.Errorf("create Telegram connection pool: %w", err)
 	}
-	var wrapped tg.Invoker = invoker
-	for i := len(f.middleware) - 1; i >= 0; i-- {
-		wrapped = f.middleware[i].Handle(wrapped)
+	return tg.NewClient(f.wrapInvoker(accountID, invoker)), invoker.Close, nil
+}
+
+// accountMiddleware returns a fresh invoke middleware chain for one Telegram
+// account. A positive accountID shares its limiter with every other client of
+// that account; zero gets a limiter of its own.
+func (f *Factory) accountMiddleware(accountID int64) []telegram.Middleware {
+	if !f.config.RateLimit {
+		return slices.Clone(f.middleware)
 	}
-	return tg.NewClient(wrapped), invoker.Close, nil
+	if accountID <= 0 {
+		return append(slices.Clip(f.middleware), f.newLimiter())
+	}
+	f.limitersMu.Lock()
+	limiter, ok := f.limiters[accountID]
+	if !ok {
+		limiter = f.newLimiter()
+		f.limiters[accountID] = limiter
+	}
+	f.limitersMu.Unlock()
+	return append(slices.Clip(f.middleware), limiter)
+}
+
+func (f *Factory) newLimiter() *ratelimit.RateLimiter {
+	return ratelimit.New(rate.Every(f.config.RateInterval), f.config.RateBurst)
+}
+
+func (f *Factory) wrapInvoker(accountID int64, invoker tg.Invoker) tg.Invoker {
+	middleware := f.accountMiddleware(accountID)
+	for i := len(middleware) - 1; i >= 0; i-- {
+		invoker = middleware[i].Handle(invoker)
+	}
+	return invoker
 }
 
 func (f *Factory) AppCredentials() (int, string, bool) {
@@ -175,7 +223,7 @@ func (f *Factory) AppCredentials() (int, string, bool) {
 	}
 	return f.config.AppID, f.config.AppHash, true
 }
-func (f *Factory) newClient(storage telegram.SessionStorage, handler telegram.UpdateHandler) (*telegram.Client, error) {
+func (f *Factory) newClient(storage telegram.SessionStorage, accountID int64, handler telegram.UpdateHandler) (*telegram.Client, error) {
 	if f == nil || f.config.AppID <= 0 || f.config.AppHash == "" || storage == nil {
 		return nil, ErrTelegramConfiguration
 	}
@@ -187,7 +235,7 @@ func (f *Factory) newClient(storage telegram.SessionStorage, handler telegram.Up
 		MaxRetries:     f.config.MaxRetries,
 		Device:         f.config.Device,
 		Resolver:       f.resolver,
-		Middlewares:    append([]telegram.Middleware(nil), f.middleware...),
+		Middlewares:    f.accountMiddleware(accountID),
 		Logger:         f.config.Logger,
 		RetryInterval:  2 * time.Second,
 		ReconnectionBackoff: func() backoff.BackOff {
@@ -237,7 +285,7 @@ func (p *DatabaseClientProvider) Client(ctx context.Context, userID int64, _ Ope
 	storage := &databaseSessionStorage{
 		queries: p.queries, cipher: p.cipher, sessionID: stored.ID, userID: userID,
 	}
-	return p.factory.New(storage)
+	return p.factory.NewForAccount(storage, userID)
 }
 
 type databaseSessionStorage struct {

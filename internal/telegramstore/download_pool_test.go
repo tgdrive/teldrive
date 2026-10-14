@@ -2,6 +2,7 @@ package telegramstore
 
 import (
 	"context"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -9,22 +10,79 @@ import (
 	"github.com/gotd/td/tg"
 )
 
-type backgroundRunnerStub struct {
+// accountLeaserStub leases accounts in rotation and runs a background client
+// per RunPooled call until its context ends.
+type accountLeaserStub struct {
+	accounts []int64
+
+	mu          sync.Mutex
+	next        int
+	active      map[int64]int
+	leased      []int
+	connections []int
+
 	runs  atomic.Int32
 	exits atomic.Int32
 }
 
-func (r *backgroundRunnerStub) Run(ctx context.Context, _ int64, operation Operation, fn func(context.Context, *tg.Client) error) error {
-	if operation != OperationDownload {
-		return ErrInvalidRequest
+func newAccountLeaserStub(accounts ...int64) *accountLeaserStub {
+	if len(accounts) == 0 {
+		accounts = []int64{1}
 	}
-	r.runs.Add(1)
-	defer r.exits.Add(1)
+	return &accountLeaserStub{accounts: accounts, active: make(map[int64]int)}
+}
+
+func (r *accountLeaserStub) Run(ctx context.Context, _ int64, _ Operation, fn func(context.Context, *tg.Client) error) error {
 	return fn(ctx, new(tg.Client))
 }
 
+func (r *accountLeaserStub) LeaseAccount(_ context.Context, _ int64, operation Operation, connections int) (AccountLease, error) {
+	if operation != OperationDownload {
+		return nil, ErrInvalidRequest
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	account := r.accounts[r.next%len(r.accounts)]
+	r.next++
+	r.active[account] += connections
+	r.leased = append(r.leased, connections)
+	return &accountLeaseStub{leaser: r, account: account, connections: connections}, nil
+}
+
+func (r *accountLeaserStub) activeLoad(account int64) int {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.active[account]
+}
+
+type accountLeaseStub struct {
+	leaser      *accountLeaserStub
+	account     int64
+	connections int
+	release     sync.Once
+}
+
+func (l *accountLeaseStub) AccountID() int64 { return l.account }
+
+func (l *accountLeaseStub) RunPooled(ctx context.Context, connections int, fn func(context.Context, *tg.Client) error) error {
+	l.leaser.mu.Lock()
+	l.leaser.connections = append(l.leaser.connections, connections)
+	l.leaser.mu.Unlock()
+	l.leaser.runs.Add(1)
+	defer l.leaser.exits.Add(1)
+	return fn(WithClientID(ctx, l.account), new(tg.Client))
+}
+
+func (l *accountLeaseStub) Release() {
+	l.release.Do(func() {
+		l.leaser.mu.Lock()
+		l.leaser.active[l.account] -= l.connections
+		l.leaser.mu.Unlock()
+	})
+}
+
 func TestDownloadClientPoolReusesReleasedClientAfterRequestCancellation(t *testing.T) {
-	runner := &backgroundRunnerStub{}
+	runner := newAccountLeaserStub()
 	pool := newTestDownloadClientPool(t, runner, DownloadClientPoolConfig{})
 	storage := NewGotdStorage(runner, nil, WithDownloadClientPool(pool))
 
@@ -53,9 +111,39 @@ func TestDownloadClientPoolReusesReleasedClientAfterRequestCancellation(t *testi
 	}
 }
 
+func TestDownloadClientPoolCountsOnlyOpenSessionsAsAccountLoad(t *testing.T) {
+	runner := newAccountLeaserStub(1)
+	pool := newTestDownloadClientPool(t, runner, DownloadClientPoolConfig{ReadParallel: 4})
+
+	first, err := pool.OpenDownloadSession(context.Background(), 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := pool.OpenDownloadSession(context.Background(), 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := runner.activeLoad(1); got != 8 {
+		t.Fatalf("account load with two open sessions = %d, want 8", got)
+	}
+	_ = first.Close()
+	_ = first.Close()
+	if got := runner.activeLoad(1); got != 4 {
+		t.Fatalf("account load after closing one session twice = %d, want 4", got)
+	}
+	_ = second.Close()
+	if got := runner.activeLoad(1); got != 0 {
+		t.Fatalf("account load with only an idle warm client = %d, want 0", got)
+	}
+	if running := runner.runs.Load() - runner.exits.Load(); running != 1 {
+		t.Fatalf("running warm clients = %d, want 1", running)
+	}
+	closeDownloadClientPool(t, pool)
+}
+
 func TestDownloadClientPoolSharesBackgroundClientAcrossConcurrentSessions(t *testing.T) {
-	runner := &backgroundRunnerStub{}
-	pool := newTestDownloadClientPool(t, runner, DownloadClientPoolConfig{Clients: 1})
+	runner := newAccountLeaserStub()
+	pool := newTestDownloadClientPool(t, runner, DownloadClientPoolConfig{})
 
 	first, err := pool.OpenDownloadSession(context.Background(), 7)
 	if err != nil {
@@ -84,42 +172,43 @@ func TestDownloadClientPoolSharesBackgroundClientAcrossConcurrentSessions(t *tes
 	closeDownloadClientPool(t, pool)
 }
 
-func TestDownloadClientPoolRotatesAcrossBackgroundClients(t *testing.T) {
-	runner := &backgroundRunnerStub{}
-	pool := newTestDownloadClientPool(t, runner, DownloadClientPoolConfig{Clients: 2})
+func TestDownloadClientPoolKeepsOneClientPerLeasedAccount(t *testing.T) {
+	runner := newAccountLeaserStub(101, 102)
+	pool := newTestDownloadClientPool(t, runner, DownloadClientPoolConfig{})
 
-	first, err := pool.OpenDownloadSession(context.Background(), 9)
-	if err != nil {
-		t.Fatal(err)
-	}
-	second, err := pool.OpenDownloadSession(context.Background(), 9)
-	if err != nil {
-		t.Fatal(err)
-	}
-	third, err := pool.OpenDownloadSession(context.Background(), 9)
-	if err != nil {
-		t.Fatal(err)
+	var sessions []*gotdDownloadSession
+	for range 3 {
+		session, err := pool.OpenDownloadSession(context.Background(), 9)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sessions = append(sessions, session.(*gotdDownloadSession))
 	}
 	if got := runner.runs.Load(); got != 2 {
 		t.Fatalf("runner starts = %d, want 2 background clients", got)
 	}
-	firstClient, _ := first.(*gotdDownloadSession).client()
-	secondClient, _ := second.(*gotdDownloadSession).client()
-	thirdClient, _ := third.(*gotdDownloadSession).client()
+	for i, want := range []int64{101, 102, 101} {
+		if got := sessions[i].clientID; got != want {
+			t.Fatalf("session %d client ID = %d, want leased account %d", i, got, want)
+		}
+	}
+	firstClient, _ := sessions[0].client()
+	secondClient, _ := sessions[1].client()
+	thirdClient, _ := sessions[2].client()
 	if firstClient == secondClient {
-		t.Fatal("adjacent sessions were not rotated across background clients")
+		t.Fatal("different accounts share one background client")
 	}
 	if thirdClient != firstClient {
-		t.Fatal("rotation did not wrap back to the first background client")
+		t.Fatal("same account did not reuse its background client")
 	}
-	_ = first.Close()
-	_ = second.Close()
-	_ = third.Close()
+	for _, session := range sessions {
+		_ = session.Close()
+	}
 	closeDownloadClientPool(t, pool)
 }
 
 func TestDownloadClientPoolReapsIdleClient(t *testing.T) {
-	runner := &backgroundRunnerStub{}
+	runner := newAccountLeaserStub(1)
 	pool := newTestDownloadClientPool(t, runner, DownloadClientPoolConfig{})
 	first, err := pool.OpenDownloadSession(context.Background(), 10)
 	if err != nil {
@@ -128,24 +217,17 @@ func TestDownloadClientPoolReapsIdleClient(t *testing.T) {
 	_ = first.Close()
 
 	pool.mu.Lock()
-	entry := pool.entries[10][0]
-	entry.lastUsed = time.Now().Add(-defaultDownloadClientIdleTimeout)
+	pool.entries[downloadClientKey{userID: 10, accountID: 1}].lastUsed = time.Now().Add(-defaultDownloadClientIdleTimeout)
 	pool.mu.Unlock()
 	pool.reapIdle(time.Now())
 
-	deadline := time.Now().Add(time.Second)
-	for runner.exits.Load() == 0 && time.Now().Before(deadline) {
-		time.Sleep(5 * time.Millisecond)
-	}
-	if runner.exits.Load() != 1 {
-		t.Fatal("idle client was not reaped")
-	}
+	waitForExits(t, runner, 1)
 	closeDownloadClientPool(t, pool)
 }
 
-func TestDownloadClientPoolRestartsOnlySelectedStoppedSlot(t *testing.T) {
-	runner := &backgroundRunnerStub{}
-	pool := newTestDownloadClientPool(t, runner, DownloadClientPoolConfig{Clients: 2})
+func TestDownloadClientPoolRestartsOnlyStoppedAccountClient(t *testing.T) {
+	runner := newAccountLeaserStub(1, 2)
+	pool := newTestDownloadClientPool(t, runner, DownloadClientPoolConfig{})
 
 	first, err := pool.OpenDownloadSession(context.Background(), 11)
 	if err != nil {
@@ -160,24 +242,17 @@ func TestDownloadClientPoolRestartsOnlySelectedStoppedSlot(t *testing.T) {
 	_ = second.Close()
 
 	pool.mu.Lock()
-	pool.entries[11][0].lastUsed = time.Now().Add(-defaultDownloadClientIdleTimeout)
+	pool.entries[downloadClientKey{userID: 11, accountID: 1}].lastUsed = time.Now().Add(-defaultDownloadClientIdleTimeout)
 	pool.mu.Unlock()
 	pool.reapIdle(time.Now())
-
-	deadline := time.Now().Add(time.Second)
-	for runner.exits.Load() < 1 && time.Now().Before(deadline) {
-		time.Sleep(5 * time.Millisecond)
-	}
-	if runner.exits.Load() != 1 {
-		t.Fatalf("runner exits = %d, want only stopped slot to exit", runner.exits.Load())
-	}
+	waitForExits(t, runner, 1)
 
 	third, err := pool.OpenDownloadSession(context.Background(), 11)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if got := runner.runs.Load(); got != 3 {
-		t.Fatalf("runner starts = %d, want one lazy slot restart", got)
+		t.Fatalf("runner starts = %d, want one lazy restart for account 1", got)
 	}
 	_ = third.Close()
 
@@ -190,21 +265,24 @@ func TestDownloadClientPoolRestartsOnlySelectedStoppedSlot(t *testing.T) {
 		t.Fatal("healthy background client was restarted instead of reused")
 	}
 	if got := runner.runs.Load(); got != 3 {
-		t.Fatalf("runner starts = %d, healthy slot should not restart", got)
+		t.Fatalf("runner starts = %d, healthy client should not restart", got)
 	}
 	_ = fourth.Close()
 	closeDownloadClientPool(t, pool)
 }
 
 func TestDownloadClientPoolUsesConfiguredConnections(t *testing.T) {
-	runner := &recordingPooledRunner{}
+	runner := newAccountLeaserStub()
 	pool := newTestDownloadClientPool(t, runner, DownloadClientPoolConfig{ReadParallel: 8})
 	session, err := pool.OpenDownloadSession(context.Background(), 42)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if runner.pooledCalls != 1 || runner.regularCalls != 0 || runner.connections != 8 {
-		t.Fatalf("runner calls = pooled:%d regular:%d connections:%d", runner.pooledCalls, runner.regularCalls, runner.connections)
+	runner.mu.Lock()
+	leased, connections := runner.leased, runner.connections
+	runner.mu.Unlock()
+	if len(leased) != 1 || leased[0] != 8 || len(connections) != 1 || connections[0] != 8 {
+		t.Fatalf("leased connections = %v, client connections = %v, want [8] and [8]", leased, connections)
 	}
 	if err := session.Close(); err != nil {
 		t.Fatal(err)
@@ -212,13 +290,24 @@ func TestDownloadClientPoolUsesConfiguredConnections(t *testing.T) {
 	closeDownloadClientPool(t, pool)
 }
 
-func newTestDownloadClientPool(t *testing.T, runner Runner, config DownloadClientPoolConfig) *DownloadClientPool {
+func newTestDownloadClientPool(t *testing.T, leaser AccountLeaser, config DownloadClientPoolConfig) *DownloadClientPool {
 	t.Helper()
-	pool, err := NewDownloadClientPool(runner, config, nil)
+	pool, err := NewDownloadClientPool(leaser, config, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return pool
+}
+
+func waitForExits(t *testing.T, runner *accountLeaserStub, want int32) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for runner.exits.Load() < want && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	if got := runner.exits.Load(); got != want {
+		t.Fatalf("runner exits = %d, want %d", got, want)
+	}
 }
 
 func closeDownloadClientPool(t *testing.T, pool *DownloadClientPool) {

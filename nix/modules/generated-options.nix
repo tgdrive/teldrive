@@ -162,17 +162,17 @@
     "rate-limit" = lib.mkOption {
       type = lib.types.nullOr (lib.types.bool);
       default = null;
-      description = "Enable Telegram API request rate limiting (Default: true)";
+      description = "Enable Telegram API request rate limiting per Telegram account (user or bot) (Default: true)";
     };
     "rate-interval" = lib.mkOption {
       type = lib.types.nullOr (lib.types.str);
       default = null;
-      description = "Minimum interval between Telegram API requests (Default: 50ms) [validate: gt=0]";
+      description = "Minimum interval between Telegram API requests per Telegram account (Default: 50ms) [validate: gt=0]";
     };
     "rate-burst" = lib.mkOption {
       type = lib.types.nullOr (lib.types.int);
       default = null;
-      description = "Telegram API request burst allowance (Default: 10) [validate: gt=0]";
+      description = "Telegram API request burst allowance per Telegram account (Default: 10) [validate: gt=0]";
     };
     "proxy" = lib.mkOption {
       type = lib.types.nullOr (lib.types.str);

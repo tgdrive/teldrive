@@ -155,11 +155,11 @@ Defaults are runtime values, not production recommendations.
 
 <ConfigOption name={"telegram.randomize-part-names"} flag={"--telegram-randomize-part-names"} env={"TELDRIVE_TELEGRAM_RANDOMIZE_PART_NAMES"} defaultValue={"true"} description={"Randomize Telegram document names"} />
 
-<ConfigOption name={"telegram.rate-burst"} flag={"--telegram-rate-burst"} env={"TELDRIVE_TELEGRAM_RATE_BURST"} defaultValue={"10"} description={"Telegram API request burst allowance"} />
+<ConfigOption name={"telegram.rate-burst"} flag={"--telegram-rate-burst"} env={"TELDRIVE_TELEGRAM_RATE_BURST"} defaultValue={"10"} description={"Telegram API request burst allowance per Telegram account"} />
 
-<ConfigOption name={"telegram.rate-interval"} flag={"--telegram-rate-interval"} env={"TELDRIVE_TELEGRAM_RATE_INTERVAL"} defaultValue={"50ms"} description={"Minimum interval between Telegram API requests"} />
+<ConfigOption name={"telegram.rate-interval"} flag={"--telegram-rate-interval"} env={"TELDRIVE_TELEGRAM_RATE_INTERVAL"} defaultValue={"50ms"} description={"Minimum interval between Telegram API requests per Telegram account"} />
 
-<ConfigOption name={"telegram.rate-limit"} flag={"--telegram-rate-limit"} env={"TELDRIVE_TELEGRAM_RATE_LIMIT"} defaultValue={"true"} description={"Enable Telegram API request rate limiting"} />
+<ConfigOption name={"telegram.rate-limit"} flag={"--telegram-rate-limit"} env={"TELDRIVE_TELEGRAM_RATE_LIMIT"} defaultValue={"true"} description={"Enable Telegram API request rate limiting per Telegram account (user or bot)"} />
 
 <ConfigOption name={"telegram.reconnect-timeout"} flag={"--telegram-reconnect-timeout"} env={"TELDRIVE_TELEGRAM_RECONNECT_TIMEOUT"} defaultValue={"5m0s"} description={"Maximum Telegram reconnect backoff duration"} />
 
