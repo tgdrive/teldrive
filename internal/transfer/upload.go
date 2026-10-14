@@ -187,7 +187,7 @@ func (p *Pipeline) UploadPart(ctx context.Context, request UploadPartRequest) (*
 	stored, err := p.storage.Upload(uploadCtx, telegramstore.UploadRequest{
 		UserID:    request.UserID,
 		ChannelID: channelID,
-		Name:      p.partName(session.Name, request.PartNo),
+		Name:      p.partName(session, request.PartNo),
 		Reader:    storedReader,
 		Size:      storedSize,
 		Threads:   p.config.UploadThreads,
@@ -314,9 +314,15 @@ func (p *Pipeline) deleteUploaded(ctx context.Context, userID int64, part telegr
 	return nil
 }
 
-func (p *Pipeline) partName(fileName string, partNo int32) string {
+// partName returns the Telegram document name for a part. Uploads whose known
+// size fits in a single part keep the original file name; unknown-size uploads
+// cannot know the final part count, so they always use the numbered suffix.
+func (p *Pipeline) partName(session *sqlcgen.UploadSession, partNo int32) string {
 	if !p.config.RandomizePartNames {
-		return fmt.Sprintf("%s.%03d", fileName, partNo)
+		if partNo == 1 && session.ExpectedSize > 0 && session.ExpectedSize <= session.PartSize {
+			return session.Name
+		}
+		return fmt.Sprintf("%s.%03d", session.Name, partNo)
 	}
 	digest := sha256.Sum256([]byte(uuid.NewString()))
 	return hex.EncodeToString(digest[:])
