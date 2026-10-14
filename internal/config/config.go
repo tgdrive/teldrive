@@ -47,9 +47,9 @@ type Telegram struct {
 	DialTimeout          time.Duration   `koanf:"dial-timeout" default:"10s" validate:"gt=0" description:"Telegram connection timeout"`
 	ReconnectTimeout     time.Duration   `koanf:"reconnect-timeout" default:"5m" validate:"gt=0" description:"Maximum Telegram reconnect backoff duration"`
 	MaxRetries           int             `koanf:"max-retries" default:"10" validate:"gte=0" description:"Maximum Telegram transport retry attempts"`
-	RateLimit            bool            `koanf:"rate-limit" default:"true" description:"Enable Telegram API request rate limiting"`
-	RateInterval         time.Duration   `koanf:"rate-interval" default:"50ms" validate:"gt=0" description:"Minimum interval between Telegram API requests"`
-	RateBurst            int             `koanf:"rate-burst" default:"10" validate:"gt=0" description:"Telegram API request burst allowance"`
+	RateLimit            bool            `koanf:"rate-limit" default:"true" description:"Enable Telegram API request rate limiting per Telegram account (user or bot)"`
+	RateInterval         time.Duration   `koanf:"rate-interval" default:"50ms" validate:"gt=0" description:"Minimum interval between Telegram API requests per Telegram account"`
+	RateBurst            int             `koanf:"rate-burst" default:"10" validate:"gt=0" description:"Telegram API request burst allowance per Telegram account"`
 	Proxy                string          `koanf:"proxy" default:"" description:"HTTP, HTTPS, or SOCKS5 proxy URL"`
 	MTProxy              TelegramMTProxy `koanf:"mtproxy"`
 	ClientLogging        bool            `koanf:"client-logging" default:"false" description:"Enable verbose gotd Telegram client logs through the application logger"`

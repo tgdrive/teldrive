@@ -94,7 +94,7 @@ func (r ClientRunner) run(ctx context.Context, userID int64, operation Operation
 			if r.Factory == nil {
 				return ErrTelegramConfiguration
 			}
-			pooled, closePool, err := r.Factory.PooledAPI(client, connections)
+			pooled, closePool, err := r.Factory.PooledAPI(client, status.User.ID, connections)
 			if err != nil {
 				return err
 			}
