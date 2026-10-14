@@ -150,6 +150,21 @@ WHERE user_id = sqlc.arg(user_id)
   AND (retry_after IS NULL OR retry_after <= now())
 ORDER BY bot_id;
 
+-- Downloads use the first N enabled bots; a bot that is backing off leaves a
+-- gap instead of letting a bot beyond N take its place.
+-- name: ListDownloadEligibleBots :many
+SELECT download_bot.*
+FROM (
+    SELECT *
+    FROM /* TEMPLATE: schema */bots
+    WHERE user_id = sqlc.arg(user_id)
+      AND enabled
+    ORDER BY bot_id
+    LIMIT sqlc.arg(download_bots)::int
+) AS download_bot
+WHERE download_bot.retry_after IS NULL OR download_bot.retry_after <= now()
+ORDER BY download_bot.bot_id;
+
 -- name: NextBotSelectionValue :one
 INSERT INTO /* TEMPLATE: schema */bot_selection_counters (
     user_id,
@@ -241,11 +256,21 @@ SET consecutive_failures = 0,
 WHERE user_id = sqlc.arg(user_id)
   AND bot_id = sqlc.arg(bot_id);
 
--- name: MarkBotUploadFailure :execrows
+-- name: MarkBotFailure :execrows
 UPDATE /* TEMPLATE: schema */bots
 SET consecutive_failures = consecutive_failures + 1,
     last_error = left(sqlc.arg(last_error), 1000),
     retry_after = now() + interval '30 seconds',
+    updated_at = now()
+WHERE user_id = sqlc.arg(user_id)
+  AND bot_id = sqlc.arg(bot_id);
+
+-- name: MarkBotTokenRevoked :execrows
+UPDATE /* TEMPLATE: schema */bots
+SET enabled = FALSE,
+    consecutive_failures = consecutive_failures + 1,
+    last_error = left(sqlc.arg(last_error), 1000),
+    retry_after = NULL,
     updated_at = now()
 WHERE user_id = sqlc.arg(user_id)
   AND bot_id = sqlc.arg(bot_id);

@@ -95,6 +95,9 @@ type Querier interface {
 	ListChannels(ctx context.Context, arg ListChannelsParams) ([]*Channel, error)
 	ListChannelsForOrphanCleanup(ctx context.Context) ([]*Channel, error)
 	ListDeletionPendingRoots(ctx context.Context) ([]*ListDeletionPendingRootsRow, error)
+	// Downloads use the first N enabled bots; a bot that is backing off leaves a
+	// gap instead of letting a bot beyond N take its place.
+	ListDownloadEligibleBots(ctx context.Context, arg ListDownloadEligibleBotsParams) ([]*Bot, error)
 	ListEnabledBots(ctx context.Context, userID int64) ([]*Bot, error)
 	ListFileAccessGrantsForOwner(ctx context.Context, arg ListFileAccessGrantsForOwnerParams) ([]*ListFileAccessGrantsForOwnerRow, error)
 	ListFileAncestorIDs(ctx context.Context, arg ListFileAncestorIDsParams) ([]pgtype.UUID, error)
@@ -135,8 +138,9 @@ type Querier interface {
 	LockUploadSessionForCompletion(ctx context.Context, arg LockUploadSessionForCompletionParams) (*UploadSession, error)
 	MarkActiveFileDeletionPendingForReplace(ctx context.Context, arg MarkActiveFileDeletionPendingForReplaceParams) (int64, error)
 	MarkAllTrashedDeletionPending(ctx context.Context, userID int64) (int64, error)
+	MarkBotFailure(ctx context.Context, arg MarkBotFailureParams) (int64, error)
 	MarkBotProvisionFailure(ctx context.Context, arg MarkBotProvisionFailureParams) (int64, error)
-	MarkBotUploadFailure(ctx context.Context, arg MarkBotUploadFailureParams) (int64, error)
+	MarkBotTokenRevoked(ctx context.Context, arg MarkBotTokenRevokedParams) (int64, error)
 	MarkBotUploadSuccess(ctx context.Context, arg MarkBotUploadSuccessParams) (int64, error)
 	MarkFileDeletionPending(ctx context.Context, arg MarkFileDeletionPendingParams) (*File, error)
 	MarkFileIDsDeletionPending(ctx context.Context, arg MarkFileIDsDeletionPendingParams) error

@@ -152,24 +152,25 @@ func resolverFromConfig(config FactoryConfig) (dcs.Resolver, error) {
 // New creates a client that is not bound to a known Telegram account, such as
 // a login or token verification client. It gets its own rate-limit budget.
 func (f *Factory) New(storage telegram.SessionStorage) (*telegram.Client, error) {
-	return f.newClient(storage, 0, nil)
+	return f.newClient(storage, 0, nil, nil)
 }
 
 // NewForAccount creates a client for an existing Telegram user or bot account.
 // All clients and connection pools for the same account share one rate-limit
-// budget, because Telegram enforces flood limits per account.
-func (f *Factory) NewForAccount(storage telegram.SessionStorage, accountID int64) (*telegram.Client, error) {
+// budget, because Telegram enforces flood limits per account. A non-nil
+// onConnectionState observes the primary connection; it must not block.
+func (f *Factory) NewForAccount(storage telegram.SessionStorage, accountID int64, onConnectionState func(telegram.ConnectionState)) (*telegram.Client, error) {
 	if accountID <= 0 {
 		return nil, ErrTelegramConfiguration
 	}
-	return f.newClient(storage, accountID, nil)
+	return f.newClient(storage, accountID, nil, onConnectionState)
 }
 
 func (f *Factory) NewWithUpdates(storage telegram.SessionStorage, handler telegram.UpdateHandler) (*telegram.Client, error) {
 	if handler == nil {
 		return nil, ErrTelegramConfiguration
 	}
-	return f.newClient(storage, 0, handler)
+	return f.newClient(storage, 0, handler, nil)
 }
 
 // PooledAPI opens size connections on client and charges their requests to the
@@ -223,7 +224,7 @@ func (f *Factory) AppCredentials() (int, string, bool) {
 	}
 	return f.config.AppID, f.config.AppHash, true
 }
-func (f *Factory) newClient(storage telegram.SessionStorage, accountID int64, handler telegram.UpdateHandler) (*telegram.Client, error) {
+func (f *Factory) newClient(storage telegram.SessionStorage, accountID int64, handler telegram.UpdateHandler, onConnectionState func(telegram.ConnectionState)) (*telegram.Client, error) {
 	if f == nil || f.config.AppID <= 0 || f.config.AppHash == "" || storage == nil {
 		return nil, ErrTelegramConfiguration
 	}
@@ -245,6 +246,7 @@ func (f *Factory) newClient(storage telegram.SessionStorage, accountID int64, ha
 			value.MaxInterval = 10 * time.Second
 			return value
 		},
+		OnConnectionState: onConnectionState,
 	}
 	return telegram.NewClient(f.config.AppID, f.config.AppHash, options), nil
 }
@@ -285,7 +287,7 @@ func (p *DatabaseClientProvider) Client(ctx context.Context, userID int64, _ Ope
 	storage := &databaseSessionStorage{
 		queries: p.queries, cipher: p.cipher, sessionID: stored.ID, userID: userID,
 	}
-	return p.factory.NewForAccount(storage, userID)
+	return p.factory.NewForAccount(storage, userID, nil)
 }
 
 type databaseSessionStorage struct {

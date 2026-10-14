@@ -5,8 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 
+	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/tg"
+	"github.com/gotd/td/tgerr"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/tgdrive/teldrive/v2/internal/db/sqlcgen"
@@ -15,6 +18,18 @@ import (
 )
 
 var ErrUploadRunnerConfiguration = errors.New("upload-aware Telegram runner is not configured")
+
+// revokedBotTokenErrors are the RPC errors with which Telegram rejects a bot
+// token that was revoked or deleted in BotFather. No retry can succeed until
+// the bot is re-added with a new token, so the bot is disabled. Stale-session
+// errors such as AUTH_KEY_UNREGISTERED are not listed: runBot treats them as an
+// unauthorized session and re-imports the token. SESSION_REVOKED,
+// USER_DEACTIVATED and similar errors concern user-account logins.
+var revokedBotTokenErrors = []string{"ACCESS_TOKEN_EXPIRED", "ACCESS_TOKEN_INVALID"}
+
+// errBotUnreachable reports that a download bot's first connection attempt
+// failed before the bot was ready.
+var errBotUnreachable = errors.New("could not connect to Telegram")
 
 // UploadAwareRunner executes uploads and optionally downloads through an enabled
 // bot. Each call goes to the eligible bot with the fewest Telegram connections
@@ -68,26 +83,73 @@ func (r *UploadAwareRunner) run(ctx context.Context, userID int64, operation tel
 	if fn == nil {
 		return ErrUploadRunnerConfiguration
 	}
-	bot, err := r.acquireBot(ctx, userID, operation, connections)
-	if err != nil {
-		return err
-	}
-	if bot == nil {
-		return r.runFallback(ctx, userID, operation, connections, fn)
-	}
-	defer r.load.release(bot.BotID, connections)
-	if err := r.runOnBot(ctx, userID, bot, connections, fn); err != nil {
-		if operation == telegramstore.OperationUpload {
-			_, _ = r.queries.MarkBotUploadFailure(ctx, sqlcgen.MarkBotUploadFailureParams{
-				UserID: userID, BotID: bot.BotID, LastError: err.Error(),
-			})
+	for {
+		bot, err := r.acquireBot(ctx, userID, operation, connections)
+		if err != nil {
+			return err
 		}
-		return fmt.Errorf("%s with bot %d: %w", operation, bot.BotID, err)
+		if bot == nil {
+			return r.runFallback(ctx, userID, operation, connections, fn)
+		}
+		started, err := r.runAcquired(ctx, userID, operation, bot, connections, fn)
+		// A revoked bot is disabled and no longer eligible. Retrying on the
+		// next bot is safe only while fn has not run on the revoked one.
+		if started || !errors.Is(err, telegramstore.ErrAccountRevoked) {
+			return err
+		}
+	}
+}
+
+func (r *UploadAwareRunner) runAcquired(ctx context.Context, userID int64, operation telegramstore.Operation, bot *sqlcgen.Bot, connections int, fn func(context.Context, *tg.Client) error) (bool, error) {
+	defer r.load.release(bot.BotID, connections)
+	started, err := r.runOnBotRecorded(ctx, userID, operation, bot, connections, fn)
+	if err != nil {
+		return started, err
 	}
 	if operation == telegramstore.OperationUpload {
 		_, _ = r.queries.MarkBotUploadSuccess(ctx, sqlcgen.MarkBotUploadSuccessParams{UserID: userID, BotID: bot.BotID})
 	}
-	return nil
+	return true, nil
+}
+
+// runOnBotRecorded runs fn on bot, records any failure against the bot, and
+// reports whether fn started.
+func (r *UploadAwareRunner) runOnBotRecorded(ctx context.Context, userID int64, operation telegramstore.Operation, bot *sqlcgen.Bot, connections int, fn func(context.Context, *tg.Client) error) (bool, error) {
+	started := false
+	err := r.runOnBot(ctx, userID, operation, bot, connections, func(runCtx context.Context, api *tg.Client) error {
+		started = true
+		return fn(runCtx, api)
+	})
+	if err != nil {
+		err = fmt.Errorf("%s with bot %d: %w", operation, bot.BotID, r.recordBotFailure(ctx, userID, operation, bot.BotID, started, err))
+	}
+	return started, err
+}
+
+// recordBotFailure disables a bot whose token Telegram revoked and returns err
+// wrapped with telegramstore.ErrAccountRevoked. Other failures that point at
+// the bot back it off briefly, since they may succeed on a later attempt:
+// every upload failure, and download failures where the bot could not connect
+// or authenticate. Downloads that fail once fn runs usually fail on any bot
+// (expired file reference, deleted message), and a done ctx means the caller
+// gave up, so neither says anything about the bot unless a connection attempt
+// had already failed.
+func (r *UploadAwareRunner) recordBotFailure(ctx context.Context, userID int64, operation telegramstore.Operation, botID int64, started bool, err error) error {
+	if tgerr.Is(err, revokedBotTokenErrors...) {
+		if _, disableErr := r.queries.MarkBotTokenRevoked(ctx, sqlcgen.MarkBotTokenRevokedParams{
+			UserID: userID, BotID: botID, LastError: err.Error(),
+		}); disableErr != nil {
+			return errors.Join(err, fmt.Errorf("disable revoked bot: %w", disableErr))
+		}
+		return fmt.Errorf("%w: %w", telegramstore.ErrAccountRevoked, err)
+	}
+	if operation == telegramstore.OperationUpload ||
+		operation == telegramstore.OperationDownload && !started && (ctx.Err() == nil || errors.Is(err, errBotUnreachable)) {
+		_, _ = r.queries.MarkBotFailure(context.WithoutCancel(ctx), sqlcgen.MarkBotFailureParams{
+			UserID: userID, BotID: botID, LastError: err.Error(),
+		})
+	}
+	return err
 }
 
 // LeaseAccount reserves connections of active load on the bot that should serve
@@ -119,10 +181,9 @@ func (r *UploadAwareRunner) acquireBot(ctx context.Context, userID int64, operat
 		if r.downloadBots == 0 {
 			return nil, nil
 		}
-		bots, err = r.queries.ListEnabledBots(ctx, userID)
-		if len(bots) > r.downloadBots {
-			bots = bots[:r.downloadBots]
-		}
+		bots, err = r.queries.ListDownloadEligibleBots(ctx, sqlcgen.ListDownloadEligibleBotsParams{
+			UserID: userID, DownloadBots: int32(r.downloadBots),
+		})
 	default:
 		return nil, nil
 	}
@@ -139,23 +200,40 @@ func (r *UploadAwareRunner) acquireBot(ctx context.Context, userID int64, operat
 	return r.load.acquire(bots, selection, connections), nil
 }
 
-func (r *UploadAwareRunner) runOnBot(ctx context.Context, userID int64, bot *sqlcgen.Bot, connections int, fn func(context.Context, *tg.Client) error) error {
+func (r *UploadAwareRunner) runOnBot(ctx context.Context, userID int64, operation telegramstore.Operation, bot *sqlcgen.Bot, connections int, fn func(context.Context, *tg.Client) error) error {
 	if r.runBotFunc != nil {
 		return r.runBotFunc(ctx, userID, bot, connections, fn)
 	}
-	return r.runBot(ctx, userID, bot, connections, fn)
+	return r.runBot(ctx, userID, bot, connections, operation == telegramstore.OperationDownload, fn)
 }
 
-func (r *UploadAwareRunner) runBot(ctx context.Context, userID int64, bot *sqlcgen.Bot, connections int, fn func(context.Context, *tg.Client) error) error {
+// runBot runs fn on a client logged in as bot. With failFast, the first failed
+// connection attempt before the client is ready ends the call with
+// errBotUnreachable. Otherwise gotd keeps reconnecting until ctx is done or the
+// reconnect timeout (five minutes by default) passes, so callers that give up
+// sooner would never learn that the bot is unreachable.
+func (r *UploadAwareRunner) runBot(ctx context.Context, userID int64, bot *sqlcgen.Bot, connections int, failFast bool, fn func(context.Context, *tg.Client) error) error {
 	storage := &botSessionStorage{
 		queries: r.queries, cipher: r.cipher, userID: userID, botID: bot.BotID,
 		stored: append([]byte(nil), bot.Session...),
 	}
-	client, err := r.factory.NewForAccount(storage, bot.BotID)
+	clientCtx, cancel := context.WithCancelCause(ctx)
+	defer cancel(nil)
+	var connected atomic.Bool
+	var onConnectionState func(telegram.ConnectionState)
+	if failFast {
+		onConnectionState = func(state telegram.ConnectionState) {
+			if state == telegram.ConnectionStateDisconnected && !connected.Load() {
+				cancel(errBotUnreachable)
+			}
+		}
+	}
+	client, err := r.factory.NewForAccount(storage, bot.BotID, onConnectionState)
 	if err != nil {
 		return fmt.Errorf("create client: %w", err)
 	}
-	err = client.Run(ctx, func(runCtx context.Context) error {
+	err = client.Run(clientCtx, func(runCtx context.Context) error {
+		connected.Store(true)
 		status, err := client.Auth().Status(runCtx)
 		if err != nil {
 			return fmt.Errorf("check authorization: %w", err)
@@ -180,10 +258,11 @@ func (r *UploadAwareRunner) runBot(ctx context.Context, userID int64, bot *sqlcg
 		}
 		return fn(telegramstore.WithClientID(runCtx, bot.BotID), api)
 	})
-	if err != nil {
-		return err
+	// gotd returns nil when its context is cancelled, so check the cause.
+	if errors.Is(context.Cause(clientCtx), errBotUnreachable) {
+		return errBotUnreachable
 	}
-	return nil
+	return err
 }
 
 func (r *UploadAwareRunner) runFallback(ctx context.Context, userID int64, operation telegramstore.Operation, connections int, fn func(context.Context, *tg.Client) error) error {
@@ -243,10 +322,8 @@ type botLease struct {
 func (l *botLease) AccountID() int64 { return l.bot.BotID }
 
 func (l *botLease) RunPooled(ctx context.Context, connections int, fn func(context.Context, *tg.Client) error) error {
-	if err := l.runner.runOnBot(ctx, l.userID, l.bot, connections, fn); err != nil {
-		return fmt.Errorf("%s with bot %d: %w", l.operation, l.bot.BotID, err)
-	}
-	return nil
+	_, err := l.runner.runOnBotRecorded(ctx, l.userID, l.operation, l.bot, connections, fn)
+	return err
 }
 
 func (l *botLease) Release() {
