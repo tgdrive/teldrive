@@ -162,11 +162,20 @@ func (f *Factory) PooledAPI(client *telegram.Client, size int) (*tg.Client, func
 	if err != nil {
 		return nil, nil, fmt.Errorf("create Telegram connection pool: %w", err)
 	}
-	var wrapped tg.Invoker = invoker
-	for i := len(f.middleware) - 1; i >= 0; i-- {
-		wrapped = f.middleware[i].Handle(wrapped)
+	return tg.NewClient(f.wrapInvoker(0, invoker)), invoker.Close, nil
+}
+
+// accountMiddleware returns the invoke middleware chain for one Telegram account.
+func (f *Factory) accountMiddleware(int64) []telegram.Middleware {
+	return f.middleware
+}
+
+func (f *Factory) wrapInvoker(accountID int64, invoker tg.Invoker) tg.Invoker {
+	middleware := f.accountMiddleware(accountID)
+	for i := len(middleware) - 1; i >= 0; i-- {
+		invoker = middleware[i].Handle(invoker)
 	}
-	return tg.NewClient(wrapped), invoker.Close, nil
+	return invoker
 }
 
 func (f *Factory) AppCredentials() (int, string, bool) {
