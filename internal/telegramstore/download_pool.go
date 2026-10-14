@@ -93,10 +93,22 @@ func NewDownloadClientPool(leaser AccountLeaser, config DownloadClientPoolConfig
 	return pool, nil
 }
 
+// OpenDownloadSession leases an account and returns a session on its warm
+// client. When the leased account turns out to be revoked before the client is
+// ready, the leaser has already dropped it, so another account is leased.
 func (p *DownloadClientPool) OpenDownloadSession(ctx context.Context, userID int64) (DownloadSession, error) {
 	if p == nil || userID <= 0 {
 		return nil, ErrInvalidRequest
 	}
+	for {
+		session, err := p.openDownloadSession(ctx, userID)
+		if !errors.Is(err, ErrAccountRevoked) {
+			return session, err
+		}
+	}
+}
+
+func (p *DownloadClientPool) openDownloadSession(ctx context.Context, userID int64) (DownloadSession, error) {
 	lease, err := p.leaser.LeaseAccount(ctx, userID, OperationDownload, p.config.ReadParallel)
 	if err != nil {
 		return nil, err

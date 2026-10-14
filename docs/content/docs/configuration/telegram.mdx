@@ -67,6 +67,10 @@ telegram:
 
 Each upload or download goes to the eligible bot with the fewest Telegram connections in use on this instance, so a busy bot is skipped while an idle one is available. When several bots are equally loaded, the rotation backend decides which goes next. Use `memory` for one instance and `database` when multiple instances must coordinate that rotation. Load is tracked per instance.
 
+A bot whose token Telegram rejects as revoked or invalid (`ACCESS_TOKEN_EXPIRED`, `ACCESS_TOKEN_INVALID`) is disabled; **Settings → Bots** shows it as Disabled. If the failure happened before any work ran on that bot, the upload or download moves to the next eligible bot, or to your user account if no bots are left. Re-add the bot with a new token from BotFather to turn it back on.
+
+Other failures that point at the bot keep it enabled but skip it for 30 seconds: any failed upload, and a download where the bot could not connect or sign in. A download stops on the bot's first failed connection attempt instead of letting the client keep reconnecting for up to `reconnect-timeout`, so the bot is skipped even when the caller would have given up first. Download errors after the bot is connected, such as an expired file reference, would fail on any bot and do not skip it. A skipped bot is not replaced by one beyond the `download-bots` limit; if all of the first N bots are being skipped, downloads use your user account.
+
 ## Proxy
 
 Standard HTTP/HTTPS/SOCKS5 proxy:
