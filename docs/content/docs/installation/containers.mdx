@@ -56,7 +56,13 @@ No `--config` flag is needed for this path. `TELDRIVE_*` environment variables o
 image: ghcr.io/tgdrive/teldrive:X.Y.Z
 ```
 
-Use `:2` to follow major-version updates, or an exact version for controlled upgrades/rollbacks. Releases do not publish `latest`.
+Release images have three tags:
+
+- An exact version, such as `:2.0.6`, for controlled upgrades and rollbacks.
+- A major version, such as `:2`, to follow updates within that major version.
+- `:latest` to follow the newest release, including future major versions.
+
+Use an exact version in production to avoid unexpected upgrades.
 
 ## Local imports
 

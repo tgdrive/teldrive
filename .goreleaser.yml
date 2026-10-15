@@ -52,6 +52,7 @@ dockers_v2:
     tags:
       - "{{ .Tag }}"
       - "{{ .Major }}"
+      - latest
     dockerfile: .goreleaser.Dockerfile
     platforms:
       - linux/amd64
