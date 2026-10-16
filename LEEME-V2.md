@@ -1,8 +1,18 @@
-# Teldrive v2.0.0-drive-es.5
+# Teldrive v2.0.0-drive-es.8
 
 Edición basada en la rama v2 de tgdrive/teldrive, con interfaz en español, temas configurables, navegación táctil, almacenamiento, papelera y Spam. La UI se incluye en los seis servidores CLI para Windows, Linux y macOS, en x64 y ARM64.
 
 ## Cambios de esta actualización
+
+**Configuración → Bots** permite crear bots con tu sesión de Telegram y un bot
+gestor. Importa una vez el token del gestor, activa **Bot Management Mode** en
+BotFather, selecciónalo y verifícalo. Introduce nombre y usuario, comprueba la
+disponibilidad y pulsa **Crear y añadir bot**. El token del nuevo bot se obtiene
+automáticamente, se guarda cifrado y se programa la incorporación a tus canales.
+Si se interrumpe, repite el mismo usuario y gestor para recuperar un bot propio.
+La importación de tokens existentes sigue disponible. Requiere Telegram remoto.
+Consulta `desktop/README.md` para los pasos completos. Conserva las mejoras de
+las ediciones anteriores descritas a continuación.
 
 Desktop añade un botón superior **Teldrive** para recuperar el Drive desde cualquier panel y corrige la capa de WebView2 que tapaba Actividad. **Opciones adicionales de rclone → rclone.conf** permite importar, exportar y editar conexiones con campos privados ocultos, respaldos y conservación del cifrado. Las tareas permiten elegir una conexión de un archivo personalizado. La UI de los CLI también importa, edita y exporta rclone.conf desde el navegador.
 

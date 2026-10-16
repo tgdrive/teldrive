@@ -1,15 +1,16 @@
-import { t } from "@/lib/localization";
 import { Button, Chip, Label, Spinner, TextArea, TextField } from "@heroui/react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
-import TrashIcon from "~icons/gravity-ui/trash-bin";
 import { $api } from "@/api/client";
 import { userMessage } from "@/api/errors";
 import { ConfirmDialog } from "@/components/dialogs/confirm-dialog";
+import { ManagedBotSettings } from "@/components/managed-bot-settings";
 import { SettingsPageHeader, SettingsRow, SettingsSection } from "@/components/settings-layout";
 import { newIdempotencyKey } from "@/features/shared/idempotency";
+import { t } from "@/lib/localization";
 import { getQueryClient } from "@/lib/queryClient";
+import TrashIcon from "~icons/gravity-ui/trash-bin";
 
 export const Route = createFileRoute("/_settings/settings/bots")({
   component: BotsSettings,
@@ -87,6 +88,7 @@ function BotsSettings() {
         title={t("Bots de Telegram")}
         description={t("Bots utilizados para transferir datos en paralelo a Telegram.")}
       />
+      <ManagedBotSettings bots={query.data.items} onCreated={refresh} />
       <SettingsSection
         title={t("Añadir bots")}
         description={t(

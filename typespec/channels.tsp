@@ -52,6 +52,31 @@ model BotCreateResponse {
   jobId?: string;
 }
 
+model ManagedBotCreateRequest {
+  @minValue(1) managerBotId: int64;
+  @minLength(1) @maxLength(64) name: string;
+  @minLength(5) @maxLength(32) username: string;
+}
+model ManagedBotCreateResponse {
+  bot: BotSummary;
+
+  /** True if an interrupted creation was recovered using the same username. */
+  recovered: boolean;
+
+  jobId?: string;
+}
+model BotManagerStatus {
+  id: int64;
+  username: string;
+  canManageBots: boolean;
+}
+model BotUsernameRequest {
+  @minLength(5) @maxLength(32) username: string;
+}
+model BotUsernameAvailability {
+  available: boolean;
+}
+
 @tag("Channels")
 @route("/v1/channels")
 @useAuth(TelDriveAuth)
@@ -112,6 +137,40 @@ namespace Channels {
 @route("/v1/bots")
 @useAuth(BearerOrCookieAuth)
 namespace Bots {
+  @get
+  @route("/{botId}/manager")
+  @operationId("getBotManager")
+  op manager(@path botId: int64):
+    | JsonResponse<200, BotManagerStatus>
+    | ErrorResponse<401>
+    | ErrorResponse<404>
+    | ErrorResponse<422>
+    | ErrorResponse<429>
+    | ErrorResponse<503>;
+
+  @post
+  @route("/managed/check-username")
+  @operationId("checkManagedBotUsername")
+  op checkUsername(@body body: BotUsernameRequest):
+    | JsonResponse<200, BotUsernameAvailability>
+    | ErrorResponse<401>
+    | ErrorResponse<409>
+    | ErrorResponse<422>
+    | ErrorResponse<429>
+    | ErrorResponse<503>;
+
+  @post
+  @route("/managed")
+  @operationId("createManagedBot")
+  op createManaged(...IdempotencyHeader, @body body: ManagedBotCreateRequest):
+    | JsonResponse<200, ManagedBotCreateResponse>
+    | ErrorResponse<401>
+    | ErrorResponse<404>
+    | ErrorResponse<409>
+    | ErrorResponse<422>
+    | ErrorResponse<429>
+    | ErrorResponse<503>;
+
   @get
   @operationId("listBots")
   op list(...CursorQuery):

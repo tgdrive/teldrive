@@ -2,6 +2,19 @@
 
 Aplicación para Windows 10/11 de 64 bits, construida con .NET 10, WPF y WebView2. El paquete incluye el servidor Teldrive, el rclone compatible con la API v2, PostgreSQL, FFmpeg/FFprobe y los instaladores oficiales de WinFsp, WebView2 y Visual C++. El primer inicio presenta la configuración del servidor y abre la UI en la propia ventana.
 
+## Crear bots desde Configuración (2.0.0.8)
+
+En **Configuración → Bots**, importa una vez el token de un bot gestor y activa
+**Bot Management Mode** en sus ajustes de BotFather. Selecciónalo y pulsa
+**Verificar gestor**. Después introduce el nombre y el usuario del nuevo bot,
+comprueba la disponibilidad y pulsa **Crear y añadir bot**.
+
+La creación usa tu sesión de Telegram. El servidor obtiene el token con el gestor,
+lo guarda cifrado y programa la verificación e incorporación a los canales existentes.
+Si se interrumpe, repite con el mismo usuario y gestor para recuperar tu bot.
+La importación de tokens existentes sigue disponible. Requiere el servidor en modo
+Telegram remoto; el modo de pruebas local no crea bots reales.
+
 ## Dominio para enlaces compartidos
 
 En **Configuración → Configuración avanzada**, agrega `public-url = "https://drive.tudominio.com"`

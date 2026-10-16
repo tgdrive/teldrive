@@ -1887,6 +1887,169 @@ paths:
         - BearerAuth: []
         - CookieAuth: []
         - ExternalApiKeyAuth: []
+  /v1/bots/{botId}/manager:
+    get:
+      operationId: getBotManager
+      parameters:
+        - name: botId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BotManagerStatus"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "503":
+          description: Service unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Bots
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+  /v1/bots/managed/check-username:
+    post:
+      operationId: checkManagedBotUsername
+      parameters: []
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BotUsernameAvailability"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "503":
+          description: Service unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Bots
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BotUsernameRequest"
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+  /v1/bots/managed:
+    post:
+      operationId: createManagedBot
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyHeader"
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ManagedBotCreateResponse"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "409":
+          description: The request conflicts with the current state of the server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "503":
+          description: Service unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Bots
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ManagedBotCreateRequest"
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
   /v1/bots:
     get:
       operationId: listBots
@@ -7068,6 +7231,36 @@ components:
         selected:
           type: boolean
           default: true
+    BotManagerStatus:
+      type: object
+      required:
+        - id
+        - username
+        - canManageBots
+      properties:
+        id:
+          type: integer
+          format: int64
+        username:
+          type: string
+        canManageBots:
+          type: boolean
+    BotUsernameAvailability:
+      type: object
+      required:
+        - available
+      properties:
+        available:
+          type: boolean
+    BotUsernameRequest:
+      type: object
+      required:
+        - username
+      properties:
+        username:
+          type: string
+          minLength: 5
+          maxLength: 32
     BotSummary:
       type: object
       required:
@@ -7085,6 +7278,39 @@ components:
         createdAt:
           type: string
           format: date-time
+    ManagedBotCreateResponse:
+      type: object
+      required:
+        - bot
+        - recovered
+      properties:
+        bot:
+          $ref: "#/components/schemas/BotSummary"
+        recovered:
+          type: boolean
+          description: True if an interrupted creation was recovered using the same
+            username.
+        jobId:
+          type: string
+    ManagedBotCreateRequest:
+      type: object
+      required:
+        - managerBotId
+        - name
+        - username
+      properties:
+        managerBotId:
+          type: integer
+          format: int64
+          minimum: 1
+        name:
+          type: string
+          minLength: 1
+          maxLength: 64
+        username:
+          type: string
+          minLength: 5
+          maxLength: 32
     BotCreateResponse:
       type: object
       required:

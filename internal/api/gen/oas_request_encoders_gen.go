@@ -52,6 +52,20 @@ func encodeBulkTrashFilesRequest(
 	return nil
 }
 
+func encodeCheckManagedBotUsernameRequest(
+	req *BotUsernameRequest,
+	r *http.Request,
+) error {
+	const contentType = "application/json"
+	e := new(jx.Encoder)
+	{
+		req.Encode(e)
+	}
+	encoded := e.Bytes()
+	ht.SetBody(r, bytes.NewReader(encoded), contentType)
+	return nil
+}
+
 func encodeControlCastingDeviceRequest(
 	req *ControlCastingDeviceReq,
 	r *http.Request,
@@ -208,6 +222,20 @@ func encodeCreateFolderRequest(
 
 func encodeCreateJobRequest(
 	req *JobCreate,
+	r *http.Request,
+) error {
+	const contentType = "application/json"
+	e := new(jx.Encoder)
+	{
+		req.Encode(e)
+	}
+	encoded := e.Bytes()
+	ht.SetBody(r, bytes.NewReader(encoded), contentType)
+	return nil
+}
+
+func encodeCreateManagedBotRequest(
+	req *ManagedBotCreateRequest,
 	r *http.Request,
 ) error {
 	const contentType = "application/json"

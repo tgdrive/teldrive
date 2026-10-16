@@ -59,6 +59,20 @@ func mapServiceError(err error) error {
 		return err
 	}
 	switch {
+	case errors.Is(err, bots.ErrManagedUnavailable):
+		return problem(http.StatusServiceUnavailable, "managed_bots_unavailable", "Managed bot creation requires a remote Telegram connection.", err)
+	case errors.Is(err, bots.ErrManagerPermission):
+		return problem(http.StatusUnprocessableEntity, "bot_manager_permission", "Enable Bot Management Mode for this bot in BotFather and verify its token.", err)
+	case errors.Is(err, bots.ErrBotUsernameOccupied):
+		return problem(http.StatusConflict, "bot_username_occupied", "This bot username is already occupied. Only your own bots with this manager can be recovered.", err)
+	case errors.Is(err, bots.ErrBotUsernameInvalid):
+		return problem(http.StatusUnprocessableEntity, "bot_username_invalid", "Use 5–32 letters, digits or underscores, ending in bot.", err)
+	case errors.Is(err, bots.ErrBotCreateLimit):
+		return problem(http.StatusUnprocessableEntity, "bot_create_limit", "Your Telegram account has reached its bot creation limit.", err)
+	case errors.Is(err, bots.ErrBotFloodWait):
+		return problem(http.StatusTooManyRequests, "bot_flood_wait", "Telegram requires a pause. Wait before trying again.", err)
+	case errors.Is(err, bots.ErrManagedTelegram):
+		return problem(http.StatusServiceUnavailable, "managed_bot_telegram_error", "Telegram could not complete the request. Retry with the same username to recover an interrupted creation.", err)
 	case errors.Is(err, context.DeadlineExceeded):
 		return problem(http.StatusGatewayTimeout, "request_timeout", "request timed out", err)
 	case errors.Is(err, authn.ErrPasswordInvalid):

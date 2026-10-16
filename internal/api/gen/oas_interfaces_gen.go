@@ -25,6 +25,10 @@ type CancelJobRes interface {
 	cancelJobRes()
 }
 
+type CheckManagedBotUsernameRes interface {
+	checkManagedBotUsernameRes()
+}
+
 type CleanTrashRes interface {
 	cleanTrashRes()
 }
@@ -87,6 +91,10 @@ type CreateFolderRes interface {
 
 type CreateJobRes interface {
 	createJobRes()
+}
+
+type CreateManagedBotRes interface {
+	createManagedBotRes()
 }
 
 type CreatePeriodicJobRes interface {
@@ -171,6 +179,10 @@ type DownloadPublicShareLegacyRes interface {
 
 type DownloadPublicShareRes interface {
 	downloadPublicShareRes()
+}
+
+type GetBotManagerRes interface {
+	getBotManagerRes()
 }
 
 type GetCurrentUserRes interface {

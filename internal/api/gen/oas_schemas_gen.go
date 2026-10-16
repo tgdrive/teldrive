@@ -384,6 +384,45 @@ func (s *BotCreateResponse) SetJobId(val OptString) {
 
 func (*BotCreateResponse) createBotsRes() {}
 
+// Ref: #/components/schemas/BotManagerStatus
+type BotManagerStatus struct {
+	ID            int64  `json:"id"`
+	Username      string `json:"username"`
+	CanManageBots bool   `json:"canManageBots"`
+}
+
+// GetID returns the value of ID.
+func (s *BotManagerStatus) GetID() int64 {
+	return s.ID
+}
+
+// GetUsername returns the value of Username.
+func (s *BotManagerStatus) GetUsername() string {
+	return s.Username
+}
+
+// GetCanManageBots returns the value of CanManageBots.
+func (s *BotManagerStatus) GetCanManageBots() bool {
+	return s.CanManageBots
+}
+
+// SetID sets the value of ID.
+func (s *BotManagerStatus) SetID(val int64) {
+	s.ID = val
+}
+
+// SetUsername sets the value of Username.
+func (s *BotManagerStatus) SetUsername(val string) {
+	s.Username = val
+}
+
+// SetCanManageBots sets the value of CanManageBots.
+func (s *BotManagerStatus) SetCanManageBots(val bool) {
+	s.CanManageBots = val
+}
+
+func (*BotManagerStatus) getBotManagerRes() {}
+
 // Ref: #/components/schemas/BotSummary
 type BotSummary struct {
 	ID        int64     `json:"id"`
@@ -430,6 +469,38 @@ func (s *BotSummary) SetEnabled(val bool) {
 // SetCreatedAt sets the value of CreatedAt.
 func (s *BotSummary) SetCreatedAt(val time.Time) {
 	s.CreatedAt = val
+}
+
+// Ref: #/components/schemas/BotUsernameAvailability
+type BotUsernameAvailability struct {
+	Available bool `json:"available"`
+}
+
+// GetAvailable returns the value of Available.
+func (s *BotUsernameAvailability) GetAvailable() bool {
+	return s.Available
+}
+
+// SetAvailable sets the value of Available.
+func (s *BotUsernameAvailability) SetAvailable(val bool) {
+	s.Available = val
+}
+
+func (*BotUsernameAvailability) checkManagedBotUsernameRes() {}
+
+// Ref: #/components/schemas/BotUsernameRequest
+type BotUsernameRequest struct {
+	Username string `json:"username"`
+}
+
+// GetUsername returns the value of Username.
+func (s *BotUsernameRequest) GetUsername() string {
+	return s.Username
+}
+
+// SetUsername sets the value of Username.
+func (s *BotUsernameRequest) SetUsername(val string) {
+	s.Username = val
 }
 
 type BulkMoveFilesConflict ErrorEnvelope
@@ -863,6 +934,26 @@ func (s *ChannelSummary) SetCreatedAt(val time.Time) {
 
 func (*ChannelSummary) createChannelRes() {}
 func (*ChannelSummary) selectChannelRes() {}
+
+type CheckManagedBotUsernameConflict ErrorEnvelope
+
+func (*CheckManagedBotUsernameConflict) checkManagedBotUsernameRes() {}
+
+type CheckManagedBotUsernameServiceUnavailable ErrorEnvelope
+
+func (*CheckManagedBotUsernameServiceUnavailable) checkManagedBotUsernameRes() {}
+
+type CheckManagedBotUsernameTooManyRequests ErrorEnvelope
+
+func (*CheckManagedBotUsernameTooManyRequests) checkManagedBotUsernameRes() {}
+
+type CheckManagedBotUsernameUnauthorized ErrorEnvelope
+
+func (*CheckManagedBotUsernameUnauthorized) checkManagedBotUsernameRes() {}
+
+type CheckManagedBotUsernameUnprocessableEntity ErrorEnvelope
+
+func (*CheckManagedBotUsernameUnprocessableEntity) checkManagedBotUsernameRes() {}
 
 type Checksum string
 
@@ -1350,6 +1441,30 @@ func (*CreateJobConflict) createJobRes() {}
 type CreateJobUnauthorized ErrorEnvelope
 
 func (*CreateJobUnauthorized) createJobRes() {}
+
+type CreateManagedBotConflict ErrorEnvelope
+
+func (*CreateManagedBotConflict) createManagedBotRes() {}
+
+type CreateManagedBotNotFound ErrorEnvelope
+
+func (*CreateManagedBotNotFound) createManagedBotRes() {}
+
+type CreateManagedBotServiceUnavailable ErrorEnvelope
+
+func (*CreateManagedBotServiceUnavailable) createManagedBotRes() {}
+
+type CreateManagedBotTooManyRequests ErrorEnvelope
+
+func (*CreateManagedBotTooManyRequests) createManagedBotRes() {}
+
+type CreateManagedBotUnauthorized ErrorEnvelope
+
+func (*CreateManagedBotUnauthorized) createManagedBotRes() {}
+
+type CreateManagedBotUnprocessableEntity ErrorEnvelope
+
+func (*CreateManagedBotUnprocessableEntity) createManagedBotRes() {}
 
 type CreatePeriodicJobBadRequest ErrorEnvelope
 
@@ -5216,6 +5331,26 @@ func (s *FolderCreateRequestConflictPolicy) UnmarshalText(data []byte) error {
 	}
 }
 
+type GetBotManagerNotFound ErrorEnvelope
+
+func (*GetBotManagerNotFound) getBotManagerRes() {}
+
+type GetBotManagerServiceUnavailable ErrorEnvelope
+
+func (*GetBotManagerServiceUnavailable) getBotManagerRes() {}
+
+type GetBotManagerTooManyRequests ErrorEnvelope
+
+func (*GetBotManagerTooManyRequests) getBotManagerRes() {}
+
+type GetBotManagerUnauthorized ErrorEnvelope
+
+func (*GetBotManagerUnauthorized) getBotManagerRes() {}
+
+type GetBotManagerUnprocessableEntity ErrorEnvelope
+
+func (*GetBotManagerUnprocessableEntity) getBotManagerRes() {}
+
 type GetFileCategoryStatisticsOKApplicationJSON []FileCategoryStatistics
 
 func (*GetFileCategoryStatisticsOKApplicationJSON) getFileCategoryStatisticsRes() {}
@@ -7389,6 +7524,83 @@ func (*LogoutCookieSessionNoContent) logoutCookieSessionRes() {}
 type LogoutSessionNoContent struct{}
 
 func (*LogoutSessionNoContent) logoutSessionRes() {}
+
+// Ref: #/components/schemas/ManagedBotCreateRequest
+type ManagedBotCreateRequest struct {
+	ManagerBotId int64  `json:"managerBotId"`
+	Name         string `json:"name"`
+	Username     string `json:"username"`
+}
+
+// GetManagerBotId returns the value of ManagerBotId.
+func (s *ManagedBotCreateRequest) GetManagerBotId() int64 {
+	return s.ManagerBotId
+}
+
+// GetName returns the value of Name.
+func (s *ManagedBotCreateRequest) GetName() string {
+	return s.Name
+}
+
+// GetUsername returns the value of Username.
+func (s *ManagedBotCreateRequest) GetUsername() string {
+	return s.Username
+}
+
+// SetManagerBotId sets the value of ManagerBotId.
+func (s *ManagedBotCreateRequest) SetManagerBotId(val int64) {
+	s.ManagerBotId = val
+}
+
+// SetName sets the value of Name.
+func (s *ManagedBotCreateRequest) SetName(val string) {
+	s.Name = val
+}
+
+// SetUsername sets the value of Username.
+func (s *ManagedBotCreateRequest) SetUsername(val string) {
+	s.Username = val
+}
+
+// Ref: #/components/schemas/ManagedBotCreateResponse
+type ManagedBotCreateResponse struct {
+	Bot BotSummary `json:"bot"`
+	// True if an interrupted creation was recovered using the same username.
+	Recovered bool      `json:"recovered"`
+	JobId     OptString `json:"jobId"`
+}
+
+// GetBot returns the value of Bot.
+func (s *ManagedBotCreateResponse) GetBot() BotSummary {
+	return s.Bot
+}
+
+// GetRecovered returns the value of Recovered.
+func (s *ManagedBotCreateResponse) GetRecovered() bool {
+	return s.Recovered
+}
+
+// GetJobId returns the value of JobId.
+func (s *ManagedBotCreateResponse) GetJobId() OptString {
+	return s.JobId
+}
+
+// SetBot sets the value of Bot.
+func (s *ManagedBotCreateResponse) SetBot(val BotSummary) {
+	s.Bot = val
+}
+
+// SetRecovered sets the value of Recovered.
+func (s *ManagedBotCreateResponse) SetRecovered(val bool) {
+	s.Recovered = val
+}
+
+// SetJobId sets the value of JobId.
+func (s *ManagedBotCreateResponse) SetJobId(val OptString) {
+	s.JobId = val
+}
+
+func (*ManagedBotCreateResponse) createManagedBotRes() {}
 
 // MarkIncomingSpamNoContent is response for MarkIncomingSpam operation.
 type MarkIncomingSpamNoContent struct{}

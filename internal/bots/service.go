@@ -48,6 +48,7 @@ type Service struct {
 	queries  *sqlcgen.Queries
 	cipher   *secureblob.Cipher
 	verifier Verifier
+	managed  ManagedGateway
 }
 
 type pendingBotRecord struct {

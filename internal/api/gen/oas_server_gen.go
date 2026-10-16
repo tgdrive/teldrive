@@ -41,6 +41,10 @@ type Handler interface {
 	//
 	// POST /v1/jobs/{jobId}/cancel
 	CancelJob(ctx context.Context, params CancelJobParams) (CancelJobRes, error)
+	// CheckManagedBotUsername implements checkManagedBotUsername operation.
+	//
+	// POST /v1/bots/managed/check-username
+	CheckManagedBotUsername(ctx context.Context, req *BotUsernameRequest) (CheckManagedBotUsernameRes, error)
 	// CleanTrash implements cleanTrash operation.
 	//
 	// Move every trashed file and folder owned by the authenticated user to deletion pending.
@@ -120,6 +124,10 @@ type Handler interface {
 	//
 	// POST /v1/jobs
 	CreateJob(ctx context.Context, req *JobCreate) (CreateJobRes, error)
+	// CreateManagedBot implements createManagedBot operation.
+	//
+	// POST /v1/bots/managed
+	CreateManagedBot(ctx context.Context, req *ManagedBotCreateRequest, params CreateManagedBotParams) (CreateManagedBotRes, error)
 	// CreatePeriodicJob implements createPeriodicJob operation.
 	//
 	// POST /v1/periodic-jobs
@@ -188,6 +196,10 @@ type Handler interface {
 	//
 	// DELETE /v1/shared/spam/{fileId}/dismiss
 	DismissIncomingSpam(ctx context.Context, params DismissIncomingSpamParams) (DismissIncomingSpamRes, error)
+	// GetBotManager implements getBotManager operation.
+	//
+	// GET /v1/bots/{botId}/manager
+	GetBotManager(ctx context.Context, params GetBotManagerParams) (GetBotManagerRes, error)
 	// GetCurrentUser implements getCurrentUser operation.
 	//
 	// Return the authenticated user profile.
