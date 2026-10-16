@@ -811,6 +811,9 @@ func apiKeySummary(row *sqlcgen.ApiKey) gen.ApiKeySummary {
 
 func botSummary(row *sqlcgen.Bot) gen.BotSummary {
 	out := gen.BotSummary{ID: row.BotID, Enabled: row.Enabled, CreatedAt: row.CreatedAt.Time}
+	if row.Name.Valid {
+		out.Name = gen.NewOptString(row.Name.String)
+	}
 	if row.Username.Valid {
 		out.Username = gen.NewOptString(row.Username.String)
 	}

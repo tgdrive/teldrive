@@ -88,7 +88,7 @@ func (g *Managed) withManager(ctx context.Context, token string, fn func(context
 func (g *Managed) Manager(ctx context.Context, token string) (bots.Identity, error) {
 	var result bots.Identity
 	err := g.withManager(ctx, token, func(_ context.Context, _ *tg.Client, self *tg.User) error {
-		result = bots.Identity{ID: self.ID, Username: self.Username}
+		result = bots.Identity{ID: self.ID, Name: strings.TrimSpace(self.FirstName + " " + self.LastName), Username: self.Username}
 		return nil
 	})
 	return result, managedError(err)
@@ -187,7 +187,7 @@ func (g *Managed) CreateManaged(ctx context.Context, userID int64, token, name, 
 		if err != nil {
 			return err
 		}
-		result.Identity = bots.Identity{ID: child.ID, Username: child.Username}
+		result.Identity = bots.Identity{ID: child.ID, Name: strings.TrimSpace(child.FirstName + " " + child.LastName), Username: child.Username}
 		result.Token = exported.Token
 		return nil
 	})

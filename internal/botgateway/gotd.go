@@ -43,7 +43,7 @@ func (v *GotdVerifier) Verify(ctx context.Context, token string) (bots.Identity,
 		if self == nil || !self.Bot {
 			return bots.ErrNotBot
 		}
-		identity = bots.Identity{ID: self.ID, Username: self.Username}
+		identity = bots.Identity{ID: self.ID, Name: strings.TrimSpace(self.FirstName + " " + self.LastName), Username: self.Username}
 		return nil
 	})
 	if err != nil {

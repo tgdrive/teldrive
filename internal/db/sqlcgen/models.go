@@ -436,6 +436,7 @@ type Bot struct {
 	RetryAfter          pgtype.Timestamptz `json:"retry_after"`
 	CreatedAt           pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+	Name                pgtype.Text        `json:"name"`
 }
 
 type BotSelectionCounter struct {

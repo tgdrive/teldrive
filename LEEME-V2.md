@@ -1,8 +1,14 @@
-# Teldrive v2.0.0-drive-es.8
+# Teldrive v2.0.0-drive-es.9
 
 Edición basada en la rama v2 de tgdrive/teldrive, con interfaz en español, temas configurables, navegación táctil, almacenamiento, papelera y Spam. La UI se incluye en los seis servidores CLI para Windows, Linux y macOS, en x64 y ARM64.
 
 ## Cambios de esta actualización
+
+La lista de bots y el selector del gestor muestran **nombre, @alias e ID**,
+ordenados por nombre. Los datos de los bots importados se recuperan automáticamente
+desde Telegram si faltan, sin activarlos ni cambiar sus permisos de canal. El nombre
+y alias se guardan antes de completar los permisos, por lo que también identifican
+a los bots pendientes. La confirmación al eliminar muestra los tres datos.
 
 **Configuración → Bots** permite crear bots con tu sesión de Telegram y un bot
 gestor. Importa una vez el token del gestor, activa **Bot Management Mode** en

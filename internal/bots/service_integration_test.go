@@ -11,6 +11,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/tgdrive/teldrive/v2/internal/cache"
 	"github.com/tgdrive/teldrive/v2/internal/secureblob"
 	testpostgres "github.com/tgdrive/teldrive/v2/internal/testutil/postgres"
 	"github.com/tgdrive/teldrive/v2/internal/testutil/querytrace"
@@ -70,7 +71,7 @@ func TestBotCRUDEncryptsTokenAgainstRealPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	verifier := &fakeVerifier{identity: Identity{ID: 777, Username: "storage_bot"}}
+	verifier := &fakeVerifier{identity: Identity{ID: 777, Name: "Storage principal", Username: "storage_bot"}}
 	service, err := NewService(db.Pool, cipher, verifier)
 	if err != nil {
 		t.Fatal(err)
@@ -80,7 +81,7 @@ func TestBotCRUDEncryptsTokenAgainstRealPostgres(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
-	if created.BotID != 777 || !created.Username.Valid || created.Username.String != "storage_bot" {
+	if created.BotID != 777 || created.Name.String != "Storage principal" || !created.Username.Valid || created.Username.String != "storage_bot" {
 		t.Fatalf("created bot = %#v", created)
 	}
 	if bytes.Contains(created.TokenCiphertext, []byte(token)) {
@@ -122,6 +123,48 @@ func TestBotCRUDEncryptsTokenAgainstRealPostgres(t *testing.T) {
 	}
 	if verifier.calls != 2 {
 		t.Fatalf("verifier calls = %d", verifier.calls)
+	}
+}
+
+func TestListingRecoversPendingBotIdentityWithoutActivatingIt(t *testing.T) {
+	db := testpostgres.New(t)
+	ctx := context.Background()
+	if _, err := db.Pool.Exec(ctx, "INSERT INTO users (user_id) VALUES (1001)"); err != nil {
+		t.Fatal(err)
+	}
+	cipher, err := secureblob.NewWithKey(bytes.Repeat([]byte{2}, 32), bytes.NewReader(bytes.Repeat([]byte{4}, 24)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	verifier := &fakeVerifier{identity: Identity{ID: 777, Name: "Almacén principal", Username: "storage_bot"}}
+	service, err := NewService(db.Pool, cipher, verifier)
+	if err != nil {
+		t.Fatal(err)
+	}
+	identityCache := cache.NewMemoryCache(1024 * 1024)
+	t.Cleanup(identityCache.Close)
+	service.ConfigureIdentityCache(identityCache)
+	if _, err := service.InsertPending(ctx, 1001, []string{"777:secret-token"}); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		rows, err := service.List(ctx, ListInput{UserID: 1001})
+		if err != nil || len(rows) != 1 {
+			t.Fatalf("list pending bot: %v", err)
+		}
+		if rows[0].Enabled || rows[0].Name.String != "Almacén principal" || rows[0].Username.String != "storage_bot" {
+			t.Fatal("listing must persist the real identity without enabling the bot")
+		}
+	}
+	if verifier.calls != 1 {
+		t.Fatalf("identity should be recovered once; calls = %d", verifier.calls)
+	}
+	if err := service.MarkProvisionFailure(ctx, 1001, 777, errors.New("channel permissions pending")); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := service.List(ctx, ListInput{UserID: 1001})
+	if err != nil || len(rows) != 1 || rows[0].Name.String != "Almacén principal" || rows[0].Enabled {
+		t.Fatal("failed channel provisioning must preserve the bot identity")
 	}
 }
 

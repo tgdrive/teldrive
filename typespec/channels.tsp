@@ -39,6 +39,8 @@ model BotCreateRequest {
 
 model BotSummary {
   id: int64;
+  /** Telegram display name, independently of the public username. */
+  name?: string;
   username?: string;
   enabled: boolean;
   createdAt: utcDateTime;

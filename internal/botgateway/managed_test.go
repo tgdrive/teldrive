@@ -33,7 +33,7 @@ func TestManagedCreationAndSafeRecovery(t *testing.T) {
 		t.Run(mode, func(t *testing.T) {
 			created, exported := 0, 0
 			manager := &tg.User{ID: 100, Username: "manager_bot", Bot: true, BotCanManageBots: true, AccessHash: 11}
-			child := &tg.User{ID: 200, Username: "storage_bot", Bot: true, BotCanEdit: mode != "wrong-owner", AccessHash: 22}
+			child := &tg.User{ID: 200, FirstName: "Storage", LastName: "principal", Username: "storage_bot", Bot: true, BotCanEdit: mode != "wrong-owner", AccessHash: 22}
 			manager.SetAccessHash(11)
 			child.SetAccessHash(22)
 			userAPI := managedInvoker(func(_ context.Context, in bin.Encoder, out bin.Decoder) error {
@@ -104,7 +104,7 @@ func TestManagedCreationAndSafeRecovery(t *testing.T) {
 				}
 				return
 			}
-			if err != nil || result.Token != "200:private-child-token" || result.ID != 200 || result.Recovered != (mode == "recover") || exported != 1 {
+			if err != nil || result.Name != "Storage principal" || result.Token != "200:private-child-token" || result.ID != 200 || result.Recovered != (mode == "recover") || exported != 1 {
 				t.Fatalf("creation/recovery failed: %v", err)
 			}
 			if mode == "recover" && created != 0 {

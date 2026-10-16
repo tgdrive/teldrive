@@ -4,6 +4,7 @@ import { $api } from "@/api/client";
 import { ApiError, userMessage } from "@/api/errors";
 import { SettingsSection } from "@/components/settings-layout";
 import { newIdempotencyKey } from "@/features/shared/idempotency";
+import { type BotIdentity, botIdentityLabel } from "@/lib/bot-identity";
 import { t } from "@/lib/localization";
 import { getQueryClient } from "@/lib/queryClient";
 
@@ -31,7 +32,7 @@ export function ManagedBotSettings({
   bots,
   onCreated,
 }: {
-  bots: { id: number; username?: string }[];
+  bots: BotIdentity[];
   onCreated: () => Promise<void>;
 }) {
   const [manager, setManager] = useState("");
@@ -144,7 +145,7 @@ export function ManagedBotSettings({
               <option value="">{t("Selecciona un bot importado")}</option>
               {bots.map((bot) => (
                 <option key={bot.id} value={bot.id}>
-                  {bot.username ? `@${bot.username}` : bot.id}
+                  {botIdentityLabel(bot)}
                 </option>
               ))}
             </select>

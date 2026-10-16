@@ -1981,6 +1981,8 @@ export interface components {
         BotSummary: {
             /** Format: int64 */
             id: number;
+            /** @description Telegram display name, independently of the public username. */
+            name?: string;
             username?: string;
             enabled: boolean;
             /** Format: date-time */

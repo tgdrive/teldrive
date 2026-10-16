@@ -1352,6 +1352,12 @@ func (s *BotSummary) encodeFields(e *jx.Encoder) {
 		e.Int64(s.ID)
 	}
 	{
+		if s.Name.Set {
+			e.FieldStart("name")
+			s.Name.Encode(e)
+		}
+	}
+	{
 		if s.Username.Set {
 			e.FieldStart("username")
 			s.Username.Encode(e)
@@ -1367,11 +1373,12 @@ func (s *BotSummary) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfBotSummary = [4]string{
+var jsonFieldsNameOfBotSummary = [5]string{
 	0: "id",
-	1: "username",
-	2: "enabled",
-	3: "createdAt",
+	1: "name",
+	2: "username",
+	3: "enabled",
+	4: "createdAt",
 }
 
 // Decode decodes BotSummary from json.
@@ -1395,6 +1402,16 @@ func (s *BotSummary) Decode(d *jx.Decoder) error {
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"id\"")
 			}
+		case "name":
+			if err := func() error {
+				s.Name.Reset()
+				if err := s.Name.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"name\"")
+			}
 		case "username":
 			if err := func() error {
 				s.Username.Reset()
@@ -1406,7 +1423,7 @@ func (s *BotSummary) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"username\"")
 			}
 		case "enabled":
-			requiredBitSet[0] |= 1 << 2
+			requiredBitSet[0] |= 1 << 3
 			if err := func() error {
 				v, err := d.Bool()
 				s.Enabled = bool(v)
@@ -1418,7 +1435,7 @@ func (s *BotSummary) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"enabled\"")
 			}
 		case "createdAt":
-			requiredBitSet[0] |= 1 << 3
+			requiredBitSet[0] |= 1 << 4
 			if err := func() error {
 				v, err := json.DecodeDateTime(d)
 				s.CreatedAt = v
@@ -1439,7 +1456,7 @@ func (s *BotSummary) Decode(d *jx.Decoder) error {
 	// Validate required fields.
 	var failures []validate.FieldError
 	for i, mask := range [1]uint8{
-		0b00001101,
+		0b00011001,
 	} {
 		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
 			// Mask only required fields and check equality to mask using XOR.

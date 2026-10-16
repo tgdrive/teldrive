@@ -9,7 +9,6 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/tgdrive/teldrive/v2/internal/db/sqlcgen"
-	"github.com/tgdrive/teldrive/v2/internal/dbtypes"
 )
 
 var (
@@ -110,15 +109,10 @@ func (s *Service) CreateManaged(ctx context.Context, userID, managerID int64, na
 	if err != nil || botID != created.ID || !strings.EqualFold(created.Username, username) {
 		return nil, false, ErrNotBot
 	}
-	rows, err := s.InsertPending(ctx, userID, []string{created.Token})
+	_, err = s.InsertPending(ctx, userID, []string{created.Token})
 	if err != nil {
 		return nil, false, err
 	}
-	if len(rows) == 0 {
-		row, err := s.queries.GetBot(ctx, sqlcgen.GetBotParams{UserID: userID, BotID: botID})
-		return row, created.Recovered, err
-	}
-	// Verification/provisioning persists this username when the bot is activated.
-	rows[0].Username = dbtypes.OptionalText(&created.Username)
-	return rows[0], created.Recovered, nil
+	row, err := s.saveIdentity(ctx, userID, created.Identity)
+	return row, created.Recovered, err
 }

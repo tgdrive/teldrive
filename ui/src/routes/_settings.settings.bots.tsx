@@ -8,6 +8,7 @@ import { ConfirmDialog } from "@/components/dialogs/confirm-dialog";
 import { ManagedBotSettings } from "@/components/managed-bot-settings";
 import { SettingsPageHeader, SettingsRow, SettingsSection } from "@/components/settings-layout";
 import { newIdempotencyKey } from "@/features/shared/idempotency";
+import { botAlias, botIdentityLabel, botName } from "@/lib/bot-identity";
 import { t } from "@/lib/localization";
 import { getQueryClient } from "@/lib/queryClient";
 import TrashIcon from "~icons/gravity-ui/trash-bin";
@@ -29,7 +30,19 @@ function BotsSettings() {
     "get",
     "/v1/bots",
     { params: { query: { limit: 200 } } },
-    { staleTime: 20_000 },
+    {
+      staleTime: 20_000,
+      refetchInterval: (query) =>
+        query.state.data?.items.some((bot) => !bot.name || !bot.username) ? 15_000 : false,
+    },
+  );
+  const bots = [...query.data.items].sort(
+    (a, b) =>
+      (a.name || a.username || String(a.id)).localeCompare(
+        b.name || b.username || String(b.id),
+        undefined,
+        { sensitivity: "base", numeric: true },
+      ) || a.id - b.id,
   );
   const create = $api.useMutation("post", "/v1/bots");
   const remove = $api.useMutation("delete", "/v1/bots/{botId}", {
@@ -88,7 +101,7 @@ function BotsSettings() {
         title={t("Bots de Telegram")}
         description={t("Bots utilizados para transferir datos en paralelo a Telegram.")}
       />
-      <ManagedBotSettings bots={query.data.items} onCreated={refresh} />
+      <ManagedBotSettings bots={bots} onCreated={refresh} />
       <SettingsSection
         title={t("Añadir bots")}
         description={t(
@@ -129,12 +142,20 @@ function BotsSettings() {
           "Los bots activos disponibles se utilizan automáticamente para las transferencias.",
         )}
       >
-        {query.data.items.length ? (
-          query.data.items.map((bot) => (
+        {bots.length ? (
+          bots.map((bot) => (
             <SettingsRow
               key={bot.id}
-              label={`@${bot.username || `bot-${bot.id}`}`}
-              description={t("Added {0}", [new Date(bot.createdAt).toLocaleString()])}
+              label={botName(bot)}
+              description={
+                <>
+                  <span className="block break-all">{botAlias(bot)}</span>
+                  <span className="block font-mono tabular-nums">ID: {bot.id}</span>
+                  <span className="mt-1 block">
+                    {t("Added {0}", [new Date(bot.createdAt).toLocaleString()])}
+                  </span>
+                </>
+              }
             >
               <div className="flex items-center justify-end gap-2">
                 <Chip color={bot.enabled ? "success" : "warning"} variant="tertiary">
@@ -144,11 +165,9 @@ function BotsSettings() {
                   isIconOnly
                   size="sm"
                   variant="ghost"
-                  aria-label={t("Eliminar bot {0}", [bot.username || bot.id])}
+                  aria-label={t("Eliminar bot {0}", [botIdentityLabel(bot)])}
                   isDisabled={remove.isPending && deleteBot?.id === bot.id}
-                  onPress={() =>
-                    setDeleteBot({ id: bot.id, name: bot.username || `bot-${bot.id}` })
-                  }
+                  onPress={() => setDeleteBot({ id: bot.id, name: botIdentityLabel(bot) })}
                 >
                   <TrashIcon className="size-4" />
                 </Button>

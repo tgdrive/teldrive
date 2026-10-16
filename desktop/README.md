@@ -4,6 +4,13 @@ Aplicación para Windows 10/11 de 64 bits, construida con .NET 10, WPF y WebView
 
 ## Crear bots desde Configuración (2.0.0.8)
 
+Desde la versión **2.0.0.9**, la lista presenta el **nombre**, el **@alias** y el
+**ID** en líneas separadas y se ordena por nombre. El selector de gestor y la
+confirmación al eliminar incluyen los tres datos. Si faltan datos antiguos, el
+servidor los recupera desde Telegram; los bots pendientes conservan su estado y
+sus permisos. Si Telegram no responde o el token es inválido, se mantiene el ID y
+se indica que el nombre o alias está pendiente.
+
 En **Configuración → Bots**, importa una vez el token de un bot gestor y activa
 **Bot Management Mode** en sus ajustes de BotFather. Selecciónalo y pulsa
 **Verificar gestor**. Después introduce el nombre y el usuario del nuevo bot,

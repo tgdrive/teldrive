@@ -24,7 +24,13 @@ test.beforeEach(async ({ page }) => {
     return route.fulfill({
       json: {
         items: [
-          { id: 100, username: "manager_bot", enabled: true, createdAt: "2026-10-16T12:00:00Z" },
+          {
+            id: 100,
+            name: "Gestor principal",
+            username: "manager_bot",
+            enabled: true,
+            createdAt: "2026-10-16T12:00:00Z",
+          },
         ],
       },
     });
@@ -48,6 +54,12 @@ test("creates a bot using an imported manager without exposing tokens", async ({
     });
   });
   await page.goto("/settings/bots");
+  await expect(
+    page.getByRole("option", { name: "Gestor principal · @manager_bot · ID: 100", exact: true }),
+  ).toHaveAttribute("value", "100");
+  await expect(page.getByText("Gestor principal", { exact: true })).toBeVisible();
+  await expect(page.getByText("@manager_bot", { exact: true })).toBeVisible();
+  await expect(page.getByText("ID: 100", { exact: true })).toBeVisible();
   const create = page.getByRole("button", { name: "Crear y añadir bot", exact: true });
   await expect(create).toBeDisabled();
   await page.getByLabel("Bot gestor", { exact: true }).selectOption("100");
@@ -102,4 +114,60 @@ test("shows manager permissions, occupied names, and interrupted creation recove
   );
   await page.getByRole("button", { name: "Crear y añadir bot", exact: true }).click();
   await expect(page.getByRole("status")).toHaveText("Bot recuperado y añadido: @storage_bot");
+});
+
+test("identifies bots by name, alias and ID in sorted lists and deletion", async ({
+  page,
+}, testInfo) => {
+  await page.route("**/api/v1/bots?**", (route) =>
+    route.fulfill({
+      json: {
+        items: [
+          {
+            id: 302,
+            name: "Almacén principal",
+            username: "storage_two_bot",
+            enabled: false,
+            createdAt: "2026-10-16T12:00:00Z",
+          },
+          {
+            id: 100,
+            name: "Gestor principal",
+            username: "manager_bot",
+            enabled: true,
+            createdAt: "2026-10-16T12:00:00Z",
+          },
+          {
+            id: 301,
+            name: "Almacén principal",
+            username: "storage_one_bot",
+            enabled: true,
+            createdAt: "2026-10-16T12:00:00Z",
+          },
+        ],
+      },
+    }),
+  );
+  await page.goto("/settings/bots");
+  await expect(page.getByLabel("Bot gestor", { exact: true }).locator("option")).toHaveText([
+    "Selecciona un bot importado",
+    "Almacén principal · @storage_one_bot · ID: 301",
+    "Almacén principal · @storage_two_bot · ID: 302",
+    "Gestor principal · @manager_bot · ID: 100",
+  ]);
+  await expect(page.getByText("@storage_one_bot", { exact: true })).toBeVisible();
+  await expect(page.getByText("@storage_two_bot", { exact: true })).toBeVisible();
+  await expect(page.getByText("ID: 301", { exact: true })).toBeVisible();
+  await expect(page.getByText("ID: 302", { exact: true })).toBeVisible();
+  await page.getByText("Bots configurados", { exact: true }).scrollIntoViewIfNeeded();
+  await page.screenshot({ path: testInfo.outputPath("bot-identities.png"), fullPage: true });
+  await page
+    .getByRole("button", {
+      name: "Eliminar bot Almacén principal · @storage_two_bot · ID: 302",
+      exact: true,
+    })
+    .click();
+  await expect(page.getByRole("alertdialog")).toContainText(
+    "Almacén principal · @storage_two_bot · ID: 302",
+  );
 });

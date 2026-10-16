@@ -425,7 +425,9 @@ func (*BotManagerStatus) getBotManagerRes() {}
 
 // Ref: #/components/schemas/BotSummary
 type BotSummary struct {
-	ID        int64     `json:"id"`
+	ID int64 `json:"id"`
+	// Telegram display name, independently of the public username.
+	Name      OptString `json:"name"`
 	Username  OptString `json:"username"`
 	Enabled   bool      `json:"enabled"`
 	CreatedAt time.Time `json:"createdAt"`
@@ -434,6 +436,11 @@ type BotSummary struct {
 // GetID returns the value of ID.
 func (s *BotSummary) GetID() int64 {
 	return s.ID
+}
+
+// GetName returns the value of Name.
+func (s *BotSummary) GetName() OptString {
+	return s.Name
 }
 
 // GetUsername returns the value of Username.
@@ -454,6 +461,11 @@ func (s *BotSummary) GetCreatedAt() time.Time {
 // SetID sets the value of ID.
 func (s *BotSummary) SetID(val int64) {
 	s.ID = val
+}
+
+// SetName sets the value of Name.
+func (s *BotSummary) SetName(val OptString) {
+	s.Name = val
 }
 
 // SetUsername sets the value of Username.

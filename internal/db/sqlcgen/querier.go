@@ -182,6 +182,7 @@ type Querier interface {
 	TrashFileSubtrees(ctx context.Context, arg TrashFileSubtreesParams) ([]*File, error)
 	TryAdvisoryLock(ctx context.Context, lockID int64) (bool, error)
 	TryAdvisoryLocks(ctx context.Context, lockIds []int64) ([]*TryAdvisoryLocksRow, error)
+	UpdateBotIdentity(ctx context.Context, arg UpdateBotIdentityParams) (*Bot, error)
 	UpdateBotSession(ctx context.Context, arg UpdateBotSessionParams) (int64, error)
 	UpdateChannelHealth(ctx context.Context, arg UpdateChannelHealthParams) (*Channel, error)
 	UpdateFileAccessGrant(ctx context.Context, arg UpdateFileAccessGrantParams) (*FileAccessGrant, error)

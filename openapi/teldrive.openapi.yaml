@@ -7271,6 +7271,9 @@ components:
         id:
           type: integer
           format: int64
+        name:
+          type: string
+          description: Telegram display name, independently of the public username.
         username:
           type: string
         enabled:

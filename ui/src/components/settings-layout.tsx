@@ -56,7 +56,7 @@ export function SettingsRow({
   align = "center",
 }: {
   label: string;
-  description?: string;
+  description?: ReactNode;
   children: ReactNode;
   align?: "center" | "start";
 }) {
@@ -67,7 +67,7 @@ export function SettingsRow({
       }`}
     >
       <div className="min-w-0">
-        <p className="text-sm font-medium text-foreground">{label}</p>
+        <p className="break-words text-sm font-medium text-foreground">{label}</p>
         {description ? (
           <p className="mt-1 text-xs leading-relaxed text-muted">{description}</p>
         ) : null}

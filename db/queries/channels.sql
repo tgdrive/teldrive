@@ -115,6 +115,15 @@ WHERE user_id = sqlc.arg(user_id)
   AND bot_id = sqlc.arg(bot_id)
 RETURNING *;
 
+-- name: UpdateBotIdentity :one
+UPDATE /* TEMPLATE: schema */bots
+SET name = sqlc.arg(name),
+    username = sqlc.arg(username),
+    updated_at = now()
+WHERE user_id = sqlc.arg(user_id)
+  AND bot_id = sqlc.arg(bot_id)
+RETURNING *;
+
 -- name: MarkBotProvisionFailure :execrows
 UPDATE /* TEMPLATE: schema */bots
 SET enabled = FALSE,

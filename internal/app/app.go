@@ -178,6 +178,7 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 		return nil, fmt.Errorf("create bot service: %w", err)
 	}
 	botService.ConfigureManaged(telegram.managed)
+	botService.ConfigureIdentityCache(globalCache)
 	catalogService := catalog.NewService(pool, globalCache)
 	uploadService := uploads.NewService(pool, cfg.Uploads.SessionTTL)
 	uploadService.SetCacheInvalidator(catalogService)
