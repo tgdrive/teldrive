@@ -1,4 +1,9 @@
 import { expect, type Page, test } from "@playwright/test";
+import {
+  installPreferencesApi,
+  type PreferencesApi,
+  type PreferencesSeed,
+} from "./fixtures/preferences";
 
 const now = "2026-07-22T12:00:00Z";
 const rootId = "11111111-1111-4111-8111-111111111111";
@@ -8,10 +13,7 @@ const betaId = "33333333-3333-4333-8333-333333333333";
 test("sorting hydrates before the first request and URL overrides saved preferences", async ({
   page,
 }) => {
-  await page.addInitScript(() =>
-    localStorage.setItem("file-sort", JSON.stringify({ sort: "size", order: "desc" })),
-  );
-  await installFileApi(page);
+  const preferences = await installFileApi(page, { files: { sort: "size", order: "desc" } });
   const requests: URL[] = [];
   page.on("request", (request) => {
     const url = new URL(request.url());
@@ -36,9 +38,7 @@ test("sorting hydrates before the first request and URL overrides saved preferen
   );
   expect(await sortOrder.locator("svg").innerHTML()).not.toBe(descendingIcon);
   await expect.poll(() => requests.at(-1)?.searchParams.get("order")).toBe("asc");
-  await expect
-    .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem("file-sort")!).order))
-    .toBe("asc");
+  await expect.poll(() => preferences.current().files.order).toBe("asc");
   requests.length = 0;
   await page.goto("/files?sort=updatedAt&order=asc");
   await expect.poll(() => requests.length).toBeGreaterThan(0);
@@ -75,7 +75,7 @@ function file(
   };
 }
 
-async function installFileApi(page: Page) {
+async function installFileApi(page: Page, seed: PreferencesSeed = {}): Promise<PreferencesApi> {
   let uploadSequence = 0;
   const uploadFiles = new Map<string, ReturnType<typeof file>>();
   const files = new Map<string, FixtureFile>([
@@ -398,6 +398,7 @@ async function installFileApi(page: Page) {
       json: { error: { code: "not_found", message: `${method} ${path}` } },
     });
   });
+  return installPreferencesApi(page, seed);
 }
 
 test.beforeEach(async ({ page }) => installFileApi(page));
@@ -578,11 +579,13 @@ test("plain multi-file uploads render as flat rows without a batch hierarchy", a
 });
 
 test("upload settings use an encryption switch and normalize chunk size", async ({ page }) => {
+  const preferences = await installPreferencesApi(page);
   await page.goto("/settings/uploads");
   const encryption = page.getByRole("switch", { name: "Encrypt uploaded files" });
   await expect(encryption).not.toBeChecked();
   await encryption.press("Space");
   await expect(encryption).toBeChecked();
+  await expect.poll(() => preferences.current().uploads.encryption).toBe(true);
 
   const partSize = page.getByRole("textbox", { name: /Preferred part size in MiB/ });
   await expect(partSize).toHaveValue("512");
@@ -590,32 +593,142 @@ test("upload settings use an encryption switch and normalize chunk size", async 
   await partSize.blur();
   await expect(partSize).toHaveValue("528");
   await expect
-    .poll(() =>
-      page.evaluate(() => JSON.parse(localStorage.getItem("teldrive.upload-settings.v2") || "{}")),
-    )
-    .toMatchObject({ encryption: true, preferredPartSize: 528 * 1024 * 1024 });
+    .poll(() => preferences.patches.at(-1))
+    .toEqual({ uploads: { preferredPartSize: 528 * 1024 * 1024 } });
 
   await partSize.fill("3000");
   await partSize.blur();
   await expect(partSize).toHaveValue("2,048");
   await expect
-    .poll(() =>
-      page.evaluate(() => JSON.parse(localStorage.getItem("teldrive.upload-settings.v2") || "{}")),
-    )
-    .toMatchObject({ preferredPartSize: 2048 * 1024 * 1024 });
+    .poll(() => preferences.patches.at(-1))
+    .toEqual({ uploads: { preferredPartSize: 2048 * 1024 * 1024 } });
 });
 
 test("upload settings retain an existing valid chunk choice", async ({ page }) => {
-  await page.addInitScript(() => {
-    localStorage.setItem(
-      "teldrive.upload-settings.v2",
-      JSON.stringify({ preferredPartSize: 640 * 1024 * 1024 }),
-    );
-  });
+  await installPreferencesApi(page, { uploads: { preferredPartSize: 640 * 1024 * 1024 } });
   await page.goto("/settings/uploads");
   await expect(page.getByRole("textbox", { name: /Preferred part size in MiB/ })).toHaveValue(
     "640",
   );
+});
+
+test("account encryption default applies to settings, uploads, and URL imports", async ({
+  page,
+}) => {
+  await installPreferencesApi(page, { uploads: { encryption: true } });
+  await page.goto("/settings/uploads");
+  await expect(page.getByRole("switch", { name: "Encrypt uploaded files" })).toBeChecked();
+
+  await page.goto("/files");
+  await page.getByRole("button", { name: "Upload", exact: true }).click();
+  const fileChooserPromise = page.waitForEvent("filechooser");
+  await page.getByRole("menuitem", { name: "Upload files" }).click();
+  const fileChooser = await fileChooserPromise;
+  const uploadCreated = page.waitForRequest(
+    (request) =>
+      request.method() === "POST" && new URL(request.url()).pathname === "/api/v1/uploads",
+  );
+  await fileChooser.setFiles({
+    name: "secret.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("secret"),
+  });
+  expect((await uploadCreated).postDataJSON()).toMatchObject({ encryption: true });
+
+  await page.getByRole("button", { name: "Upload", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Background upload" }).click();
+  const dialog = page.getByRole("dialog", { name: "Background upload" });
+  await expect(dialog.getByRole("switch", { name: "Encrypt uploaded files" })).toBeChecked();
+});
+
+test("legacy browser upload and sort settings import once into an account without preferences", async ({
+  page,
+}) => {
+  const preferences = await installPreferencesApi(page);
+  await page.goto("/login");
+  await page.evaluate(() => {
+    localStorage.setItem(
+      "teldrive.upload-settings.v2",
+      JSON.stringify({
+        encryption: true,
+        conflictPolicy: "error",
+        concurrency: 5,
+        preferredPartSize: 528 * 1024 * 1024,
+      }),
+    );
+    localStorage.setItem("file-sort", JSON.stringify({ sort: "size", order: "desc" }));
+  });
+
+  await page.goto("/files");
+  await expect
+    .poll(() => preferences.patches)
+    .toEqual([
+      {
+        uploads: {
+          encryption: true,
+          conflictPolicy: "fail",
+          concurrency: 5,
+          preferredPartSize: 528 * 1024 * 1024,
+        },
+        files: { sort: "size", order: "desc" },
+      },
+    ]);
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem("teldrive.upload-settings.v2")))
+    .toBeNull();
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("file-sort"))).toBeNull();
+  expect(preferences.current()).toMatchObject({
+    uploads: { encryption: true, conflictPolicy: "fail", concurrency: 5 },
+    files: { sort: "size", order: "desc" },
+  });
+
+  await page.reload();
+  await expect(page.getByTestId("file-drop-zone")).toBeVisible();
+  expect(preferences.patches).toHaveLength(1);
+});
+
+test("another account on the same browser does not import the previous account's appearance", async ({
+  page,
+}) => {
+  await installPreferencesApi(page, {
+    appearance: { theme: "light", locale: "es" },
+    updatedAt: "2026-07-22T12:00:00Z",
+  });
+  await page.goto("/files");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expect.poll(() => page.evaluate(() => localStorage.getItem("theme"))).toBe("light");
+
+  const fresh = await installPreferencesApi(page);
+  await page.reload();
+  await expect(page.getByTestId("file-drop-zone")).toBeVisible();
+  // The fresh account keeps its "system" default, which the dark test color scheme resolves.
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  expect(fresh.patches).toEqual([]);
+});
+
+test("saved account appearance and file sort override conflicting browser values on load", async ({
+  page,
+}) => {
+  const preferences = await installPreferencesApi(page, {
+    appearance: { theme: "light" },
+    files: { sort: "size", order: "desc" },
+    updatedAt: "2026-07-22T12:00:00Z",
+  });
+  await page.goto("/login");
+  await page.evaluate(() => {
+    localStorage.setItem("theme", "dark");
+    localStorage.setItem("file-sort", JSON.stringify({ sort: "name", order: "asc" }));
+  });
+
+  const listing = page.waitForRequest(
+    (request) => new URL(request.url()).pathname === "/api/v1/files",
+  );
+  await page.goto("/files");
+  const url = new URL((await listing).url());
+  expect(url.searchParams.get("sort")).toBe("size");
+  expect(url.searchParams.get("order")).toBe("desc");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  expect(preferences.patches).toEqual([]);
 });
 
 test("React Aria file selection supports replacement, ranges, select all, and escape", async ({

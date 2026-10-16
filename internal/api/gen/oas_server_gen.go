@@ -238,6 +238,12 @@ type Handler interface {
 	//
 	// GET /v1/uploads/statistics
 	GetUploadStatistics(ctx context.Context, params GetUploadStatisticsParams) (GetUploadStatisticsRes, error)
+	// GetUserPreferences implements getUserPreferences operation.
+	//
+	// Return the authenticated user's web UI preferences, with server defaults for unset values.
+	//
+	// GET /v1/me/preferences
+	GetUserPreferences(ctx context.Context) (GetUserPreferencesRes, error)
 	// HeadFile implements headFile operation.
 	//
 	// Return content metadata without streaming the file.
@@ -559,6 +565,12 @@ type Handler interface {
 	//
 	// PATCH /v1/shares/{shareId}
 	UpdateShare(ctx context.Context, req *ShareUpdateRequest, params UpdateShareParams) (UpdateShareRes, error)
+	// UpdateUserPreferences implements updateUserPreferences operation.
+	//
+	// Update a subset of the authenticated user's web UI preferences.
+	//
+	// PATCH /v1/me/preferences
+	UpdateUserPreferences(ctx context.Context, req *UserPreferencesUpdate) (UpdateUserPreferencesRes, error)
 }
 
 // RawHandler handles raw response operations described by OpenAPI v3 specification.

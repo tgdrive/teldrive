@@ -1,3 +1,4 @@
+import { installPreferencesApi } from "./fixtures/preferences";
 import { expect, type Page, test } from "@playwright/test";
 
 const resultFile = {
@@ -41,6 +42,7 @@ async function installResults(page: Page) {
       return route.fulfill({ contentType: "text/plain", body: "Preview from search" });
     return route.fulfill({ status: 404, json: {} });
   });
+  await installPreferencesApi(page);
   return state;
 }
 
@@ -86,6 +88,7 @@ test("header search submits and the routed query fetches drive results", async (
     return route.fulfill({ status: 404, json: {} });
   });
 
+  await installPreferencesApi(page);
   await page.goto("/files");
   const search = page.getByRole("textbox", { name: "Search files" });
   await search.fill("alpha");
@@ -123,6 +126,7 @@ test("header submission carries the active folder context without sending a path
     }
     return route.fulfill({ status: 404, json: {} });
   });
+  await installPreferencesApi(page);
   await page.goto(`/files?path=%2FProjects%2FDesign&parentId=${folderId}`);
   await page.getByRole("textbox", { name: "Search files" }).fill("brief");
   await page.getByRole("textbox", { name: "Search files" }).press("Enter");
@@ -154,6 +158,7 @@ test("search filters-only navigation serializes scope without leaking path", asy
     }
     return route.fulfill({ status: 404, json: {} });
   });
+  await installPreferencesApi(page);
   await page.goto(
     "/search?scope=recursive&parentId=11111111-1111-4111-8111-111111111111&kind=file",
   );
@@ -186,6 +191,7 @@ test("search filters apply as a real form and keep canonical dates in URL and AP
     }
     return route.fulfill({ status: 404, json: {} });
   });
+  await installPreferencesApi(page);
   await page.goto("/search?q=report");
   await page.getByRole("button", { name: "Filters" }).click();
   await page.getByRole("button", { name: /Type/ }).click();
@@ -228,6 +234,7 @@ test("recursive filter can choose a folder and sends only its id", async ({ page
     }
     return route.fulfill({ status: 404, json: {} });
   });
+  await installPreferencesApi(page);
   await page.goto("/search?q=notes");
   await page.getByRole("button", { name: "Filters" }).click();
   await page.getByRole("button", { name: /Search in/ }).click();
@@ -264,6 +271,7 @@ test("a recursive URL without its folder is recoverable and never requests or sp
     }
     return route.fulfill({ status: 404, json: {} });
   });
+  await installPreferencesApi(page);
   await page.goto("/search?q=report&scope=recursive");
   await expect(page.getByText("Choose a folder to search recursively")).toBeVisible();
   await expect(page.getByRole("button", { name: "Choose folder" })).toBeVisible();
@@ -292,6 +300,7 @@ test("live search debounces requests and browser history restores the input", as
     }
     return route.fulfill({ status: 404, json: {} });
   });
+  await installPreferencesApi(page);
   await page.goto("/files");
   await page.clock.install();
   await page.clock.pauseAt(new Date(Date.now() + 1_000));
@@ -356,6 +365,7 @@ test("mobile search results expose a working root location button", async ({ pag
       });
     return route.fulfill({ status: 404, json: {} });
   });
+  await installPreferencesApi(page);
   await page.goto("/search?q=root");
   const location = page.getByRole("button", { name: "Open containing folder /" });
   await expect(location).toBeVisible();
@@ -408,6 +418,7 @@ test("search selection exposes bounded actions and renames the selected result",
     }
     return route.fulfill({ status: 404, json: {} });
   });
+  await installPreferencesApi(page);
   await page.goto("/search?q=alpha");
   const row = page.getByRole("row", { name: /alpha\.txt/ });
   await row.click();

@@ -44,6 +44,7 @@ import { isUnauthorized, userMessage } from "../api/errors";
 import { currentUserQueryOptions } from "../auth/queries";
 import { UploadShelf } from "../components/upload-shelf";
 import { getQueryClient } from "../lib/queryClient";
+import { importLegacyPreferences, preferencesQueryOptions } from "../lib/preferences";
 
 const mainNav = [
   { key: "files", icon: GridIcon, path: "/files" },
@@ -531,6 +532,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
     if (location.pathname === "/login" || location.pathname.startsWith("/share/")) return;
     try {
       await context.queryClient.ensureQueryData(currentUserQueryOptions());
+      await context.queryClient.ensureQueryData(preferencesQueryOptions());
     } catch (error) {
       if (!isUnauthorized(error)) throw error;
       throw redirect({
@@ -539,6 +541,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
         replace: true,
       });
     }
+    await importLegacyPreferences();
   },
   component: Layout,
 });

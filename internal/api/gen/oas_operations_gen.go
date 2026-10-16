@@ -57,6 +57,7 @@ const (
 	GetStorageStatsOperation                   OperationName = "GetStorageStats"
 	GetUploadOperation                         OperationName = "GetUpload"
 	GetUploadStatisticsOperation               OperationName = "GetUploadStatistics"
+	GetUserPreferencesOperation                OperationName = "GetUserPreferences"
 	HeadFileOperation                          OperationName = "HeadFile"
 	HeadFileLegacyOperation                    OperationName = "HeadFileLegacy"
 	HeadPublicShareOperation                   OperationName = "HeadPublicShare"
@@ -123,4 +124,5 @@ const (
 	UpdatePeriodicJobOperation                 OperationName = "UpdatePeriodicJob"
 	UpdatePublicShareFileOperation             OperationName = "UpdatePublicShareFile"
 	UpdateShareOperation                       OperationName = "UpdateShare"
+	UpdateUserPreferencesOperation             OperationName = "UpdateUserPreferences"
 )

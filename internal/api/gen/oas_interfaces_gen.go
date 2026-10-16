@@ -205,6 +205,10 @@ type GetUploadStatisticsRes interface {
 	getUploadStatisticsRes()
 }
 
+type GetUserPreferencesRes interface {
+	getUserPreferencesRes()
+}
+
 type HeadFileLegacyRes interface {
 	headFileLegacyRes()
 }
@@ -463,4 +467,8 @@ type UpdatePublicShareFileRes interface {
 
 type UpdateShareRes interface {
 	updateShareRes()
+}
+
+type UpdateUserPreferencesRes interface {
+	updateUserPreferencesRes()
 }
