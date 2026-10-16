@@ -699,6 +699,66 @@ paths:
         - BearerAuth: []
         - CookieAuth: []
         - ExternalApiKeyAuth: []
+  /v1/me/preferences:
+    get:
+      operationId: getUserPreferences
+      description: Return the authenticated user's web UI preferences, with server
+        defaults for unset values.
+      parameters: []
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPreferences"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Account
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+        - ExternalApiKeyAuth: []
+    patch:
+      operationId: updateUserPreferences
+      description: Update a subset of the authenticated user's web UI preferences.
+      parameters: []
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPreferences"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserPreferencesUpdate"
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+        - ExternalApiKeyAuth: []
   /v1/auth/logout:
     post:
       operationId: logoutSession
@@ -6205,6 +6265,150 @@ components:
           format: date-time
     ETag:
       type: string
+    NameConflictPolicy:
+      type: string
+      enum:
+        - fail
+        - replace
+        - rename
+    UploadPreferences:
+      type: object
+      required:
+        - encryption
+        - conflictPolicy
+        - concurrency
+        - preferredPartSize
+      properties:
+        encryption:
+          type: boolean
+          description: Encrypt new browser uploads and URL imports by default.
+        conflictPolicy:
+          $ref: "#/components/schemas/NameConflictPolicy"
+        concurrency:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 12
+          description: Number of browser uploads that run at the same time.
+        preferredPartSize:
+          type: integer
+          format: int64
+          minimum: 16777216
+          maximum: 2147483648
+          description: Preferred part size in bytes; a multiple of 16 MiB between 16 MiB
+            and 2 GiB.
+    FileBrowserSort:
+      type: string
+      enum:
+        - name
+        - updatedAt
+        - size
+      description: Sort keys offered by the web file browser; a subset of FileSort.
+    SortOrder:
+      type: string
+      enum:
+        - asc
+        - desc
+    FileBrowserPreferences:
+      type: object
+      required:
+        - sort
+        - order
+      properties:
+        sort:
+          $ref: "#/components/schemas/FileBrowserSort"
+        order:
+          $ref: "#/components/schemas/SortOrder"
+    ThemePreference:
+      type: string
+      enum:
+        - system
+        - light
+        - dark
+    InterfaceLocale:
+      type: string
+      enum:
+        - en
+        - es
+        - pt-BR
+        - ru
+        - fr
+        - de
+        - zh-CN
+    AppearancePreferences:
+      type: object
+      required:
+        - theme
+      properties:
+        theme:
+          $ref: "#/components/schemas/ThemePreference"
+        locale:
+          allOf:
+            - $ref: "#/components/schemas/InterfaceLocale"
+          description: Interface language; absent until the user picks one, so clients
+            fall back to browser detection.
+    UserPreferences:
+      type: object
+      required:
+        - uploads
+        - files
+        - appearance
+      properties:
+        uploads:
+          $ref: "#/components/schemas/UploadPreferences"
+        files:
+          $ref: "#/components/schemas/FileBrowserPreferences"
+        appearance:
+          $ref: "#/components/schemas/AppearancePreferences"
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last explicit change; absent while every value is still the server
+            default.
+      description: Per-user web UI preferences shared by every browser and device.
+    UploadPreferencesUpdate:
+      type: object
+      properties:
+        encryption:
+          type: boolean
+        conflictPolicy:
+          $ref: "#/components/schemas/NameConflictPolicy"
+        concurrency:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 12
+        preferredPartSize:
+          type: integer
+          format: int64
+          minimum: 16777216
+          maximum: 2147483648
+          description: Preferred part size in bytes; a multiple of 16 MiB between 16 MiB
+            and 2 GiB.
+    FileBrowserPreferencesUpdate:
+      type: object
+      properties:
+        sort:
+          $ref: "#/components/schemas/FileBrowserSort"
+        order:
+          $ref: "#/components/schemas/SortOrder"
+    AppearancePreferencesUpdate:
+      type: object
+      properties:
+        theme:
+          $ref: "#/components/schemas/ThemePreference"
+        locale:
+          $ref: "#/components/schemas/InterfaceLocale"
+    UserPreferencesUpdate:
+      type: object
+      properties:
+        uploads:
+          $ref: "#/components/schemas/UploadPreferencesUpdate"
+        files:
+          $ref: "#/components/schemas/FileBrowserPreferencesUpdate"
+        appearance:
+          $ref: "#/components/schemas/AppearancePreferencesUpdate"
+      description: Partial update; omitted groups and fields keep their stored values.
     UserSearchResult:
       type: object
       required:
@@ -6516,11 +6720,6 @@ components:
         - updatedAt
         - size
         - id
-    SortOrder:
-      type: string
-      enum:
-        - asc
-        - desc
     HashAlgorithm:
       type: string
       enum:
@@ -6605,12 +6804,6 @@ components:
         modTime:
           type: string
           format: date-time
-    NameConflictPolicy:
-      type: string
-      enum:
-        - fail
-        - replace
-        - rename
     FileMoveRequest:
       type: object
       properties:

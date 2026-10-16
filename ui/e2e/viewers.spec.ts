@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { expect, type Page, test } from "@playwright/test";
 import { strToU8, zipSync } from "fflate";
 import { makeLargePdf } from "./fixtures/viewers/large-pdf";
+import { installPreferencesApi } from "./fixtures/preferences";
 
 const now = "2026-08-01T12:00:00Z";
 const pdfId = "71111111-1111-4111-8111-111111111111";
@@ -136,6 +137,7 @@ async function installViewerApi(
       json: { error: { code: "not_found", message: `${method} ${path}` } },
     });
   });
+  await installPreferencesApi(page);
 }
 
 async function openFile(page: Page, name: string) {

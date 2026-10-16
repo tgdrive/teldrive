@@ -303,6 +303,59 @@ func (s *ApiKeySummary) SetRevokedAt(val OptDateTime) {
 	s.RevokedAt = val
 }
 
+// Ref: #/components/schemas/AppearancePreferences
+type AppearancePreferences struct {
+	Theme ThemePreference `json:"theme"`
+	// Interface language; absent until the user picks one, so clients fall back to browser detection.
+	Locale OptInterfaceLocale `json:"locale"`
+}
+
+// GetTheme returns the value of Theme.
+func (s *AppearancePreferences) GetTheme() ThemePreference {
+	return s.Theme
+}
+
+// GetLocale returns the value of Locale.
+func (s *AppearancePreferences) GetLocale() OptInterfaceLocale {
+	return s.Locale
+}
+
+// SetTheme sets the value of Theme.
+func (s *AppearancePreferences) SetTheme(val ThemePreference) {
+	s.Theme = val
+}
+
+// SetLocale sets the value of Locale.
+func (s *AppearancePreferences) SetLocale(val OptInterfaceLocale) {
+	s.Locale = val
+}
+
+// Ref: #/components/schemas/AppearancePreferencesUpdate
+type AppearancePreferencesUpdate struct {
+	Theme  OptThemePreference `json:"theme"`
+	Locale OptInterfaceLocale `json:"locale"`
+}
+
+// GetTheme returns the value of Theme.
+func (s *AppearancePreferencesUpdate) GetTheme() OptThemePreference {
+	return s.Theme
+}
+
+// GetLocale returns the value of Locale.
+func (s *AppearancePreferencesUpdate) GetLocale() OptInterfaceLocale {
+	return s.Locale
+}
+
+// SetTheme sets the value of Theme.
+func (s *AppearancePreferencesUpdate) SetTheme(val OptThemePreference) {
+	s.Theme = val
+}
+
+// SetLocale sets the value of Locale.
+func (s *AppearancePreferencesUpdate) SetLocale(val OptInterfaceLocale) {
+	s.Locale = val
+}
+
 type BearerAuth struct {
 	Token string
 	Roles []string
@@ -3314,6 +3367,7 @@ func (*ErrorEnvelope) getFileCategoryStatisticsRes() {}
 func (*ErrorEnvelope) getJobStatisticsRes()          {}
 func (*ErrorEnvelope) getPeriodicJobCatalogRes()     {}
 func (*ErrorEnvelope) getStorageStatsRes()           {}
+func (*ErrorEnvelope) getUserPreferencesRes()        {}
 func (*ErrorEnvelope) healthReadyRes()               {}
 func (*ErrorEnvelope) listApiKeysRes()               {}
 func (*ErrorEnvelope) listBotsRes()                  {}
@@ -3627,6 +3681,108 @@ func (s *FileAccessGrantUpdateRequest) SetExpiresAt(val OptDateTime) {
 // SetClearExpiresAt sets the value of ClearExpiresAt.
 func (s *FileAccessGrantUpdateRequest) SetClearExpiresAt(val OptBool) {
 	s.ClearExpiresAt = val
+}
+
+// Ref: #/components/schemas/FileBrowserPreferences
+type FileBrowserPreferences struct {
+	Sort  FileBrowserSort `json:"sort"`
+	Order SortOrder       `json:"order"`
+}
+
+// GetSort returns the value of Sort.
+func (s *FileBrowserPreferences) GetSort() FileBrowserSort {
+	return s.Sort
+}
+
+// GetOrder returns the value of Order.
+func (s *FileBrowserPreferences) GetOrder() SortOrder {
+	return s.Order
+}
+
+// SetSort sets the value of Sort.
+func (s *FileBrowserPreferences) SetSort(val FileBrowserSort) {
+	s.Sort = val
+}
+
+// SetOrder sets the value of Order.
+func (s *FileBrowserPreferences) SetOrder(val SortOrder) {
+	s.Order = val
+}
+
+// Ref: #/components/schemas/FileBrowserPreferencesUpdate
+type FileBrowserPreferencesUpdate struct {
+	Sort  OptFileBrowserSort `json:"sort"`
+	Order OptSortOrder       `json:"order"`
+}
+
+// GetSort returns the value of Sort.
+func (s *FileBrowserPreferencesUpdate) GetSort() OptFileBrowserSort {
+	return s.Sort
+}
+
+// GetOrder returns the value of Order.
+func (s *FileBrowserPreferencesUpdate) GetOrder() OptSortOrder {
+	return s.Order
+}
+
+// SetSort sets the value of Sort.
+func (s *FileBrowserPreferencesUpdate) SetSort(val OptFileBrowserSort) {
+	s.Sort = val
+}
+
+// SetOrder sets the value of Order.
+func (s *FileBrowserPreferencesUpdate) SetOrder(val OptSortOrder) {
+	s.Order = val
+}
+
+// Sort keys offered by the web file browser; a subset of FileSort.
+// Ref: #/components/schemas/FileBrowserSort
+type FileBrowserSort string
+
+const (
+	FileBrowserSortName      FileBrowserSort = "name"
+	FileBrowserSortUpdatedAt FileBrowserSort = "updatedAt"
+	FileBrowserSortSize      FileBrowserSort = "size"
+)
+
+// AllValues returns all FileBrowserSort values.
+func (FileBrowserSort) AllValues() []FileBrowserSort {
+	return []FileBrowserSort{
+		FileBrowserSortName,
+		FileBrowserSortUpdatedAt,
+		FileBrowserSortSize,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s FileBrowserSort) MarshalText() ([]byte, error) {
+	switch s {
+	case FileBrowserSortName:
+		return []byte(s), nil
+	case FileBrowserSortUpdatedAt:
+		return []byte(s), nil
+	case FileBrowserSortSize:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *FileBrowserSort) UnmarshalText(data []byte) error {
+	switch FileBrowserSort(data) {
+	case FileBrowserSortName:
+		*s = FileBrowserSortName
+		return nil
+	case FileBrowserSortUpdatedAt:
+		*s = FileBrowserSortUpdatedAt
+		return nil
+	case FileBrowserSortSize:
+		*s = FileBrowserSortSize
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
 }
 
 // Ref: #/components/schemas/FileBulkMoveRequest
@@ -5839,6 +5995,83 @@ func (s *HealthStatusStatus) UnmarshalText(data []byte) error {
 	}
 }
 
+// Ref: #/components/schemas/InterfaceLocale
+type InterfaceLocale string
+
+const (
+	InterfaceLocaleEn   InterfaceLocale = "en"
+	InterfaceLocaleEs   InterfaceLocale = "es"
+	InterfaceLocalePtBR InterfaceLocale = "pt-BR"
+	InterfaceLocaleRu   InterfaceLocale = "ru"
+	InterfaceLocaleFr   InterfaceLocale = "fr"
+	InterfaceLocaleDe   InterfaceLocale = "de"
+	InterfaceLocaleZhCN InterfaceLocale = "zh-CN"
+)
+
+// AllValues returns all InterfaceLocale values.
+func (InterfaceLocale) AllValues() []InterfaceLocale {
+	return []InterfaceLocale{
+		InterfaceLocaleEn,
+		InterfaceLocaleEs,
+		InterfaceLocalePtBR,
+		InterfaceLocaleRu,
+		InterfaceLocaleFr,
+		InterfaceLocaleDe,
+		InterfaceLocaleZhCN,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s InterfaceLocale) MarshalText() ([]byte, error) {
+	switch s {
+	case InterfaceLocaleEn:
+		return []byte(s), nil
+	case InterfaceLocaleEs:
+		return []byte(s), nil
+	case InterfaceLocalePtBR:
+		return []byte(s), nil
+	case InterfaceLocaleRu:
+		return []byte(s), nil
+	case InterfaceLocaleFr:
+		return []byte(s), nil
+	case InterfaceLocaleDe:
+		return []byte(s), nil
+	case InterfaceLocaleZhCN:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *InterfaceLocale) UnmarshalText(data []byte) error {
+	switch InterfaceLocale(data) {
+	case InterfaceLocaleEn:
+		*s = InterfaceLocaleEn
+		return nil
+	case InterfaceLocaleEs:
+		*s = InterfaceLocaleEs
+		return nil
+	case InterfaceLocalePtBR:
+		*s = InterfaceLocalePtBR
+		return nil
+	case InterfaceLocaleRu:
+		*s = InterfaceLocaleRu
+		return nil
+	case InterfaceLocaleFr:
+		*s = InterfaceLocaleFr
+		return nil
+	case InterfaceLocaleDe:
+		*s = InterfaceLocaleDe
+		return nil
+	case InterfaceLocaleZhCN:
+		*s = InterfaceLocaleZhCN
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
 // Ref: #/components/schemas/Job
 type Job struct {
 	ID          string            `json:"id"`
@@ -6968,6 +7201,52 @@ func (s *NameConflictPolicy) UnmarshalText(data []byte) error {
 	}
 }
 
+// NewOptAppearancePreferencesUpdate returns new OptAppearancePreferencesUpdate with value set to v.
+func NewOptAppearancePreferencesUpdate(v AppearancePreferencesUpdate) OptAppearancePreferencesUpdate {
+	return OptAppearancePreferencesUpdate{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptAppearancePreferencesUpdate is optional AppearancePreferencesUpdate.
+type OptAppearancePreferencesUpdate struct {
+	Value AppearancePreferencesUpdate
+	Set   bool
+}
+
+// IsSet returns true if OptAppearancePreferencesUpdate was set.
+func (o OptAppearancePreferencesUpdate) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptAppearancePreferencesUpdate) Reset() {
+	var v AppearancePreferencesUpdate
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptAppearancePreferencesUpdate) SetTo(v AppearancePreferencesUpdate) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptAppearancePreferencesUpdate) Get() (v AppearancePreferencesUpdate, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptAppearancePreferencesUpdate) Or(d AppearancePreferencesUpdate) AppearancePreferencesUpdate {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
 // NewOptBool returns new OptBool with value set to v.
 func NewOptBool(v bool) OptBool {
 	return OptBool{
@@ -7284,6 +7563,98 @@ func (o OptFileAccessGrantCreateRequestPermission) Get() (v FileAccessGrantCreat
 
 // Or returns value if set, or given parameter if does not.
 func (o OptFileAccessGrantCreateRequestPermission) Or(d FileAccessGrantCreateRequestPermission) FileAccessGrantCreateRequestPermission {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptFileBrowserPreferencesUpdate returns new OptFileBrowserPreferencesUpdate with value set to v.
+func NewOptFileBrowserPreferencesUpdate(v FileBrowserPreferencesUpdate) OptFileBrowserPreferencesUpdate {
+	return OptFileBrowserPreferencesUpdate{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptFileBrowserPreferencesUpdate is optional FileBrowserPreferencesUpdate.
+type OptFileBrowserPreferencesUpdate struct {
+	Value FileBrowserPreferencesUpdate
+	Set   bool
+}
+
+// IsSet returns true if OptFileBrowserPreferencesUpdate was set.
+func (o OptFileBrowserPreferencesUpdate) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptFileBrowserPreferencesUpdate) Reset() {
+	var v FileBrowserPreferencesUpdate
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptFileBrowserPreferencesUpdate) SetTo(v FileBrowserPreferencesUpdate) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptFileBrowserPreferencesUpdate) Get() (v FileBrowserPreferencesUpdate, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptFileBrowserPreferencesUpdate) Or(d FileBrowserPreferencesUpdate) FileBrowserPreferencesUpdate {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptFileBrowserSort returns new OptFileBrowserSort with value set to v.
+func NewOptFileBrowserSort(v FileBrowserSort) OptFileBrowserSort {
+	return OptFileBrowserSort{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptFileBrowserSort is optional FileBrowserSort.
+type OptFileBrowserSort struct {
+	Value FileBrowserSort
+	Set   bool
+}
+
+// IsSet returns true if OptFileBrowserSort was set.
+func (o OptFileBrowserSort) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptFileBrowserSort) Reset() {
+	var v FileBrowserSort
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptFileBrowserSort) SetTo(v FileBrowserSort) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptFileBrowserSort) Get() (v FileBrowserSort, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptFileBrowserSort) Or(d FileBrowserSort) FileBrowserSort {
 	if v, ok := o.Get(); ok {
 		return v
 	}
@@ -8026,6 +8397,52 @@ func (o OptInt64) Or(d int64) int64 {
 	return d
 }
 
+// NewOptInterfaceLocale returns new OptInterfaceLocale with value set to v.
+func NewOptInterfaceLocale(v InterfaceLocale) OptInterfaceLocale {
+	return OptInterfaceLocale{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptInterfaceLocale is optional InterfaceLocale.
+type OptInterfaceLocale struct {
+	Value InterfaceLocale
+	Set   bool
+}
+
+// IsSet returns true if OptInterfaceLocale was set.
+func (o OptInterfaceLocale) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptInterfaceLocale) Reset() {
+	var v InterfaceLocale
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptInterfaceLocale) SetTo(v InterfaceLocale) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptInterfaceLocale) Get() (v InterfaceLocale, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptInterfaceLocale) Or(d InterfaceLocale) InterfaceLocale {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
 // NewOptJobOutput returns new OptJobOutput with value set to v.
 func NewOptJobOutput(v JobOutput) OptJobOutput {
 	return OptJobOutput{
@@ -8112,6 +8529,52 @@ func (o OptJobState) Get() (v JobState, ok bool) {
 
 // Or returns value if set, or given parameter if does not.
 func (o OptJobState) Or(d JobState) JobState {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptNameConflictPolicy returns new OptNameConflictPolicy with value set to v.
+func NewOptNameConflictPolicy(v NameConflictPolicy) OptNameConflictPolicy {
+	return OptNameConflictPolicy{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptNameConflictPolicy is optional NameConflictPolicy.
+type OptNameConflictPolicy struct {
+	Value NameConflictPolicy
+	Set   bool
+}
+
+// IsSet returns true if OptNameConflictPolicy was set.
+func (o OptNameConflictPolicy) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptNameConflictPolicy) Reset() {
+	var v NameConflictPolicy
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptNameConflictPolicy) SetTo(v NameConflictPolicy) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptNameConflictPolicy) Get() (v NameConflictPolicy, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptNameConflictPolicy) Or(d NameConflictPolicy) NameConflictPolicy {
 	if v, ok := o.Get(); ok {
 		return v
 	}
@@ -8210,6 +8673,52 @@ func (o OptSharePermission) Or(d SharePermission) SharePermission {
 	return d
 }
 
+// NewOptSortOrder returns new OptSortOrder with value set to v.
+func NewOptSortOrder(v SortOrder) OptSortOrder {
+	return OptSortOrder{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptSortOrder is optional SortOrder.
+type OptSortOrder struct {
+	Value SortOrder
+	Set   bool
+}
+
+// IsSet returns true if OptSortOrder was set.
+func (o OptSortOrder) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptSortOrder) Reset() {
+	var v SortOrder
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptSortOrder) SetTo(v SortOrder) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptSortOrder) Get() (v SortOrder, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptSortOrder) Or(d SortOrder) SortOrder {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
 // NewOptString returns new OptString with value set to v.
 func NewOptString(v string) OptString {
 	return OptString{
@@ -8250,6 +8759,52 @@ func (o OptString) Get() (v string, ok bool) {
 
 // Or returns value if set, or given parameter if does not.
 func (o OptString) Or(d string) string {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptThemePreference returns new OptThemePreference with value set to v.
+func NewOptThemePreference(v ThemePreference) OptThemePreference {
+	return OptThemePreference{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptThemePreference is optional ThemePreference.
+type OptThemePreference struct {
+	Value ThemePreference
+	Set   bool
+}
+
+// IsSet returns true if OptThemePreference was set.
+func (o OptThemePreference) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptThemePreference) Reset() {
+	var v ThemePreference
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptThemePreference) SetTo(v ThemePreference) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptThemePreference) Get() (v ThemePreference, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptThemePreference) Or(d ThemePreference) ThemePreference {
 	if v, ok := o.Get(); ok {
 		return v
 	}
@@ -8480,6 +9035,52 @@ func (o OptUploadImportSourceHeaders) Get() (v UploadImportSourceHeaders, ok boo
 
 // Or returns value if set, or given parameter if does not.
 func (o OptUploadImportSourceHeaders) Or(d UploadImportSourceHeaders) UploadImportSourceHeaders {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptUploadPreferencesUpdate returns new OptUploadPreferencesUpdate with value set to v.
+func NewOptUploadPreferencesUpdate(v UploadPreferencesUpdate) OptUploadPreferencesUpdate {
+	return OptUploadPreferencesUpdate{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptUploadPreferencesUpdate is optional UploadPreferencesUpdate.
+type OptUploadPreferencesUpdate struct {
+	Value UploadPreferencesUpdate
+	Set   bool
+}
+
+// IsSet returns true if OptUploadPreferencesUpdate was set.
+func (o OptUploadPreferencesUpdate) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptUploadPreferencesUpdate) Reset() {
+	var v UploadPreferencesUpdate
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptUploadPreferencesUpdate) SetTo(v UploadPreferencesUpdate) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptUploadPreferencesUpdate) Get() (v UploadPreferencesUpdate, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptUploadPreferencesUpdate) Or(d UploadPreferencesUpdate) UploadPreferencesUpdate {
 	if v, ok := o.Get(); ok {
 		return v
 	}
@@ -10072,6 +10673,48 @@ func (s *SharedWithMeEntry) SetPermission(val SharePermission) {
 	s.Permission = val
 }
 
+// Ref: #/components/schemas/SortOrder
+type SortOrder string
+
+const (
+	SortOrderAsc  SortOrder = "asc"
+	SortOrderDesc SortOrder = "desc"
+)
+
+// AllValues returns all SortOrder values.
+func (SortOrder) AllValues() []SortOrder {
+	return []SortOrder{
+		SortOrderAsc,
+		SortOrderDesc,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s SortOrder) MarshalText() ([]byte, error) {
+	switch s {
+	case SortOrderAsc:
+		return []byte(s), nil
+	case SortOrderDesc:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *SortOrder) UnmarshalText(data []byte) error {
+	switch SortOrder(data) {
+	case SortOrderAsc:
+		*s = SortOrderAsc
+		return nil
+	case SortOrderDesc:
+		*s = SortOrderDesc
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
 // Ref: #/components/schemas/StorageActivity
 type StorageActivity struct {
 	ID           int64     `json:"id"`
@@ -10887,6 +11530,55 @@ func (s *TelegramQRLoginState) UnmarshalText(data []byte) error {
 	}
 }
 
+// Ref: #/components/schemas/ThemePreference
+type ThemePreference string
+
+const (
+	ThemePreferenceSystem ThemePreference = "system"
+	ThemePreferenceLight  ThemePreference = "light"
+	ThemePreferenceDark   ThemePreference = "dark"
+)
+
+// AllValues returns all ThemePreference values.
+func (ThemePreference) AllValues() []ThemePreference {
+	return []ThemePreference{
+		ThemePreferenceSystem,
+		ThemePreferenceLight,
+		ThemePreferenceDark,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s ThemePreference) MarshalText() ([]byte, error) {
+	switch s {
+	case ThemePreferenceSystem:
+		return []byte(s), nil
+	case ThemePreferenceLight:
+		return []byte(s), nil
+	case ThemePreferenceDark:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *ThemePreference) UnmarshalText(data []byte) error {
+	switch ThemePreference(data) {
+	case ThemePreferenceSystem:
+		*s = ThemePreferenceSystem
+		return nil
+	case ThemePreferenceLight:
+		*s = ThemePreferenceLight
+		return nil
+	case ThemePreferenceDark:
+		*s = ThemePreferenceDark
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
 // Ref: #/components/schemas/TokenPair
 type TokenPair struct {
 	AccessToken  string             `json:"accessToken"`
@@ -11111,6 +11803,14 @@ func (*UpdateShareUnauthorized) updateShareRes() {}
 type UpdateShareUnprocessableEntity ErrorEnvelope
 
 func (*UpdateShareUnprocessableEntity) updateShareRes() {}
+
+type UpdateUserPreferencesUnauthorized ErrorEnvelope
+
+func (*UpdateUserPreferencesUnauthorized) updateUserPreferencesRes() {}
+
+type UpdateUserPreferencesUnprocessableEntity ErrorEnvelope
+
+func (*UpdateUserPreferencesUnprocessableEntity) updateUserPreferencesRes() {}
 
 // Ref: #/components/schemas/UploadCreateRequest
 type UploadCreateRequest struct {
@@ -11690,6 +12390,106 @@ func (s *UploadPartState) UnmarshalText(data []byte) error {
 	}
 }
 
+// Ref: #/components/schemas/UploadPreferences
+type UploadPreferences struct {
+	// Encrypt new browser uploads and URL imports by default.
+	Encryption     bool               `json:"encryption"`
+	ConflictPolicy NameConflictPolicy `json:"conflictPolicy"`
+	// Number of browser uploads that run at the same time.
+	Concurrency int32 `json:"concurrency"`
+	// Preferred part size in bytes; a multiple of 16 MiB between 16 MiB and 2 GiB.
+	PreferredPartSize int64 `json:"preferredPartSize"`
+}
+
+// GetEncryption returns the value of Encryption.
+func (s *UploadPreferences) GetEncryption() bool {
+	return s.Encryption
+}
+
+// GetConflictPolicy returns the value of ConflictPolicy.
+func (s *UploadPreferences) GetConflictPolicy() NameConflictPolicy {
+	return s.ConflictPolicy
+}
+
+// GetConcurrency returns the value of Concurrency.
+func (s *UploadPreferences) GetConcurrency() int32 {
+	return s.Concurrency
+}
+
+// GetPreferredPartSize returns the value of PreferredPartSize.
+func (s *UploadPreferences) GetPreferredPartSize() int64 {
+	return s.PreferredPartSize
+}
+
+// SetEncryption sets the value of Encryption.
+func (s *UploadPreferences) SetEncryption(val bool) {
+	s.Encryption = val
+}
+
+// SetConflictPolicy sets the value of ConflictPolicy.
+func (s *UploadPreferences) SetConflictPolicy(val NameConflictPolicy) {
+	s.ConflictPolicy = val
+}
+
+// SetConcurrency sets the value of Concurrency.
+func (s *UploadPreferences) SetConcurrency(val int32) {
+	s.Concurrency = val
+}
+
+// SetPreferredPartSize sets the value of PreferredPartSize.
+func (s *UploadPreferences) SetPreferredPartSize(val int64) {
+	s.PreferredPartSize = val
+}
+
+// Ref: #/components/schemas/UploadPreferencesUpdate
+type UploadPreferencesUpdate struct {
+	Encryption     OptBool               `json:"encryption"`
+	ConflictPolicy OptNameConflictPolicy `json:"conflictPolicy"`
+	Concurrency    OptInt32              `json:"concurrency"`
+	// Preferred part size in bytes; a multiple of 16 MiB between 16 MiB and 2 GiB.
+	PreferredPartSize OptInt64 `json:"preferredPartSize"`
+}
+
+// GetEncryption returns the value of Encryption.
+func (s *UploadPreferencesUpdate) GetEncryption() OptBool {
+	return s.Encryption
+}
+
+// GetConflictPolicy returns the value of ConflictPolicy.
+func (s *UploadPreferencesUpdate) GetConflictPolicy() OptNameConflictPolicy {
+	return s.ConflictPolicy
+}
+
+// GetConcurrency returns the value of Concurrency.
+func (s *UploadPreferencesUpdate) GetConcurrency() OptInt32 {
+	return s.Concurrency
+}
+
+// GetPreferredPartSize returns the value of PreferredPartSize.
+func (s *UploadPreferencesUpdate) GetPreferredPartSize() OptInt64 {
+	return s.PreferredPartSize
+}
+
+// SetEncryption sets the value of Encryption.
+func (s *UploadPreferencesUpdate) SetEncryption(val OptBool) {
+	s.Encryption = val
+}
+
+// SetConflictPolicy sets the value of ConflictPolicy.
+func (s *UploadPreferencesUpdate) SetConflictPolicy(val OptNameConflictPolicy) {
+	s.ConflictPolicy = val
+}
+
+// SetConcurrency sets the value of Concurrency.
+func (s *UploadPreferencesUpdate) SetConcurrency(val OptInt32) {
+	s.Concurrency = val
+}
+
+// SetPreferredPartSize sets the value of PreferredPartSize.
+func (s *UploadPreferencesUpdate) SetPreferredPartSize(val OptInt64) {
+	s.PreferredPartSize = val
+}
+
 // Ref: #/components/schemas/UploadSession
 type UploadSession struct {
 	ID             UUID               `json:"id"`
@@ -11950,6 +12750,97 @@ func (s *UserAdminUpdateRequest) SetRole(val OptUserRole) {
 // SetDisabled sets the value of Disabled.
 func (s *UserAdminUpdateRequest) SetDisabled(val OptBool) {
 	s.Disabled = val
+}
+
+// Per-user web UI preferences shared by every browser and device.
+// Ref: #/components/schemas/UserPreferences
+type UserPreferences struct {
+	Uploads    UploadPreferences      `json:"uploads"`
+	Files      FileBrowserPreferences `json:"files"`
+	Appearance AppearancePreferences  `json:"appearance"`
+	// Last explicit change; absent while every value is still the server default.
+	UpdatedAt OptDateTime `json:"updatedAt"`
+}
+
+// GetUploads returns the value of Uploads.
+func (s *UserPreferences) GetUploads() UploadPreferences {
+	return s.Uploads
+}
+
+// GetFiles returns the value of Files.
+func (s *UserPreferences) GetFiles() FileBrowserPreferences {
+	return s.Files
+}
+
+// GetAppearance returns the value of Appearance.
+func (s *UserPreferences) GetAppearance() AppearancePreferences {
+	return s.Appearance
+}
+
+// GetUpdatedAt returns the value of UpdatedAt.
+func (s *UserPreferences) GetUpdatedAt() OptDateTime {
+	return s.UpdatedAt
+}
+
+// SetUploads sets the value of Uploads.
+func (s *UserPreferences) SetUploads(val UploadPreferences) {
+	s.Uploads = val
+}
+
+// SetFiles sets the value of Files.
+func (s *UserPreferences) SetFiles(val FileBrowserPreferences) {
+	s.Files = val
+}
+
+// SetAppearance sets the value of Appearance.
+func (s *UserPreferences) SetAppearance(val AppearancePreferences) {
+	s.Appearance = val
+}
+
+// SetUpdatedAt sets the value of UpdatedAt.
+func (s *UserPreferences) SetUpdatedAt(val OptDateTime) {
+	s.UpdatedAt = val
+}
+
+func (*UserPreferences) getUserPreferencesRes()    {}
+func (*UserPreferences) updateUserPreferencesRes() {}
+
+// Partial update; omitted groups and fields keep their stored values.
+// Ref: #/components/schemas/UserPreferencesUpdate
+type UserPreferencesUpdate struct {
+	Uploads    OptUploadPreferencesUpdate      `json:"uploads"`
+	Files      OptFileBrowserPreferencesUpdate `json:"files"`
+	Appearance OptAppearancePreferencesUpdate  `json:"appearance"`
+}
+
+// GetUploads returns the value of Uploads.
+func (s *UserPreferencesUpdate) GetUploads() OptUploadPreferencesUpdate {
+	return s.Uploads
+}
+
+// GetFiles returns the value of Files.
+func (s *UserPreferencesUpdate) GetFiles() OptFileBrowserPreferencesUpdate {
+	return s.Files
+}
+
+// GetAppearance returns the value of Appearance.
+func (s *UserPreferencesUpdate) GetAppearance() OptAppearancePreferencesUpdate {
+	return s.Appearance
+}
+
+// SetUploads sets the value of Uploads.
+func (s *UserPreferencesUpdate) SetUploads(val OptUploadPreferencesUpdate) {
+	s.Uploads = val
+}
+
+// SetFiles sets the value of Files.
+func (s *UserPreferencesUpdate) SetFiles(val OptFileBrowserPreferencesUpdate) {
+	s.Files = val
+}
+
+// SetAppearance sets the value of Appearance.
+func (s *UserPreferencesUpdate) SetAppearance(val OptAppearancePreferencesUpdate) {
+	s.Appearance = val
 }
 
 // Ref: #/components/schemas/UserProfile

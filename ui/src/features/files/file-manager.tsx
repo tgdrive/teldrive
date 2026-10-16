@@ -39,12 +39,8 @@ import {
   type SearchState,
 } from "./search-state";
 
-import {
-  type FileSort,
-  loadSortPreference,
-  type SortOrder,
-  saveSortPreference,
-} from "./sort-preference";
+import type { FileSort, SortOrder } from "./sort-preference";
+import { usePreferences, useUpdatePreferences } from "@/lib/preferences";
 
 type FileBrowserView = "list" | "grid";
 type PaneId = "primary" | "secondary";
@@ -81,7 +77,8 @@ export function FileManagerPage({
   };
 }) {
   const navigateTo = useNavigate();
-  const [savedSort, setSavedSort] = useState(loadSortPreference);
+  const savedSort = usePreferences()?.files ?? { sort: "name" as const, order: "asc" as const };
+  const { mutate: updatePreferences } = useUpdatePreferences();
   const sorting = search.recent
     ? { sort: "updatedAt" as const, order: "desc" as const }
     : { sort: search.sort ?? savedSort.sort, order: search.order ?? savedSort.order };
@@ -98,8 +95,7 @@ export function FileManagerPage({
       }
     : {};
   const changeSorting = (next: typeof sorting) => {
-    setSavedSort(next);
-    saveSortPreference(next);
+    updatePreferences({ files: { sort: next.sort, order: next.order } });
     onLocationChange({ ...search, ...next }, true);
   };
   const navigate = ({ search: next, replace }: { search: FilesLocation; replace?: boolean }) =>

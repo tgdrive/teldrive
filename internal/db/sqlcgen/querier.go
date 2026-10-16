@@ -46,6 +46,7 @@ type Querier interface {
 	DeleteFileViewState(ctx context.Context, arg DeleteFileViewStateParams) (int64, error)
 	DeleteUploadPartsForCleanup(ctx context.Context, parts []byte) (int64, error)
 	DeleteUserEventsBefore(ctx context.Context, cutoff pgtype.Timestamptz) (int64, error)
+	EnsureUserPreferences(ctx context.Context, userID int64) error
 	ExpireUploadSessions(ctx context.Context) ([]*UploadSession, error)
 	FinalizeUploadExpectedSize(ctx context.Context, arg FinalizeUploadExpectedSizeParams) (*UploadSession, error)
 	FindResumableUploadSessions(ctx context.Context, arg FindResumableUploadSessionsParams) ([]*UploadSession, error)
@@ -77,6 +78,7 @@ type Querier interface {
 	GetUploadSessionForUser(ctx context.Context, arg GetUploadSessionForUserParams) (*UploadSession, error)
 	GetUser(ctx context.Context, userID int64) (*User, error)
 	GetUserEventCursorState(ctx context.Context, arg GetUserEventCursorStateParams) (*GetUserEventCursorStateRow, error)
+	GetUserPreferences(ctx context.Context, userID int64) (*UserPreference, error)
 	IncrementShareDownloadCount(ctx context.Context, id pgtype.UUID) (*FileShare, error)
 	InsertAuditEvent(ctx context.Context, arg InsertAuditEventParams) (*AuditEvent, error)
 	InsertCopiedFileParts(ctx context.Context, parts []byte) (int64, error)
@@ -193,6 +195,7 @@ type Querier interface {
 	UpdateFileShare(ctx context.Context, arg UpdateFileShareParams) (*FileShare, error)
 	UpdateSessionTelegramSession(ctx context.Context, arg UpdateSessionTelegramSessionParams) (int64, error)
 	UpdateTelegramLoginFlowState(ctx context.Context, arg UpdateTelegramLoginFlowStateParams) (*TelegramLoginFlow, error)
+	UpdateUserPreferences(ctx context.Context, arg UpdateUserPreferencesParams) (*UserPreference, error)
 	UpdateUserRole(ctx context.Context, arg UpdateUserRoleParams) (*User, error)
 	UpsertDiscoveredChannels(ctx context.Context, arg UpsertDiscoveredChannelsParams) ([]*Channel, error)
 	UpsertFileViewState(ctx context.Context, arg UpsertFileViewStateParams) (*FileViewState, error)

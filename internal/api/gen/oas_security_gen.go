@@ -79,6 +79,7 @@ var operationRolesBearerAuth = map[string][]string{
 	GetStorageStatsOperation:           []string{},
 	GetUploadOperation:                 []string{},
 	GetUploadStatisticsOperation:       []string{},
+	GetUserPreferencesOperation:        []string{},
 	HeadFileOperation:                  []string{},
 	HeadFileLegacyOperation:            []string{},
 	ListAdminUsersOperation:            []string{},
@@ -127,6 +128,7 @@ var operationRolesBearerAuth = map[string][]string{
 	UpdateFileAccessGrantOperation:     []string{},
 	UpdatePeriodicJobOperation:         []string{},
 	UpdateShareOperation:               []string{},
+	UpdateUserPreferencesOperation:     []string{},
 }
 
 // GetRolesForBearerAuth returns the required roles for the given operation.
@@ -191,6 +193,7 @@ var operationRolesCookieAuth = map[string][]string{
 	GetStorageStatsOperation:           []string{},
 	GetUploadOperation:                 []string{},
 	GetUploadStatisticsOperation:       []string{},
+	GetUserPreferencesOperation:        []string{},
 	HeadFileOperation:                  []string{},
 	HeadFileLegacyOperation:            []string{},
 	ListAdminUsersOperation:            []string{},
@@ -239,6 +242,7 @@ var operationRolesCookieAuth = map[string][]string{
 	UpdateFileAccessGrantOperation:     []string{},
 	UpdatePeriodicJobOperation:         []string{},
 	UpdateShareOperation:               []string{},
+	UpdateUserPreferencesOperation:     []string{},
 }
 
 // GetRolesForCookieAuth returns the required roles for the given operation.
@@ -326,6 +330,7 @@ var operationRolesExternalApiKeyAuth = map[string][]string{
 	GetStorageStatsOperation:           []string{},
 	GetUploadOperation:                 []string{},
 	GetUploadStatisticsOperation:       []string{},
+	GetUserPreferencesOperation:        []string{},
 	HeadFileOperation:                  []string{},
 	HeadFileLegacyOperation:            []string{},
 	ListAdminUsersOperation:            []string{},
@@ -367,6 +372,7 @@ var operationRolesExternalApiKeyAuth = map[string][]string{
 	UpdateFileAccessGrantOperation:     []string{},
 	UpdatePeriodicJobOperation:         []string{},
 	UpdateShareOperation:               []string{},
+	UpdateUserPreferencesOperation:     []string{},
 }
 
 // GetRolesForExternalApiKeyAuth returns the required roles for the given operation.

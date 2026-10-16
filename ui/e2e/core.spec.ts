@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { installPreferencesApi } from "./fixtures/preferences";
 
 const now = "2026-07-22T12:00:00Z";
 const folderId = "11111111-1111-4111-8111-111111111111";
@@ -459,6 +460,7 @@ async function installApi(page: Page) {
       json: { error: { code: "not_found", message: `Unhandled fixture ${method} ${path}` } },
     });
   });
+  await installPreferencesApi(page);
 }
 
 function collectRuntimeErrors(page: Page) {
@@ -698,7 +700,8 @@ test("files create-folder dialog uses  design controls", async ({ page, isMobile
   await expect(dialog).toBeHidden();
 });
 
-test("upload settings use HeroUI controls and persist choices", async ({ page }) => {
+test("upload settings use HeroUI controls and save choices to the account", async ({ page }) => {
+  const preferences = await installPreferencesApi(page);
   await page.goto("/settings/uploads");
   const encryption = page.getByRole("switch", { name: "Encrypt uploaded files" });
   await expect(encryption).not.toBeChecked();
@@ -707,6 +710,11 @@ test("upload settings use HeroUI controls and persist choices", async ({ page })
   await page.getByRole("option", { name: "Replace existing", exact: true }).click();
   await expect(encryption).toBeChecked();
   await expect(page.getByRole("button", { name: /replace existing/i })).toBeVisible();
+  await expect
+    .poll(() => preferences.current().uploads)
+    .toMatchObject({ encryption: true, conflictPolicy: "replace" });
+  expect(preferences.patches).toContainEqual({ uploads: { encryption: true } });
+  expect(preferences.patches).toContainEqual({ uploads: { conflictPolicy: "replace" } });
 });
 
 test("running RiverPro job can be cancelled", async ({ page }) => {

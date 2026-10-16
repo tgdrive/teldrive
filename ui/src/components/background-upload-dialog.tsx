@@ -16,6 +16,7 @@ import type { components } from "@/api/schema";
 import { fetchClient } from "@/api/client";
 import { newClientId } from "@/features/shared/client-id";
 import { useAppLocale } from "@/lib/locale";
+import { usePreferences } from "@/lib/preferences";
 import { AppDialog } from "./dialogs/app-dialog";
 
 type ImportSource = components["schemas"]["UploadImportSource"];
@@ -56,13 +57,17 @@ export function BackgroundUploadDialog({
   const [maxSize, setMaxSize] = useState("");
   const [chunkSizeMiB, setChunkSizeMiB] = useState(512);
   const [partConcurrency, setPartConcurrency] = useState(4);
-  const [encryption, setEncryption] = useState(false);
+  const encryptionDefault = usePreferences()?.uploads.encryption ?? false;
+  const [encryption, setEncryption] = useState(encryptionDefault);
   const [submitting, setSubmitting] = useState(false);
   const { t } = useAppLocale();
 
   useEffect(() => {
-    if (open) setDestination(currentPath);
-  }, [currentPath, open]);
+    if (open) {
+      setDestination(currentPath);
+      setEncryption(encryptionDefault);
+    }
+  }, [currentPath, encryptionDefault, open]);
 
   const reset = () => {
     setSources([newSource()]);
@@ -73,7 +78,7 @@ export function BackgroundUploadDialog({
     setMaxSize("");
     setChunkSizeMiB(512);
     setPartConcurrency(4);
-    setEncryption(false);
+    setEncryption(encryptionDefault);
   };
 
   const close = () => {

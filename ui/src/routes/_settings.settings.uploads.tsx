@@ -1,16 +1,23 @@
 import { Label, ListBox, NumberField, Select, Switch } from "@heroui/react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useRef, useState } from "react";
+import type { UploadPreferences } from "@/api/types";
 import { SettingsPageHeader, SettingsRow, SettingsSection } from "@/components/settings-layout";
-import { MAX_PART_SIZE_MIB, normalizePartSizeMiB, useUploadStore } from "@/features/uploads/store";
 import { useAppLocale } from "@/lib/locale";
+import {
+  MAX_PART_SIZE_MIB,
+  normalizePartSizeMiB,
+  usePreferences,
+  useUpdatePreferences,
+} from "@/lib/preferences";
 
 export const Route = createFileRoute("/_settings/settings/uploads")({ component: UploadSettings });
 
 function UploadSettings() {
-  const settings = useUploadStore((state) => state.settings);
-  const setSettings = useUploadStore((state) => state.setSettings);
+  const uploads = usePreferences()?.uploads;
+  const { mutate: updatePreferences } = useUpdatePreferences();
   const { t } = useAppLocale();
+  if (!uploads) return null;
 
   return (
     <div className="space-y-6">
@@ -19,8 +26,8 @@ function UploadSettings() {
         <SettingsRow label={t("uploads.encryption")} description={t("uploads.encryptionDesc")}>
           <Switch
             aria-label={t("uploads.encryptLabel")}
-            isSelected={settings.encryption}
-            onChange={(isSelected) => setSettings({ encryption: isSelected })}
+            isSelected={uploads.encryption}
+            onChange={(isSelected) => updatePreferences({ uploads: { encryption: isSelected } })}
           >
             <Switch.Content>
               <Switch.Control>
@@ -33,9 +40,11 @@ function UploadSettings() {
         <SettingsRow label={t("uploads.conflicts")} description={t("uploads.conflictsDesc")}>
           <Select
             aria-label={t("uploads.conflicts")}
-            selectedKey={settings.conflictPolicy}
+            selectedKey={uploads.conflictPolicy}
             onSelectionChange={(key) =>
-              setSettings({ conflictPolicy: String(key) as typeof settings.conflictPolicy })
+              updatePreferences({
+                uploads: { conflictPolicy: String(key) as UploadPreferences["conflictPolicy"] },
+              })
             }
           >
             <Select.Trigger>
@@ -50,7 +59,7 @@ function UploadSettings() {
                 <ListBox.Item id="replace" textValue={t("uploads.optReplace")}>
                   {t("uploads.optReplace")}
                 </ListBox.Item>
-                <ListBox.Item id="error" textValue={t("uploads.optError")}>
+                <ListBox.Item id="fail" textValue={t("uploads.optError")}>
                   {t("uploads.optError")}
                 </ListBox.Item>
               </ListBox>
@@ -60,11 +69,13 @@ function UploadSettings() {
         <SettingsRow label={t("uploads.concurrency")} description={t("uploads.concurrencyDesc")}>
           <NumberField
             aria-label={t("uploads.concurrency")}
-            value={settings.concurrency}
+            value={uploads.concurrency}
             minValue={1}
             maxValue={12}
             onChange={(value) =>
-              setSettings({ concurrency: Math.max(1, Math.min(12, value ?? 1)) })
+              updatePreferences({
+                uploads: { concurrency: Math.max(1, Math.min(12, value ?? 1)) },
+              })
             }
           >
             <Label className="sr-only">{t("uploads.concurrency")}</Label>
@@ -76,16 +87,15 @@ function UploadSettings() {
           </NumberField>
         </SettingsRow>
         <SettingsRow label={t("uploads.partSize")} description={t("uploads.partSizeDesc")}>
-          <PartSizeField />
+          <PartSizeField preferredPartSize={uploads.preferredPartSize} />
         </SettingsRow>
       </SettingsSection>
     </div>
   );
 }
 
-function PartSizeField() {
-  const preferredPartSize = useUploadStore((state) => state.settings.preferredPartSize);
-  const setSettings = useUploadStore((state) => state.setSettings);
+function PartSizeField({ preferredPartSize }: { preferredPartSize: number }) {
+  const { mutate: updatePreferences } = useUpdatePreferences();
   const [value, setValue] = useState(preferredPartSize / 1024 / 1024);
   const valueRef = useRef(value);
   const { t } = useAppLocale();
@@ -94,7 +104,7 @@ function PartSizeField() {
     const normalized = normalizePartSizeMiB(valueRef.current);
     valueRef.current = normalized;
     setValue(normalized);
-    setSettings({ preferredPartSize: normalized * 1024 * 1024 });
+    updatePreferences({ uploads: { preferredPartSize: normalized * 1024 * 1024 } });
   };
 
   return (

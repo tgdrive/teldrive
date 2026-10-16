@@ -10,6 +10,18 @@ export const APP_LOCALES: { code: AppLocale; label: string; nativeLabel: string 
   { code: "zh-CN", label: "Chinese (Simplified)", nativeLabel: "简体中文" },
 ];
 
+export function isAppLocale(value: unknown): value is AppLocale {
+  return APP_LOCALES.some((entry) => entry.code === value);
+}
+
+export function translate(locale: AppLocale, key: string, vars?: Record<string, string | number>) {
+  const template = STRINGS[locale][key] ?? STRINGS.en[key] ?? key;
+  if (!vars) return template;
+  return template.replace(/\{(\w+)\}/g, (_, name: string) =>
+    vars[name] === undefined ? `{${name}}` : String(vars[name]),
+  );
+}
+
 export const STRINGS: Record<AppLocale, Record<string, string>> = {
   en: {
     "nav.files": "Files",
@@ -41,17 +53,18 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "account.logout": "Log out",
     "account.loggingOut": "Logging out…",
     "account.logoutFailed": "Unable to log out",
+    "preferences.saveFailed": "Could not save your preferences",
     "appearance.title": "Appearance",
-    "appearance.description": "Control how Teldrive looks in this browser.",
+    "appearance.description": "Control how Teldrive looks for your account.",
     "appearance.themeTitle": "Color theme",
-    "appearance.themeDescription": "The choice is stored locally and applies immediately.",
+    "appearance.themeDescription": "Saved to your account and applied immediately.",
     "appearance.themeLabel": "Theme",
     "appearance.themeHint": "Follow your system, or choose light or dark.",
     "appearance.system": "System",
     "appearance.light": "Light",
     "appearance.dark": "Dark",
     "appearance.languageTitle": "Language",
-    "appearance.languageDescription": "The choice is stored locally and applies immediately.",
+    "appearance.languageDescription": "Saved to your account and applied immediately.",
     "appearance.languageLabel": "Language",
     "appearance.languageHint":
       "HeroUI components and system formatting follow the selected language.",
@@ -789,8 +802,7 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "uploads.desc":
       "Browser upload concurrency, encryption, conflict handling, and multipart sizing.",
     "uploads.behavior": "Upload behavior",
-    "uploads.behaviorDesc":
-      "These preferences are stored in this browser and apply to new uploads.",
+    "uploads.behaviorDesc": "These preferences are saved to your account and apply to new uploads.",
     "uploads.encryption": "Encryption",
     "uploads.encryptionDesc":
       "Encrypt file parts with Teldrive's server-managed key before storage.",
@@ -1036,17 +1048,18 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "account.logout": "Cerrar sesión",
     "account.loggingOut": "Cerrando sesión…",
     "account.logoutFailed": "No se pudo cerrar sesión",
+    "preferences.saveFailed": "No se pudieron guardar tus preferencias",
     "appearance.title": "Apariencia",
-    "appearance.description": "Controla cómo se ve Teldrive en este navegador.",
+    "appearance.description": "Controla cómo se ve Teldrive en tu cuenta.",
     "appearance.themeTitle": "Tema de color",
-    "appearance.themeDescription": "La elección se guarda localmente y se aplica de inmediato.",
+    "appearance.themeDescription": "Se guarda en tu cuenta y se aplica de inmediato.",
     "appearance.themeLabel": "Tema",
     "appearance.themeHint": "Sigue tu sistema o elige claro u oscuro.",
     "appearance.system": "Sistema",
     "appearance.light": "Claro",
     "appearance.dark": "Oscuro",
     "appearance.languageTitle": "Idioma",
-    "appearance.languageDescription": "La elección se guarda localmente y se aplica de inmediato.",
+    "appearance.languageDescription": "Se guarda en tu cuenta y se aplica de inmediato.",
     "appearance.languageLabel": "Idioma",
     "appearance.languageHint":
       "Los componentes HeroUI y el formato del sistema siguen el idioma seleccionado.",
@@ -1786,7 +1799,7 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
       "Concurrencia de subidas del navegador, cifrado, gestión de conflictos y tamaño multiparte.",
     "uploads.behavior": "Comportamiento de subida",
     "uploads.behaviorDesc":
-      "Estas preferencias se guardan en este navegador y se aplican a nuevas subidas.",
+      "Estas preferencias se guardan en tu cuenta y se aplican a nuevas subidas.",
     "uploads.encryption": "Cifrado",
     "uploads.encryptionDesc":
       "Cifra las partes de archivos con la clave gestionada por el servidor de Teldrive antes de almacenarlas.",
@@ -2031,17 +2044,18 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "account.logout": "Sair",
     "account.loggingOut": "Saindo…",
     "account.logoutFailed": "Não foi possível sair",
+    "preferences.saveFailed": "Não foi possível salvar suas preferências",
     "appearance.title": "Aparência",
-    "appearance.description": "Controle a aparência do Teldrive neste navegador.",
+    "appearance.description": "Controle a aparência do Teldrive na sua conta.",
     "appearance.themeTitle": "Tema de cor",
-    "appearance.themeDescription": "A escolha é salva localmente e aplicada na hora.",
+    "appearance.themeDescription": "A escolha é salva na sua conta e aplicada na hora.",
     "appearance.themeLabel": "Tema",
     "appearance.themeHint": "Siga o sistema ou escolha claro ou escuro.",
     "appearance.system": "Sistema",
     "appearance.light": "Claro",
     "appearance.dark": "Escuro",
     "appearance.languageTitle": "Idioma",
-    "appearance.languageDescription": "A escolha é salva localmente e aplicada na hora.",
+    "appearance.languageDescription": "A escolha é salva na sua conta e aplicada na hora.",
     "appearance.languageLabel": "Idioma",
     "appearance.languageHint":
       "Os componentes HeroUI e a formatação do sistema seguem o idioma selecionado.",
@@ -2778,7 +2792,7 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "uploads.desc":
       "Concorrência de envios do navegador, criptografia, conflitos e tamanho multipart.",
     "uploads.behavior": "Comportamento de envio",
-    "uploads.behaviorDesc": "Estas preferências ficam neste navegador e valem para novos envios.",
+    "uploads.behaviorDesc": "Estas preferências ficam na sua conta e valem para novos envios.",
     "uploads.encryption": "Criptografia",
     "uploads.encryptionDesc":
       "Criptografa as partes com a chave gerenciada pelo servidor do Teldrive antes de armazenar.",
@@ -3022,17 +3036,18 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "account.logout": "Выйти",
     "account.loggingOut": "Выход…",
     "account.logoutFailed": "Не удалось выйти",
+    "preferences.saveFailed": "Не удалось сохранить настройки",
     "appearance.title": "Оформление",
-    "appearance.description": "Настройте внешний вид Teldrive в этом браузере.",
+    "appearance.description": "Настройте внешний вид Teldrive для вашей учётной записи.",
     "appearance.themeTitle": "Цветовая тема",
-    "appearance.themeDescription": "Выбор сохраняется локально и применяется сразу.",
+    "appearance.themeDescription": "Выбор сохраняется в учётной записи и применяется сразу.",
     "appearance.themeLabel": "Тема",
     "appearance.themeHint": "Следовать системе или выбрать светлую либо тёмную.",
     "appearance.system": "Система",
     "appearance.light": "Светлая",
     "appearance.dark": "Тёмная",
     "appearance.languageTitle": "Язык",
-    "appearance.languageDescription": "Выбор сохраняется локально и применяется сразу.",
+    "appearance.languageDescription": "Выбор сохраняется в учётной записи и применяется сразу.",
     "appearance.languageLabel": "Язык",
     "appearance.languageHint":
       "Компоненты HeroUI и системное форматирование следуют выбранному языку.",
@@ -3769,7 +3784,8 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "sessions.dialogConfirm": "Отозвать сеанс",
     "uploads.desc": "Параллельность загрузок в браузере, шифрование, конфликты и размер частей.",
     "uploads.behavior": "Поведение загрузок",
-    "uploads.behaviorDesc": "Эти настройки хранятся в браузере и применяются к новым загрузкам.",
+    "uploads.behaviorDesc":
+      "Эти настройки хранятся в учётной записи и применяются к новым загрузкам.",
     "uploads.encryption": "Шифрование",
     "uploads.encryptionDesc": "Шифрование частей файлов ключом сервера Teldrive перед сохранением.",
     "uploads.encryptLabel": "Шифровать загружаемые файлы",
@@ -4011,17 +4027,20 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "account.logout": "Se déconnecter",
     "account.loggingOut": "Déconnexion…",
     "account.logoutFailed": "Impossible de se déconnecter",
+    "preferences.saveFailed": "Impossible d'enregistrer vos préférences",
     "appearance.title": "Apparence",
-    "appearance.description": "Contrôle l’apparence de Teldrive dans ce navigateur.",
+    "appearance.description": "Contrôle l’apparence de Teldrive pour votre compte.",
     "appearance.themeTitle": "Thème de couleur",
-    "appearance.themeDescription": "Le choix est enregistré localement et appliqué aussitôt.",
+    "appearance.themeDescription":
+      "Le choix est enregistré dans votre compte et appliqué aussitôt.",
     "appearance.themeLabel": "Thème",
     "appearance.themeHint": "Suivez votre système, ou choisissez clair ou sombre.",
     "appearance.system": "Système",
     "appearance.light": "Clair",
     "appearance.dark": "Sombre",
     "appearance.languageTitle": "Langue",
-    "appearance.languageDescription": "Le choix est enregistré localement et appliqué aussitôt.",
+    "appearance.languageDescription":
+      "Le choix est enregistré dans votre compte et appliqué aussitôt.",
     "appearance.languageLabel": "Langue",
     "appearance.languageHint":
       "Les composants HeroUI et le formatage système suivent la langue sélectionnée.",
@@ -4765,7 +4784,7 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "uploads.desc": "Concurrence des téléversements, chiffrement, conflits et taille multipart.",
     "uploads.behavior": "Comportement des téléversements",
     "uploads.behaviorDesc":
-      "Ces préférences sont stockées dans ce navigateur et s’appliquent aux nouveaux téléversements.",
+      "Ces préférences sont enregistrées dans votre compte et s’appliquent aux nouveaux téléversements.",
     "uploads.encryption": "Chiffrement",
     "uploads.encryptionDesc": "Chiffre les parties avec la clé serveur Teldrive avant stockage.",
     "uploads.encryptLabel": "Chiffrer les fichiers téléversés",
@@ -5013,17 +5032,20 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "account.logout": "Abmelden",
     "account.loggingOut": "Wird abgemeldet…",
     "account.logoutFailed": "Abmelden nicht möglich",
+    "preferences.saveFailed": "Einstellungen konnten nicht gespeichert werden",
     "appearance.title": "Darstellung",
-    "appearance.description": "Lege fest, wie Teldrive in diesem Browser aussieht.",
+    "appearance.description": "Lege fest, wie Teldrive für dein Konto aussieht.",
     "appearance.themeTitle": "Farbschema",
-    "appearance.themeDescription": "Die Auswahl wird lokal gespeichert und sofort angewendet.",
+    "appearance.themeDescription":
+      "Die Auswahl wird in deinem Konto gespeichert und sofort angewendet.",
     "appearance.themeLabel": "Schema",
     "appearance.themeHint": "System folgen oder hell oder dunkel wählen.",
     "appearance.system": "System",
     "appearance.light": "Hell",
     "appearance.dark": "Dunkel",
     "appearance.languageTitle": "Sprache",
-    "appearance.languageDescription": "Die Auswahl wird lokal gespeichert und sofort angewendet.",
+    "appearance.languageDescription":
+      "Die Auswahl wird in deinem Konto gespeichert und sofort angewendet.",
     "appearance.languageLabel": "Sprache",
     "appearance.languageHint": "HeroUI und Systemformatierung folgen der gewählten Sprache.",
     "settings.title": "Einstellungen",
@@ -5762,7 +5784,7 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "uploads.desc": "Browser-Upload-Parallelität, Verschlüsselung, Konflikte und Multipart-Größe.",
     "uploads.behavior": "Upload-Verhalten",
     "uploads.behaviorDesc":
-      "Diese Einstellungen werden in diesem Browser gespeichert und gelten für neue Uploads.",
+      "Diese Einstellungen werden in deinem Konto gespeichert und gelten für neue Uploads.",
     "uploads.encryption": "Verschlüsselung",
     "uploads.encryptionDesc":
       "Dateiteile werden vor dem Speichern mit dem Teldrive-Serverschlüssel verschlüsselt.",
@@ -6008,17 +6030,18 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "account.logout": "退出登录",
     "account.loggingOut": "正在退出…",
     "account.logoutFailed": "无法退出登录",
+    "preferences.saveFailed": "无法保存偏好设置",
     "appearance.title": "外观",
-    "appearance.description": "控制 Teldrive 在此浏览器中的显示效果。",
+    "appearance.description": "控制 Teldrive 在你的账户中的显示效果。",
     "appearance.themeTitle": "颜色主题",
-    "appearance.themeDescription": "选择保存在本地并立即生效。",
+    "appearance.themeDescription": "选择保存到你的账户并立即生效。",
     "appearance.themeLabel": "主题",
     "appearance.themeHint": "跟随系统，或选择浅色或深色。",
     "appearance.system": "跟随系统",
     "appearance.light": "浅色",
     "appearance.dark": "深色",
     "appearance.languageTitle": "语言",
-    "appearance.languageDescription": "选择保存在本地并立即生效。",
+    "appearance.languageDescription": "选择保存到你的账户并立即生效。",
     "appearance.languageLabel": "语言",
     "appearance.languageHint": "HeroUI 和系统格式将跟随所选语言。",
     "settings.title": "设置",
@@ -6748,7 +6771,7 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "sessions.dialogConfirm": "撤销会话",
     "uploads.desc": "浏览器上传并发、加密、冲突处理和分片大小设置。",
     "uploads.behavior": "上传行为",
-    "uploads.behaviorDesc": "这些偏好存储在此浏览器中，适用于新的上传。",
+    "uploads.behaviorDesc": "这些偏好保存在你的账户中，适用于新的上传。",
     "uploads.encryption": "加密",
     "uploads.encryptionDesc": "存储前使用 Teldrive 服务器管理的密钥加密文件分片。",
     "uploads.encryptLabel": "加密上传的文件",

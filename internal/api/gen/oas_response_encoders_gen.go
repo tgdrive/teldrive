@@ -3411,6 +3411,37 @@ func encodeGetUploadStatisticsResponse(response GetUploadStatisticsRes, w http.R
 	}
 }
 
+func encodeGetUserPreferencesResponse(response GetUserPreferencesRes, w http.ResponseWriter, span trace.Span) error {
+	switch response := response.(type) {
+	case *UserPreferences:
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(200)
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *ErrorEnvelope:
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(401)
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	default:
+		return errors.Errorf("unexpected response type: %T", response)
+	}
+}
+
 func encodeHeadFileResponse(response HeadFileRes, w http.ResponseWriter, span trace.Span) error {
 	switch response := response.(type) {
 	case *HeadFileOK:
@@ -7366,6 +7397,49 @@ func encodeUpdateShareResponse(response UpdateShareRes, w http.ResponseWriter, s
 		return nil
 
 	case *UpdateShareUnprocessableEntity:
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(422)
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	default:
+		return errors.Errorf("unexpected response type: %T", response)
+	}
+}
+
+func encodeUpdateUserPreferencesResponse(response UpdateUserPreferencesRes, w http.ResponseWriter, span trace.Span) error {
+	switch response := response.(type) {
+	case *UserPreferences:
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(200)
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *UpdateUserPreferencesUnauthorized:
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(401)
+
+		e := new(jx.Encoder)
+		response.Encode(e)
+		if _, err := e.WriteTo(w); err != nil {
+			return errors.Wrap(err, "write")
+		}
+
+		return nil
+
+	case *UpdateUserPreferencesUnprocessableEntity:
 		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(422)
 

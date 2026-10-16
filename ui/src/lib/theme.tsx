@@ -1,10 +1,12 @@
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useState } from "react";
+import { hasCachedPreferences, usePreferences, useUpdatePreferences } from "@/lib/preferences";
 
 type ResolvedTheme = "light" | "dark";
 type Theme = ResolvedTheme | "system";
 
 // Same storage key as the next-themes default, so existing browser
-// preferences carry over.
+// preferences carry over. Outside an account this is the only theme source;
+// signed-in pages use the server value and mirror it here for first paint.
 const STORAGE_KEY = "theme";
 
 const ThemeContext = createContext<{
@@ -34,8 +36,19 @@ function initialTheme(): Theme {
   return "system";
 }
 
+function writeStoredTheme(theme: Theme) {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, theme);
+  } catch {
+    // Ignore write failures; the theme still applies for this session.
+  }
+}
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(initialTheme);
+  const serverTheme = usePreferences()?.appearance.theme;
+  const { mutate: updatePreferences } = useUpdatePreferences();
+  const [cachedTheme, setCachedTheme] = useState<Theme>(initialTheme);
+  const theme = serverTheme ?? cachedTheme;
   const [systemTheme, setSystemTheme] = useState<ResolvedTheme>(() =>
     window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
   );
@@ -53,14 +66,21 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     applyTheme(resolvedTheme);
   }, [resolvedTheme]);
 
-  const setTheme = useCallback((next: Theme) => {
-    setThemeState(next);
-    try {
-      window.localStorage.setItem(STORAGE_KEY, next);
-    } catch {
-      // Ignore write failures; the theme still applies for this session.
-    }
-  }, []);
+  // Keep the last server value so logout leaves the theme in place.
+  useEffect(() => {
+    if (!serverTheme) return;
+    setCachedTheme(serverTheme);
+    writeStoredTheme(serverTheme);
+  }, [serverTheme]);
+
+  const setTheme = useCallback(
+    (next: Theme) => {
+      setCachedTheme(next);
+      writeStoredTheme(next);
+      if (hasCachedPreferences()) updatePreferences({ appearance: { theme: next } });
+    },
+    [updatePreferences],
+  );
 
   return (
     <ThemeContext.Provider value={{ theme, resolvedTheme, setTheme }}>

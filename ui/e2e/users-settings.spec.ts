@@ -1,3 +1,4 @@
+import { installPreferencesApi } from "./fixtures/preferences";
 import { expect, type Route, test } from "@playwright/test";
 
 test("QR login serializes slow polls and completes two-step password verification", async ({
@@ -67,6 +68,7 @@ test("QR login serializes slow polls and completes two-step password verificatio
     if (path === "/api/v1/files") return route.fulfill({ json: { items: [] } });
     return route.fulfill({ status: 404, json: {} });
   });
+  await installPreferencesApi(page);
   await page.goto("/login");
   await page.getByRole("tab", { name: "QR code", exact: true }).click();
   await expect(page.getByLabel("Telegram sign-in QR code")).toBeVisible();
@@ -142,6 +144,7 @@ test("channel discovery previews all channels and syncs only checked choices", a
     }
     return route.fulfill({ status: 404, json: {} });
   });
+  await installPreferencesApi(page);
   await page.goto("/settings/channels");
   await page.getByRole("button", { name: "Discover and sync", exact: true }).click();
   const dialog = page.getByRole("dialog");
@@ -194,6 +197,7 @@ test("bots can be manually provisioned after migration", async ({ page }) => {
     }
     return route.fulfill({ status: 404, json: {} });
   });
+  await installPreferencesApi(page);
   await page.goto("/settings/bots");
   await expect(page.getByRole("button", { name: "Provision all bots", exact: true })).toBeEnabled();
   await expect(page.getByText("Enabled", { exact: true })).toBeVisible();
@@ -251,6 +255,7 @@ test("bulk bot provisioning keeps single actions and can retry queue errors", as
     }
     return route.fulfill({ status: 404, json: {} });
   });
+  await installPreferencesApi(page);
   await page.goto("/settings/bots");
   await expect(page.getByRole("button", { name: "Provision bot 777", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Provision bot 778", exact: true })).toBeVisible();
@@ -306,6 +311,7 @@ test("adding bots supports independent provisioning task IDs", async ({ page }) 
     }
     return route.fulfill({ status: 404, json: {} });
   });
+  await installPreferencesApi(page);
   await page.goto("/settings/bots");
   const bulk = page.getByRole("button", { name: "Provision all bots", exact: true });
   await expect(bulk).toBeDisabled();
@@ -337,6 +343,7 @@ test("appearance applies light tokens and persists across reloads", async ({ pag
     }
     return route.fulfill({ status: 404, json: {} });
   });
+  await installPreferencesApi(page);
   await page.goto("/settings/appearance");
   await page.emulateMedia({ colorScheme: "dark" });
   const root = page.locator("html");
@@ -407,6 +414,7 @@ test("language switch translates shell and persists across reloads", async ({ pa
     }
     return route.fulfill({ status: 404, json: {} });
   });
+  await installPreferencesApi(page);
   await page.goto("/settings/appearance");
   await expect(page.getByRole("heading", { name: "Appearance", exact: true, level: 1 })).toBeVisible();
   await page.getByRole("button", { name: "Español", exact: true }).click();
@@ -457,6 +465,7 @@ test("users search is debounced and stays usable while results load", async ({ p
     return route.fulfill({ status: 404, json: {} });
   });
 
+  await installPreferencesApi(page);
   await page.goto("/settings/users");
   await expect(page.getByText("Instance Owner", { exact: true })).toBeVisible();
   expect(searches).toEqual([null]);

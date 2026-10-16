@@ -8,17 +8,20 @@ import {
   useMemo,
   useState,
 } from "react";
-import { APP_LOCALES, STRINGS, type AppLocale } from "./locales";
+import { APP_LOCALES, type AppLocale, isAppLocale, translate } from "./locales";
+import { hasCachedPreferences, usePreferences, useUpdatePreferences } from "./preferences";
 
 export type { AppLocale };
 export { APP_LOCALES };
 
+// Outside an account this is the only locale source; signed-in pages use the
+// server value and mirror it here for first paint.
 const STORAGE_KEY = "teldrive-locale";
 
 function detectLocale(): AppLocale {
   try {
     const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (stored && (STRINGS as Record<string, unknown>)[stored]) return stored as AppLocale;
+    if (isAppLocale(stored)) return stored;
   } catch {
     // Private mode etc: fall through to browser detection.
   }
@@ -33,6 +36,14 @@ function detectLocale(): AppLocale {
   return "en";
 }
 
+function writeStoredLocale(locale: AppLocale) {
+  try {
+    window.localStorage.setItem(STORAGE_KEY, locale);
+  } catch {
+    // Ignore write failures; the locale still applies for this session.
+  }
+}
+
 const LocaleContext = createContext<{
   locale: AppLocale;
   setLocale: (locale: AppLocale) => void;
@@ -44,29 +55,34 @@ const LocaleContext = createContext<{
 });
 
 export function LocaleProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState<AppLocale>(detectLocale);
+  const serverLocale = usePreferences()?.appearance.locale;
+  const { mutate: updatePreferences } = useUpdatePreferences();
+  const [cachedLocale, setCachedLocale] = useState<AppLocale>(detectLocale);
+  // An absent server locale means "auto-detect", so the cached/browser value applies.
+  const locale = serverLocale ?? cachedLocale;
 
   useEffect(() => {
     document.documentElement.lang = locale;
   }, [locale]);
 
-  const setLocale = useCallback((next: AppLocale) => {
-    setLocaleState(next);
-    try {
-      window.localStorage.setItem(STORAGE_KEY, next);
-    } catch {
-      // Ignore write failures; the locale still applies for this session.
-    }
-  }, []);
+  // Keep the last server value so logout leaves the language in place.
+  useEffect(() => {
+    if (!serverLocale) return;
+    setCachedLocale(serverLocale);
+    writeStoredLocale(serverLocale);
+  }, [serverLocale]);
+
+  const setLocale = useCallback(
+    (next: AppLocale) => {
+      setCachedLocale(next);
+      writeStoredLocale(next);
+      if (hasCachedPreferences()) updatePreferences({ appearance: { locale: next } });
+    },
+    [updatePreferences],
+  );
 
   const t = useCallback(
-    (key: string, vars?: Record<string, string | number>) => {
-      const template = STRINGS[locale][key] ?? STRINGS.en[key] ?? key;
-      if (!vars) return template;
-      return template.replace(/\{(\w+)\}/g, (_, name: string) =>
-        vars[name] === undefined ? `{${name}}` : String(vars[name]),
-      );
-    },
+    (key: string, vars?: Record<string, string | number>) => translate(locale, key, vars),
     [locale],
   );
 
