@@ -1050,6 +1050,85 @@ test("split view keeps pane navigation independent and uses browser history", as
   await expect(page.getByTestId("file-pane-secondary")).toHaveCount(0);
 });
 
+test("selection toolbar stays within narrow viewports and its actions remain reachable", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 740 });
+  await page.goto("/files");
+  await page
+    .getByRole("row", { name: /alpha\.txt/ })
+    .locator('[data-slot="checkbox-control"]')
+    .click();
+  const toolbar = page.getByRole("group", { name: "Selected file actions" });
+  await expect(toolbar).toBeVisible();
+  await expect(
+    page.getByTestId("file-browser-toolbar").getByRole("group", {
+      name: "Selected file actions",
+    }),
+  ).toHaveCount(0);
+
+  for (const width of [320, 390, 412, 1280]) {
+    await page.setViewportSize({ width, height: 740 });
+    await expect
+      .poll(() =>
+        toolbar.evaluate((element) => {
+          const bounds = element.getBoundingClientRect();
+          return bounds.left >= 0 && bounds.right <= window.innerWidth;
+        }),
+      )
+      .toBe(true);
+    for (const button of await toolbar.getByRole("button").all()) {
+      await expect(button).toHaveCSS("flex-shrink", "0");
+      expect((await button.boundingBox())!.width).toBeGreaterThanOrEqual(28);
+    }
+    const rows = await toolbar.evaluate((element) => {
+      const bounds = element.getBoundingClientRect();
+      const buttons = [...element.querySelectorAll("button")];
+      if (
+        buttons.some((button) => {
+          const rect = button.getBoundingClientRect();
+          return (
+            rect.left < bounds.left ||
+            rect.right > bounds.right ||
+            rect.top < bounds.top ||
+            rect.bottom > bounds.bottom
+          );
+        })
+      )
+        return 0;
+      return new Set(buttons.map((button) => Math.round(button.getBoundingClientRect().top))).size;
+    });
+    if (width === 1280) expect(rows).toBe(1);
+    else expect(rows).toBeGreaterThan(1);
+    await expect
+      .poll(() =>
+        page.getByTestId("file-browser-toolbar").evaluate((element) => {
+          const header = element.getBoundingClientRect();
+          return [...element.querySelectorAll("button")].every((button) => {
+            const bounds = button.getBoundingClientRect();
+            return (
+              bounds.width === 0 || (bounds.left >= header.left && bounds.right <= header.right)
+            );
+          });
+        }),
+      )
+      .toBe(true);
+  }
+
+  await page.setViewportSize({ width: 320, height: 740 });
+  await expect(toolbar).toHaveCSS("flex-wrap", "wrap");
+  await expect
+    .poll(() => toolbar.evaluate((element) => element.scrollWidth - element.clientWidth))
+    .toBeLessThanOrEqual(1);
+  await toolbar.getByRole("button", { name: "Clear selection" }).click();
+  await expect(toolbar).toBeHidden();
+  await expect(
+    page.getByTestId("file-browser-toolbar").getByRole("button", {
+      name: "Sort files",
+    }),
+  ).toBeVisible();
+});
+
 test("touch opens items and exposes an explicit multi-selection control", async ({
   page,
   isMobile,

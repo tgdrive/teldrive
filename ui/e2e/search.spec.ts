@@ -46,6 +46,92 @@ async function installResults(page: Page) {
   return state;
 }
 
+test("search controls stay in the header while selection actions float without shrinking", async ({
+  page,
+}) => {
+  await installResults(page);
+  await page.setViewportSize({ width: 320, height: 740 });
+  await page.goto("/search?q=alpha");
+  const toolbar = page.getByTestId("file-browser-toolbar");
+  await expect(toolbar.getByRole("button", { name: "Filters", exact: true })).toBeVisible();
+  await expect(toolbar.getByRole("button", { name: "Sort files" })).toBeVisible();
+  await expect(toolbar.getByRole("button", { name: /Toggle sort order/ })).toHaveText("");
+  await toolbar.getByRole("button", { name: "Sort files" }).click();
+  await page.getByRole("menuitemradio", { name: "Size", exact: true }).click();
+  await expect(page).toHaveURL(/sort=size/);
+  await toolbar.getByRole("button", { name: /Toggle sort order/ }).click();
+  await expect(page).toHaveURL(/order=desc/);
+  await expect(toolbar.getByRole("region", { name: "Active filters" })).toBeVisible();
+  await expect(toolbar.getByRole("button", { name: /Remove .* filter/ })).toBeVisible();
+  await page
+    .getByRole("row", { name: /alpha\.txt/ })
+    .locator('[data-slot="checkbox-control"]')
+    .click();
+  const actions = page.getByRole("group", { name: "Selected file actions" });
+  await expect(actions).toBeVisible();
+  await expect(toolbar.getByRole("group", { name: "Selected file actions" })).toHaveCount(0);
+  await expect(toolbar.getByRole("button", { name: "Filters", exact: true })).toBeVisible();
+  for (const width of [320, 390, 1280]) {
+    await page.setViewportSize({ width, height: 740 });
+    await expect
+      .poll(() =>
+        toolbar.evaluate((element) => {
+          const header = element.getBoundingClientRect();
+          return [...element.querySelectorAll("button")].every((button) => {
+            const bounds = button.getBoundingClientRect();
+            return bounds.left >= header.left && bounds.right <= header.right;
+          });
+        }),
+      )
+      .toBe(true);
+    for (const button of await actions.getByRole("button").all()) {
+      await expect(button).toHaveCSS("flex-shrink", "0");
+      expect((await button.boundingBox())!.width).toBeGreaterThanOrEqual(28);
+    }
+    await expect
+      .poll(() =>
+        actions.evaluate((element) => {
+          const bounds = element.getBoundingClientRect();
+          return [...element.querySelectorAll("button")].every((button) => {
+            const rect = button.getBoundingClientRect();
+            return (
+              rect.left >= bounds.left &&
+              rect.right <= bounds.right &&
+              rect.top >= bounds.top &&
+              rect.bottom <= bounds.bottom
+            );
+          });
+        }),
+      )
+      .toBe(true);
+  }
+  await actions.getByRole("button", { name: "Clear selection" }).click();
+  await expect(toolbar.getByRole("button", { name: "Filters", exact: true })).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth))
+    .toBeLessThanOrEqual(1);
+});
+
+test("integrated search filters remain available in empty and invalid search states", async ({
+  page,
+}) => {
+  await installResults(page);
+  for (const url of [
+    "/search",
+    "/search?q=alpha&scope=recursive",
+    "/search?updatedAfter=2026-06-01&updatedBefore=2026-05-01",
+  ]) {
+    await page.goto(url);
+    const filters = page.getByTestId("file-browser-toolbar").getByRole("button", {
+      name: "Filters",
+      exact: true,
+    });
+    await filters.click();
+    await expect(page.getByRole("heading", { name: "Refine your search" })).toBeVisible();
+    await expect(page.getByRole("progressbar")).toHaveCount(0);
+  }
+});
+
 test("header search submits and the routed query fetches drive results", async ({ page }) => {
   const requests: URL[] = [];
   await page.route("**/api/v1/**", async (route) => {

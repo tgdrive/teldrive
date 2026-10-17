@@ -13,9 +13,7 @@ import { AppDialog } from "@/components/dialogs/app-dialog";
 import { isPreviewable } from "@/components/file-preview-dialog";
 import { Page, PageContent } from "@/components/page";
 import { useUploadStore } from "@/features/uploads/store";
-import ArrowDownIcon from "~icons/gravity-ui/arrow-down";
 import PasteIcon from "~icons/gravity-ui/arrow-right-to-square";
-import ArrowUpIcon from "~icons/gravity-ui/arrow-up";
 import UploadIcon from "~icons/gravity-ui/arrow-up-from-line";
 import FileIcon from "~icons/gravity-ui/file";
 import FolderIcon from "~icons/gravity-ui/folder";
@@ -29,6 +27,7 @@ import { FileActionDialogs } from "./file-action-dialogs";
 import { useAppLocale } from "@/lib/locale";
 import { FileBrowser } from "./file-browser";
 import { FileSelectionToolbar } from "./file-selection-toolbar";
+import { FileSortControls } from "./file-sort-controls";
 import { useFileActions } from "./mutations";
 import { useInfiniteFilePages } from "./queries";
 import { SearchControls } from "./search-controls";
@@ -600,7 +599,23 @@ export function FileManagerPage({
   };
 
   const renderToolbar = (pane: PaneId) => {
-    if (searchMode || search.recent) return undefined;
+    if (searchMode)
+      return (
+        <SearchControls
+          search={searchMode.criteria}
+          onChange={searchMode.onChange}
+          isOpen={filtersOpen}
+          onOpenChange={setFiltersOpen}
+          status={
+            activeSearch && !missingFolder && !invalidDates
+              ? primaryFileQuery.isFetching
+                ? t("search.updating")
+                : t("search.loaded", { count: primaryFiles.length })
+              : undefined
+          }
+        />
+      );
+    if (search.recent) return undefined;
     const location = paneLocation(pane);
     const uploadFilesTriggerRef =
       pane === "secondary" ? secondaryUploadFilesTriggerRef : primaryUploadFilesTriggerRef;
@@ -608,49 +623,7 @@ export function FileManagerPage({
       pane === "secondary" ? secondaryUploadFolderTriggerRef : primaryUploadFolderTriggerRef;
     return (
       <>
-        <Dropdown>
-          <Button size="sm" variant="secondary" aria-label={t("manager.sortFiles")}>
-            {sorting.sort === "updatedAt"
-              ? t("manager.sortModified")
-              : sorting.sort === "size"
-                ? t("search.sortSize")
-                : t("search.sortName")}
-            {sorting.order === "asc" ? " ↑" : " ↓"}
-          </Button>
-          <Dropdown.Popover>
-            <Dropdown.Menu
-              aria-label={t("manager.sortBy")}
-              selectionMode="single"
-              selectedKeys={new Set([sorting.sort])}
-              onAction={(key) => changeSorting({ ...sorting, sort: key as FileSort })}
-            >
-              <Dropdown.Item id="name" textValue={t("search.sortName")}>
-                <Label>{t("search.sortName")}</Label>
-              </Dropdown.Item>
-              <Dropdown.Item id="updatedAt" textValue={t("manager.sortModified")}>
-                <Label>{t("manager.sortModified")}</Label>
-              </Dropdown.Item>
-              <Dropdown.Item id="size" textValue={t("search.sortSize")}>
-                <Label>{t("search.sortSize")}</Label>
-              </Dropdown.Item>
-            </Dropdown.Menu>
-          </Dropdown.Popover>
-        </Dropdown>
-        <Button
-          isIconOnly
-          size="sm"
-          variant="secondary"
-          aria-label={t(sorting.order === "asc" ? "manager.orderToDesc" : "manager.orderToAsc")}
-          onPress={() =>
-            changeSorting({ ...sorting, order: sorting.order === "asc" ? "desc" : "asc" })
-          }
-        >
-          {sorting.order === "asc" ? (
-            <ArrowUpIcon className="size-4" aria-hidden="true" />
-          ) : (
-            <ArrowDownIcon className="size-4" aria-hidden="true" />
-          )}
-        </Button>
+        <FileSortControls sorting={sorting} onChange={changeSorting} />
         {pane === "primary" && !search.split ? (
           <Button
             isIconOnly
@@ -757,7 +730,7 @@ export function FileManagerPage({
     if (showClipboard) {
       return (
         <div className="pointer-events-none absolute inset-x-0 bottom-4 z-30 flex justify-center px-4">
-          <div className="pointer-events-auto flex max-w-full items-center gap-1.5 rounded-full border border-border bg-surface/95 p-1.5 shadow-xl backdrop-blur">
+          <div className="pointer-events-auto flex min-w-0 max-w-full flex-wrap items-center justify-center gap-1.5 rounded-2xl border border-border bg-surface/95 p-1.5 shadow-xl backdrop-blur @2xl/file-browser:rounded-full [&>button]:shrink-0">
             <span className="shrink-0 rounded-full bg-default/40 px-3 py-2 text-sm font-medium text-foreground">
               {t(clipboardMode === "cut" ? "manager.clipCut" : "manager.clipCopied", {
                 count: clipboardItems.length,
@@ -769,7 +742,9 @@ export function FileManagerPage({
               variant="ghost"
               aria-label={t(
                 clipboardItems.length === 1 ? "manager.pasteOne" : "manager.pasteMany",
-                { count: clipboardItems.length },
+                {
+                  count: clipboardItems.length,
+                },
               )}
               isDisabled={fileActions.pending || !canPasteHere}
               onPress={() => void pasteClipboard(pane)}
@@ -789,6 +764,7 @@ export function FileManagerPage({
         </div>
       );
     }
+    if (selectedFiles.length === 0) return undefined;
     return (
       <FileSelectionToolbar
         selectedFiles={selectedFiles}
@@ -844,7 +820,7 @@ export function FileManagerPage({
                 : t("manager.myFiles")
         }
         view={location.view}
-        loading={fileQuery.isPending}
+        loading={fileQuery.isPending && activeSearch && !missingFolder && !invalidDates}
         onNavigatePath={(path) => navigatePane(pane, { path, query: "", view: location.view })}
         onViewChange={(view) => navigatePane(pane, { ...location, view }, true)}
         onOpen={(file) => openFile(file, pane)}
@@ -864,7 +840,33 @@ export function FileManagerPage({
             void fileQuery.fetchNextPage();
         }}
         toolbar={renderToolbar(pane)}
-        selectionOverlay={fileQuery.isPlaceholderData ? undefined : renderSelectionOverlay(pane)}
+        compactToolbar={Boolean(searchMode)}
+        selectionOverlay={!fileQuery.isPlaceholderData ? renderSelectionOverlay(pane) : undefined}
+        emptyContent={
+          searchMode && (missingFolder || invalidDates || !activeSearch) ? (
+            <div className="flex h-full flex-col items-center justify-center p-8 text-center">
+              <p className="text-lg font-semibold">
+                {missingFolder
+                  ? t("search.chooseRecursive")
+                  : invalidDates
+                    ? t("search.checkRange")
+                    : t("search.findAnything")}
+              </p>
+              <p className="mt-2 text-sm text-muted">
+                {missingFolder
+                  ? t("search.noFolderSaved")
+                  : invalidDates
+                    ? t("search.dateError")
+                    : t("search.searchHint")}
+              </p>
+              {(missingFolder || invalidDates) && (
+                <Button variant="secondary" className="mt-3" onPress={() => setFiltersOpen(true)}>
+                  {missingFolder ? t("search.chooseFolderBtn") : t("search.editFilters")}
+                </Button>
+              )}
+            </div>
+          ) : undefined
+        }
         dimmedIds={cutIds}
         hideFolderControls={Boolean(searchMode || search.recent)}
         showLocations={Boolean(searchMode || search.bookmarked || search.recent)}
@@ -940,22 +942,7 @@ export function FileManagerPage({
   };
 
   return (
-    <Page className={`h-full min-h-0 overflow-x-hidden ${searchMode ? "gap-4" : "gap-0"}`}>
-      {searchMode && (
-        <SearchControls
-          search={searchMode.criteria}
-          onChange={searchMode.onChange}
-          isOpen={filtersOpen}
-          onOpenChange={setFiltersOpen}
-        />
-      )}
-      {searchMode && activeSearch && !missingFolder && !invalidDates && (
-        <p aria-live="polite" className="text-xs text-muted">
-          {primaryFileQuery.isFetching
-            ? t("search.updating")
-            : t("search.loaded", { count: primaryFiles.length })}
-        </p>
-      )}
+    <Page className="h-full min-h-0 gap-0 overflow-x-hidden">
       <PageContent className="flex min-h-0 flex-1 overflow-x-hidden">
         <div {...keyboardProps} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden">
           {searchMode && primaryFileQuery.isError && (
@@ -981,40 +968,16 @@ export function FileManagerPage({
               </Button>
             </div>
           )}
-          {searchMode && (missingFolder || invalidDates || !activeSearch) ? (
-            <div className="flex flex-1 flex-col items-center justify-center rounded-2xl border border-dashed border-border p-8 text-center">
-              <p className="text-lg font-semibold">
-                {missingFolder
-                  ? t("search.chooseRecursive")
-                  : invalidDates
-                    ? t("search.checkRange")
-                    : t("search.findAnything")}
-              </p>
-              <p className="mt-2 text-sm text-muted">
-                {missingFolder
-                  ? t("search.noFolderSaved")
-                  : invalidDates
-                    ? t("search.dateError")
-                    : t("search.searchHint")}
-              </p>
-              {(missingFolder || invalidDates) && (
-                <Button variant="secondary" className="mt-3" onPress={() => setFiltersOpen(true)}>
-                  {missingFolder ? t("search.chooseFolderBtn") : t("search.editFilters")}
-                </Button>
-              )}
-            </div>
-          ) : searchMode && primaryFileQuery.isError && !primaryFileQuery.data ? null : (
-            <div
-              className={
-                search.split
-                  ? "grid min-h-0 min-w-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-2"
-                  : "flex min-h-0 min-w-0 flex-1"
-              }
-            >
-              {renderPane("primary")}
-              {search.split ? renderPane("secondary") : null}
-            </div>
-          )}
+          <div
+            className={
+              search.split
+                ? "grid min-h-0 min-w-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-2"
+                : "flex min-h-0 min-w-0 flex-1"
+            }
+          >
+            {renderPane("primary")}
+            {search.split ? renderPane("secondary") : null}
+          </div>
         </div>
       </PageContent>
 

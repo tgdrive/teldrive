@@ -32,6 +32,8 @@ type FileBrowserProps = {
   onViewChange: (view: FileBrowserView) => void;
   onOpen: (file: FileEntry) => void;
   toolbar?: ReactNode;
+  compactToolbar?: boolean;
+  emptyContent?: ReactNode;
   onBack?: () => void;
   selection?: {
     selectedKeys: Selection;
@@ -62,6 +64,8 @@ export function FileBrowser({
   onViewChange,
   onOpen,
   toolbar,
+  compactToolbar = false,
+  emptyContent,
   onBack,
   selection,
   selectionOverlay,
@@ -82,8 +86,11 @@ export function FileBrowser({
   const resolvedEmptyTitle = emptyTitle ?? t("browser.emptyTitle");
   return (
     <Card className="@container/file-browser relative flex min-h-0 min-w-0 flex-1 flex-col gap-0 overflow-hidden border border-border bg-surface/80 shadow-sm">
-      <Card.Header className="shrink-0 border-b border-border px-3 py-3 sm:px-4">
-        <div className="flex min-w-0 items-center gap-1.5">
+      <Card.Header
+        className={`shrink-0 border-b border-border px-3 sm:px-4 ${compactToolbar ? "py-2" : "py-3"}`}
+        data-testid="file-browser-toolbar"
+      >
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5 [&>button]:shrink-0">
           {onBack ? (
             <Button
               isIconOnly
@@ -112,7 +119,7 @@ export function FileBrowser({
             </Button>
           )}
           {!hideFolderControls && (
-            <div className="min-w-0 flex-1 overflow-hidden">
+            <div className="min-w-20 flex-1 overflow-hidden">
               <FileBrowserBreadcrumb
                 path={path}
                 rootLabel={rootLabel}
@@ -120,7 +127,7 @@ export function FileBrowser({
               />
             </div>
           )}
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="flex w-full min-w-0 flex-wrap items-center gap-1 sm:w-auto sm:flex-1 sm:justify-end [&>button]:shrink-0">
             {toolbar}
             <Button
               isIconOnly
@@ -148,6 +155,8 @@ export function FileBrowser({
           <div className="flex h-full min-h-64 items-center justify-center">
             <Spinner size="lg" />
           </div>
+        ) : emptyContent ? (
+          emptyContent
         ) : (
           <div className="h-full min-h-0">
             <FileCollection
@@ -369,7 +378,9 @@ function GridFile({
         )}
         <p className="mt-1 text-[11px] text-muted">
           {file.kind === "folder"
-            ? (file.size != null ? formatBytes(file.size) : t("browser.folderKind"))
+            ? file.size != null
+              ? formatBytes(file.size)
+              : t("browser.folderKind")
             : formatBytes(file.size ?? 0)}
         </p>
       </div>
@@ -422,7 +433,9 @@ function ListFile({
       </div>
       <span className="hidden text-xs text-muted sm:block">
         {file.kind === "folder"
-          ? (file.size != null ? formatBytes(file.size) : t("browser.folderKind"))
+          ? file.size != null
+            ? formatBytes(file.size)
+            : t("browser.folderKind")
           : formatBytes(file.size ?? 0)}
       </span>
       <span className="hidden min-w-0 text-xs text-muted lg:block">

@@ -2,6 +2,8 @@ import { Button, Checkbox, Input, Label, ListBox, Popover, Select, TextField } f
 import { useEffect, useState } from "react";
 import { useAppLocale } from "@/lib/locale";
 import { FolderPicker } from "./folder-picker";
+import { FileSortControls } from "./file-sort-controls";
+import { validFileSort } from "./sort-preference";
 import { invalidSearchDates, type SearchState, searchCategories, searchDate } from "./search-state";
 
 export function SearchControls({
@@ -9,11 +11,13 @@ export function SearchControls({
   onChange,
   isOpen,
   onOpenChange,
+  status,
 }: {
   search: SearchState;
   onChange: (search: SearchState) => void;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
+  status?: string;
 }) {
   const [draft, setDraft] = useState(search);
   const { t } = useAppLocale();
@@ -37,8 +41,8 @@ export function SearchControls({
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-surface/80 p-4 shadow-sm">
-        <h1 className="mr-auto text-sm font-semibold">{t("search.results")}</h1>
+      <div className="flex min-w-0 flex-wrap items-center gap-2 [&>button]:shrink-0">
+        <h1 className="sr-only">{t("search.results")}</h1>
         <Popover isOpen={isOpen} onOpenChange={onOpenChange}>
           <Button variant="secondary" size="sm">
             {t("search.filters")}
@@ -176,32 +180,21 @@ export function SearchControls({
             </Popover.Dialog>
           </Popover.Content>
         </Popover>
-        <div className="flex w-full gap-2 sm:w-auto">
-          <SearchSelect
-            compact
-            label={t("search.sort")}
-            value={search.sort ?? "name"}
-            onChange={(sort) => onChange({ ...search, sort })}
-            options={[
-              { value: "name", label: t("search.sortName") },
-              { value: "updatedAt", label: t("search.sortModified") },
-              { value: "size", label: t("search.sortSize") },
-            ]}
-          />
-          <SearchSelect
-            compact
-            label={t("search.order")}
-            value={search.order ?? "asc"}
-            onChange={(order) => onChange({ ...search, order })}
-            options={[
-              { value: "asc", label: t("search.asc") },
-              { value: "desc", label: t("search.desc") },
-            ]}
-          />
-        </div>
+        <FileSortControls
+          sorting={{ sort: validFileSort(search.sort) ?? "name", order: search.order ?? "asc" }}
+          onChange={(sorting) => onChange({ ...search, ...sorting })}
+        />
+        {status && (
+          <span aria-live="polite" className="whitespace-nowrap text-xs text-muted">
+            {status}
+          </span>
+        )}
       </div>
       {(search.q || filtered) && (
-        <section className="flex flex-wrap items-center gap-2" aria-label={t("search.active")}>
+        <section
+          className="flex min-w-0 max-w-full flex-wrap items-center gap-2"
+          aria-label={t("search.active")}
+        >
           {search.q && (
             <FilterChip
               label={t("search.chipName", { q: search.q })}
@@ -264,24 +257,22 @@ function SearchSelect<T extends string>({
   value,
   options,
   onChange,
-  compact = false,
 }: {
   label: string;
   value: T;
   options: { value: T; label: string }[];
   onChange: (value: T) => void;
-  compact?: boolean;
 }) {
   return (
     <Select
-      className={compact ? "min-w-0 flex-1 sm:w-40 sm:flex-none" : "w-full"}
+      className="w-full"
       selectedKey={value}
       onSelectionChange={(key) => {
         const option = options.find((item) => item.value === key);
         if (option) onChange(option.value);
       }}
     >
-      <Label className={compact ? "sr-only" : "text-sm"}>{label}</Label>
+      <Label className="text-sm">{label}</Label>
       <Select.Trigger>
         <Select.Value />
         <Select.Indicator />
