@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { expect, type Page, test } from "@playwright/test";
 import { strToU8, zipSync } from "fflate";
-import { makeLargePdf } from "./fixtures/viewers/large-pdf";
 import { installPreferencesApi } from "./fixtures/preferences";
+import { makeLargePdf } from "./fixtures/viewers/large-pdf";
 
 const now = "2026-08-01T12:00:00Z";
 const pdfId = "71111111-1111-4111-8111-111111111111";
@@ -20,6 +20,44 @@ const files = [
 
 type StateWrite = { fileId: string; body: Record<string, unknown> };
 type ViewerApiStats = { pdfContentRequests: number };
+
+// Unlike programmatic scrollTop updates, wheel events exercise the browser's
+// normal asynchronous scrolling path (including compositor scheduling).
+async function measureWheelScrolling(page: Page, selector: string) {
+  const target = page.locator(selector);
+  await target.hover();
+  const measurement = target.evaluate(async (element) => {
+    const frames: number[] = [];
+    const from = element.scrollTop;
+    let previous = performance.now();
+    const start = previous;
+    await new Promise<void>((resolve) => {
+      const tick = (now: number) => {
+        frames.push(now - previous);
+        previous = now;
+        if (now - start < 1800) requestAnimationFrame(tick);
+        else resolve();
+      };
+      requestAnimationFrame(tick);
+    });
+    frames.sort((a, b) => a - b);
+    return {
+      p95FrameMs: frames[Math.floor(frames.length * 0.95)],
+      frames: frames.length,
+      distancePx: element.scrollTop - from,
+    };
+  });
+  await Promise.all([
+    measurement,
+    (async () => {
+      for (let i = 0; i < 24; i++) {
+        await page.mouse.wheel(0, 450);
+        await page.waitForTimeout(25);
+      }
+    })(),
+  ]);
+  return measurement;
+}
 
 function file(id: string, name: string, mimeType: string, size: number) {
   return {
@@ -147,12 +185,24 @@ async function openFile(page: Page, name: string) {
   await page.keyboard.press("Enter");
 }
 
-async function openPdfWorkspace(page: Page, name = "reader-sample.pdf") {
-  await installViewerApi(page, []);
+async function openPdfWorkspace(page: Page, name = "reader-sample.pdf", content = pdf) {
+  await installViewerApi(page, [], {}, undefined, content);
   await page.goto("/files?view=list");
   await openFile(page, name);
   const dialog = page.getByRole("dialog", { name });
-  await expect(dialog.locator(".pdfViewer .page canvas").first()).toBeVisible();
+  try {
+    await expect(dialog.locator(".pdfViewer .page canvas").first()).toBeVisible({ timeout: 15000 });
+  } catch (error) {
+    const state = await dialog.locator("[data-pdf-viewer-container]").evaluate((element) => ({
+      size: [element.clientWidth, element.clientHeight],
+      scroll: [element.scrollWidth, element.scrollHeight],
+      pages: [...element.querySelectorAll(".pdfViewer .page")].map((page) => ({
+        size: [page.clientWidth, page.clientHeight],
+        canvas: page.querySelectorAll("canvas").length,
+      })),
+    }));
+    throw new Error(`PDF canvas did not render: ${JSON.stringify(state)}`, { cause: error });
+  }
   await expect(dialog.getByRole("button", { name: "Next PDF page", exact: true })).toBeEnabled();
   return dialog;
 }
@@ -174,6 +224,21 @@ test("PDF text selection does not show the native floating highlight action", as
   const dialog = await openPdfWorkspace(page);
   const text = dialog.locator(".textLayer span").filter({ hasText: "TelDrive" }).first();
   await expect(text).toBeVisible();
+  const selectionColor = await text.evaluate((element) => {
+    const layer = element.closest(".textLayer")!;
+    const reference = document.createElement("span");
+    reference.style.backgroundColor = "color-mix(in srgb, Highlight 35%, transparent)";
+    document.body.append(reference);
+    const systemSelection = getComputedStyle(reference).backgroundColor;
+    reference.remove();
+    return {
+      selected: getComputedStyle(element, "::selection").backgroundColor,
+      systemSelection,
+      nativeSelection: !layer.classList.contains("selectionRendering"),
+    };
+  });
+  expect(selectionColor.nativeSelection).toBe(true);
+  expect(selectionColor.selected).toBe(selectionColor.systemSelection);
   await text.evaluate((element) => {
     const range = document.createRange();
     range.selectNodeContents(element);
@@ -183,6 +248,13 @@ test("PDF text selection does not show the native floating highlight action", as
   });
   const highlight = dialog.locator(".highlightButton");
   await expect(highlight).toHaveCount(0);
+  await text.evaluate((element) =>
+    element.dispatchEvent(new PointerEvent("pointerup", { bubbles: true })),
+  );
+  await expect(page.getByRole("button", { name: "PDF selection actions" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Copy", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Find in PDF", exact: true }).click();
+  await expect(dialog.getByRole("textbox", { name: "Find in PDF" })).toHaveValue(/TelDrive/);
 });
 
 async function slider(page: Page, name: string, value: number) {
@@ -209,12 +281,65 @@ test("large PDF sidebar scrolling and outline navigation performance", async ({
   await page.goto("/files?view=list");
   await openFile(page, "reader-sample.pdf");
   const dialog = page.getByRole("dialog", { name: "reader-sample.pdf" });
-  await expect(dialog.locator(".pdfViewer .page canvas").first()).toBeVisible();
+  await expect(dialog.locator(".pdfViewer .page canvas").first()).toBeVisible({ timeout: 20_000 });
   const panel = dialog.getByRole("tabpanel", { name: "Pages", exact: true });
+  const cpuSession = process.env.TELDRIVE_PDF_CPU_PROFILE
+    ? await page.context().newCDPSession(page)
+    : null;
+  if (cpuSession) {
+    await cpuSession.send("Profiler.enable");
+    await cpuSession.send("Profiler.start");
+  }
   const profile = await panel.evaluate(async (panel) => {
     const element = panel.querySelector("[data-pdf-thumbnails]") || panel;
+    // Measure the headless browser's idle refresh cadence before attributing
+    // missed frames to PDF rendering or scrolling.
+    const idleFrames: number[] = [];
+    await new Promise<void>((resolve) => {
+      let prior = performance.now();
+      const start = prior;
+      const tick = (now: number) => {
+        idleFrames.push(now - prior);
+        prior = now;
+        if (now - start < 1000) requestAnimationFrame(tick);
+        else resolve();
+      };
+      requestAnimationFrame(tick);
+    });
+    idleFrames.sort((a, b) => a - b);
     const frames: number[] = [];
     const longTasks: number[] = [];
+    const longFrames: {
+      duration: number;
+      layoutMs: number;
+      scripts: { ms: number; source: string; invoker: string }[];
+    }[] = [];
+    const frameObserver = new PerformanceObserver((list) => {
+      for (const entry of list.getEntries()) {
+        const frame = entry as PerformanceEntry & {
+          renderStart: number;
+          styleAndLayoutStart: number;
+          scripts: { duration: number; sourceURL: string; invoker: string }[];
+        };
+        longFrames.push({
+          duration: frame.duration,
+          layoutMs: frame.styleAndLayoutStart
+            ? frame.startTime + frame.duration - frame.styleAndLayoutStart
+            : 0,
+          scripts: (frame.scripts || [])
+            .map((script) => ({
+              ms: script.duration,
+              source: script.sourceURL?.split("/").at(-1) || "browser",
+              invoker: script.invoker,
+            }))
+            .sort((a, b) => b.ms - a.ms)
+            .slice(0, 4),
+        });
+      }
+    });
+    if (PerformanceObserver.supportedEntryTypes.includes("long-animation-frame")) {
+      frameObserver.observe({ type: "long-animation-frame", buffered: false });
+    }
     const observer = new PerformanceObserver((list) => {
       for (const entry of list.getEntries()) longTasks.push(entry.duration);
     });
@@ -232,14 +357,36 @@ test("large PDF sidebar scrolling and outline navigation performance", async ({
       requestAnimationFrame(tick);
     });
     observer.disconnect();
+    frameObserver.disconnect();
+    longFrames.sort((a, b) => b.duration - a.duration);
     frames.sort((a, b) => a - b);
     return {
+      idleP95FrameMs: idleFrames[Math.floor(idleFrames.length * 0.95)],
+      idleFrames: idleFrames.length,
       mountedThumbnails: element.querySelectorAll("canvas").length,
       p95FrameMs: frames[Math.floor(frames.length * 0.95)],
       frames: frames.length,
       longTasks,
+      longFrames: longFrames.slice(0, 12),
     };
   });
+  if (cpuSession) {
+    const { profile: cpuProfile } = await cpuSession.send("Profiler.stop");
+    const counts = new Map<number, number>();
+    for (const id of cpuProfile.samples || []) counts.set(id, (counts.get(id) || 0) + 1);
+    const hot = cpuProfile.nodes
+      .map((node) => ({
+        name: node.callFrame.functionName,
+        source: node.callFrame.url.split("/").at(-1),
+        line: node.callFrame.lineNumber + 1,
+        samples: counts.get(node.id) || 0,
+      }))
+      .filter((node) => node.samples)
+      .sort((a, b) => b.samples - a.samples)
+      .slice(0, 20);
+    console.log("PDF CPU profile", JSON.stringify(hot));
+    await cpuSession.detach();
+  }
   console.log("PDF performance", JSON.stringify(profile));
   expect(profile.mountedThumbnails).toBeLessThan(16);
   await testInfo.attach("pdf-performance", {
@@ -247,9 +394,18 @@ test("large PDF sidebar scrolling and outline navigation performance", async ({
     contentType: "application/json",
   });
   const thumbnails = dialog.locator("[data-pdf-thumbnails]");
+  const wheelThumbnails = await measureWheelScrolling(page, "[data-pdf-thumbnails]");
+  console.log("PDF thumbnail wheel scrolling", JSON.stringify(wheelThumbnails));
+  await testInfo.attach("pdf-thumbnail-wheel-performance", {
+    body: JSON.stringify(wheelThumbnails),
+    contentType: "application/json",
+  });
+  await expect(thumbnails).toHaveAttribute("role", "grid");
+  expect(await thumbnails.getByRole("row").count()).toBeLessThan(16);
   await thumbnails.evaluate((element) => {
     element.scrollTop = element.scrollHeight;
   });
+  expect(await thumbnails.getByRole("row").count()).toBeLessThan(16);
   await expect(dialog.getByRole("button", { name: "Go to page 240", exact: true })).toBeVisible();
   await expect
     .poll(() =>
@@ -259,10 +415,23 @@ test("large PDF sidebar scrolling and outline navigation performance", async ({
         .evaluate((canvas) => canvas.width),
     )
     .toBeGreaterThan(0);
+  // A thumbnail is usable only after the canvas has actually finished rendering.
+  await expect(
+    dialog.getByRole("button", { name: "Go to page 240", exact: true }).locator("canvas"),
+  ).not.toHaveClass(/opacity-0/, { timeout: 15_000 });
   await dialog.getByRole("button", { name: "Go to page 240", exact: true }).click();
   await expect(dialog.getByRole("textbox", { name: "PDF page number", exact: true })).toHaveValue(
     "240",
   );
+  // A paused PDF.js render must resume after scrolling stops, not leave a blank page.
+  await expect
+    .poll(() =>
+      dialog
+        .locator('.pdfViewer .page[data-page-number="240"] canvas')
+        .first()
+        .evaluate((canvas) => canvas.width * canvas.height),
+    )
+    .toBeGreaterThan(0);
   await dialog.getByRole("tab", { name: "Outline", exact: true }).click();
   const width = (await dialog.locator(".pdfViewer .page").first().boundingBox())!.width;
   await dialog.getByRole("button", { name: "Middle chapter", exact: true }).click();
@@ -272,6 +441,13 @@ test("large PDF sidebar scrolling and outline navigation performance", async ({
   await expect
     .poll(async () => (await dialog.locator(".pdfViewer .page").first().boundingBox())!.width)
     .toBeCloseTo(width, 0);
+  const mainCpuSession = process.env.TELDRIVE_PDF_CPU_PROFILE
+    ? await page.context().newCDPSession(page)
+    : null;
+  if (mainCpuSession) {
+    await mainCpuSession.send("Profiler.enable");
+    await mainCpuSession.send("Profiler.start");
+  }
   const mainProfile = await dialog
     .locator("[data-pdf-viewer-container]")
     .evaluate(async (element) => {
@@ -292,11 +468,96 @@ test("large PDF sidebar scrolling and outline navigation performance", async ({
       frames.sort((a, b) => a - b);
       return { frames: frames.length, p95FrameMs: frames[Math.floor(frames.length * 0.95)] };
     });
+  if (mainCpuSession) {
+    const { profile: cpuProfile } = await mainCpuSession.send("Profiler.stop");
+    const counts = new Map<number, number>();
+    for (const id of cpuProfile.samples || []) counts.set(id, (counts.get(id) || 0) + 1);
+    console.log(
+      "PDF main CPU profile",
+      JSON.stringify(
+        cpuProfile.nodes
+          .map((node) => ({
+            name: node.callFrame.functionName,
+            source: node.callFrame.url.split("/").at(-1),
+            line: node.callFrame.lineNumber + 1,
+            samples: counts.get(node.id) || 0,
+          }))
+          .filter((node) => node.samples)
+          .sort((a, b) => b.samples - a.samples)
+          .slice(0, 20),
+      ),
+    );
+    await mainCpuSession.detach();
+  }
   console.log("PDF main scrolling", JSON.stringify(mainProfile));
   await testInfo.attach("pdf-main-performance", {
     body: JSON.stringify(mainProfile),
     contentType: "application/json",
   });
+  const wheelMain = await measureWheelScrolling(page, "[data-pdf-viewer-container]");
+  console.log("PDF main wheel scrolling", JSON.stringify(wheelMain));
+  await testInfo.attach("pdf-main-wheel-performance", {
+    body: JSON.stringify(wheelMain),
+    contentType: "application/json",
+  });
+});
+
+test("long PDF keeps raster and JS heap bounded across distant page jumps", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "Chromium memory metrics");
+  const dialog = await openPdfWorkspace(page, "reader-sample.pdf", makeLargePdf(240));
+  const input = dialog.getByRole("textbox", { name: "PDF page number", exact: true });
+  const client = await page.context().newCDPSession(page);
+  await client.send("Performance.enable");
+
+  const sample = async (pageNumber: number) => {
+    await client.send("HeapProfiler.collectGarbage");
+    const [performanceMetrics, rasters] = await Promise.all([
+      client.send("Performance.getMetrics"),
+      dialog.locator(".pdfViewer").evaluate((viewer) => {
+        const canvases = [...viewer.querySelectorAll("canvas")].filter(
+          (canvas) => canvas.width > 0 && canvas.height > 0,
+        );
+        return {
+          count: canvases.length,
+          bytes: canvases.reduce((sum, canvas) => sum + canvas.width * canvas.height * 4, 0),
+        };
+      }),
+    ]);
+    return {
+      page: pageNumber,
+      ...rasters,
+      heapBytes: performanceMetrics.metrics.find((metric) => metric.name === "JSHeapUsedSize")
+        ?.value,
+    };
+  };
+
+  const samples = [await sample(1)];
+  for (const destination of [120, 240, 1, 120, 240]) {
+    await input.fill(String(destination));
+    await input.press("Enter");
+    await expect(input).toHaveValue(String(destination));
+    await expect(
+      dialog.locator(`.pdfViewer .page[data-page-number="${destination}"] canvas`).first(),
+    ).toBeVisible({ timeout: 15_000 });
+    samples.push(await sample(destination));
+  }
+  await client.detach();
+  console.log("PDF memory", JSON.stringify(samples));
+  await testInfo.attach("pdf-memory", {
+    body: JSON.stringify(samples, null, 2),
+    contentType: "application/json",
+  });
+
+  // Canvas resources must not grow with all 240 pages or repeated navigation.
+  expect(Math.max(...samples.map((entry) => entry.count))).toBeLessThan(20);
+  expect(Math.max(...samples.map((entry) => entry.bytes))).toBeLessThan(256 * 1024 * 1024);
+  const firstHeap = samples[0].heapBytes;
+  const lastHeap = samples.at(-1)?.heapBytes;
+  expect(firstHeap).toBeDefined();
+  expect(lastHeap).toBeDefined();
+  expect(lastHeap! - firstHeap!).toBeLessThan(64 * 1024 * 1024);
 });
 
 test("PDF page fields, fit presets, search closing, and menu shortcuts stay consistent", async ({
@@ -327,11 +588,15 @@ test("PDF page fields, fit presets, search closing, and menu shortcuts stay cons
     .toBeLessThanOrEqual(1);
 
   if ((page.viewportSize()?.width || 0) >= 1024) {
-    const before = (await dialog.locator(".pdfViewer .page").first().boundingBox())!.width;
+    const firstPage = dialog.locator(".pdfViewer .page").first();
+    const before = (await firstPage.boundingBox())!;
     await dialog.getByRole("button", { name: "Toggle PDF sidebar", exact: true }).click();
     await expect
-      .poll(async () => (await dialog.locator(".pdfViewer .page").first().boundingBox())!.width)
-      .toBeGreaterThan(before + 100);
+      .poll(async () => (await firstPage.boundingBox())!.width)
+      .toBeCloseTo(before.width, 0);
+    await expect.poll(async () => (await firstPage.boundingBox())!.x).toBeCloseTo(before.x, 0);
+    await dialog.getByRole("button", { name: "Toggle PDF sidebar", exact: true }).click();
+    await expect.poll(async () => (await firstPage.boundingBox())!.x).toBeCloseTo(before.x, 0);
   }
   let manualZoom: number | undefined;
   if ((page.viewportSize()?.width || 0) >= 768) {
@@ -398,16 +663,16 @@ test("PDF annotation controls synchronize colors, font size, ink settings, undo,
   await slider(page, "PDF ink stroke width", 5);
   await slider(page, "PDF ink opacity", 50);
   const inkBox = (await dialog.locator(".pdfViewer .page").first().boundingBox())!;
-  await page.mouse.move(
+  const sidebarBox = await dialog.locator("[data-pdf-reader] aside").first().boundingBox();
+  // With the non-reflowing sidebar open, draw on the unobstructed page area.
+  const startX = Math.max(
     inkBox.x + inkBox.width * 0.2,
-    inkBox.y + Math.min(inkBox.height * 0.6, 350),
+    (sidebarBox?.x || 0) + (sidebarBox?.width || 0) + 48,
   );
+  const endX = Math.min(inkBox.x + inkBox.width - 48, startX + inkBox.width * 0.3);
+  await page.mouse.move(startX, inkBox.y + Math.min(inkBox.height * 0.6, 350));
   await page.mouse.down();
-  await page.mouse.move(
-    inkBox.x + inkBox.width * 0.5,
-    inkBox.y + Math.min(inkBox.height * 0.65, 380),
-    { steps: 12 },
-  );
+  await page.mouse.move(endX, inkBox.y + Math.min(inkBox.height * 0.65, 380), { steps: 12 });
   await page.mouse.up();
   const blueStrokes = () =>
     dialog
@@ -490,9 +755,124 @@ test("PDF outline renders a collapsible hierarchy", async ({ page }) => {
   await sidebar.getByRole("button", { name: "Expand Chapter 1", exact: true }).click();
   await expect(sectionOne).toBeVisible();
   await expect(sectionTwo).toBeVisible();
-  // Selecting a nested bookmark still navigates to its destination.
+  // A bookmark changes the vertical destination without shifting the PDF left.
+  const viewport = dialog.locator("[data-pdf-viewer-container]");
+  const horizontalBefore = await viewport.evaluate((element) => element.scrollLeft);
+  const pageWidthBefore = (await dialog.locator(".pdfViewer .page").first().boundingBox())!.width;
   await sectionTwo.click();
   await expect(pageInput).toHaveValue("2");
+  await expect
+    .poll(() => viewport.evaluate((element) => element.scrollLeft))
+    .toBe(horizontalBefore);
+  await expect
+    .poll(async () => (await dialog.locator(".pdfViewer .page").first().boundingBox())!.width)
+    .toBeCloseTo(pageWidthBefore, 0);
+});
+
+test("oversized mobile PDFs render crisp visible detail without oversized canvases", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile", "Requires the high-DPI mobile profile");
+  const dialog = await openPdfWorkspace(page, "reader-sample.pdf", makeLargePdf(2, 7000));
+  const pageView = dialog.locator(".pdfViewer .page").first();
+  await expect
+    .poll(() => pageView.locator("canvas").count(), { timeout: 20_000 })
+    .toBeGreaterThan(1);
+  const metrics = await pageView.locator("canvas").evaluateAll((canvases) =>
+    canvases.map((element) => ({
+      width: element.width,
+      height: element.height,
+      scale: element.width / element.getBoundingClientRect().width,
+    })),
+  );
+  expect(metrics.every((canvas) => canvas.width * canvas.height <= 6_291_456 + 1000)).toBe(true);
+  expect(metrics.some((canvas) => canvas.scale > 2)).toBe(true);
+});
+
+test("mobile PDF renders sharp HiDPI canvases within its pixel budget", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "mobile", "Requires the high-DPI mobile profile");
+  const dialog = await openPdfWorkspace(page);
+  const canvas = dialog.locator(".pdfViewer .page canvas").first();
+  const measure = () =>
+    canvas.evaluate((element) => {
+      const rect = element.getBoundingClientRect();
+      return {
+        resolution: element.width / rect.width,
+        pixels: element.width * element.height,
+        deviceRatio: window.devicePixelRatio,
+      };
+    });
+  await expect.poll(async () => (await measure()).resolution).toBeGreaterThan(2);
+  const metrics = await measure();
+  expect(metrics.resolution).toBeCloseTo(metrics.deviceRatio, 0);
+  expect(metrics.pixels).toBeLessThanOrEqual(6_291_456);
+  await pdfTool(page, "Zoom in");
+  await expect.poll(async () => (await measure()).pixels).toBeGreaterThan(metrics.pixels);
+  expect((await measure()).pixels).toBeLessThanOrEqual(6_291_456);
+});
+
+test("PDF keeps the visible region HiDPI on display changes and zooming", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== "chromium", "Desktop zoom and device-scale transition");
+  const dialog = await openPdfWorkspace(page);
+  const pageView = dialog.locator(".pdfViewer .page").first();
+  const measure = () =>
+    pageView.evaluate((element) => {
+      const bounds = document.querySelector("[data-pdf-viewer-container]")!.getBoundingClientRect();
+      const pageBounds = element.getBoundingClientRect();
+      const visible = {
+        left: Math.max(bounds.left, pageBounds.left),
+        top: Math.max(bounds.top, pageBounds.top),
+        right: Math.min(bounds.right, pageBounds.right),
+        bottom: Math.min(bounds.bottom, pageBounds.bottom),
+      };
+      const deviceRatio = window.devicePixelRatio;
+      const sharpVisibleRegion = Array.from(element.querySelectorAll("canvas")).some((canvas) => {
+        const rect = canvas.getBoundingClientRect();
+        return (
+          canvas.width > 0 &&
+          rect.width > 0 &&
+          canvas.width / rect.width >= deviceRatio * 0.94 &&
+          rect.left <= visible.left + 2 &&
+          rect.top <= visible.top + 2 &&
+          rect.right >= visible.right - 2 &&
+          rect.bottom >= visible.bottom - 2
+        );
+      });
+      return { deviceRatio, sharpVisibleRegion };
+    });
+  await expect.poll(async () => (await measure()).sharpVisibleRegion).toBe(true);
+
+  const client = await page.context().newCDPSession(page);
+  const viewport = page.viewportSize()!;
+  try {
+    await client.send("Emulation.setDeviceMetricsOverride", {
+      width: viewport.width,
+      height: viewport.height,
+      deviceScaleFactor: 2,
+      mobile: false,
+    });
+    await expect.poll(async () => (await measure()).deviceRatio).toBe(2);
+    // Chromium's CDP emulation does not dispatch real resolution/resize events.
+    // Deliver the same resize notification that a display transition produces.
+    await page.evaluate(() => window.dispatchEvent(new Event("resize")));
+    await expect
+      .poll(async () => (await measure()).sharpVisibleRegion, { timeout: 20_000 })
+      .toBe(true);
+
+    const zoomOptions = dialog.getByRole("button", { name: "PDF zoom options", exact: true });
+    await zoomOptions.click();
+    await page.getByRole("button", { name: "200%", exact: true }).click();
+    await expect
+      .poll(async () => (await measure()).sharpVisibleRegion, { timeout: 20_000 })
+      .toBe(true);
+  } finally {
+    await client.send("Emulation.clearDeviceMetricsOverride");
+    await client.detach();
+  }
 });
 
 test("PDF hand tool pans and closing unsaved edits requires a choice", async ({ page }) => {

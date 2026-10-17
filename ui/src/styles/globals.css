@@ -271,8 +271,11 @@ foliate-view::part(foot) {
   user-select: text;
 }
 
+/* Use the OS text-selection blue, not the application's orange accent.
+   PDF glyphs are already painted on the canvas underneath the text layer. */
 [data-pdf-reader] .teldrive-pdf-viewer .textLayer ::selection {
-  background: color-mix(in oklch, var(--accent) 30%, transparent);
+  background: color-mix(in srgb, Highlight 35%, transparent);
+  color: transparent;
 }
 
 [data-pdf-reader] .teldrive-pdf-viewer .highlight {

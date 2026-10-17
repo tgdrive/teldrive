@@ -11,6 +11,7 @@ import workerSrc from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import {
   EventBus,
   FindState,
+  LinkTarget,
   PDFFindController,
   PDFLinkService,
   PDFViewer,
@@ -29,6 +30,7 @@ import {
   useOverlayState,
 } from "@heroui/react";
 import {
+  memo,
   type KeyboardEvent as ReactKeyboardEvent,
   useCallback,
   useEffect,
@@ -37,19 +39,21 @@ import {
   useState,
 } from "react";
 
+import { GridList, GridListItem, ListLayout, Virtualizer } from "react-aria-components";
 import type { FileEntry } from "@/api/types";
 import { AppDialog } from "@/components/dialogs/app-dialog";
-import { useAppLocale } from "@/lib/locale";
+import { copyText } from "@/features/files/download";
 import { useFormatBytes } from "@/lib/format";
-import UndoIcon from "~icons/gravity-ui/arrow-rotate-left";
+import { useAppLocale } from "@/lib/locale";
 import DownloadIcon from "~icons/gravity-ui/arrow-down-to-line";
+import UndoIcon from "~icons/gravity-ui/arrow-rotate-left";
 import RotateIcon from "~icons/gravity-ui/arrow-rotate-right";
 import MenuIcon from "~icons/gravity-ui/bars";
 import BookmarkIcon from "~icons/gravity-ui/bookmark";
 import BrushIcon from "~icons/gravity-ui/brush";
+import DownIcon from "~icons/gravity-ui/chevron-down";
 import LeftIcon from "~icons/gravity-ui/chevron-left";
 import RightIcon from "~icons/gravity-ui/chevron-right";
-import DownIcon from "~icons/gravity-ui/chevron-down";
 import EllipsisIcon from "~icons/gravity-ui/ellipsis";
 import SaveIcon from "~icons/gravity-ui/floppy-disk";
 import HandIcon from "~icons/gravity-ui/hand";
@@ -102,6 +106,30 @@ const HIGHLIGHT_COLORS = ["#facc15", "#4ade80", "#60a5fa", "#f472b6"] as const;
 const ANNOTATION_COLORS = ["#000000", "#e11d48", ...HIGHLIGHT_COLORS] as const;
 const PDFJS_HIGHLIGHT_COLORS = "yellow=#facc15,green=#4ade80,blue=#60a5fa,pink=#f472b6";
 
+// Bound retained canvases without sacrificing visible-area HiDPI detail.
+const MOBILE_CANVAS_PIXELS = 6_291_456;
+const DESKTOP_CANVAS_PIXELS = 12_582_912;
+// A bounded full-page canvas keeps memory controlled. Its limit must still
+// accommodate at least the visible viewport at native device resolution;
+// PDF.js draws the remainder of zoomed/oversized pages in a detail canvas.
+function pdfCanvasPixelBudget(container: HTMLElement) {
+  const pixelRatio = Math.max(1, window.devicePixelRatio || 1);
+  const visiblePixels = Math.ceil(container.clientWidth * container.clientHeight * pixelRatio ** 2);
+  const minimum = window.matchMedia("(pointer: coarse)").matches
+    ? MOBILE_CANVAS_PIXELS
+    : DESKTOP_CANVAS_PIXELS;
+  return Math.max(minimum, visiblePixels);
+}
+// PDF.js tracks visible pages on scroll. Avoid starting new canvas paints
+// while moving; its trailing 100 ms scroll update resumes the render queue.
+class ScrollAwarePDFViewer extends PDFViewer {
+  isScrolling: () => boolean = () => false;
+
+  override forceRendering(visiblePages?: Parameters<PDFViewer["forceRendering"]>[0]) {
+    if (this.isScrolling()) return false;
+    return super.forceRendering(visiblePages);
+  }
+}
 function defaultEditorSettings(): EditorSettings {
   return {
     highlight: { color: HIGHLIGHT_COLORS[0], size: 12, thickness: 12, opacity: 1 },
@@ -115,6 +143,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<HTMLDivElement>(null);
   const runtimeRef = useRef<PdfRuntime | null>(null);
+  const lastDocumentScrollRef = useRef(0);
   const closeRef = useRef(onClose);
   const drawerState = useOverlayState();
   const [toolsOpen, setToolsOpen] = useState(false);
@@ -143,6 +172,12 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
   const [sidebarTab, setSidebarTab] = useState<SidebarTab>(initialSidebarTab);
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const selectionActionsVisibleRef = useRef(false);
+  const [selectionAction, setSelectionAction] = useState<{
+    text: string;
+    x: number;
+    y: number;
+  } | null>(null);
   const [caseSensitive, setCaseSensitive] = useState(false);
   const [wholeWord, setWholeWord] = useState(false);
   const [findCount, setFindCount] = useState<FindCount>({ current: 0, total: 0 });
@@ -176,6 +211,56 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
   const activeEditorTool =
     selectedEditorTool || (isEditorTool(annotationTool) ? annotationTool : undefined);
 
+  useEffect(() => {
+    const viewport = containerRef.current;
+    if (!viewport) return;
+    let frame = 0;
+    const showActions = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        if (annotationToolRef.current !== "select") return;
+        const selection = window.getSelection();
+        const node = selection?.anchorNode;
+        const element = node instanceof Element ? node : node?.parentElement;
+        if (
+          !selection ||
+          selection.isCollapsed ||
+          !selection.rangeCount ||
+          !element?.closest(".textLayer") ||
+          !viewport.contains(element)
+        ) {
+          selectionActionsVisibleRef.current = false;
+          setSelectionAction(null);
+          return;
+        }
+        const text = selection.toString().trim();
+        const rect = selection.getRangeAt(0).getBoundingClientRect();
+        if (!text || !rect.width || !rect.height) return;
+        selectionActionsVisibleRef.current = true;
+        setSelectionAction({
+          text,
+          x: Math.max(48, Math.min(window.innerWidth - 48, rect.left + rect.width / 2)),
+          y: Math.max(48, rect.top),
+        });
+      });
+    };
+    const hideActions = () => {
+      lastDocumentScrollRef.current = performance.now();
+      if (selectionActionsVisibleRef.current) {
+        selectionActionsVisibleRef.current = false;
+        setSelectionAction(null);
+      }
+    };
+    viewport.addEventListener("pointerup", showActions);
+    viewport.addEventListener("keyup", showActions);
+    viewport.addEventListener("scroll", hideActions, { passive: true });
+    return () => {
+      cancelAnimationFrame(frame);
+      viewport.removeEventListener("pointerup", showActions);
+      viewport.removeEventListener("keyup", showActions);
+      viewport.removeEventListener("scroll", hideActions);
+    };
+  }, []);
   const markDirty = useCallback(() => {
     editRevisionRef.current += 1;
     dirtyRef.current = true;
@@ -209,7 +294,12 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
     const viewerAbort = new AbortController();
     let loadingTask: ReturnType<typeof getDocument> | undefined;
     const eventBus = new EventBus();
-    const linkService = new PDFLinkService({ eventBus, ignoreDestinationZoom: true });
+    const linkService = new PDFLinkService({
+      eventBus,
+      ignoreDestinationZoom: true,
+      externalLinkTarget: LinkTarget.BLANK,
+      externalLinkRel: "noopener noreferrer nofollow",
+    });
     const findController = new PDFFindController({ eventBus, linkService });
     const viewerOptions = {
       container,
@@ -218,20 +308,48 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
       linkService,
       findController,
       textLayerMode: 1,
+      // Keep the usual system-blue browser text selection instead of
+      // PDF.js's transparent selection-rendering overlay.
+      enableSelectionRendering: false,
       annotationMode: AnnotationMode.ENABLE_FORMS,
       annotationEditorMode: AnnotationEditorType.NONE,
       annotationEditorHighlightColors: PDFJS_HIGHLIGHT_COLORS,
       removePageBorders: true,
+      // Render at full device resolution when it fits. Oversized pages use
+      // a bounded base canvas and a sharp detail canvas for the visible region.
+      maxCanvasPixels: pdfCanvasPixelBudget(container),
+      enableDetailCanvas: true,
+      // Use PDF.js's default canvas-update throttle (500 ms) while pages render.
+      // Showing every intermediate canvas frame increases main-thread paint work.
       abortSignal: viewerAbort.signal,
     };
-    const viewer = new PDFViewer(viewerOptions);
+    const viewer = new ScrollAwarePDFViewer(viewerOptions);
+    viewer.isScrolling = () => performance.now() - lastDocumentScrollRef.current < 80;
+    const renderingQueue = viewer.renderingQueue;
+    if (renderingQueue) {
+      const isHighestPriority = renderingQueue.isHighestPriority.bind(renderingQueue);
+      // PDF.js pauses canvas tasks via isHighestPriority at rendering checkpoints.
+      // Preserve the partial canvas, then resume using its normal render queue
+      // after the trailing scroll update (rather than canceling and redrawing).
+      renderingQueue.isHighestPriority = (pageView) =>
+        !viewer.isScrolling() && isHighestPriority(pageView);
+    }
     linkService.setViewer(viewer);
 
-    const onPageChanging = (event: { pageNumber?: number }) => {
-      const next = positiveInt(event.pageNumber, viewer.currentPageNumber || 1);
+    let pageUpdateTimeout = 0;
+    const commitPageNumber = (next: number) => {
+      if (!active) return;
       setPageNumber(next);
       pageDraftRef.current = String(next);
       setPageDraft(String(next));
+    };
+    const onPageChanging = (event: { pageNumber?: number }) => {
+      const next = positiveInt(event.pageNumber, viewer.currentPageNumber || 1);
+      window.clearTimeout(pageUpdateTimeout);
+      if (performance.now() - lastDocumentScrollRef.current < 120) {
+        // Only publish the last visible page while a continuous scroll is in progress.
+        pageUpdateTimeout = window.setTimeout(() => commitPageNumber(next), 120);
+      } else commitPageNumber(next);
     };
     const onScaleChanging = (event: { scale?: number; presetValue?: string }) => {
       setScale(positiveNumber(event.scale, viewer.currentScale || 1));
@@ -299,20 +417,55 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
     eventBus.on("annotationeditorparamschanged", onEditorParams);
     eventBus.on("annotationeditormodechanged", onEditorMode);
 
+    const updateCanvasBudget = () => {
+      const pixels = pdfCanvasPixelBudget(container);
+      if (viewer.maxCanvasPixels === pixels) return false;
+      viewer.maxCanvasPixels = pixels;
+      for (let i = 0; i < viewer.pagesCount; i++) {
+        viewer.getPageView(i).maxCanvasPixels = pixels;
+      }
+      return true;
+    };
+    // Moving the window between normal and Retina displays can change DPR
+    // without changing the viewer's CSS width. Invalidate the scaled canvases
+    // and re-render the visible pages at their new device pixel density.
+    let displayedPixelRatio = window.devicePixelRatio || 1;
+    let resolutionMedia = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+    const onResolutionChange = () => {
+      const nextPixelRatio = window.devicePixelRatio || 1;
+      if (nextPixelRatio === displayedPixelRatio) return;
+      displayedPixelRatio = nextPixelRatio;
+      resolutionMedia.removeEventListener("change", onResolutionChange);
+      resolutionMedia = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+      resolutionMedia.addEventListener("change", onResolutionChange);
+      if (!active || !viewer.pdfDocument) return;
+      updateCanvasBudget();
+      viewer.refresh();
+    };
+    resolutionMedia.addEventListener("change", onResolutionChange);
+    // The browser normally reports display changes through resolution or
+    // resize events. Zoom itself is rerendered by PDF.js; no polling needed.
+    window.addEventListener("resize", onResolutionChange);
     let resizeFrame = 0;
+    let previousWidth = container.clientWidth;
     const resizeObserver = new ResizeObserver(() => {
+      const budgetChanged = updateCanvasBudget();
+      // Height-only changes (keyboard, toolbars) must not reflow every PDF page.
+      if (container.clientWidth === previousWidth) {
+        if (budgetChanged && viewer.pdfDocument) viewer.refresh();
+        return;
+      }
+      previousWidth = container.clientWidth;
       cancelAnimationFrame(resizeFrame);
       resizeFrame = requestAnimationFrame(() => {
         if (!active || !viewer.pdfDocument) return;
         const preset = viewer.currentScaleValue;
         if (preset === "page-width" || preset === "page-fit" || preset === "auto") {
           viewer.currentScaleValue = preset;
-        }
-        viewer.update();
+        } else viewer.update();
       });
     });
     resizeObserver.observe(container);
-
     const open = async () => {
       readyRef.current = false;
       setReady(false);
@@ -333,6 +486,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
       loadingTask = getDocument({
         url,
         withCredentials: true,
+        enableHWA: true,
         cMapUrl: "/pdfjs/cmaps/",
         standardFontDataUrl: "/pdfjs/standard_fonts/",
         wasmUrl: "/pdfjs/wasm/",
@@ -402,6 +556,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
 
     return () => {
       active = false;
+      window.clearTimeout(pageUpdateTimeout);
       readyRef.current = false;
       setReady(false);
       eventBus.off("pagechanging", onPageChanging);
@@ -413,6 +568,8 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
       eventBus.off("annotationeditorparamschanged", onEditorParams);
       eventBus.off("annotationeditormodechanged", onEditorMode);
       resizeObserver.disconnect();
+      resolutionMedia.removeEventListener("change", onResolutionChange);
+      window.removeEventListener("resize", onResolutionChange);
       cancelAnimationFrame(resizeFrame);
       const pdf = runtimeRef.current?.document;
       if (pdf) (pdf.annotationStorage as unknown as EditableAnnotationStorage).onSetModified = null;
@@ -726,6 +883,7 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
       selectedTab={sidebarTab}
       onTabChange={setSidebarTab}
       onPage={goToPage}
+      lastDocumentScrollRef={lastDocumentScrollRef}
       onOutline={(item) => {
         const runtime = runtimeRef.current;
         if (!runtime) return;
@@ -733,7 +891,16 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
           window.open(item.url, "_blank", "noopener,noreferrer");
           return;
         }
-        if (item.dest) void runtime.linkService.goToDestination(item.dest as string | unknown[]);
+        if (item.dest) {
+          const container = containerRef.current;
+          const horizontalPosition = container?.scrollLeft;
+          void runtime.linkService.goToDestination(item.dest as string | unknown[]).then(() => {
+            // Named destinations can carry an X coordinate. Keep bookmark navigation
+            // vertical without shifting the page horizontally under the sidebar.
+            if (container && horizontalPosition !== undefined)
+              container.scrollLeft = horizontalPosition;
+          });
+        }
       }}
       onNavigateMobile={() => drawerState.close()}
     />
@@ -1218,9 +1385,9 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
         />
       ) : null}
 
-      <div className="flex min-h-0 flex-1 overflow-hidden">
+      <div className="relative flex min-h-0 flex-1 overflow-hidden">
         {sidebarOpen ? (
-          <aside className="hidden w-64 shrink-0 border-r border-border bg-surface/80 lg:block xl:w-72">
+          <aside className="absolute inset-y-0 left-0 z-20 hidden w-64 border-r border-border bg-surface shadow-xl lg:block xl:w-72">
             {sidebar}
           </aside>
         ) : null}
@@ -1319,6 +1486,61 @@ export function PdfReader({ file, url, onClose }: PdfReaderProps) {
           ) : null}
         </main>
       </div>
+      {selectionAction ? (
+        <Popover
+          isOpen
+          onOpenChange={(open) => {
+            if (!open) setSelectionAction(null);
+          }}
+        >
+          <Button
+            isIconOnly
+            size="sm"
+            variant="secondary"
+            aria-label="PDF selection actions"
+            className="fixed z-40 size-7 -translate-x-1/2 -translate-y-full shadow-md"
+            style={{ left: selectionAction.x, top: selectionAction.y }}
+          >
+            <EllipsisIcon className="size-4" />
+          </Button>
+          <Popover.Content placement="top" offset={5} className="w-auto">
+            <Popover.Dialog className="flex items-center gap-1 p-1">
+              <Button
+                size="sm"
+                variant="ghost"
+                onPress={() => {
+                  void copyText(selectionAction.text);
+                  setSelectionAction(null);
+                }}
+              >
+                {t("share.copy")}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onPress={() => {
+                  setQuery(selectionAction.text);
+                  setSearchOpen(true);
+                  setSelectionAction(null);
+                }}
+              >
+                {t("pdf.find")}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                isDisabled={!canAnnotate}
+                onPress={() => {
+                  setTool("highlight");
+                  setSelectionAction(null);
+                }}
+              >
+                {t("pdf.toolHighlight")}
+              </Button>
+            </Popover.Dialog>
+          </Popover.Content>
+        </Popover>
+      ) : null}
       <AppDialog
         open={closePrompt}
         onOpenChange={setClosePrompt}
@@ -1640,6 +1862,7 @@ function PdfSidebar({
   onPage,
   onOutline,
   onNavigateMobile,
+  lastDocumentScrollRef,
 }: {
   file: FileEntry;
   document?: PDFDocumentProxy;
@@ -1650,6 +1873,7 @@ function PdfSidebar({
   onPage: (page: number) => void;
   onOutline: (item: OutlineItem) => void;
   onNavigateMobile: () => void;
+  lastDocumentScrollRef: { current: number };
 }) {
   const { t } = useAppLocale();
   return (
@@ -1676,11 +1900,12 @@ function PdfSidebar({
           </Tabs.List>
         </Tabs.ListContainer>
         <Tabs.Panel id="thumbnails" className="min-h-0 flex-1">
-          {document ? (
+          {document && selectedTab === "thumbnails" ? (
             <PdfThumbnailList
               key={file.id}
               document={document}
               pageNumber={pageNumber}
+              lastDocumentScrollRef={lastDocumentScrollRef}
               onPage={(page) => {
                 onPage(page);
                 onNavigateMobile();
@@ -1713,110 +1938,148 @@ function PdfSidebar({
 }
 
 const THUMBNAIL_ROW_HEIGHT = 224;
+// Reuse completed previews when React Aria remounts a virtual row.
+type ThumbnailPreview = {
+  bitmap: ImageBitmap;
+  width: number;
+  height: number;
+  cssWidth: string;
+  cssHeight: string;
+};
+
+function createThumbnailCache() {
+  const images = new Map<number, ThumbnailPreview>();
+  return {
+    get(page: number) {
+      const preview = images.get(page);
+      if (preview) {
+        images.delete(page);
+        images.set(page, preview);
+      }
+      return preview;
+    },
+    set(page: number, preview: ThumbnailPreview) {
+      images.get(page)?.bitmap.close();
+      images.delete(page);
+      images.set(page, preview);
+      if (images.size > 16) {
+        const oldest = images.keys().next().value;
+        if (oldest !== undefined) {
+          images.get(oldest)?.bitmap.close();
+          images.delete(oldest);
+        }
+      }
+    },
+    dispose() {
+      for (const preview of images.values()) preview.bitmap.close();
+      images.clear();
+    },
+  };
+}
+
+type ThumbnailCache = ReturnType<typeof createThumbnailCache>;
 
 function PdfThumbnailList({
   document,
   pageNumber,
   onPage,
+  lastDocumentScrollRef,
 }: {
   document: PDFDocumentProxy;
   pageNumber: number;
   onPage: (page: number) => void;
+  lastDocumentScrollRef: { current: number };
 }) {
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const { t } = useAppLocale();
   const lastScrollRef = useRef(0);
-  const [windowRange, setWindowRange] = useState({ start: 0, end: 8 });
+  const scrollElementRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const element = scrollElementRef.current;
+    if (!element) return;
+    const recordScroll = () => {
+      lastScrollRef.current = performance.now();
+    };
+    element.addEventListener("scroll", recordScroll, { passive: true });
+    return () => element.removeEventListener("scroll", recordScroll);
+  }, []);
+  const pages = useMemo(
+    () => Array.from({ length: document.numPages }, (_, index) => ({ id: index + 1 })),
+    [document],
+  );
+  const previewCache = useMemo(createThumbnailCache, [document]);
+  useEffect(() => () => previewCache.dispose(), [previewCache]);
+  const onPageRef = useRef(onPage);
+  onPageRef.current = onPage;
+  const handlePage = useCallback((page: number) => onPageRef.current(page), []);
+  const shouldPauseThumbnail = useCallback(
+    () => performance.now() - Math.max(lastScrollRef.current, lastDocumentScrollRef.current) < 160,
+    [lastDocumentScrollRef],
+  );
   const queue = useMemo(() => {
     let tail = Promise.resolve();
-    return (render: () => Promise<void>) => {
+    return (render: () => Promise<void>, isCancelled: () => boolean) => {
       // Never race all thumbnail canvases against the main document renderer.
       tail = tail
         .then(async () => {
-          // While the user is moving the list, prioritize scrolling over previews.
-          while (performance.now() - lastScrollRef.current < 120) {
-            await new Promise<void>((resolve) => window.setTimeout(resolve, 120));
+          // Ignore virtual rows that disappeared before reaching the queue.
+          while (!isCancelled() && shouldPauseThumbnail()) {
+            await new Promise<void>((resolve) => window.setTimeout(resolve, 100));
           }
-          await render();
+          if (!isCancelled()) await render();
         })
         .catch(() => undefined);
     };
-  }, [document]);
-  useEffect(() => {
-    const element = scrollRef.current;
-    if (!element) return;
-    let frame = 0;
-    const update = () => {
-      const start = Math.max(0, Math.floor(element.scrollTop / THUMBNAIL_ROW_HEIGHT) - 2);
-      const end = Math.min(
-        document.numPages,
-        Math.ceil((element.scrollTop + element.clientHeight) / THUMBNAIL_ROW_HEIGHT) + 2,
-      );
-      setWindowRange((previous) =>
-        previous.start === start && previous.end === end ? previous : { start, end },
-      );
-    };
-    const onScroll = () => {
-      lastScrollRef.current = performance.now();
-      if (frame) return;
-      frame = requestAnimationFrame(() => {
-        frame = 0;
-        update();
-      });
-    };
-    const resize = new ResizeObserver(onScroll);
-    resize.observe(element);
-    element.addEventListener("scroll", onScroll, { passive: true });
-    update();
-    return () => {
-      resize.disconnect();
-      element.removeEventListener("scroll", onScroll);
-      cancelAnimationFrame(frame);
-    };
-  }, [document]);
-  const end = Math.min(document.numPages, windowRange.end);
+  }, [document, shouldPauseThumbnail]);
   return (
-    <div
-      ref={scrollRef}
-      data-pdf-thumbnails
-      className="h-full min-h-0 overflow-y-auto"
-      style={{ contain: "strict" }}
-    >
-      <div className="relative" style={{ height: document.numPages * THUMBNAIL_ROW_HEIGHT }}>
-        {Array.from({ length: Math.max(0, end - windowRange.start) }, (_, index) => {
-          const page = windowRange.start + index + 1;
-          return (
-            <div
-              key={page}
-              className="absolute inset-x-0 px-1"
-              style={{ top: (page - 1) * THUMBNAIL_ROW_HEIGHT, height: THUMBNAIL_ROW_HEIGHT }}
-            >
-              <PdfThumbnail
-                document={document}
-                pageNumber={page}
-                current={page === pageNumber}
-                onPress={() => onPage(page)}
-                queue={queue}
-              />
-            </div>
-          );
-        })}
-      </div>
-    </div>
+    <Virtualizer layout={ListLayout} layoutOptions={{ rowSize: THUMBNAIL_ROW_HEIGHT }}>
+      <GridList
+        ref={scrollElementRef}
+        data-pdf-thumbnails
+        aria-label={t("pdf.tabPages")}
+        items={pages}
+        selectionMode="none"
+        onAction={(key) => handlePage(Number(key))}
+        className="h-full min-h-0 overflow-y-auto outline-none"
+      >
+        {(item) => (
+          <GridListItem
+            id={item.id}
+            textValue={String(item.id)}
+            className="px-1 outline-none"
+            style={{ height: "100%" }}
+          >
+            <PdfThumbnail
+              document={document}
+              pageNumber={item.id}
+              current={item.id === pageNumber}
+              onPage={handlePage}
+              queue={queue}
+              shouldPause={shouldPauseThumbnail}
+              previewCache={previewCache}
+            />
+          </GridListItem>
+        )}
+      </GridList>
+    </Virtualizer>
   );
 }
 
-function PdfThumbnail({
+const PdfThumbnail = memo(function PdfThumbnail({
   document,
   pageNumber,
   current,
-  onPress,
+  onPage,
   queue,
+  shouldPause,
+  previewCache,
 }: {
   document: PDFDocumentProxy;
   pageNumber: number;
   current: boolean;
-  onPress: () => void;
-  queue: (render: () => Promise<void>) => void;
+  onPage: (page: number) => void;
+  queue: (render: () => Promise<void>, isCancelled: () => boolean) => void;
+  shouldPause: () => boolean;
+  previewCache: ThumbnailCache;
 }) {
   const { t } = useAppLocale();
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -1826,40 +2089,111 @@ function PdfThumbnail({
     const canvas = canvasRef.current;
     if (!canvas) return;
     let active = true;
+    const cached = previewCache.get(pageNumber);
+    if (cached) {
+      canvas.width = cached.width;
+      canvas.height = cached.height;
+      canvas.style.width = cached.cssWidth;
+      canvas.style.height = cached.cssHeight;
+      const context = canvas.getContext("2d");
+      if (context) {
+        context.drawImage(cached.bitmap, 0, 0);
+        setLoaded(true);
+        return () => {
+          canvas.width = 0;
+          canvas.height = 0;
+        };
+      }
+    }
     let renderTask:
       | ReturnType<Awaited<ReturnType<PDFDocumentProxy["getPage"]>>["render"]>
       | undefined;
     let resumeFrame = 0;
-    queue(async () => {
-      if (!active) return;
-      const page = await document.getPage(pageNumber);
-      if (!active) return;
-      const natural = page.getViewport({ scale: 1 });
-      const cssWidth = Math.min(142, (184 * natural.width) / natural.height);
-      const scale = cssWidth / natural.width;
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const viewport = page.getViewport({ scale: scale * dpr });
-      canvas.width = Math.ceil(viewport.width);
-      canvas.height = Math.ceil(viewport.height);
-      canvas.style.width = `${cssWidth}px`;
-      canvas.style.height = `${Math.round(cssWidth * (natural.height / natural.width))}px`;
-      renderTask = page.render({ canvas, viewport });
-      renderTask.onContinue = (resume: () => void) => {
-        resumeFrame = requestAnimationFrame(() => {
-          if (active) resume();
-        });
-      };
-      await renderTask.promise;
-      if (active) setLoaded(true);
-    });
+    let resumeTimer = 0;
+    let previewTimer = 0;
+    let previewIdle = 0;
+    queue(
+      async () => {
+        if (!active) return;
+        const page = await document.getPage(pageNumber);
+        if (!active) return;
+        const natural = page.getViewport({ scale: 1 });
+        const cssWidth = Math.min(142, (184 * natural.width) / natural.height);
+        const scale = cssWidth / natural.width;
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        const viewport = page.getViewport({ scale: scale * dpr });
+        canvas.width = Math.ceil(viewport.width);
+        canvas.height = Math.ceil(viewport.height);
+        canvas.style.width = `${cssWidth}px`;
+        canvas.style.height = `${Math.round(cssWidth * (natural.height / natural.width))}px`;
+        renderTask = page.render({ canvas, viewport });
+        renderTask.onContinue = (resume: () => void) => {
+          const continueWhenIdle = () => {
+            if (!active) return;
+            if (shouldPause()) resumeTimer = window.setTimeout(continueWhenIdle, 80);
+            else
+              resumeFrame = requestAnimationFrame(() => {
+                if (active) resume();
+              });
+          };
+          continueWhenIdle();
+        };
+        await renderTask.promise;
+        if (active) {
+          setLoaded(true);
+          if (typeof createImageBitmap === "function") {
+            const cachePreview = async () => {
+              if (!active) return;
+              if (shouldPause()) {
+                previewTimer = window.setTimeout(() => void cachePreview(), 100);
+                return;
+              }
+              try {
+                const bitmap = await createImageBitmap(canvas);
+                if (!active) {
+                  bitmap.close();
+                  return;
+                }
+                previewCache.set(pageNumber, {
+                  bitmap,
+                  width: canvas.width,
+                  height: canvas.height,
+                  cssWidth: canvas.style.width,
+                  cssHeight: canvas.style.height,
+                });
+              } catch {
+                // The rendered canvas remains usable if caching is unavailable.
+              }
+            };
+            // Display the finished canvas first; copying it into the small
+            // preview cache must not compete with active scrolling or input.
+            if (typeof window.requestIdleCallback === "function") {
+              previewIdle = window.requestIdleCallback(
+                () => {
+                  previewIdle = 0;
+                  void cachePreview();
+                },
+                { timeout: 500 },
+              );
+            } else {
+              previewTimer = window.setTimeout(() => void cachePreview(), 100);
+            }
+          }
+        }
+      },
+      () => !active,
+    );
     return () => {
       active = false;
       renderTask?.cancel();
       cancelAnimationFrame(resumeFrame);
+      window.clearTimeout(resumeTimer);
+      window.clearTimeout(previewTimer);
+      if (previewIdle) window.cancelIdleCallback(previewIdle);
       canvas.width = 0;
       canvas.height = 0;
     };
-  }, [document, pageNumber, queue]);
+  }, [document, pageNumber, queue, shouldPause, previewCache]);
 
   return (
     <div className="flex justify-center py-1">
@@ -1870,7 +2204,7 @@ function PdfThumbnail({
           current && "ring-1 ring-accent/40",
         )}
         aria-label={t("pdf.goToPage", { page: pageNumber })}
-        onPress={onPress}
+        onPress={() => onPage(pageNumber)}
       >
         <div className="relative flex h-46 w-35.5 max-w-full items-center justify-center overflow-hidden rounded-sm border border-border bg-white shadow-sm">
           <canvas ref={canvasRef} className={cn("block max-w-full", !loaded && "opacity-0")} />
@@ -1880,7 +2214,7 @@ function PdfThumbnail({
       </Button>
     </div>
   );
-}
+});
 
 function OutlineItems({
   items,

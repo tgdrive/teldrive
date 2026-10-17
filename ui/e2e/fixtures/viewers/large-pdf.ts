@@ -1,4 +1,4 @@
-export function makeLargePdf(pageCount = 240) {
+export function makeLargePdf(pageCount = 240, pageHeight = 792) {
   const objects = new Map<number, string>();
   const pageIds = Array.from({ length: pageCount }, (_, index) => 6 + index * 2);
   objects.set(1, "<< /Type /Catalog /Pages 2 0 R /Outlines 3 0 R >>");
@@ -15,12 +15,12 @@ export function makeLargePdf(pageCount = 240) {
   for (const [index, id] of pageIds.entries()) {
     objects.set(
       id,
-      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents ${id + 1} 0 R >>`,
+      `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 ${pageHeight}] /Resources << /Font << /F1 5 0 R >> >> /Contents ${id + 1} 0 R >>`,
     );
     const text = Array.from(
       { length: 35 },
       (_, line) =>
-        `BT /F1 12 Tf 48 ${740 - line * 18} Td (Page ${index + 1} - line ${line + 1}: PDF reader performance fixture.) Tj ET`,
+        `BT /F1 12 Tf 48 ${pageHeight - 52 - line * 18} Td (Page ${index + 1} - line ${line + 1}: PDF reader performance fixture.) Tj ET`,
     ).join("\n");
     objects.set(id + 1, `<< /Length ${text.length} >>\nstream\n${text}\nendstream`);
   }
