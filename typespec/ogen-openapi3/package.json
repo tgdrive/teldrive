@@ -7,8 +7,8 @@
     ".": "./index.js"
   },
   "peerDependencies": {
-    "@typespec/compiler": "1.13.0",
-    "@typespec/openapi3": "1.13.0",
-    "yaml": "2.9.0"
+    "@typespec/compiler": "1.17.0",
+    "@typespec/openapi3": "1.17.0",
+    "yaml": "2.9.1"
   }
 }
