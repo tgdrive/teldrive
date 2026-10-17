@@ -84,6 +84,7 @@ function Sidebar({
     select: (location) => location.search as Record<string, unknown>,
   });
   const { data: user } = useQuery(currentUserQueryOptions());
+  const versionLabel = import.meta.env.VITE_APP_VERSION;
   const logout = $api.useMutation("post", "/v1/auth/cookie/logout");
   const visibleMainNav = mainNav.filter(
     (item) => !("capability" in item) || Boolean(user?.capabilities.includes(item.capability)),
@@ -165,9 +166,11 @@ function Sidebar({
   return (
     <aside
       className={cn(
-        "flex h-full flex-col overflow-hidden border-r border-border bg-sidebar/95 backdrop-blur-xl",
+        "flex h-full flex-col overflow-hidden border-r border-border",
         !mobile && "transition-[width] duration-200",
-        mobile ? "w-[min(19rem,86vw)] shadow-2xl" : collapsed ? "w-16" : "w-60",
+        mobile
+          ? "w-[min(19rem,86vw)] bg-sidebar shadow-2xl"
+          : cn("bg-sidebar/95 backdrop-blur-xl", collapsed ? "w-16" : "w-60"),
       )}
     >
       <div className="flex h-16 items-center gap-3 px-4">
@@ -254,6 +257,11 @@ function Sidebar({
             </Dropdown.Menu>
           </Dropdown.Popover>
         </Dropdown>
+        {(!collapsed || mobile) && (
+          <p className="mt-2 truncate px-2 text-xs text-muted" title={versionLabel}>
+            {versionLabel}
+          </p>
+        )}
       </div>
     </aside>
   );

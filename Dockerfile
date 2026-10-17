@@ -1,10 +1,11 @@
 FROM oven/bun:1-alpine AS ui-build
+ARG VERSION=dev
 WORKDIR /src
 COPY openapi ./openapi
 COPY ui/package.json ui/bun.lock ./ui/
 RUN bun install --frozen-lockfile --cwd ui
 COPY ui ./ui
-RUN bun run --cwd ui build
+RUN VERSION="${VERSION}" bun run --cwd ui build
 
 FROM golang:1.26-alpine AS build
 WORKDIR /src

@@ -4,7 +4,7 @@ project_name: teldrive
 before:
   hooks:
     - bun ci --cwd ui
-    - bun run --cwd ui build
+    - "env VERSION={{ .Version }} bun run --cwd ui build"
 
 builds:
   - id: teldrive

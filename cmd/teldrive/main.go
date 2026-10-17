@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"runtime"
 	"runtime/debug"
 	"syscall"
 
@@ -115,8 +116,13 @@ func newVersionCommand() *cobra.Command {
 		Use:   "version",
 		Short: "Print build version information",
 		Args:  cobra.NoArgs,
-		Run: func(*cobra.Command, []string) {
-			fmt.Printf("teldrive %s commit=%s built=%s\n", buildVersion(), commit, date)
+		Run: func(cmd *cobra.Command, _ []string) {
+			shortCommit := commit
+			if len(shortCommit) > 7 {
+				shortCommit = shortCommit[:7]
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "teldrive %s\n- commit: %s\n- built: %s\n- go/version: %s\n- os/arch: %s/%s\n",
+				buildVersion(), shortCommit, date, runtime.Version(), runtime.GOOS, runtime.GOARCH)
 		},
 	}
 }

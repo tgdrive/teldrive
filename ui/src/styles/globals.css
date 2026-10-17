@@ -16,6 +16,10 @@
     "Geist", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
     "Segoe UI Symbol", "Noto Color Emoji";
 
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+
   /* Extended shadows */
   --shadow-glow: 0 0 20px color-mix(in srgb, var(--accent) 25%, transparent);
   --shadow-glow-lg: 0 0 40px color-mix(in srgb, var(--accent) 35%, transparent);

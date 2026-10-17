@@ -403,6 +403,77 @@ async function installFileApi(page: Page, seed: PreferencesSeed = {}): Promise<P
 
 test.beforeEach(async ({ page }) => installFileApi(page));
 
+test("sidebar shows the build-time version without a health request", async ({
+  page,
+  isMobile,
+}) => {
+  let requests = 0;
+  await page.route("**/api/health/live", async (route) => {
+    requests += 1;
+    return route.fulfill({ status: 503, json: {} });
+  });
+  await page.goto("/files");
+  if (isMobile) await page.getByRole("button", { name: "Open navigation" }).click();
+  const sidebar = page.locator("aside");
+  const versionLabel = process.env.VERSION?.trim() || "dev";
+  await expect(sidebar.getByText(versionLabel, { exact: true })).toBeVisible();
+  await expect(sidebar.getByRole("button", { name: "Account menu" })).toBeVisible();
+  await page.screenshot({ path: test.info().outputPath("sidebar-version.png"), scale: "css" });
+  if (isMobile) {
+    await page
+      .getByRole("dialog", { name: "Navigation", exact: true })
+      .getByRole("button", { name: "Close navigation" })
+      .last()
+      .click();
+    await page.getByRole("button", { name: "Open navigation" }).click();
+    await expect(sidebar.getByText(versionLabel, { exact: true })).toBeVisible();
+  }
+  expect(requests).toBe(0);
+});
+
+for (const theme of ["light", "dark"] as const) {
+  test(`mobile navigation has an opaque full-height background in ${theme} mode`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await installPreferencesApi(page, { appearance: { theme }, updatedAt: now });
+    await page.goto("/files");
+    await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+    await page.getByRole("button", { name: "Open navigation" }).click();
+    const navigation = page.getByRole("dialog", { name: "Navigation", exact: true });
+    const sidebar = navigation.locator("aside");
+    await expect(sidebar).toBeVisible();
+    await expect
+      .poll(() =>
+        sidebar.evaluate((element) => {
+          const reference = document.createElement("div");
+          reference.style.backgroundColor = "var(--sidebar)";
+          element.append(reference);
+          const expected = getComputedStyle(reference).backgroundColor;
+          reference.remove();
+          return getComputedStyle(element).backgroundColor === expected;
+        }),
+      )
+      .toBe(true);
+    await expect
+      .poll(() =>
+        sidebar.evaluate((element) => {
+          const bounds = element.getBoundingClientRect();
+          return bounds.top === 0 && bounds.bottom === window.innerHeight;
+        }),
+      )
+      .toBe(true);
+    const screenshot = test.info().outputPath(`mobile-sidebar-${theme}.png`);
+    await page.screenshot({ path: screenshot, scale: "css" });
+    await test.info().attach(`mobile-sidebar-${theme}`, {
+      path: screenshot,
+      contentType: "image/png",
+    });
+    await navigation.getByRole("button", { name: "Close navigation" }).last().click();
+    await expect(navigation).toBeHidden();
+  });
+}
+
 test("sidebar active state follows route path and bookmark search state", async ({
   page,
   isMobile,

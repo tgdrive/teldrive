@@ -53,7 +53,7 @@ stdenv.mkDerivation {
     cp -r ${bunDeps} node_modules
     chmod -R u+w node_modules
     patchShebangs node_modules
-    bun run --frozen-lockfile build
+    VERSION=${lib.escapeShellArg version} bun run --frozen-lockfile build
     runHook postBuild
   '';
   installPhase = ''

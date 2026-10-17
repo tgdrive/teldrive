@@ -79,6 +79,9 @@ export default defineConfig(() => {
     : backendAddress;
 
   return {
+    define: {
+      "import.meta.env.VITE_APP_VERSION": JSON.stringify(process.env.VERSION?.trim() || "dev"),
+    },
     plugins: [
       pdfJsAssets(),
       tanstackRouter(),

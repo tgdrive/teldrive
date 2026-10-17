@@ -1,15 +1,16 @@
 import { Button, Dropdown, Label } from "@heroui/react";
+import type { FileBrowserPreferences } from "@/api/types";
 import { useAppLocale } from "@/lib/locale";
 import ArrowDownIcon from "~icons/gravity-ui/arrow-down";
 import ArrowUpIcon from "~icons/gravity-ui/arrow-up";
-import type { FileSort, SortPreference } from "./sort-preference";
+import type { FileSort } from "./sort-preference";
 
 export function FileSortControls({
   sorting,
   onChange,
 }: {
-  sorting: SortPreference;
-  onChange: (sorting: SortPreference) => void;
+  sorting: FileBrowserPreferences;
+  onChange: (sorting: FileBrowserPreferences) => void;
 }) {
   const { t } = useAppLocale();
   return (
