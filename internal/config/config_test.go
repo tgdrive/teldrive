@@ -15,6 +15,9 @@ func TestDefaultIncludesLegacyPublicTelegramClientIdentity(t *testing.T) {
 	t.Parallel()
 
 	cfg := Default()
+	if cfg.Security.PublicFileContent {
+		t.Fatal("PublicFileContent should default to false")
+	}
 	if !cfg.Database.AutoMigrateLegacy {
 		t.Fatal("Database AutoMigrateLegacy = false, want true")
 	}
@@ -69,6 +72,7 @@ func TestLoadFromAppliesEnvironment(t *testing.T) {
 		"TELDRIVE_TELEGRAM_APP_ID":                 "12345",
 		"TELDRIVE_TELEGRAM_APP_HASH":               "telegram-app-hash",
 		"TELDRIVE_SECURITY_SIGNING_KEY":            "0123456789abcdef0123456789abcdef",
+		"TELDRIVE_SECURITY_PUBLIC_FILE_CONTENT":    "true",
 		"TELDRIVE_SECURITY_DATA_KEY":               "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
 		"TELDRIVE_HTTP_ADDRESS":                    "0.0.0.0:9090",
 		"TELDRIVE_DATABASE_MAX_CONNECTIONS":        "12",
@@ -100,6 +104,9 @@ func TestLoadFromAppliesEnvironment(t *testing.T) {
 	}
 	if cfg.HTTP.Address != "0.0.0.0:9090" || cfg.Database.URL != values["TELDRIVE_DATABASE_URL"] {
 		t.Fatalf("loaded addresses = %#v", cfg)
+		if !cfg.Security.PublicFileContent {
+			t.Fatal("security public file content option was not loaded from environment")
+		}
 	}
 	if cfg.Database.MaxConnections != 12 || cfg.Database.MinConnections != 3 || cfg.Database.AutoMigrateLegacy {
 		t.Fatalf("database pool = %#v", cfg.Database)

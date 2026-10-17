@@ -143,9 +143,47 @@ func ErrorHandler(ctx context.Context, w http.ResponseWriter, _ *http.Request, e
 	})
 }
 
-func NewServer(handler *Handler, security *Security, opts ...gen.ServerOption) (*gen.Server, error) {
+func NewServer(handler *Handler, security *Security, opts ...gen.ServerOption) (http.Handler, error) {
 	opts = append([]gen.ServerOption{gen.WithErrorHandler(ErrorHandler)}, opts...)
-	return gen.NewServer(handler, NewRawHandler(handler), security, opts...)
+	server, err := gen.NewServer(handler, NewRawHandler(handler), security, opts...)
+	if err != nil || security == nil || !security.publicFileContent {
+		return server, err
+	}
+	return publicFileContentHandler(server), nil
+}
+
+// publicFileContentHandler activates the configured bypass only for the two
+// file-content URL patterns (with and without a filename), for GET and HEAD.
+// ogen invokes its security handler only when a credential is present, so a
+// private context marker and an internal bearer credential trigger that check.
+func publicFileContentHandler(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !isFileContentRequest(r) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		r = r.WithContext(context.WithValue(r.Context(), publicFileContentContextKey{}, true))
+		r.Header = r.Header.Clone()
+		r.Header.Del("Cookie")
+		r.Header.Del("X-Api-Key")
+		r.Header.Set("Authorization", "Bearer "+publicFileContentToken)
+		next.ServeHTTP(w, r)
+	})
+}
+
+func isFileContentRequest(r *http.Request) bool {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		return false
+	}
+	parts := strings.Split(r.URL.Path, "/")
+	if (len(parts) != 5 && len(parts) != 6) ||
+		parts[0] != "" || parts[1] != "v1" || parts[2] != "files" || parts[4] != "content" {
+		return false
+	}
+	if _, err := uuid.Parse(parts[3]); err != nil {
+		return false
+	}
+	return len(parts) == 5 || parts[5] != ""
 }
 
 func generationETag(generation int64) gen.ETag {

@@ -593,11 +593,7 @@ func (h *Handler) HeadFile(ctx context.Context, params gen.HeadFileParams) (gen.
 	if h.Catalog == nil {
 		return nil, mapServiceError(ErrOperationUnavailable)
 	}
-	access, err := h.resolveAuthenticatedFileAccess(ctx, googleUUID(params.FileId), false)
-	if err != nil {
-		return nil, mapServiceError(err)
-	}
-	file, err := h.Catalog.Get(ctx, access.OwnerID, googleUUID(params.FileId))
+	file, err := h.resolveFileContent(ctx, googleUUID(params.FileId))
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -615,11 +611,7 @@ func (h *Handler) HeadFileLegacy(ctx context.Context, params gen.HeadFileLegacyP
 		return nil, mapServiceError(ErrOperationUnavailable)
 	}
 	fileID := googleUUID(params.FileId)
-	access, err := h.resolveAuthenticatedFileAccess(ctx, fileID, false)
-	if err != nil {
-		return nil, mapServiceError(err)
-	}
-	file, err := h.Catalog.Get(ctx, access.OwnerID, fileID)
+	file, err := h.resolveFileContent(ctx, fileID)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}

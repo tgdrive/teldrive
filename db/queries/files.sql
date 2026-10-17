@@ -4,6 +4,13 @@ FROM /* TEMPLATE: schema */files
 WHERE id = sqlc.arg(file_id)
   AND user_id = sqlc.arg(user_id);
 
+-- name: GetPublicFileByID :one
+SELECT *
+FROM /* TEMPLATE: schema */files
+WHERE id = sqlc.arg(file_id)
+  AND kind = 'file'
+  AND status = 'active';
+
 -- name: CountBookmarkableFiles :one
 SELECT count(DISTINCT file.id)::integer
 FROM /* TEMPLATE: schema */files AS file

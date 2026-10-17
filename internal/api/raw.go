@@ -35,15 +35,11 @@ func (h *RawHandler) DownloadFile(ctx context.Context, params gen.DownloadFilePa
 		return mapServiceError(ErrOperationUnavailable)
 	}
 	fileID := googleUUID(params.FileId)
-	access, err := h.handler.resolveAuthenticatedFileAccess(ctx, fileID, false)
+	file, err := h.handler.resolveFileContent(ctx, fileID)
 	if err != nil {
 		return mapServiceError(err)
 	}
-	file, err := h.handler.Catalog.Get(ctx, access.OwnerID, fileID)
-	if err != nil {
-		return mapServiceError(err)
-	}
-	return h.streamFile(ctx, w, access.OwnerID, fileID, file, params.Range, params.IfNoneMatch, params.Download.IsSet())
+	return h.streamFile(ctx, w, file.UserID, fileID, file, params.Range, params.IfNoneMatch, params.Download.IsSet())
 }
 
 func (h *RawHandler) DownloadFileLegacy(ctx context.Context, params gen.DownloadFileLegacyParams, w http.ResponseWriter) error {

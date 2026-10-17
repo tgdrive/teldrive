@@ -124,6 +124,40 @@ func TestGeneratedServerUploadCompleteAndRangeDownload(t *testing.T) {
 		t.Fatalf("full Content-Disposition = %q", got)
 	}
 
+	// Public file content is opt-in and affects both legacy and filename URLs,
+	// including HEAD, byte ranges, and attachment downloads.
+	publicServer, err := api.NewServer(handler, api.NewSecurity(authenticator).WithPublicFileContent(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	fileIDPath := "/v1/files/" + uuid.UUID(file.ID).String() + "/content"
+	for _, path := range []string{fileIDPath, downloadPath} {
+		unauthorized := performRequest(t, server, http.MethodGet, path, nil, nil)
+		if unauthorized.Code != http.StatusUnauthorized {
+			t.Fatalf("default auth %s: status %d", path, unauthorized.Code)
+		}
+		stream := performRequest(t, publicServer, http.MethodGet, path, nil, map[string]string{"Range": "bytes=3-6"})
+		if stream.Code != http.StatusPartialContent || stream.Body.String() != "defg" {
+			t.Fatalf("anonymous range %s: status %d, body %q", path, stream.Code, stream.Body.String())
+		}
+		head := performRequest(t, publicServer, http.MethodHead, path, nil, nil)
+		if head.Code != http.StatusOK || head.Header().Get("Content-Length") != "10" {
+			t.Fatalf("anonymous HEAD %s: status %d, length %q", path, head.Code, head.Header().Get("Content-Length"))
+		}
+		attachment := performRequest(t, publicServer, http.MethodGet, path+"?download=1", nil, nil)
+		if attachment.Code != http.StatusOK || attachment.Body.String() != "abcdefghij" {
+			t.Fatalf("anonymous download %s: status %d, body %q", path, attachment.Code, attachment.Body.String())
+		}
+	}
+	otherRoute := performRequest(t, publicServer, http.MethodGet, "/v1/files", nil, nil)
+	if otherRoute.Code != http.StatusUnauthorized {
+		t.Fatalf("unrelated list should require auth: %d", otherRoute.Code)
+	}
+	missingFile := performRequest(t, publicServer, http.MethodGet, "/v1/files/"+uuid.NewString()+"/content", nil, nil)
+	if missingFile.Code != http.StatusNotFound {
+		t.Fatalf("anonymous missing file: status %d", missingFile.Code)
+	}
+
 	fileID := uuid.UUID(file.ID)
 	password := "share-password"
 	maxDownloads := int64(1)

@@ -103,6 +103,8 @@ Defaults are runtime values, not production recommendations.
 
 <ConfigOption name={"security.login-flow-ttl"} flag={"--security-login-flow-ttl"} env={"TELDRIVE_SECURITY_LOGIN_FLOW_TTL"} defaultValue={"10m0s"} description={"Telegram login-flow lifetime"} />
 
+<ConfigOption name={"security.public-file-content"} flag={"--security-public-file-content"} env={"TELDRIVE_SECURITY_PUBLIC_FILE_CONTENT"} defaultValue={"false"} description={"Allow unauthenticated GET/HEAD access to all file content URLs; anyone with a file ID can stream or download the file"} />
+
 <ConfigOption name={"security.refresh-token-ttl"} flag={"--security-refresh-token-ttl"} env={"TELDRIVE_SECURITY_REFRESH_TOKEN_TTL"} defaultValue={"720h0m0s"} description={"Refresh-token lifetime"} />
 
 <ConfigOption name={"security.signing-key"} flag={"--security-signing-key"} env={"TELDRIVE_SECURITY_SIGNING_KEY"} defaultValue={""} description={"JWT signing key"} />

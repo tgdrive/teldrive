@@ -265,6 +265,11 @@
       default = null;
       description = "JWT signing key (No default; upstream applies its own.) [validate: required,min=32]";
     };
+    "public-file-content" = lib.mkOption {
+      type = lib.types.nullOr (lib.types.bool);
+      default = null;
+      description = "Allow unauthenticated GET/HEAD access to all file content URLs; anyone with a file ID can stream or download the file (Default: false)";
+    };
     "data-key" = lib.mkOption {
       type = lib.types.nullOr (lib.types.str);
       default = null;

@@ -66,6 +66,7 @@ type Querier interface {
 	GetFileViewState(ctx context.Context, arg GetFileViewStateParams) (*FileViewState, error)
 	GetIdempotencyKey(ctx context.Context, arg GetIdempotencyKeyParams) (*IdempotencyKey, error)
 	GetLatestActiveSessionForUser(ctx context.Context, userID int64) (*Session, error)
+	GetPublicFileByID(ctx context.Context, fileID pgtype.UUID) (*File, error)
 	GetSelectedChannel(ctx context.Context, userID int64) (*Channel, error)
 	GetSessionByRefreshTokenHash(ctx context.Context, refreshTokenHash []byte) (*Session, error)
 	GetStorageCleanupStatistics(ctx context.Context, userID int64) (*GetStorageCleanupStatisticsRow, error)

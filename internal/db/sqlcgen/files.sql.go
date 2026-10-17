@@ -273,6 +273,39 @@ func (q *Queries) GetFileForUser(ctx context.Context, arg GetFileForUserParams) 
 	return &i, err
 }
 
+const getPublicFileByID = `-- name: GetPublicFileByID :one
+SELECT id, user_id, parent_id, name, kind, mime_type, size, hash_algorithm, hash_value, encryption, encryption_key_version, status, mod_time, generation, created_at, updated_at, deleted_at
+FROM /* TEMPLATE: schema */files
+WHERE id = $1
+  AND kind = 'file'
+  AND status = 'active'
+`
+
+func (q *Queries) GetPublicFileByID(ctx context.Context, fileID pgtype.UUID) (*File, error) {
+	row := q.db.QueryRow(ctx, getPublicFileByID, fileID)
+	var i File
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.ParentID,
+		&i.Name,
+		&i.Kind,
+		&i.MimeType,
+		&i.Size,
+		&i.HashAlgorithm,
+		&i.HashValue,
+		&i.Encryption,
+		&i.EncryptionKeyVersion,
+		&i.Status,
+		&i.ModTime,
+		&i.Generation,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return &i, err
+}
+
 const insertCopiedFileParts = `-- name: InsertCopiedFileParts :execrows
 INSERT INTO /* TEMPLATE: schema */file_parts (
     file_id, part_no, channel_id, message_id, plain_size, stored_size,

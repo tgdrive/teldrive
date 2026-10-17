@@ -210,7 +210,7 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 		cfg.Encryption.ActiveKeyVersion, eventService,
 	).ConfigureDomains(authService, botService, channelService, fileService, shareService, telegramAccount).
 		ConfigureJobs(jobRuntime)
-	httpServer, err := api.NewServer(handler, api.NewSecurity(authenticator, eventService))
+	httpServer, err := api.NewServer(handler, api.NewSecurity(authenticator, eventService).WithPublicFileContent(cfg.Security.PublicFileContent))
 	if err != nil {
 		return nil, fmt.Errorf("create generated HTTP server: %w", err)
 	}

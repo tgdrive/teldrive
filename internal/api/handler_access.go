@@ -443,6 +443,19 @@ func (h *Handler) resolveAuthenticatedFileAccess(ctx context.Context, fileID uui
 	return h.Shares.ResolveAccess(ctx, actorID, fileID, requireEdit)
 }
 
+// resolveFileContent preserves per-user authorization unless the request was
+// explicitly marked for public file-content access by the HTTP security layer.
+func (h *Handler) resolveFileContent(ctx context.Context, fileID uuid.UUID) (*sqlcgen.File, error) {
+	if isPublicFileContent(ctx) {
+		return h.Catalog.GetPublic(ctx, fileID)
+	}
+	access, err := h.resolveAuthenticatedFileAccess(ctx, fileID, false)
+	if err != nil {
+		return nil, err
+	}
+	return h.Catalog.Get(ctx, access.OwnerID, fileID)
+}
+
 func (h *Handler) resolveAuthenticatedUploadOwner(ctx context.Context, uploadID uuid.UUID, requireEdit bool) (int64, error) {
 	actorID, err := UserIDFromContext(ctx)
 	if err != nil {

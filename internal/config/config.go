@@ -71,13 +71,14 @@ type Encryption struct {
 }
 
 type Security struct {
-	SigningKey      string        `koanf:"signing-key" default:"" validate:"required,min=32" description:"JWT signing key"`
-	DataKey         string        `koanf:"data-key" default:"" validate:"required" description:"Key used to encrypt stored Telegram credentials"`
-	Issuer          string        `koanf:"issuer" default:"teldrive-v2" validate:"required" description:"JWT issuer"`
-	AllowedUsers    []string      `koanf:"allowed-users" default:"" description:"Allowed Telegram usernames; empty permits every user"`
-	AccessTokenTTL  time.Duration `koanf:"access-token-ttl" default:"15m" validate:"gt=0" description:"Access-token lifetime"`
-	RefreshTokenTTL time.Duration `koanf:"refresh-token-ttl" default:"720h" validate:"gt=0" description:"Refresh-token lifetime"`
-	LoginFlowTTL    time.Duration `koanf:"login-flow-ttl" default:"10m" validate:"gt=0" description:"Telegram login-flow lifetime"`
+	SigningKey        string        `koanf:"signing-key" default:"" validate:"required,min=32" description:"JWT signing key"`
+	PublicFileContent bool          `koanf:"public-file-content" default:"false" description:"Allow unauthenticated GET/HEAD access to all file content URLs; anyone with a file ID can stream or download the file"`
+	DataKey           string        `koanf:"data-key" default:"" validate:"required" description:"Key used to encrypt stored Telegram credentials"`
+	Issuer            string        `koanf:"issuer" default:"teldrive-v2" validate:"required" description:"JWT issuer"`
+	AllowedUsers      []string      `koanf:"allowed-users" default:"" description:"Allowed Telegram usernames; empty permits every user"`
+	AccessTokenTTL    time.Duration `koanf:"access-token-ttl" default:"15m" validate:"gt=0" description:"Access-token lifetime"`
+	RefreshTokenTTL   time.Duration `koanf:"refresh-token-ttl" default:"720h" validate:"gt=0" description:"Refresh-token lifetime"`
+	LoginFlowTTL      time.Duration `koanf:"login-flow-ttl" default:"10m" validate:"gt=0" description:"Telegram login-flow lifetime"`
 }
 
 type Logging struct {

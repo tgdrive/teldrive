@@ -27,8 +27,9 @@ type EventTicketAuthenticator interface {
 }
 
 type Security struct {
-	authenticator Authenticator
-	eventTickets  EventTicketAuthenticator
+	authenticator     Authenticator
+	eventTickets      EventTicketAuthenticator
+	publicFileContent bool
 }
 
 func NewSecurity(authenticator Authenticator, eventTickets ...EventTicketAuthenticator) *Security {
@@ -37,6 +38,31 @@ func NewSecurity(authenticator Authenticator, eventTickets ...EventTicketAuthent
 		security.eventTickets = eventTickets[0]
 	}
 	return security
+}
+
+// WithPublicFileContent enables anonymous streaming for the file content endpoints only.
+func (s *Security) WithPublicFileContent(enabled bool) *Security {
+	s.publicFileContent = enabled
+	return s
+}
+
+func isFileContentOperation(operation gen.OperationName) bool {
+	switch operation {
+	case gen.DownloadFileOperation, gen.DownloadFileLegacyOperation, gen.HeadFileOperation, gen.HeadFileLegacyOperation:
+		return true
+	default:
+		return false
+	}
+}
+
+// A private request context marker prevents clients from forging the internal bypass credential.
+type publicFileContentContextKey struct{}
+
+const publicFileContentToken = "teldrive-internal-public-file-content"
+
+func isPublicFileContent(ctx context.Context) bool {
+	allowed, _ := ctx.Value(publicFileContentContextKey{}).(bool)
+	return allowed
 }
 
 func IdentityFromContext(ctx context.Context) (Identity, bool) {
@@ -63,7 +89,10 @@ func HasAdminRole(ctx context.Context) bool {
 	return HasRole(ctx, "admin") || HasRole(ctx, "owner")
 }
 
-func (s *Security) HandleBearerAuth(ctx context.Context, _ gen.OperationName, auth gen.BearerAuth) (context.Context, error) {
+func (s *Security) HandleBearerAuth(ctx context.Context, operation gen.OperationName, auth gen.BearerAuth) (context.Context, error) {
+	if s != nil && s.publicFileContent && isFileContentOperation(operation) && isPublicFileContent(ctx) && auth.Token == publicFileContentToken {
+		return ctx, nil
+	}
 	if s == nil || s.authenticator == nil || strings.TrimSpace(auth.Token) == "" {
 		return ctx, ErrUnauthenticated
 	}

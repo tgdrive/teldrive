@@ -128,6 +128,19 @@ func (s *Service) Get(ctx context.Context, userID int64, fileID uuid.UUID) (*sql
 	return file, nil
 }
 
+// GetPublic returns an active file by ID without owner authentication.
+// Callers must restrict its use to explicitly public file-content requests.
+func (s *Service) GetPublic(ctx context.Context, fileID uuid.UUID) (*sqlcgen.File, error) {
+	file, err := s.queries.GetPublicFileByID(ctx, dbtypes.UUID(fileID))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get public file: %w", err)
+	}
+	return file, nil
+}
+
 func (s *Service) GetViewState(ctx context.Context, userID int64, fileID uuid.UUID) (*sqlcgen.FileViewState, error) {
 	state, err := s.queries.GetFileViewState(ctx, sqlcgen.GetFileViewStateParams{
 		UserID: userID, FileID: dbtypes.UUID(fileID),
