@@ -82,7 +82,7 @@ function SettingsLayout() {
 
   return (
     <div className="mx-auto grid w-full max-w-7xl gap-6 lg:grid-cols-[15rem_minmax(0,1fr)]">
-      <aside className="hidden lg:block">
+      <aside className="hidden lg:col-start-1 lg:block">
         <div className="sticky top-0 flex max-h-[calc(100dvh-7rem)] flex-col gap-5 overflow-y-auto border-r border-border pr-5">
           <div>
             <Typography type="h2" className="text-lg font-semibold">
@@ -95,7 +95,7 @@ function SettingsLayout() {
           <SettingsNavigation currentPath={location.pathname} groups={visibleGroups} />
         </div>
       </aside>
-      <main className="min-w-0">
+      <main className="min-w-0 lg:col-start-2">
         <div className="mb-5 flex items-center justify-between border-b border-border pb-4 lg:hidden">
           <div>
             <Typography type="h2" className="text-base font-semibold">
