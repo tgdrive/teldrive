@@ -3,6 +3,16 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { FileTrigger, type Selection } from "react-aria-components";
 import { toast } from "sonner";
+import { apiFetch } from "@/api/client";
+import { ApiError, userMessage } from "@/api/errors";
+import type { FileEntry, PublicShare } from "@/api/types";
+import { AppDialog } from "@/components/dialogs/app-dialog";
+import { Page, PageContent } from "@/components/page";
+import { copyText } from "@/features/files/download";
+import { FileBrowser, type FileBrowserView } from "@/features/files/file-browser";
+import { newIdempotencyKey } from "@/features/shared/idempotency";
+import { useFormatBytes } from "@/lib/format";
+import { useAppLocale } from "@/lib/locale";
 import DownloadIcon from "~icons/gravity-ui/arrow-down-to-line";
 import UploadIcon from "~icons/gravity-ui/arrow-up-from-line";
 import LogoIcon from "~icons/gravity-ui/layers";
@@ -11,16 +21,6 @@ import PencilIcon from "~icons/gravity-ui/pencil";
 import PlusIcon from "~icons/gravity-ui/plus";
 import TrashIcon from "~icons/gravity-ui/trash-bin";
 import CloseIcon from "~icons/gravity-ui/xmark";
-import { apiFetch } from "@/api/client";
-import { ApiError, userMessage } from "@/api/errors";
-import type { FileEntry, PublicShare } from "@/api/types";
-import { AppDialog } from "@/components/dialogs/app-dialog";
-import { Page, PageContent } from "@/components/page";
-import { FileBrowser, type FileBrowserView } from "@/features/files/file-browser";
-import { copyText } from "@/features/files/download";
-import { newIdempotencyKey } from "@/features/shared/idempotency";
-import { useAppLocale } from "@/lib/locale";
-import { useFormatBytes } from "@/lib/format";
 
 export const Route = createFileRoute("/share/$token")({
   component: PublicSharePage,
@@ -141,16 +141,16 @@ function PublicSharePage() {
   const download = async (file: FileEntry) => {
     setError(undefined);
     try {
-      const response = await apiFetch(`${publicContentPath(file)}?download=1`, {
-        headers: shareHeaders(activePassword),
-      });
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
+      if (share?.passwordProtected) {
+        await apiFetch(`/v1/public/shares/${encodeURIComponent(token)}/download-session`, {
+          method: "POST",
+          headers: shareHeaders(activePassword),
+        });
+      }
       const anchor = document.createElement("a");
-      anchor.href = url;
+      anchor.href = `${publicContentUrl(file)}?download=1`;
       anchor.download = file.name;
       anchor.click();
-      URL.revokeObjectURL(url);
     } catch (cause) {
       setError(userMessage(cause));
     }

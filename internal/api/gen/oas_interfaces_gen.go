@@ -9,6 +9,10 @@ type AbortUploadRes interface {
 	abortUploadRes()
 }
 
+type AuthorizePublicShareDownloadRes interface {
+	authorizePublicShareDownloadRes()
+}
+
 type BookmarkFilesRes interface {
 	bookmarkFilesRes()
 }

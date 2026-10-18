@@ -168,6 +168,36 @@ func TestGeneratedServerUploadCompleteAndRangeDownload(t *testing.T) {
 		t.Fatalf("create share: %v", err)
 	}
 	publicPath := "/v1/public/shares/" + createdShare.Token + "/content/api.bin"
+	sharePath := "/v1/public/shares/" + createdShare.Token
+	for _, headers := range []map[string]string{nil, {"X-Share-Password": "wrong"}} {
+		denied := performRequest(t, server, http.MethodPost, sharePath+"/download-session", nil, headers)
+		if denied.Code != http.StatusUnauthorized || denied.Header().Get("Set-Cookie") != "" {
+			t.Fatalf("invalid download authorization = %d, %s", denied.Code, denied.Body.String())
+		}
+	}
+	authorized := performRequest(t, server, http.MethodPost, sharePath+"/download-session", nil, map[string]string{"X-Share-Password": password})
+	if authorized.Code != http.StatusNoContent || authorized.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("download authorization = %d, %s", authorized.Code, authorized.Body.String())
+	}
+	cookies := authorized.Result().Cookies()
+	if len(cookies) != 1 || cookies[0].Name != "teldrive_share_download" || !cookies[0].HttpOnly || cookies[0].Path != "/api"+sharePath+"/" {
+		t.Fatalf("download cookies = %#v", cookies)
+	}
+	cookieHeader := cookies[0].Name + "=" + cookies[0].Value
+	// Cookies authorize only content, not metadata, session renewal, or edits.
+	for _, request := range []struct {
+		method, path string
+		body         []byte
+	}{
+		{http.MethodGet, sharePath, nil},
+		{http.MethodPost, sharePath + "/download-session", nil},
+		{http.MethodPatch, sharePath + "/files/" + fileID.String(), []byte(`{"name":"renamed.bin"}`)},
+	} {
+		denied := performRequest(t, server, request.method, request.path, request.body, map[string]string{"Cookie": cookieHeader, "Content-Type": "application/json", "If-Match": `"1"`})
+		if denied.Code != http.StatusUnauthorized {
+			t.Fatalf("cookie authorized %s %s: %d, %s", request.method, request.path, denied.Code, denied.Body.String())
+		}
+	}
 	storage.mu.Lock()
 	beforeHead := storage.openCount
 	storage.mu.Unlock()
@@ -187,6 +217,24 @@ func TestGeneratedServerUploadCompleteAndRangeDownload(t *testing.T) {
 	if notModified.Code != http.StatusNotModified {
 		t.Fatalf("public 304 = %d, body=%s", notModified.Code, notModified.Body.String())
 	}
+	for _, path := range []string{
+		sharePath + "/content", publicPath,
+		sharePath + "/files/" + fileID.String() + "/content",
+		sharePath + "/files/" + fileID.String() + "/content/api.bin",
+	} {
+		denied := performRequest(t, server, http.MethodGet, path, nil, nil)
+		if denied.Code != http.StatusUnauthorized {
+			t.Fatalf("anonymous content %s: %d", path, denied.Code)
+		}
+		cookieHead := performRequest(t, server, http.MethodHead, path, nil, map[string]string{"Cookie": cookieHeader})
+		if cookieHead.Code != http.StatusOK || cookieHead.Body.Len() != 0 || cookieHead.Header().Get("Content-Length") != "10" {
+			t.Fatalf("cookie HEAD %s: %d, %s", path, cookieHead.Code, cookieHead.Body.String())
+		}
+		cached := performRequest(t, server, http.MethodGet, path, nil, map[string]string{"Cookie": cookieHeader, "If-None-Match": cookieHead.Header().Get("ETag")})
+		if cached.Code != http.StatusNotModified {
+			t.Fatalf("cookie 304 %s: %d, %s", path, cached.Code, cached.Body.String())
+		}
+	}
 	var downloadCount int64
 	if err := db.Pool.QueryRow(ctx, "SELECT download_count FROM file_shares WHERE id=$1", createdShare.Row.ID).Scan(&downloadCount); err != nil {
 		t.Fatal(err)
@@ -196,12 +244,15 @@ func TestGeneratedServerUploadCompleteAndRangeDownload(t *testing.T) {
 	}
 
 	publicRange := performRequest(t, server, http.MethodGet, publicPath, nil, map[string]string{
-		"X-Share-Password": password, "Range": "bytes=1-4",
+		"Cookie": cookieHeader, "Range": "bytes=1-4",
 	})
 	if publicRange.Code != http.StatusPartialContent || publicRange.Body.String() != "bcde" {
 		t.Fatalf("public range = %d, %q", publicRange.Code, publicRange.Body.String())
 	}
-	exhausted := performRequest(t, server, http.MethodGet, publicPath, nil, map[string]string{"X-Share-Password": password})
+	if publicRange.Header().Get("Cache-Control") != "private, no-store" {
+		t.Fatal("cookie-authorized content must not be cached")
+	}
+	exhausted := performRequest(t, server, http.MethodGet, publicPath, nil, map[string]string{"Cookie": cookieHeader})
 	if exhausted.Code != http.StatusGone {
 		t.Fatalf("exhausted share = %d, body=%s", exhausted.Code, exhausted.Body.String())
 	}

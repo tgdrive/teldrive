@@ -19,6 +19,12 @@ type Handler interface {
 	//
 	// DELETE /v1/uploads/{uploadId}
 	AbortUpload(ctx context.Context, params AbortUploadParams) (AbortUploadRes, error)
+	// AuthorizePublicShareDownload implements authorizePublicShareDownload operation.
+	//
+	// Exchange the share password for a 15-minute, share-scoped download cookie.
+	//
+	// POST /v1/public/shares/{token}/download-session
+	AuthorizePublicShareDownload(ctx context.Context, params AuthorizePublicShareDownloadParams) (AuthorizePublicShareDownloadRes, error)
 	// BookmarkFiles implements bookmarkFiles operation.
 	//
 	// Bookmark selected active files and folders.

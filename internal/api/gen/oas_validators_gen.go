@@ -156,6 +156,38 @@ func (s *AppearancePreferencesUpdate) Validate() error {
 	return nil
 }
 
+func (s *AuthorizePublicShareDownloadNoContent) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if err := s.CacheControl.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "CacheControl",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s AuthorizePublicShareDownloadNoContentCacheControl) Validate() error {
+	switch s {
+	case "no-store":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
 func (s *BookmarkFilesRequest) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer

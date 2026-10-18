@@ -1,4 +1,5 @@
 import { expect, type Page, test } from "@playwright/test";
+import { startDownloadServer } from "./fixtures/download-server";
 import {
   installPreferencesApi,
   type PreferencesApi,
@@ -890,6 +891,98 @@ test("selected file downloads and copies its attachment URL on an insecure host"
     .poll(() => page.evaluate(() => (window as typeof window & { copiedText?: string }).copiedText))
     .toBe(`${new URL(page.url()).origin}/api/v1/files/${alphaId}/content/alpha.txt?download=1`);
 });
+
+for (const passwordProtected of [false, true]) {
+  for (const folder of [false, true]) {
+    test(`public ${folder ? "folder" : "file"} share downloads through the browser (${passwordProtected ? "password" : "no password"})`, async ({
+      page,
+      baseURL,
+    }) => {
+      const token = "tds_download-fixture";
+      const password = "fixture-password";
+      const base = `/api/v1/public/shares/${token}`;
+      const filename = "large #1 résumé.bin";
+      const entry = file({ id: alphaId, name: filename, kind: "file", size: 6 * 1024 ** 3 });
+      const content = folder
+        ? `${base}/files/${alphaId}/content/${encodeURIComponent(filename)}?download=1`
+        : `${base}/content/${encodeURIComponent(filename)}?download=1`;
+      let exchanges = 0;
+
+      // Make whole-file buffering a hard failure rather than merely asserting
+      // that a small fixture eventually produces a download.
+      await page.addInitScript(() => {
+        const blob = Response.prototype.blob;
+        Response.prototype.blob = function () {
+          if (this.url.includes("/public/shares/")) {
+            throw new Error("Public share downloads must not buffer a Blob");
+          }
+          return blob.call(this);
+        };
+      });
+      await page.route(`**${base}**`, async (route) => {
+        const request = route.request();
+        const url = new URL(request.url());
+        const suppliedPassword = request.headers()["x-share-password"];
+        if (url.pathname === `${base}/download-session`) {
+          exchanges += 1;
+          expect(request.method()).toBe("POST");
+          expect(suppliedPassword).toBe(password);
+          return route.fulfill({
+            status: 204,
+            headers: {
+              "Set-Cookie": `teldrive_share_download=opaque-fixture; Path=${base}/; HttpOnly; SameSite=Strict; Max-Age=900`,
+              "Cache-Control": "no-store",
+            },
+          });
+        }
+        if (passwordProtected && suppliedPassword !== password) {
+          return route.fulfill({
+            status: 401,
+            json: { error: { code: "unauthorized", message: "Password required" } },
+          });
+        }
+        if (url.pathname === `${base}/files`) {
+          return route.fulfill({ json: { items: [entry] } });
+        }
+        return route.fulfill({
+          json: {
+            id: rootId,
+            file: folder ? file({ id: rootId, name: "Shared folder", kind: "folder" }) : entry,
+            passwordProtected,
+            permission: "read",
+          },
+        });
+      });
+      if (!baseURL) throw new Error("Missing Playwright base URL");
+      const server = await startDownloadServer(baseURL, content);
+      try {
+        await page.goto(`${server.origin}/share/${token}`);
+        if (passwordProtected) {
+          await page.locator('input[type="password"]').fill(password);
+          await page.getByRole("button", { name: "Open share", exact: true }).click();
+        }
+        await page.getByRole("row", { name: /large #1/ }).click();
+        const pending = page.waitForEvent("download");
+        await page.getByRole("button", { name: "Download selected file" }).click();
+        const download = await pending;
+        expect(await download.failure()).toBeNull();
+        expect(download.url()).toBe(`${new URL(page.url()).origin}${content}`);
+        expect(download.suggestedFilename()).toBe(filename);
+        expect(exchanges).toBe(passwordProtected ? 1 : 0);
+        expect(server.requests).toHaveLength(1);
+        expect(server.requests[0].headers["x-share-password"]).toBeUndefined();
+        if (passwordProtected) {
+          expect(server.requests[0].headers.cookie).toContain(
+            "teldrive_share_download=opaque-fixture",
+          );
+        }
+        expect(new URL(page.url()).pathname).toBe(`/share/${token}`);
+      } finally {
+        await server.close();
+      }
+    });
+  }
+}
 
 test("React Aria owns directional navigation, range selection, typeahead, and item actions", async ({
   page,

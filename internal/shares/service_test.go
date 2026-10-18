@@ -32,7 +32,7 @@ func TestServiceValidationAndTokenHash(t *testing.T) {
 	if err := s.Revoke(context.Background(), 0, uuid.Nil); !errors.Is(err, ErrInvalidInput) {
 		t.Fatalf("Revoke() error = %v", err)
 	}
-	if _, err := s.resolveRow(context.Background(), "", ""); !errors.Is(err, ErrNotFound) {
+	if _, err := s.resolveRow(context.Background(), "", "", ""); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("resolveRow(empty) error = %v", err)
 	}
 	if len(tokenHash("token")) != 32 {

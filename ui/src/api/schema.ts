@@ -1107,6 +1107,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/public/shares/{token}/download-session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Exchange the share password for a 15-minute, share-scoped download cookie. */
+        post: operations["authorizePublicShareDownload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/public/shares/{token}": {
         parameters: {
             query?: never;
@@ -2445,6 +2462,7 @@ export interface components {
         /** @description Folder path relative to the shared folder root. */
         "PublicShareListQuery.path": string;
         "PublicShareListQuery.search": string;
+        ShareDownloadCookie: string;
         "JobListQuery.status": components["schemas"]["JobState"];
         "JobListQuery.type": string;
         "JobListQuery.queue": string;
@@ -6716,6 +6734,66 @@ export interface operations {
             };
         };
     };
+    authorizePublicShareDownload: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Share-Password"?: components["parameters"]["SharePasswordHeader"];
+            };
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description There is no content to send for this request, but the headers may be useful. */
+            204: {
+                headers: {
+                    "Set-Cookie": string;
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Client error */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Client error */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     getPublicShare: {
         parameters: {
             query?: never;
@@ -6870,7 +6948,9 @@ export interface operations {
                 fileId: components["schemas"]["Uuid"];
                 fileName: string;
             };
-            cookie?: never;
+            cookie?: {
+                teldrive_share_download?: components["parameters"]["ShareDownloadCookie"];
+            };
         };
         requestBody?: never;
         responses: {
@@ -6977,7 +7057,9 @@ export interface operations {
                 fileId: components["schemas"]["Uuid"];
                 fileName: string;
             };
-            cookie?: never;
+            cookie?: {
+                teldrive_share_download?: components["parameters"]["ShareDownloadCookie"];
+            };
         };
         requestBody?: never;
         responses: {
@@ -7055,7 +7137,9 @@ export interface operations {
                 token: string;
                 fileName: string;
             };
-            cookie?: never;
+            cookie?: {
+                teldrive_share_download?: components["parameters"]["ShareDownloadCookie"];
+            };
         };
         requestBody?: never;
         responses: {
@@ -7161,7 +7245,9 @@ export interface operations {
                 token: string;
                 fileName: string;
             };
-            cookie?: never;
+            cookie?: {
+                teldrive_share_download?: components["parameters"]["ShareDownloadCookie"];
+            };
         };
         requestBody?: never;
         responses: {
@@ -7239,7 +7325,9 @@ export interface operations {
                 token: string;
                 fileId: components["schemas"]["Uuid"];
             };
-            cookie?: never;
+            cookie?: {
+                teldrive_share_download?: components["parameters"]["ShareDownloadCookie"];
+            };
         };
         requestBody?: never;
         responses: {
@@ -7345,7 +7433,9 @@ export interface operations {
                 token: string;
                 fileId: components["schemas"]["Uuid"];
             };
-            cookie?: never;
+            cookie?: {
+                teldrive_share_download?: components["parameters"]["ShareDownloadCookie"];
+            };
         };
         requestBody?: never;
         responses: {
@@ -7422,7 +7512,9 @@ export interface operations {
             path: {
                 token: string;
             };
-            cookie?: never;
+            cookie?: {
+                teldrive_share_download?: components["parameters"]["ShareDownloadCookie"];
+            };
         };
         requestBody?: never;
         responses: {
@@ -7527,7 +7619,9 @@ export interface operations {
             path: {
                 token: string;
             };
-            cookie?: never;
+            cookie?: {
+                teldrive_share_download?: components["parameters"]["ShareDownloadCookie"];
+            };
         };
         requestBody?: never;
         responses: {

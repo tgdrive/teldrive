@@ -34,6 +34,7 @@ type Querier interface {
 	CreateFileShare(ctx context.Context, arg CreateFileShareParams) (*FileShare, error)
 	CreateFolder(ctx context.Context, arg CreateFolderParams) (*File, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (*Session, error)
+	CreateShareDownloadSession(ctx context.Context, arg CreateShareDownloadSessionParams) error
 	CreateTelegramLoginFlow(ctx context.Context, arg CreateTelegramLoginFlowParams) (*TelegramLoginFlow, error)
 	CreateUploadSession(ctx context.Context, arg CreateUploadSessionParams) (*UploadSession, error)
 	DeleteBot(ctx context.Context, arg DeleteBotParams) (int64, error)
@@ -80,6 +81,7 @@ type Querier interface {
 	GetUser(ctx context.Context, userID int64) (*User, error)
 	GetUserEventCursorState(ctx context.Context, arg GetUserEventCursorStateParams) (*GetUserEventCursorStateRow, error)
 	GetUserPreferences(ctx context.Context, userID int64) (*UserPreference, error)
+	HasShareDownloadSession(ctx context.Context, arg HasShareDownloadSessionParams) (bool, error)
 	IncrementShareDownloadCount(ctx context.Context, id pgtype.UUID) (*FileShare, error)
 	InsertAuditEvent(ctx context.Context, arg InsertAuditEventParams) (*AuditEvent, error)
 	InsertCopiedFileParts(ctx context.Context, parts []byte) (int64, error)

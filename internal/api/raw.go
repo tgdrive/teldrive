@@ -16,6 +16,7 @@ import (
 	"github.com/tgdrive/teldrive/v2/internal/api/gen"
 	"github.com/tgdrive/teldrive/v2/internal/db/sqlcgen"
 	"github.com/tgdrive/teldrive/v2/internal/dbtypes"
+	"github.com/tgdrive/teldrive/v2/internal/shares"
 	"github.com/tgdrive/teldrive/v2/internal/transfer"
 )
 
@@ -52,19 +53,22 @@ func (h *RawHandler) DownloadPublicShare(ctx context.Context, params gen.Downloa
 	if h.handler == nil || h.handler.Shares == nil || h.handler.Downloader == nil {
 		return mapServiceError(ErrOperationUnavailable)
 	}
-	password := params.XSharePassword.Or("")
-	resolved, err := h.handler.Shares.Resolve(ctx, params.Token, password)
+	input := shares.ContentRequest{Token: params.Token, Password: params.XSharePassword.Or(""), Session: params.TeldriveShareDownload.Or("")}
+	resolved, err := h.handler.Shares.ResolveContent(ctx, input)
 	if err != nil {
 		return mapServiceError(err)
 	}
 	file := resolved.File
+	if input.Session != "" {
+		w.Header().Set("Cache-Control", "private, no-store")
+	}
 	etag := contentETag(file)
 	if !params.Range.IsSet() && ifNoneMatch(params.IfNoneMatch) == string(etag) {
 		w.Header().Set("ETag", string(etag))
 		w.WriteHeader(http.StatusNotModified)
 		return nil
 	}
-	resolved, err = h.handler.Shares.ReserveDownload(ctx, params.Token, password)
+	resolved, err = h.handler.Shares.ReserveContentDownload(ctx, input)
 	if err != nil {
 		return mapServiceError(err)
 	}
@@ -79,7 +83,8 @@ func (h *RawHandler) DownloadPublicShare(ctx context.Context, params gen.Downloa
 func (h *RawHandler) DownloadPublicShareLegacy(ctx context.Context, params gen.DownloadPublicShareLegacyParams, w http.ResponseWriter) error {
 	return h.DownloadPublicShare(ctx, gen.DownloadPublicShareParams{
 		XSharePassword: params.XSharePassword, Range: params.Range, IfNoneMatch: params.IfNoneMatch,
-		Download: params.Download, Token: params.Token,
+		TeldriveShareDownload: params.TeldriveShareDownload,
+		Download:              params.Download, Token: params.Token,
 	}, w)
 }
 
@@ -87,20 +92,23 @@ func (h *RawHandler) DownloadPublicShareFile(ctx context.Context, params gen.Dow
 	if h.handler == nil || h.handler.Shares == nil || h.handler.Downloader == nil {
 		return mapServiceError(ErrOperationUnavailable)
 	}
-	password := params.XSharePassword.Or("")
 	fileID := googleUUID(params.FileId)
-	resolved, err := h.handler.Shares.ResolveFile(ctx, params.Token, password, fileID)
+	input := shares.ContentRequest{Token: params.Token, Password: params.XSharePassword.Or(""), Session: params.TeldriveShareDownload.Or(""), FileID: &fileID}
+	resolved, err := h.handler.Shares.ResolveContent(ctx, input)
 	if err != nil {
 		return mapServiceError(err)
 	}
 	file := resolved.File
+	if input.Session != "" {
+		w.Header().Set("Cache-Control", "private, no-store")
+	}
 	etag := contentETag(file)
 	if !params.Range.IsSet() && ifNoneMatch(params.IfNoneMatch) == string(etag) {
 		w.Header().Set("ETag", string(etag))
 		w.WriteHeader(http.StatusNotModified)
 		return nil
 	}
-	resolved, err = h.handler.Shares.ReserveFileDownload(ctx, params.Token, password, fileID)
+	resolved, err = h.handler.Shares.ReserveContentDownload(ctx, input)
 	if err != nil {
 		return mapServiceError(err)
 	}
@@ -110,7 +118,8 @@ func (h *RawHandler) DownloadPublicShareFile(ctx context.Context, params gen.Dow
 func (h *RawHandler) DownloadPublicShareFileLegacy(ctx context.Context, params gen.DownloadPublicShareFileLegacyParams, w http.ResponseWriter) error {
 	return h.DownloadPublicShareFile(ctx, gen.DownloadPublicShareFileParams{
 		XSharePassword: params.XSharePassword, Range: params.Range, IfNoneMatch: params.IfNoneMatch,
-		Download: params.Download, Token: params.Token, FileId: params.FileId,
+		TeldriveShareDownload: params.TeldriveShareDownload,
+		Download:              params.Download, Token: params.Token, FileId: params.FileId,
 	}, w)
 }
 

@@ -282,6 +282,94 @@ func (s *Server) handleAbortUploadRequest(args [1]string, argsEscaped bool, w ht
 	}
 }
 
+// handleAuthorizePublicShareDownloadRequest handles authorizePublicShareDownload operation.
+//
+// Exchange the share password for a 15-minute, share-scoped download cookie.
+//
+// POST /v1/public/shares/{token}/download-session
+func (s *Server) handleAuthorizePublicShareDownloadRequest(args [1]string, argsEscaped bool, w http.ResponseWriter, r *http.Request) {
+	statusWriter := &codeRecorder{ResponseWriter: w}
+	w = statusWriter
+	ctx := r.Context()
+
+	var (
+		err          error
+		opErrContext = ogenerrors.OperationContext{
+			Name: AuthorizePublicShareDownloadOperation,
+			ID:   "authorizePublicShareDownload",
+		}
+	)
+	params, err := decodeAuthorizePublicShareDownloadParams(args, argsEscaped, r)
+	if err != nil {
+		err = &ogenerrors.DecodeParamsError{
+			OperationContext: opErrContext,
+			Err:              err,
+		}
+		defer recordError("DecodeParams", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+
+	var rawBody []byte
+
+	var response AuthorizePublicShareDownloadRes
+	if m := s.cfg.Middleware; m != nil {
+		mreq := middleware.Request{
+			Context:          ctx,
+			OperationName:    AuthorizePublicShareDownloadOperation,
+			OperationSummary: "",
+			OperationID:      "authorizePublicShareDownload",
+			Body:             nil,
+			RawBody:          rawBody,
+			Params: middleware.Parameters{
+				{
+					Name: "X-Share-Password",
+					In:   "header",
+				}: params.XSharePassword,
+				{
+					Name: "token",
+					In:   "path",
+				}: params.Token,
+			},
+			Raw: r,
+		}
+
+		type (
+			Request  = struct{}
+			Params   = AuthorizePublicShareDownloadParams
+			Response = AuthorizePublicShareDownloadRes
+		)
+		response, err = middleware.HookMiddleware[
+			Request,
+			Params,
+			Response,
+		](
+			m,
+			mreq,
+			unpackAuthorizePublicShareDownloadParams,
+			func(ctx context.Context, request Request, params Params) (response Response, err error) {
+				response, err = s.h.AuthorizePublicShareDownload(ctx, params)
+				return response, err
+			},
+		)
+	} else {
+		response, err = s.h.AuthorizePublicShareDownload(ctx, params)
+	}
+	if err != nil {
+		defer recordError("Internal", err)
+		s.cfg.ErrorHandler(ctx, w, r, err)
+		return
+	}
+
+	if err := encodeAuthorizePublicShareDownloadResponse(response, w); err != nil {
+		defer recordError("EncodeResponse", err)
+		if !errors.Is(err, ht.ErrInternalServerErrorResponse) {
+			s.cfg.ErrorHandler(ctx, w, r, err)
+		}
+		return
+	}
+}
+
 // handleBookmarkFilesRequest handles bookmarkFiles operation.
 //
 // Bookmark selected active files and folders.
@@ -5231,6 +5319,10 @@ func (s *Server) handleDownloadPublicShareRequest(args [2]string, argsEscaped bo
 					In:   "header",
 				}: params.XSharePassword,
 				{
+					Name: "teldrive_share_download",
+					In:   "cookie",
+				}: params.TeldriveShareDownload,
+				{
 					Name: "Range",
 					In:   "header",
 				}: params.Range,
@@ -5322,6 +5414,10 @@ func (s *Server) handleDownloadPublicShareFileRequest(args [3]string, argsEscape
 					Name: "X-Share-Password",
 					In:   "header",
 				}: params.XSharePassword,
+				{
+					Name: "teldrive_share_download",
+					In:   "cookie",
+				}: params.TeldriveShareDownload,
 				{
 					Name: "Range",
 					In:   "header",
@@ -5419,6 +5515,10 @@ func (s *Server) handleDownloadPublicShareFileLegacyRequest(args [2]string, args
 					In:   "header",
 				}: params.XSharePassword,
 				{
+					Name: "teldrive_share_download",
+					In:   "cookie",
+				}: params.TeldriveShareDownload,
+				{
 					Name: "Range",
 					In:   "header",
 				}: params.Range,
@@ -5510,6 +5610,10 @@ func (s *Server) handleDownloadPublicShareLegacyRequest(args [1]string, argsEsca
 					Name: "X-Share-Password",
 					In:   "header",
 				}: params.XSharePassword,
+				{
+					Name: "teldrive_share_download",
+					In:   "cookie",
+				}: params.TeldriveShareDownload,
 				{
 					Name: "Range",
 					In:   "header",
@@ -8025,6 +8129,10 @@ func (s *Server) handleHeadPublicShareRequest(args [2]string, argsEscaped bool, 
 					In:   "header",
 				}: params.XSharePassword,
 				{
+					Name: "teldrive_share_download",
+					In:   "cookie",
+				}: params.TeldriveShareDownload,
+				{
 					Name: "token",
 					In:   "path",
 				}: params.Token,
@@ -8114,6 +8222,10 @@ func (s *Server) handleHeadPublicShareFileRequest(args [3]string, argsEscaped bo
 					Name: "X-Share-Password",
 					In:   "header",
 				}: params.XSharePassword,
+				{
+					Name: "teldrive_share_download",
+					In:   "cookie",
+				}: params.TeldriveShareDownload,
 				{
 					Name: "token",
 					In:   "path",
@@ -8209,6 +8321,10 @@ func (s *Server) handleHeadPublicShareFileLegacyRequest(args [2]string, argsEsca
 					In:   "header",
 				}: params.XSharePassword,
 				{
+					Name: "teldrive_share_download",
+					In:   "cookie",
+				}: params.TeldriveShareDownload,
+				{
 					Name: "token",
 					In:   "path",
 				}: params.Token,
@@ -8298,6 +8414,10 @@ func (s *Server) handleHeadPublicShareLegacyRequest(args [1]string, argsEscaped 
 					Name: "X-Share-Password",
 					In:   "header",
 				}: params.XSharePassword,
+				{
+					Name: "teldrive_share_download",
+					In:   "cookie",
+				}: params.TeldriveShareDownload,
 				{
 					Name: "token",
 					In:   "path",

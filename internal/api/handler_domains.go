@@ -734,7 +734,7 @@ func (h *Handler) HeadPublicShare(ctx context.Context, params gen.HeadPublicShar
 	if h.Shares == nil {
 		return nil, mapServiceError(ErrOperationUnavailable)
 	}
-	resolved, err := h.Shares.Resolve(ctx, params.Token, params.XSharePassword.Or(""))
+	resolved, err := h.Shares.ResolveContent(ctx, shares.ContentRequest{Token: params.Token, Password: params.XSharePassword.Or(""), Session: params.TeldriveShareDownload.Or("")})
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -752,7 +752,7 @@ func (h *Handler) HeadPublicShareLegacy(ctx context.Context, params gen.HeadPubl
 	if h.Shares == nil {
 		return nil, mapServiceError(ErrOperationUnavailable)
 	}
-	resolved, err := h.Shares.Resolve(ctx, params.Token, params.XSharePassword.Or(""))
+	resolved, err := h.Shares.ResolveContent(ctx, shares.ContentRequest{Token: params.Token, Password: params.XSharePassword.Or(""), Session: params.TeldriveShareDownload.Or("")})
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -770,7 +770,8 @@ func (h *Handler) HeadPublicShareFile(ctx context.Context, params gen.HeadPublic
 	if h.Shares == nil {
 		return nil, mapServiceError(ErrOperationUnavailable)
 	}
-	resolved, err := h.Shares.ResolveFile(ctx, params.Token, params.XSharePassword.Or(""), googleUUID(params.FileId))
+	fileID := googleUUID(params.FileId)
+	resolved, err := h.Shares.ResolveContent(ctx, shares.ContentRequest{Token: params.Token, Password: params.XSharePassword.Or(""), Session: params.TeldriveShareDownload.Or(""), FileID: &fileID})
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -788,7 +789,8 @@ func (h *Handler) HeadPublicShareFileLegacy(ctx context.Context, params gen.Head
 	if h.Shares == nil {
 		return nil, mapServiceError(ErrOperationUnavailable)
 	}
-	resolved, err := h.Shares.ResolveFile(ctx, params.Token, params.XSharePassword.Or(""), googleUUID(params.FileId))
+	fileID := googleUUID(params.FileId)
+	resolved, err := h.Shares.ResolveContent(ctx, shares.ContentRequest{Token: params.Token, Password: params.XSharePassword.Or(""), Session: params.TeldriveShareDownload.Or(""), FileID: &fileID})
 	if err != nil {
 		return nil, mapServiceError(err)
 	}

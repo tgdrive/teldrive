@@ -3776,6 +3776,61 @@ paths:
         - BearerAuth: []
         - CookieAuth: []
         - ExternalApiKeyAuth: []
+  /v1/public/shares/{token}/download-session:
+    post:
+      operationId: authorizePublicShareDownload
+      description: Exchange the share password for a 15-minute, share-scoped download
+        cookie.
+      parameters:
+        - $ref: "#/components/parameters/SharePasswordHeader"
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: "There is no content to send for this request, but the headers may
+            be useful. "
+          headers:
+            Set-Cookie:
+              required: true
+              schema:
+                type: string
+            Cache-Control:
+              required: true
+              schema:
+                type: string
+                enum:
+                  - no-store
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "410":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Public shares
+      security:
+        - {}
   /v1/public/shares/{token}:
     get:
       operationId: getPublicShare
@@ -3891,6 +3946,7 @@ paths:
       operationId: downloadPublicShareFile
       parameters:
         - $ref: "#/components/parameters/SharePasswordHeader"
+        - $ref: "#/components/parameters/ShareDownloadCookie"
         - $ref: "#/components/parameters/FileContentRequestOptions.range"
         - $ref: "#/components/parameters/FileContentRequestOptions.ifNoneMatch"
         - $ref: "#/components/parameters/FileContentRequestOptions.download"
@@ -4027,6 +4083,7 @@ paths:
       operationId: headPublicShareFile
       parameters:
         - $ref: "#/components/parameters/SharePasswordHeader"
+        - $ref: "#/components/parameters/ShareDownloadCookie"
         - name: token
           in: path
           required: true
@@ -4109,6 +4166,7 @@ paths:
       operationId: downloadPublicShare
       parameters:
         - $ref: "#/components/parameters/SharePasswordHeader"
+        - $ref: "#/components/parameters/ShareDownloadCookie"
         - $ref: "#/components/parameters/FileContentRequestOptions.range"
         - $ref: "#/components/parameters/FileContentRequestOptions.ifNoneMatch"
         - $ref: "#/components/parameters/FileContentRequestOptions.download"
@@ -4240,6 +4298,7 @@ paths:
       operationId: headPublicShare
       parameters:
         - $ref: "#/components/parameters/SharePasswordHeader"
+        - $ref: "#/components/parameters/ShareDownloadCookie"
         - name: token
           in: path
           required: true
@@ -4317,6 +4376,7 @@ paths:
       operationId: downloadPublicShareFileLegacy
       parameters:
         - $ref: "#/components/parameters/SharePasswordHeader"
+        - $ref: "#/components/parameters/ShareDownloadCookie"
         - $ref: "#/components/parameters/FileContentRequestOptions.range"
         - $ref: "#/components/parameters/FileContentRequestOptions.ifNoneMatch"
         - $ref: "#/components/parameters/FileContentRequestOptions.download"
@@ -4448,6 +4508,7 @@ paths:
       operationId: headPublicShareFileLegacy
       parameters:
         - $ref: "#/components/parameters/SharePasswordHeader"
+        - $ref: "#/components/parameters/ShareDownloadCookie"
         - name: token
           in: path
           required: true
@@ -4525,6 +4586,7 @@ paths:
       operationId: downloadPublicShareLegacy
       parameters:
         - $ref: "#/components/parameters/SharePasswordHeader"
+        - $ref: "#/components/parameters/ShareDownloadCookie"
         - $ref: "#/components/parameters/FileContentRequestOptions.range"
         - $ref: "#/components/parameters/FileContentRequestOptions.ifNoneMatch"
         - $ref: "#/components/parameters/FileContentRequestOptions.download"
@@ -4651,6 +4713,7 @@ paths:
       operationId: headPublicShareLegacy
       parameters:
         - $ref: "#/components/parameters/SharePasswordHeader"
+        - $ref: "#/components/parameters/ShareDownloadCookie"
         - name: token
           in: path
           required: true
@@ -6045,6 +6108,13 @@ components:
       schema:
         type: string
         maxLength: 512
+      explode: false
+    ShareDownloadCookie:
+      name: teldrive_share_download
+      in: cookie
+      required: false
+      schema:
+        type: string
       explode: false
     JobListQuery.status:
       name: status

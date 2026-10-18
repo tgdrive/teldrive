@@ -356,6 +356,84 @@ func (s *AppearancePreferencesUpdate) SetLocale(val OptInterfaceLocale) {
 	s.Locale = val
 }
 
+type AuthorizePublicShareDownloadGone ErrorEnvelope
+
+func (*AuthorizePublicShareDownloadGone) authorizePublicShareDownloadRes() {}
+
+// AuthorizePublicShareDownloadNoContent is response for AuthorizePublicShareDownload operation.
+type AuthorizePublicShareDownloadNoContent struct {
+	CacheControl AuthorizePublicShareDownloadNoContentCacheControl
+	SetCookie    string
+}
+
+// GetCacheControl returns the value of CacheControl.
+func (s *AuthorizePublicShareDownloadNoContent) GetCacheControl() AuthorizePublicShareDownloadNoContentCacheControl {
+	return s.CacheControl
+}
+
+// GetSetCookie returns the value of SetCookie.
+func (s *AuthorizePublicShareDownloadNoContent) GetSetCookie() string {
+	return s.SetCookie
+}
+
+// SetCacheControl sets the value of CacheControl.
+func (s *AuthorizePublicShareDownloadNoContent) SetCacheControl(val AuthorizePublicShareDownloadNoContentCacheControl) {
+	s.CacheControl = val
+}
+
+// SetSetCookie sets the value of SetCookie.
+func (s *AuthorizePublicShareDownloadNoContent) SetSetCookie(val string) {
+	s.SetCookie = val
+}
+
+func (*AuthorizePublicShareDownloadNoContent) authorizePublicShareDownloadRes() {}
+
+type AuthorizePublicShareDownloadNoContentCacheControl string
+
+const (
+	AuthorizePublicShareDownloadNoContentCacheControlNoStore AuthorizePublicShareDownloadNoContentCacheControl = "no-store"
+)
+
+// AllValues returns all AuthorizePublicShareDownloadNoContentCacheControl values.
+func (AuthorizePublicShareDownloadNoContentCacheControl) AllValues() []AuthorizePublicShareDownloadNoContentCacheControl {
+	return []AuthorizePublicShareDownloadNoContentCacheControl{
+		AuthorizePublicShareDownloadNoContentCacheControlNoStore,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s AuthorizePublicShareDownloadNoContentCacheControl) MarshalText() ([]byte, error) {
+	switch s {
+	case AuthorizePublicShareDownloadNoContentCacheControlNoStore:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *AuthorizePublicShareDownloadNoContentCacheControl) UnmarshalText(data []byte) error {
+	switch AuthorizePublicShareDownloadNoContentCacheControl(data) {
+	case AuthorizePublicShareDownloadNoContentCacheControlNoStore:
+		*s = AuthorizePublicShareDownloadNoContentCacheControlNoStore
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+type AuthorizePublicShareDownloadNotFound ErrorEnvelope
+
+func (*AuthorizePublicShareDownloadNotFound) authorizePublicShareDownloadRes() {}
+
+type AuthorizePublicShareDownloadTooManyRequests ErrorEnvelope
+
+func (*AuthorizePublicShareDownloadTooManyRequests) authorizePublicShareDownloadRes() {}
+
+type AuthorizePublicShareDownloadUnauthorized ErrorEnvelope
+
+func (*AuthorizePublicShareDownloadUnauthorized) authorizePublicShareDownloadRes() {}
+
 type BearerAuth struct {
 	Token string
 	Roles []string

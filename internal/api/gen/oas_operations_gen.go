@@ -8,6 +8,7 @@ type OperationName = string
 const (
 	AbortPublicShareUploadOperation            OperationName = "AbortPublicShareUpload"
 	AbortUploadOperation                       OperationName = "AbortUpload"
+	AuthorizePublicShareDownloadOperation      OperationName = "AuthorizePublicShareDownload"
 	BookmarkFilesOperation                     OperationName = "BookmarkFiles"
 	BulkMoveFilesOperation                     OperationName = "BulkMoveFiles"
 	BulkTrashFilesOperation                    OperationName = "BulkTrashFiles"
