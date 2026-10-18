@@ -737,9 +737,9 @@ WHERE files.user_id = $1
   )
   AND (
     $6::text IS NULL
-    OR (name, id) > ($6::text, $7::uuid)
+    OR (name COLLATE /* TEMPLATE: schema */natural_name, id) > ($6::text COLLATE /* TEMPLATE: schema */natural_name, $7::uuid)
   )
-ORDER BY name, id
+ORDER BY name COLLATE /* TEMPLATE: schema */natural_name, id
 LIMIT $8
 `
 
@@ -893,8 +893,8 @@ WHERE f.user_id = $1
       $13::text = 'name'
       AND $14::text IS NOT NULL
       AND (
-        ($15::text = 'asc' AND (f.name, f.id) > ($14::text, $12::uuid))
-        OR ($15::text = 'desc' AND (f.name, f.id) < ($14::text, $12::uuid))
+        ($15::text = 'asc' AND (f.name COLLATE /* TEMPLATE: schema */natural_name, f.id) > ($14::text COLLATE /* TEMPLATE: schema */natural_name, $12::uuid))
+        OR ($15::text = 'desc' AND (f.name COLLATE /* TEMPLATE: schema */natural_name, f.id) < ($14::text COLLATE /* TEMPLATE: schema */natural_name, $12::uuid))
       )
     )
     OR (
@@ -922,8 +922,8 @@ WHERE f.user_id = $1
     )
   )
 ORDER BY
-  CASE WHEN $13::text = 'name' AND $15::text = 'asc' THEN f.name END ASC,
-  CASE WHEN $13::text = 'name' AND $15::text = 'desc' THEN f.name END DESC,
+  CASE WHEN $13::text = 'name' AND $15::text = 'asc' THEN f.name END COLLATE /* TEMPLATE: schema */natural_name ASC,
+  CASE WHEN $13::text = 'name' AND $15::text = 'desc' THEN f.name END COLLATE /* TEMPLATE: schema */natural_name DESC,
   CASE WHEN $13::text = 'updatedAt' AND $15::text = 'asc' THEN f.updated_at END ASC,
   CASE WHEN $13::text = 'updatedAt' AND $15::text = 'desc' THEN f.updated_at END DESC,
   CASE WHEN $13::text = 'size' AND $15::text = 'asc' THEN COALESCE(f.size, -1) END ASC,

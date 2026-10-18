@@ -65,9 +65,9 @@ WHERE files.user_id = sqlc.arg(user_id)
   )
   AND (
     sqlc.narg(after_name)::text IS NULL
-    OR (name, id) > (sqlc.narg(after_name)::text, sqlc.narg(after_id)::uuid)
+    OR (name COLLATE /* TEMPLATE: schema */natural_name, id) > (sqlc.narg(after_name)::text COLLATE /* TEMPLATE: schema */natural_name, sqlc.narg(after_id)::uuid)
   )
-ORDER BY name, id
+ORDER BY name COLLATE /* TEMPLATE: schema */natural_name, id
 LIMIT sqlc.arg(page_size);
 
 -- name: CreateFolder :one
@@ -317,8 +317,8 @@ WHERE f.user_id = sqlc.arg(user_id)
       sqlc.arg(sort_by)::text = 'name'
       AND sqlc.narg(after_name)::text IS NOT NULL
       AND (
-        (sqlc.arg(sort_order)::text = 'asc' AND (f.name, f.id) > (sqlc.narg(after_name)::text, sqlc.narg(after_id)::uuid))
-        OR (sqlc.arg(sort_order)::text = 'desc' AND (f.name, f.id) < (sqlc.narg(after_name)::text, sqlc.narg(after_id)::uuid))
+        (sqlc.arg(sort_order)::text = 'asc' AND (f.name COLLATE /* TEMPLATE: schema */natural_name, f.id) > (sqlc.narg(after_name)::text COLLATE /* TEMPLATE: schema */natural_name, sqlc.narg(after_id)::uuid))
+        OR (sqlc.arg(sort_order)::text = 'desc' AND (f.name COLLATE /* TEMPLATE: schema */natural_name, f.id) < (sqlc.narg(after_name)::text COLLATE /* TEMPLATE: schema */natural_name, sqlc.narg(after_id)::uuid))
       )
     )
     OR (
@@ -346,8 +346,8 @@ WHERE f.user_id = sqlc.arg(user_id)
     )
   )
 ORDER BY
-  CASE WHEN sqlc.arg(sort_by)::text = 'name' AND sqlc.arg(sort_order)::text = 'asc' THEN f.name END ASC,
-  CASE WHEN sqlc.arg(sort_by)::text = 'name' AND sqlc.arg(sort_order)::text = 'desc' THEN f.name END DESC,
+  CASE WHEN sqlc.arg(sort_by)::text = 'name' AND sqlc.arg(sort_order)::text = 'asc' THEN f.name END COLLATE /* TEMPLATE: schema */natural_name ASC,
+  CASE WHEN sqlc.arg(sort_by)::text = 'name' AND sqlc.arg(sort_order)::text = 'desc' THEN f.name END COLLATE /* TEMPLATE: schema */natural_name DESC,
   CASE WHEN sqlc.arg(sort_by)::text = 'updatedAt' AND sqlc.arg(sort_order)::text = 'asc' THEN f.updated_at END ASC,
   CASE WHEN sqlc.arg(sort_by)::text = 'updatedAt' AND sqlc.arg(sort_order)::text = 'desc' THEN f.updated_at END DESC,
   CASE WHEN sqlc.arg(sort_by)::text = 'size' AND sqlc.arg(sort_order)::text = 'asc' THEN COALESCE(f.size, -1) END ASC,
