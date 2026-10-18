@@ -124,30 +124,26 @@ function PublicSharePage() {
 
   useEffect(() => setSelectedKeys(new Set()), [path]);
 
-  const publicContentUrl = (file: FileEntry) => {
+  // API path relative to the API base, i.e. without the "/api" prefix that apiFetch adds.
+  const publicContentPath = (file: FileEntry) => {
     const isRootFile = share?.file.kind === "file" && file.id === share.file.id;
     const fileName = encodeURIComponent(file.name);
-    const endpoint = isRootFile
+    return isRootFile
       ? `/v1/public/shares/${encodeURIComponent(token)}/content/${fileName}`
       : `/v1/public/shares/${encodeURIComponent(token)}/files/${encodeURIComponent(file.id)}/content/${fileName}`;
-    return new URL(`/api${endpoint}`, window.location.origin).toString();
   };
 
-  const publicDownloadUrl = (file: FileEntry) => {
-    const url = new URL(publicContentUrl(file));
-    url.searchParams.set("download", "1");
-    return url.toString();
-  };
+  // Absolute, shareable URL (includes the "/api" prefix). Only for copying/linking, never pass it
+  // through apiFetch, which would prepend "/api" a second time.
+  const publicContentUrl = (file: FileEntry) =>
+    new URL(`/api${publicContentPath(file)}`, window.location.origin).toString();
 
   const download = async (file: FileEntry) => {
     setError(undefined);
     try {
-      const response = await apiFetch(
-        new URL(publicDownloadUrl(file)).pathname + new URL(publicDownloadUrl(file)).search,
-        {
-          headers: shareHeaders(activePassword),
-        },
-      );
+      const response = await apiFetch(`${publicContentPath(file)}?download=1`, {
+        headers: shareHeaders(activePassword),
+      });
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
