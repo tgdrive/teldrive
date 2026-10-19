@@ -1,11 +1,7 @@
 using System.IO;
-using System.Reflection;
 using System.Text;
 using System.Text.Json;
-using System.Windows.Controls;
-using System.Windows.Input;
 using Microsoft.Web.WebView2.Core;
-using Microsoft.Web.WebView2.Wpf;
 
 namespace Teldrive.Desktop;
 
@@ -24,6 +20,8 @@ public partial class MainWindow
             requests.Add(uri.AbsolutePath + uri.Query);
             var body = uri.AbsolutePath == "/api/v1/me"
                 ? """{"userId":1,"displayName":"Input smoke","username":"fixture","premium":true,"role":"owner","capabilities":["files.read","files.write","files.share"]}"""
+                : uri.AbsolutePath == "/api/v1/me/preferences"
+                    ? """{"uploads":{"encryption":false,"conflictPolicy":"rename","concurrency":3,"preferredPartSize":536870912},"files":{"sort":"name","order":"asc"},"appearance":{"theme":"system","locale":"es"}}"""
                 : uri.AbsolutePath == "/api/v1/storage/stats"
                     ? """{"summary":{"logicalBytes":0,"trashBytes":0,"spamBytes":0,"activeFiles":0,"activeFolders":1,"trashedFiles":0},"growth":[],"categories":[],"channels":[],"cleanup":{"trashBytes":0,"staleUploadBytes":0,"staleUploads":0,"totalReclaimableBytes":0},"activity":[]}"""
                 : uri.AbsolutePath == "/api/v1/files" && !uri.Query.Contains("parentId=")
@@ -34,11 +32,6 @@ public partial class MainWindow
         core.WebResourceRequested += Fixture;
         try
         {
-            var sdkType = typeof(WebView2CompositionControl);
-            var flags = BindingFlags.Instance | BindingFlags.NonPublic | BindingFlags.Public;
-            var sdkBase = sdkType.GetField("m_webview2Base", flags)!.GetValue(Browser)!;
-            var controller = (CoreWebView2CompositionController)sdkBase.GetType().GetProperty("CoreWebView2Controller", flags)!.GetValue(sdkBase)!;
-            var locationField = sdkType.GetField("_mouselocation", flags)!;
             var results = new List<object>();
             foreach (var view in new[] { "list", "grid" })
             {
@@ -50,7 +43,7 @@ public partial class MainWindow
                 double[]? point = null;
                 for (var attempt = 0; attempt < 100 && point is null; attempt++)
                 {
-                    var json = await core.ExecuteScriptAsync("(() => {const row=document.querySelector('[role=row]');if(!row)return null;const name=row.querySelector('[title]')??row.querySelector('p')??row;const r=name.getBoundingClientRect();return [(r.left+r.width/2)*devicePixelRatio,(r.top+r.height/2)*devicePixelRatio]})()");
+                    var json = await core.ExecuteScriptAsync("(() => {const row=document.querySelector('[role=row]');if(!row)return null;const name=row.querySelector('[title]')??row.querySelector('p')??row;const r=name.getBoundingClientRect();return [(r.left+r.width/2),(r.top+r.height/2)]})()");
                     point = JsonSerializer.Deserialize<double[]>(json);
                     if (point is null) await Task.Delay(100);
                 }
@@ -59,26 +52,21 @@ public partial class MainWindow
                     throw new IOException("No apareció la carpeta de prueba en " + view);
                 }
                 await core.ExecuteScriptAsync("window.inputSmokeEvents=[];for(const type of ['mousedown','mouseup','click','dblclick'])document.addEventListener(type,e=>window.inputSmokeEvents.push({type,detail:e.detail,target:e.target.tagName,selectionControl:Boolean(e.target.closest('label,button,[role=checkbox]'))}),true)");
-                var position = new System.Drawing.Point((int)point[0], (int)point[1]);
-                locationField.SetValue(Browser, position);
-                controller.SendMouseInput(CoreWebView2MouseEventKind.Move, CoreWebView2MouseEventVirtualKeys.None, 0, position);
-                controller.SendMouseInput(CoreWebView2MouseEventKind.LeftButtonDown, CoreWebView2MouseEventVirtualKeys.LeftButton, 0, position);
-                controller.SendMouseInput(CoreWebView2MouseEventKind.LeftButtonUp, CoreWebView2MouseEventVirtualKeys.None, 0, position);
-                await Task.Delay(70);
-                // WPF raises MouseDoubleClick during the second MouseDown. The SDK
-                // also forwards that MouseDown; test this native input sequence.
-                if (arguments.Contains("--smoke-input-stock")) controller.SendMouseInput(CoreWebView2MouseEventKind.LeftButtonDoubleClick, CoreWebView2MouseEventVirtualKeys.LeftButton, 0, position);
-                Browser.GetType().GetMethod("OnMouseDoubleClick", flags)!.Invoke(Browser, [new MouseButtonEventArgs(Mouse.PrimaryDevice, Environment.TickCount, MouseButton.Left) { RoutedEvent = Control.MouseDoubleClickEvent }]);
-                controller.SendMouseInput(CoreWebView2MouseEventKind.LeftButtonDown, CoreWebView2MouseEventVirtualKeys.LeftButton, 0, position);
-                controller.SendMouseInput(CoreWebView2MouseEventKind.LeftButtonUp, CoreWebView2MouseEventVirtualKeys.None, 0, position);
+                // The windowed host forwards Windows input directly to Chromium.
+                // Exercise the browser input protocol without composition internals.
+                for (var click = 1; click <= 2; click++) {
+                    await core.CallDevToolsProtocolMethodAsync("Input.dispatchMouseEvent", JsonSerializer.Serialize(new {type="mousePressed",x=point[0],y=point[1],button="left",buttons=1,clickCount=click}));
+                    await core.CallDevToolsProtocolMethodAsync("Input.dispatchMouseEvent", JsonSerializer.Serialize(new {type="mouseReleased",x=point[0],y=point[1],button="left",buttons=0,clickCount=click}));
+                    await Task.Delay(70);
+                }
                 for (var attempt = 0; attempt < 40 && !core.Source.Contains(folderId); attempt++) await Task.Delay(50);
                 var events = await core.ExecuteScriptAsync("window.inputSmokeEvents");
                 var opened = core.Source.Contains(folderId);
                 results.Add(new { view, opened, events = JsonSerializer.Deserialize<JsonElement>(events) });
-                if (!opened) { await File.WriteAllTextAsync(Path.Combine(runtime.DataRoot, "input-smoke-events.json"), JsonSerializer.Serialize(results)); throw new IOException("El doble clic nativo no abrió la carpeta en " + view); }
+                if (!opened) { await File.WriteAllTextAsync(Path.Combine(runtime.DataRoot, "input-smoke-events.json"), JsonSerializer.Serialize(results)); throw new IOException("El doble clic del navegador no abrió la carpeta en " + view); }
             }
             await File.WriteAllTextAsync(Path.Combine(runtime.DataRoot, "input-smoke-events.json"), JsonSerializer.Serialize(results));
-            await File.WriteAllTextAsync(Path.Combine(runtime.DataRoot, "input-smoke-test.json"), JsonSerializer.Serialize(new { success = true, nativeMouseInput = true, list = true, grid = true }));
+            await File.WriteAllTextAsync(Path.Combine(runtime.DataRoot, "input-smoke-test.json"), JsonSerializer.Serialize(new { success = true, browserMouseInput = true, host = "windowed-webview2", list = true, grid = true }));
         }
         finally { core.WebResourceRequested -= Fixture; }
     }

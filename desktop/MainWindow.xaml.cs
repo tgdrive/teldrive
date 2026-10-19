@@ -88,13 +88,14 @@ public partial class MainWindow : Window
                 tray!.InvokeMenuForSmoke(0);tray.InvokeMenuForSmoke(1);tray.InvokeMenuForSmoke(2);
                 await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
                 if(AdvancedView.Visibility!=Visibility.Visible||!automation!.State.Paused)throw new IOException("El menú de bandeja falló con WebView2 inicializado.");
+                await VerifyNavigationAsync();
                 var originalConfig = await File.ReadAllTextAsync(runtime.ConfigPath);
                 var rejected = false;
                 try { await runtime.SaveConfigAsync(originalConfig.Replace($"127.0.0.1:{port}", $"203.0.113.2:{port}")); }
                 catch (IOException) { rejected = true; }
                 if (!rejected || await File.ReadAllTextAsync(runtime.ConfigPath) != originalConfig || runtime.ServerUri!.Port != port) throw new IOException(L.T("Una dirección no local modificó la configuración válida."));
                 await runtime.StopAsync();
-                await File.WriteAllTextAsync(Path.Combine(runtime.DataRoot, "server-smoke-test.json"), JsonSerializer.Serialize(new {success=true, postgresql=true, migrations=true, loginUi=true, rejectedNonLocalAddress=rejected, browserFullscreen=true, trayWithWebView=true, stopped=!runtime.Running, port}));
+                await File.WriteAllTextAsync(Path.Combine(runtime.DataRoot, "server-smoke-test.json"), JsonSerializer.Serialize(new {success=true, postgresql=true, migrations=true, loginUi=true, rejectedNonLocalAddress=rejected, browserFullscreen=true, trayWithWebView=true, windowedWebView=true, navigation=true, stopped=!runtime.Running, port}));
                 Close(); return;
             }
             RefreshConfiguration();
@@ -158,7 +159,7 @@ public partial class MainWindow : Window
     private async Task InitializeBrowser()
     {
         if (Browser.CoreWebView2 is not null) return;
-        // Composition initialization needs a measured visual surface. Preparing
+        // WebView initialization needs a measured visual surface. Preparing
         // it while collapsed leaves EnsureCoreWebView2Async waiting indefinitely.
         Browser.Visibility = Visibility.Visible;
         Browser.UpdateLayout();

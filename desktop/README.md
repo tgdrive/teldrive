@@ -109,7 +109,7 @@ Por defecto, los datos se guardan en `%LOCALAPPDATA%\TeldriveV2`. No se reutiliz
 
 ## Navegación, configuración personalizada y transmisión (2.0.0.5)
 
-El botón superior **Teldrive** recupera el Drive desde Actividad, Configuración u Opciones adicionales de rclone. El control WebView2 utiliza composición para evitar que una superficie del navegador oculte los paneles WPF. Actividad conserva una cola de texto acotada.
+El botón superior **Teldrive** recupera el Drive desde Actividad, Configuración u Opciones adicionales de rclone. El WebView2 de ventana se oculta antes de mostrar los paneles WPF y evita el error gráfico `0x8876086C` de la superficie Direct3D9 del host de composición. Actividad conserva una cola de texto acotada.
 
 **rclone.conf** importa una copia del archivo original, valida y edita sus conexiones sin borrar comentarios/opciones adicionales. Los valores privados están ocultos en la lista; el editor completo se abre expresamente. Guardar crea `rclone.conf.previous` y conserva el cifrado si estaba activado. Las transferencias y montajes deben estar detenidos al modificar el archivo. Las tareas pueden elegir el nombre de una conexión personalizada. En la UI web de un CLI, el editor importa y exporta el archivo local; no escribe en el servidor.
 
@@ -121,9 +121,13 @@ FFprobe detecta las pistas de audio y subtítulos de MKV y otros contenedores. F
 
 ## Corrección del doble clic (2.0.0.6)
 
-Desktop suprime el evento de botón duplicado que el SDK WebView2 de composición reenvía durante un doble clic. Se conservan los eventos normales de ratón y los manejadores táctiles/teclado del SDK. La corrección permite abrir carpetas y archivos con doble clic, sin recuperar la superposición blanca de Actividad. La UI del servidor y los seis CLI se actualizan también a v2.0.0-drive-es.6.
+El host de ventana WebView2 recibe el ratón directamente desde Windows. No usa
+el reenvío de doble clic de WPF que duplicaba eventos en el control de composición.
 
-`--smoke-input --data-root RUTA_DE_PRUEBA` verifica el doble clic nativo dentro de WebView2 y la apertura de carpetas en lista y cuadrícula. Usa una base local aislada y respuestas de API simuladas; no modifica los archivos del usuario. La secuencia pasa por el manejador WPF de doble clic y el controlador de composición, con un registro de los eventos recibidos por la página.
+`--smoke-input --data-root RUTA_DE_PRUEBA` verifica la apertura de carpetas en
+lista y cuadrícula mediante el protocolo de entrada de Chromium. Usa una base
+local aislada y respuestas de API simuladas; no modifica archivos del usuario.
+Guarda el registro de eventos recibidos por la página.
 
 ## Montajes persistentes e idiomas (2.0.0.6)
 
