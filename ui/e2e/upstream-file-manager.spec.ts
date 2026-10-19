@@ -723,7 +723,7 @@ for (const passwordProtected of [false, true]) {
         await page.goto(`${server.origin}/share/${token}`);
         if (passwordProtected) {
           await page.locator('input[type="password"]').fill(password);
-          await page.getByRole("button", { name: "Open share", exact: true }).click();
+          await page.getByRole("button", { name: "Open shared item", exact: true }).click();
         }
         await page.getByRole("row", { name: /large #1/ }).click();
         const pending = page.waitForEvent("download");
