@@ -126,3 +126,39 @@ SELECT EXISTS (
 		}
 	}
 }
+
+func TestReconcileOriginalMigrationNumbersPreservesAccountData(t *testing.T) {
+	db := testpostgres.New(t)
+	ctx := context.Background()
+	// Model the original 2.0.7 schema: upstream tables exist under versions
+	// 8-12, while edition-only bot names and incoming Spam do not exist yet.
+	_, err := db.Pool.Exec(ctx, `
+INSERT INTO users(user_id) VALUES(99);
+INSERT INTO files(id,user_id,name,kind,size,status,mod_time)
+VALUES('123e4567-e89b-12d3-a456-426614174000',99,'Keep me','folder',0,'active',now());
+INSERT INTO file_bookmarks(user_id,file_id) VALUES(99,'123e4567-e89b-12d3-a456-426614174000');
+INSERT INTO user_preferences(user_id,theme,locale,upload_concurrency) VALUES(99,'dark','es',7);
+DROP TABLE incoming_spam;
+ALTER TABLE bots DROP COLUMN name;
+DELETE FROM migrations WHERE version_id > 12;`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := database.Migrate(ctx, database.Config{URL: db.URL}); err != nil {
+		t.Fatalf("upgrade original schema: %v", err)
+	}
+	if _, err := db.Pool.Exec(ctx, "SELECT name FROM bots; SELECT grantee_id FROM incoming_spam"); err != nil {
+		t.Fatalf("edition objects were not restored: %v", err)
+	}
+	var theme, locale string
+	var concurrency, bookmarks int
+	if err := db.Pool.QueryRow(ctx, "SELECT theme,locale,upload_concurrency FROM user_preferences WHERE user_id=99").Scan(&theme, &locale, &concurrency); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Pool.QueryRow(ctx, "SELECT count(*) FROM file_bookmarks WHERE user_id=99").Scan(&bookmarks); err != nil {
+		t.Fatal(err)
+	}
+	if theme != "dark" || locale != "es" || concurrency != 7 || bookmarks != 1 {
+		t.Fatalf("account data changed: %s %s %d %d", theme, locale, concurrency, bookmarks)
+	}
+}

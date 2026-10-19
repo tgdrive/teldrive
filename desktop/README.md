@@ -28,7 +28,9 @@ los datos de mpv y muestran que la telemetría de Telegram no está disponible.
 Se integra el original `tgdrive/teldrive` hasta `67bf180`: provisión independiente
 de bots, selección y control de carga de cuentas, favoritos/recientes, preferencias
 por cuenta, tamaños de carpetas, orden natural y mejoras de lectores/búsqueda.
-Las migraciones propias 8–10 conservan su numeración y las nuevas ocupan 11–15.
+Las migraciones propias 8–10 conservan su numeración y las nuevas ocupan 11–16.
+Una reconciliación aditiva reconoce las tablas de las migraciones 8–12 del
+original y conserva los datos existentes al cambiar a esta edición.
 
 `--smoke-player --data-root RUTA_NUEVA` comprueba reproducción local real con mpv,
 IPC, pausa, pantalla completa/restauración, estadísticas y callbacks de bandeja.

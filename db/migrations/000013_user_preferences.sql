@@ -4,7 +4,7 @@
 -- Rows are created lazily on first read; column defaults are the server
 -- defaults. updated_at stays NULL until the user changes a value, which lets
 -- clients import settings they previously kept in browser storage.
-CREATE TABLE /* TEMPLATE: schema */user_preferences (
+CREATE TABLE IF NOT EXISTS /* TEMPLATE: schema */user_preferences (
     user_id BIGINT PRIMARY KEY REFERENCES /* TEMPLATE: schema */users(user_id) ON DELETE CASCADE,
     upload_encryption BOOLEAN NOT NULL DEFAULT false,
     upload_conflict_policy /* TEMPLATE: schema */name_conflict_policy NOT NULL DEFAULT 'rename',
