@@ -675,7 +675,7 @@ test("applying unrelated filters preserves precise dates and invalid saved range
 
   state.requests.length = 0;
   await page.goto("/search?q=alpha&updatedAfter=2026-05-10&updatedBefore=2026-05-10");
-  await expect(page.getByText("Check the date range", { exact: true })).toBeVisible();
+  await expect(page.getByText("Check the modified-date range", { exact: true })).toBeVisible();
   expect(state.requests).toHaveLength(0);
   await page.getByRole("button", { name: "Edit filters" }).click();
   await page.getByLabel("Modified before").fill("2026-05-12");

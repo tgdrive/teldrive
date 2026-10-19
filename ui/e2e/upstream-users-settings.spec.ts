@@ -80,10 +80,10 @@ test("QR login serializes slow polls and completes two-step password verificatio
   await poll.fulfill({
     json: { flowId, state: "password_required", expiresAt: "2026-10-11T12:10:00Z" },
   });
-  await expect(page.getByLabel("Two-step verification password", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Two-Step Verification Password", { exact: true })).toBeVisible();
   await page.clock.runFor(7500);
   expect(pollRequests).toBe(1);
-  await page.getByLabel("Two-step verification password", { exact: true }).fill("correct-password");
+  await page.getByLabel("Two-Step Verification Password", { exact: true }).fill("correct-password");
   await page.getByRole("button", { name: "Verify and sign in", exact: true }).click();
   await expect(page).toHaveURL(/\/files/);
   expect(authenticated).toBe(true);
