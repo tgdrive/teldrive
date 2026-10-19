@@ -1,3 +1,4 @@
+import { installPreferencesApi } from "./fixtures/preferences";
 import { expect, test } from "@playwright/test";
 import { installFileApi } from "./file-api.fixture";
 
@@ -11,6 +12,7 @@ test("appearance applies light tokens and persists across reloads", async ({ pag
     }
     return route.fulfill({ status: 404, json: {} });
   });
+  await installPreferencesApi(page);
   await page.goto("/settings/appearance");
   await page.emulateMedia({ colorScheme: "dark" });
   const root = page.locator("html");
@@ -75,6 +77,7 @@ test("users search is debounced and stays usable while results load", async ({ p
     }
     return route.fulfill({ status: 404, json: {} });
   });
+  await installPreferencesApi(page);
 
   await page.goto("/settings/users");
   await expect(page.getByText("Propietario del servidor", { exact: true })).toBeVisible();

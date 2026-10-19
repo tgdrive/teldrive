@@ -259,7 +259,7 @@ export function TaskLauncher({ onQueued, onClose }: { onQueued: () => void; onCl
               {t("Cancelar")}
             </Button>
             <form.SubmitButton variant="primary">
-              {t("Programar") + " "}
+              {`${t("Programar")} `}
               {selected.label.toLowerCase()}
             </form.SubmitButton>
           </div>

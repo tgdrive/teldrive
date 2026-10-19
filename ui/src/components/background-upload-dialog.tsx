@@ -16,6 +16,7 @@ import TrashIcon from "~icons/gravity-ui/trash-bin";
 import type { components } from "@/api/schema";
 import { fetchClient } from "@/api/client";
 import { newClientId } from "@/features/shared/client-id";
+import { usePreferences } from "@/lib/preferences";
 import { AppDialog } from "./dialogs/app-dialog";
 
 type ImportSource = components["schemas"]["UploadImportSource"];
@@ -56,12 +57,16 @@ export function BackgroundUploadDialog({
   const [maxSize, setMaxSize] = useState("");
   const [chunkSizeMiB, setChunkSizeMiB] = useState(512);
   const [partConcurrency, setPartConcurrency] = useState(4);
-  const [encryption, setEncryption] = useState(false);
+  const encryptionDefault = usePreferences()?.uploads.encryption ?? false;
+  const [encryption, setEncryption] = useState(encryptionDefault);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (open) setDestination(currentPath);
-  }, [currentPath, open]);
+    if (open) {
+      setDestination(currentPath);
+      setEncryption(encryptionDefault);
+    }
+  }, [currentPath, encryptionDefault, open]);
 
   const reset = () => {
     setSources([newSource()]);
@@ -72,7 +77,7 @@ export function BackgroundUploadDialog({
     setMaxSize("");
     setChunkSizeMiB(512);
     setPartConcurrency(4);
-    setEncryption(false);
+    setEncryption(encryptionDefault);
   };
 
   const close = () => {
@@ -95,25 +100,27 @@ export function BackgroundUploadDialog({
       }
       const bodySources = sources.map<ImportSource>((source, index) => {
         const location = source.location.trim();
-        if (!location) throw new Error(t("El origen {0} está vacío", [index + 1]));
-        if (source.type === "local" && !/^(\/|[a-zA-Z]:[\\/]|\\\\)/.test(location)) {
-          throw new Error(t("El origen local {0} debe usar una ruta absoluta", [index + 1]));
+        if (!location) throw new Error(t("Source {index} is empty", { index: index + 1 }));
+        if (source.type === "local" && !location.startsWith("/")) {
+          throw new Error(
+            t("Local source {index} must use an absolute path", { index: index + 1 }),
+          );
         }
         if (source.type === "http") {
           const url = new URL(location);
           if (url.protocol !== "http:" && url.protocol !== "https:") {
-            throw new Error(t("El origen HTTP {0} debe usar http o https", [index + 1]));
+            throw new Error(t("HTTP source {index} must use http or https", { index: index + 1 }));
           }
         }
         const destinationPath = source.destinationPath.trim();
         if (destinationPath.startsWith("/") || destinationPath.split("/").includes("..")) {
-          throw new Error(t("El destino {0} debe ser una ruta relativa", [index + 1]));
+          throw new Error(t("Destination {index} must be a relative path", { index: index + 1 }));
         }
         const item: ImportSource = {
           type: source.type,
           destinationPath: destinationPath || undefined,
           exclude: lines(source.exclude),
-          headers: parseHeaders(source.headers),
+          headers: parseHeaders(source.headers, t),
         };
         if (source.type === "local") item.path = location;
         else item.url = location;
@@ -122,7 +129,7 @@ export function BackgroundUploadDialog({
       const body: ImportRequest = {
         destination: target,
         sources: bodySources,
-        headers: parseHeaders(headers),
+        headers: parseHeaders(headers, t),
         exclude: lines(exclude),
         minSize: minSize.trim() || undefined,
         maxSize: maxSize.trim() || undefined,
@@ -153,7 +160,7 @@ export function BackgroundUploadDialog({
       onOpenChange={(next) => (next ? onOpenChange(true) : close())}
       isDismissable={!submitting}
       title={t("Subida en segundo plano")}
-      description={t("Importa archivos del servidor y URLs remotas a {0}.", [currentPath])}
+      description={t("Import server paths and remote URLs into {path}.", { path: currentPath })}
       className="min-w-0 sm:w-[min(94vw,46rem)] sm:max-w-none bg-surface"
       bodyClassName="p-0"
       footer={
@@ -185,8 +192,7 @@ export function BackgroundUploadDialog({
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
                   <div className="text-xs font-semibold uppercase tracking-[0.12em] text-muted">
-                    {t("Origen") + " "}
-                    {index + 1}
+                    {t("Source {index}", { index: index + 1 })}
                   </div>
                   <div className="mt-0.5 text-xs text-muted">
                     {source.type === "local"
@@ -198,7 +204,7 @@ export function BackgroundUploadDialog({
                   isIconOnly
                   size="sm"
                   variant="ghost"
-                  aria-label={t("Remove source {0}", [index + 1])}
+                  aria-label={t("Remove source {index}", { index: index + 1 })}
                   isDisabled={sources.length === 1}
                   onPress={() =>
                     setSources((items) => items.filter((item) => item.id !== source.id))
@@ -216,7 +222,7 @@ export function BackgroundUploadDialog({
                     variant={source.type === type ? "secondary" : "ghost"}
                     onPress={() => patchSource(source.id, { type, location: "" })}
                   >
-                    {type === "local" ? t("Local path") : "HTTP URL"}
+                    {type === "local" ? t("Local path") : t("HTTP URL")}
                   </Button>
                 ))}
               </div>
@@ -226,7 +232,7 @@ export function BackgroundUploadDialog({
                   value={source.location}
                   onChange={(value) => patchSource(source.id, { location: value })}
                 >
-                  <Label>{source.type === "local" ? t("Ruta absoluta del servidor") : "URL"}</Label>
+                  <Label>{source.type === "local" ? t("Absolute server path") : t("URL")}</Label>
                   <Input
                     placeholder={
                       source.type === "local"
@@ -287,7 +293,7 @@ export function BackgroundUploadDialog({
         </div>
 
         <Button variant="secondary" onPress={() => setSources((items) => [...items, newSource()])}>
-          <PlusIcon className="size-3.5" /> {" " + t("Añadir origen")}
+          <PlusIcon className="size-3.5" /> {` ${t("Añadir origen")}`}
         </Button>
 
         <Accordion
@@ -308,11 +314,11 @@ export function BackgroundUploadDialog({
                   <div className="grid gap-3 sm:grid-cols-2">
                     <TextField value={minSize} onChange={setMinSize}>
                       <Label>{t("Minimum size")}</Label>
-                      <Input placeholder={t("Por ejemplo 10 MiB")} />
+                      <Input placeholder={t("For example {size}", { size: "10 MiB" })} />
                     </TextField>
                     <TextField value={maxSize} onChange={setMaxSize}>
                       <Label>{t("Maximum size")}</Label>
-                      <Input placeholder={t("Por ejemplo 20 GiB")} />
+                      <Input placeholder={t("For example {size}", { size: "20 GiB" })} />
                     </TextField>
                     <NumberField
                       aria-label={t("Tamaño de fragmento en MiB")}
@@ -394,14 +400,17 @@ function lines(value: string) {
   return result.length ? result : undefined;
 }
 
-function parseHeaders(value: string) {
+function parseHeaders(
+  value: string,
+  t: (key: string, vars?: Record<string, string | number>) => string,
+) {
   const result: Record<string, string> = {};
   for (const line of lines(value) ?? []) {
     const separator = line.indexOf(":");
-    if (separator < 1) throw new Error(t("Invalid header: {0}", [line]));
+    if (separator < 1) throw new Error(t("Invalid header: {header}", { header: line }));
     const name = line.slice(0, separator).trim();
     const headerValue = line.slice(separator + 1).trim();
-    if (!name || !headerValue) throw new Error(t("Invalid header: {0}", [line]));
+    if (!name || !headerValue) throw new Error(t("Invalid header: {header}", { header: line }));
     result[name] = headerValue;
   }
   return Object.keys(result).length ? result : undefined;

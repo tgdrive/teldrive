@@ -164,6 +164,7 @@ public sealed class RcloneRuntime : IAsyncDisposable, IRcloneExecutor
         command.Environment["RCLONE_USER"] = "teldrive-player"; command.Environment["RCLONE_PASS"] = secret;
         return (command, new Uri($"http://127.0.0.1:{port}/{Uri.EscapeDataString(name)}"), secret);
     }
+    internal async Task<JsonElement> MediaInfoAsync(string path) => JsonSerializer.Deserialize<JsonElement>(await QueryAsync("lsjson", Remote(path), "--stat"));
     public async Task<JsonElement> BrowseAsync(string path) => JsonSerializer.Deserialize<JsonElement>(await QueryAsync("lsjson", Remote(path), "--no-mimetype"));
     public async Task<JsonElement> SizeAsync(string path) => JsonSerializer.Deserialize<JsonElement>(await QueryAsync("size", Remote(path), "--json"));
     public async Task<string> LinkAsync(string path) => (await QueryAsync("link", Remote(path))).Trim();

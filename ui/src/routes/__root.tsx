@@ -18,6 +18,7 @@ import {
   Outlet,
   redirect,
   useLocation,
+  useMatchRoute,
   useNavigate,
 } from "@tanstack/react-router";
 import { useTheme } from "@/lib/theme";
@@ -36,32 +37,36 @@ import SearchIcon from "~icons/gravity-ui/magnifier";
 import MoonIcon from "~icons/gravity-ui/moon";
 import SunIcon from "~icons/gravity-ui/sun";
 import CloseIcon from "~icons/gravity-ui/xmark";
+import BookmarkIcon from "~icons/gravity-ui/bookmark";
 import { $api } from "../api/client";
 import { isUnauthorized, userMessage } from "../api/errors";
 import { currentUserQueryOptions } from "../auth/queries";
 import { UploadShelf } from "../components/upload-shelf";
 import { StorageSummary } from "../components/storage-summary";
 import { getQueryClient } from "../lib/queryClient";
+import { importLegacyPreferences, preferencesQueryOptions } from "../lib/preferences";
 
 const mainNav = [
-  { label: t("Archivos"), icon: GridIcon, path: "/files" },
-  { label: t("Compartidos"), icon: FolderIcon, path: "/shared" },
-  { label: t("Compartido conmigo"), icon: FolderIcon, path: "/shared-with-me" },
-  { label: t("Tareas"), icon: TasksIcon, path: "/tasks", capability: "system.manageJobs" },
-  { label: t("Spam"), icon: GridIcon, path: "/spam" },
-  { label: t("Papelera"), icon: GridIcon, path: "/trash" },
-  { label: t("Almacenamiento"), icon: StorageIcon, path: "/storage" },
+  { key: "files", icon: GridIcon, path: "/files" },
+  { key: "recent", icon: TasksIcon, path: "/files", recent: true },
+  { key: "bookmarks", icon: BookmarkIcon, path: "/files", bookmarked: true },
+  { key: "shared", icon: FolderIcon, path: "/shared" },
+  { key: "sharedWithMe", icon: FolderIcon, path: "/shared-with-me" },
+  { key: "tasks", icon: TasksIcon, path: "/tasks", capability: "system.manageJobs" },
+  { key: "spam", icon: GridIcon, path: "/spam" },
+  { key: "trash", icon: GridIcon, path: "/trash" },
+  { key: "storage", icon: StorageIcon, path: "/storage" },
 ] as const;
 
 const DESKTOP_BREAKPOINT = 1024;
 
-function getPageTitle(pathname: string) {
+function getPageTitle(pathname: string, t: (key: string) => string) {
   if (pathname === "/search") return t("Buscar");
   if (pathname.startsWith("/settings")) return t("Configuración");
   const item = mainNav.find(
     (entry) => pathname === entry.path || pathname.startsWith(`${entry.path}/`),
   );
-  return item?.label ?? "Teldrive";
+  return item ? t(`nav.${item.key}`) : t("Teldrive");
 }
 
 function Sidebar({
@@ -74,7 +79,13 @@ function Sidebar({
   onNavigate?: () => void;
 }) {
   const navigate = useNavigate();
+  const matchRoute = useMatchRoute();
+
+  const routeSearch = useLocation({
+    select: (location) => location.search as Record<string, unknown>,
+  });
   const { data: user } = useQuery(currentUserQueryOptions());
+  const versionLabel = import.meta.env.VITE_APP_VERSION;
   const logout = $api.useMutation("post", "/v1/auth/cookie/logout");
   const visibleMainNav = mainNav.filter(
     (item) => !("capability" in item) || Boolean(user?.capabilities.includes(item.capability)),
@@ -83,7 +94,7 @@ function Sidebar({
   const displayName =
     user?.displayName?.trim() ||
     user?.username?.trim() ||
-    (user ? t("Usuario {0}", [user.userId]) : t("Cuenta"));
+    (user ? t("User {id}", { id: user.userId }) : t("Cuenta"));
   const secondaryLabel = user?.username
     ? `@${user.username}`
     : user?.premium
@@ -107,43 +118,50 @@ function Sidebar({
     }
   };
   const renderItem = (item: (typeof mainNav)[number]) => {
-    const link = (
-      <Link
-        key={item.label}
-        to={item.path}
-        preload="intent"
-        activeOptions={{ exact: true }}
-        className="h-10 w-full justify-start rounded-full px-3 text-sm font-medium"
-        activeProps={{
-          className: cn(buttonVariants({ variant: "secondary" }), "bg-accent/10 text-accent"),
-        }}
-        inactiveProps={{
-          className: cn(
-            buttonVariants({ variant: "ghost" }),
-            "text-muted hover:bg-default/30 hover:text-foreground",
-          ),
-        }}
-        onClick={() => onNavigate?.()}
-      >
-        {item.path === "/storage" ? (
-          <span className="shrink-0" aria-hidden="true">
-            ☁️
-          </span>
-        ) : (
-          <item.icon className="size-4 shrink-0" />
-        )}
+    const routeMatches = Boolean(matchRoute({ to: item.path, fuzzy: true }));
+    const active =
+      routeMatches &&
+      (item.path !== "/files" ||
+        ("recent" in item
+          ? routeSearch.recent === true
+          : "bookmarked" in item
+            ? routeSearch.bookmarked === true && routeSearch.recent !== true
+            : routeSearch.bookmarked !== true && routeSearch.recent !== true));
+    const children = (
+      <>
+        <item.icon className="size-4 shrink-0" />
         <span
           className={cn(
             "overflow-hidden whitespace-nowrap transition-[width,opacity,margin] duration-200",
             collapsed && !mobile ? "ml-0 max-w-0 opacity-0" : "ml-3 max-w-52 opacity-100",
           )}
         >
-          {item.label}
+          {t(`nav.${item.key}`)}
         </span>
+      </>
+    );
+    const className = "h-10 w-full justify-start rounded-full px-3 text-sm font-medium";
+    return (
+      <Link
+        key={item.key}
+        to={item.path}
+        search={
+          "recent" in item ? { recent: true } : "bookmarked" in item ? { bookmarked: true } : {}
+        }
+        activeOptions={{ includeSearch: false }}
+        preload="intent"
+        className={cn(
+          buttonVariants({ variant: active ? "secondary" : "ghost" }),
+          className,
+          active
+            ? "bg-accent/10 text-accent"
+            : "text-muted hover:bg-default/30 hover:text-foreground",
+        )}
+        onClick={() => onNavigate?.()}
+      >
+        {children}
       </Link>
     );
-
-    return link;
   };
 
   return (
@@ -151,7 +169,9 @@ function Sidebar({
       className={cn(
         "flex h-full flex-col overflow-hidden border-r border-border bg-sidebar text-sidebar-foreground",
         !mobile && "transition-[width] duration-200",
-        mobile ? "w-[min(19rem,86vw)] shadow-2xl" : collapsed ? "w-16" : "w-60",
+        mobile
+          ? "w-[min(19rem,86vw)] bg-sidebar shadow-2xl"
+          : cn("bg-sidebar/95 backdrop-blur-xl", collapsed ? "w-16" : "w-60"),
       )}
     >
       <div className="flex h-16 items-center gap-3 px-4">
@@ -172,13 +192,8 @@ function Sidebar({
       </div>
 
       <Separator className="mx-3 w-auto" />
-      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-        {visibleMainNav.map((item) => (
-          <div key={item.path}>
-            {renderItem(item)}
-            {item.path === "/storage" && (!collapsed || mobile) ? <StorageSummary /> : null}
-          </div>
-        ))}
+      <nav aria-label={t("Main navigation")} className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
+        {visibleMainNav.map((item) => (<div key={item.key}>{renderItem(item)}{item.path === "/storage" && (!collapsed || mobile) ? <StorageSummary /> : null}</div>))}
       </nav>
       <div className="border-t border-border px-3 py-3">
         <Dropdown isOpen={accountMenuOpen} onOpenChange={setAccountMenuOpen}>
@@ -192,7 +207,7 @@ function Sidebar({
           ) : (
             <Button
               variant="ghost"
-              aria-label={t("Abrir menú de cuenta de {0}", [displayName])}
+              aria-label={t("Account menu")}
               className="flex h-14 w-full items-center justify-start gap-3 rounded-xl px-2 text-muted hover:bg-default/30 hover:text-foreground"
             >
               <Avatar className="size-9 shrink-0">
@@ -207,7 +222,7 @@ function Sidebar({
           )}
           <Dropdown.Popover placement="top start" className="min-w-52">
             <Dropdown.Menu
-              aria-label={t("Cuenta")}
+              aria-label={t("Account menu")}
               onAction={(key) => {
                 if (key === "logout") void signOut();
               }}
@@ -245,6 +260,11 @@ function Sidebar({
             </Dropdown.Menu>
           </Dropdown.Popover>
         </Dropdown>
+        {(!collapsed || mobile) && (
+          <p className="mt-2 truncate px-2 text-xs text-muted" title={versionLabel}>
+            {versionLabel}
+          </p>
+        )}
       </div>
     </aside>
   );
@@ -262,6 +282,7 @@ function TopBar({
   onOpenMobile: () => void;
 }) {
   const { resolvedTheme, setTheme } = useTheme();
+
   const navigate = useNavigate();
   const searchRef = useRef<HTMLInputElement>(null);
   const searchTimer = useRef<number | undefined>(undefined);
@@ -272,7 +293,12 @@ function TopBar({
     select: (location) => location.search as Record<string, unknown>,
   });
   const locationKey = useLocation({ select: (location) => location.href });
-  const title = getPageTitle(pathname);
+  const title =
+    pathname === "/files" && routeSearch.recent
+      ? t("Recent")
+      : pathname === "/files" && routeSearch.bookmarked
+        ? t("Bookmarks")
+        : getPageTitle(pathname, t);
   const scheduleSearch = (value: string) => {
     if (searchTimer.current) window.clearTimeout(searchTimer.current);
     searchTimer.current = undefined;
@@ -431,6 +457,7 @@ function TopBar({
 
 function Layout() {
   const navigate = useNavigate();
+
   const pathname = useLocation({ select: (location) => location.pathname });
   const [collapsed, setCollapsed] = useState(false);
   const [desktop, setDesktop] = useState(() =>
@@ -540,6 +567,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
       return;
     try {
       await context.queryClient.ensureQueryData(currentUserQueryOptions());
+      await context.queryClient.ensureQueryData(preferencesQueryOptions());
     } catch (error) {
       if (!isUnauthorized(error)) throw error;
       throw redirect({
@@ -548,6 +576,7 @@ export const Route = createRootRouteWithContext<RouterContext>()({
         replace: true,
       });
     }
+    await importLegacyPreferences();
   },
   component: Layout,
   notFoundComponent: () => (

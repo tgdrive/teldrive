@@ -221,7 +221,7 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 		ConfigureJobs(jobRuntime)
 	handler.Media = media.New(cfg.Media)
 	handler.Casting = casting.New()
-	httpServer, err := api.NewServer(handler, api.NewSecurity(authenticator, eventService))
+	httpServer, err := api.NewServer(handler, api.NewSecurity(authenticator, eventService).WithPublicFileContent(cfg.Security.PublicFileContent))
 	if err != nil {
 		return nil, fmt.Errorf("create generated HTTP server: %w", err)
 	}
@@ -231,11 +231,11 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 	}
 	mux := chi.NewRouter()
 	mux.Use(requestIDMiddleware)
-	mux.Use(httpRequestLogger(dependencies.Logger))
 	requestSecurity, err := newRequestSecurity(cfg.HTTP.TrustedProxies)
 	if err != nil {
 		return nil, fmt.Errorf("configure trusted proxies: %w", err)
 	}
+	mux.Use(httpRequestLogger(dependencies.Logger, requestSecurity))
 	routeApplication(mux, requestSecurity.middleware(browserCSRFMiddleware(sessionRenewalMiddleware(authService, httpServer))), webUI)
 
 	application := &App{

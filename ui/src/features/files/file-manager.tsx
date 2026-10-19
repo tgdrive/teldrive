@@ -27,6 +27,7 @@ import { absoluteFileDownloadUrl, copyText, startFileDownload } from "./download
 import { FileActionDialogs } from "./file-action-dialogs";
 import { FileBrowser } from "./file-browser";
 import { FileSelectionToolbar } from "./file-selection-toolbar";
+import { FileSortControls } from "./file-sort-controls";
 import { useFileActions } from "./mutations";
 import { useInfiniteFilePages } from "./queries";
 import { SearchControls } from "./search-controls";
@@ -37,12 +38,8 @@ import {
   type SearchState,
 } from "./search-state";
 
-import {
-  type FileSort,
-  loadSortPreference,
-  type SortOrder,
-  saveSortPreference,
-} from "./sort-preference";
+import type { FileSort, SortOrder } from "./sort-preference";
+import { usePreferences, useUpdatePreferences } from "@/lib/preferences";
 
 type FileBrowserView = "list" | "grid";
 type PaneId = "primary" | "secondary";
@@ -62,6 +59,8 @@ export type FilesLocation = PaneLocation & {
   secondaryParentId?: string;
   secondaryQuery?: string;
   secondaryView?: FileBrowserView;
+  bookmarked?: boolean;
+  recent?: boolean;
 };
 
 export function FileManagerPage({
@@ -77,11 +76,25 @@ export function FileManagerPage({
   };
 }) {
   const navigateTo = useNavigate();
-  const [savedSort, setSavedSort] = useState(loadSortPreference);
-  const sorting = { sort: search.sort ?? savedSort.sort, order: search.order ?? savedSort.order };
+  const savedSort = usePreferences()?.files ?? { sort: "name" as const, order: "asc" as const };
+  const { mutate: updatePreferences } = useUpdatePreferences();
+  const sorting = search.recent
+    ? { sort: "updatedAt" as const, order: "desc" as const }
+    : { sort: search.sort ?? savedSort.sort, order: search.order ?? savedSort.order };
+  const [recentAfter] = useState(() =>
+    new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+  );
+  const recentCriteria = search.recent
+    ? {
+        scope: "drive" as const,
+        kind: "file" as const,
+        updatedAfter: recentAfter,
+        parentId: undefined,
+        bookmarked: undefined,
+      }
+    : {};
   const changeSorting = (next: typeof sorting) => {
-    setSavedSort(next);
-    saveSortPreference(next);
+    updatePreferences({ files: { sort: next.sort, order: next.order } });
     onLocationChange({ ...search, ...next }, true);
   };
   const navigate = ({ search: next, replace }: { search: FilesLocation; replace?: boolean }) =>
@@ -152,6 +165,8 @@ export function FileManagerPage({
       ...sorting,
       view: primaryLocation.view,
       ...(criteria ? driveSearchOptions(criteria) : {}),
+      bookmarked: search.bookmarked,
+      ...recentCriteria,
     },
     "active",
     activeSearch && !missingFolder && !invalidDates,
@@ -163,6 +178,8 @@ export function FileManagerPage({
       q: secondaryLocation.query || undefined,
       ...sorting,
       view: secondaryLocation.view,
+      bookmarked: search.bookmarked,
+      ...recentCriteria,
     },
     "active",
     Boolean(search.split) && !searchMode,
@@ -173,6 +190,8 @@ export function FileManagerPage({
   const primaryCriteriaKey = JSON.stringify({
     ...sorting,
     path: primaryLocation.path,
+    bookmarked: search.bookmarked,
+    recent: search.recent,
     ...(criteria
       ? driveSearchOptions(criteria)
       : {
@@ -318,8 +337,8 @@ export function FileManagerPage({
     if (ids.length === 0 || pending) return;
     await performAction(
       () => fileActions.bulkTrash(ids),
-      `${ids.length} elemento${ids.length === 1 ? "" : "s"} enviado a la papelera`,
-      t("No se pudieron mover los elementos a la papelera"),
+      t(ids.length === 1 ? "files.trashedOne" : "files.trashedMany", { count: ids.length }),
+      t("Items could not be moved to trash"),
       () => setPaneSelectedKeys(pane, new Set()),
     );
   };
@@ -329,6 +348,24 @@ export function FileManagerPage({
     await trashFiles(
       files.map((file) => file.id),
       pane,
+    );
+  };
+
+  const toggleBookmarks = async (pane: PaneId) => {
+    const files = paneSelectedFiles(pane);
+    if (files.length === 0 || pending) return;
+    const ids = files.map((file) => file.id);
+    await performAction(
+      () => (search.bookmarked ? fileActions.removeBookmarks(ids) : fileActions.bookmarkFiles(ids)),
+      search.bookmarked
+        ? t(ids.length === 1 ? "manager.unbookmarkedOne" : "manager.unbookmarkedMany", {
+            count: ids.length,
+          })
+        : t(ids.length === 1 ? "manager.bookmarkedOne" : "manager.bookmarkedMany", {
+            count: ids.length,
+          }),
+      search.bookmarked ? t("Bookmarks could not be removed") : t("Items could not be bookmarked"),
+      () => setPaneSelectedKeys(pane, new Set()),
     );
   };
 
@@ -357,7 +394,7 @@ export function FileManagerPage({
     }
   };
 
-  const duplicateSelected = async (pane: PaneId) => {
+  const _duplicateSelected = async (pane: PaneId) => {
     const selected = paneSelectedFiles(pane);
     if (selected.length === 1) await duplicateFile(selected[0], pane);
   };
@@ -374,7 +411,16 @@ export function FileManagerPage({
           parentId,
         );
       },
-      `${target.files.length} elemento${target.files.length === 1 ? "" : "s"} ${target.mode === "copy" ? "copiados" : "movidos"}`,
+      t(
+        target.mode === "copy"
+          ? target.files.length === 1
+            ? "manager.copiedOne"
+            : "manager.copiedMany"
+          : target.files.length === 1
+            ? "manager.movedOne"
+            : "manager.movedMany",
+        { count: target.files.length },
+      ),
       target.mode === "copy"
         ? t("No se pudieron copiar los elementos")
         : t("No se pudieron mover los elementos seleccionados"),
@@ -422,11 +468,11 @@ export function FileManagerPage({
         );
       }
       const count = clipboardItems.length;
-      const action = clipboardMode === "copy" ? "copiados" : "movidos";
+      const action = t(clipboardMode === "copy" ? "manager.actionCopied" : "manager.actionMoved");
       setPasteConflictPane(undefined);
       if (clipboardMode === "cut") clearClipboard();
       setPaneSelectedKeys(pane, new Set());
-      toast.success(`${count} elemento${count === 1 ? "" : "s"} ${action}`);
+      toast.success(t(count === 1 ? "manager.pastedOne" : "manager.pastedMany", { count, action }));
     } catch (error) {
       const normalized = normalizeApiError(error);
       if (clipboardMode === "cut" && cutConflictPolicy === "fail" && normalized.status === 409) {
@@ -478,12 +524,12 @@ export function FileManagerPage({
         stageClipboard("copy", pane);
         return;
       }
-      if (!searchMode && command && key === "x" && selectedFiles.length > 0) {
+      if (!searchMode && !search.recent && command && key === "x" && selectedFiles.length > 0) {
         event.preventDefault();
         stageClipboard("cut", pane);
         return;
       }
-      if (!searchMode && command && key === "v" && hasClipboard) {
+      if (!searchMode && !search.recent && command && key === "v" && hasClipboard) {
         event.preventDefault();
         void pasteClipboard(pane);
         return;
@@ -496,12 +542,18 @@ export function FileManagerPage({
         setRenameName(singleSelectedFile.name);
         return;
       }
-      if (event.key === t("Delete") && selectedIds.length > 0) {
+      if (event.key === t("Borrar") && selectedIds.length > 0) {
         event.preventDefault();
         void trashSelected(pane);
         return;
       }
-      if (!searchMode && command && event.shiftKey && event.key.toLowerCase() === "n") {
+      if (
+        !searchMode &&
+        !search.recent &&
+        command &&
+        event.shiftKey &&
+        event.key.toLowerCase() === "n"
+      ) {
         event.preventDefault();
         setActivePane(pane);
         setFolderDialogOpen(true);
@@ -521,7 +573,7 @@ export function FileManagerPage({
     setActivePane(pane);
     if (file.kind === "folder") {
       const location = paneLocation(pane);
-      if (searchMode) {
+      if (searchMode || search.bookmarked) {
         void navigateTo({
           to: "/files",
           search: {
@@ -529,6 +581,7 @@ export function FileManagerPage({
             parentId: file.id,
             query: "",
             view: location.view,
+            bookmarked: undefined,
           },
         });
         return;
@@ -554,7 +607,9 @@ export function FileManagerPage({
     try {
       await copyText(selectedFiles.map(absoluteFileDownloadUrl).join("\n"));
       toast.success(
-        `${selectedFiles.length} enlace de descarga${selectedFiles.length === 1 ? "" : "s"} copiados`,
+        t(selectedFiles.length === 1 ? "manager.linksCopiedOne" : "manager.linksCopiedMany", {
+          count: selectedFiles.length,
+        }),
       );
     } catch (error) {
       toast.error(t("No se pudieron copiar los enlaces de descarga"), {
@@ -564,7 +619,23 @@ export function FileManagerPage({
   };
 
   const renderToolbar = (pane: PaneId) => {
-    if (searchMode) return undefined;
+    if (searchMode)
+      return (
+        <SearchControls
+          search={searchMode.criteria}
+          onChange={searchMode.onChange}
+          isOpen={filtersOpen}
+          onOpenChange={setFiltersOpen}
+          status={
+            activeSearch && !missingFolder && !invalidDates
+              ? primaryFileQuery.isFetching
+                ? t("Actualizando resultados…")
+                : t("{count} loaded", { count: primaryFiles.length })
+              : undefined
+          }
+        />
+      );
+    if (search.recent) return undefined;
     const location = paneLocation(pane);
     const uploadFilesTriggerRef =
       pane === "secondary" ? secondaryUploadFilesTriggerRef : primaryUploadFilesTriggerRef;
@@ -572,44 +643,7 @@ export function FileManagerPage({
       pane === "secondary" ? secondaryUploadFolderTriggerRef : primaryUploadFolderTriggerRef;
     return (
       <>
-        <Dropdown>
-          <Button size="sm" variant="secondary" aria-label={t("Ordenar archivos")}>
-            {sorting.sort === "updatedAt"
-              ? t("Fecha de modificación")
-              : sorting.sort === "size"
-                ? t("Tamaño")
-                : t("Nombre")}
-            {sorting.order === "asc" ? " ↑" : " ↓"}
-          </Button>
-          <Dropdown.Popover>
-            <Dropdown.Menu
-              aria-label={t("Ordenar por")}
-              selectionMode="single"
-              selectedKeys={new Set([sorting.sort])}
-              onAction={(key) => changeSorting({ ...sorting, sort: key as FileSort })}
-            >
-              <Dropdown.Item id="name" textValue={t("Nombre")}>
-                <Label>{t("Nombre")}</Label>
-              </Dropdown.Item>
-              <Dropdown.Item id="updatedAt" textValue={t("Fecha de modificación")}>
-                <Label>{t("Fecha de modificación")}</Label>
-              </Dropdown.Item>
-              <Dropdown.Item id="size" textValue={t("Tamaño")}>
-                <Label>{t("Tamaño")}</Label>
-              </Dropdown.Item>
-            </Dropdown.Menu>
-          </Dropdown.Popover>
-        </Dropdown>
-        <Button
-          size="sm"
-          variant="secondary"
-          aria-label={t("Cambiar sentido de ordenación")}
-          onPress={() =>
-            changeSorting({ ...sorting, order: sorting.order === "asc" ? "desc" : "asc" })
-          }
-        >
-          {sorting.order === "asc" ? t("Ascendente") : t("Descendente")}
-        </Button>
+        <FileSortControls sorting={sorting} onChange={changeSorting} />
         {pane === "primary" && !search.split ? (
           <Button
             isIconOnly
@@ -706,25 +740,32 @@ export function FileManagerPage({
           : "primary"
         : "primary";
     const showClipboard =
-      !searchMode && hasClipboard && (!search.split || pane === clipboardTargetPane);
+      !searchMode &&
+      !search.recent &&
+      hasClipboard &&
+      (!search.split || pane === clipboardTargetPane);
     const canPasteHere =
       showClipboard &&
       !(clipboardMode === "cut" && clipboardSourceParentId === paneLocation(pane).parentId);
     if (showClipboard) {
       return (
         <div className="pointer-events-none absolute inset-x-0 bottom-4 z-30 flex justify-center px-4">
-          <div className="pointer-events-auto flex max-w-full items-center gap-1.5 rounded-full border border-border bg-surface/95 p-1.5 shadow-xl backdrop-blur">
+          <div className="pointer-events-auto flex min-w-0 max-w-full flex-wrap items-center justify-center gap-1.5 rounded-2xl border border-border bg-surface/95 p-1.5 shadow-xl backdrop-blur @2xl/file-browser:rounded-full [&>button]:shrink-0">
             <span className="shrink-0 rounded-full bg-default/40 px-3 py-2 text-sm font-medium text-foreground">
-              {clipboardItems.length} {clipboardMode === "cut" ? "cut" : "copied"}
+              {t(clipboardMode === "cut" ? "manager.clipCut" : "manager.clipCopied", {
+                count: clipboardItems.length,
+              })}
             </span>
             <Button
               isIconOnly
               size="sm"
               variant="ghost"
-              aria-label={t("Pegar {0} elemento del portapapeles{1}", [
-                clipboardItems.length,
-                clipboardItems.length === 1 ? "" : "s",
-              ])}
+              aria-label={t(
+                clipboardItems.length === 1 ? "manager.pasteOne" : "manager.pasteMany",
+                {
+                  count: clipboardItems.length,
+                },
+              )}
               isDisabled={fileActions.pending || !canPasteHere}
               onPress={() => void pasteClipboard(pane)}
             >
@@ -734,9 +775,7 @@ export function FileManagerPage({
               isIconOnly
               size="sm"
               variant="ghost"
-              aria-label={
-                clipboardMode === "cut" ? t("Cancelar corte") : t("Borrar elementos copiados")
-              }
+              aria-label={t(clipboardMode === "cut" ? "manager.cancelCut" : "manager.clearCopied")}
               onPress={clearClipboard}
             >
               <CloseIcon className="size-4" />
@@ -745,12 +784,19 @@ export function FileManagerPage({
         </div>
       );
     }
+    if (selectedFiles.length === 0) return undefined;
     return (
       <FileSelectionToolbar
         selectedFiles={selectedFiles}
         pending={pending}
-        onCut={searchMode ? undefined : () => stageClipboard("cut", pane)}
+        onCut={
+          searchMode || search.bookmarked || search.recent
+            ? undefined
+            : () => stageClipboard("cut", pane)
+        }
         onCopy={() => stageClipboard("copy", pane)}
+        onBookmark={() => void toggleBookmarks(pane)}
+        bookmarked={search.bookmarked}
         onRename={() => {
           const file = selectedFiles[0];
           setActivePane(pane);
@@ -758,7 +804,6 @@ export function FileManagerPage({
           setRenameName(file.name);
           setActionError(undefined);
         }}
-        onDuplicate={searchMode ? undefined : () => void duplicateSelected(pane)}
         onShare={() => {
           setActivePane(pane);
           setShareFile(selectedFiles[0]);
@@ -793,9 +838,17 @@ export function FileManagerPage({
       <FileBrowser
         files={files}
         path={location.path}
-        rootLabel={searchMode ? t("Resultados de búsqueda") : t("Mi unidad")}
+        rootLabel={
+          searchMode
+            ? t("Resultados de búsqueda")
+            : search.recent
+              ? t("Recent")
+              : search.bookmarked
+                ? t("Bookmarks")
+                : t("My files")
+        }
         view={location.view}
-        loading={fileQuery.isPending}
+        loading={fileQuery.isPending && activeSearch && !missingFolder && !invalidDates}
         onNavigatePath={(path) => navigatePane(pane, { path, query: "", view: location.view })}
         onViewChange={(view) => navigatePane(pane, { ...location, view }, true)}
         onOpen={(file) => openFile(file, pane)}
@@ -815,14 +868,56 @@ export function FileManagerPage({
             void fileQuery.fetchNextPage();
         }}
         toolbar={renderToolbar(pane)}
-        selectionOverlay={fileQuery.isPlaceholderData ? undefined : renderSelectionOverlay(pane)}
+        compactToolbar={Boolean(searchMode)}
+        selectionOverlay={!fileQuery.isPlaceholderData ? renderSelectionOverlay(pane) : undefined}
+        emptyContent={
+          searchMode && (missingFolder || invalidDates || !activeSearch) ? (
+            <div className="flex h-full flex-col items-center justify-center p-8 text-center">
+              <p className="text-lg font-semibold">
+                {missingFolder
+                  ? t("Choose a folder to search recursively")
+                  : invalidDates
+                    ? t("Check the modified-date range")
+                    : t("Find anything in your drive")}
+              </p>
+              <p className="mt-2 text-sm text-muted">
+                {missingFolder
+                  ? t("This saved search has no folder selected.")
+                  : invalidDates
+                    ? t("Start date must be before end date.")
+                    : t("Search by filename, or apply filters to explore.")}
+              </p>
+              {(missingFolder || invalidDates) && (
+                <Button variant="secondary" className="mt-3" onPress={() => setFiltersOpen(true)}>
+                  {missingFolder ? t("Elegir carpeta") : t("Editar filtros")}
+                </Button>
+              )}
+            </div>
+          ) : undefined
+        }
         dimmedIds={cutIds}
-        hideFolderControls={Boolean(searchMode)}
-        showLocations={Boolean(searchMode)}
-        emptyTitle={searchMode ? t("No matching files") : undefined}
-        emptyHint={searchMode ? t("Prueba otro nombre o ajusta los filtros.") : undefined}
-        onOpenContainingFolder={
+        hideFolderControls={Boolean(searchMode || search.recent)}
+        showLocations={Boolean(searchMode || search.bookmarked || search.recent)}
+        emptyTitle={
           searchMode
+            ? t("No matching files")
+            : search.recent
+              ? t("No recent files")
+              : search.bookmarked
+                ? t("No bookmarks yet")
+                : undefined
+        }
+        emptyHint={
+          searchMode
+            ? t("Try another name or adjust your filters.")
+            : search.recent
+              ? t("Files modified in the last 30 days appear here.")
+              : search.bookmarked
+                ? t("Select files or folders and bookmark them from the action bar.")
+                : undefined
+        }
+        onOpenContainingFolder={
+          searchMode || search.bookmarked || search.recent
             ? (file) => {
                 void navigateTo({
                   to: "/files",
@@ -831,6 +926,7 @@ export function FileManagerPage({
                     parentId: file.parentId,
                     query: "",
                     view: location.view,
+                    bookmarked: undefined,
                   },
                 });
               }
@@ -848,7 +944,7 @@ export function FileManagerPage({
       <div data-testid={`file-pane-${pane}`} className="flex min-h-0 min-w-0 flex-1 rounded-xl">
         <DropZone
           data-testid={pane === "primary" ? "file-drop-zone" : "file-drop-zone-secondary"}
-          aria-label={t("Subir archivos a {0}", [location.path])}
+          aria-label={t("Upload files into {path}", { path: location.path })}
           getDropOperation={() => "copy"}
           className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden outline-none"
           onDrop={async (event) => {
@@ -862,8 +958,7 @@ export function FileManagerPage({
             <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-x-hidden">
               {isDropTarget ? (
                 <div className="shrink-0 rounded-xl border-2 border-dashed border-accent bg-accent/10 px-4 py-4 text-center text-sm font-medium text-accent sm:px-6 sm:py-6">
-                  {t("Suelta archivos para subirlos a") + " "}
-                  {location.path}
+                  {t("Drop files to upload into {path}", { path: location.path })}
                 </div>
               ) : null}
               {browser}
@@ -875,22 +970,7 @@ export function FileManagerPage({
   };
 
   return (
-    <Page className={`h-full min-h-0 overflow-x-hidden ${searchMode ? "gap-4" : "gap-0"}`}>
-      {searchMode && (
-        <SearchControls
-          search={searchMode.criteria}
-          onChange={searchMode.onChange}
-          isOpen={filtersOpen}
-          onOpenChange={setFiltersOpen}
-        />
-      )}
-      {searchMode && activeSearch && !missingFolder && !invalidDates && (
-        <p aria-live="polite" className="text-xs text-muted">
-          {primaryFileQuery.isFetching
-            ? t("Actualizando resultados…")
-            : `${primaryFiles.length} cargados`}
-        </p>
-      )}
+    <Page className="h-full min-h-0 gap-0 overflow-x-hidden">
       <PageContent className="flex min-h-0 flex-1 overflow-x-hidden">
         <div {...keyboardProps} className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden">
           {searchMode && primaryFileQuery.isError && (
@@ -916,40 +996,16 @@ export function FileManagerPage({
               </Button>
             </div>
           )}
-          {searchMode && (missingFolder || invalidDates || !activeSearch) ? (
-            <div className="flex flex-1 flex-col items-center justify-center rounded-2xl border border-dashed border-border p-8 text-center">
-              <p className="text-lg font-semibold">
-                {missingFolder
-                  ? t("Elige una carpeta para buscar en su contenido")
-                  : invalidDates
-                    ? t("Revisa el intervalo de fechas")
-                    : t("Encuentra cualquier archivo de tu unidad")}
-              </p>
-              <p className="mt-2 text-sm text-muted">
-                {missingFolder
-                  ? t("Esta búsqueda guardada no tiene una carpeta seleccionada.")
-                  : invalidDates
-                    ? t("La fecha inicial debe ser anterior a la final.")
-                    : t("Busca por nombre de archivo o aplica filtros.")}
-              </p>
-              {(missingFolder || invalidDates) && (
-                <Button variant="secondary" className="mt-3" onPress={() => setFiltersOpen(true)}>
-                  {missingFolder ? t("Elegir carpeta") : t("Editar filtros")}
-                </Button>
-              )}
-            </div>
-          ) : searchMode && primaryFileQuery.isError && !primaryFileQuery.data ? null : (
-            <div
-              className={
-                search.split
-                  ? "grid min-h-0 min-w-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-2"
-                  : "flex min-h-0 min-w-0 flex-1"
-              }
-            >
-              {renderPane("primary")}
-              {search.split ? renderPane("secondary") : null}
-            </div>
-          )}
+          <div
+            className={
+              search.split
+                ? "grid min-h-0 min-w-0 flex-1 grid-cols-1 gap-3 lg:grid-cols-2"
+                : "flex min-h-0 min-w-0 flex-1"
+            }
+          >
+            {renderPane("primary")}
+            {search.split ? renderPane("secondary") : null}
+          </div>
         </div>
       </PageContent>
 
@@ -957,7 +1013,7 @@ export function FileManagerPage({
         open={folderDialogOpen}
         onOpenChange={setFolderDialogOpen}
         title={t("Crear carpeta")}
-        description={t("Crea una carpeta en {0}.", [activeLocation.path])}
+        description={t("Create a folder inside {path}.", { path: activeLocation.path })}
         size="md"
         footer={
           <>

@@ -116,6 +116,18 @@ model SharePasswordHeader {
   password?: string;
 }
 
+/** A short-lived credential accepted only for GET/HEAD file content requests. */
+model ShareDownloadCookie {
+  @cookie("teldrive_share_download")
+  session?: string;
+}
+
+model ShareDownloadSessionResponse {
+  @statusCode statusCode: 204;
+  @header("Set-Cookie") setCookie: string;
+  @header("Cache-Control") cacheControl: "no-store";
+}
+
 @tag("Shares")
 @route("/v1")
 @useAuth(TelDriveAuth)
@@ -214,6 +226,17 @@ namespace Shares {
 @route("/v1/public/shares")
 @useAuth(NoAuth)
 namespace PublicShares {
+  /** Exchange the share password for a 15-minute, share-scoped download cookie. */
+  @post
+  @route("/{token}/download-session")
+  @operationId("authorizePublicShareDownload")
+  op authorizeDownload(...SharePasswordHeader, @path token: string):
+    | ShareDownloadSessionResponse
+    | ErrorResponse<401>
+    | ErrorResponse<404>
+    | ErrorResponse<410>
+    | ErrorResponse<429>;
+
   @get
   @route("/{token}")
   @operationId("getPublicShare")
@@ -246,6 +269,7 @@ namespace PublicShares {
   @operationId("downloadPublicShareFile")
   op downloadFile(
     ...SharePasswordHeader,
+    ...ShareDownloadCookie,
     ...FileContentRequestOptions,
     @path token: string,
     @path fileId: Uuid,
@@ -266,6 +290,7 @@ namespace PublicShares {
   @operationId("headPublicShareFile")
   op headFile(
     ...SharePasswordHeader,
+    ...ShareDownloadCookie,
     @path token: string,
     @path fileId: Uuid,
     @path fileName: string,
@@ -282,6 +307,7 @@ namespace PublicShares {
   @operationId("downloadPublicShare")
   op download(
     ...SharePasswordHeader,
+    ...ShareDownloadCookie,
     ...FileContentRequestOptions,
     @path token: string,
     @path fileName: string,
@@ -299,7 +325,12 @@ namespace PublicShares {
   @head
   @route("/{token}/content/{fileName}")
   @operationId("headPublicShare")
-  op head(...SharePasswordHeader, @path token: string, @path fileName: string):
+  op head(
+    ...SharePasswordHeader,
+    ...ShareDownloadCookie,
+    @path token: string,
+    @path fileName: string,
+  ):
     | FileHeadResponse
     | ErrorResponse<401>
     | ErrorResponse<404>
@@ -312,6 +343,7 @@ namespace PublicShares {
   @operationId("downloadPublicShareFileLegacy")
   op downloadFileLegacy(
     ...SharePasswordHeader,
+    ...ShareDownloadCookie,
     ...FileContentRequestOptions,
     @path token: string,
     @path fileId: Uuid,
@@ -331,6 +363,7 @@ namespace PublicShares {
   @operationId("headPublicShareFileLegacy")
   op headFileLegacy(
     ...SharePasswordHeader,
+    ...ShareDownloadCookie,
     @path token: string,
     @path fileId: Uuid,
   ):
@@ -346,6 +379,7 @@ namespace PublicShares {
   @operationId("downloadPublicShareLegacy")
   op downloadLegacy(
     ...SharePasswordHeader,
+    ...ShareDownloadCookie,
     ...FileContentRequestOptions,
     @path token: string,
   ):
@@ -362,7 +396,11 @@ namespace PublicShares {
   @head
   @route("/{token}/content")
   @operationId("headPublicShareLegacy")
-  op headLegacy(...SharePasswordHeader, @path token: string):
+  op headLegacy(
+    ...SharePasswordHeader,
+    ...ShareDownloadCookie,
+    @path token: string,
+  ):
     | FileHeadResponse
     | ErrorResponse<401>
     | ErrorResponse<404>

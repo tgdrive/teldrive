@@ -10,6 +10,7 @@ namespace Teldrive.Desktop;
 
 public partial class MainWindow : Window
 {
+    private readonly WindowFullscreen browserFullscreen;
     private readonly RuntimeSession runtime;
     private readonly RcloneRuntime rclone;
     private readonly List<MediaWindow> players = [];
@@ -31,7 +32,7 @@ public partial class MainWindow : Window
     private bool requestedStartHidden;
     public MainWindow(string[] args)
     {
-        InitializeComponent(); arguments = args;
+        InitializeComponent(); browserFullscreen = new WindowFullscreen(this); arguments = args;
         smoke = args.Any(arg => arg.StartsWith("--smoke-", StringComparison.Ordinal));
         if (smoke) { Opacity = 0; ShowInTaskbar = false; ShowActivated = false; }
         var rootIndex = Array.IndexOf(args, "--data-root");
@@ -61,6 +62,7 @@ public partial class MainWindow : Window
                 var listener = new System.Net.Sockets.TcpListener(System.Net.IPAddress.Loopback, 0); listener.Start(); var port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port; listener.Stop();
                 await runtime.ConfigureAsync(port, true, "", ""); await VerifyFolderInputAsync(); await runtime.StopAsync(); Close(); return;
             }
+            if (args.Contains("--smoke-player")) { await PlayerSmokeTest.RunAsync(runtime); Close(); return; }
             if (args.Contains("--smoke-enhancements")) { await DesktopEnhancementSmoke.RunAsync(runtime, this); Close(); return; }
             if (args.Contains("--smoke-automation")) { await RcloneAutomationSmokeTest.RunAsync(runtime, this); Close(); return; }
             if (args.Contains("--smoke-rclone")) { await RcloneSmokeTest.RunAsync(runtime); Close(); return; }
@@ -76,13 +78,23 @@ public partial class MainWindow : Window
                     await Task.Delay(500);
                 }
                 if (!rendered) throw new IOException(L.T("El servidor respondió, pero la pantalla de inicio de sesión no se mostró."));
+                await Browser.CoreWebView2.CallDevToolsProtocolMethodAsync("Runtime.evaluate", JsonSerializer.Serialize(new {expression="document.documentElement.requestFullscreen()",userGesture=true,awaitPromise=true}));
+                await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+                if(!browserFullscreen.Active||WindowStyle!=WindowStyle.None||AppHeader.Visibility!=Visibility.Collapsed)throw new IOException("El vídeo web no activó la pantalla completa de Desktop.");
+                await Browser.CoreWebView2.ExecuteScriptAsync("document.exitFullscreen()");
+                await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+                if(browserFullscreen.Active||AppHeader.Visibility!=Visibility.Visible)throw new IOException("La pantalla completa web no restauró Desktop.");
+                InitializeAutomation();
+                tray!.InvokeMenuForSmoke(0);tray.InvokeMenuForSmoke(1);tray.InvokeMenuForSmoke(2);
+                await Dispatcher.Yield(DispatcherPriority.ApplicationIdle);
+                if(AdvancedView.Visibility!=Visibility.Visible||!automation!.State.Paused)throw new IOException("El menú de bandeja falló con WebView2 inicializado.");
                 var originalConfig = await File.ReadAllTextAsync(runtime.ConfigPath);
                 var rejected = false;
                 try { await runtime.SaveConfigAsync(originalConfig.Replace($"127.0.0.1:{port}", $"203.0.113.2:{port}")); }
                 catch (IOException) { rejected = true; }
                 if (!rejected || await File.ReadAllTextAsync(runtime.ConfigPath) != originalConfig || runtime.ServerUri!.Port != port) throw new IOException(L.T("Una dirección no local modificó la configuración válida."));
                 await runtime.StopAsync();
-                await File.WriteAllTextAsync(Path.Combine(runtime.DataRoot, "server-smoke-test.json"), JsonSerializer.Serialize(new {success=true, postgresql=true, migrations=true, loginUi=true, rejectedNonLocalAddress=rejected, stopped=!runtime.Running, port}));
+                await File.WriteAllTextAsync(Path.Combine(runtime.DataRoot, "server-smoke-test.json"), JsonSerializer.Serialize(new {success=true, postgresql=true, migrations=true, loginUi=true, rejectedNonLocalAddress=rejected, browserFullscreen=true, trayWithWebView=true, stopped=!runtime.Running, port}));
                 Close(); return;
             }
             RefreshConfiguration();
@@ -162,6 +174,14 @@ public partial class MainWindow : Window
         Browser.CoreWebView2.Settings.IsStatusBarEnabled = false;
         Browser.CoreWebView2.Settings.AreDevToolsEnabled = false;
         await Browser.CoreWebView2.AddScriptToExecuteOnDocumentCreatedAsync($"if (location.protocol === 'http:' && location.hostname === '127.0.0.1' && !localStorage.getItem('teldrive-language')) localStorage.setItem('teldrive-language', {JsonSerializer.Serialize(preferences.Language)});");
+        Browser.CoreWebView2.ContainsFullScreenElementChanged += (_, _) => {
+            var active=Browser.CoreWebView2.ContainsFullScreenElement;
+            browserFullscreen.Set(active);
+            AppHeader.Visibility=AppFooter.Visibility=active?Visibility.Collapsed:Visibility.Visible;
+            AppShell.RowDefinitions[0].MinHeight=active?0:64;
+            AppShell.RowDefinitions[0].Height=active?new GridLength(0):GridLength.Auto;
+            AppShell.RowDefinitions[2].Height=new GridLength(active?0:34);
+        };
         Browser.CoreWebView2.WebMessageReceived += ReceiveNativeMessage;
         Browser.CoreWebView2.NavigationStarting += (_, e) => {
             if (runtime.ServerUri is null || !Uri.TryCreate(e.Uri, UriKind.Absolute, out var uri)) { e.Cancel = true; return; }

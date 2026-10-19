@@ -12,6 +12,11 @@ import (
 
 var ErrClientUnavailable = errors.New("Telegram client is unavailable")
 
+// ErrAccountRevoked marks a failure caused by a Telegram account whose
+// credentials were permanently rejected. The account has already been taken out
+// of selection, so the same work may be retried on a newly chosen account.
+var ErrAccountRevoked = errors.New("Telegram account credentials revoked")
+
 type clientIDContextKey struct{}
 
 func WithClientID(ctx context.Context, clientID int64) context.Context {
@@ -94,7 +99,7 @@ func (r ClientRunner) run(ctx context.Context, userID int64, operation Operation
 			if r.Factory == nil {
 				return ErrTelegramConfiguration
 			}
-			pooled, closePool, err := r.Factory.PooledAPI(client, connections)
+			pooled, closePool, err := r.Factory.PooledAPI(client, status.User.ID, connections)
 			if err != nil {
 				return err
 			}

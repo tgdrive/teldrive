@@ -11,7 +11,7 @@ export function FolderPicker({
   initialPath = "/",
   initialParentId,
   onConfirm,
-  confirmLabel = t("Mover aquí"),
+  confirmLabel,
   isDisabled = false,
   requireFolder = false,
 }: {
@@ -24,6 +24,7 @@ export function FolderPicker({
 }) {
   const [path, setPath] = useState(initialPath);
   const [parentId, setParentId] = useState<string | undefined>(initialParentId);
+
   const folderIds = useRef(new Map<string, string | undefined>([[initialPath, initialParentId]]));
   const folders = useFolderChildren(parentId, parentId ? undefined : path);
   const crumbs = path.split("/").filter(Boolean);
@@ -121,7 +122,7 @@ export function FolderPicker({
           }
           onPress={() => onConfirm(parentId, path)}
         >
-          {confirmLabel}
+          {confirmLabel ?? t("Move here")}
         </Button>
       </div>
     </div>

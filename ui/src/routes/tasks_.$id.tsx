@@ -17,6 +17,7 @@ import type { components } from "@/api/schema";
 import { $api as api, fetchClient } from "@/api/client";
 import { queryClient } from "@/api/query-client";
 import { invalidateTaskQueries } from "@/api/tasks";
+import { useDateTimeFormatter, useFormatBytes } from "@/lib/format";
 
 type TaskOut = components["schemas"]["Job"];
 type TaskAttemptError = components["schemas"]["JobAttemptError"];
@@ -50,6 +51,7 @@ function TaskDetailPage() {
   });
   const [retrying, setRetrying] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
   const task = data;
 
   useEffect(() => {
@@ -90,17 +92,11 @@ function TaskDetailPage() {
     setDeleting(false);
     if (error) {
       toast.error(
-        ACTIVE_STATES.includes(task.status)
-          ? t("No se pudo cancelar la tarea")
-          : t("No se pudo eliminar la tarea"),
+        t(ACTIVE_STATES.includes(task.status) ? "tasks.cancelFailed" : "tasks.removeFailed"),
       );
       return;
     }
-    toast.success(
-      ACTIVE_STATES.includes(task.status)
-        ? t("Cancelación de tarea solicitada")
-        : t("Tarea eliminada"),
-    );
+    toast.success(t(ACTIVE_STATES.includes(task.status) ? "tasks.cancelOk" : "tasks.removeOk"));
     await invalidateTaskQueries(qc, id);
     navigate({
       to: "/tasks",
@@ -140,8 +136,7 @@ function TaskDetailPage() {
                   params={{ id: task.parentId }}
                   className="hover:text-foreground"
                 >
-                  {t("Tarea principal") + " "}
-                  {task.parentId}
+                  {t("Parent {id}", { id: task.parentId })}
                 </Link>
               )}
             </div>
@@ -150,7 +145,7 @@ function TaskDetailPage() {
 
         <div className="flex flex-wrap gap-2 lg:justify-end">
           <Button size="sm" variant="tertiary" onPress={refresh}>
-            <RefreshIcon className="size-3.5" /> {" " + t("Actualizar")}
+            <RefreshIcon className="size-3.5" /> {` ${t("Actualizar")}`}
           </Button>
           {["cancelled", "discarded", "retryable"].includes(task.status) && (
             <Button size="sm" variant="primary" isPending={retrying} onPress={retry}>
@@ -163,7 +158,7 @@ function TaskDetailPage() {
             isPending={deleting}
             onPress={remove}
           >
-            {ACTIVE_STATES.includes(task.status) ? t("Cancelar") : t("Eliminar")}
+            {t(ACTIVE_STATES.includes(task.status) ? "tasks.cancel" : "taskDetail.delete")}
           </Button>
         </div>
       </header>
@@ -178,14 +173,14 @@ function TaskDetailPage() {
         <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.85fr)]">
           <div className="border-border p-5 lg:border-r sm:p-6">
             <div className="grid gap-x-8 gap-y-5 sm:grid-cols-3">
-              <Fact label={t("Estado")} value={taskStatusLabel(task.status)}>
+              <Fact label={t("State")} value={taskStatusLabel(t, task.status)}>
                 <TaskStatusChip status={task.status} />
               </Fact>
               <Fact label={t("Intento")} value={`${task.attempt} / ${task.maxAttempts}`} />
               <Fact label={t("Prioridad")} value={String(task.priority)} />
-              <Fact label={t("Cola")} value={task.queue || "default"} />
+              <Fact label={t("Cola")} value={task.queue || t("default")} />
               <Fact label={t("Etiquetas")} value={task.tags?.length ? task.tags.join(", ") : "—"} />
-              <Fact label={t("Creado")} value={formatRelative(task.createdAt)} />
+              <Fact label={t("Creado")} value={formatRelative(t, task.createdAt)} />
             </div>
 
             <div className="mt-6 border-border border-t pt-5">
@@ -193,7 +188,7 @@ function TaskDetailPage() {
                 {t("Estado actual")}
               </div>
               <div className="mt-2 text-base font-semibold">
-                {task.message || statusSummary(task.status)}
+                {task.message || statusSummary(t, task.status)}
               </div>
             </div>
           </div>
@@ -265,6 +260,7 @@ function Fact({
 }
 
 function Timeline({ task }: { task: TaskOut }) {
+  const formatDateTime = useDateTimeFormatter();
   const errors = task.errors ?? [];
   const steps = [
     { label: t("Creado"), at: task.createdAt, state: "done", kind: "created" },
@@ -291,7 +287,14 @@ function Timeline({ task }: { task: TaskOut }) {
         ]
       : []),
     ...(task.status === "retryable"
-      ? [{ label: t("Esperando reintento"), at: task.scheduledAt, state: "current", kind: "retry" }]
+      ? [
+          {
+            label: t("Awaiting retry"),
+            at: task.scheduledAt,
+            state: "current",
+            kind: "retry",
+          },
+        ]
       : []),
     {
       label:
@@ -330,7 +333,9 @@ function Timeline({ task }: { task: TaskOut }) {
           <div className="min-w-0">
             <div className="text-sm font-medium">{step.label}</div>
             <div className="mt-0.5 text-xs text-muted">
-              {step.at ? `${formatRelative(step.at)} · ${formatDate(step.at)}` : "—"}
+              {step.at
+                ? `${formatRelative(t, step.at)} · ${formatDateTime.format(new Date(step.at))}`
+                : "—"}
             </div>
           </div>
         </li>
@@ -395,11 +400,13 @@ function AttemptRow({ attempt }: { attempt: AttemptView }) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="text-sm font-semibold">
-              {attemptLabel(attempt.state)}{" "}
-              <span className="font-normal text-muted">(Intento {attempt.attempt})</span>
+              {attemptLabel(t, attempt.state)}{" "}
+              <span className="font-normal text-muted">
+                ({t("Attempt {n}", { n: attempt.attempt })})
+              </span>
             </div>
             <div className="text-xs text-muted">
-              {attempt.at ? formatRelative(attempt.at) : "—"}
+              {attempt.at ? formatRelative(t, attempt.at) : "—"}
             </div>
           </div>
           {attempt.worker && (
@@ -454,7 +461,7 @@ function JsonPanel({
             variant="tertiary"
             onPress={() => downloadJsonFile(downloadName, value)}
           >
-            <DownloadIcon className="size-3.5" /> {" " + t("Descargar")}
+            <DownloadIcon className="size-3.5" /> {` ${t("Descargar")}`}
           </Button>
         )}
       </div>
@@ -498,6 +505,9 @@ function missingPartCount(entry: BrokenFileEntry): number {
 }
 
 function BrokenFilesCard({ files, truncated }: { files: BrokenFileEntry[]; truncated: boolean }) {
+  const formatBytes = useFormatBytes();
+  const formatPartSize = (value: unknown) =>
+    typeof value !== "number" || !Number.isFinite(value) || value < 0 ? "—" : formatBytes(value);
   return (
     <Card className="overflow-hidden p-0">
       <div className="flex flex-wrap items-center justify-between gap-2 border-border border-b px-5 py-3.5">
@@ -507,7 +517,7 @@ function BrokenFilesCard({ files, truncated }: { files: BrokenFileEntry[]; trunc
             {t(
               "Archivos con partes ausentes en Telegram. Vuelve a subir los originales para repararlos.",
             )}
-            {truncated ? " Lista recortada; descarga para consultar el contenido completo." : ""}
+            {truncated ? ` ${t("List truncated; download for the full set shown here.")}` : ""}
           </p>
         </div>
         <Button
@@ -515,7 +525,7 @@ function BrokenFilesCard({ files, truncated }: { files: BrokenFileEntry[]; trunc
           variant="tertiary"
           onPress={() => downloadJsonFile("broken-files.json", files)}
         >
-          <DownloadIcon className="size-3.5" /> {" " + t("Descargar lista")}
+          <DownloadIcon className="size-3.5" /> {` ${t("Descargar lista")}`}
         </Button>
       </div>
       <div className="divide-y divide-border">
@@ -527,9 +537,12 @@ function BrokenFilesCard({ files, truncated }: { files: BrokenFileEntry[]; trunc
             <span className="min-w-0 flex-1 truncate text-sm font-medium">
               {typeof file.name === "string" && file.name ? file.name : t("Archivo sin nombre")}
             </span>
-            <span className="text-xs text-muted">{formatBytes(file.size)}</span>
+            <span className="text-xs text-muted">{formatPartSize(file.size)}</span>
             <span className="text-xs text-muted">
-              {missingPartCount(file)} missing part{missingPartCount(file) === 1 ? "" : "s"}
+              {t(
+                missingPartCount(file) === 1 ? "taskDetail.missingOne" : "taskDetail.missingMany",
+                { count: missingPartCount(file) },
+              )}
             </span>
           </div>
         ))}
@@ -548,14 +561,6 @@ function downloadJsonFile(filename: string, value: unknown) {
   anchor.click();
   anchor.remove();
   URL.revokeObjectURL(url);
-}
-
-function formatBytes(value: unknown): string {
-  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) return "—";
-  if (value === 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  const index = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1);
-  return `${(value / 1024 ** index).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
 }
 
 function sortJsonKeys(value: unknown): unknown {
@@ -602,23 +607,29 @@ function attemptDot(state: AttemptView["state"]) {
   return "bg-warning";
 }
 
-function attemptLabel(state: AttemptView["state"]) {
+function attemptLabel(
+  t: (key: string, vars?: Record<string, string | number>) => string,
+  state: AttemptView["state"],
+) {
   if (state === "completed") return t("Completada");
   if (state === "failed") return t("Error");
   if (state === "running") return t("En ejecución");
   return t("En espera");
 }
 
-function statusSummary(status: string) {
-  if (status === "pending") return t("Esperando programación");
+function statusSummary(
+  t: (key: string, vars?: Record<string, string | number>) => string,
+  status: string,
+) {
+  if (status === "pending") return t("Waiting to be scheduled");
   if (status === "scheduled") return t("Programada para una ejecución futura");
-  if (status === "available") return t("Esperando un proceso disponible");
-  if (status === "retryable") return t("Esperando otro reintento");
-  if (status === "running") return t("La tarea se está ejecutando");
-  if (status === "completed") return t("Tarea completada");
-  if (status === "discarded") return t("La tarea agotó sus reintentos");
-  if (status === "cancelled") return t("La tarea se canceló");
-  return taskStatusLabel(status);
+  if (status === "available") return t("Waiting for an available worker");
+  if (status === "retryable") return t("Waiting for another retry attempt");
+  if (status === "running") return t("Task is currently running");
+  if (status === "completed") return t("Task completed successfully");
+  if (status === "discarded") return t("Task exhausted its retry attempts");
+  if (status === "cancelled") return t("Task was cancelled");
+  return taskStatusLabel(t, status);
 }
 
 function defaultTaskDescription(task: TaskOut) {
@@ -632,17 +643,16 @@ function hasJsonValue(value: unknown) {
   return true;
 }
 
-function formatDate(value: string) {
-  return new Date(value).toLocaleString();
-}
-
-function formatRelative(value: string) {
+function formatRelative(
+  t: (key: string, vars?: Record<string, string | number>) => string,
+  value: string,
+) {
   const seconds = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 1000));
-  if (seconds < 60) return "just now";
+  if (seconds < 60) return t("just now");
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 60) return t("{m}m ago", { m: minutes });
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return t("{h}h ago", { h: hours });
   const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+  return t("{d}d ago", { d: days });
 }

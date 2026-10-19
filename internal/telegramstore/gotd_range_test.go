@@ -9,6 +9,7 @@ import (
 	"github.com/gotd/td/bin"
 	"github.com/gotd/td/tg"
 	"github.com/gotd/td/tgerr"
+	"github.com/tgdrive/teldrive/v2/internal/streamstats"
 )
 
 func TestPlanTelegramReadsAlignsShortTail(t *testing.T) {
@@ -162,6 +163,10 @@ func TestTelegramRangeReaderBoundsReadAheadBehindSlowChunk(t *testing.T) {
 func TestTelegramRangeReaderRetriesTimedOutChunk(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	var statistics streamstats.Registry
+	ctx, closeStream := statistics.Start(ctx, "test-file")
+	defer closeStream()
+	ctx = streamstats.WithPart(WithClientID(ctx, 123), 900, 17)
 
 	invoker := &timeoutThenSuccessDownloadInvoker{}
 	api := tg.NewClient(invoker)
@@ -174,6 +179,14 @@ func TestTelegramRangeReaderRetriesTimedOutChunk(t *testing.T) {
 	}
 	if got := invoker.calls.Load(); got != 2 {
 		t.Fatalf("download calls = %d, want 2", got)
+	}
+	snapshot := statistics.Snapshot("test-file")
+	if len(snapshot.Accounts) != 1 {
+		t.Fatalf("missing account: %+v", snapshot)
+	}
+	account := snapshot.Accounts[0]
+	if account.ID != 123 || account.Bytes != telegramReadAlign || account.Requests != 2 || account.Errors != 1 || account.ChannelID != 900 || account.MessageID != 17 || account.Active != 0 {
+		t.Fatalf("RPC attribution = %+v", account)
 	}
 }
 

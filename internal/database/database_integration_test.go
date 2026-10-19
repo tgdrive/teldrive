@@ -4,9 +4,12 @@ package database_test
 
 import (
 	"context"
+	"io/fs"
 	"strings"
 	"testing"
 
+	"github.com/pressly/goose/v3"
+	"github.com/tgdrive/teldrive/v2/db/migrations"
 	"github.com/tgdrive/teldrive/v2/internal/database"
 	testpostgres "github.com/tgdrive/teldrive/v2/internal/testutil/postgres"
 )
@@ -61,8 +64,8 @@ WHERE table_schema = 'public'
 	if err := db.Pool.QueryRow(ctx, "SELECT max(version_id) FROM teldrive.migrations WHERE is_applied").Scan(&migrationVersion); err != nil {
 		t.Fatalf("read migration version: %v", err)
 	}
-	if migrationVersion != 9 {
-		t.Fatalf("migration version = %d, want 9", migrationVersion)
+	if want := latestEmbeddedMigrationVersion(t); migrationVersion != want {
+		t.Fatalf("migration version = %d, want %d", migrationVersion, want)
 	}
 
 	var normalizedNameColumns int
@@ -77,6 +80,26 @@ WHERE table_schema = 'teldrive'
 	if normalizedNameColumns != 0 {
 		t.Fatalf("normalized name columns = %d, want 0", normalizedNameColumns)
 	}
+}
+
+func latestEmbeddedMigrationVersion(t *testing.T) int64 {
+	t.Helper()
+	names, err := fs.Glob(migrations.Files, "*.sql")
+	if err != nil {
+		t.Fatalf("list embedded migrations: %v", err)
+	}
+	var latest int64
+	for _, name := range names {
+		version, err := goose.NumericComponent(name)
+		if err != nil {
+			t.Fatalf("parse migration version from %s: %v", name, err)
+		}
+		latest = max(latest, version)
+	}
+	if latest == 0 {
+		t.Fatal("no embedded migrations found")
+	}
+	return latest
 }
 
 func TestMigrateCustomSchema(t *testing.T) {

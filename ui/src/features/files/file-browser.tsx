@@ -12,6 +12,7 @@ import {
   Virtualizer,
 } from "react-aria-components";
 import type { FileEntry } from "@/api/types";
+import { useDateTimeFormatter, useFormatBytes } from "@/lib/format";
 import BackIcon from "~icons/gravity-ui/arrow-left";
 import UpIcon from "~icons/gravity-ui/chevron-up";
 import FolderIcon from "~icons/gravity-ui/folder";
@@ -31,6 +32,8 @@ type FileBrowserProps = {
   onViewChange: (view: FileBrowserView) => void;
   onOpen: (file: FileEntry) => void;
   toolbar?: ReactNode;
+  compactToolbar?: boolean;
+  emptyContent?: ReactNode;
   onBack?: () => void;
   selection?: {
     selectedKeys: Selection;
@@ -61,6 +64,8 @@ export function FileBrowser({
   onViewChange,
   onOpen,
   toolbar,
+  compactToolbar = false,
+  emptyContent,
   onBack,
   selection,
   selectionOverlay,
@@ -70,16 +75,21 @@ export function FileBrowser({
   hasNextPage = false,
   isLoadingMore = false,
   onLoadMore,
-  emptyHint = t("Esta carpeta está vacía."),
-  emptyTitle = t("Esta carpeta está vacía"),
+  emptyHint,
+  emptyTitle,
   hideFolderControls = false,
   showLocations = false,
   onOpenContainingFolder,
 }: FileBrowserProps) {
+  const resolvedEmptyHint = emptyHint ?? t("Esta carpeta está vacía.");
+  const resolvedEmptyTitle = emptyTitle ?? t("Esta carpeta está vacía");
   return (
     <Card className="@container/file-browser relative flex min-h-0 min-w-0 flex-1 flex-col gap-0 overflow-hidden border border-border bg-surface/80 shadow-sm">
-      <Card.Header className="shrink-0 border-b border-border px-3 py-3 sm:px-4">
-        <div className="file-browser-header flex min-w-0 items-center gap-1.5">
+      <Card.Header
+        className={`shrink-0 border-b border-border px-3 sm:px-4 ${compactToolbar ? "py-2" : "py-3"}`}
+        data-testid="file-browser-toolbar"
+      >
+        <div className="file-browser-header flex min-w-0 flex-wrap items-center gap-1.5 [&>button]:shrink-0">
           {onBack ? (
             <Button isIconOnly size="sm" variant="ghost" aria-label={t("Volver")} onPress={onBack}>
               <BackIcon className="size-4" />
@@ -102,7 +112,7 @@ export function FileBrowser({
             </Button>
           )}
           {!hideFolderControls && (
-            <div className="min-w-0 flex-1 overflow-hidden">
+            <div className="min-w-20 flex-1 overflow-hidden">
               <FileBrowserBreadcrumb
                 path={path}
                 rootLabel={rootLabel}
@@ -110,7 +120,7 @@ export function FileBrowser({
               />
             </div>
           )}
-          <div className="file-browser-controls flex shrink-0 items-center gap-1">
+          <div className="file-browser-controls flex w-full min-w-0 flex-wrap items-center gap-1 sm:w-auto sm:flex-1 sm:justify-end [&>button]:shrink-0">
             {toolbar}
             <Button
               isIconOnly
@@ -138,6 +148,8 @@ export function FileBrowser({
           <div className="flex h-full min-h-64 items-center justify-center">
             <Spinner size="lg" />
           </div>
+        ) : emptyContent ? (
+          emptyContent
         ) : (
           <div className="h-full min-h-0">
             <FileCollection
@@ -150,8 +162,8 @@ export function FileBrowser({
               hasNextPage={hasNextPage}
               isLoadingMore={isLoadingMore}
               onLoadMore={onLoadMore}
-              emptyHint={emptyHint}
-              emptyTitle={emptyTitle}
+              emptyHint={resolvedEmptyHint}
+              emptyTitle={resolvedEmptyTitle}
               showLocations={showLocations}
               onOpenContainingFolder={onOpenContainingFolder}
             />
@@ -195,6 +207,7 @@ function FileCollection({
   onOpenContainingFolder?: (file: FileEntry) => void;
 }) {
   const grid = view === "grid";
+
   const selectedKeys = selection?.selectedKeys ?? new Set<React.Key>();
   const hasSelection = selection ? selectedKeys === "all" || selectedKeys.size > 0 : false;
 
@@ -306,7 +319,7 @@ function SelectionCheckbox({ file, isVisible }: { file: FileEntry; isVisible: bo
   return (
     <Checkbox
       slot="selection"
-      aria-label={t("Seleccionar {0}", [file.name])}
+      aria-label={t("Select {name}", { name: file.name })}
       className={({ isSelected }) =>
         [
           "shrink-0 transition-opacity",
@@ -336,6 +349,7 @@ function GridFile({
   location?: string;
   onOpenContainingFolder?: () => void;
 }) {
+  const formatBytes = useFormatBytes();
   return (
     <>
       <div className="flex items-start gap-2">
@@ -354,7 +368,11 @@ function GridFile({
           <LocationButton location={location} onPress={onOpenContainingFolder} className="mt-1" />
         )}
         <p className="mt-1 text-[11px] text-muted">
-          {file.kind === "folder" ? t("Carpeta") : formatFileBytes(file.size ?? 0)}
+          {file.kind === "folder"
+            ? file.size != null
+              ? formatBytes(file.size)
+              : t("Carpeta")
+            : formatBytes(file.size ?? 0)}
         </p>
       </div>
     </>
@@ -374,6 +392,8 @@ function ListFile({
   location?: string;
   onOpenContainingFolder?: () => void;
 }) {
+  const formatBytes = useFormatBytes();
+  const formatDateTime = useDateTimeFormatter();
   return (
     <>
       <div className="flex min-w-0 items-center gap-3">
@@ -402,13 +422,17 @@ function ListFile({
         </div>
       </div>
       <span className="hidden text-xs text-muted sm:block">
-        {file.kind === "folder" ? t("Carpeta") : formatFileBytes(file.size ?? 0)}
+        {file.kind === "folder"
+          ? file.size != null
+            ? formatBytes(file.size)
+            : t("Carpeta")
+          : formatBytes(file.size ?? 0)}
       </span>
       <span className="hidden min-w-0 text-xs text-muted lg:block">
         {location ? (
           <LocationButton location={location} onPress={onOpenContainingFolder} />
         ) : (
-          new Date(file.modTime).toLocaleString()
+          formatDateTime.format(new Date(file.modTime))
         )}
       </span>
     </>
@@ -429,7 +453,7 @@ function LocationButton({
       size="sm"
       variant="ghost"
       className={`h-auto min-h-0 max-w-full justify-start rounded-sm px-0 py-0 text-[11px] text-muted ${className}`}
-      aria-label={t("Abrir carpeta contenedora {0}", [location])}
+      aria-label={t("Open containing folder {location}", { location })}
       onPress={onPress}
     >
       <span className="truncate">{location}</span>
@@ -448,6 +472,7 @@ function FileBrowserBreadcrumb({
 }) {
   const parts = path.split("/").filter(Boolean);
   const lastIndex = parts.length - 1;
+
   return (
     <nav
       aria-label={t("Carpeta actual")}
@@ -498,11 +523,4 @@ function FileBrowserBreadcrumb({
       })}
     </nav>
   );
-}
-
-export function formatFileBytes(bytes: number) {
-  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  const index = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-  return `${(bytes / 1024 ** index).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
 }

@@ -18,11 +18,57 @@ docker compose logs --tail=300 teldrive
 
 Temporary debug logging:
 
+In a YAML configuration file:
+
 ```yaml
 logging:
   log-level: debug
   log-format: text
 ```
+
+Return to `info` after investigating. Debug logs may contain sensitive operational details; redact them before sharing.
+
+## File logging
+
+Console logs remain enabled. To also write to a file, add this to `config.toml`:
+
+```toml
+[logging]
+log-level = "info"
+log-format = "json"
+log-file = "/var/log/teldrive/teldrive.log"
+```
+
+Or set `TELDRIVE_LOGGING_LOG_FILE=/var/log/teldrive/teldrive.log`. The file uses the configured log level and format, without terminal color codes.
+
+For a host service running as `teldrive`, create the parent directory first:
+
+```bash
+sudo install -d -o teldrive -g teldrive -m 0700 /var/log/teldrive
+```
+
+New files are created with mode `0600`. Existing files keep their permissions and must be writable by the service user. Teldrive appends on startup; it does not truncate the file. A missing or unwritable parent directory prevents startup.
+
+For the official container image, create a writable directory owned by UID/GID `65532:65532` and mount it into the container:
+
+```bash
+sudo install -d -o 65532 -g 65532 -m 0700 /srv/teldrive/logs
+```
+
+Add these settings to the Teldrive Compose service:
+
+```yaml
+services:
+  teldrive:
+    environment:
+      TELDRIVE_LOGGING_LOG_FILE: /var/log/teldrive/teldrive.log
+    volumes:
+      - /srv/teldrive/logs:/var/log/teldrive
+```
+
+Adjust ownership for rootless containers and apply the required bind-mount labels on SELinux hosts.
+
+There is no automatic rotation or size limit. Prefer console-log collection when available. If rotating the file by renaming it, restart Teldrive to reopen the configured path; otherwise it continues writing to the old file. Monitor disk usage and keep log files private.
 
 ## Teldrive exits immediately
 

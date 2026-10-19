@@ -22,6 +22,7 @@ export const Route = createFileRoute("/_settings/settings/users")({
 
 function UsersSettings() {
   const [search, setSearch] = useState("");
+
   const debouncedSearch = useDebouncedValue(search.trim(), 300);
   const query = $api.useQuery(
     "get",
@@ -84,13 +85,15 @@ function UsersSettings() {
         ) : query.data?.length ? (
           query.data.map((user) => {
             const displayName =
-              user.displayName?.trim() || user.username?.trim() || t("Usuario {0}", [user.userId]);
+              user.displayName?.trim() ||
+              user.username?.trim() ||
+              t("User {id}", { id: user.userId });
             const owner = user.role === "owner";
             return (
               <SettingsRow
                 key={user.userId}
                 label={displayName}
-                description={`${user.username ? `@${user.username} · ` : ""}Telegram ID ${user.userId}`}
+                description={`${user.username ? `@${user.username} · ` : ""}${t("Telegram ID {id}", { id: user.userId })}`}
               >
                 <div className="flex flex-wrap items-center justify-end gap-2">
                   <Chip
@@ -117,7 +120,7 @@ function UsersSettings() {
                         void update(user.userId, { role: user.role === "admin" ? "user" : "admin" })
                       }
                     >
-                      {user.role === "admin" ? t("Asignar usuario") : t("Asignar administrador")}
+                      {t(user.role === "admin" ? "users.makeUser" : "users.makeAdmin")}
                     </Button>
                   ) : null}
                   {!owner ? (
@@ -127,7 +130,7 @@ function UsersSettings() {
                       isDisabled={updateUser.isPending}
                       onPress={() => void update(user.userId, { disabled: !user.disabled })}
                     >
-                      {user.disabled ? t("Activar") : t("Desactivar")}
+                      {t(user.disabled ? "users.enable" : "users.disable")}
                     </Button>
                   ) : null}
                   {!owner ? (

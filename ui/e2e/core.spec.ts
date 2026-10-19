@@ -1,3 +1,4 @@
+import { installPreferencesApi } from "./fixtures/preferences";
 import { expect, type Page, test } from "@playwright/test";
 
 const now = "2026-07-22T12:00:00Z";
@@ -473,6 +474,7 @@ async function installApi(page: Page) {
       json: { error: { code: "not_found", message: `Unhandled fixture ${method} ${path}` } },
     });
   });
+  await installPreferencesApi(page);
 }
 
 function collectRuntimeErrors(page: Page) {

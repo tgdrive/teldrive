@@ -2,6 +2,38 @@
 
 Aplicación para Windows 10/11 de 64 bits, construida con .NET 10, WPF y WebView2. El paquete incluye el servidor Teldrive, el rclone compatible con la API v2, PostgreSQL, FFmpeg/FFprobe y los instaladores oficiales de WinFsp, WebView2 y Visual C++. El primer inicio presenta la configuración del servidor y abre la UI en la propia ventana.
 
+## Reproducción y diagnóstico (2.0.0.10)
+
+Pantalla completa está disponible en el vídeo de la ventana web y en el reproductor
+nativo. En el nativo usa el botón, F/F11 o doble clic; Esc restaura la ventana y su
+posición. Los menús de bandeja ejecutan sus acciones después de cerrar el menú
+nativo, para evitar errores de reentrada de WPF/WebView2.
+
+Activa **Desarrollador · estadísticas** durante la reproducción de vídeo o audio.
+Desktop nativo consulta mpv por IPC: contenedor, códecs, resolución, FPS, tasa de
+bits, audio, aceleración, fotogramas descartados, sincronización A/V, búfer,
+velocidad, pausa y posición. En la ventana web se muestran los datos que el navegador
+ofrece y las pistas detectadas por FFprobe. Un campo no disponible no se estima.
+
+Las estadísticas de Telegram identifican cada cuenta que realmente recibe datos
+con nombre, @alias e ID, bytes, velocidad móvil de dos segundos, solicitudes activas,
+latencia, errores y último canal/mensaje/offset. Suman las lecturas del archivo en
+el servidor (incluidas búsquedas y reproducciones simultáneas); no representan una
+medición exclusiva de una ventana. Una velocidad cero puede significar que ya hay
+contenido en búfer. Las identidades solo están disponibles para el propietario,
+no mediante enlaces públicos. No se muestran claves, tokens ni URL de reproducción.
+El origen nativo debe ser una conexión Teldrive; otros tipos de rclone conservan
+los datos de mpv y muestran que la telemetría de Telegram no está disponible.
+
+Se integra el original `tgdrive/teldrive` hasta `67bf180`: provisión independiente
+de bots, selección y control de carga de cuentas, favoritos/recientes, preferencias
+por cuenta, tamaños de carpetas, orden natural y mejoras de lectores/búsqueda.
+Las migraciones propias 8–10 conservan su numeración y las nuevas ocupan 11–15.
+
+`--smoke-player --data-root RUTA_NUEVA` comprueba reproducción local real con mpv,
+IPC, pausa, pantalla completa/restauración, estadísticas y callbacks de bandeja.
+No usa credenciales ni tráfico de Telegram.
+
 ## Crear bots desde Configuración (2.0.0.8)
 
 Desde la versión **2.0.0.9**, la lista presenta el **nombre**, el **@alias** y el

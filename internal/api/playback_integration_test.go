@@ -88,6 +88,24 @@ func TestPublicPlaybackRangesConsumeOneReservationAndRespectRevocation(t *testin
 		}
 	}
 	var count int64
+	statisticsPath := "/v1/files/" + fileID.String() + "/playback/statistics"
+	for _, headers := range []map[string]string{nil, {"Authorization": "Bearer " + playback.Ticket}} {
+		response = performRequest(t, server, http.MethodGet, statisticsPath, nil, headers)
+		if response.Code != 401 {
+			t.Fatalf("statistics without owner authentication: %d", response.Code)
+		}
+	}
+	response = performRequest(t, server, http.MethodGet, statisticsPath, nil, map[string]string{"Authorization": "Bearer test-token"})
+	if response.Code != 200 {
+		t.Fatalf("owner statistics: %d %s", response.Code, response.Body.String())
+	}
+	var statistics gen.PlaybackStatistics
+	if err := json.Unmarshal(response.Body.Bytes(), &statistics); err != nil {
+		t.Fatal(err)
+	}
+	if statistics.FileId != entry.ID || statistics.Size != 10 || statistics.ActiveStreams != 0 || len(statistics.Accounts) != 0 {
+		t.Fatalf("filesystem transport must not invent Telegram accounts: %+v", statistics)
+	}
 	response = performRequest(t, server, http.MethodGet, "/v1/playback/tracks?ticket="+playback.Ticket, nil, nil)
 	if response.Code != 200 {
 		t.Fatalf("tracks capability: %d %s", response.Code, response.Body.String())

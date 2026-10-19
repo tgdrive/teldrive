@@ -2,6 +2,8 @@ import { t } from "@/lib/localization";
 import { Button, Checkbox, Input, Label, ListBox, Popover, Select, TextField } from "@heroui/react";
 import { useEffect, useState } from "react";
 import { FolderPicker } from "./folder-picker";
+import { FileSortControls } from "./file-sort-controls";
+import { validFileSort } from "./sort-preference";
 import { invalidSearchDates, type SearchState, searchCategories, searchDate } from "./search-state";
 
 export function SearchControls({
@@ -9,13 +11,16 @@ export function SearchControls({
   onChange,
   isOpen,
   onOpenChange,
+  status,
 }: {
   search: SearchState;
   onChange: (search: SearchState) => void;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
+  status?: string;
 }) {
   const [draft, setDraft] = useState(search);
+
   useEffect(() => setDraft(search), [search, isOpen]);
   const invalidDates = invalidSearchDates(draft);
   const missingFolder = draft.scope === "recursive" && !draft.parentId;
@@ -36,8 +41,8 @@ export function SearchControls({
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-surface/80 p-4 shadow-sm">
-        <h1 className="mr-auto text-sm font-semibold">{t("Resultados de búsqueda")}</h1>
+      <div className="flex min-w-0 flex-wrap items-center gap-2 [&>button]:shrink-0">
+        <h1 className="sr-only">{t("Resultados de búsqueda")}</h1>
         <Popover isOpen={isOpen} onOpenChange={onOpenChange}>
           <Button variant="secondary" size="sm">
             {t("Filtros")}
@@ -69,8 +74,9 @@ export function SearchControls({
                   (draft.parentId ? (
                     <div className="flex items-center justify-between gap-2 text-xs text-muted">
                       <span className="min-w-0 truncate" title={draft.folderPath}>
-                        {t("Carpeta:") + " "}
-                        {draft.folderPath ?? t("Carpeta seleccionada")}
+                        {t("Folder: {path}", {
+                          path: draft.folderPath ?? t("search.folderUnnamed"),
+                        })}
                       </span>
                       <Button
                         size="sm"
@@ -176,38 +182,29 @@ export function SearchControls({
             </Popover.Dialog>
           </Popover.Content>
         </Popover>
-        <div className="flex w-full gap-2 sm:w-auto">
-          <SearchSelect
-            compact
-            label={t("Ordenar resultados")}
-            value={search.sort ?? "name"}
-            onChange={(sort) => onChange({ ...search, sort })}
-            options={[
-              { value: "name", label: t("Name") },
-              { value: "updatedAt", label: t("Modified date") },
-              { value: "size", label: t("Tamaño") },
-            ]}
-          />
-          <SearchSelect
-            compact
-            label={t("Orden de clasificación")}
-            value={search.order ?? "asc"}
-            onChange={(order) => onChange({ ...search, order })}
-            options={[
-              { value: "asc", label: t("Ascendente") },
-              { value: "desc", label: t("Descendente") },
-            ]}
-          />
-        </div>
+        <FileSortControls
+          sorting={{ sort: validFileSort(search.sort) ?? "name", order: search.order ?? "asc" }}
+          onChange={(sorting) => onChange({ ...search, ...sorting })}
+        />
+        {status && (
+          <span aria-live="polite" className="whitespace-nowrap text-xs text-muted">
+            {status}
+          </span>
+        )}
       </div>
       {(search.q || filtered) && (
-        <section className="flex flex-wrap items-center gap-2" aria-label={t("Filtros activos")}>
+        <section
+          className="flex min-w-0 max-w-full flex-wrap items-center gap-2"
+          aria-label={t("Filtros activos")}
+        >
           {search.q && (
-            <FilterChip label={t("Nombre: {0}", [search.q])} onRemove={() => remove("q")} />
+            <FilterChip label={t("Name: {q}", { q: search.q })} onRemove={() => remove("q")} />
           )}
           {search.scope === "recursive" && (
             <FilterChip
-              label={t("En {0}", [search.folderPath ?? "carpeta seleccionada"])}
+              label={t("In {folder}", {
+                folder: search.folderPath ?? t("search.folderFallback"),
+              })}
               onRemove={() =>
                 onChange({ ...search, scope: "drive", parentId: undefined, folderPath: undefined })
               }
@@ -215,7 +212,7 @@ export function SearchControls({
           )}
           {search.kind && (
             <FilterChip
-              label={search.kind === "file" ? t("Archivos") : t("Carpetas")}
+              label={t(search.kind === "file" ? "search.typeFile" : "search.typeFolder")}
               onRemove={() => remove("kind")}
             />
           )}
@@ -233,13 +230,13 @@ export function SearchControls({
           ))}
           {search.updatedAfter && (
             <FilterChip
-              label={t("Después de {0}", [search.updatedAfter.slice(0, 10)])}
+              label={t("After {date}", { date: search.updatedAfter.slice(0, 10) })}
               onRemove={() => remove("updatedAfter")}
             />
           )}
           {search.updatedBefore && (
             <FilterChip
-              label={t("Antes de {0}", [search.updatedBefore.slice(0, 10)])}
+              label={t("Before {date}", { date: search.updatedBefore.slice(0, 10) })}
               onRemove={() => remove("updatedBefore")}
             />
           )}
@@ -259,24 +256,22 @@ function SearchSelect<T extends string>({
   value,
   options,
   onChange,
-  compact = false,
 }: {
   label: string;
   value: T;
   options: { value: T; label: string }[];
   onChange: (value: T) => void;
-  compact?: boolean;
 }) {
   return (
     <Select
-      className={compact ? "min-w-0 flex-1 sm:w-40 sm:flex-none" : "w-full"}
+      className="w-full"
       selectedKey={value}
       onSelectionChange={(key) => {
         const option = options.find((item) => item.value === key);
         if (option) onChange(option.value);
       }}
     >
-      <Label className={compact ? "sr-only" : "text-sm"}>{label}</Label>
+      <Label className="text-sm">{label}</Label>
       <Select.Trigger>
         <Select.Value />
         <Select.Indicator />
@@ -302,7 +297,7 @@ function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }
       variant="secondary"
       className="max-w-full rounded-full"
       onPress={onRemove}
-      aria-label={t("Eliminar {0} filtro", [label])}
+      aria-label={t("Remove {label} filter", { label })}
     >
       <span className="truncate">{label}</span>
       <span aria-hidden="true">×</span>

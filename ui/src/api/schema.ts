@@ -52,6 +52,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/files/{fileId}/playback/statistics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getFilePlaybackStatistics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/playback/tracks": {
         parameters: {
             query?: never;
@@ -403,6 +419,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/me/preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Return the authenticated user's web UI preferences, with server defaults for unset values. */
+        get: operations["getUserPreferences"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** @description Update a subset of the authenticated user's web UI preferences. */
+        patch: operations["updateUserPreferences"];
+        trace?: never;
+    };
     "/v1/auth/logout": {
         parameters: {
             query?: never;
@@ -573,7 +607,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** @description List Telegram channels where the authenticated user can add administrators. */
+        /** @description List broadcast channels where the authenticated user can add administrators. Groups are excluded. */
         get: operations["discoverChannels"];
         put?: never;
         post?: never;
@@ -592,7 +626,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Discover and upsert manageable Telegram channels without deleting missing rows. */
+        /** @description Register only chosen manageable broadcast channels, without deleting existing channels. */
         post: operations["syncChannels"];
         delete?: never;
         options?: never;
@@ -696,6 +730,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/bots/provision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Re-verify all saved bots, with one independent task per bot. */
+        post: operations["provisionBots"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/bots/{botId}/provision": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Re-verify a saved bot and repair its access to the user's registered channels. */
+        post: operations["provisionBot"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/bots/{botId}": {
         parameters: {
             query?: never;
@@ -758,6 +826,24 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/files/bookmarks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Bookmark selected active files and folders. */
+        post: operations["bookmarkFiles"];
+        /** @description Remove bookmarks from selected files and folders. */
+        delete: operations["removeFileBookmarks"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1240,6 +1326,23 @@ export interface paths {
         get: operations["listSharedWithMe"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/public/shares/{token}/download-session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Exchange the share password for a 15-minute, share-scoped download cookie. */
+        post: operations["authorizePublicShareDownload"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1770,6 +1873,55 @@ export interface components {
             error: components["schemas"]["ErrorDetail"];
         };
         ETag: string;
+        StreamAccountStatistics: {
+            /** Format: int64 */
+            id: number;
+            name: string;
+            alias: string;
+            /** @enum {string} */
+            kind: "bot" | "user";
+            /** Format: int64 */
+            bytes: number;
+            /** Format: double */
+            bytesPerSecond: number;
+            /** Format: int64 */
+            requests: number;
+            /** Format: int64 */
+            errors: number;
+            /** Format: int32 */
+            activeRequests: number;
+            /** Format: double */
+            latencyMs: number;
+            /** Format: int64 */
+            channelId: number;
+            /** Format: int64 */
+            messageId: number;
+            /** Format: int64 */
+            offset: number;
+            /** Format: date-time */
+            lastSeen?: string;
+        };
+        PlaybackStatistics: {
+            /** @enum {string} */
+            scope: "file";
+            fileId: components["schemas"]["Uuid"];
+            name: string;
+            mimeType: string;
+            /** Format: int64 */
+            size: number;
+            encrypted: boolean;
+            /** Format: date-time */
+            sampledAt: string;
+            /** Format: date-time */
+            startedAt?: string;
+            /** Format: int32 */
+            activeStreams: number;
+            /** Format: int64 */
+            bytes: number;
+            /** Format: double */
+            bytesPerSecond: number;
+            accounts: components["schemas"]["StreamAccountStatistics"][];
+        };
         MediaTrack: {
             /** Format: int32 */
             index: number;
@@ -1881,6 +2033,79 @@ export interface components {
             /** Format: date-time */
             createdAt: string;
         };
+        /** @enum {string} */
+        NameConflictPolicy: "fail" | "replace" | "rename";
+        UploadPreferences: {
+            /** @description Encrypt new browser uploads and URL imports by default. */
+            encryption: boolean;
+            conflictPolicy: components["schemas"]["NameConflictPolicy"];
+            /**
+             * Format: int32
+             * @description Number of browser uploads that run at the same time.
+             */
+            concurrency: number;
+            /**
+             * Format: int64
+             * @description Preferred part size in bytes; a multiple of 16 MiB between 16 MiB and 2 GiB.
+             */
+            preferredPartSize: number;
+        };
+        /**
+         * @description Sort keys offered by the web file browser; a subset of FileSort.
+         * @enum {string}
+         */
+        FileBrowserSort: "name" | "updatedAt" | "size";
+        /** @enum {string} */
+        SortOrder: "asc" | "desc";
+        FileBrowserPreferences: {
+            sort: components["schemas"]["FileBrowserSort"];
+            order: components["schemas"]["SortOrder"];
+        };
+        /** @enum {string} */
+        ThemePreference: "system" | "light" | "dark";
+        /** @enum {string} */
+        InterfaceLocale: "en" | "es" | "pt-BR" | "ru" | "fr" | "de" | "zh-CN" | "it" | "ja" | "ar";
+        AppearancePreferences: {
+            theme: components["schemas"]["ThemePreference"];
+            /** @description Interface language; absent until the user picks one, so clients fall back to browser detection. */
+            locale?: components["schemas"]["InterfaceLocale"];
+        };
+        /** @description Per-user web UI preferences shared by every browser and device. */
+        UserPreferences: {
+            uploads: components["schemas"]["UploadPreferences"];
+            files: components["schemas"]["FileBrowserPreferences"];
+            appearance: components["schemas"]["AppearancePreferences"];
+            /**
+             * Format: date-time
+             * @description Last explicit change; absent while every value is still the server default.
+             */
+            updatedAt?: string;
+        };
+        UploadPreferencesUpdate: {
+            encryption?: boolean;
+            conflictPolicy?: components["schemas"]["NameConflictPolicy"];
+            /** Format: int32 */
+            concurrency?: number;
+            /**
+             * Format: int64
+             * @description Preferred part size in bytes; a multiple of 16 MiB between 16 MiB and 2 GiB.
+             */
+            preferredPartSize?: number;
+        };
+        FileBrowserPreferencesUpdate: {
+            sort?: components["schemas"]["FileBrowserSort"];
+            order?: components["schemas"]["SortOrder"];
+        };
+        AppearancePreferencesUpdate: {
+            theme?: components["schemas"]["ThemePreference"];
+            locale?: components["schemas"]["InterfaceLocale"];
+        };
+        /** @description Partial update; omitted groups and fields keep their stored values. */
+        UserPreferencesUpdate: {
+            uploads?: components["schemas"]["UploadPreferencesUpdate"];
+            files?: components["schemas"]["FileBrowserPreferencesUpdate"];
+            appearance?: components["schemas"]["AppearancePreferencesUpdate"];
+        };
         UserSearchResult: {
             /** Format: int64 */
             userId: number;
@@ -1960,6 +2185,10 @@ export interface components {
             id: number;
             name: string;
         };
+        ChannelSyncRequest: {
+            /** @description Only these discovered broadcast channels will be registered. Existing channels are retained. */
+            channelIds: number[];
+        };
         ChannelCreateRequest: {
             /** @description Optional display name. Telegram may choose the final title. */
             name?: string;
@@ -2003,12 +2232,20 @@ export interface components {
         BotCreateResponse: {
             bots: components["schemas"]["BotSummary"][];
             failedIndexes: number[];
-            /** @description Present only when existing channels need background bot provisioning. */
+            /** @description First provisioning task, retained for older clients. Use jobIds for all tasks. */
             jobId?: string;
+            /** @description Each saved bot has an independent provisioning task. */
+            jobIds: string[];
         };
         BotCreateRequest: {
             /** @description Telegram bot tokens. Tokens are never returned by the API. */
             tokens: string[];
+        };
+        BotBulkProvisionResponse: {
+            jobIds: string[];
+        };
+        BotProvisionResponse: {
+            jobId: string;
         };
         EventStreamTicket: {
             /** @description Short-lived credential suitable for a browser EventSource URL. */
@@ -2028,8 +2265,6 @@ export interface components {
         FileCategory: "archive" | "audio" | "document" | "image" | "video" | "other";
         /** @enum {string} */
         FileSort: "name" | "updatedAt" | "size" | "id";
-        /** @enum {string} */
-        SortOrder: "asc" | "desc";
         /** @enum {string} */
         HashAlgorithm: "blake3";
         Checksum: string;
@@ -2059,13 +2294,14 @@ export interface components {
             /** @description Location path, included for drive and recursive listings. */
             parentPath?: string;
         };
+        BookmarkFilesRequest: {
+            fileIds: components["schemas"]["Uuid"][];
+        };
         FileUpdateRequest: {
             name?: string;
             /** Format: date-time */
             modTime?: string;
         };
-        /** @enum {string} */
-        NameConflictPolicy: "fail" | "replace" | "rename";
         FileMoveRequest: {
             parentId?: components["schemas"]["Uuid"];
             /** @default fail */
@@ -2617,6 +2853,8 @@ export interface components {
         "FileListQuery.updatedBefore": string;
         "FileListQuery.sort": components["schemas"]["FileSort"];
         "FileListQuery.order": components["schemas"]["SortOrder"];
+        /** @description Restrict results to the authenticated user's bookmarked files and folders. */
+        "FileListQuery.bookmarked": boolean;
         OptionalIfMatchHeader: components["schemas"]["ETag"];
         "UploadPartHeaders.contentLength": number;
         /** @description BLAKE3 checksum of the plaintext part. */
@@ -2624,6 +2862,7 @@ export interface components {
         /** @description Folder path relative to the shared folder root. */
         "PublicShareListQuery.path": string;
         "PublicShareListQuery.search": string;
+        ShareDownloadCookie: string;
         "JobListQuery.status": components["schemas"]["JobState"];
         "JobListQuery.type": string;
         "JobListQuery.queue": string;
@@ -2839,6 +3078,55 @@ export interface operations {
             };
             /** @description Service unavailable. */
             503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getFilePlaybackStatistics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                fileId: components["schemas"]["Uuid"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaybackStatistics"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Access is forbidden. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4052,6 +4340,77 @@ export interface operations {
             };
         };
     };
+    getUserPreferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserPreferences"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    updateUserPreferences: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserPreferencesUpdate"];
+            };
+        };
+        responses: {
+            /** @description The request has succeeded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserPreferences"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     logoutSession: {
         parameters: {
             query?: never;
@@ -4614,7 +4973,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChannelSyncRequest"];
+            };
+        };
         responses: {
             /** @description The request has succeeded. */
             200: {
@@ -4627,6 +4990,15 @@ export interface operations {
             };
             /** @description Access is unauthorized. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5065,6 +5437,117 @@ export interface operations {
             };
         };
     };
+    provisionBots: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable UUID generated by the caller for safe request retries. */
+                "Idempotency-Key": components["parameters"]["IdempotencyHeader"];
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has been accepted for processing, but processing has not yet completed. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BotBulkProvisionResponse"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Client error */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    provisionBot: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Stable UUID generated by the caller for safe request retries. */
+                "Idempotency-Key": components["parameters"]["IdempotencyHeader"];
+            };
+            path: {
+                botId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The request has been accepted for processing, but processing has not yet completed. */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BotProvisionResponse"];
+                };
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Client error */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     deleteBot: {
         parameters: {
             query?: never;
@@ -5234,6 +5717,8 @@ export interface operations {
                 updatedBefore?: components["parameters"]["FileListQuery.updatedBefore"];
                 sort?: components["parameters"]["FileListQuery.sort"];
                 order?: components["parameters"]["FileListQuery.order"];
+                /** @description Restrict results to the authenticated user's bookmarked files and folders. */
+                bookmarked?: components["parameters"]["FileListQuery.bookmarked"];
             };
             header?: never;
             path?: never;
@@ -5273,6 +5758,86 @@ export interface operations {
             };
             /** @description Client error */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    bookmarkFiles: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookmarkFilesRequest"];
+            };
+        };
+        responses: {
+            /** @description There is no content to send for this request, but the headers may be useful. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Client error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    removeFileBookmarks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookmarkFilesRequest"];
+            };
+        };
+        responses: {
+            /** @description There is no content to send for this request, but the headers may be useful. */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Access is unauthorized. */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6822,7 +7387,14 @@ export interface operations {
     };
     putUploadPart: {
         parameters: {
-            query?: never;
+            query?: {
+                /**
+                 * @description Store the part in this owned channel instead of the selected channel.
+                 *     An explicit channel never rolls over: an unknown channel returns 404 and a
+                 *     full or unavailable channel returns 409.
+                 */
+                channelId?: number;
+            };
             header: {
                 "Content-Length": components["parameters"]["UploadPartHeaders.contentLength"];
                 /** @description BLAKE3 checksum of the plaintext part. */
@@ -7477,6 +8049,66 @@ export interface operations {
             };
         };
     };
+    authorizePublicShareDownload: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Share-Password"?: components["parameters"]["SharePasswordHeader"];
+            };
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description There is no content to send for this request, but the headers may be useful. */
+            204: {
+                headers: {
+                    "Set-Cookie": string;
+                    "Cache-Control": "no-store";
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Access is unauthorized. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description The server cannot find the requested resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Client error */
+            410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Client error */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
     getPublicShare: {
         parameters: {
             query?: never;
@@ -7631,7 +8263,9 @@ export interface operations {
                 fileId: components["schemas"]["Uuid"];
                 fileName: string;
             };
-            cookie?: never;
+            cookie?: {
+                teldrive_share_download?: components["parameters"]["ShareDownloadCookie"];
+            };
         };
         requestBody?: never;
         responses: {
@@ -7738,7 +8372,9 @@ export interface operations {
                 fileId: components["schemas"]["Uuid"];
                 fileName: string;
             };
-            cookie?: never;
+            cookie?: {
+                teldrive_share_download?: components["parameters"]["ShareDownloadCookie"];
+            };
         };
         requestBody?: never;
         responses: {
@@ -7816,7 +8452,9 @@ export interface operations {
                 token: string;
                 fileName: string;
             };
-            cookie?: never;
+            cookie?: {
+                teldrive_share_download?: components["parameters"]["ShareDownloadCookie"];
+            };
         };
         requestBody?: never;
         responses: {
@@ -7922,7 +8560,9 @@ export interface operations {
                 token: string;
                 fileName: string;
             };
-            cookie?: never;
+            cookie?: {
+                teldrive_share_download?: components["parameters"]["ShareDownloadCookie"];
+            };
         };
         requestBody?: never;
         responses: {
@@ -8000,7 +8640,9 @@ export interface operations {
                 token: string;
                 fileId: components["schemas"]["Uuid"];
             };
-            cookie?: never;
+            cookie?: {
+                teldrive_share_download?: components["parameters"]["ShareDownloadCookie"];
+            };
         };
         requestBody?: never;
         responses: {
@@ -8106,7 +8748,9 @@ export interface operations {
                 token: string;
                 fileId: components["schemas"]["Uuid"];
             };
-            cookie?: never;
+            cookie?: {
+                teldrive_share_download?: components["parameters"]["ShareDownloadCookie"];
+            };
         };
         requestBody?: never;
         responses: {
@@ -8183,7 +8827,9 @@ export interface operations {
             path: {
                 token: string;
             };
-            cookie?: never;
+            cookie?: {
+                teldrive_share_download?: components["parameters"]["ShareDownloadCookie"];
+            };
         };
         requestBody?: never;
         responses: {
@@ -8288,7 +8934,9 @@ export interface operations {
             path: {
                 token: string;
             };
-            cookie?: never;
+            cookie?: {
+                teldrive_share_download?: components["parameters"]["ShareDownloadCookie"];
+            };
         };
         requestBody?: never;
         responses: {

@@ -4,6 +4,7 @@ import { lazy, Suspense, useState, useEffect, useRef, useCallback } from "react"
 import { apiFetch } from "@/api/client";
 import { userMessage } from "@/api/errors";
 import type { FileEntry } from "@/api/types";
+import { PlaybackStatistics } from "./playback-statistics";
 import { CastDialog } from "./cast-dialog";
 import type { AirPlayVideo } from "@/lib/casting";
 
@@ -42,6 +43,7 @@ export function CompatibleMedia({
   kind: "audio" | "video";
   session?: PlaybackSession;
 }) {
+  const [statisticsOpen, setStatisticsOpen] = useState(false);
   const [grant, setGrant] = useState(session);
   const [source, setSource] = useState(url);
   const [converted, setConverted] = useState(false);
@@ -73,7 +75,7 @@ export function CompatibleMedia({
     return next;
   }, [file.id, session]);
   useEffect(() => {
-    if (kind !== "video") return;
+
     let active = true;
     void ensureGrant()
       .then(async (next) => {
@@ -243,7 +245,14 @@ export function CompatibleMedia({
           </div>
         )}
       </div>
+      {statisticsOpen && <PlaybackStatistics file={file} root={root} converted={converted} tracks={tracks} />}
       <div className="relative z-10 flex max-h-[45vh] shrink-0 flex-wrap items-center gap-3 overflow-y-auto border-t border-white/20 bg-black/90 p-3">
+        <Button variant="secondary" aria-pressed={statisticsOpen} onPress={() => setStatisticsOpen(!statisticsOpen)}>{t("Desarrollador · estadísticas")}</Button>
+        {kind === "video" && <Button variant="secondary" onPress={() => {
+          if (document.fullscreenElement) void document.exitFullscreen().catch(() => setError(t("No se pudo salir de pantalla completa.")));
+          else if (root.current?.requestFullscreen) void root.current.requestFullscreen().catch(() => setError(t("No se pudo activar la pantalla completa.")));
+          else { const video = getVideo() as (AirPlayVideo & {webkitEnterFullscreen?: () => void}) | null; video?.webkitEnterFullscreen?.(); }
+        }}>{t("Pantalla completa")}</Button>}
         {kind === "video" ? (
           <>
             <Button

@@ -28,21 +28,39 @@ export function SettingsPageHeader({
 export function SettingsSection({
   title,
   description,
+  actions,
   children,
 }: {
   title: string;
   description?: string;
+  actions?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <Card className="gap-0 overflow-hidden border border-border bg-surface shadow-none">
       <Card.Header className="flex-col items-start gap-1 border-border border-b px-5 py-4">
-        <Card.Title className="text-sm font-semibold">{title}</Card.Title>
-        {description ? (
-          <Card.Description className="max-w-2xl text-xs leading-relaxed">
-            {description}
-          </Card.Description>
-        ) : null}
+        {actions ? (
+          <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 space-y-1">
+              <Card.Title className="text-sm font-semibold">{title}</Card.Title>
+              {description ? (
+                <Card.Description className="max-w-2xl text-xs leading-relaxed">
+                  {description}
+                </Card.Description>
+              ) : null}
+            </div>
+            <div className="shrink-0">{actions}</div>
+          </div>
+        ) : (
+          <>
+            <Card.Title className="text-sm font-semibold">{title}</Card.Title>
+            {description ? (
+              <Card.Description className="max-w-2xl text-xs leading-relaxed">
+                {description}
+              </Card.Description>
+            ) : null}
+          </>
+        )}
       </Card.Header>
       <Card.Content className="p-0">{children}</Card.Content>
     </Card>

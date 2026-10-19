@@ -124,6 +124,102 @@ model UserProfile {
   createdAt: utcDateTime;
 }
 
+enum ThemePreference {
+  system: "system",
+  light: "light",
+  dark: "dark",
+}
+
+enum InterfaceLocale {
+  en: "en",
+  es: "es",
+  ptBR: "pt-BR",
+  ru: "ru",
+  fr: "fr",
+  de: "de",
+  zhCN: "zh-CN",
+  it: "it",
+  ja: "ja",
+  ar: "ar",
+}
+
+model UploadPreferences {
+  /** Encrypt new browser uploads and URL imports by default. */
+  encryption: boolean;
+
+  conflictPolicy: NameConflictPolicy;
+
+  /** Number of browser uploads that run at the same time. */
+  @minValue(1)
+  @maxValue(12)
+  concurrency: int32;
+
+  /** Preferred part size in bytes; a multiple of 16 MiB between 16 MiB and 2 GiB. */
+  @minValue(16777216)
+  @maxValue(2147483648)
+  preferredPartSize: int64;
+}
+
+model UploadPreferencesUpdate {
+  encryption?: boolean;
+  conflictPolicy?: NameConflictPolicy;
+
+  @minValue(1)
+  @maxValue(12)
+  concurrency?: int32;
+
+  /** Preferred part size in bytes; a multiple of 16 MiB between 16 MiB and 2 GiB. */
+  @minValue(16777216)
+  @maxValue(2147483648)
+  preferredPartSize?: int64;
+}
+
+/** Sort keys offered by the web file browser; a subset of FileSort. */
+enum FileBrowserSort {
+  name: "name",
+  updatedAt: "updatedAt",
+  size: "size",
+}
+
+model FileBrowserPreferences {
+  sort: FileBrowserSort;
+  order: SortOrder;
+}
+
+model FileBrowserPreferencesUpdate {
+  sort?: FileBrowserSort;
+  order?: SortOrder;
+}
+
+model AppearancePreferences {
+  theme: ThemePreference;
+
+  /** Interface language; absent until the user picks one, so clients fall back to browser detection. */
+  locale?: InterfaceLocale;
+}
+
+model AppearancePreferencesUpdate {
+  theme?: ThemePreference;
+  locale?: InterfaceLocale;
+}
+
+/** Per-user web UI preferences shared by every browser and device. */
+model UserPreferences {
+  uploads: UploadPreferences;
+  files: FileBrowserPreferences;
+  appearance: AppearancePreferences;
+
+  /** Last explicit change; absent while every value is still the server default. */
+  updatedAt?: utcDateTime;
+}
+
+/** Partial update; omitted groups and fields keep their stored values. */
+model UserPreferencesUpdate {
+  uploads?: UploadPreferencesUpdate;
+  files?: FileBrowserPreferencesUpdate;
+  appearance?: AppearancePreferencesUpdate;
+}
+
 model ProfilePhotoResponse {
   @statusCode
   statusCode: 200;
@@ -341,6 +437,21 @@ namespace Account {
     | EmptyResponse<204>
     | ErrorResponse<401>
     | ErrorResponse<429>;
+
+  /** Return the authenticated user's web UI preferences, with server defaults for unset values. */
+  @get
+  @route("/me/preferences")
+  @operationId("getUserPreferences")
+  op getPreferences(): JsonResponse<200, UserPreferences> | ErrorResponse<401>;
+
+  /** Update a subset of the authenticated user's web UI preferences. */
+  @patch
+  @route("/me/preferences")
+  @operationId("updateUserPreferences")
+  op updatePreferences(@body body: UserPreferencesUpdate):
+    | JsonResponse<200, UserPreferences>
+    | ErrorResponse<401>
+    | ErrorResponse<422>;
   /** Revoke the current session. */
   @post
   @route("/auth/logout")

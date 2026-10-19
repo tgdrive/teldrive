@@ -4,6 +4,15 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { FileTrigger, type Selection } from "react-aria-components";
 import { toast } from "sonner";
+import { apiFetch } from "@/api/client";
+import { ApiError, userMessage } from "@/api/errors";
+import type { FileEntry, PublicShare } from "@/api/types";
+import { AppDialog } from "@/components/dialogs/app-dialog";
+import { Page, PageContent } from "@/components/page";
+import { copyText } from "@/features/files/download";
+import { FileBrowser, type FileBrowserView } from "@/features/files/file-browser";
+import { newIdempotencyKey } from "@/features/shared/idempotency";
+import { useFormatBytes } from "@/lib/format";
 import DownloadIcon from "~icons/gravity-ui/arrow-down-to-line";
 import UploadIcon from "~icons/gravity-ui/arrow-up-from-line";
 import LinkIcon from "~icons/gravity-ui/link";
@@ -11,17 +20,9 @@ import PencilIcon from "~icons/gravity-ui/pencil";
 import PlusIcon from "~icons/gravity-ui/plus";
 import TrashIcon from "~icons/gravity-ui/trash-bin";
 import CloseIcon from "~icons/gravity-ui/xmark";
-import { apiFetch } from "@/api/client";
-import { ApiError, userMessage } from "@/api/errors";
-import type { FileEntry, PublicShare } from "@/api/types";
 import { FilePreviewDialog, isPreviewable } from "@/components/file-preview-dialog";
 import { playbackUrl, type PlaybackSession } from "@/components/viewers/compatible-media";
-import { AppDialog } from "@/components/dialogs/app-dialog";
-import { Page, PageContent } from "@/components/page";
-import { FileBrowser, formatFileBytes, type FileBrowserView } from "@/features/files/file-browser";
-import { copyText } from "@/features/files/download";
 import { nativeFileDownload } from "@/lib/mobile";
-import { newIdempotencyKey } from "@/features/shared/idempotency";
 
 export const Route = createFileRoute("/share/$token")({
   component: PublicSharePage,
@@ -50,6 +51,8 @@ function PublicSharePage() {
   const [renameFile, setRenameFile] = useState<FileEntry>();
   const [renameName, setRenameName] = useState("");
   const [uploading, setUploading] = useState(false);
+
+  const formatBytes = useFormatBytes();
   const editable = share?.permission === "edit" && share.file.kind === "folder";
   const selectedIds =
     selectedKeys === "all" ? items.map((item) => item.id) : Array.from(selectedKeys, String);
@@ -127,13 +130,13 @@ function PublicSharePage() {
 
   useEffect(() => setSelectedKeys(new Set()), [path]);
 
-  const publicContentUrl = (file: FileEntry) => {
+  // API path relative to the API base, i.e. without the "/api" prefix that apiFetch adds.
+  const publicContentPath = (file: FileEntry) => {
     const isRootFile = share?.file.kind === "file" && file.id === share.file.id;
     const fileName = encodeURIComponent(file.name);
-    const endpoint = isRootFile
+    return isRootFile
       ? `/v1/public/shares/${encodeURIComponent(token)}/content/${fileName}`
       : `/v1/public/shares/${encodeURIComponent(token)}/files/${encodeURIComponent(file.id)}/content/${fileName}`;
-    return new URL(`/api${endpoint}`, window.location.origin).toString();
   };
 
   const playback = async (file: FileEntry) => {
@@ -147,14 +150,22 @@ function PublicSharePage() {
     sessions.current.set(file.id, session);
     return session;
   };
+  // Absolute, shareable URL (includes the "/api" prefix). Only for copying/linking, never pass it
+  // through apiFetch, which would prepend "/api" a second time.
+  const publicContentUrl = (file: FileEntry) =>
+    new URL(`/api${publicContentPath(file)}`, window.location.origin).toString();
 
   const download = async (file: FileEntry) => {
     setError(undefined);
     try {
-      const session = await playback(file);
-      const url = new URL(playbackUrl(session.ticket), window.location.origin);
+      if (share?.passwordProtected) {
+        await apiFetch(`/v1/public/shares/${encodeURIComponent(token)}/download-session`, {
+          method: "POST", headers: shareHeaders(activePassword),
+        });
+      }
+      const url = new URL(publicContentUrl(file));
       url.searchParams.set("download", "1");
-      if (await nativeFileDownload(url.toString(), file.name)) return;
+      if (await nativeFileDownload(url.toString(), file.name, shareHeaders(activePassword))) return;
       const anchor = document.createElement("a");
       anchor.href = url.toString();
       anchor.download = file.name;
@@ -265,7 +276,9 @@ function PublicSharePage() {
       setSelectedKeys(new Set());
       await refreshItems();
       toast.success(
-        `${selectedFiles.length} elemento${selectedFiles.length === 1 ? "" : "s"} enviado a la papelera`,
+        t(selectedFiles.length === 1 ? "files.trashedOne" : "files.trashedMany", {
+          count: selectedFiles.length,
+        }),
       );
     } catch (cause) {
       toast.error(t("No se pudieron mover los elementos a la papelera"), {
@@ -323,7 +336,7 @@ function PublicSharePage() {
         },
       );
       await refreshItems();
-      toast.success(`${file.name} uploaded`);
+      toast.success(t("{name} uploaded", { name: file.name }));
     } catch (cause) {
       if (uploadId) {
         void apiFetch(
@@ -351,13 +364,13 @@ function PublicSharePage() {
             <p className="text-sm font-semibold">Teldrive</p>
             <p className="truncate text-xs text-muted">
               {share
-                ? `${share.file.name} · ${share.file.kind === "folder" ? t("Carpeta compartida") : formatFileBytes(share.file.size ?? 0)}`
+                ? `${share.file.name} · ${share.file.kind === "folder" ? t("Carpeta compartida") : formatBytes(share.file.size ?? 0)}`
                 : t("Elemento compartido")}
             </p>
           </div>
           {share ? (
             <span className="text-xs font-medium capitalize text-muted">
-              {share.permission} access
+              {t(share.permission === "read" ? "pub.accessRead" : "pub.accessEdit")}
             </span>
           ) : null}
         </div>
@@ -452,9 +465,9 @@ function PublicSharePage() {
                   selectionOverlay={
                     selectedFiles.length ? (
                       <div className="pointer-events-none absolute inset-x-0 bottom-4 z-30 flex justify-center px-4">
-                        <div className="pointer-events-auto flex max-w-full items-center gap-1.5 overflow-x-auto rounded-full border border-border bg-surface/95 p-1.5 shadow-xl backdrop-blur">
+                        <div className="pointer-events-auto flex min-w-0 max-w-full flex-wrap items-center justify-center gap-1.5 rounded-2xl border border-border bg-surface/95 p-1.5 shadow-xl backdrop-blur @2xl/file-browser:rounded-full [&>button]:shrink-0">
                           <span className="shrink-0 rounded-full bg-accent/10 px-3 py-2 text-sm font-medium text-accent">
-                            {selectedFiles.length} seleccionados
+                            {t("{count} selected", { count: selectedFiles.length })}
                           </span>
                           {editable && singleSelected ? (
                             <Button

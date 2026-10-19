@@ -17,6 +17,8 @@ export function useFileActions() {
   const bulkMoveMutation = $api.useMutation("post", "/v1/files/bulk/move");
   const bulkSpamMutation = $api.useMutation("post", "/v1/files/bulk/spam");
   const bulkTrashMutation = $api.useMutation("post", "/v1/files/bulk/trash");
+  const bookmarkMutation = $api.useMutation("post", "/v1/files/bookmarks");
+  const removeBookmarksMutation = $api.useMutation("delete", "/v1/files/bookmarks");
 
   async function invalidateFiles() {
     await Promise.all([
@@ -145,6 +147,15 @@ export function useFileActions() {
     return result;
   }
 
+  async function bulkSpam(fileIds: string[]) {
+    const result = await bulkSpamMutation.mutateAsync({
+      params: { header: { "Idempotency-Key": newIdempotencyKey() } },
+      body: { fileIds },
+    });
+    await invalidateFiles();
+    return result;
+  }
+
   async function bulkTrash(fileIds: string[]) {
     const result = await bulkTrashMutation.mutateAsync({
       params: { header: { "Idempotency-Key": newIdempotencyKey() } },
@@ -154,11 +165,14 @@ export function useFileActions() {
     return result;
   }
 
-  async function bulkSpam(fileIds: string[]) {
-    const result = await bulkSpamMutation.mutateAsync({
-      params: { header: { "Idempotency-Key": newIdempotencyKey() } },
-      body: { fileIds },
-    });
+  async function bookmarkFiles(fileIds: string[]) {
+    const result = await bookmarkMutation.mutateAsync({ body: { fileIds } });
+    await invalidateFiles();
+    return result;
+  }
+
+  async function removeBookmarks(fileIds: string[]) {
+    const result = await removeBookmarksMutation.mutateAsync({ body: { fileIds } });
     await invalidateFiles();
     return result;
   }
@@ -188,8 +202,10 @@ export function useFileActions() {
 
     cleanTrashMutation,
     bulkMoveMutation,
-    bulkTrashMutation,
     bulkSpamMutation,
+    bulkTrashMutation,
+    bookmarkMutation,
+    removeBookmarksMutation,
   ];
 
   return {
@@ -205,8 +221,10 @@ export function useFileActions() {
 
     cleanTrash,
     bulkMove,
-    bulkTrash,
     bulkSpam,
+    bulkTrash,
+    bookmarkFiles,
+    removeBookmarks,
     bulkRestore,
     pending: mutations.some((mutation) => mutation.isPending),
     error: mutations.find((mutation) => mutation.isError)?.error,

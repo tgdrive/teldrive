@@ -9,6 +9,7 @@ import PencilIcon from "~icons/gravity-ui/pencil";
 import CutIcon from "~icons/gravity-ui/scissors";
 import TrashIcon from "~icons/gravity-ui/trash-bin";
 import CloseIcon from "~icons/gravity-ui/xmark";
+import BookmarkIcon from "~icons/gravity-ui/bookmark";
 import type { FileEntry } from "../../api/types";
 
 export function FileSelectionToolbar({
@@ -16,8 +17,9 @@ export function FileSelectionToolbar({
   pending,
   onCut,
   onCopy,
+  onBookmark,
+  bookmarked = false,
   onRename,
-  onDuplicate,
   onShare,
   onDownload,
   onCopyDownloadLinks,
@@ -30,8 +32,9 @@ export function FileSelectionToolbar({
   pending: boolean;
   onCut?: () => void;
   onCopy?: () => void;
+  onBookmark?: () => void;
+  bookmarked?: boolean;
   onRename?: () => void;
-  onDuplicate?: () => void;
   onShare?: () => void;
   onDownload?: () => void;
   onCopyDownloadLinks?: () => void;
@@ -49,10 +52,10 @@ export function FileSelectionToolbar({
     <div className="pointer-events-none absolute inset-x-0 bottom-4 z-30 flex justify-center px-4">
       <fieldset
         aria-label={t("Acciones de archivos seleccionados")}
-        className="touch-action-toolbar pointer-events-auto flex max-w-full items-center gap-1.5 overflow-x-auto rounded-full border border-border bg-surface/95 p-1.5 shadow-xl backdrop-blur"
+        className="touch-action-toolbar pointer-events-auto flex min-w-0 max-w-full flex-wrap items-center justify-center gap-1.5 rounded-2xl border border-border bg-surface/95 p-1.5 shadow-xl backdrop-blur @2xl/file-browser:rounded-full [&>button]:shrink-0"
       >
         <span className="shrink-0 rounded-full bg-accent/10 px-3 py-2 text-sm font-medium text-accent">
-          {selectedCount} seleccionados
+          {t("{count} selected", { count: selectedCount })}
         </span>
         {onCut ? (
           <Button
@@ -78,6 +81,20 @@ export function FileSelectionToolbar({
             <CopyIcon className="size-4" />
           </Button>
         ) : null}
+        {onBookmark ? (
+          <Button
+            isIconOnly
+            size="sm"
+            variant="ghost"
+            aria-label={
+              bookmarked ? t("Remove bookmarks from selected items") : t("Bookmark selected items")
+            }
+            isDisabled={pending}
+            onPress={onBookmark}
+          >
+            <BookmarkIcon className="size-4" />
+          </Button>
+        ) : null}
         {singleSelectedFile && onRename ? (
           <Button
             isIconOnly
@@ -88,18 +105,6 @@ export function FileSelectionToolbar({
             onPress={onRename}
           >
             <PencilIcon className="size-4" />
-          </Button>
-        ) : null}
-        {singleSelectedFile && onDuplicate ? (
-          <Button
-            isIconOnly
-            size="sm"
-            variant="ghost"
-            aria-label={t("Duplicar elemento seleccionado")}
-            isDisabled={pending}
-            onPress={onDuplicate}
-          >
-            <CopyIcon className="size-4" />
           </Button>
         ) : null}
         {singleSelectedFile && onShare ? (

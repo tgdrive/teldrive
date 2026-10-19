@@ -8,33 +8,62 @@ import { queryClient } from "@/api/query-client";
 import type { components } from "@/api/schema";
 import { LinkButton } from "@/components/link-button";
 import { Page, PageHeader } from "@/components/page";
+import { useCountFormatter, useDateOnlyFormatter, useFormatBytes } from "@/lib/format";
 
 type StorageActivity = components["schemas"]["StorageActivity"];
 type StorageGrowthPoint = components["schemas"]["StorageGrowthPoint"];
 
-const CATEGORY_LABELS: Record<string, string> = {
-  archive: t("Archivos comprimidos"),
-  audio: t("Audio"),
-  document: t("Documentos"),
-  image: t("Imágenes"),
-  video: t("Vídeo"),
-  other: t("Otros"),
-};
+type TFunction = (key: string, vars?: Record<string, string | number>) => string;
 
-const ACTIVITY_LABELS: Record<string, string> = {
-  "file.created": t("Archivo añadido"),
-  "file.trashed": t("Archivo enviado a la papelera"),
-  "file.restored": t("Archivo restaurado"),
-  "file.purged": t("Archivo eliminado definitivamente"),
-  "upload.completed": t("Subida completada"),
-  "upload.aborted": t("Subida cancelada"),
-  "upload.expired": t("Subida vencida"),
-  "share.created": t("Enlace compartido creado"),
-  "share.deleted": t("Enlace compartido eliminado"),
-  "channel.created": t("Canal de almacenamiento añadido"),
-  "channel.updated": t("Canal de almacenamiento actualizado"),
-  "channel.deleted": t("Canal de almacenamiento retirado"),
-};
+function categoryLabel(t: TFunction, category: string) {
+  switch (category) {
+    case "archive":
+      return t("Archives");
+    case "audio":
+      return t("Audio");
+    case "document":
+      return t("Documentos");
+    case "image":
+      return t("Imágenes");
+    case "video":
+      return t("Vídeo");
+    case "other":
+      return t("Other");
+    default:
+      return category;
+  }
+}
+
+function activityLabel(t: TFunction, type: string) {
+  switch (type) {
+    case "file.created":
+      return t("Archivo añadido");
+    case "file.trashed":
+      return t("File moved to Trash");
+    case "file.restored":
+      return t("File restored");
+    case "file.purged":
+      return t("File permanently deleted");
+    case "upload.completed":
+      return t("Subida completada");
+    case "upload.aborted":
+      return t("Upload aborted");
+    case "upload.expired":
+      return t("Upload expired");
+    case "share.created":
+      return t("Share created");
+    case "share.deleted":
+      return t("Share removed");
+    case "channel.created":
+      return t("Storage channel added");
+    case "channel.updated":
+      return t("Storage channel updated");
+    case "channel.deleted":
+      return t("Canal de almacenamiento eliminado");
+    default:
+      return type;
+  }
+}
 
 export const Route = createFileRoute("/storage")({
   component: StoragePage,
@@ -48,6 +77,9 @@ export const Route = createFileRoute("/storage")({
 
 function StoragePage() {
   const { data } = $api.useSuspenseQuery("get", "/v1/storage/stats");
+
+  const formatBytes = useFormatBytes();
+  const formatCount = useCountFormatter();
   const summary = data.summary;
   const configuredChannels = data.channels.length;
   const selectedChannels = data.channels.filter((channel) => channel.selected).length;
@@ -66,27 +98,31 @@ function StoragePage() {
         <StatCard
           label={t("Total almacenado")}
           value={formatBytes(summary.logicalBytes)}
-          detail={t("{0} añadidos hoy", [formatBytes(data.growth.at(-1)?.addedBytes ?? 0)])}
+          detail={t("{bytes} added today", {
+            bytes: formatBytes(data.growth.at(-1)?.addedBytes ?? 0),
+          })}
         />
         <StatCard
           label={t("Archivos activos")}
-          value={summary.activeFiles.toLocaleString()}
-          detail={`${summary.activeFolders.toLocaleString()} carpetas`}
+          value={formatCount.format(summary.activeFiles)}
+          detail={t("{count} folders", { count: formatCount.format(summary.activeFolders) })}
         />
         <StatCard
           label={t("Papelera")}
           value={formatBytes(summary.trashBytes)}
-          detail={`${summary.trashedFiles.toLocaleString()} archivos`}
+          detail={t("{count} files", { count: formatCount.format(summary.trashedFiles) })}
         />
         <StatCard
           label={t("Canales")}
-          value={configuredChannels.toLocaleString()}
-          detail={`${selectedChannels.toLocaleString()} seleccionados`}
+          value={formatCount.format(configuredChannels)}
+          detail={t("{count} selected", { count: formatCount.format(selectedChannels) })}
         />
         <StatCard
           label={t("Recuperable")}
           value={formatBytes(data.cleanup.totalReclaimableBytes)}
-          detail={`${data.cleanup.staleUploads.toLocaleString()} subidas abandonadas`}
+          detail={t("{count} stale uploads", {
+            count: formatCount.format(data.cleanup.staleUploads),
+          })}
         />
       </div>
 
@@ -122,12 +158,12 @@ function StoragePage() {
               return (
                 <div key={category.category} className="grid gap-2">
                   <div className="flex items-center justify-between gap-4 text-sm">
-                    <span className="font-medium">
-                      {CATEGORY_LABELS[category.category] ?? category.category}
-                    </span>
+                    <span className="font-medium">{categoryLabel(t, category.category)}</span>
                     <span className="text-muted">
-                      {formatBytes(category.totalSize)} · {category.totalFiles.toLocaleString()}{" "}
-                      archivos
+                      {t("{bytes} · {count} files", {
+                        bytes: formatBytes(category.totalSize),
+                        count: formatCount.format(category.totalFiles),
+                      })}
                     </span>
                   </div>
                   <ProgressTrack value={percent} label={`${category.category} storage`} />
@@ -172,7 +208,10 @@ function StoragePage() {
                         )}
                       </div>
                       <div className="mt-1 text-xs text-muted">
-                        {channel.partCount.toLocaleString()} fragmentos · {percent.toFixed(1)}%
+                        {t("{count} parts · {pct}%", {
+                          count: formatCount.format(channel.partCount),
+                          pct: percent.toFixed(1),
+                        })}
                       </div>
                     </div>
                   </div>
@@ -209,7 +248,9 @@ function StoragePage() {
             <MetricRow
               label={t("Subidas por fragmentos abandonadas")}
               value={formatBytes(data.cleanup.staleUploadBytes)}
-              detail={`${data.cleanup.staleUploads.toLocaleString()} sesiones`}
+              detail={t("{count} sessions", {
+                count: formatCount.format(data.cleanup.staleUploads),
+              })}
             />
             <MetricRow
               label={t("Total que puedes liberar")}
@@ -303,21 +344,24 @@ function MetricRow({
 }
 
 function ActivityRow({ activity }: { activity: StorageActivity }) {
+  const formatDateOnly = useDateOnlyFormatter();
   return (
     <div className="flex items-start justify-between gap-4 px-4 py-3">
       <div className="min-w-0">
-        <div className="text-sm font-medium">{ACTIVITY_LABELS[activity.type] ?? activity.type}</div>
+        <div className="text-sm font-medium">{activityLabel(t, activity.type)}</div>
         <div className="truncate text-xs text-muted">{activity.label}</div>
       </div>
       <time className="shrink-0 text-xs text-muted" dateTime={activity.occurredAt}>
-        {formatRelative(activity.occurredAt)}
+        {formatRelative(t, formatDateOnly, activity.occurredAt)}
       </time>
     </div>
   );
 }
 
 function StorageGrowthChart({ points }: { points: StorageGrowthPoint[] }) {
-  if (points.length === 0) return <EmptyCopy>{t("No hay historial de almacenamiento.")}</EmptyCopy>;
+  const formatBytes = useFormatBytes();
+  const formatDateOnly = useDateOnlyFormatter();
+  if (points.length === 0) return <EmptyCopy>{t("No storage history is available.")}</EmptyCopy>;
   const width = 960;
   const height = 220;
   const padding = 18;
@@ -374,9 +418,9 @@ function StorageGrowthChart({ points }: { points: StorageGrowthPoint[] }) {
         </svg>
       </div>
       <div className="flex items-center justify-between text-xs text-muted">
-        <span>{new Date(points[0].day).toLocaleDateString()}</span>
+        <span>{formatDateOnly.format(new Date(points[0].day))}</span>
         <span>{formatBytes(points.at(-1)?.logicalBytes ?? 0)}</span>
-        <span>{new Date(points.at(-1)?.day ?? points[0].day).toLocaleDateString()}</span>
+        <span>{formatDateOnly.format(new Date(points.at(-1)?.day ?? points[0].day))}</span>
       </div>
     </div>
   );
@@ -386,21 +430,17 @@ function EmptyCopy({ children }: { children: React.ReactNode }) {
   return <div className="px-4 py-8 text-center text-sm text-muted">{children}</div>;
 }
 
-function formatBytes(bytes: number) {
-  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB", "TB", "PB"];
-  const power = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-  const value = bytes / 1024 ** power;
-  return `${value.toFixed(value >= 100 || power === 0 ? 0 : value >= 10 ? 1 : 2)} ${units[power]}`;
-}
-
-function formatRelative(value: string) {
+function formatRelative(
+  t: (key: string, vars?: Record<string, string | number>) => string,
+  formatDateOnly: Intl.DateTimeFormat,
+  value: string,
+) {
   const delta = Math.max(0, Date.now() - new Date(value).getTime());
   const minutes = Math.floor(delta / 60_000);
-  if (minutes < 1) return "ahora";
-  if (minutes < 60) return `hace ${minutes} min`;
+  if (minutes < 1) return t("just now");
+  if (minutes < 60) return t("{m}m ago", { m: minutes });
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `hace ${hours} h`;
+  if (hours < 24) return t("{h}h ago", { h: hours });
   const days = Math.floor(hours / 24);
-  return days < 7 ? t("hace {0} días", [days]) : new Date(value).toLocaleDateString();
+  return days < 7 ? t("{d}d ago", { d: days }) : formatDateOnly.format(new Date(value));
 }

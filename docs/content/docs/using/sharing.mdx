@@ -18,6 +18,10 @@ The share URL/token is a credential. `edit` shares allow writes under the shared
 
 Password-protected shares use `X-Share-Password` for API clients.
 
+Browser downloads stream directly to the browser's download manager, including password-protected shares; the page does not buffer the entire file in memory. Before a protected download, the UI exchanges the password for a 15-minute, share-scoped `HttpOnly` cookie (`Secure` on HTTPS). This cookie authorizes file content only, not listing or editing, and the password never appears in the download URL.
+
+Changing the password, revoking the share, reaching its download limit, or letting the share expire invalidates subsequent download requests. Cookie expiry does not interrupt an already-running stream; starting another download obtains a fresh cookie.
+
 ## User grants
 
 For another account on the same Teldrive server, grant `read` or `edit` access instead of creating a public link. Recipients see grants under **Shared with me**.

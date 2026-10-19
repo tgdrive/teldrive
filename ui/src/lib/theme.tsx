@@ -1,5 +1,6 @@
 import { t } from "@/lib/localization";
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
+import { hasCachedPreferences, usePreferences, useUpdatePreferences } from "@/lib/preferences";
 
 type Theme = "light" | "dark";
 export type ThemeMode = Theme | "system";
@@ -59,7 +60,12 @@ function readPreferences(): Preferences {
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
+  const serverTheme = usePreferences()?.appearance.theme;
+  const { mutate: updatePreferences } = useUpdatePreferences();
   const [preferences, update] = useState(readPreferences);
+  useEffect(() => {
+    if (serverTheme) update((previous) => previous.mode === serverTheme ? previous : { ...previous, mode: serverTheme });
+  }, [serverTheme]);
   const [systemDark, setSystemDark] = useState(
     () => matchMedia("(prefers-color-scheme: dark)").matches,
   );
@@ -103,12 +109,18 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
   }, [preferences, resolvedTheme]);
   const setPreferences = useCallback(
-    (next: Partial<Preferences>) => update((previous) => ({ ...previous, ...next })),
-    [],
+    (next: Partial<Preferences>) => {
+      update((previous) => ({ ...previous, ...next }));
+      if (next.mode && hasCachedPreferences()) updatePreferences({ appearance: { theme: next.mode } });
+    },
+    [updatePreferences],
   );
   const setTheme = useCallback(
-    (mode: ThemeMode) => update((previous) => ({ ...previous, mode })),
-    [],
+    (mode: ThemeMode) => {
+      update((previous) => ({ ...previous, mode }));
+      if (hasCachedPreferences()) updatePreferences({ appearance: { theme: mode } });
+    },
+    [updatePreferences],
   );
   return (
     <ThemeContext.Provider value={{ ...preferences, resolvedTheme, setTheme, setPreferences }}>

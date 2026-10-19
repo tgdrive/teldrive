@@ -9,6 +9,14 @@ type AbortUploadRes interface {
 	abortUploadRes()
 }
 
+type AuthorizePublicShareDownloadRes interface {
+	authorizePublicShareDownloadRes()
+}
+
+type BookmarkFilesRes interface {
+	bookmarkFilesRes()
+}
+
 type BulkMoveFilesRes interface {
 	bulkMoveFilesRes()
 }
@@ -197,6 +205,10 @@ type GetFileCategoryStatisticsRes interface {
 	getFileCategoryStatisticsRes()
 }
 
+type GetFilePlaybackStatisticsRes interface {
+	getFilePlaybackStatisticsRes()
+}
+
 type GetFileRes interface {
 	getFileRes()
 }
@@ -243,6 +255,10 @@ type GetUploadRes interface {
 
 type GetUploadStatisticsRes interface {
 	getUploadStatisticsRes()
+}
+
+type GetUserPreferencesRes interface {
+	getUserPreferencesRes()
 }
 
 type HeadFileLegacyRes interface {
@@ -373,6 +389,14 @@ type PlayOnCastingDeviceRes interface {
 	playOnCastingDeviceRes()
 }
 
+type ProvisionBotRes interface {
+	provisionBotRes()
+}
+
+type ProvisionBotsRes interface {
+	provisionBotsRes()
+}
+
 type PurgeFileRes interface {
 	purgeFileRes()
 }
@@ -399,6 +423,10 @@ type RefreshCookieSessionRes interface {
 
 type RefreshSessionRes interface {
 	refreshSessionRes()
+}
+
+type RemoveFileBookmarksRes interface {
+	removeFileBookmarksRes()
 }
 
 type ResetPeriodicJobsRes interface {
@@ -515,4 +543,8 @@ type UpdatePublicShareFileRes interface {
 
 type UpdateShareRes interface {
 	updateShareRes()
+}
+
+type UpdateUserPreferencesRes interface {
+	updateUserPreferencesRes()
 }

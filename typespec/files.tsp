@@ -138,6 +138,16 @@ model FileListQuery {
 
   @query
   order?: SortOrder = SortOrder.ascending;
+
+  @query
+  /** Restrict results to the authenticated user's bookmarked files and folders. */
+  bookmarked?: boolean = false;
+}
+
+model BookmarkFilesRequest {
+  @minItems(1)
+  @maxItems(500)
+  fileIds: Uuid[];
 }
 
 model FileBulkTrashRequest {
@@ -331,6 +341,24 @@ namespace Files {
     | ErrorResponse<401>
     | ErrorResponse<404>
     | ErrorResponse<422>;
+
+  /** Bookmark selected active files and folders. */
+  @post
+  @route("/bookmarks")
+  @operationId("bookmarkFiles")
+  op bookmark(@body body: BookmarkFilesRequest):
+    | EmptyResponse<204>
+    | ErrorResponse<401>
+    | ErrorResponse<404>
+    | ErrorResponse<422>;
+
+  /** Remove bookmarks from selected files and folders. */
+  @delete
+  @route("/bookmarks")
+  @operationId("removeFileBookmarks")
+  op removeBookmarks(@body body: BookmarkFilesRequest):
+    | EmptyResponse<204>
+    | ErrorResponse<401>;
 
   /** Return file or folder metadata. */
   @get

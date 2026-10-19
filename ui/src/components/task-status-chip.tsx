@@ -1,26 +1,24 @@
 import { t } from "@/lib/localization";
 import { Chip } from "@heroui/react";
-
 const ACTIVE_STATUSES = new Set(["pending", "scheduled", "available", "running", "retryable"]);
 
-export function taskStatusLabel(status: string) {
-  return (
-    (
-      {
-        pending: t("Pendiente"),
-        queued: t("En cola"),
-        paused: t("En pausa"),
-        failed: t("Fallida"),
-        scheduled: t("Programada"),
-        available: t("Disponible"),
-        running: t("En ejecución"),
-        retryable: t("Reintentable"),
-        cancelled: t("Cancelada"),
-        discarded: t("Descartada"),
-        completed: t("Completada"),
-      } as Record<string, string>
-    )[status] ?? status
-  );
+const KNOWN_STATUSES = new Set([
+  "pending",
+  "scheduled",
+  "available",
+  "running",
+  "retryable",
+  "cancelled",
+  "discarded",
+  "completed",
+]);
+
+export function taskStatusLabel(
+  t: (key: string, vars?: Record<string, string | number>) => string,
+  status: string,
+) {
+  if (KNOWN_STATUSES.has(status)) return t(`tasks.status.${status}`);
+  return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
 export function TaskStatusChip({ status, animate = true }: { status: string; animate?: boolean }) {
@@ -35,7 +33,7 @@ export function TaskStatusChip({ status, animate = true }: { status: string; ani
           ) : null}
           <span className="relative inline-flex size-2 rounded-full bg-current" />
         </span>
-        {taskStatusLabel(status)}
+        {taskStatusLabel(t, status)}
       </span>
     </Chip>
   );

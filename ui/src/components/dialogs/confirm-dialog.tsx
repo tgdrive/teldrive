@@ -1,7 +1,6 @@
 import { t } from "@/lib/localization";
 import { AlertDialog, Button } from "@heroui/react";
 import TrashBinIcon from "~icons/gravity-ui/trash-bin";
-
 interface ConfirmDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -10,6 +9,7 @@ interface ConfirmDialogProps {
   message: string;
   confirmLabel?: string;
   isPending?: boolean;
+  isDestructive?: boolean;
 }
 
 export function ConfirmDialog({
@@ -18,8 +18,9 @@ export function ConfirmDialog({
   onConfirm,
   title,
   message,
-  confirmLabel = t("Eliminar"),
+  confirmLabel,
   isPending = false,
+  isDestructive = true,
 }: ConfirmDialogProps) {
   return (
     <AlertDialog.Backdrop isOpen={open} onOpenChange={onOpenChange}>
@@ -27,9 +28,11 @@ export function ConfirmDialog({
         <AlertDialog.Dialog className="sm:max-w-[400px]">
           <AlertDialog.CloseTrigger />
           <AlertDialog.Header>
-            <AlertDialog.Icon status="danger">
-              <TrashBinIcon className="size-5" />
-            </AlertDialog.Icon>
+            {isDestructive && (
+              <AlertDialog.Icon status="danger">
+                <TrashBinIcon className="size-5" />
+              </AlertDialog.Icon>
+            )}
             <AlertDialog.Heading>{title}</AlertDialog.Heading>
           </AlertDialog.Header>
           <AlertDialog.Body>
@@ -40,13 +43,13 @@ export function ConfirmDialog({
               {t("Cancelar")}
             </Button>
             <Button
-              variant="danger"
+              variant={isDestructive ? "danger" : "primary"}
               isPending={isPending}
               onPress={() => {
                 onConfirm();
               }}
             >
-              {confirmLabel}
+              {confirmLabel ?? t("Borrar")}
             </Button>
           </AlertDialog.Footer>
         </AlertDialog.Dialog>

@@ -8,6 +8,7 @@ import { userMessage } from "@/api/errors";
 import type { FileCategory, FileEntry } from "@/api/types";
 import { ConfirmDialog } from "@/components/dialogs/confirm-dialog";
 import { EmptyState, Page, PageContent, PageHeader } from "@/components/page";
+import { useDateTimeFormatter } from "@/lib/format";
 import { FileTypeIcon } from "@/features/files/file-type-icon";
 import { useFileActions } from "@/features/files/mutations";
 import { useInfiniteFilePages } from "@/features/files/queries";
@@ -70,6 +71,8 @@ export function QuarantinePage({ spam = false }: { spam?: boolean }) {
   const refresh = () => Promise.all([query.refetch(), ...(spam ? [incoming.refetch()] : [])]);
   const [purging, setPurging] = useState<FileEntry>();
   const [cleaningTrash, setCleaningTrash] = useState(false);
+
+  const formatDateTime = useDateTimeFormatter();
 
   const restore = async (file: FileEntry) => {
     if (pending) return;
@@ -142,7 +145,7 @@ export function QuarantinePage({ spam = false }: { spam?: boolean }) {
                 isDisabled={pending}
                 onPress={() => setCleaningTrash(true)}
               >
-                <TrashIcon className="size-4" /> {" " + t("Vaciar papelera")}
+                <TrashIcon className="size-4" /> {` ${t("Vaciar papelera")}`}
               </Button>
             ) : null}
             <Button
@@ -151,7 +154,7 @@ export function QuarantinePage({ spam = false }: { spam?: boolean }) {
               isDisabled={pending}
               onPress={() => void refresh()}
             >
-              <RefreshIcon className="size-4" /> {" " + t("Actualizar")}
+              <RefreshIcon className="size-4" /> {` ${t("Actualizar")}`}
             </Button>
           </div>
         }
@@ -230,7 +233,7 @@ export function QuarantinePage({ spam = false }: { spam?: boolean }) {
         ) : null}
         {query.isError || (spam && incoming.isError) ? (
           <p role="alert" className="mb-4 text-danger">
-            {t("No se pudo consultar") + " "}
+            {`${t("No se pudo consultar")} `}
             {title}.{" "}
             <Button variant="secondary" onPress={() => void refresh()}>
               {t("Reintentar")}
@@ -280,12 +283,12 @@ export function QuarantinePage({ spam = false }: { spam?: boolean }) {
                       <p className="truncate text-sm font-medium">{file.name}</p>
                       <p className="mt-0.5 text-xs text-muted">
                         {spam ? t("Modificado") : t("Eliminado")}{" "}
-                        {new Date(file.updatedAt).toLocaleString("es-ES")}
+                        {formatDateTime.format(new Date(file.updatedAt))}
                       </p>
                     </div>
                   </div>
                   <Chip size="sm" variant="tertiary" className="w-fit capitalize">
-                    {file.kind === "folder" ? t("Carpeta") : t("Archivo")}
+                    {t(file.kind === "folder" ? "trash.kindFolder" : "trash.kindFile")}
                   </Chip>
                   <div className="flex justify-end gap-2">
                     <Button

@@ -15,6 +15,7 @@ internal sealed class MediaSession : IAsyncDisposable
     private readonly string folder;
     private readonly CancellationTokenSource lifetime = new();
     private bool disposed;
+    public MediaTelemetry Telemetry { get; } = new();
     public string? Failure { get; private set; }
     public MediaSession(RuntimeSession runtime) { this.runtime = runtime; folder = Path.Combine(runtime.DataRoot, "players", Guid.NewGuid().ToString("N")); }
     public async Task StartAsync(RcloneRuntime rclone, string path, nint window, bool headless = false)
@@ -38,13 +39,16 @@ internal sealed class MediaSession : IAsyncDisposable
         if (!ready) throw new IOException(L.T("El streaming no respondió."));
         // Keep the short-lived credential out of process arguments and logs.
         await File.WriteAllTextAsync(Path.Combine(folder, "mpv.conf"), "http-header-fields=\"Authorization: Basic " + auth + "\"\n", lifetime.Token);
+        await File.WriteAllTextAsync(Path.Combine(folder, "input.conf"), "f script-message teldrive-fullscreen\nF11 script-message teldrive-fullscreen\nESC script-message teldrive-exit-fullscreen\nMBTN_LEFT_DBL script-message teldrive-fullscreen\ni script-message teldrive-statistics\nI script-message teldrive-statistics\n", lifetime.Token);
         var command = new ProcessStartInfo(Path.Combine(runtime.Components, "mpv", "mpv.exe")) { UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = folder };
         foreach (var arg in new[] {"--config-dir=" + folder, "--load-scripts=no", "--ytdl=no", "--access-references=no", "--load-unsafe-playlists=no", "--idle=no", "--keep-open=no", "--osc=yes", "--title=Teldrive multimedia"}) command.ArgumentList.Add(arg);
+        command.ArgumentList.Add("--input-ipc-server=" + Telemetry.PipeName);
         if (headless) { command.ArgumentList.Add("--vo=null"); command.ArgumentList.Add("--ao=null"); }
         else command.ArgumentList.Add("--wid=" + window.ToString());
         command.ArgumentList.Add(stream.Url.AbsoluteUri);
         lifetime.Token.ThrowIfCancellationRequested();
         player = Process.Start(command) ?? throw new IOException(L.T("No se pudo iniciar el reproductor integrado.")); owner.Attach(player);
+        Telemetry.Start();
         await player.WaitForExitAsync();
         if (player.ExitCode != 0) { Failure = L.T("mpv no pudo reproducir este archivo. Comprueba su integridad y conexión."); throw new IOException(Failure); }
     }
@@ -53,6 +57,6 @@ internal sealed class MediaSession : IAsyncDisposable
         if (disposed) return; disposed = true; lifetime.Cancel();
         try {
             foreach (var process in new[] {player, server}) { if (process is null) continue; if (!process.HasExited) { process.Kill(true); await process.WaitForExitAsync(); } process.Dispose(); }
-        } finally { owner.Dispose(); if (Directory.Exists(folder)) Directory.Delete(folder, true); }
+        } finally { await Telemetry.DisposeAsync(); owner.Dispose(); if (Directory.Exists(folder)) Directory.Delete(folder, true); }
     }
 }

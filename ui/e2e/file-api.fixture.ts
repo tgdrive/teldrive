@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import { installPreferencesApi } from "./fixtures/preferences";
 const now = "2026-07-22T12:00:00Z";
 const rootId = "11111111-1111-4111-8111-111111111111";
 export const alphaId = "22222222-2222-4222-8222-222222222222";
@@ -282,5 +283,6 @@ export async function installFileApi(page: Page) {
       json: { error: { code: "not_found", message: `${method} ${path}` } },
     });
   });
+  await installPreferencesApi(page);
 }
 

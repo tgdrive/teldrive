@@ -181,6 +181,9 @@ func TestLoginRefreshAPIKeyAndLogoutAgainstRealPostgres(t *testing.T) {
 	if _, err := service.AuthenticateAPIKey(ctx, createdKey.Secret); !errors.Is(err, ErrInvalidCredential) {
 		t.Fatalf("revoked API key error = %v", err)
 	}
+	if remaining, err := service.ListAPIKeys(ctx, ListAPIKeysInput{UserID: 1001}); err != nil || len(remaining) != 1 || remaining[0].ID == createdKey.Row.ID {
+		t.Fatalf("ListAPIKeys(after revoke) = %#v, %v", remaining, err)
+	}
 	secondKeyID, _ := dbtypes.GoogleUUID(secondKey.Row.ID)
 	if err := service.RevokeAPIKey(ctx, 1001, secondKeyID); err != nil {
 		t.Fatalf("RevokeAPIKey(second) error = %v", err)
@@ -340,6 +343,114 @@ type fakeQRLogin struct {
 	polls               int
 	username            string
 	completeOnFirstPoll bool
+}
+
+func TestQRPasswordRequiredSurvivesConcurrentAndRepeatedPolls(t *testing.T) {
+	db := testpostgres.New(t)
+	ctx := context.Background()
+	cipher, err := secureblob.NewWithKey(bytes.Repeat([]byte{6}, 32), bytes.NewReader(bytes.Repeat([]byte{8}, 24*20)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	gateway := &passwordQRLogin{}
+	cfg := Config{
+		SigningKey: "0123456789abcdef0123456789abcdef", Issuer: "test",
+		AccessTokenTTL: time.Hour, RefreshTokenTTL: 24 * time.Hour, LoginFlowTTL: 10 * time.Minute,
+	}
+	first, err := NewService(db.Pool, cipher, gateway, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := NewService(db.Pool, cipher, gateway, cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	flow, err := first.StartQR(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	type pollResult struct {
+		result *VerifyResult
+		err    error
+	}
+	results := make(chan pollResult, 2)
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	for _, service := range []*Service{first, second} {
+		wg.Go(func() {
+			<-start
+			result, err := service.PollQR(ctx, flow.ID)
+			results <- pollResult{result, err}
+		})
+	}
+	close(start)
+	wg.Wait()
+	close(results)
+	for poll := range results {
+		if poll.err != nil {
+			t.Fatal(poll.err)
+		}
+		if poll.result.QRFlow == nil || !poll.result.QRFlow.PasswordRequired || poll.result.QRFlow.ID != flow.ID {
+			t.Fatalf("concurrent poll result = %#v", poll.result)
+		}
+	}
+	for range 3 {
+		result, err := second.PollQR(ctx, flow.ID)
+		if err != nil || result.QRFlow == nil || !result.QRFlow.PasswordRequired {
+			t.Fatalf("repeated poll = %#v, %v", result, err)
+		}
+	}
+	if gateway.polls != 1 {
+		t.Fatalf("Telegram polls = %d, want only the initial poll", gateway.polls)
+	}
+	row, err := sqlcgen.New(db.Pool).GetTelegramLoginFlow(ctx, dbtypes.UUID(flow.ID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := cipher.Open("login-state", row.TelegramStateCiphertext)
+	if err != nil || !row.PasswordRequired || string(state) != "qr-password-state" {
+		t.Fatalf("persisted password state = %q, required=%v, err=%v", state, row.PasswordRequired, err)
+	}
+	if _, err := second.VerifyPassword(ctx, flow.ID, "wrong"); !errors.Is(err, ErrPasswordInvalid) {
+		t.Fatalf("wrong password error = %v", err)
+	}
+	completed, err := second.VerifyPassword(ctx, flow.ID, "correct-password")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if completed.Tokens == nil {
+		t.Fatal("password verification did not create a session")
+	}
+	identity, err := second.AuthenticateBearer(ctx, completed.Tokens.AccessToken)
+	if err != nil || identity.UserID != 1001 {
+		t.Fatalf("session identity = %#v, err=%v", identity, err)
+	}
+}
+
+type passwordQRLogin struct{ fakeQRLogin }
+
+func (f *passwordQRLogin) PollQR(context.Context, []byte) (LoginStep, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.polls++
+	if f.polls == 1 {
+		return LoginStep{State: []byte("qr-password-state"), PasswordRequired: true}, nil
+	}
+	// A consumed QR token must not overwrite the state needed for password verification.
+	return LoginStep{State: []byte("consumed-qr-state"), QRURL: "tg://login?token=consumed"}, nil
+}
+
+func (f *passwordQRLogin) VerifyPassword(_ context.Context, state []byte, password string) (LoginStep, error) {
+	if string(state) != "qr-password-state" {
+		return LoginStep{}, ErrLoginStateInvalid
+	}
+	if password != "correct-password" {
+		return LoginStep{}, ErrPasswordInvalid
+	}
+	return LoginStep{
+		User:    &TelegramUser{ID: 1001, DisplayName: "QR User", Username: "qruser"},
+		Session: []byte("qr-authorized-session"),
+	}, nil
 }
 
 func (f *fakeQRLogin) Start(context.Context, string) (LoginStep, error) {

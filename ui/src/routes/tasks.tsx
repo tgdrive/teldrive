@@ -1,3 +1,5 @@
+
+import AddIcon from "~icons/gravity-ui/plus";
 import { t } from "@/lib/localization";
 import { Button, Card, Chip, Input, ListBox, Popover, Select, Spinner } from "@heroui/react";
 import { createFileRoute, Link, stripSearchParams } from "@tanstack/react-router";
@@ -6,16 +8,15 @@ import { toast } from "sonner";
 import PrevIcon from "~icons/gravity-ui/chevron-left";
 import NextIcon from "~icons/gravity-ui/chevron-right";
 import FilterIcon from "~icons/gravity-ui/funnel";
-import AddIcon from "~icons/gravity-ui/plus";
 import TrashIcon from "~icons/gravity-ui/trash-bin";
 import { ConfirmDialog } from "../components/dialogs/confirm-dialog";
 import { EmptyState, Page, PageHeader, PageToolbar } from "../components/page";
-import { TaskLauncher } from "../components/task-launcher";
 import { TaskStatusChip } from "../components/task-status-chip";
 import type { components } from "@/api/schema";
 import { $api as api, fetchClient } from "@/api/client";
 import { queryClient } from "@/api/query-client";
 import { invalidateTaskQueries } from "@/api/tasks";
+import { useDateOnlyFormatter, useDateTimeFormatter } from "@/lib/format";
 
 type TaskOut = components["schemas"]["Job"];
 type TaskCounts = components["schemas"]["JobStatistics"];
@@ -29,14 +30,14 @@ const PAGE_SIZE = 20;
 const CANCELLABLE_STATUSES = ["pending", "scheduled", "available", "running", "retryable"];
 
 const STATUS_TABS = [
-  { key: "pending", label: t("Pendiente") },
-  { key: "scheduled", label: t("Programada") },
-  { key: "available", label: t("Disponible") },
-  { key: "running", label: t("En ejecución") },
-  { key: "retryable", label: t("Retryable") },
-  { key: "cancelled", label: t("Cancelada") },
-  { key: "discarded", label: t("Descartada") },
-  { key: "completed", label: t("Completada") },
+  { key: "pending" },
+  { key: "scheduled" },
+  { key: "available" },
+  { key: "running" },
+  { key: "retryable" },
+  { key: "cancelled" },
+  { key: "discarded" },
+  { key: "completed" },
 ] as const;
 
 export const Route = createFileRoute("/tasks")({
@@ -88,9 +89,11 @@ export const Route = createFileRoute("/tasks")({
 });
 
 function TasksPage() {
+  const [_composerOpen, setComposerOpen] = useState(false);
   const search = Route.useSearch();
   const navigate = Route.useNavigate();
   const qc = queryClient;
+
   const [cursor, setCursor] = useState<string | undefined>();
   const [cursorHistory, setCursorHistory] = useState<(string | undefined)[]>([]);
   const { data } = api.useSuspenseQuery("get", "/v1/jobs", {
@@ -107,7 +110,6 @@ function TasksPage() {
   const _queuesQuery = api.queryOptions("get", "/v1/jobs/queues");
   const { data: queuesData } = api.useSuspenseQuery("get", "/v1/jobs/queues");
 
-  const [composerOpen, setComposerOpen] = useState(false);
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [cleanupStatus, setCleanupStatus] = useState<
@@ -234,16 +236,12 @@ function TasksPage() {
     setDeletingId(null);
     if (error) {
       toast.error(
-        CANCELLABLE_STATUSES.includes(task.status)
-          ? t("No se pudo cancelar la tarea")
-          : t("No se pudo eliminar la tarea"),
+        t(CANCELLABLE_STATUSES.includes(task.status) ? "tasks.cancelFailed" : "tasks.removeFailed"),
       );
       return;
     }
     toast.success(
-      CANCELLABLE_STATUSES.includes(task.status)
-        ? t("Cancelación de tarea solicitada")
-        : t("Tarea eliminada"),
+      t(CANCELLABLE_STATUSES.includes(task.status) ? "tasks.cancelOk" : "tasks.removeOk"),
     );
     refreshTasks();
   };
@@ -256,7 +254,7 @@ function TasksPage() {
     });
     setCleaning(false);
     if (error) {
-      toast.error(t("No se pudieron limpiar las tareas {0} tareas", [cleanupStatus]));
+      toast.error(t("Failed to clean {status} tasks", { status: cleanupStatus }));
       return;
     }
 
@@ -265,7 +263,10 @@ function TasksPage() {
     setCursor(undefined);
     setCursorHistory([]);
     toast.success(
-      t("Eliminadas {0} {1} tarea{2}", [response.count, status, response.count === 1 ? "" : "s"]),
+      t(response.count === 1 ? "tasks.removedOne" : "tasks.removedMany", {
+        count: response.count,
+        status,
+      }),
     );
     refreshTasks();
   };
@@ -282,20 +283,10 @@ function TasksPage() {
             className="bg-accent text-accent-foreground"
             onPress={() => setComposerOpen(true)}
           >
-            <AddIcon className="size-3.5" /> {" " + t("Nueva tarea")}
+            <AddIcon className="size-3.5" /> {` ${t("Nueva tarea")}`}
           </Button>
         }
       />
-
-      {composerOpen && (
-        <TaskLauncher
-          onClose={() => setComposerOpen(false)}
-          onQueued={() => {
-            refreshTasks();
-            setComposerOpen(false);
-          }}
-        />
-      )}
 
       <PageToolbar className="items-stretch">
         <div className="flex min-w-0 flex-1 flex-col gap-2 md:flex-row md:items-center">
@@ -326,7 +317,7 @@ function TasksPage() {
                     isDisabled={(taskStats?.[purgeStatus] ?? 0) === 0}
                     onPress={() => setCleanupStatus(purgeStatus)}
                   >
-                    <TrashIcon className="size-3.5" /> {" " + t("Limpiar")}
+                    <TrashIcon className="size-3.5" /> {` ${t("Limpiar")}`}
                   </Button>
                 ) : null;
               })()}
@@ -383,15 +374,13 @@ function TasksPage() {
             isDisabled={cursorHistory.length === 0}
             onPress={goPrevious}
           >
-            <PrevIcon className="size-3.5" /> {" " + t("Anterior")}
+            <PrevIcon className="size-3.5" /> {` ${t("Anterior")}`}
           </Button>
           <span className="min-w-20 text-center text-xs text-muted">
-            {t("Página") + " "}
-            {cursorHistory.length + 1}
+            {t("Page {n}", { n: cursorHistory.length + 1 })}
           </span>
           <Button size="sm" variant="tertiary" isDisabled={!meta?.nextCursor} onPress={goNext}>
-            {t("Siguiente") + " "}
-            <NextIcon className="size-3.5" />
+            {t("Siguiente")} <NextIcon className="size-3.5" />
           </Button>
         </div>
       )}
@@ -400,10 +389,13 @@ function TasksPage() {
         open={cleanupStatus != null}
         onOpenChange={(open) => !open && setCleanupStatus(null)}
         onConfirm={cleanTasks}
-        title={t("Limpiar {0} tareas?", [cleanupStatus ?? ""])}
+        title={t("Clean {status} tasks?", { status: cleanupStatus ?? "" })}
         message={t(
-          "Esto elimina definitivamente los {0} {1} registros de tareas. Los otros estados no se modifican.",
-          [cleanupStatus ? (taskStats?.[cleanupStatus] ?? 0) : 0, cleanupStatus ?? ""],
+          "This permanently removes all {count} {status} task records. Other task statuses are not affected.",
+          {
+            count: cleanupStatus ? (taskStats?.[cleanupStatus] ?? 0) : 0,
+            status: cleanupStatus ?? "",
+          },
         )}
         confirmLabel={t("Limpiar")}
         isPending={cleaning}
@@ -427,6 +419,9 @@ function TaskRow({
 }) {
   const title = `${task.type} #${task.id}`;
   const canRetry = ["cancelled", "discarded", "retryable"].includes(task.status);
+
+  const formatDateTime = useDateTimeFormatter();
+  const formatDateOnly = useDateOnlyFormatter();
 
   return (
     <ListBox.Item
@@ -455,17 +450,18 @@ function TaskRow({
 
           <div className="mt-1.5 flex min-w-0 items-center gap-2 overflow-hidden text-[11px] text-muted sm:flex-wrap sm:gap-x-3 sm:gap-y-1">
             <span className="shrink-0">
-              {t("Cola") + " "}
-              {task.queue || "default"}
+              {t("{queue} queue", { queue: task.queue || "default" })}
             </span>
             <span className="shrink-0">{taskDuration(task)}</span>
-            <span className="truncate" title={formatDate(task.createdAt)}>
-              {formatRelativeDate(task.createdAt)}
+            <span className="truncate" title={formatDateTime.format(new Date(task.createdAt))}>
+              {formatRelativeDate(t, formatDateOnly, task.createdAt)}
             </span>
             {(task.attempt ?? 0) > 0 ? (
               <span className="hidden shrink-0 sm:inline lg:hidden">
-                {t("Intento") + " "}
-                {task.attempt} of {task.maxAttempts || "—"}
+                {t("Attempt {attempt} of {max}", {
+                  attempt: task.attempt,
+                  max: task.maxAttempts || "—",
+                })}
               </span>
             ) : null}
           </div>
@@ -487,7 +483,7 @@ function TaskRow({
               variant="primary"
               isPending={retryPending}
               onPress={onRetry}
-              aria-label={t("Reintentar {0}", [title])}
+              aria-label={t("Retry {title}", { title })}
             >
               {t("Reintentar")}
             </Button>
@@ -498,7 +494,7 @@ function TaskRow({
               variant="danger-soft"
               isPending={deletePending}
               onPress={onDelete}
-              aria-label={t("Cancelar {0}", [title])}
+              aria-label={t("Cancel {title}", { title })}
             >
               {t("Cancelar")}
             </Button>
@@ -509,7 +505,7 @@ function TaskRow({
               isIconOnly
               isPending={deletePending}
               onPress={onDelete}
-              aria-label={t("Eliminar {0}", [title])}
+              aria-label={t("Delete {title}", { title })}
             >
               <TrashIcon className="size-3.5" />
             </Button>
@@ -541,7 +537,7 @@ function TaskStatusSelect({
       <Select.Trigger className="h-8 min-h-8 py-1.5">
         <Select.Value>
           <div className="flex min-w-0 items-center justify-between gap-3">
-            <span className="truncate">{selected.label}</span>
+            <span className="truncate">{t(`tasks.status.${selected.key}`)}</span>
             <span className="text-xs tabular-nums text-muted">{counts?.[selected.key] ?? 0}</span>
           </div>
         </Select.Value>
@@ -550,7 +546,7 @@ function TaskStatusSelect({
       <Select.Popover>
         <ListBox>
           {STATUS_TABS.map((item) => (
-            <ListBox.Item key={item.key} id={item.key} textValue={item.label}>
+            <ListBox.Item key={item.key} id={item.key} textValue={t(`tasks.status.${item.key}`)}>
               <div className="flex w-full items-center justify-between gap-4">
                 <TaskStatusChip status={item.key} />
                 <span className="text-xs font-medium tabular-nums text-muted">
@@ -576,17 +572,27 @@ function QueueManager({ queues, onChanged }: { queues: TaskQueueOut[]; onChanged
     const { error } = await fetchClient.POST(endpoint, { params: { path: { queue: queue.name } } });
     setPendingQueue(null);
     if (error) {
-      toast.error(t("No se pudo {0} {1}", [queue.paused ? "reanudar" : "pausar", queue.name]));
+      toast.error(
+        t("Failed to {action} {name}", {
+          action: t(queue.paused ? "tasks.verbResume" : "tasks.verbPause"),
+          name: queue.name,
+        }),
+      );
       return;
     }
-    toast.success(`${queue.name} ${queue.paused ? "reanudada" : "en pausa"}`);
+    toast.success(
+      t("{name} {state}", {
+        name: queue.name,
+        state: t(queue.paused ? "tasks.stateResumed" : "tasks.statePaused"),
+      }),
+    );
     onChanged();
   };
 
   return (
     <Popover>
       <Button size="sm" variant="tertiary">
-        <FilterIcon className="size-3.5" /> {" " + t("Colas")}
+        <FilterIcon className="size-3.5" /> {` ${t("Colas")}`}
       </Button>
       <Popover.Content placement="bottom end" offset={8} className="w-[min(92vw,28rem)]">
         <Popover.Dialog className="p-0">
@@ -609,14 +615,12 @@ function QueueManager({ queues, onChanged }: { queues: TaskQueueOut[]; onChanged
                         className={`size-2 rounded-full ${queue.paused ? "bg-warning" : "bg-success"}`}
                       />
                       <span className="text-[10px] text-muted">
-                        {queue.paused ? t("En pausa") : t("Activo")}
+                        {t(queue.paused ? "tasks.pausedQ" : "tasks.activeQ")}
                       </span>
                     </div>
                     <div className="mt-1 flex gap-3 text-[11px] text-muted">
-                      <span>{queue.available} disponibles</span>
-                      <span>
-                        {queue.running} {" " + t("en ejecución")}
-                      </span>
+                      <span>{t("{count} available", { count: queue.available })}</span>
+                      <span>{t("{count} running", { count: queue.running })}</span>
                     </div>
                   </div>
                   <Button
@@ -625,7 +629,7 @@ function QueueManager({ queues, onChanged }: { queues: TaskQueueOut[]; onChanged
                     isPending={pendingQueue === queue.name}
                     onPress={() => toggleQueue(queue)}
                   >
-                    {queue.paused ? t("Reanudar") : t("Pausar")}
+                    {t(queue.paused ? "tasks.resume" : "tasks.pause")}
                   </Button>
                 </div>
               ))
@@ -641,18 +645,19 @@ function QueueManager({ queues, onChanged }: { queues: TaskQueueOut[]; onChanged
   );
 }
 
-function formatDate(value: string) {
-  return new Date(value).toLocaleString();
-}
-function formatRelativeDate(value: string) {
+function formatRelativeDate(
+  t: (key: string, vars?: Record<string, string | number>) => string,
+  formatDateOnly: Intl.DateTimeFormat,
+  value: string,
+) {
   const seconds = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 1000));
-  if (seconds < 60) return "just now";
+  if (seconds < 60) return t("just now");
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 60) return t("{m}m ago", { m: minutes });
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return t("{h}h ago", { h: hours });
   const days = Math.floor(hours / 24);
-  return days < 7 ? `${days}d ago` : new Date(value).toLocaleDateString();
+  return days < 7 ? t("{d}d ago", { d: days }) : formatDateOnly.format(new Date(value));
 }
 
 function taskDuration(task: TaskOut) {

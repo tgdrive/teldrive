@@ -189,17 +189,17 @@
     "rate-limit" = lib.mkOption {
       type = lib.types.nullOr (lib.types.bool);
       default = null;
-      description = "Enable Telegram API request rate limiting (Default: true)";
+      description = "Enable Telegram API request rate limiting per Telegram account (user or bot) (Default: true)";
     };
     "rate-interval" = lib.mkOption {
       type = lib.types.nullOr (lib.types.str);
       default = null;
-      description = "Minimum interval between Telegram API requests (Default: 50ms) [validate: gt=0]";
+      description = "Minimum interval between Telegram API requests per Telegram account (Default: 50ms) [validate: gt=0]";
     };
     "rate-burst" = lib.mkOption {
       type = lib.types.nullOr (lib.types.int);
       default = null;
-      description = "Telegram API request burst allowance (Default: 10) [validate: gt=0]";
+      description = "Telegram API request burst allowance per Telegram account (Default: 10) [validate: gt=0]";
     };
     "proxy" = lib.mkOption {
       type = lib.types.nullOr (lib.types.str);
@@ -292,6 +292,11 @@
       default = null;
       description = "JWT signing key (No default; upstream applies its own.) [validate: required,min=32]";
     };
+    "public-file-content" = lib.mkOption {
+      type = lib.types.nullOr (lib.types.bool);
+      default = null;
+      description = "Allow unauthenticated GET/HEAD access to all file content URLs; anyone with a file ID can stream or download the file (Default: false)";
+    };
     "data-key" = lib.mkOption {
       type = lib.types.nullOr (lib.types.str);
       default = null;
@@ -324,6 +329,11 @@
     };
   };
   "logging" = {
+    "log-file" = lib.mkOption {
+      type = lib.types.nullOr (lib.types.str);
+      default = null;
+      description = "Optional log file path; append logs to this file in addition to console output (parent directory must exist) (No default; upstream applies its own.)";
+    };
     "log-level" = lib.mkOption {
       type = lib.types.nullOr (lib.types.str);
       default = null;

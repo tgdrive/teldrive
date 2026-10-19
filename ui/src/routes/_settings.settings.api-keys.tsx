@@ -12,6 +12,7 @@ import { ConfirmDialog } from "@/components/dialogs/confirm-dialog";
 import { SettingsPageHeader, SettingsRow, SettingsSection } from "@/components/settings-layout";
 import { newIdempotencyKey } from "@/features/shared/idempotency";
 import { getQueryClient } from "@/lib/queryClient";
+import { useDateTimeFormatter } from "@/lib/format";
 
 export const Route = createFileRoute("/_settings/settings/api-keys")({
   component: ApiKeysSettings,
@@ -22,14 +23,16 @@ export const Route = createFileRoute("/_settings/settings/api-keys")({
   ),
 });
 
-function formatDate(value?: string | null) {
-  return value ? new Date(value).toLocaleString("es") : t("Sin vencimiento");
+function formatDate(value: string | null | undefined, formatDateTime: Intl.DateTimeFormat) {
+  return value ? formatDateTime.format(new Date(value)) : undefined;
 }
 
 function ApiKeysSettings() {
   const [name, setName] = useState("");
   const [created, setCreated] = useState<ApiKeyCreated>();
   const [revokeKey, setRevokeKey] = useState<{ id: string; name: string } | null>(null);
+
+  const formatDateTime = useDateTimeFormatter();
   const query = $api.useSuspenseQuery(
     "get",
     "/v1/api-keys",
@@ -44,7 +47,7 @@ function ApiKeysSettings() {
       toast.success(t("Clave de API revocada"));
     },
     onError: (error) => {
-      toast.error(t("No se pudo revocar la clave de API"), { description: userMessage(error) });
+      toast.error(t("API key could not be revoked"), { description: userMessage(error) });
     },
   });
   const refresh = () =>
@@ -74,7 +77,7 @@ function ApiKeysSettings() {
               <Input
                 value={name}
                 onChange={(event) => setName(event.currentTarget.value)}
-                placeholder="rclone laptop"
+                placeholder={t("rclone laptop")}
               />
             </TextField>
             <Button
@@ -89,7 +92,7 @@ function ApiKeysSettings() {
                   setName("");
                   await refresh();
                 } catch (error) {
-                  toast.error(t("No se pudo crear la clave de API"), {
+                  toast.error(t("API key could not be created"), {
                     description: userMessage(error),
                   });
                 }
@@ -113,7 +116,7 @@ function ApiKeysSettings() {
                 aria-label={t("Copiar clave de API")}
                 onPress={() => {
                   void navigator.clipboard.writeText(created.secret);
-                  toast.success(t("Clave de API copiada"));
+                  toast.success(t("API key copied"));
                 }}
               >
                 <CopyIcon className="size-4" />
@@ -131,17 +134,17 @@ function ApiKeysSettings() {
             <SettingsRow
               key={item.id}
               label={item.name}
-              description={t("Creada {0} · last used {1}", [
-                formatDate(item.createdAt),
-                formatDate(item.lastUsedAt),
-              ])}
+              description={t("Created {created} · last used {used}", {
+                created: formatDate(item.createdAt, formatDateTime) ?? t("keys.never"),
+                used: formatDate(item.lastUsedAt, formatDateTime) ?? t("keys.never"),
+              })}
             >
               <div className="flex justify-end">
                 <Button
                   isIconOnly
                   size="sm"
                   variant="ghost"
-                  aria-label={t("Revoke {0}", [item.name])}
+                  aria-label={t("Revoke {name}", { name: item.name })}
                   isDisabled={revoke.isPending && revokeKey?.id === item.id}
                   onPress={() => setRevokeKey({ id: item.id, name: item.name })}
                 >
@@ -160,9 +163,9 @@ function ApiKeysSettings() {
           if (!open && !revoke.isPending) setRevokeKey(null);
         }}
         title={t("¿Revocar la clave de API?")}
-        message={t("Applications using “{0}” will lose access immediately.", [
-          revokeKey?.name ?? "",
-        ])}
+        message={t("Applications using “{name}” will lose access immediately.", {
+          name: revokeKey?.name ?? "",
+        })}
         confirmLabel={t("Revocar clave")}
         isPending={revoke.isPending}
         onConfirm={() => {

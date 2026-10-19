@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	github.com/cenkalti/backoff/v4 v4.3.0
 	github.com/dgraph-io/ristretto/v2 v2.4.2
-	github.com/divyam234/riverpro v0.0.0-20261004114628-04c4cb1fea2c
+	github.com/divyam234/riverpro v0.0.0-20261012170352-c1cb2a3c669a
 	github.com/go-chi/chi/v5 v5.3.2
 	github.com/go-faster/errors v0.8.0
 	github.com/go-faster/jx v1.2.0
@@ -32,9 +32,6 @@ require (
 	github.com/spf13/pflag v1.0.10
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 	github.com/zeebo/blake3 v0.2.4
-	go.opentelemetry.io/otel v1.47.0
-	go.opentelemetry.io/otel/metric v1.47.0
-	go.opentelemetry.io/otel/trace v1.47.0
 	golang.org/x/crypto v0.57.0
 	golang.org/x/net v0.59.0
 	golang.org/x/sync v0.23.0
@@ -53,8 +50,6 @@ require (
 	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-faster/xor v1.0.0 // indirect
 	github.com/go-faster/yaml v0.4.6 // indirect
-	github.com/go-logr/logr v1.4.4 // indirect
-	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-playground/locales v0.14.2 // indirect
 	github.com/go-playground/universal-translator v0.18.2 // indirect
 	github.com/gotd/ige v0.3.0 // indirect
@@ -84,8 +79,9 @@ require (
 	github.com/tidwall/sjson v1.2.5 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	github.com/yuin/goldmark v1.8.6 // indirect
-	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
-	go.opentelemetry.io/otel/log v1.47.0 // indirect
+	go.opentelemetry.io/otel v1.47.0 // indirect
+	go.opentelemetry.io/otel/metric v1.47.0 // indirect
+	go.opentelemetry.io/otel/trace v1.47.0 // indirect
 	go.uber.org/atomic v1.12.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.28.0 // indirect

@@ -4,11 +4,7 @@ project_name: teldrive
 before:
   hooks:
     - bun ci --cwd ui
-    - bun run --cwd ui build
-    - mkdir -p completions
-    - sh -c 'go run ./cmd/teldrive completion bash > completions/teldrive.bash'
-    - sh -c 'go run ./cmd/teldrive completion zsh > completions/teldrive.zsh'
-    - sh -c 'go run ./cmd/teldrive completion fish > completions/teldrive.fish'
+    - "env VERSION={{ .Version }} bun run --cwd ui build"
 
 builds:
   - id: teldrive
@@ -46,7 +42,6 @@ archives:
         formats: [zip]
     files:
       - README*.md
-      - completions/*
 
 dockers_v2:
   - id: teldrive
@@ -57,6 +52,7 @@ dockers_v2:
     tags:
       - "{{ .Tag }}"
       - "{{ .Major }}"
+      - latest
     dockerfile: .goreleaser.Dockerfile
     platforms:
       - linux/amd64
@@ -88,8 +84,9 @@ changelog:
       - '^README'
       - '^Update'
       - '^Version'
-      - '^ci:'
-      - '^docs:'
+      - '^ci(\(.*\))?!?:'
+      - '^chore(\(.*\))?!?:'
+      - '^docs(\(.*\))?!?:'
       - Merge pull request
       - Merge branch
 

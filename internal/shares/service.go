@@ -324,7 +324,11 @@ func (s *Service) Revoke(ctx context.Context, ownerID int64, shareID uuid.UUID) 
 }
 
 func (s *Service) Resolve(ctx context.Context, token, password string) (*Public, error) {
-	row, err := s.resolveRow(ctx, token, password)
+	return s.resolve(ctx, token, password, "")
+}
+
+func (s *Service) resolve(ctx context.Context, token, password, session string) (*Public, error) {
+	row, err := s.resolveRow(ctx, token, password, session)
 	if err != nil {
 		return nil, err
 	}
@@ -347,6 +351,10 @@ func (s *Service) ResolveFile(ctx context.Context, token, password string, fileI
 	if err != nil {
 		return nil, err
 	}
+	return s.resolveFile(ctx, resolved, fileID)
+}
+
+func (s *Service) resolveFile(ctx context.Context, resolved *Public, fileID uuid.UUID) (*Public, error) {
 	rootID, ok := dbtypes.GoogleUUID(resolved.File.ID)
 	if !ok {
 		return nil, ErrNotFound
@@ -382,35 +390,17 @@ func (s *Service) ResolveFile(ctx context.Context, token, password string, fileI
 }
 
 func (s *Service) ReserveFileDownload(ctx context.Context, token, password string, fileID uuid.UUID) (*Public, error) {
-	resolved, err := s.ResolveFile(ctx, token, password, fileID)
-	if err != nil {
-		return nil, err
-	}
-	if _, err := s.queries.IncrementShareDownloadCount(ctx, resolved.Share.ID); errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrExpired
-	} else if err != nil {
-		return nil, fmt.Errorf("reserve share download: %w", err)
-	}
-	return resolved, nil
+	return s.ReserveContentDownload(ctx, ContentRequest{Token: token, Password: password, FileID: &fileID})
 }
 
 // ReserveDownload atomically consumes one allowed download before bytes are
 // exposed. A failed stream consumes the reservation, preventing concurrent
 // requests from exceeding max_downloads.
 func (s *Service) ReserveDownload(ctx context.Context, token, password string) (*Public, error) {
-	resolved, err := s.Resolve(ctx, token, password)
-	if err != nil {
-		return nil, err
-	}
-	if _, err := s.queries.IncrementShareDownloadCount(ctx, resolved.Share.ID); errors.Is(err, pgx.ErrNoRows) {
-		return nil, ErrExpired
-	} else if err != nil {
-		return nil, fmt.Errorf("reserve share download: %w", err)
-	}
-	return resolved, nil
+	return s.ReserveContentDownload(ctx, ContentRequest{Token: token, Password: password})
 }
 
-func (s *Service) resolveRow(ctx context.Context, token, password string) (*sqlcgen.GetActiveShareByTokenHashRow, error) {
+func (s *Service) resolveRow(ctx context.Context, token, password, session string) (*sqlcgen.GetActiveShareByTokenHashRow, error) {
 	token = strings.TrimSpace(token)
 	if token == "" {
 		return nil, ErrNotFound
@@ -429,6 +419,19 @@ func (s *Service) resolveRow(ctx context.Context, token, password string) (*sqlc
 		return nil, ErrExpired
 	}
 	if row.PasswordHash.Valid {
+		// Explicit passwords take precedence; an invalid password must not be
+		// silently accepted because a browser also sent an older session cookie.
+		if password == "" && session != "" {
+			valid, err := s.queries.HasShareDownloadSession(ctx, sqlcgen.HasShareDownloadSessionParams{
+				TokenHash: tokenHash(session), ShareID: row.ID, PasswordHash: row.PasswordHash,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("check share download session: %w", err)
+			}
+			if valid {
+				return row, nil
+			}
+		}
 		if password == "" {
 			return nil, ErrPasswordNeeded
 		}

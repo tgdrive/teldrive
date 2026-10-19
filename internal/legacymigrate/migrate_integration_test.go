@@ -4,6 +4,7 @@ package legacymigrate_test
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -19,6 +20,15 @@ import (
 )
 
 func TestMigrateIfNeededCopiesLegacyDatabase(t *testing.T) {
+	for _, hasHash := range []bool{false, true} {
+		t.Run(fmt.Sprintf("hash_column=%v", hasHash), func(t *testing.T) {
+			testMigrateLegacyDatabase(t, hasHash)
+		})
+	}
+}
+
+func testMigrateLegacyDatabase(t *testing.T, hasHash bool) {
+	t.Helper()
 	ctx := context.Background()
 	source := testpostgres.New(t)
 
@@ -50,7 +60,10 @@ INSERT INTO teldrive.users VALUES
 INSERT INTO teldrive.channels VALUES (201, 'Channel', 101, true, now());
 INSERT INTO teldrive.bots VALUES
     (101, '301:a-invalid', 301),
-    (101, '301:b-valid', 301);
+    (101, '301:b-valid', 301),
+    (101, '301:legacy-zero', 0),
+    (101, '302:legacy-zero', 0),
+    (101, '303:legacy-zero', 0);
 `); err != nil {
 		t.Fatalf("seed legacy schema: %v", err)
 	}
@@ -67,6 +80,14 @@ VALUES
 ($4,'Top-level empty.bin','file','application/octet-stream',0,101,$1,'active',NULL,'[]',false,now(),now())`, syntheticRootID, folderID, fileID, rootFileID); err != nil {
 		t.Fatalf("seed legacy files: %v", err)
 	}
+	const legacyHash = "legacy-file-hash"
+	if hasHash {
+		if _, err := source.Pool.Exec(ctx, `UPDATE teldrive.files SET hash=$1 WHERE id=$2`, legacyHash, fileID); err != nil {
+			t.Fatalf("seed legacy hash: %v", err)
+		}
+	} else if _, err := source.Pool.Exec(ctx, `ALTER TABLE teldrive.files DROP COLUMN hash`); err != nil {
+		t.Fatalf("prepare pre-hash legacy schema: %v", err)
+	}
 
 	verifier := verifierFunc(func(_ context.Context, token string) (bots.Identity, error) {
 		if token == "301:b-valid" {
@@ -76,6 +97,13 @@ VALUES
 	})
 	if _, _, err := legacymigrate.MigrateIfNeeded(ctx, database.Config{URL: source.URL}, "", verifier); err == nil || !strings.Contains(err.Error(), "security.data-key") {
 		t.Fatalf("empty data-key error = %v", err)
+	}
+	dryReport, err := legacymigrate.Run(ctx, legacymigrate.Config{
+		SourceURL: source.URL, Target: database.Config{URL: source.URL},
+		DataKey: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA", EncryptionKeyVersion: 1,
+	})
+	if err != nil {
+		t.Fatalf("dry-run legacy migration: %v", err)
 	}
 	report, migrated, err := legacymigrate.MigrateIfNeeded(
 		ctx,
@@ -89,21 +117,39 @@ VALUES
 	if !migrated {
 		t.Fatal("legacy database was not migrated")
 	}
-	if report.Users != 2 || report.Channels != 1 || report.Bots != 1 || report.Folders != 1 || report.Files != 2 || report.FileParts != 1 || report.SkippedZero != 1 {
+	if report.Users != 2 || report.Channels != 1 || report.Bots != 3 || report.Folders != 1 || report.Files != 2 || report.FileParts != 1 || report.SkippedZero != 1 {
 		t.Fatalf("unexpected report: %+v", report)
 	}
+	if dryReport.Bots != report.Bots || dryReport.Files != report.Files || dryReport.FileParts != report.FileParts {
+		t.Fatalf("dry-run report disagrees with migration: dry=%+v, applied=%+v", dryReport, report)
+	}
+	var hashAlgorithm, hashValue *string
+	if err := source.Pool.QueryRow(ctx, `SELECT hash_algorithm, hash_value FROM teldrive.files WHERE id=$1`, fileID).Scan(&hashAlgorithm, &hashValue); err != nil {
+		t.Fatalf("inspect migrated hash: %v", err)
+	}
+	if hasHash {
+		if hashAlgorithm == nil || *hashAlgorithm != "blake3-tree" || hashValue == nil || *hashValue != legacyHash {
+			t.Fatalf("existing legacy hash was not preserved: algorithm=%v, value=%v", hashAlgorithm, hashValue)
+		}
+	} else if hashAlgorithm != nil || hashValue != nil {
+		t.Fatalf("missing legacy hash was fabricated: algorithm=%v, value=%v", hashAlgorithm, hashValue)
+	}
+	var unhashed bool
+	if err := source.Pool.QueryRow(ctx, `SELECT hash_algorithm IS NULL AND hash_value IS NULL FROM teldrive.files WHERE id=$1`, rootFileID).Scan(&unhashed); err != nil || !unhashed {
+		t.Fatalf("unhashed file gained a hash: unhashed=%v, err=%v", unhashed, err)
+	}
 
-	var users, channels, bots, files, parts int
+	var users, channels, botCount, files, parts int
 	if err := source.Pool.QueryRow(ctx, `SELECT
 (SELECT count(*) FROM teldrive.users),
 (SELECT count(*) FROM teldrive.channels),
 (SELECT count(*) FROM teldrive.bots),
 (SELECT count(*) FROM teldrive.files),
-(SELECT count(*) FROM teldrive.file_parts)`).Scan(&users, &channels, &bots, &files, &parts); err != nil {
+(SELECT count(*) FROM teldrive.file_parts)`).Scan(&users, &channels, &botCount, &files, &parts); err != nil {
 		t.Fatalf("count target rows: %v", err)
 	}
-	if users != 2 || channels != 1 || bots != 1 || files != 3 || parts != 1 {
-		t.Fatalf("target counts = %d,%d,%d,%d,%d", users, channels, bots, files, parts)
+	if users != 2 || channels != 1 || botCount != 3 || files != 3 || parts != 1 {
+		t.Fatalf("target counts = %d,%d,%d,%d,%d", users, channels, botCount, files, parts)
 	}
 	var tokenCiphertext []byte
 	if err := source.Pool.QueryRow(ctx, `SELECT token_ciphertext FROM teldrive.bots WHERE user_id=101 AND bot_id=301`).Scan(&tokenCiphertext); err != nil {
@@ -119,6 +165,19 @@ VALUES
 	}
 	if string(plainToken) != "301:b-valid" {
 		t.Fatalf("migrated bot token = %q, want valid duplicate", plainToken)
+	}
+	for _, botID := range []int64{302, 303} {
+		if err := source.Pool.QueryRow(ctx, `SELECT token_ciphertext FROM teldrive.bots WHERE user_id=101 AND bot_id=$1`, botID).Scan(&tokenCiphertext); err != nil {
+			t.Fatalf("load recovered bot %d: %v", botID, err)
+		}
+		plainToken, err := cipher.Open("bot-token", tokenCiphertext)
+		if err != nil {
+			t.Fatalf("decrypt recovered bot %d: %v", botID, err)
+		}
+		recoveredID, err := bots.TokenBotID(string(plainToken))
+		if err != nil || recoveredID != botID {
+			t.Fatalf("recovered bot ID=%d, want %d, err=%v", recoveredID, botID, err)
+		}
 	}
 
 	var ownerRole, userRole string
@@ -160,8 +219,20 @@ NOT EXISTS (SELECT 1 FROM teldrive.files WHERE id=$3)`, folderID, fileID, synthe
 (SELECT count(*) FROM `+pgx.Identifier{report.BackupSchema}.Sanitize()+`.bots)`).Scan(&backupUserCount, &backupBotCount); err != nil {
 		t.Fatalf("inspect backup schema: %v", err)
 	}
-	if backupUserCount != 2 || backupBotCount != 2 {
-		t.Fatalf("backup counts = users %d, bots %d; want 2, 2", backupUserCount, backupBotCount)
+	if backupUserCount != 2 || backupBotCount != 5 {
+		t.Fatalf("backup counts = users %d, bots %d; want 2, 5", backupUserCount, backupBotCount)
+	}
+	var backupZeroIDs int
+	if err := source.Pool.QueryRow(ctx, `SELECT count(*) FROM `+pgx.Identifier{report.BackupSchema}.Sanitize()+`.bots WHERE bot_id=0`).Scan(&backupZeroIDs); err != nil || backupZeroIDs != 3 {
+		t.Fatalf("legacy zero-ID records were modified: count=%d, err=%v", backupZeroIDs, err)
+	}
+	var backupHasHash bool
+	if err := source.Pool.QueryRow(ctx, `SELECT EXISTS (
+SELECT 1 FROM pg_attribute
+WHERE attrelid = to_regclass($1) AND attname = 'hash'
+  AND attnum > 0 AND NOT attisdropped
+)`, report.BackupSchema+".files").Scan(&backupHasHash); err != nil || backupHasHash != hasHash {
+		t.Fatalf("legacy hash schema changed: has_hash=%v, want %v, err=%v", backupHasHash, hasHash, err)
 	}
 	var gooseMoved bool
 	if err := source.Pool.QueryRow(ctx, `SELECT to_regclass($1) IS NOT NULL AND to_regclass('public.goose_db_version') IS NULL`, report.BackupSchema+".goose_db_version").Scan(&gooseMoved); err != nil {

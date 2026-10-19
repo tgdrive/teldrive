@@ -1,3 +1,4 @@
+import { installPreferencesApi } from "./fixtures/preferences";
 import { readFileSync } from "node:fs";
 import { expect, type Page, test } from "@playwright/test";
 import { strToU8, zipSync } from "fflate";
@@ -128,6 +129,7 @@ async function installViewerApi(
       json: { error: { code: "not_found", message: `${method} ${path}` } },
     });
   });
+  await installPreferencesApi(page);
 }
 
 async function openFile(page: Page, name: string) {

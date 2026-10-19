@@ -53,8 +53,8 @@ func (h *Handler) CreateManagedBot(ctx context.Context, req *gen.ManagedBotCreat
 		if err != nil {
 			return nil, mapServiceError(err)
 		}
-		if jobID != "" {
-			response.JobId = gen.NewOptString(jobID)
+		if len(jobID) > 0 {
+			response.JobId = gen.NewOptString(jobID[0])
 		}
 	}
 	return response, nil

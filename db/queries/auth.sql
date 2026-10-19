@@ -192,6 +192,7 @@ RETURNING *;
 SELECT *
 FROM /* TEMPLATE: schema */api_keys
 WHERE user_id = sqlc.arg(user_id)
+  AND revoked_at IS NULL
   AND (
     sqlc.narg(after_created_at)::timestamptz IS NULL
     OR (created_at, id) < (

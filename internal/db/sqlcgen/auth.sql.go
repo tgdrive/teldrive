@@ -387,6 +387,7 @@ const listAPIKeys = `-- name: ListAPIKeys :many
 SELECT id, user_id, name, key_prefix, secret_hash, last_used_at, expires_at, revoked_at, created_at
 FROM /* TEMPLATE: schema */api_keys
 WHERE user_id = $1
+  AND revoked_at IS NULL
   AND (
     $2::timestamptz IS NULL
     OR (created_at, id) < (

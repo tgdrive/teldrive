@@ -71,9 +71,9 @@ type Telegram struct {
 	DialTimeout          time.Duration   `koanf:"dial-timeout" default:"10s" validate:"gt=0" description:"Telegram connection timeout"`
 	ReconnectTimeout     time.Duration   `koanf:"reconnect-timeout" default:"5m" validate:"gt=0" description:"Maximum Telegram reconnect backoff duration"`
 	MaxRetries           int             `koanf:"max-retries" default:"10" validate:"gte=0" description:"Maximum Telegram transport retry attempts"`
-	RateLimit            bool            `koanf:"rate-limit" default:"true" description:"Enable Telegram API request rate limiting"`
-	RateInterval         time.Duration   `koanf:"rate-interval" default:"50ms" validate:"gt=0" description:"Minimum interval between Telegram API requests"`
-	RateBurst            int             `koanf:"rate-burst" default:"10" validate:"gt=0" description:"Telegram API request burst allowance"`
+	RateLimit            bool            `koanf:"rate-limit" default:"true" description:"Enable Telegram API request rate limiting per Telegram account (user or bot)"`
+	RateInterval         time.Duration   `koanf:"rate-interval" default:"50ms" validate:"gt=0" description:"Minimum interval between Telegram API requests per Telegram account"`
+	RateBurst            int             `koanf:"rate-burst" default:"10" validate:"gt=0" description:"Telegram API request burst allowance per Telegram account"`
 	Proxy                string          `koanf:"proxy" default:"" description:"HTTP, HTTPS, or SOCKS5 proxy URL"`
 	MTProxy              TelegramMTProxy `koanf:"mtproxy"`
 	ClientLogging        bool            `koanf:"client-logging" default:"false" description:"Enable verbose gotd Telegram client logs through the application logger"`
@@ -95,16 +95,18 @@ type Encryption struct {
 }
 
 type Security struct {
-	SigningKey      string        `koanf:"signing-key" default:"" validate:"required,min=32" description:"JWT signing key"`
-	DataKey         string        `koanf:"data-key" default:"" validate:"required" description:"Key used to encrypt stored Telegram credentials"`
-	Issuer          string        `koanf:"issuer" default:"teldrive-v2" validate:"required" description:"JWT issuer"`
-	AllowedUsers    []string      `koanf:"allowed-users" default:"" description:"Allowed Telegram usernames; empty permits every user"`
-	AccessTokenTTL  time.Duration `koanf:"access-token-ttl" default:"15m" validate:"gt=0" description:"Access-token lifetime"`
-	RefreshTokenTTL time.Duration `koanf:"refresh-token-ttl" default:"720h" validate:"gt=0" description:"Refresh-token lifetime"`
-	LoginFlowTTL    time.Duration `koanf:"login-flow-ttl" default:"10m" validate:"gt=0" description:"Telegram login-flow lifetime"`
+	SigningKey        string        `koanf:"signing-key" default:"" validate:"required,min=32" description:"JWT signing key"`
+	PublicFileContent bool          `koanf:"public-file-content" default:"false" description:"Allow unauthenticated GET/HEAD access to all file content URLs; anyone with a file ID can stream or download the file"`
+	DataKey           string        `koanf:"data-key" default:"" validate:"required" description:"Key used to encrypt stored Telegram credentials"`
+	Issuer            string        `koanf:"issuer" default:"teldrive-v2" validate:"required" description:"JWT issuer"`
+	AllowedUsers      []string      `koanf:"allowed-users" default:"" description:"Allowed Telegram usernames; empty permits every user"`
+	AccessTokenTTL    time.Duration `koanf:"access-token-ttl" default:"15m" validate:"gt=0" description:"Access-token lifetime"`
+	RefreshTokenTTL   time.Duration `koanf:"refresh-token-ttl" default:"720h" validate:"gt=0" description:"Refresh-token lifetime"`
+	LoginFlowTTL      time.Duration `koanf:"login-flow-ttl" default:"10m" validate:"gt=0" description:"Telegram login-flow lifetime"`
 }
 
 type Logging struct {
+	LogFile   string `koanf:"log-file" description:"Optional log file path; append logs to this file in addition to console output (parent directory must exist)"`
 	LogLevel  string `koanf:"log-level" default:"info" validate:"oneof=debug info warn error" description:"Log level: debug, info, warn, or error"`
 	LogFormat string `koanf:"log-format" default:"text" validate:"oneof=json text" description:"Log format: json or text"`
 }

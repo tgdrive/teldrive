@@ -9,11 +9,11 @@
     "generate:openapi": "tsp compile ."
   },
   "devDependencies": {
-    "@typespec/compiler": "1.13.0",
-    "@typespec/http": "1.13.0",
-    "@typespec/openapi": "1.13.0",
-    "@typespec/openapi3": "1.13.0",
+    "@typespec/compiler": "1.17.0",
+    "@typespec/http": "1.17.0",
+    "@typespec/openapi": "1.17.0",
+    "@typespec/openapi3": "1.17.0",
     "teldrive-ogen-openapi3": "file:./ogen-openapi3",
-    "yaml": "2.9.0"
+    "yaml": "2.9.1"
   }
 }

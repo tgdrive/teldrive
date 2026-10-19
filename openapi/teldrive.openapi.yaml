@@ -278,6 +278,46 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
       tags:
         - Files
+  /v1/files/{fileId}/playback/statistics:
+    get:
+      operationId: getFilePlaybackStatistics
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            $ref: "#/components/schemas/Uuid"
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlaybackStatistics"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Access is forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Files
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+        - ExternalApiKeyAuth: []
   /v1/playback/tracks:
     get:
       operationId: getPlaybackTracks
@@ -1294,6 +1334,66 @@ paths:
         - BearerAuth: []
         - CookieAuth: []
         - ExternalApiKeyAuth: []
+  /v1/me/preferences:
+    get:
+      operationId: getUserPreferences
+      description: Return the authenticated user's web UI preferences, with server
+        defaults for unset values.
+      parameters: []
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPreferences"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Account
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+        - ExternalApiKeyAuth: []
+    patch:
+      operationId: updateUserPreferences
+      description: Update a subset of the authenticated user's web UI preferences.
+      parameters: []
+      responses:
+        "200":
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserPreferences"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserPreferencesUpdate"
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+        - ExternalApiKeyAuth: []
   /v1/auth/logout:
     post:
       operationId: logoutSession
@@ -1738,8 +1838,8 @@ paths:
   /v1/channels/discover:
     get:
       operationId: discoverChannels
-      description: List Telegram channels where the authenticated user can add
-        administrators.
+      description: List broadcast channels where the authenticated user can add
+        administrators. Groups are excluded.
       parameters: []
       responses:
         "200":
@@ -1771,8 +1871,8 @@ paths:
   /v1/channels/sync:
     post:
       operationId: syncChannels
-      description: Discover and upsert manageable Telegram channels without deleting
-        missing rows.
+      description: Register only chosen manageable broadcast channels, without
+        deleting existing channels.
       parameters:
         - $ref: "#/components/parameters/IdempotencyHeader"
       responses:
@@ -1786,6 +1886,12 @@ paths:
                   $ref: "#/components/schemas/ChannelSummary"
         "401":
           description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
           content:
             application/json:
               schema:
@@ -1804,6 +1910,12 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
       tags:
         - Channels
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChannelSyncRequest"
       security:
         - BearerAuth: []
         - CookieAuth: []
@@ -2129,6 +2241,93 @@ paths:
       security:
         - BearerAuth: []
         - CookieAuth: []
+  /v1/bots/provision:
+    post:
+      operationId: provisionBots
+      description: Re-verify all saved bots, with one independent task per bot.
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyHeader"
+      responses:
+        "202":
+          description: The request has been accepted for processing, but processing has
+            not yet completed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BotBulkProvisionResponse"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Bots
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+  /v1/bots/{botId}/provision:
+    post:
+      operationId: provisionBot
+      description: Re-verify a saved bot and repair its access to the user's
+        registered channels.
+      parameters:
+        - name: botId
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - $ref: "#/components/parameters/IdempotencyHeader"
+      responses:
+        "202":
+          description: The request has been accepted for processing, but processing has
+            not yet completed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BotProvisionResponse"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Bots
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
   /v1/bots/{botId}:
     delete:
       operationId: deleteBot
@@ -2289,6 +2488,7 @@ paths:
         - $ref: "#/components/parameters/FileListQuery.updatedBefore"
         - $ref: "#/components/parameters/FileListQuery.sort"
         - $ref: "#/components/parameters/FileListQuery.order"
+        - $ref: "#/components/parameters/FileListQuery.bookmarked"
       responses:
         "200":
           description: The request has succeeded.
@@ -2325,6 +2525,71 @@ paths:
                 $ref: "#/components/schemas/ErrorEnvelope"
       tags:
         - Files
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+        - ExternalApiKeyAuth: []
+  /v1/files/bookmarks:
+    post:
+      operationId: bookmarkFiles
+      description: Bookmark selected active files and folders.
+      parameters: []
+      responses:
+        "204":
+          description: "There is no content to send for this request, but the headers may
+            be useful. "
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "422":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Files
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookmarkFilesRequest"
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+        - ExternalApiKeyAuth: []
+    delete:
+      operationId: removeFileBookmarks
+      description: Remove bookmarks from selected files and folders.
+      parameters: []
+      responses:
+        "204":
+          description: "There is no content to send for this request, but the headers may
+            be useful. "
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Files
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BookmarkFilesRequest"
       security:
         - BearerAuth: []
         - CookieAuth: []
@@ -3791,6 +4056,21 @@ paths:
             type: integer
             format: int32
             minimum: 1
+        - name: channelId
+          in: query
+          required: false
+          description: >-
+            Store the part in this owned channel instead of the selected
+            channel.
+
+            An explicit channel never rolls over: an unknown channel returns 404
+            and a
+
+            full or unavailable channel returns 409.
+          schema:
+            type: integer
+            format: int64
+          explode: false
       responses:
         "200":
           description: The request has succeeded.
@@ -4343,6 +4623,61 @@ paths:
         - BearerAuth: []
         - CookieAuth: []
         - ExternalApiKeyAuth: []
+  /v1/public/shares/{token}/download-session:
+    post:
+      operationId: authorizePublicShareDownload
+      description: Exchange the share password for a 15-minute, share-scoped download
+        cookie.
+      parameters:
+        - $ref: "#/components/parameters/SharePasswordHeader"
+        - name: token
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: "There is no content to send for this request, but the headers may
+            be useful. "
+          headers:
+            Set-Cookie:
+              required: true
+              schema:
+                type: string
+            Cache-Control:
+              required: true
+              schema:
+                type: string
+                enum:
+                  - no-store
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "410":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "429":
+          description: Client error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Public shares
+      security:
+        - {}
   /v1/public/shares/{token}:
     get:
       operationId: getPublicShare
@@ -4458,6 +4793,7 @@ paths:
       operationId: downloadPublicShareFile
       parameters:
         - $ref: "#/components/parameters/SharePasswordHeader"
+        - $ref: "#/components/parameters/ShareDownloadCookie"
         - $ref: "#/components/parameters/FileContentRequestOptions.range"
         - $ref: "#/components/parameters/FileContentRequestOptions.ifNoneMatch"
         - $ref: "#/components/parameters/FileContentRequestOptions.download"
@@ -4594,6 +4930,7 @@ paths:
       operationId: headPublicShareFile
       parameters:
         - $ref: "#/components/parameters/SharePasswordHeader"
+        - $ref: "#/components/parameters/ShareDownloadCookie"
         - name: token
           in: path
           required: true
@@ -4676,6 +5013,7 @@ paths:
       operationId: downloadPublicShare
       parameters:
         - $ref: "#/components/parameters/SharePasswordHeader"
+        - $ref: "#/components/parameters/ShareDownloadCookie"
         - $ref: "#/components/parameters/FileContentRequestOptions.range"
         - $ref: "#/components/parameters/FileContentRequestOptions.ifNoneMatch"
         - $ref: "#/components/parameters/FileContentRequestOptions.download"
@@ -4807,6 +5145,7 @@ paths:
       operationId: headPublicShare
       parameters:
         - $ref: "#/components/parameters/SharePasswordHeader"
+        - $ref: "#/components/parameters/ShareDownloadCookie"
         - name: token
           in: path
           required: true
@@ -4884,6 +5223,7 @@ paths:
       operationId: downloadPublicShareFileLegacy
       parameters:
         - $ref: "#/components/parameters/SharePasswordHeader"
+        - $ref: "#/components/parameters/ShareDownloadCookie"
         - $ref: "#/components/parameters/FileContentRequestOptions.range"
         - $ref: "#/components/parameters/FileContentRequestOptions.ifNoneMatch"
         - $ref: "#/components/parameters/FileContentRequestOptions.download"
@@ -5015,6 +5355,7 @@ paths:
       operationId: headPublicShareFileLegacy
       parameters:
         - $ref: "#/components/parameters/SharePasswordHeader"
+        - $ref: "#/components/parameters/ShareDownloadCookie"
         - name: token
           in: path
           required: true
@@ -5092,6 +5433,7 @@ paths:
       operationId: downloadPublicShareLegacy
       parameters:
         - $ref: "#/components/parameters/SharePasswordHeader"
+        - $ref: "#/components/parameters/ShareDownloadCookie"
         - $ref: "#/components/parameters/FileContentRequestOptions.range"
         - $ref: "#/components/parameters/FileContentRequestOptions.ifNoneMatch"
         - $ref: "#/components/parameters/FileContentRequestOptions.download"
@@ -5218,6 +5560,7 @@ paths:
       operationId: headPublicShareLegacy
       parameters:
         - $ref: "#/components/parameters/SharePasswordHeader"
+        - $ref: "#/components/parameters/ShareDownloadCookie"
         - name: token
           in: path
           required: true
@@ -6670,6 +7013,16 @@ components:
           - $ref: "#/components/schemas/SortOrder"
         default: asc
       explode: false
+    FileListQuery.bookmarked:
+      name: bookmarked
+      in: query
+      required: false
+      description: Restrict results to the authenticated user's bookmarked files and
+        folders.
+      schema:
+        type: boolean
+        default: false
+      explode: false
     OptionalIfMatchHeader:
       name: If-Match
       in: header
@@ -6707,6 +7060,13 @@ components:
       schema:
         type: string
         maxLength: 512
+      explode: false
+    ShareDownloadCookie:
+      name: teldrive_share_download
+      in: cookie
+      required: false
+      schema:
+        type: string
       explode: false
     JobListQuery.status:
       name: status
@@ -6779,6 +7139,114 @@ components:
           $ref: "#/components/schemas/ErrorDetail"
     ETag:
       type: string
+    StreamAccountStatistics:
+      type: object
+      required:
+        - id
+        - name
+        - alias
+        - kind
+        - bytes
+        - bytesPerSecond
+        - requests
+        - errors
+        - activeRequests
+        - latencyMs
+        - channelId
+        - messageId
+        - offset
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        alias:
+          type: string
+        kind:
+          type: string
+          enum:
+            - bot
+            - user
+        bytes:
+          type: integer
+          format: int64
+        bytesPerSecond:
+          type: number
+          format: double
+        requests:
+          type: integer
+          format: int64
+        errors:
+          type: integer
+          format: int64
+        activeRequests:
+          type: integer
+          format: int32
+        latencyMs:
+          type: number
+          format: double
+        channelId:
+          type: integer
+          format: int64
+        messageId:
+          type: integer
+          format: int64
+        offset:
+          type: integer
+          format: int64
+        lastSeen:
+          type: string
+          format: date-time
+    PlaybackStatistics:
+      type: object
+      required:
+        - scope
+        - fileId
+        - name
+        - mimeType
+        - size
+        - encrypted
+        - sampledAt
+        - activeStreams
+        - bytes
+        - bytesPerSecond
+        - accounts
+      properties:
+        scope:
+          type: string
+          enum:
+            - file
+        fileId:
+          $ref: "#/components/schemas/Uuid"
+        name:
+          type: string
+        mimeType:
+          type: string
+        size:
+          type: integer
+          format: int64
+        encrypted:
+          type: boolean
+        sampledAt:
+          type: string
+          format: date-time
+        startedAt:
+          type: string
+          format: date-time
+        activeStreams:
+          type: integer
+          format: int32
+        bytes:
+          type: integer
+          format: int64
+        bytesPerSecond:
+          type: number
+          format: double
+        accounts:
+          type: array
+          items:
+            $ref: "#/components/schemas/StreamAccountStatistics"
     MediaTrack:
       type: object
       required:
@@ -7052,6 +7520,153 @@ components:
         createdAt:
           type: string
           format: date-time
+    NameConflictPolicy:
+      type: string
+      enum:
+        - fail
+        - replace
+        - rename
+    UploadPreferences:
+      type: object
+      required:
+        - encryption
+        - conflictPolicy
+        - concurrency
+        - preferredPartSize
+      properties:
+        encryption:
+          type: boolean
+          description: Encrypt new browser uploads and URL imports by default.
+        conflictPolicy:
+          $ref: "#/components/schemas/NameConflictPolicy"
+        concurrency:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 12
+          description: Number of browser uploads that run at the same time.
+        preferredPartSize:
+          type: integer
+          format: int64
+          minimum: 16777216
+          maximum: 2147483648
+          description: Preferred part size in bytes; a multiple of 16 MiB between 16 MiB
+            and 2 GiB.
+    FileBrowserSort:
+      type: string
+      enum:
+        - name
+        - updatedAt
+        - size
+      description: Sort keys offered by the web file browser; a subset of FileSort.
+    SortOrder:
+      type: string
+      enum:
+        - asc
+        - desc
+    FileBrowserPreferences:
+      type: object
+      required:
+        - sort
+        - order
+      properties:
+        sort:
+          $ref: "#/components/schemas/FileBrowserSort"
+        order:
+          $ref: "#/components/schemas/SortOrder"
+    ThemePreference:
+      type: string
+      enum:
+        - system
+        - light
+        - dark
+    InterfaceLocale:
+      type: string
+      enum:
+        - en
+        - es
+        - pt-BR
+        - ru
+        - fr
+        - de
+        - zh-CN
+        - it
+        - ja
+        - ar
+    AppearancePreferences:
+      type: object
+      required:
+        - theme
+      properties:
+        theme:
+          $ref: "#/components/schemas/ThemePreference"
+        locale:
+          allOf:
+            - $ref: "#/components/schemas/InterfaceLocale"
+          description: Interface language; absent until the user picks one, so clients
+            fall back to browser detection.
+    UserPreferences:
+      type: object
+      required:
+        - uploads
+        - files
+        - appearance
+      properties:
+        uploads:
+          $ref: "#/components/schemas/UploadPreferences"
+        files:
+          $ref: "#/components/schemas/FileBrowserPreferences"
+        appearance:
+          $ref: "#/components/schemas/AppearancePreferences"
+        updatedAt:
+          type: string
+          format: date-time
+          description: Last explicit change; absent while every value is still the server
+            default.
+      description: Per-user web UI preferences shared by every browser and device.
+    UploadPreferencesUpdate:
+      type: object
+      properties:
+        encryption:
+          type: boolean
+        conflictPolicy:
+          $ref: "#/components/schemas/NameConflictPolicy"
+        concurrency:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 12
+        preferredPartSize:
+          type: integer
+          format: int64
+          minimum: 16777216
+          maximum: 2147483648
+          description: Preferred part size in bytes; a multiple of 16 MiB between 16 MiB
+            and 2 GiB.
+    FileBrowserPreferencesUpdate:
+      type: object
+      properties:
+        sort:
+          $ref: "#/components/schemas/FileBrowserSort"
+        order:
+          $ref: "#/components/schemas/SortOrder"
+    AppearancePreferencesUpdate:
+      type: object
+      properties:
+        theme:
+          $ref: "#/components/schemas/ThemePreference"
+        locale:
+          $ref: "#/components/schemas/InterfaceLocale"
+    UserPreferencesUpdate:
+      type: object
+      properties:
+        uploads:
+          $ref: "#/components/schemas/UploadPreferencesUpdate"
+        files:
+          $ref: "#/components/schemas/FileBrowserPreferencesUpdate"
+        appearance:
+          $ref: "#/components/schemas/AppearancePreferencesUpdate"
+      description: Partial update; omitted groups and fields keep their stored values.
     UserSearchResult:
       type: object
       required:
@@ -7221,6 +7836,18 @@ components:
           format: int64
         name:
           type: string
+    ChannelSyncRequest:
+      type: object
+      required:
+        - channelIds
+      properties:
+        channelIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+          description: Only these discovered broadcast channels will be registered.
+            Existing channels are retained.
     ChannelCreateRequest:
       type: object
       properties:
@@ -7319,6 +7946,7 @@ components:
       required:
         - bots
         - failedIndexes
+        - jobIds
       properties:
         bots:
           type: array
@@ -7331,7 +7959,13 @@ components:
             format: int32
         jobId:
           type: string
-          description: Present only when existing channels need background bot provisioning.
+          description: First provisioning task, retained for older clients. Use jobIds for
+            all tasks.
+        jobIds:
+          type: array
+          items:
+            type: string
+          description: Each saved bot has an independent provisioning task.
     BotCreateRequest:
       type: object
       required:
@@ -7344,6 +7978,22 @@ components:
           minItems: 1
           maxItems: 200
           description: Telegram bot tokens. Tokens are never returned by the API.
+    BotBulkProvisionResponse:
+      type: object
+      required:
+        - jobIds
+      properties:
+        jobIds:
+          type: array
+          items:
+            type: string
+    BotProvisionResponse:
+      type: object
+      required:
+        - jobId
+      properties:
+        jobId:
+          type: string
     EventStreamTicket:
       type: object
       required:
@@ -7395,11 +8045,6 @@ components:
         - updatedAt
         - size
         - id
-    SortOrder:
-      type: string
-      enum:
-        - asc
-        - desc
     HashAlgorithm:
       type: string
       enum:
@@ -7463,6 +8108,17 @@ components:
         parentPath:
           type: string
           description: Location path, included for drive and recursive listings.
+    BookmarkFilesRequest:
+      type: object
+      required:
+        - fileIds
+      properties:
+        fileIds:
+          type: array
+          items:
+            $ref: "#/components/schemas/Uuid"
+          minItems: 1
+          maxItems: 500
     FileUpdateRequest:
       type: object
       properties:
@@ -7473,12 +8129,6 @@ components:
         modTime:
           type: string
           format: date-time
-    NameConflictPolicy:
-      type: string
-      enum:
-        - fail
-        - replace
-        - rename
     FileMoveRequest:
       type: object
       properties:

@@ -1,5 +1,5 @@
 import { t } from "@/lib/localization";
-import { Button, Chip, Input, Spinner, TextField, Label } from "@heroui/react";
+import { Button, Checkbox, Chip, Input, Spinner, TextField, Label } from "@heroui/react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -9,10 +9,10 @@ import TrashIcon from "~icons/gravity-ui/trash-bin";
 import { $api } from "@/api/client";
 import { userMessage } from "@/api/errors";
 import { ConfirmDialog } from "@/components/dialogs/confirm-dialog";
+import { AppDialog } from "@/components/dialogs/app-dialog";
 import { SettingsPageHeader, SettingsRow, SettingsSection } from "@/components/settings-layout";
 import { newIdempotencyKey } from "@/features/shared/idempotency";
 import { getQueryClient } from "@/lib/queryClient";
-
 export const Route = createFileRoute("/_settings/settings/channels")({
   component: ChannelsSettings,
   pendingComponent: () => (
@@ -24,6 +24,10 @@ export const Route = createFileRoute("/_settings/settings/channels")({
 
 function ChannelsSettings() {
   const [name, setName] = useState("");
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [channelIds, setChannelIds] = useState<number[]>([]);
+
+  const discovery = $api.useQuery("get", "/v1/channels/discover", {}, { enabled: false });
   const [deleteChannel, setDeleteChannel] = useState<{ id: number; name: string } | null>(null);
   const query = $api.useSuspenseQuery(
     "get",
@@ -61,24 +65,85 @@ function ChannelsSettings() {
             variant="secondary"
             onPress={async () => {
               try {
-                await sync.mutateAsync({
-                  params: { header: { "Idempotency-Key": newIdempotencyKey() } },
-                });
-                await refresh();
-                toast.success(t("Canales sincronizados"));
+                const result = await discovery.refetch();
+                if (result.error) throw result.error;
+                setChannelIds((result.data ?? []).map((channel) => channel.id));
+                setPickerOpen(true);
               } catch (error) {
-                toast.error(t("No se pudieron sincronizar los canales"), {
-                  description: userMessage(error),
-                });
+                toast.error(t("Channel discovery failed"), { description: userMessage(error) });
               }
             }}
-            isDisabled={sync.isPending}
+            isDisabled={discovery.isFetching || sync.isPending}
           >
             <RefreshIcon className="size-4" />
             {t("Buscar y sincronizar")}
           </Button>
         }
       />
+      <AppDialog
+        open={pickerOpen}
+        onOpenChange={setPickerOpen}
+        title={t("Choose storage channels")}
+        description={t(
+          "Only broadcast channels are listed. Bots will be added to registered channels when provisioned. Existing registered channels are kept even if unchecked.",
+        )}
+        isDismissable={!sync.isPending}
+        isCloseDisabled={sync.isPending}
+        footer={
+          <>
+            <Button
+              variant="tertiary"
+              isDisabled={sync.isPending}
+              onPress={() => setPickerOpen(false)}
+            >
+              {t("Cancelar")}
+            </Button>
+            <Button
+              isPending={sync.isPending}
+              onPress={async () => {
+                try {
+                  await sync.mutateAsync({
+                    params: { header: { "Idempotency-Key": newIdempotencyKey() } },
+                    body: { channelIds },
+                  });
+                  await refresh();
+                  setPickerOpen(false);
+                  toast.success(t("Channels synchronized"));
+                } catch (error) {
+                  toast.error(t("Channel sync failed"), { description: userMessage(error) });
+                }
+              }}
+            >
+              {t("Sync selected channels")}
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          {(discovery.data ?? []).map((channel) => (
+            <Checkbox
+              key={channel.id}
+              isSelected={channelIds.includes(channel.id)}
+              isDisabled={sync.isPending}
+              onChange={(checked) =>
+                setChannelIds((ids) =>
+                  checked ? [...ids, channel.id] : ids.filter((id) => id !== channel.id),
+                )
+              }
+            >
+              <Checkbox.Content>
+                <Checkbox.Control>
+                  <Checkbox.Indicator />
+                </Checkbox.Control>
+                {channel.name}
+              </Checkbox.Content>
+            </Checkbox>
+          ))}
+          {!discovery.data?.length && (
+            <p className="text-sm text-muted">{t("No manageable broadcast channels found.")}</p>
+          )}
+        </div>
+      </AppDialog>
       <SettingsSection
         title={t("Crear canal")}
         description={t("Teldrive creará y configurará un canal de almacenamiento en Telegram.")}
@@ -127,7 +192,7 @@ function ChannelsSettings() {
             <SettingsRow
               key={channel.id}
               label={channel.name}
-              description={t("Canal {0}", [channel.id])}
+              description={t("Channel {id}", { id: channel.id })}
             >
               <div className="flex items-center justify-end gap-2">
                 {channel.selected ? (
@@ -151,7 +216,7 @@ function ChannelsSettings() {
                   isIconOnly
                   size="sm"
                   variant="ghost"
-                  aria-label={t("Eliminar {0}", [channel.name])}
+                  aria-label={t("Delete {name}", { name: channel.name })}
                   isDisabled={remove.isPending && deleteChannel?.id === channel.id}
                   onPress={() => setDeleteChannel({ id: channel.id, name: channel.name })}
                 >
@@ -171,8 +236,10 @@ function ChannelsSettings() {
         onOpenChange={(open) => {
           if (!open && !remove.isPending) setDeleteChannel(null);
         }}
-        title={t("¿Eliminar este canal de almacenamiento?")}
-        message={`“${deleteChannel?.name ?? ""}” solo se puede eliminar si no contiene archivos.`}
+        title={t("Delete storage channel?")}
+        message={t("“{name}” can only be deleted when no files reference it.", {
+          name: deleteChannel?.name ?? "",
+        })}
         confirmLabel={t("Eliminar canal")}
         isPending={remove.isPending}
         onConfirm={() => {

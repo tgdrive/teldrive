@@ -62,6 +62,7 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
   const uploadTriggerRef = useRef<HTMLButtonElement>(null);
   const enqueue = useUploadStore((state) => state.enqueue);
   const fileActions = useFileActions();
+
   const atRoot = !search.parentId;
 
   const sharedQuery = useQuery({
@@ -169,7 +170,9 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
       if (atRoot) await refreshRoots();
       else await childrenQuery.refetch();
       toast.success(
-        `${selectedFiles.length} elemento${selectedFiles.length === 1 ? "" : "s"} enviado a la papelera`,
+        t(selectedFiles.length === 1 ? "files.trashedOne" : "files.trashedMany", {
+          count: selectedFiles.length,
+        }),
       );
     } catch (error) {
       toast.error(t("No se pudieron mover los elementos a la papelera"), {
@@ -230,7 +233,9 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
       setSelectedKeys(new Set());
       await refreshRoots();
       toast.success(
-        `${selectedFiles.length} elemento${selectedFiles.length === 1 ? "" : "s"} ya no se comparte`,
+        t(selectedFiles.length === 1 ? "files.unsharedOne" : "files.unsharedMany", {
+          count: selectedFiles.length,
+        }),
       );
     } catch (error) {
       toast.error(t("No se pudo dejar de compartir"), {
@@ -323,9 +328,9 @@ export function SharedFileBrowser({ mode, search, navigate }: SharedFileBrowserP
           selectionOverlay={
             selectedCount > 0 ? (
               <div className="pointer-events-none absolute inset-x-0 bottom-4 z-30 flex justify-center px-4">
-                <div className="pointer-events-auto flex max-w-full items-center gap-1.5 overflow-x-auto rounded-full border border-border bg-surface/95 p-1.5 shadow-xl backdrop-blur">
+                <div className="pointer-events-auto flex min-w-0 max-w-full flex-wrap items-center justify-center gap-1.5 rounded-2xl border border-border bg-surface/95 p-1.5 shadow-xl backdrop-blur @2xl/file-browser:rounded-full [&>button]:shrink-0">
                   <span className="shrink-0 rounded-full bg-accent/10 px-3 py-2 text-sm font-medium text-accent">
-                    {selectedCount} selected
+                    {t("{count} selected", { count: selectedCount })}
                   </span>
                   {singleSelected && selectedWritable ? (
                     <Button

@@ -4,6 +4,31 @@ FROM /* TEMPLATE: schema */files
 WHERE id = sqlc.arg(file_id)
   AND user_id = sqlc.arg(user_id);
 
+-- name: GetPublicFileByID :one
+SELECT *
+FROM /* TEMPLATE: schema */files
+WHERE id = sqlc.arg(file_id)
+  AND kind = 'file'
+  AND status = 'active';
+
+-- name: CountBookmarkableFiles :one
+SELECT count(DISTINCT file.id)::integer
+FROM /* TEMPLATE: schema */files AS file
+WHERE file.user_id = sqlc.arg(user_id)
+  AND file.id = ANY(sqlc.arg(file_ids)::uuid[])
+  AND file.status = 'active';
+
+-- name: AddFileBookmarks :exec
+INSERT INTO /* TEMPLATE: schema */file_bookmarks (user_id, file_id)
+SELECT sqlc.arg(user_id), input.file_id
+FROM unnest(sqlc.arg(file_ids)::uuid[]) AS input(file_id)
+ON CONFLICT (user_id, file_id) DO NOTHING;
+
+-- name: RemoveFileBookmarks :exec
+DELETE FROM /* TEMPLATE: schema */file_bookmarks
+WHERE user_id = sqlc.arg(user_id)
+  AND file_id = ANY(sqlc.arg(file_ids)::uuid[]);
+
 -- name: GetActiveFolderForUser :one
 SELECT *
 FROM /* TEMPLATE: schema */files
@@ -40,9 +65,9 @@ WHERE files.user_id = sqlc.arg(user_id)
   )
   AND (
     sqlc.narg(after_name)::text IS NULL
-    OR (name, id) > (sqlc.narg(after_name)::text, sqlc.narg(after_id)::uuid)
+    OR (name COLLATE /* TEMPLATE: schema */natural_name, id) > (sqlc.narg(after_name)::text COLLATE /* TEMPLATE: schema */natural_name, sqlc.narg(after_id)::uuid)
   )
-ORDER BY name, id
+ORDER BY name COLLATE /* TEMPLATE: schema */natural_name, id
 LIMIT sqlc.arg(page_size);
 
 -- name: CreateFolder :one
@@ -64,7 +89,7 @@ INSERT INTO /* TEMPLATE: schema */files (
     sqlc.arg(name),
     'folder',
     'inode/directory',
-    NULL,
+    0,
     false,
     'active',
     sqlc.arg(mod_time)
@@ -242,6 +267,13 @@ WHERE f.user_id = sqlc.arg(user_id)
     )
   )
   AND f.status = sqlc.arg(status)::/* TEMPLATE: schema */file_status
+  AND (
+    NOT sqlc.arg(bookmarked)::boolean
+    OR EXISTS (
+      SELECT 1 FROM /* TEMPLATE: schema */file_bookmarks bookmark
+      WHERE bookmark.user_id = f.user_id AND bookmark.file_id = f.id
+    )
+  )
   AND (sqlc.narg(kind)::/* TEMPLATE: schema */file_kind IS NULL OR f.kind = sqlc.narg(kind)::/* TEMPLATE: schema */file_kind)
   AND (
     sqlc.narg(search)::text IS NULL
@@ -285,8 +317,8 @@ WHERE f.user_id = sqlc.arg(user_id)
       sqlc.arg(sort_by)::text = 'name'
       AND sqlc.narg(after_name)::text IS NOT NULL
       AND (
-        (sqlc.arg(sort_order)::text = 'asc' AND (f.name, f.id) > (sqlc.narg(after_name)::text, sqlc.narg(after_id)::uuid))
-        OR (sqlc.arg(sort_order)::text = 'desc' AND (f.name, f.id) < (sqlc.narg(after_name)::text, sqlc.narg(after_id)::uuid))
+        (sqlc.arg(sort_order)::text = 'asc' AND (f.name COLLATE /* TEMPLATE: schema */natural_name, f.id) > (sqlc.narg(after_name)::text COLLATE /* TEMPLATE: schema */natural_name, sqlc.narg(after_id)::uuid))
+        OR (sqlc.arg(sort_order)::text = 'desc' AND (f.name COLLATE /* TEMPLATE: schema */natural_name, f.id) < (sqlc.narg(after_name)::text COLLATE /* TEMPLATE: schema */natural_name, sqlc.narg(after_id)::uuid))
       )
     )
     OR (
@@ -314,8 +346,8 @@ WHERE f.user_id = sqlc.arg(user_id)
     )
   )
 ORDER BY
-  CASE WHEN sqlc.arg(sort_by)::text = 'name' AND sqlc.arg(sort_order)::text = 'asc' THEN f.name END ASC,
-  CASE WHEN sqlc.arg(sort_by)::text = 'name' AND sqlc.arg(sort_order)::text = 'desc' THEN f.name END DESC,
+  CASE WHEN sqlc.arg(sort_by)::text = 'name' AND sqlc.arg(sort_order)::text = 'asc' THEN f.name END COLLATE /* TEMPLATE: schema */natural_name ASC,
+  CASE WHEN sqlc.arg(sort_by)::text = 'name' AND sqlc.arg(sort_order)::text = 'desc' THEN f.name END COLLATE /* TEMPLATE: schema */natural_name DESC,
   CASE WHEN sqlc.arg(sort_by)::text = 'updatedAt' AND sqlc.arg(sort_order)::text = 'asc' THEN f.updated_at END ASC,
   CASE WHEN sqlc.arg(sort_by)::text = 'updatedAt' AND sqlc.arg(sort_order)::text = 'desc' THEN f.updated_at END DESC,
   CASE WHEN sqlc.arg(sort_by)::text = 'size' AND sqlc.arg(sort_order)::text = 'asc' THEN COALESCE(f.size, -1) END ASC,
@@ -715,3 +747,34 @@ WITH RECURSIVE target AS (
 UPDATE /* TEMPLATE: schema */file_access_grants
 SET revoked_at = COALESCE(revoked_at, now()), updated_at = now()
 WHERE file_id IN (SELECT id FROM target) AND revoked_at IS NULL;
+
+
+
+-- name: RollupFolderSizes :execrows
+WITH RECURSIVE folder_hierarchy AS (
+  SELECT id, id AS root_id
+  FROM /* TEMPLATE: schema */files
+  WHERE kind = 'folder'
+  UNION ALL
+  SELECT f.id, fh.root_id
+  FROM /* TEMPLATE: schema */files f
+  JOIN folder_hierarchy fh ON f.parent_id = fh.id
+),
+folder_totals AS (
+  SELECT fh.root_id AS id, COALESCE(SUM(f.size), 0)::bigint AS total
+  FROM folder_hierarchy fh
+  JOIN /* TEMPLATE: schema */files f ON f.id = fh.id
+  WHERE f.kind = 'file'
+    AND f.status = 'active'
+  GROUP BY fh.root_id
+)
+UPDATE /* TEMPLATE: schema */files AS folder
+SET size = COALESCE(desired.total, 0)
+FROM (
+  SELECT f.id AS id, folder_totals.total AS total
+  FROM /* TEMPLATE: schema */files AS f
+  LEFT JOIN folder_totals ON folder_totals.id = f.id
+  WHERE f.kind = 'folder'
+) AS desired
+WHERE folder.id = desired.id
+  AND (folder.size IS NULL OR folder.size <> desired.total);

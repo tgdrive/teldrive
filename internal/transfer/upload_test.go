@@ -87,18 +87,25 @@ func TestGenerateSaltDeterministic(t *testing.T) {
 func TestPartName(t *testing.T) {
 	t.Parallel()
 	pipeline := &Pipeline{}
+	multi := &sqlcgen.UploadSession{Name: "movie.mkv", ExpectedSize: 10, PartSize: 4}
+	single := &sqlcgen.UploadSession{Name: "movie.mkv", ExpectedSize: 4, PartSize: 4}
+	unknown := &sqlcgen.UploadSession{Name: "movie.mkv", ExpectedSize: -1, PartSize: 4}
 	cases := []struct {
-		partNo int32
-		want   string
+		name    string
+		session *sqlcgen.UploadSession
+		partNo  int32
+		want    string
 	}{
-		{partNo: 1, want: "movie.mkv.001"},
-		{partNo: 2, want: "movie.mkv.002"},
-		{partNo: 999, want: "movie.mkv.999"},
-		{partNo: 1000, want: "movie.mkv.1000"},
+		{name: "single part keeps name", session: single, partNo: 1, want: "movie.mkv"},
+		{name: "unknown size keeps suffix", session: unknown, partNo: 1, want: "movie.mkv.001"},
+		{name: "multi part first", session: multi, partNo: 1, want: "movie.mkv.001"},
+		{name: "multi part second", session: multi, partNo: 2, want: "movie.mkv.002"},
+		{name: "three digits", session: multi, partNo: 999, want: "movie.mkv.999"},
+		{name: "beyond three digits", session: multi, partNo: 1000, want: "movie.mkv.1000"},
 	}
 	for _, tc := range cases {
-		if got := pipeline.partName("movie.mkv", tc.partNo); got != tc.want {
-			t.Fatalf("partName(%d) = %q, want %q", tc.partNo, got, tc.want)
+		if got := pipeline.partName(tc.session, tc.partNo); got != tc.want {
+			t.Fatalf("%s: partName(%d) = %q, want %q", tc.name, tc.partNo, got, tc.want)
 		}
 	}
 }
@@ -362,8 +369,9 @@ func TestNormalizeOptionalChecksum(t *testing.T) {
 func TestRandomizedPartName(t *testing.T) {
 	t.Parallel()
 	pipeline := &Pipeline{config: Config{RandomizePartNames: true}}
-	first := pipeline.partName("movie.mkv", 1)
-	second := pipeline.partName("movie.mkv", 1)
+	session := &sqlcgen.UploadSession{Name: "movie.mkv", ExpectedSize: 4, PartSize: 4}
+	first := pipeline.partName(session, 1)
+	second := pipeline.partName(session, 1)
 	if first == second || len(first) != 64 || len(second) != 64 {
 		t.Fatalf("randomized names = %q, %q", first, second)
 	}

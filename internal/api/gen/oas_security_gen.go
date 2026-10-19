@@ -41,6 +41,7 @@ func findAuthorization(h http.Header, prefix string) (string, bool) {
 // operationRolesBearerAuth is a private map storing roles per operation.
 var operationRolesBearerAuth = map[string][]string{
 	AbortUploadOperation:               []string{},
+	BookmarkFilesOperation:             []string{},
 	BulkMoveFilesOperation:             []string{},
 	BulkSpamFilesOperation:             []string{},
 	BulkTrashFilesOperation:            []string{},
@@ -78,6 +79,7 @@ var operationRolesBearerAuth = map[string][]string{
 	GetDriveStatisticsOperation:        []string{},
 	GetFileOperation:                   []string{},
 	GetFileCategoryStatisticsOperation: []string{},
+	GetFilePlaybackStatisticsOperation: []string{},
 	GetFileViewStateOperation:          []string{},
 	GetJobOperation:                    []string{},
 	GetJobStatisticsOperation:          []string{},
@@ -86,6 +88,7 @@ var operationRolesBearerAuth = map[string][]string{
 	GetStorageStatsOperation:           []string{},
 	GetUploadOperation:                 []string{},
 	GetUploadStatisticsOperation:       []string{},
+	GetUserPreferencesOperation:        []string{},
 	HeadFileOperation:                  []string{},
 	HeadFileLegacyOperation:            []string{},
 	ListAdminUsersOperation:            []string{},
@@ -111,10 +114,13 @@ var operationRolesBearerAuth = map[string][]string{
 	PauseJobQueueOperation:             []string{},
 	PausePeriodicJobOperation:          []string{},
 	PlayOnCastingDeviceOperation:       []string{},
+	ProvisionBotOperation:              []string{},
+	ProvisionBotsOperation:             []string{},
 	PurgeFileOperation:                 []string{},
 	PurgeJobsOperation:                 []string{},
 	PutFileViewStateOperation:          []string{},
 	PutUploadPartOperation:             []string{},
+	RemoveFileBookmarksOperation:       []string{},
 	ResetPeriodicJobsOperation:         []string{},
 	RestoreFileOperation:               []string{},
 	RestoreIncomingSpamOperation:       []string{},
@@ -136,6 +142,7 @@ var operationRolesBearerAuth = map[string][]string{
 	UpdateFileAccessGrantOperation:     []string{},
 	UpdatePeriodicJobOperation:         []string{},
 	UpdateShareOperation:               []string{},
+	UpdateUserPreferencesOperation:     []string{},
 }
 
 // GetRolesForBearerAuth returns the required roles for the given operation.
@@ -162,6 +169,7 @@ func GetRolesForBearerAuth(operation string) []string {
 // operationRolesCookieAuth is a private map storing roles per operation.
 var operationRolesCookieAuth = map[string][]string{
 	AbortUploadOperation:               []string{},
+	BookmarkFilesOperation:             []string{},
 	BulkMoveFilesOperation:             []string{},
 	BulkSpamFilesOperation:             []string{},
 	BulkTrashFilesOperation:            []string{},
@@ -199,6 +207,7 @@ var operationRolesCookieAuth = map[string][]string{
 	GetDriveStatisticsOperation:        []string{},
 	GetFileOperation:                   []string{},
 	GetFileCategoryStatisticsOperation: []string{},
+	GetFilePlaybackStatisticsOperation: []string{},
 	GetFileViewStateOperation:          []string{},
 	GetJobOperation:                    []string{},
 	GetJobStatisticsOperation:          []string{},
@@ -207,6 +216,7 @@ var operationRolesCookieAuth = map[string][]string{
 	GetStorageStatsOperation:           []string{},
 	GetUploadOperation:                 []string{},
 	GetUploadStatisticsOperation:       []string{},
+	GetUserPreferencesOperation:        []string{},
 	HeadFileOperation:                  []string{},
 	HeadFileLegacyOperation:            []string{},
 	ListAdminUsersOperation:            []string{},
@@ -233,10 +243,13 @@ var operationRolesCookieAuth = map[string][]string{
 	PauseJobQueueOperation:             []string{},
 	PausePeriodicJobOperation:          []string{},
 	PlayOnCastingDeviceOperation:       []string{},
+	ProvisionBotOperation:              []string{},
+	ProvisionBotsOperation:             []string{},
 	PurgeFileOperation:                 []string{},
 	PurgeJobsOperation:                 []string{},
 	PutFileViewStateOperation:          []string{},
 	PutUploadPartOperation:             []string{},
+	RemoveFileBookmarksOperation:       []string{},
 	ResetPeriodicJobsOperation:         []string{},
 	RestoreFileOperation:               []string{},
 	RestoreIncomingSpamOperation:       []string{},
@@ -257,6 +270,7 @@ var operationRolesCookieAuth = map[string][]string{
 	UpdateFileAccessGrantOperation:     []string{},
 	UpdatePeriodicJobOperation:         []string{},
 	UpdateShareOperation:               []string{},
+	UpdateUserPreferencesOperation:     []string{},
 }
 
 // GetRolesForCookieAuth returns the required roles for the given operation.
@@ -309,6 +323,7 @@ func GetRolesForEventTicketAuth(operation string) []string {
 // operationRolesExternalApiKeyAuth is a private map storing roles per operation.
 var operationRolesExternalApiKeyAuth = map[string][]string{
 	AbortUploadOperation:               []string{},
+	BookmarkFilesOperation:             []string{},
 	BulkMoveFilesOperation:             []string{},
 	BulkSpamFilesOperation:             []string{},
 	BulkTrashFilesOperation:            []string{},
@@ -340,6 +355,7 @@ var operationRolesExternalApiKeyAuth = map[string][]string{
 	GetDriveStatisticsOperation:        []string{},
 	GetFileOperation:                   []string{},
 	GetFileCategoryStatisticsOperation: []string{},
+	GetFilePlaybackStatisticsOperation: []string{},
 	GetFileViewStateOperation:          []string{},
 	GetJobOperation:                    []string{},
 	GetJobStatisticsOperation:          []string{},
@@ -348,6 +364,7 @@ var operationRolesExternalApiKeyAuth = map[string][]string{
 	GetStorageStatsOperation:           []string{},
 	GetUploadOperation:                 []string{},
 	GetUploadStatisticsOperation:       []string{},
+	GetUserPreferencesOperation:        []string{},
 	HeadFileOperation:                  []string{},
 	HeadFileLegacyOperation:            []string{},
 	ListAdminUsersOperation:            []string{},
@@ -374,6 +391,7 @@ var operationRolesExternalApiKeyAuth = map[string][]string{
 	PurgeJobsOperation:                 []string{},
 	PutFileViewStateOperation:          []string{},
 	PutUploadPartOperation:             []string{},
+	RemoveFileBookmarksOperation:       []string{},
 	ResetPeriodicJobsOperation:         []string{},
 	RestoreFileOperation:               []string{},
 	RestoreIncomingSpamOperation:       []string{},
@@ -393,6 +411,7 @@ var operationRolesExternalApiKeyAuth = map[string][]string{
 	UpdateFileAccessGrantOperation:     []string{},
 	UpdatePeriodicJobOperation:         []string{},
 	UpdateShareOperation:               []string{},
+	UpdateUserPreferencesOperation:     []string{},
 }
 
 // GetRolesForExternalApiKeyAuth returns the required roles for the given operation.
@@ -491,54 +510,4 @@ func (s *Server) securityExternalApiKeyAuth(ctx context.Context, operationName O
 		return nil, false, err
 	}
 	return rctx, true, err
-}
-
-// SecuritySource is provider of security values (tokens, passwords, etc.).
-type SecuritySource interface {
-	// BearerAuth provides BearerAuth security value.
-	BearerAuth(ctx context.Context, operationName OperationName) (BearerAuth, error)
-	// CookieAuth provides CookieAuth security value.
-	CookieAuth(ctx context.Context, operationName OperationName) (CookieAuth, error)
-	// EventTicketAuth provides EventTicketAuth security value.
-	EventTicketAuth(ctx context.Context, operationName OperationName) (EventTicketAuth, error)
-	// ExternalApiKeyAuth provides ExternalApiKeyAuth security value.
-	ExternalApiKeyAuth(ctx context.Context, operationName OperationName) (ExternalApiKeyAuth, error)
-}
-
-func (s *Client) securityBearerAuth(ctx context.Context, operationName OperationName, req *http.Request) error {
-	t, err := s.sec.BearerAuth(ctx, operationName)
-	if err != nil {
-		return errors.Wrap(err, "security source \"BearerAuth\"")
-	}
-	req.Header.Set("Authorization", "Bearer "+t.Token)
-	return nil
-}
-func (s *Client) securityCookieAuth(ctx context.Context, operationName OperationName, req *http.Request) error {
-	t, err := s.sec.CookieAuth(ctx, operationName)
-	if err != nil {
-		return errors.Wrap(err, "security source \"CookieAuth\"")
-	}
-	req.AddCookie(&http.Cookie{
-		Name:  "teldrive_access",
-		Value: t.APIKey,
-	})
-	return nil
-}
-func (s *Client) securityEventTicketAuth(ctx context.Context, operationName OperationName, req *http.Request) error {
-	t, err := s.sec.EventTicketAuth(ctx, operationName)
-	if err != nil {
-		return errors.Wrap(err, "security source \"EventTicketAuth\"")
-	}
-	q := req.URL.Query()
-	q.Set("ticket", t.APIKey)
-	req.URL.RawQuery = q.Encode()
-	return nil
-}
-func (s *Client) securityExternalApiKeyAuth(ctx context.Context, operationName OperationName, req *http.Request) error {
-	t, err := s.sec.ExternalApiKeyAuth(ctx, operationName)
-	if err != nil {
-		return errors.Wrap(err, "security source \"ExternalApiKeyAuth\"")
-	}
-	req.Header.Set("X-Api-Key", t.APIKey)
-	return nil
 }

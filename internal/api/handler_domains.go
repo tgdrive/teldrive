@@ -289,7 +289,7 @@ func (h *Handler) CreateBots(ctx context.Context, req *gen.BotCreateRequest, par
 	if h.Bots == nil || h.Jobs == nil || req == nil || len(req.Tokens) == 0 {
 		return nil, mapServiceError(ErrOperationUnavailable)
 	}
-	response := gen.BotCreateResponse{Bots: []gen.BotSummary{}, FailedIndexes: []int32{}}
+	response := gen.BotCreateResponse{Bots: []gen.BotSummary{}, FailedIndexes: []int32{}, JobIds: []string{}}
 	tokens := make([]string, 0, len(req.Tokens))
 	seen := make(map[int64]struct{}, len(req.Tokens))
 	for index, raw := range req.Tokens {
@@ -316,12 +316,13 @@ func (h *Handler) CreateBots(ctx context.Context, req *gen.BotCreateRequest, par
 		botIDs = append(botIDs, row.BotID)
 	}
 	if len(botIDs) > 0 {
-		jobID, jobErr := h.Jobs.InsertBotProvision(ctx, userID, botIDs)
+		jobIDs, jobErr := h.Jobs.InsertBotProvision(ctx, userID, botIDs)
 		if jobErr != nil {
 			return nil, mapServiceError(jobErr)
 		}
-		if jobID != "" {
-			response.JobId = gen.NewOptString(jobID)
+		response.JobIds = jobIDs
+		if len(jobIDs) > 0 {
+			response.JobId = gen.NewOptString(jobIDs[0])
 		}
 	}
 	return &response, nil
@@ -359,6 +360,43 @@ func (h *Handler) ListBots(ctx context.Context, params gen.ListBotsParams) (gen.
 	return &response, nil
 }
 
+func (h *Handler) ProvisionBots(ctx context.Context, params gen.ProvisionBotsParams) (gen.ProvisionBotsRes, error) {
+	userID, err := UserIDFromContext(ctx)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	if h.Bots == nil || h.Jobs == nil {
+		return nil, mapServiceError(ErrOperationUnavailable)
+	}
+	botIDs, err := h.Bots.ListIDs(ctx, userID)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	jobIDs, err := h.Jobs.InsertBotsReprovision(ctx, userID, botIDs)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	return &gen.BotBulkProvisionResponse{JobIds: jobIDs}, nil
+}
+
+func (h *Handler) ProvisionBot(ctx context.Context, params gen.ProvisionBotParams) (gen.ProvisionBotRes, error) {
+	userID, err := UserIDFromContext(ctx)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	if h.Bots == nil || h.Jobs == nil {
+		return nil, mapServiceError(ErrOperationUnavailable)
+	}
+	if _, err := h.Bots.Get(ctx, userID, params.BotId); err != nil {
+		return nil, mapServiceError(err)
+	}
+	jobID, err := h.Jobs.InsertBotReprovision(ctx, userID, params.BotId)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	return &gen.BotProvisionResponse{JobId: jobID}, nil
+}
+
 func (h *Handler) DeleteBot(ctx context.Context, params gen.DeleteBotParams) (gen.DeleteBotRes, error) {
 	userID, err := UserIDFromContext(ctx)
 	if err != nil {
@@ -393,21 +431,29 @@ func (h *Handler) DiscoverChannels(ctx context.Context) (gen.DiscoverChannelsRes
 	return &response, nil
 }
 
-func (h *Handler) SyncChannels(ctx context.Context, params gen.SyncChannelsParams) (gen.SyncChannelsRes, error) {
+func (h *Handler) SyncChannels(ctx context.Context, req *gen.ChannelSyncRequest, params gen.SyncChannelsParams) (gen.SyncChannelsRes, error) {
 	userID, err := UserIDFromContext(ctx)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
-	if h.TelegramAccount == nil || h.Channels == nil {
+	if h.TelegramAccount == nil || h.Channels == nil || req == nil {
 		return nil, mapServiceError(ErrOperationUnavailable)
 	}
 	discovered, err := h.TelegramAccount.DiscoverChannels(ctx, userID)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
-	remote := make([]channels.RemoteChannel, 0, len(discovered))
+	available := make(map[int64]channels.RemoteChannel, len(discovered))
 	for _, channel := range discovered {
-		remote = append(remote, channels.RemoteChannel{ID: channel.ID, Name: channel.Name})
+		available[channel.ID] = channels.RemoteChannel{ID: channel.ID, Name: channel.Name}
+	}
+	remote := make([]channels.RemoteChannel, 0, len(req.ChannelIds))
+	for _, id := range req.ChannelIds {
+		channel, ok := available[id]
+		if !ok {
+			return nil, mapServiceError(channels.ErrInvalidChannel)
+		}
+		remote = append(remote, channel)
 	}
 	rows, err := h.Channels.Sync(ctx, userID, remote)
 	if err != nil {
@@ -688,7 +734,7 @@ func (h *Handler) HeadPublicShare(ctx context.Context, params gen.HeadPublicShar
 	if h.Shares == nil {
 		return nil, mapServiceError(ErrOperationUnavailable)
 	}
-	resolved, err := h.Shares.Resolve(ctx, params.Token, params.XSharePassword.Or(""))
+	resolved, err := h.Shares.ResolveContent(ctx, shares.ContentRequest{Token: params.Token, Password: params.XSharePassword.Or(""), Session: params.TeldriveShareDownload.Or("")})
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -706,7 +752,7 @@ func (h *Handler) HeadPublicShareLegacy(ctx context.Context, params gen.HeadPubl
 	if h.Shares == nil {
 		return nil, mapServiceError(ErrOperationUnavailable)
 	}
-	resolved, err := h.Shares.Resolve(ctx, params.Token, params.XSharePassword.Or(""))
+	resolved, err := h.Shares.ResolveContent(ctx, shares.ContentRequest{Token: params.Token, Password: params.XSharePassword.Or(""), Session: params.TeldriveShareDownload.Or("")})
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -724,7 +770,8 @@ func (h *Handler) HeadPublicShareFile(ctx context.Context, params gen.HeadPublic
 	if h.Shares == nil {
 		return nil, mapServiceError(ErrOperationUnavailable)
 	}
-	resolved, err := h.Shares.ResolveFile(ctx, params.Token, params.XSharePassword.Or(""), googleUUID(params.FileId))
+	fileID := googleUUID(params.FileId)
+	resolved, err := h.Shares.ResolveContent(ctx, shares.ContentRequest{Token: params.Token, Password: params.XSharePassword.Or(""), Session: params.TeldriveShareDownload.Or(""), FileID: &fileID})
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -742,7 +789,8 @@ func (h *Handler) HeadPublicShareFileLegacy(ctx context.Context, params gen.Head
 	if h.Shares == nil {
 		return nil, mapServiceError(ErrOperationUnavailable)
 	}
-	resolved, err := h.Shares.ResolveFile(ctx, params.Token, params.XSharePassword.Or(""), googleUUID(params.FileId))
+	fileID := googleUUID(params.FileId)
+	resolved, err := h.Shares.ResolveContent(ctx, shares.ContentRequest{Token: params.Token, Password: params.XSharePassword.Or(""), Session: params.TeldriveShareDownload.Or(""), FileID: &fileID})
 	if err != nil {
 		return nil, mapServiceError(err)
 	}

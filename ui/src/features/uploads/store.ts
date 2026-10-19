@@ -1,10 +1,13 @@
 import { t } from "@/lib/localization";
+import { hashKey } from "@tanstack/react-query";
 import { create } from "zustand";
 import { apiFetch } from "@/api/client";
 import { invalidResponse, normalizeApiError, userMessage } from "@/api/errors";
-import type { FileEntry, NameConflictPolicy, UploadPart, UploadSession } from "@/api/types";
+import type { FileEntry, UploadPart, UploadSession, UserPreferences } from "@/api/types";
 import { newClientId } from "@/features/shared/client-id";
 import { newIdempotencyKey } from "@/features/shared/idempotency";
+import { getQueryClient } from "@/lib/queryClient";
+import { preferencesQueryKey, preferencesQueryOptions } from "@/lib/preferences";
 
 export type UploadTaskStatus =
   | "queued"
@@ -34,45 +37,22 @@ export type UploadTask = {
   createdAt: number;
 };
 
-export type UploadSettings = {
-  encryption: boolean;
-  conflictPolicy: NameConflictPolicy;
-  concurrency: number;
-  preferredPartSize: number;
-};
-
 type UploadState = {
   tasks: UploadTask[];
-  settings: UploadSettings;
   enqueue: (files: File[], parentId?: string, path?: string) => void;
   retry: (taskId: string) => void;
   pause: (taskId: string) => void;
   cancel: (taskId: string) => Promise<void>;
   remove: (taskId: string) => void;
   clearCompleted: () => void;
-  setSettings: (settings: Partial<UploadSettings>) => void;
   patchTask: (taskId: string, patch: Partial<UploadTask>) => void;
 };
 
 const legacyStorageKey = "teldrive.uploads.v3";
-const settingsKey = "teldrive.upload-settings.v2";
 const files = new Map<string, File>();
 const controllers = new Map<string, AbortController>();
 const folderResolutions = new Map<string, Promise<string>>();
 let active = 0;
-
-const MIB = 1024 * 1024;
-export const DEFAULT_PART_SIZE_MIB = 512;
-export const MAX_PART_SIZE_MIB = 2048;
-export const PART_SIZE_STEP_MIB = 16;
-
-export function normalizePartSizeMiB(value: number) {
-  if (!Number.isFinite(value)) return DEFAULT_PART_SIZE_MIB;
-  return Math.max(
-    PART_SIZE_STEP_MIB,
-    Math.min(MAX_PART_SIZE_MIB, Math.round(value / PART_SIZE_STEP_MIB) * PART_SIZE_STEP_MIB),
-  );
-}
 
 function discardLegacyPersistedTasks() {
   try {
@@ -81,32 +61,10 @@ function discardLegacyPersistedTasks() {
     // Storage can be unavailable in hardened browser contexts. The in-memory queue remains ephemeral.
   }
 }
-function readSettings(): UploadSettings {
-  try {
-    const settings = {
-      encryption: false,
-      conflictPolicy: "rename",
-      concurrency: 3,
-      preferredPartSize: DEFAULT_PART_SIZE_MIB * MIB,
-      ...JSON.parse(localStorage.getItem(settingsKey) || "{}"),
-    } as UploadSettings;
-    settings.encryption = settings.encryption === true;
-    settings.preferredPartSize = normalizePartSizeMiB(settings.preferredPartSize / MIB) * MIB;
-    return settings;
-  } catch {
-    return {
-      encryption: false,
-      conflictPolicy: "rename",
-      concurrency: 3,
-      preferredPartSize: DEFAULT_PART_SIZE_MIB * MIB,
-    };
-  }
-}
 discardLegacyPersistedTasks();
 
 export const useUploadStore = create<UploadState>((set, get) => ({
   tasks: [],
-  settings: readSettings(),
   enqueue(input, parentId, path = "/") {
     const batchId = newClientId();
     const relativePaths = input.map((file) => file.webkitRelativePath || file.name);
@@ -177,15 +135,6 @@ export const useUploadStore = create<UploadState>((set, get) => ({
     );
     set({ tasks });
   },
-  setSettings(patch) {
-    const settings = { ...get().settings, ...patch };
-    if (patch.preferredPartSize !== undefined) {
-      settings.preferredPartSize = normalizePartSizeMiB(patch.preferredPartSize / MIB) * MIB;
-    }
-    localStorage.setItem(settingsKey, JSON.stringify(settings));
-    set({ settings });
-    queueMicrotask(schedule);
-  },
   patchTask(taskId, patch) {
     const tasks = get().tasks.map((item) => (item.id === taskId ? { ...item, ...patch } : item));
     set({ tasks });
@@ -227,7 +176,7 @@ async function getOrCreateSession(task: UploadTask, signal: AbortSignal): Promis
       if (![404, 410].includes(normalizeApiError(error).status)) throw error;
     }
   }
-  const settings = useUploadStore.getState().settings;
+  const { uploads } = await getQueryClient().ensureQueryData(preferencesQueryOptions());
   const parentId = await resolveTaskParent(task, signal);
   const created = await jsonRequest<UploadSession>("/v1/uploads", {
     method: "POST",
@@ -241,9 +190,9 @@ async function getOrCreateSession(task: UploadTask, signal: AbortSignal): Promis
       size: task.size,
       mimeType: task.mimeType,
       modTime: new Date(task.modTime).toISOString(),
-      encryption: settings.encryption,
-      conflictPolicy: settings.conflictPolicy,
-      preferredPartSize: settings.preferredPartSize,
+      encryption: uploads.encryption,
+      conflictPolicy: uploads.conflictPolicy,
+      preferredPartSize: uploads.preferredPartSize,
     }),
     signal,
   });
@@ -401,6 +350,7 @@ async function runTask(taskId: string) {
   try {
     const session = await getOrCreateSession(task, controller.signal);
     if (session.state === "completed") {
+      files.delete(taskId);
       store.patchTask(taskId, {
         status: "completed",
         progress: 100,
@@ -408,6 +358,7 @@ async function runTask(taskId: string) {
         uploadId: session.id,
         fileId: session.fileId,
       });
+      refreshUploadedFiles();
       return;
     }
     if (session.state !== "open") throw new Error(t("Upload session is {0}.", [session.state]));
@@ -456,6 +407,7 @@ async function runTask(taskId: string) {
       fileId: completed.id,
       error: undefined,
     });
+    refreshUploadedFiles();
   } catch (error) {
     if (controller.signal.aborted) {
       const current = useUploadStore.getState().tasks.find((item) => item.id === taskId);
@@ -468,8 +420,29 @@ async function runTask(taskId: string) {
   }
 }
 
+function refreshUploadedFiles() {
+  const queryClient = getQueryClient();
+  // Refresh active listings and mark other directories stale for the next visit.
+  // Refetch failures must not turn a successfully completed upload into a failure.
+  void Promise.all([
+    queryClient.invalidateQueries({ queryKey: ["get", "/v1/files"] }),
+    queryClient.invalidateQueries({ queryKey: ["get", "/v1/files/{fileId}"] }),
+    queryClient.invalidateQueries({ queryKey: ["get", "/v1/files/statistics/drive"] }),
+  ]).catch(() => undefined);
+}
+
 function schedule() {
-  while (active < useUploadStore.getState().settings.concurrency) {
+  const queryClient = getQueryClient();
+  const prefs = queryClient.getQueryData<UserPreferences>(preferencesQueryKey);
+  if (!prefs) {
+    // Concurrency comes only from the server preferences; never guess a default.
+    queryClient.ensureQueryData(preferencesQueryOptions()).then(
+      () => queueMicrotask(schedule),
+      (error: unknown) => failQueued(error),
+    );
+    return;
+  }
+  while (active < prefs.uploads.concurrency) {
     const next = useUploadStore
       .getState()
       .tasks.find((task) => task.status === "queued" && files.has(task.id));
@@ -478,3 +451,23 @@ function schedule() {
     void runTask(next.id);
   }
 }
+
+function failQueued(error: unknown) {
+  const message = userMessage(error);
+  const { tasks, patchTask } = useUploadStore.getState();
+  for (const task of tasks) {
+    if (task.status === "queued") patchTask(task.id, { status: "failed", error: message });
+  }
+}
+
+// Raising concurrency (any cached preferences change) starts queued uploads.
+getQueryClient()
+  .getQueryCache()
+  .subscribe((event) => {
+    if (
+      event.type === "updated" &&
+      event.query.queryHash === hashKey(preferencesQueryKey) &&
+      event.query.state.data !== undefined
+    )
+      queueMicrotask(schedule);
+  });

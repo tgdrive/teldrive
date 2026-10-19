@@ -15,14 +15,13 @@ import CloseIcon from "~icons/gravity-ui/xmark";
 import ClockIcon from "~icons/gravity-ui/clock";
 import InfoIcon from "~icons/gravity-ui/circle-info";
 import { currentUserQueryOptions } from "@/auth/queries";
-
 const SETTINGS_GROUPS = [
   {
-    label: t("Cuenta"),
+    key: "account",
     items: [
-      { label: t("Resumen"), path: "/settings", icon: PersonIcon },
+      { key: "overview", path: "/settings", icon: PersonIcon },
       {
-        label: t("Usuarios y permisos"),
+        key: "users",
         path: "/settings/users",
         icon: PersonIcon,
         capability: "system.manageUsers",
@@ -30,37 +29,37 @@ const SETTINGS_GROUPS = [
     ],
   },
   {
-    label: t("Almacenamiento en Telegram"),
+    key: "storage",
     items: [
-      { label: t("Canales"), path: "/settings/channels", icon: StorageIcon },
-      { label: t("Bots"), path: "/settings/bots", icon: RobotIcon },
+      { key: "channels", path: "/settings/channels", icon: StorageIcon },
+      { key: "bots", path: "/settings/bots", icon: RobotIcon },
     ],
   },
   {
-    label: t("Seguridad"),
+    key: "security",
     items: [
-      { label: t("Sesiones"), path: "/settings/sessions", icon: SessionsIcon },
-      { label: t("Claves de API"), path: "/settings/api-keys", icon: KeyIcon },
+      { key: "sessions", path: "/settings/sessions", icon: SessionsIcon },
+      { key: "apiKeys", path: "/settings/api-keys", icon: KeyIcon },
     ],
   },
   {
-    label: t("Preferencias"),
+    key: "preferences",
     items: [
-      { label: t("Subidas"), path: "/settings/uploads", icon: UploadIcon },
-      { label: t("Apariencia"), path: "/settings/appearance", icon: PaletteIcon },
-      { label: "Rclone", path: "/settings/rclone", icon: StorageIcon },
+      { key: "uploads", path: "/settings/uploads", icon: UploadIcon },
+      { key: "appearance", path: "/settings/appearance", icon: PaletteIcon },
+      { key: "rclone", path: "/settings/rclone", icon: StorageIcon },
     ],
   },
   {
-    label: t("Sistema"),
+    key: "system",
     items: [
       {
-        label: t("Tareas periódicas"),
+        key: "jobs",
         path: "/settings/periodic-jobs",
         icon: ClockIcon,
         capability: "system.maintenance",
       },
-      { label: t("Información"), path: "/settings/info", icon: InfoIcon },
+      { key: "info", path: "/settings/info", icon: InfoIcon },
     ],
   },
 ] as const;
@@ -69,17 +68,23 @@ export const Route = createFileRoute("/_settings")({ component: SettingsLayout }
 
 function SettingsLayout() {
   const location = useLocation();
+
   const { data: user } = useQuery(currentUserQueryOptions());
   const [mobileOpen, setMobileOpen] = useState(false);
   const visibleGroups = settingsGroupsFor(user?.capabilities ?? []);
   const activeLabel = visibleGroups.reduce<string | undefined>(
-    (found, group) => found ?? group.items.find((item) => item.path === location.pathname)?.label,
+    (found, group) =>
+      found ??
+      (() => {
+        const item = group.items.find((entry) => entry.path === location.pathname);
+        return item ? t(`settings.item.${item.key}`) : undefined;
+      })(),
     undefined,
   );
 
   return (
     <div className="mx-auto grid w-full max-w-7xl gap-6 lg:grid-cols-[15rem_minmax(0,1fr)]">
-      <aside className="hidden lg:block">
+      <aside className="hidden lg:col-start-1 lg:block">
         <div className="sticky top-0 flex max-h-[calc(100dvh-7rem)] flex-col gap-5 overflow-y-auto border-r border-border pr-5">
           <div>
             <Typography type="h2" className="text-lg font-semibold">
@@ -92,7 +97,7 @@ function SettingsLayout() {
           <SettingsNavigation currentPath={location.pathname} groups={visibleGroups} />
         </div>
       </aside>
-      <main className="min-w-0">
+      <main className="min-w-0 lg:col-start-2">
         <div className="mb-5 flex items-center justify-between border-b border-border pb-4 lg:hidden">
           <div>
             <Typography type="h2" className="text-base font-semibold">
@@ -160,10 +165,10 @@ function SettingsNavigation({
   return (
     <nav aria-label={t("Menú de configuración")} className="flex flex-col gap-5">
       {groups.map((group, groupIndex) => (
-        <div key={group.label} className="flex flex-col gap-1.5">
+        <div key={group.key} className="flex flex-col gap-1.5">
           {groupIndex > 0 ? <Separator className="mb-3" /> : null}
           <p className="px-2 text-[0.68rem] font-semibold uppercase tracking-[0.14em] text-muted">
-            {group.label}
+            {t(`settings.group.${group.key}`)}
           </p>
           {group.items.map((item) => {
             const active = currentPath === item.path;
@@ -175,7 +180,7 @@ function SettingsNavigation({
                 className={`flex min-h-10 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors ${active ? "bg-accent/10 text-accent" : "text-muted hover:bg-default/30 hover:text-foreground"}`}
               >
                 <item.icon className="size-4 shrink-0" />
-                <span>{item.label}</span>
+                <span>{t(`settings.item.${item.key}`)}</span>
               </Link>
             );
           })}
@@ -186,12 +191,12 @@ function SettingsNavigation({
 }
 
 type SettingsItem = (typeof SETTINGS_GROUPS)[number]["items"][number];
-type SettingsGroup = { label: string; items: SettingsItem[] };
+type SettingsGroup = { key: string; items: SettingsItem[] };
 
 function settingsGroupsFor(capabilities: string[]): SettingsGroup[] {
   const allowed = new Set(capabilities);
   return SETTINGS_GROUPS.map((group) => ({
-    label: group.label,
+    key: group.key,
     items: group.items.filter((item) => !("capability" in item) || allowed.has(item.capability)),
   })).filter((group) => group.items.length > 0) as SettingsGroup[];
 }

@@ -14,6 +14,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { FileEntry } from "@/api/types";
 import { startFileDownload } from "@/features/files/download";
+import { useFormatBytes } from "@/lib/format";
 import {
   applyPublicationAppearance,
   closePublication,
@@ -66,16 +67,20 @@ export function EpubReader({ file, url, onClose }: EpubReaderProps) {
   const [chapter, setChapter] = useState<string>();
   const [progress, setProgress] = useState(0);
   const [location, setLocation] = useState<Location>({});
-  const [theme, setTheme] = useState("paper");
+  const [theme, setTheme] = useState("auto");
   const [flow, setFlow] = useState("paginated");
   const [font, setFont] = useState("publisher");
   const [fontSize, setFontSize] = useState(100);
   const [lineHeight, setLineHeight] = useState(1.55);
   const [margin, setMargin] = useState(48);
   const [columns, setColumns] = useState(2);
+  const [brightness, setBrightness] = useState(100);
+
+  const prefersDark = useMediaQuery("(prefers-color-scheme: dark)");
+  const resolvedTheme = theme === "auto" ? (prefersDark ? "night" : "paper") : theme;
 
   const preferences: ReaderPreferences = {
-    theme,
+    theme: resolvedTheme,
     flow,
     font,
     fontSize,
@@ -176,7 +181,7 @@ export function EpubReader({ file, url, onClose }: EpubReaderProps) {
 
       const response = await fetch(url);
       if (!response.ok)
-        throw new Error(t("No se pudo cargar la publicación ({0}).", [response.status]));
+        throw new Error(t("Unable to load publication ({status}).", { status: response.status }));
       const bookFile = new File([await response.blob()], file.name, { type: file.mimeType });
       if (!activeRef.current) return;
 
@@ -260,7 +265,7 @@ export function EpubReader({ file, url, onClose }: EpubReaderProps) {
   useEffect(() => {
     const view = viewRef.current;
     if (view) applyPublicationAppearance(view, preferences);
-  }, [columns, flow, font, fontSize, lineHeight, margin, theme]);
+  }, [columns, flow, font, fontSize, lineHeight, margin, resolvedTheme]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -295,10 +300,12 @@ export function EpubReader({ file, url, onClose }: EpubReaderProps) {
     <EpubNavigation file={file} toc={toc} activeChapter={chapter} onNavigate={goTo} />
   );
 
+  const locationText = locationLabel(location, progress, t);
+
   return (
     <div
       data-epub-reader
-      data-reader-theme={theme}
+      data-reader-theme={resolvedTheme}
       className="reader-shell flex h-dvh min-h-0 flex-col overflow-hidden"
     >
       <header
@@ -323,7 +330,7 @@ export function EpubReader({ file, url, onClose }: EpubReaderProps) {
         </div>
 
         <div className="hidden min-w-28 text-center text-[11px] text-(--reader-muted) md:block">
-          {locationLabel(location, progress)}
+          {locationText}
         </div>
 
         <EpubSettings
@@ -336,6 +343,7 @@ export function EpubReader({ file, url, onClose }: EpubReaderProps) {
           lineHeight={lineHeight}
           margin={margin}
           columns={columns}
+          brightness={brightness}
           onTheme={setTheme}
           onFlow={setFlow}
           onFont={setFont}
@@ -343,6 +351,7 @@ export function EpubReader({ file, url, onClose }: EpubReaderProps) {
           onLineHeight={setLineHeight}
           onMargin={setMargin}
           onColumns={setColumns}
+          onBrightness={setBrightness}
         />
 
         <Button
@@ -397,7 +406,12 @@ export function EpubReader({ file, url, onClose }: EpubReaderProps) {
             </div>
           ) : null}
           <div className="mx-auto h-full min-h-0 w-full max-w-[1680px] px-0 sm:px-2 lg:px-4">
-            <div ref={hostRef} className="reader-page h-full min-h-0 w-full overflow-hidden" />
+            <div
+              ref={hostRef}
+              className="reader-page h-full min-h-0 w-full overflow-hidden"
+              data-page-brightness={brightness}
+              style={brightness === 100 ? undefined : { filter: `brightness(${brightness / 100})` }}
+            />
           </div>
         </main>
       </div>
@@ -420,7 +434,7 @@ export function EpubReader({ file, url, onClose }: EpubReaderProps) {
         <div className="max-w-[52vw] text-center text-[10px] tabular-nums text-(--reader-muted) sm:text-[11px]">
           <p className="truncate">
             {chapter ? `${chapter} · ` : ""}
-            {locationLabel(location, progress)}
+            {locationText}
           </p>
         </div>
         <Button
@@ -440,7 +454,7 @@ export function EpubReader({ file, url, onClose }: EpubReaderProps) {
         <Drawer state={drawerState}>
           <Drawer.Backdrop variant="blur">
             <Drawer.Content placement="left" className="w-[min(88vw,22rem)]">
-              <Drawer.Dialog data-reader-theme={theme} className="reader-chrome">
+              <Drawer.Dialog data-reader-theme={resolvedTheme} className="reader-chrome">
                 <Drawer.Header className="border-b border-(--reader-border)">
                   <Drawer.Heading>{t("Navegación del libro")}</Drawer.Heading>
                   <Drawer.CloseTrigger />
@@ -466,6 +480,7 @@ function EpubNavigation({
   activeChapter?: string;
   onNavigate: (href: string) => void;
 }) {
+  const formatBytes = useFormatBytes();
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="border-b border-(--reader-border) px-5 py-4">
@@ -546,6 +561,7 @@ function EpubSettings({
   lineHeight,
   margin,
   columns,
+  brightness,
   onTheme,
   onFlow,
   onFont,
@@ -553,7 +569,9 @@ function EpubSettings({
   onLineHeight,
   onMargin,
   onColumns,
+  onBrightness,
 }: ReaderPreferences & {
+  brightness: number;
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onTheme: (value: string) => void;
@@ -563,6 +581,7 @@ function EpubSettings({
   onLineHeight: (value: number) => void;
   onMargin: (value: number) => void;
   onColumns: (value: number) => void;
+  onBrightness: (value: number) => void;
 }) {
   return (
     <Popover isOpen={isOpen} onOpenChange={onOpenChange}>
@@ -592,12 +611,22 @@ function EpubSettings({
               label={t("Tema")}
               value={theme}
               options={[
+                [t("Automático"), "auto"],
                 [t("Blanco"), "white"],
                 [t("Papel"), "paper"],
                 [t("Gris"), "gray"],
                 [t("Noche"), "night"],
               ]}
               onChange={onTheme}
+            />
+            <SettingSlider
+              label={t("Brightness")}
+              value={brightness}
+              min={50}
+              max={150}
+              step={5}
+              output={`${brightness}%`}
+              onChange={onBrightness}
             />
             <SettingButtons
               label={t("Tipografía")}
@@ -747,17 +776,14 @@ function flattenToc(
   });
 }
 
-function locationLabel(location: Location, progress: number) {
+function locationLabel(
+  location: Location,
+  progress: number,
+  t: (key: string, vars?: Record<string, string | number>) => string,
+) {
   if (location.current !== undefined && location.total)
-    return t("Página {0} de {1}", [location.current + 1, location.total]);
+    return t("Page {current} of {total}", { current: location.current + 1, total: location.total });
   return `${Math.round(progress * 100)}%`;
-}
-
-function formatBytes(value: number) {
-  if (!value) return "0 B";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  const index = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1);
-  return `${(value / 1024 ** index).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
 }
 
 function isEditableTarget(target: EventTarget | null) {

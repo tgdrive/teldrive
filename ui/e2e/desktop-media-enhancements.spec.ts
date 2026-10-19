@@ -1,3 +1,4 @@
+import { installPreferencesApi } from "./fixtures/preferences";
 import { expect, test } from "@playwright/test";
 import { installFileApi, alphaId } from "./file-api.fixture";
 
@@ -109,6 +110,7 @@ test("MKV selects audio, text/bitmap subtitles and sends selected tracks to DLNA
       return route.fulfill({ contentType: "video/x-matroska", body: Buffer.alloc(16) });
     return route.fallback();
   });
+  await installPreferencesApi(page);
   await page.route("**/api/v1/playback/tracks?*", (route) =>
     route.fulfill({
       json: {

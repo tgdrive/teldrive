@@ -4,7 +4,6 @@ import { join, relative } from "node:path";
 
 const sourceRoot = join(process.cwd(), "src");
 const exactCopies = new Set([
-  "components/task-launcher.tsx",
   "components/task-status-chip.tsx",
   "routes/tasks.tsx",
   "routes/tasks_.$id.tsx",

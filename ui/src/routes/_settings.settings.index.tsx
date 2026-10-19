@@ -7,6 +7,7 @@ import { userMessage } from "@/api/errors";
 import { useCurrentUser } from "@/auth/use-current-user";
 import { SettingsPageHeader, SettingsRow, SettingsSection } from "@/components/settings-layout";
 import { getQueryClient } from "@/lib/queryClient";
+import { useCountFormatter, useDateTimeFormatter, useFormatBytes } from "@/lib/format";
 import LogoutIcon from "~icons/gravity-ui/arrow-right-from-square";
 
 export const Route = createFileRoute("/_settings/settings/")({
@@ -18,15 +19,12 @@ export const Route = createFileRoute("/_settings/settings/")({
   ),
 });
 
-function formatBytes(bytes: number) {
-  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
-  const units = ["B", "KB", "MB", "GB", "TB", "PB"];
-  const power = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-  return `${(bytes / 1024 ** power).toFixed(power === 0 ? 0 : 1)} ${units[power]}`;
-}
-
 function AccountSettings() {
   const navigate = useNavigate();
+
+  const formatBytes = useFormatBytes();
+  const formatCount = useCountFormatter();
+  const formatDateTime = useDateTimeFormatter();
   const user = useCurrentUser();
   const stats = $api.useSuspenseQuery(
     "get",
@@ -47,7 +45,7 @@ function AccountSettings() {
   };
 
   const displayName =
-    user.data.displayName || user.data.username || t("Usuario {0}", [user.data.userId]);
+    user.data.displayName || user.data.username || t("User {id}", { id: user.data.userId });
 
   return (
     <div className="space-y-6">
@@ -70,7 +68,7 @@ function AccountSettings() {
           description={
             user.data.username
               ? `@${user.data.username}`
-              : t("Usuario de Telegram {0}", [user.data.userId])
+              : t("Telegram user {id}", { id: user.data.userId })
           }
         >
           <div className="flex justify-end">
@@ -84,11 +82,13 @@ function AccountSettings() {
                     : "default"
               }
             >
-              {user.data.role === "owner"
-                ? t("Propietario")
-                : user.data.role === "admin"
-                  ? t("Administrador")
-                  : t("Usuario")}
+              {t(
+                user.data.role === "owner"
+                  ? "account.roleOwner"
+                  : user.data.role === "admin"
+                    ? "account.roleAdmin"
+                    : "account.roleUser",
+              )}
             </Chip>
           </div>
         </SettingsRow>
@@ -97,7 +97,7 @@ function AccountSettings() {
           description={t("Fecha de creación de este perfil de Teldrive.")}
         >
           <p className="text-right text-sm text-muted">
-            {new Date(user.data.createdAt).toLocaleString()}
+            {formatDateTime.format(new Date(user.data.createdAt))}
           </p>
         </SettingsRow>
       </SettingsSection>
@@ -106,13 +106,17 @@ function AccountSettings() {
         description={t("Uso actual de almacenamiento de esta cuenta.")}
       >
         <SettingsRow label={t("Archivos")}>
-          <p className="text-right font-mono text-sm">{stats.data.totalFiles.toLocaleString()}</p>
+          <p className="text-right font-mono text-sm">
+            {formatCount.format(stats.data.totalFiles)}
+          </p>
         </SettingsRow>
         <SettingsRow label={t("Datos almacenados")}>
           <p className="text-right font-mono text-sm">{formatBytes(stats.data.totalBytes)}</p>
         </SettingsRow>
         <SettingsRow label={t("Abrir subidas")}>
-          <p className="text-right font-mono text-sm">{stats.data.openUploads.toLocaleString()}</p>
+          <p className="text-right font-mono text-sm">
+            {formatCount.format(stats.data.openUploads)}
+          </p>
         </SettingsRow>
       </SettingsSection>
     </div>

@@ -2,14 +2,22 @@ import { t } from "@/lib/localization";
 import { Label, ListBox, NumberField, Select, Switch } from "@heroui/react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useRef, useState } from "react";
+import type { UploadPreferences } from "@/api/types";
 import { SettingsPageHeader, SettingsRow, SettingsSection } from "@/components/settings-layout";
-import { MAX_PART_SIZE_MIB, normalizePartSizeMiB, useUploadStore } from "@/features/uploads/store";
+import {
+  MAX_PART_SIZE_MIB,
+  normalizePartSizeMiB,
+  usePreferences,
+  useUpdatePreferences,
+} from "@/lib/preferences";
 
 export const Route = createFileRoute("/_settings/settings/uploads")({ component: UploadSettings });
 
 function UploadSettings() {
-  const settings = useUploadStore((state) => state.settings);
-  const setSettings = useUploadStore((state) => state.setSettings);
+  const uploads = usePreferences()?.uploads;
+  const { mutate: updatePreferences } = useUpdatePreferences();
+
+  if (!uploads) return null;
 
   return (
     <div className="space-y-6">
@@ -21,9 +29,7 @@ function UploadSettings() {
       />
       <SettingsSection
         title={t("Comportamiento de subidas")}
-        description={t(
-          "Estas preferencias se guardan en este navegador y se aplican a las nuevas subidas.",
-        )}
+        description={t("These preferences are saved to your account and apply to new uploads.")}
       >
         <SettingsRow
           label={t("Cifrado")}
@@ -31,8 +37,8 @@ function UploadSettings() {
         >
           <Switch
             aria-label={t("Cifrar archivos subidos")}
-            isSelected={settings.encryption}
-            onChange={(isSelected) => setSettings({ encryption: isSelected })}
+            isSelected={uploads.encryption}
+            onChange={(isSelected) => updatePreferences({ uploads: { encryption: isSelected } })}
           >
             <Switch.Content>
               <Switch.Control>
@@ -50,9 +56,11 @@ function UploadSettings() {
         >
           <Select
             aria-label={t("Conflictos de nombre")}
-            selectedKey={settings.conflictPolicy}
+            selectedKey={uploads.conflictPolicy}
             onSelectionChange={(key) =>
-              setSettings({ conflictPolicy: String(key) as typeof settings.conflictPolicy })
+              updatePreferences({
+                uploads: { conflictPolicy: String(key) as UploadPreferences["conflictPolicy"] },
+              })
             }
           >
             <Select.Trigger>
@@ -67,7 +75,7 @@ function UploadSettings() {
                 <ListBox.Item id="replace" textValue={t("Reemplazar existente")}>
                   {t("Reemplazar existente")}
                 </ListBox.Item>
-                <ListBox.Item id="error" textValue={t("Detener con error")}>
+                <ListBox.Item id="fail" textValue={t("Detener con error")}>
                   {t("Detener con error")}
                 </ListBox.Item>
               </ListBox>
@@ -79,12 +87,14 @@ function UploadSettings() {
           description={t("Cantidad de archivos que este navegador sube simultáneamente.")}
         >
           <NumberField
-            aria-label={t("Subidas simultáneas")}
-            value={settings.concurrency}
+            aria-label={t("Concurrent uploads")}
+            value={uploads.concurrency}
             minValue={1}
             maxValue={12}
             onChange={(value) =>
-              setSettings({ concurrency: Math.max(1, Math.min(12, value ?? 1)) })
+              updatePreferences({
+                uploads: { concurrency: Math.max(1, Math.min(12, value ?? 1)) },
+              })
             }
           >
             <Label className="sr-only">{t("Subidas simultáneas")}</Label>
@@ -101,16 +111,15 @@ function UploadSettings() {
             "El valor inicial es 512 MiB. En subidas cifradas se ajusta a múltiplos de 16 MiB; el servidor puede elegir otro tamaño.",
           )}
         >
-          <PartSizeField />
+          <PartSizeField preferredPartSize={uploads.preferredPartSize} />
         </SettingsRow>
       </SettingsSection>
     </div>
   );
 }
 
-function PartSizeField() {
-  const preferredPartSize = useUploadStore((state) => state.settings.preferredPartSize);
-  const setSettings = useUploadStore((state) => state.setSettings);
+function PartSizeField({ preferredPartSize }: { preferredPartSize: number }) {
+  const { mutate: updatePreferences } = useUpdatePreferences();
   const [value, setValue] = useState(preferredPartSize / 1024 / 1024);
   const valueRef = useRef(value);
 
@@ -118,7 +127,7 @@ function PartSizeField() {
     const normalized = normalizePartSizeMiB(valueRef.current);
     valueRef.current = normalized;
     setValue(normalized);
-    setSettings({ preferredPartSize: normalized * 1024 * 1024 });
+    updatePreferences({ uploads: { preferredPartSize: normalized * 1024 * 1024 } });
   };
 
   return (

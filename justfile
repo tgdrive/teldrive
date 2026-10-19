@@ -73,7 +73,7 @@ docs-build: docs-generate
     bun run --cwd {{docs_dir}} build
 
 build: generate-ui
-    bun run --cwd {{ui_dir}} build
+    VERSION="{{version}}" bun run --cwd {{ui_dir}} build
     mkdir -p bin
     CGO_ENABLED=0 go build -trimpath -ldflags '{{ldflags}}' -o {{binary}} ./cmd/teldrive
 

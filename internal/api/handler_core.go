@@ -113,6 +113,13 @@ func (h *Handler) ListFiles(ctx context.Context, params gen.ListFilesParams) (ge
 	}
 	limit := params.Limit.Or(100)
 	scope := string(params.Scope.Or(gen.FileListQueryScopeFolder))
+	bookmarked := params.Bookmarked.Or(false)
+	if bookmarked {
+		if params.Status.Or(gen.FileListQueryStatusActive) != gen.FileListQueryStatusActive {
+			return nil, mapServiceError(uploads.ErrInvalidInput)
+		}
+		scope = "drive"
+	}
 	sortBy, order, searchType := "name", "asc", "text"
 	if value, ok := params.Sort.Get(); ok {
 		sortBy = string(value)
@@ -140,7 +147,8 @@ func (h *Handler) ListFiles(ctx context.Context, params gen.ListFilesParams) (ge
 			Scope, Folder, Search, SearchType, Sort, Order, Kind, Status string
 			Categories                                                   []gen.FileCategory
 			After, Before                                                string
-		}{scope, folderCursor, params.Search.Or(""), searchType, sortBy, order, string(params.Kind.Or("")), string(params.Status.Or("")), params.Category, params.UpdatedAfter.Or(time.Time{}).Format(time.RFC3339Nano), params.UpdatedBefore.Or(time.Time{}).Format(time.RFC3339Nano)})
+			Bookmarked                                                   bool
+		}{scope, folderCursor, params.Search.Or(""), searchType, sortBy, order, string(params.Kind.Or("")), string(params.Status.Or("")), params.Category, params.UpdatedAfter.Or(time.Time{}).Format(time.RFC3339Nano), params.UpdatedBefore.Or(time.Time{}).Format(time.RFC3339Nano), bookmarked})
 		fingerprintSum := sha256.Sum256(fingerprintBytes)
 		fingerprint := hex.EncodeToString(fingerprintSum[:])
 		if cursor.ID != uuid.Nil && (cursor.Scope != scope || cursor.FolderID != folderCursor || cursor.Fingerprint != fingerprint) {
@@ -163,7 +171,7 @@ func (h *Handler) ListFiles(ctx context.Context, params gen.ListFilesParams) (ge
 	input := catalog.ListInput{
 		UserID: ownerID, Scope: scope, ParentID: parentID, Path: params.Path.Or(""),
 		Search: params.Search.Or(""), SearchType: searchType,
-		Sort: sortBy, Order: order, Limit: limit,
+		Sort: sortBy, Order: order, Limit: limit, Bookmarked: bookmarked,
 	}
 	if scope == "recursive" {
 		input.ScopeFolderID = parentID
@@ -237,6 +245,42 @@ func (h *Handler) ListFiles(ctx context.Context, params gen.ListFilesParams) (ge
 		})
 	}
 	return &response, nil
+}
+
+func (h *Handler) BookmarkFiles(ctx context.Context, req *gen.BookmarkFilesRequest) (gen.BookmarkFilesRes, error) {
+	userID, err := UserIDFromContext(ctx)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	if h.Catalog == nil || req == nil {
+		return nil, mapServiceError(ErrOperationUnavailable)
+	}
+	ids := make([]uuid.UUID, 0, len(req.FileIds))
+	for _, id := range req.FileIds {
+		ids = append(ids, googleUUID(id))
+	}
+	if err := h.Catalog.BookmarkFiles(ctx, userID, ids); err != nil {
+		return nil, mapServiceError(err)
+	}
+	return &gen.BookmarkFilesNoContent{}, nil
+}
+
+func (h *Handler) RemoveFileBookmarks(ctx context.Context, req *gen.BookmarkFilesRequest) (gen.RemoveFileBookmarksRes, error) {
+	userID, err := UserIDFromContext(ctx)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	if h.Catalog == nil || req == nil {
+		return nil, mapServiceError(ErrOperationUnavailable)
+	}
+	ids := make([]uuid.UUID, 0, len(req.FileIds))
+	for _, id := range req.FileIds {
+		ids = append(ids, googleUUID(id))
+	}
+	if err := h.Catalog.RemoveFileBookmarks(ctx, userID, ids); err != nil {
+		return nil, mapServiceError(err)
+	}
+	return &gen.RemoveFileBookmarksNoContent{}, nil
 }
 
 func (h *Handler) UpdateFile(ctx context.Context, req *gen.FileUpdateRequest, params gen.UpdateFileParams) (gen.UpdateFileRes, error) {
@@ -488,7 +532,8 @@ func (h *Handler) PutUploadPart(ctx context.Context, req gen.PutUploadPartReq, p
 	}
 	result, err := h.UploadPipeline.UploadPart(ctx, transfer.UploadPartRequest{
 		UserID: ownerID, UploadID: googleUUID(params.UploadId), PartNo: params.PartNo,
-		PlainSize: params.ContentLength, Checksum: checksum, Body: req.Data,
+		RequestedChannelID: params.ChannelId.Or(0),
+		PlainSize:          params.ContentLength, Checksum: checksum, Body: req.Data,
 	})
 	if err != nil {
 		return nil, mapServiceError(err)
@@ -548,11 +593,7 @@ func (h *Handler) HeadFile(ctx context.Context, params gen.HeadFileParams) (gen.
 	if h.Catalog == nil {
 		return nil, mapServiceError(ErrOperationUnavailable)
 	}
-	access, err := h.resolveAuthenticatedFileAccess(ctx, googleUUID(params.FileId), false)
-	if err != nil {
-		return nil, mapServiceError(err)
-	}
-	file, err := h.Catalog.Get(ctx, access.OwnerID, googleUUID(params.FileId))
+	file, err := h.resolveFileContent(ctx, googleUUID(params.FileId))
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
@@ -570,11 +611,7 @@ func (h *Handler) HeadFileLegacy(ctx context.Context, params gen.HeadFileLegacyP
 		return nil, mapServiceError(ErrOperationUnavailable)
 	}
 	fileID := googleUUID(params.FileId)
-	access, err := h.resolveAuthenticatedFileAccess(ctx, fileID, false)
-	if err != nil {
-		return nil, mapServiceError(err)
-	}
-	file, err := h.Catalog.Get(ctx, access.OwnerID, fileID)
+	file, err := h.resolveFileContent(ctx, fileID)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}

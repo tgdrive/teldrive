@@ -56,7 +56,7 @@ func (a *GotdAccount) DiscoverChannels(ctx context.Context, userID int64) ([]Dis
 				continue
 			}
 			channel, ok := element.Entities.Channel(peer.ChannelID)
-			if !ok || channel == nil || channel.ID == 0 || channel.Left {
+			if !ok || !isBroadcastChannel(channel) || channel.ID == 0 || channel.Left {
 				continue
 			}
 			rights, hasRights := channel.GetAdminRights()
@@ -77,6 +77,11 @@ func (a *GotdAccount) DiscoverChannels(ctx context.Context, userID int64) ([]Dis
 		return cmp.Or(cmp.Compare(a.Name, b.Name), cmp.Compare(a.ID, b.ID))
 	})
 	return result, nil
+}
+
+// Telegram represents supergroups as channels too; only broadcast channels are storage targets.
+func isBroadcastChannel(channel *tg.Channel) bool {
+	return channel != nil && channel.Broadcast && !channel.Megagroup && !channel.Gigagroup
 }
 
 func (a *GotdAccount) ProfilePhoto(ctx context.Context, userID int64) (ProfilePhoto, bool, error) {

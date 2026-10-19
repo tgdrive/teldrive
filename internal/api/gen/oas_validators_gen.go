@@ -67,6 +67,181 @@ func (s *ApiKeyCreateRequest) Validate() error {
 	return nil
 }
 
+func (s *AppearancePreferences) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if err := s.Theme.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "theme",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.Locale.Get(); ok {
+			if err := func() error {
+				if err := value.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "locale",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s *AppearancePreferencesUpdate) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if value, ok := s.Theme.Get(); ok {
+			if err := func() error {
+				if err := value.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "theme",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.Locale.Get(); ok {
+			if err := func() error {
+				if err := value.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "locale",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s *AuthorizePublicShareDownloadNoContent) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if err := s.CacheControl.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "CacheControl",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s AuthorizePublicShareDownloadNoContentCacheControl) Validate() error {
+	switch s {
+	case "no-store":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
+func (s *BookmarkFilesRequest) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if s.FileIds == nil {
+			return errors.New("nil is invalid value")
+		}
+		if err := (validate.Array{
+			MinLength:    1,
+			MinLengthSet: true,
+			MaxLength:    500,
+			MaxLengthSet: true,
+		}).ValidateLength(len(s.FileIds)); err != nil {
+			return errors.Wrap(err, "array")
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "fileIds",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s *BotBulkProvisionResponse) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if s.JobIds == nil {
+			return errors.New("nil is invalid value")
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "jobIds",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
 func (s *BotCreateRequest) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer
@@ -123,6 +298,17 @@ func (s *BotCreateResponse) Validate() error {
 	}(); err != nil {
 		failures = append(failures, validate.FieldError{
 			Name:  "failedIndexes",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if s.JobIds == nil {
+			return errors.New("nil is invalid value")
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "jobIds",
 			Error: err,
 		})
 	}
@@ -451,6 +637,29 @@ func (s *ChannelSummary) Validate() error {
 	}(); err != nil {
 		failures = append(failures, validate.FieldError{
 			Name:  "health",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s *ChannelSyncRequest) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if s.ChannelIds == nil {
+			return errors.New("nil is invalid value")
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "channelIds",
 			Error: err,
 		})
 	}
@@ -1136,6 +1345,101 @@ func (s *FileAccessGrantUpdateRequest) Validate() error {
 		return &validate.Error{Fields: failures}
 	}
 	return nil
+}
+
+func (s *FileBrowserPreferences) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if err := s.Sort.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "sort",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if err := s.Order.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "order",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s *FileBrowserPreferencesUpdate) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if value, ok := s.Sort.Get(); ok {
+			if err := func() error {
+				if err := value.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "sort",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.Order.Get(); ok {
+			if err := func() error {
+				if err := value.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "order",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s FileBrowserSort) Validate() error {
+	switch s {
+	case "name":
+		return nil
+	case "updatedAt":
+		return nil
+	case "size":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
 }
 
 func (s *FileBulkMoveRequest) Validate() error {
@@ -2111,6 +2415,33 @@ func (s HealthStatusStatus) Validate() error {
 	}
 }
 
+func (s InterfaceLocale) Validate() error {
+	switch s {
+	case "en":
+		return nil
+	case "es":
+		return nil
+	case "pt-BR":
+		return nil
+	case "ru":
+		return nil
+	case "fr":
+		return nil
+	case "de":
+		return nil
+	case "zh-CN":
+		return nil
+	case "it":
+		return nil
+	case "ja":
+		return nil
+	case "ar":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
 func (s *Job) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer
@@ -3010,6 +3341,77 @@ func (s *PeriodicJobUpdate) Validate() error {
 	return nil
 }
 
+func (s *PlaybackStatistics) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if err := s.Scope.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "scope",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if err := (validate.Float{}).Validate(float64(s.BytesPerSecond)); err != nil {
+			return errors.Wrap(err, "float")
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "bytesPerSecond",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if s.Accounts == nil {
+			return errors.New("nil is invalid value")
+		}
+		var failures []validate.FieldError
+		for i, elem := range s.Accounts {
+			if err := func() error {
+				if err := elem.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				failures = append(failures, validate.FieldError{
+					Name:  fmt.Sprintf("[%d]", i),
+					Error: err,
+				})
+			}
+		}
+		if len(failures) > 0 {
+			return &validate.Error{Fields: failures}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "accounts",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s PlaybackStatisticsScope) Validate() error {
+	switch s {
+	case "file":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
 func (s *PublicShare) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer
@@ -3362,6 +3764,17 @@ func (s *SharedWithMeEntry) Validate() error {
 	return nil
 }
 
+func (s SortOrder) Validate() error {
+	switch s {
+	case "asc":
+		return nil
+	case "desc":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
 func (s *StorageDashboard) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer
@@ -3433,6 +3846,62 @@ func (s *StorageDashboard) Validate() error {
 		return &validate.Error{Fields: failures}
 	}
 	return nil
+}
+
+func (s *StreamAccountStatistics) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if err := s.Kind.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "kind",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if err := (validate.Float{}).Validate(float64(s.BytesPerSecond)); err != nil {
+			return errors.Wrap(err, "float")
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "bytesPerSecond",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if err := (validate.Float{}).Validate(float64(s.LatencyMs)); err != nil {
+			return errors.Wrap(err, "float")
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "latencyMs",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s StreamAccountStatisticsKind) Validate() error {
+	switch s {
+	case "bot":
+		return nil
+	case "user":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
 }
 
 func (s StreamEventsOKCacheControl) Validate() error {
@@ -3702,6 +4171,19 @@ func (s TelegramQRLoginState) Validate() error {
 	case "pending":
 		return nil
 	case "password_required":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
+func (s ThemePreference) Validate() error {
+	switch s {
+	case "system":
+		return nil
+	case "light":
+		return nil
+	case "dark":
 		return nil
 	default:
 		return errors.Errorf("invalid value: %v", s)
@@ -4041,6 +4523,157 @@ func (s UploadPartState) Validate() error {
 	}
 }
 
+func (s *UploadPreferences) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if err := s.ConflictPolicy.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "conflictPolicy",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if err := (validate.Int{
+			MinSet:        true,
+			Min:           1,
+			MaxSet:        true,
+			Max:           12,
+			MinExclusive:  false,
+			MaxExclusive:  false,
+			MultipleOfSet: false,
+			MultipleOf:    0,
+			Pattern:       nil,
+		}).Validate(int64(s.Concurrency)); err != nil {
+			return errors.Wrap(err, "int")
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "concurrency",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if err := (validate.Int{
+			MinSet:        true,
+			Min:           16777216,
+			MaxSet:        true,
+			Max:           2147483648,
+			MinExclusive:  false,
+			MaxExclusive:  false,
+			MultipleOfSet: false,
+			MultipleOf:    0,
+			Pattern:       nil,
+		}).Validate(int64(s.PreferredPartSize)); err != nil {
+			return errors.Wrap(err, "int")
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "preferredPartSize",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s *UploadPreferencesUpdate) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if value, ok := s.ConflictPolicy.Get(); ok {
+			if err := func() error {
+				if err := value.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "conflictPolicy",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.Concurrency.Get(); ok {
+			if err := func() error {
+				if err := (validate.Int{
+					MinSet:        true,
+					Min:           1,
+					MaxSet:        true,
+					Max:           12,
+					MinExclusive:  false,
+					MaxExclusive:  false,
+					MultipleOfSet: false,
+					MultipleOf:    0,
+					Pattern:       nil,
+				}).Validate(int64(value)); err != nil {
+					return errors.Wrap(err, "int")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "concurrency",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.PreferredPartSize.Get(); ok {
+			if err := func() error {
+				if err := (validate.Int{
+					MinSet:        true,
+					Min:           16777216,
+					MaxSet:        true,
+					Max:           2147483648,
+					MinExclusive:  false,
+					MaxExclusive:  false,
+					MultipleOfSet: false,
+					MultipleOf:    0,
+					Pattern:       nil,
+				}).Validate(int64(value)); err != nil {
+					return errors.Wrap(err, "int")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "preferredPartSize",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
 func (s *UploadSession) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer
@@ -4131,6 +4764,117 @@ func (s *UserAdminUpdateRequest) Validate() error {
 	}(); err != nil {
 		failures = append(failures, validate.FieldError{
 			Name:  "role",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s *UserPreferences) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if err := s.Uploads.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "uploads",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if err := s.Files.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "files",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if err := s.Appearance.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "appearance",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s *UserPreferencesUpdate) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if value, ok := s.Uploads.Get(); ok {
+			if err := func() error {
+				if err := value.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "uploads",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.Files.Get(); ok {
+			if err := func() error {
+				if err := value.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "files",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.Appearance.Get(); ok {
+			if err := func() error {
+				if err := value.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "appearance",
 			Error: err,
 		})
 	}

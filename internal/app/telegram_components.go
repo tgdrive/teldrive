@@ -140,7 +140,6 @@ func buildTelegramComponents(cfg config.Config, pool *pgxpool.Pool, cipher *secu
 			}
 			if cfg.Telegram.DownloadClientPool {
 				downloadClients, err = telegramstore.NewDownloadClientPool(uploadRunner, telegramstore.DownloadClientPoolConfig{
-					Clients:      max(1, cfg.Telegram.DownloadBots),
 					ReadBuffers:  cfg.Telegram.DownloadReadBuffers,
 					ReadParallel: cfg.Telegram.DownloadReadParallel,
 				}, globalCache)

@@ -192,6 +192,11 @@ func (s *Service) PollQR(ctx context.Context, flowID uuid.UUID) (*VerifyResult, 
 		if flow.Method != sqlcgen.TelegramLoginMethodQr {
 			return nil, ErrInvalidInput
 		}
+		if flow.PasswordRequired {
+			return &VerifyResult{QRFlow: &QRFlowResult{
+				ID: flowID, ExpiresAt: flow.ExpiresAt.Time, PasswordRequired: true,
+			}}, nil
+		}
 		state, err := s.cipher.Open("login-state", flow.TelegramStateCiphertext)
 		if err != nil {
 			return nil, err

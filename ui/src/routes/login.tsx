@@ -11,6 +11,7 @@ import ShieldIcon from "~icons/gravity-ui/shield-check";
 import { $api } from "@/api/client";
 import { userMessage } from "@/api/errors";
 import { newIdempotencyKey } from "@/features/shared/idempotency";
+import { useTimeOnlyFormatter } from "@/lib/format";
 import { getQueryClient } from "@/lib/queryClient";
 import { currentUserQueryOptions } from "@/auth/queries";
 
@@ -41,6 +42,8 @@ function isSession(value: unknown): value is CookieSession {
 
 function LoginPage() {
   const navigate = useNavigate();
+
+  const formatTime = useTimeOnlyFormatter();
   const { redirect } = Route.useSearch();
   const [method, setMethod] = useState<"phone" | "qr">("phone");
   const [step, setStep] = useState<Step>("phone");
@@ -100,6 +103,7 @@ function LoginPage() {
   useEffect(() => {
     if (method !== "qr") return;
     let active = true;
+    let polling = false;
     let timer = 0;
     void startQr
       .mutateAsync({ params: { header: { "Idempotency-Key": newIdempotencyKey() } } })
@@ -110,6 +114,8 @@ function LoginPage() {
         setQrUrl(flow.qrUrl ?? "");
         setQrExpiry(flow.qrExpiresAt ?? flow.expiresAt);
         timer = window.setInterval(async () => {
+          if (!active || polling) return;
+          polling = true;
           try {
             const next = await pollQr.mutateAsync({
               params: { header: { "Idempotency-Key": newIdempotencyKey() } },
@@ -117,12 +123,14 @@ function LoginPage() {
             });
             if (!active) return;
             if (isSession(next)) {
+              active = false;
               window.clearInterval(timer);
               await finish();
               return;
             }
             const state = next as Flow;
             if (state.state === "password_required") {
+              active = false;
               window.clearInterval(timer);
               setMethod("phone");
               setStep("password");
@@ -131,14 +139,19 @@ function LoginPage() {
             if (state.qrUrl) setQrUrl(state.qrUrl);
             if (state.qrExpiresAt) setQrExpiry(state.qrExpiresAt);
           } catch (error) {
+            if (!active) return;
+            active = false;
             window.clearInterval(timer);
-            toast.error(t("Inicio de sesión por QR detenido"), { description: userMessage(error) });
+            toast.error(t("QR sign-in stopped"), { description: userMessage(error) });
+          } finally {
+            polling = false;
           }
         }, 2500);
       })
-      .catch((error) =>
-        toast.error(t("No se pudo crear el código QR"), { description: userMessage(error) }),
-      );
+      .catch((error) => {
+        if (active)
+          toast.error(t("Unable to create QR sign-in"), { description: userMessage(error) });
+      });
     return () => {
       active = false;
       window.clearInterval(timer);
@@ -153,7 +166,7 @@ function LoginPage() {
         </div>
         <div className="my-auto max-w-xl">
           <p className="mb-3 text-xs font-medium uppercase tracking-[0.16em] text-accent">
-            Teldrive
+            {t("Teldrive")}
           </p>
           <h1 className="text-4xl font-semibold tracking-tight">
             {t("Tu unidad en la nube respaldada por Telegram.")}
@@ -173,7 +186,7 @@ function LoginPage() {
           <Card.Header className="block px-6 pt-6">
             <Card.Title>{t("Iniciar sesión con Telegram")}</Card.Title>
             <Card.Description>
-              {t("Las claves de API se utilizan con rclone y otros clientes externos.")}
+              {t("API keys are reserved for rclone and external clients.")}
             </Card.Description>
           </Card.Header>
           <Card.Content className="space-y-5 px-6 pb-6">
@@ -187,10 +200,10 @@ function LoginPage() {
               <Tabs.ListContainer>
                 <Tabs.List aria-label={t("Método de inicio de sesión")}>
                   <Tabs.Tab id="phone">
-                    <PhoneIcon className="size-4" /> {" " + t("Teléfono")}
+                    <PhoneIcon className="size-4" /> {` ${t("Teléfono")}`}
                   </Tabs.Tab>
                   <Tabs.Tab id="qr">
-                    <QrIcon className="size-4" /> {" " + t("Código QR")}
+                    <QrIcon className="size-4" /> {t("Código QR")}
                   </Tabs.Tab>
                 </Tabs.List>
               </Tabs.ListContainer>
@@ -275,8 +288,7 @@ function LoginPage() {
                     {t("Ajustes → Dispositivos → Vincular dispositivo")}
                   </p>
                   <p className="mt-2 text-xs text-muted">
-                    {t("Vence") + " "}
-                    {qrExpiry ? new Date(qrExpiry).toLocaleTimeString("es") : "en breve"}
+                    {t("Expires")} {qrExpiry ? formatTime.format(new Date(qrExpiry)) : t("soon")}
                   </p>
                 </div>
               </Tabs.Panel>

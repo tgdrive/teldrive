@@ -12,6 +12,7 @@ import (
 
 	"github.com/tgdrive/teldrive/v2/internal/contentcrypto"
 	"github.com/tgdrive/teldrive/v2/internal/db/sqlcgen"
+	"github.com/tgdrive/teldrive/v2/internal/streamstats"
 	"github.com/tgdrive/teldrive/v2/internal/telegramstore"
 )
 
@@ -40,6 +41,7 @@ type Downloader struct {
 	catalog FileCatalog
 	storage telegramstore.Storage
 	keys    KeyProvider
+	stats   streamstats.Registry
 }
 
 func NewDownloader(catalog FileCatalog, storage telegramstore.Storage, keys KeyProvider) *Downloader {
@@ -77,7 +79,14 @@ func (d *Downloader) Open(ctx context.Context, request DownloadRequest) (*Downlo
 	if request.UserID <= 0 || request.FileID == uuid.Nil || request.Offset < 0 || request.Length < -1 {
 		return nil, ErrInvalidDownload
 	}
-	return d.openOrigin(ctx, request)
+	ctx, done := d.stats.Start(ctx, fmt.Sprintf("%d:%s", request.UserID, request.FileID))
+	download, err := d.openOrigin(ctx, request)
+	if err != nil {
+		done()
+		return nil, err
+	}
+	download.Reader = &observedDownloadReader{DownloadReader: download.Reader, done: done}
+	return download, nil
 }
 
 func (d *Downloader) openOrigin(ctx context.Context, request DownloadRequest) (*Download, error) {
@@ -505,3 +514,19 @@ type nopDownloadReader struct {
 }
 
 func (nopDownloadReader) Close() error { return nil }
+
+func (d *Downloader) Statistics(userID int64, fileID uuid.UUID) streamstats.Snapshot {
+	return d.stats.Snapshot(fmt.Sprintf("%d:%s", userID, fileID))
+}
+
+type observedDownloadReader struct {
+	DownloadReader
+	done func()
+	once sync.Once
+}
+
+func (r *observedDownloadReader) Close() error {
+	err := r.DownloadReader.Close()
+	r.once.Do(r.done)
+	return err
+}

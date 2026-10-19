@@ -140,20 +140,42 @@ sudo journalctl -u teldrive-backup.service
 
 ## Verify backups
 
+The commands below need the same environment as the backup service. Because the credential files are root-only, open a root shell and load the environment before running restic:
+
+```bash
+sudo -i
+set -a
+. /etc/teldrive-backup/backup.env
+set +a
+```
+
+Use a trusted, administrator-owned `backup.env`: sourcing it executes shell commands. The simple assignments shown above work with both the shell and systemd's `EnvironmentFile`.
+
 ```bash
 restic snapshots --tag teldrive-postgres
 restic check
 ```
 
-Periodically perform a real restore into an isolated PostgreSQL instance.
+Run `exit` when finished. Periodically perform a real restore into an isolated PostgreSQL instance.
 
 ## Restore
 
-Extract the latest SQL dump:
+Stop Teldrive before restoring. The backup contains `--clean` statements that replace database objects; never test a restore against a live production database.
 
 ```bash
-restic dump latest teldrive-postgres.sql > teldrive-postgres.sql
+docker compose -f /opt/teldrive/compose.yaml stop teldrive
 ```
+
+In a root shell with the backup environment loaded as shown above, extract the latest Teldrive snapshot into a private directory:
+
+```bash
+install -d -m 0700 /root/teldrive-restore
+cd /root/teldrive-restore
+umask 077
+restic dump --tag teldrive-postgres latest teldrive-postgres.sql > teldrive-postgres.sql
+```
+
+The SQL dump is unencrypted and may contain credentials. Keep it private and remove it after recovery is verified.
 
 `pg_dumpall` produces plain SQL, so restore with `psql`, not `pg_restore`:
 
@@ -167,8 +189,8 @@ Then restore the same `security.data-key`, signing key, content-encryption keys,
 Validate:
 
 ```bash
-docker compose run --rm teldrive check
-docker compose up -d
+docker compose -f /opt/teldrive/compose.yaml run --rm teldrive check
+docker compose -f /opt/teldrive/compose.yaml up -d teldrive
 ```
 
 Verify login, listing, upload, download, channels, bots, shares, and encrypted files if used.

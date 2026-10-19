@@ -144,7 +144,7 @@ SELECT queue,
        count(*) FILTER (WHERE state::text = 'retryable'),
        count(*) FILTER (WHERE state::text = 'scheduled')
 FROM %s
-WHERE args->>'user_id' = $1
+WHERE COALESCE(args->>'user_id', metadata->>'user_id') = $1
 GROUP BY queue
 ORDER BY queue`, jobTable), fmt.Sprintf("%d", userID))
 	if err != nil {
@@ -216,7 +216,7 @@ func (r *Runtime) PurgeForUser(ctx context.Context, userID int64, state string) 
 		return 0, ErrInvalidJobState
 	}
 	jobTable := pgx.Identifier{r.schema, "river_job"}.Sanitize()
-	command, err := r.pool.Exec(ctx, fmt.Sprintf("DELETE FROM %s WHERE state::text = $1 AND args->>'user_id' = $2", jobTable), state, fmt.Sprintf("%d", userID))
+	command, err := r.pool.Exec(ctx, fmt.Sprintf("DELETE FROM %s WHERE state::text = $1 AND COALESCE(args->>'user_id', metadata->>'user_id') = $2", jobTable), state, fmt.Sprintf("%d", userID))
 	if err != nil {
 		return 0, fmt.Errorf("purge %s jobs for user: %w", state, err)
 	}
@@ -302,6 +302,12 @@ func (r *Runtime) PeriodicJobCatalog() []PeriodicTemplate {
 			Kind: EventCleanupKind, DefaultArgs: rawArgs(EventCleanupArgs{Retention: eventCleanupDefaultRetention}),
 			DefaultQueue: CleanupQueue, DefaultPriority: 2, DefaultMaxAttempts: 3,
 			DefaultCronExpression: eventCleanupDefaultCron, DefaultCronTimezone: maintenanceTimezone,
+		},
+		{
+			ID: folderSizeRollupPeriodicID, Label: "Folder size rollup", Description: "Recompute cumulative folder sizes for the whole drive.",
+			Kind: FolderSizeRollupKind, DefaultArgs: rawArgs(FolderSizeRollupArgs{}),
+			DefaultQueue: CleanupQueue, DefaultPriority: 3, DefaultMaxAttempts: 1,
+			DefaultCronExpression: folderSizeRollupDefaultCron, DefaultCronTimezone: maintenanceTimezone,
 		},
 	}
 	if r.purgeEnabled {

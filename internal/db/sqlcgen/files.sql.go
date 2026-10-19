@@ -11,6 +11,23 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const addFileBookmarks = `-- name: AddFileBookmarks :exec
+INSERT INTO /* TEMPLATE: schema */file_bookmarks (user_id, file_id)
+SELECT $1, input.file_id
+FROM unnest($2::uuid[]) AS input(file_id)
+ON CONFLICT (user_id, file_id) DO NOTHING
+`
+
+type AddFileBookmarksParams struct {
+	UserID  int64         `json:"user_id"`
+	FileIds []pgtype.UUID `json:"file_ids"`
+}
+
+func (q *Queries) AddFileBookmarks(ctx context.Context, arg AddFileBookmarksParams) error {
+	_, err := q.db.Exec(ctx, addFileBookmarks, arg.UserID, arg.FileIds)
+	return err
+}
+
 const clearUploadSessionParentsByFileIDs = `-- name: ClearUploadSessionParentsByFileIDs :exec
 UPDATE /* TEMPLATE: schema */upload_sessions
 SET parent_id = NULL,
@@ -27,6 +44,26 @@ type ClearUploadSessionParentsByFileIDsParams struct {
 func (q *Queries) ClearUploadSessionParentsByFileIDs(ctx context.Context, arg ClearUploadSessionParentsByFileIDsParams) error {
 	_, err := q.db.Exec(ctx, clearUploadSessionParentsByFileIDs, arg.UserID, arg.FileIds)
 	return err
+}
+
+const countBookmarkableFiles = `-- name: CountBookmarkableFiles :one
+SELECT count(DISTINCT file.id)::integer
+FROM /* TEMPLATE: schema */files AS file
+WHERE file.user_id = $1
+  AND file.id = ANY($2::uuid[])
+  AND file.status = 'active'
+`
+
+type CountBookmarkableFilesParams struct {
+	UserID  int64         `json:"user_id"`
+	FileIds []pgtype.UUID `json:"file_ids"`
+}
+
+func (q *Queries) CountBookmarkableFiles(ctx context.Context, arg CountBookmarkableFilesParams) (int32, error) {
+	row := q.db.QueryRow(ctx, countBookmarkableFiles, arg.UserID, arg.FileIds)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const createFolder = `-- name: CreateFolder :one
@@ -48,7 +85,7 @@ INSERT INTO /* TEMPLATE: schema */files (
     $4,
     'folder',
     'inode/directory',
-    NULL,
+    0,
     false,
     'active',
     $5
@@ -213,6 +250,39 @@ type GetFileForUserParams struct {
 
 func (q *Queries) GetFileForUser(ctx context.Context, arg GetFileForUserParams) (*File, error) {
 	row := q.db.QueryRow(ctx, getFileForUser, arg.FileID, arg.UserID)
+	var i File
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.ParentID,
+		&i.Name,
+		&i.Kind,
+		&i.MimeType,
+		&i.Size,
+		&i.HashAlgorithm,
+		&i.HashValue,
+		&i.Encryption,
+		&i.EncryptionKeyVersion,
+		&i.Status,
+		&i.ModTime,
+		&i.Generation,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return &i, err
+}
+
+const getPublicFileByID = `-- name: GetPublicFileByID :one
+SELECT id, user_id, parent_id, name, kind, mime_type, size, hash_algorithm, hash_value, encryption, encryption_key_version, status, mod_time, generation, created_at, updated_at, deleted_at
+FROM /* TEMPLATE: schema */files
+WHERE id = $1
+  AND kind = 'file'
+  AND status = 'active'
+`
+
+func (q *Queries) GetPublicFileByID(ctx context.Context, fileID pgtype.UUID) (*File, error) {
+	row := q.db.QueryRow(ctx, getPublicFileByID, fileID)
 	var i File
 	err := row.Scan(
 		&i.ID,
@@ -667,9 +737,9 @@ WHERE files.user_id = $1
   )
   AND (
     $6::text IS NULL
-    OR (name, id) > ($6::text, $7::uuid)
+    OR (name COLLATE /* TEMPLATE: schema */natural_name, id) > ($6::text COLLATE /* TEMPLATE: schema */natural_name, $7::uuid)
   )
-ORDER BY name, id
+ORDER BY name COLLATE /* TEMPLATE: schema */natural_name, id
 LIMIT $8
 `
 
@@ -736,12 +806,12 @@ WITH RECURSIVE scope_files AS (
   SELECT root.id
   FROM /* TEMPLATE: schema */files root
   WHERE $2::text IN ('drive', 'recursive')
-    AND $18::uuid IS NULL
+    AND $19::uuid IS NULL
     AND root.user_id = $1 AND root.parent_id IS NULL
   UNION ALL
   SELECT child.id
   FROM /* TEMPLATE: schema */files child
-  JOIN /* TEMPLATE: schema */files selected ON selected.id = $18::uuid
+  JOIN /* TEMPLATE: schema */files selected ON selected.id = $19::uuid
   WHERE $2::text = 'recursive'
     AND selected.user_id = $1
     AND selected.kind = 'folder' AND selected.status = 'active'
@@ -773,20 +843,27 @@ WHERE f.user_id = $1
     )
   )
   AND f.status = $4::/* TEMPLATE: schema */file_status
-  AND ($5::/* TEMPLATE: schema */file_kind IS NULL OR f.kind = $5::/* TEMPLATE: schema */file_kind)
   AND (
-    $6::text IS NULL
-    OR ($7::text = 'regex' AND f.name ~* $6::text)
+    NOT $5::boolean
+    OR EXISTS (
+      SELECT 1 FROM /* TEMPLATE: schema */file_bookmarks bookmark
+      WHERE bookmark.user_id = f.user_id AND bookmark.file_id = f.id
+    )
+  )
+  AND ($6::/* TEMPLATE: schema */file_kind IS NULL OR f.kind = $6::/* TEMPLATE: schema */file_kind)
+  AND (
+    $7::text IS NULL
+    OR ($8::text = 'regex' AND f.name ~* $7::text)
     OR (
-      $7::text = 'text'
+      $8::text = 'text'
       AND (
-        f.name % $6::text
-        OR f.name ILIKE '%' || $6::text || '%'
+        f.name % $7::text
+        OR f.name ILIKE '%' || $7::text || '%'
       )
     )
   )
   AND (
-    cardinality($8::text[]) = 0
+    cardinality($9::text[]) = 0
     OR (CASE
       WHEN f.kind = 'folder' THEN 'other'
       WHEN lower(COALESCE(f.mime_type, '')) LIKE 'image/%' THEN 'image'
@@ -806,56 +883,56 @@ WHERE f.user_id = $1
           'application/x-tar', 'application/gzip', 'application/x-bzip2', 'application/x-xz'
         ) OR lower(f.name) ~ '\.(zip|rar|7z|tar|gz|tgz|bz2|xz)$' THEN 'archive'
       ELSE 'other'
-    END) = ANY($8::text[])
+    END) = ANY($9::text[])
   )
-  AND ($9::timestamptz IS NULL OR f.updated_at >= $9::timestamptz)
-  AND ($10::timestamptz IS NULL OR f.updated_at < $10::timestamptz)
+  AND ($10::timestamptz IS NULL OR f.updated_at >= $10::timestamptz)
+  AND ($11::timestamptz IS NULL OR f.updated_at < $11::timestamptz)
   AND (
-    $11::uuid IS NULL
+    $12::uuid IS NULL
     OR (
-      $12::text = 'name'
-      AND $13::text IS NOT NULL
+      $13::text = 'name'
+      AND $14::text IS NOT NULL
       AND (
-        ($14::text = 'asc' AND (f.name, f.id) > ($13::text, $11::uuid))
-        OR ($14::text = 'desc' AND (f.name, f.id) < ($13::text, $11::uuid))
+        ($15::text = 'asc' AND (f.name COLLATE /* TEMPLATE: schema */natural_name, f.id) > ($14::text COLLATE /* TEMPLATE: schema */natural_name, $12::uuid))
+        OR ($15::text = 'desc' AND (f.name COLLATE /* TEMPLATE: schema */natural_name, f.id) < ($14::text COLLATE /* TEMPLATE: schema */natural_name, $12::uuid))
       )
     )
     OR (
-      $12::text = 'updatedAt'
-      AND $15::timestamptz IS NOT NULL
+      $13::text = 'updatedAt'
+      AND $16::timestamptz IS NOT NULL
       AND (
-        ($14::text = 'asc' AND (f.updated_at, f.id) > ($15::timestamptz, $11::uuid))
-        OR ($14::text = 'desc' AND (f.updated_at, f.id) < ($15::timestamptz, $11::uuid))
+        ($15::text = 'asc' AND (f.updated_at, f.id) > ($16::timestamptz, $12::uuid))
+        OR ($15::text = 'desc' AND (f.updated_at, f.id) < ($16::timestamptz, $12::uuid))
       )
     )
     OR (
-      $12::text = 'size'
-      AND $16::bigint IS NOT NULL
+      $13::text = 'size'
+      AND $17::bigint IS NOT NULL
       AND (
-        ($14::text = 'asc' AND (COALESCE(f.size, -1), f.id) > ($16::bigint, $11::uuid))
-        OR ($14::text = 'desc' AND (COALESCE(f.size, -1), f.id) < ($16::bigint, $11::uuid))
+        ($15::text = 'asc' AND (COALESCE(f.size, -1), f.id) > ($17::bigint, $12::uuid))
+        OR ($15::text = 'desc' AND (COALESCE(f.size, -1), f.id) < ($17::bigint, $12::uuid))
       )
     )
     OR (
-      $12::text = 'id'
+      $13::text = 'id'
       AND (
-        ($14::text = 'asc' AND f.id > $11::uuid)
-        OR ($14::text = 'desc' AND f.id < $11::uuid)
+        ($15::text = 'asc' AND f.id > $12::uuid)
+        OR ($15::text = 'desc' AND f.id < $12::uuid)
       )
     )
   )
 ORDER BY
-  CASE WHEN $12::text = 'name' AND $14::text = 'asc' THEN f.name END ASC,
-  CASE WHEN $12::text = 'name' AND $14::text = 'desc' THEN f.name END DESC,
-  CASE WHEN $12::text = 'updatedAt' AND $14::text = 'asc' THEN f.updated_at END ASC,
-  CASE WHEN $12::text = 'updatedAt' AND $14::text = 'desc' THEN f.updated_at END DESC,
-  CASE WHEN $12::text = 'size' AND $14::text = 'asc' THEN COALESCE(f.size, -1) END ASC,
-  CASE WHEN $12::text = 'size' AND $14::text = 'desc' THEN COALESCE(f.size, -1) END DESC,
-  CASE WHEN $12::text = 'id' AND $14::text = 'asc' THEN f.id END ASC,
-  CASE WHEN $12::text = 'id' AND $14::text = 'desc' THEN f.id END DESC,
-  CASE WHEN $14::text = 'asc' THEN f.id END ASC,
-  CASE WHEN $14::text = 'desc' THEN f.id END DESC
-LIMIT $17
+  CASE WHEN $13::text = 'name' AND $15::text = 'asc' THEN f.name END COLLATE /* TEMPLATE: schema */natural_name ASC,
+  CASE WHEN $13::text = 'name' AND $15::text = 'desc' THEN f.name END COLLATE /* TEMPLATE: schema */natural_name DESC,
+  CASE WHEN $13::text = 'updatedAt' AND $15::text = 'asc' THEN f.updated_at END ASC,
+  CASE WHEN $13::text = 'updatedAt' AND $15::text = 'desc' THEN f.updated_at END DESC,
+  CASE WHEN $13::text = 'size' AND $15::text = 'asc' THEN COALESCE(f.size, -1) END ASC,
+  CASE WHEN $13::text = 'size' AND $15::text = 'desc' THEN COALESCE(f.size, -1) END DESC,
+  CASE WHEN $13::text = 'id' AND $15::text = 'asc' THEN f.id END ASC,
+  CASE WHEN $13::text = 'id' AND $15::text = 'desc' THEN f.id END DESC,
+  CASE WHEN $15::text = 'asc' THEN f.id END ASC,
+  CASE WHEN $15::text = 'desc' THEN f.id END DESC
+LIMIT $18
 `
 
 type ListFilesAdvancedParams struct {
@@ -863,6 +940,7 @@ type ListFilesAdvancedParams struct {
 	Scope          string             `json:"scope"`
 	ParentID       pgtype.UUID        `json:"parent_id"`
 	Status         FileStatus         `json:"status"`
+	Bookmarked     bool               `json:"bookmarked"`
 	Kind           NullFileKind       `json:"kind"`
 	Search         pgtype.Text        `json:"search"`
 	SearchType     string             `json:"search_type"`
@@ -885,6 +963,7 @@ func (q *Queries) ListFilesAdvanced(ctx context.Context, arg ListFilesAdvancedPa
 		arg.Scope,
 		arg.ParentID,
 		arg.Status,
+		arg.Bookmarked,
 		arg.Kind,
 		arg.Search,
 		arg.SearchType,
@@ -1561,6 +1640,22 @@ func (q *Queries) QueueFileSubtreePurge(ctx context.Context, arg QueueFileSubtre
 	return items, nil
 }
 
+const removeFileBookmarks = `-- name: RemoveFileBookmarks :exec
+DELETE FROM /* TEMPLATE: schema */file_bookmarks
+WHERE user_id = $1
+  AND file_id = ANY($2::uuid[])
+`
+
+type RemoveFileBookmarksParams struct {
+	UserID  int64         `json:"user_id"`
+	FileIds []pgtype.UUID `json:"file_ids"`
+}
+
+func (q *Queries) RemoveFileBookmarks(ctx context.Context, arg RemoveFileBookmarksParams) error {
+	_, err := q.db.Exec(ctx, removeFileBookmarks, arg.UserID, arg.FileIds)
+	return err
+}
+
 const resolveActiveChild = `-- name: ResolveActiveChild :one
 SELECT id, user_id, parent_id, name, kind, mime_type, size, hash_algorithm, hash_value, encryption, encryption_key_version, status, mod_time, generation, created_at, updated_at, deleted_at
 FROM /* TEMPLATE: schema */files
@@ -1766,6 +1861,44 @@ type RevokeSharesForFileSubtreesParams struct {
 func (q *Queries) RevokeSharesForFileSubtrees(ctx context.Context, arg RevokeSharesForFileSubtreesParams) error {
 	_, err := q.db.Exec(ctx, revokeSharesForFileSubtrees, arg.UserID, arg.FileIds)
 	return err
+}
+
+const rollupFolderSizes = `-- name: RollupFolderSizes :execrows
+WITH RECURSIVE folder_hierarchy AS (
+  SELECT id, id AS root_id
+  FROM /* TEMPLATE: schema */files
+  WHERE kind = 'folder'
+  UNION ALL
+  SELECT f.id, fh.root_id
+  FROM /* TEMPLATE: schema */files f
+  JOIN folder_hierarchy fh ON f.parent_id = fh.id
+),
+folder_totals AS (
+  SELECT fh.root_id AS id, COALESCE(SUM(f.size), 0)::bigint AS total
+  FROM folder_hierarchy fh
+  JOIN /* TEMPLATE: schema */files f ON f.id = fh.id
+  WHERE f.kind = 'file'
+    AND f.status = 'active'
+  GROUP BY fh.root_id
+)
+UPDATE /* TEMPLATE: schema */files AS folder
+SET size = COALESCE(desired.total, 0)
+FROM (
+  SELECT f.id AS id, folder_totals.total AS total
+  FROM /* TEMPLATE: schema */files AS f
+  LEFT JOIN folder_totals ON folder_totals.id = f.id
+  WHERE f.kind = 'folder'
+) AS desired
+WHERE folder.id = desired.id
+  AND (folder.size IS NULL OR folder.size <> desired.total)
+`
+
+func (q *Queries) RollupFolderSizes(ctx context.Context) (int64, error) {
+	result, err := q.db.Exec(ctx, rollupFolderSizes)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const spamFileSubtrees = `-- name: SpamFileSubtrees :many

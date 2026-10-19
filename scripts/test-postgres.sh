@@ -7,27 +7,31 @@ user="teldrive"
 password="teldrive"
 database="teldrive_test"
 
+if command -v podman >/dev/null 2>&1; then
+  runtime=podman
+elif command -v docker >/dev/null 2>&1; then
+  runtime=docker
+else
+  echo "podman or docker is required" >&2
+  exit 1
+fi
+
 cleanup() {
-  podman rm -f "$name" >/dev/null 2>&1 || true
+  "$runtime" rm -f "$name" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT INT TERM
 
-command -v podman >/dev/null 2>&1 || {
-  echo "podman is required" >&2
-  exit 1
-}
-
-podman run -d --name "$name" \
+"$runtime" run -d --name "$name" \
   -e POSTGRES_USER="$user" \
   -e POSTGRES_PASSWORD="$password" \
   -e POSTGRES_DB="$database" \
   -p 127.0.0.1::5432 \
   "$image" >/dev/null
 
-port="$(podman port "$name" 5432/tcp | awk -F: '{print $NF}')"
+port="$("$runtime" port "$name" 5432/tcp | awk -F: '{print $NF}')"
 if [[ -z "$port" ]]; then
   echo "failed to determine PostgreSQL port" >&2
-  podman logs "$name" >&2 || true
+  "$runtime" logs "$name" >&2 || true
   exit 1
 fi
 
@@ -37,7 +41,7 @@ fi
 # that restart race and verifies the configured user and database as well.
 ready=false
 for _ in $(seq 1 120); do
-  if podman exec -e PGPASSWORD="$password" "$name" \
+  if "$runtime" exec -e PGPASSWORD="$password" "$name" \
     psql -h 127.0.0.1 -U "$user" -d "$database" -Atqc 'SELECT 1' \
     2>/dev/null | grep -qx '1'; then
     ready=true
@@ -48,7 +52,7 @@ done
 
 if [[ "$ready" != true ]]; then
   echo "PostgreSQL did not become ready" >&2
-  podman logs "$name" >&2 || true
+  "$runtime" logs "$name" >&2 || true
   exit 1
 fi
 

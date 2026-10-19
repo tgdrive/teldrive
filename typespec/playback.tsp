@@ -45,6 +45,39 @@ model MediaTrack {
 }
 model MediaTracks { available: boolean; tracks: MediaTrack[]; }
 
+model StreamAccountStatistics {
+  id: int64;
+  name: string;
+  `alias`: string;
+  kind: "bot" | "user";
+  bytes: int64;
+  bytesPerSecond: float64;
+  requests: int64;
+  errors: int64;
+  activeRequests: int32;
+  latencyMs: float64;
+  channelId: int64;
+  messageId: int64;
+  offset: int64;
+  lastSeen?: utcDateTime;
+}
+model PlaybackStatistics {
+  scope: "file";
+  fileId: Uuid;
+  name: string;
+  mimeType: string;
+  size: int64;
+  encrypted: boolean;
+  sampledAt: utcDateTime;
+  startedAt?: utcDateTime;
+  activeStreams: int32;
+  bytes: int64;
+  bytesPerSecond: float64;
+  accounts: StreamAccountStatistics[];
+}
+@tag("Files") @useAuth(TelDriveAuth) @route("/v1/files/{fileId}/playback/statistics") @get @operationId("getFilePlaybackStatistics")
+op getFilePlaybackStatistics(@path fileId: Uuid): JsonResponse<200, PlaybackStatistics> | ErrorResponse<401> | ErrorResponse<403> | ErrorResponse<404>;
+
 @tag("Files") @route("/v1/playback/tracks") @get @operationId("getPlaybackTracks")
 op getPlaybackTracks(@query @minLength(32) @maxLength(128) ticket: string): JsonResponse<200, MediaTracks> | ErrorResponse<401> | ErrorResponse<404> | ErrorResponse<422> | ErrorResponse<503>;
 

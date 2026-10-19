@@ -6,6 +6,7 @@ import { fileContentUrl, startFileDownload } from "@/features/files/download";
 import { previewMedia, supportsCodePreview } from "@/features/files/preview-support";
 import { CompatibleMedia, type PlaybackSession } from "./viewers/compatible-media";
 import { readerKind } from "@/features/files/reader-support";
+import { useFormatBytes } from "@/lib/format";
 type ViewerKind = "image" | "video" | "audio" | "pdf" | "ebook" | "text";
 import DownloadIcon from "~icons/gravity-ui/arrow-down-to-line";
 import RotateIcon from "~icons/gravity-ui/arrow-rotate-left";
@@ -34,6 +35,7 @@ export function FilePreviewDialog({
   onDownload?: () => void;
 }) {
   const closeFrame = useRef<number>(undefined);
+  const formatBytes = useFormatBytes();
   const contentUrl = url ?? (file ? fileContentUrl(file) : "");
   const kind = file ? viewerKind(file) : undefined;
   const isReader = kind === "pdf" || kind === "ebook";
@@ -56,7 +58,8 @@ export function FilePreviewDialog({
       <Modal.Backdrop
         isOpen
         onOpenChange={changeOpen}
-        isDismissable
+        isDismissable={false}
+        isKeyboardDismissDisabled
         variant="opaque"
         data-content-viewer
         className="bg-background"
@@ -136,7 +139,7 @@ export function FilePreviewDialog({
                 {file.name}
               </Modal.Heading>
               <p className="truncate text-[11px] text-muted">
-                {formatLabel(kind)} · {formatBytes(file.size || 0)}
+                {formatLabel(kind, t)} · {formatBytes(file.size || 0)}
               </p>
             </div>
             <Button
@@ -177,6 +180,7 @@ export function FilePreviewDialog({
 function ImageViewer({ file, url }: { file: FileEntry; url: string }) {
   const [zoom, setZoom] = useState(1);
   const [rotation, setRotation] = useState(0);
+
   return (
     <div className="relative flex h-full items-center justify-center overflow-auto p-5 sm:p-10">
       <img
@@ -225,6 +229,7 @@ function ImageViewer({ file, url }: { file: FileEntry; url: string }) {
 function TextViewer({ url }: { url: string }) {
   const [text, setText] = useState<string>();
   const [error, setError] = useState<string>();
+
   useEffect(() => {
     const controller = new AbortController();
     void fetch(url, { signal: controller.signal })
@@ -273,23 +278,16 @@ function viewerKind(file: FileEntry): ViewerKind | undefined {
   if (media) return media.kind;
   if (supportsCodePreview(file)) return "text";
 }
-function formatLabel(kind: ViewerKind) {
+function formatLabel(kind: ViewerKind, t: (key: string) => string) {
   return {
     image: t("Imagen"),
     video: t("Vídeo"),
     audio: t("Audio"),
     pdf: t("Documento PDF"),
-    ebook: t("Libro electrónico"),
+    ebook: t("Ebook"),
     text: t("Documento de texto"),
   }[kind];
 }
-function formatBytes(value: number) {
-  if (!value) return "0 B";
-  const units = ["B", "KB", "MB", "GB", "TB"];
-  const index = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1);
-  return `${(value / 1024 ** index).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
-}
-
 export function isPreviewable(file: FileEntry) {
   return viewerKind(file) !== undefined;
 }

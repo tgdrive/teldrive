@@ -1,4 +1,9 @@
 import catalog from "../../../localization/catalog.json";
+import { STRINGS } from "./locales";
+import { useAppLocale } from "./locale";
+
+const originalKeys = new Map(Object.entries(STRINGS.en ?? {}).map(([key, value]) => [value, key]));
+const catalogKeys = new Map(Object.entries(catalog.en).map(([key, value]) => [value, key]));
 
 export const languages = [
   { id: "es", label: "Español", locale: "es-ES" },
@@ -21,12 +26,19 @@ export function getLanguage(): Language {
     return "es";
   }
 }
-export function t(source: string, values: unknown[] = []): string {
-  const dictionary = catalog[getLanguage()] as Record<string, string>;
-  const text = dictionary[source] ?? source;
-  return text.replace(/\{(\d+)\}/g, (match, index: string) =>
-    Number(index) < values.length ? String(values[Number(index)]) : match,
-  );
+export function t(source: string, values: unknown[] | Record<string, unknown> = []): string {
+  const language = getLanguage();
+  const dictionary = catalog[language] as Record<string, string>;
+  const locale = language === "pt" ? "pt-BR" : language;
+  const english = STRINGS.en?.[source] ?? source;
+  const originalKey = STRINGS.en?.[source] ? source : originalKeys.get(source);
+  const catalogKey = catalogKeys.get(english) ?? source;
+  const text = dictionary[source] ?? dictionary[catalogKey] ??
+    (originalKey ? STRINGS[locale]?.[originalKey] : undefined) ?? english;
+  return text.replace(/\{(\w+)\}/g, (match, key: string) => {
+    const value = Array.isArray(values) ? values[Number(key)] : values[key];
+    return value === undefined ? match : String(value);
+  });
 }
 export function applyLanguage() {
   const language = getLanguage();
@@ -41,6 +53,7 @@ export function setLanguage(language: string) {
   location.reload();
 }
 export function LanguageSelector() {
+  const { setLocale } = useAppLocale();
   return (
     <label className="flex flex-wrap items-center gap-3 text-sm">
       {t("Idioma")}
@@ -48,7 +61,11 @@ export function LanguageSelector() {
         aria-label={t("Idioma")}
         className="min-h-11 max-w-full rounded-lg border border-border bg-field px-3 text-field-foreground"
         value={getLanguage()}
-        onChange={(event) => setLanguage(event.target.value)}
+        onChange={(event) => {
+          const language = event.target.value;
+          const locale = language === "pt" ? "pt-BR" : language;
+          void setLocale(locale as import("./locales").AppLocale).then(() => location.reload()).catch(() => {});
+        }}
       >
         {languages.map((language) => (
           <option key={language.id} value={language.id}>

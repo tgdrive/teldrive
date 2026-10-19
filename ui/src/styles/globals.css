@@ -32,6 +32,10 @@ html[data-density="compact"] [role="row"] {
     "Geist", ui-sans-serif, system-ui, sans-serif, "Apple Color Emoji", "Segoe UI Emoji",
     "Segoe UI Symbol", "Noto Color Emoji";
 
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+
   /* Extended shadows */
   --shadow-glow: 0 0 20px color-mix(in srgb, var(--accent) 25%, transparent);
   --shadow-glow-lg: 0 0 40px color-mix(in srgb, var(--accent) 35%, transparent);
@@ -267,13 +271,15 @@ foliate-view::part(foot) {
 [data-pdf-reader] .teldrive-pdf-viewer {
   --page-border: 0;
   --page-margin: 0 auto 24px;
-  padding: 24px 18px 64px;
+  padding: 0;
   user-select: text;
 }
 
-[data-pdf-reader] .teldrive-pdf-viewer .page {
+[data-pdf-reader] .teldrive-pdf-viewer.removePageBorders .page {
+  contain: layout;
   overflow: hidden;
-  border: 1px solid color-mix(in oklch, var(--border) 82%, transparent);
+  border: 0;
+  margin: 0 auto 16px;
   border-radius: 3px;
   background: white;
   box-shadow:
@@ -285,8 +291,11 @@ foliate-view::part(foot) {
   user-select: text;
 }
 
+/* Use the OS text-selection blue, not the application's orange accent.
+   PDF glyphs are already painted on the canvas underneath the text layer. */
 [data-pdf-reader] .teldrive-pdf-viewer .textLayer ::selection {
-  background: color-mix(in oklch, var(--accent) 30%, transparent);
+  background: color-mix(in srgb, Highlight 35%, transparent);
+  color: transparent;
 }
 
 [data-pdf-reader] .teldrive-pdf-viewer .highlight {
@@ -296,8 +305,23 @@ foliate-view::part(foot) {
 @media (max-width: 640px) {
   [data-pdf-reader] .teldrive-pdf-viewer {
     --page-margin: 0 auto 14px;
-    padding: 14px 8px 48px;
+    padding: 0;
   }
+}
+
+[data-pdf-reader][data-pdf-hand-active="true"] [data-pdf-viewer-container] {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+[data-pdf-reader][data-pdf-hand-active="true"] [data-pdf-viewer-container] * {
+  cursor: inherit;
+  user-select: none;
+}
+
+[data-pdf-reader][data-pdf-hand-active="true"] [data-pdf-viewer-container][data-dragging="true"] {
+  cursor: grabbing;
 }
 
 /* ─── Utilities ─── */

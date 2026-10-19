@@ -87,6 +87,8 @@ Defaults are runtime values, not production recommendations.
 
 ## Logging
 
+<ConfigOption name={"logging.log-file"} flag={"--logging-log-file"} env={"TELDRIVE_LOGGING_LOG_FILE"} defaultValue={""} description={"Optional log file path; append logs to this file in addition to console output (parent directory must exist)"} />
+
 <ConfigOption name={"logging.log-format"} flag={"--logging-log-format"} env={"TELDRIVE_LOGGING_LOG_FORMAT"} defaultValue={"text"} description={"Log format: json or text"} />
 
 <ConfigOption name={"logging.log-level"} flag={"--logging-log-level"} env={"TELDRIVE_LOGGING_LOG_LEVEL"} defaultValue={"info"} description={"Log level: debug, info, warn, or error"} />
@@ -112,6 +114,8 @@ Defaults are runtime values, not production recommendations.
 <ConfigOption name={"security.issuer"} flag={"--security-issuer"} env={"TELDRIVE_SECURITY_ISSUER"} defaultValue={"teldrive-v2"} description={"JWT issuer"} />
 
 <ConfigOption name={"security.login-flow-ttl"} flag={"--security-login-flow-ttl"} env={"TELDRIVE_SECURITY_LOGIN_FLOW_TTL"} defaultValue={"10m0s"} description={"Telegram login-flow lifetime"} />
+
+<ConfigOption name={"security.public-file-content"} flag={"--security-public-file-content"} env={"TELDRIVE_SECURITY_PUBLIC_FILE_CONTENT"} defaultValue={"false"} description={"Allow unauthenticated GET/HEAD access to all file content URLs; anyone with a file ID can stream or download the file"} />
 
 <ConfigOption name={"security.refresh-token-ttl"} flag={"--security-refresh-token-ttl"} env={"TELDRIVE_SECURITY_REFRESH_TOKEN_TTL"} defaultValue={"720h0m0s"} description={"Refresh-token lifetime"} />
 
@@ -165,11 +169,11 @@ Defaults are runtime values, not production recommendations.
 
 <ConfigOption name={"telegram.randomize-part-names"} flag={"--telegram-randomize-part-names"} env={"TELDRIVE_TELEGRAM_RANDOMIZE_PART_NAMES"} defaultValue={"true"} description={"Randomize Telegram document names"} />
 
-<ConfigOption name={"telegram.rate-burst"} flag={"--telegram-rate-burst"} env={"TELDRIVE_TELEGRAM_RATE_BURST"} defaultValue={"10"} description={"Telegram API request burst allowance"} />
+<ConfigOption name={"telegram.rate-burst"} flag={"--telegram-rate-burst"} env={"TELDRIVE_TELEGRAM_RATE_BURST"} defaultValue={"10"} description={"Telegram API request burst allowance per Telegram account"} />
 
-<ConfigOption name={"telegram.rate-interval"} flag={"--telegram-rate-interval"} env={"TELDRIVE_TELEGRAM_RATE_INTERVAL"} defaultValue={"50ms"} description={"Minimum interval between Telegram API requests"} />
+<ConfigOption name={"telegram.rate-interval"} flag={"--telegram-rate-interval"} env={"TELDRIVE_TELEGRAM_RATE_INTERVAL"} defaultValue={"50ms"} description={"Minimum interval between Telegram API requests per Telegram account"} />
 
-<ConfigOption name={"telegram.rate-limit"} flag={"--telegram-rate-limit"} env={"TELDRIVE_TELEGRAM_RATE_LIMIT"} defaultValue={"true"} description={"Enable Telegram API request rate limiting"} />
+<ConfigOption name={"telegram.rate-limit"} flag={"--telegram-rate-limit"} env={"TELDRIVE_TELEGRAM_RATE_LIMIT"} defaultValue={"true"} description={"Enable Telegram API request rate limiting per Telegram account (user or bot)"} />
 
 <ConfigOption name={"telegram.reconnect-timeout"} flag={"--telegram-reconnect-timeout"} env={"TELDRIVE_TELEGRAM_RECONNECT_TIMEOUT"} defaultValue={"5m0s"} description={"Maximum Telegram reconnect backoff duration"} />
 

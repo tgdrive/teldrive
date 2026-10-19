@@ -19,6 +19,18 @@ type Handler interface {
 	//
 	// DELETE /v1/uploads/{uploadId}
 	AbortUpload(ctx context.Context, params AbortUploadParams) (AbortUploadRes, error)
+	// AuthorizePublicShareDownload implements authorizePublicShareDownload operation.
+	//
+	// Exchange the share password for a 15-minute, share-scoped download cookie.
+	//
+	// POST /v1/public/shares/{token}/download-session
+	AuthorizePublicShareDownload(ctx context.Context, params AuthorizePublicShareDownloadParams) (AuthorizePublicShareDownloadRes, error)
+	// BookmarkFiles implements bookmarkFiles operation.
+	//
+	// Bookmark selected active files and folders.
+	//
+	// POST /v1/files/bookmarks
+	BookmarkFiles(ctx context.Context, req *BookmarkFilesRequest) (BookmarkFilesRes, error)
 	// BulkMoveFiles implements bulkMoveFiles operation.
 	//
 	// Transactionally move multiple files or folders.
@@ -188,7 +200,7 @@ type Handler interface {
 	DeletePeriodicJob(ctx context.Context, params DeletePeriodicJobParams) (DeletePeriodicJobRes, error)
 	// DiscoverChannels implements discoverChannels operation.
 	//
-	// List Telegram channels where the authenticated user can add administrators.
+	// List broadcast channels where the authenticated user can add administrators. Groups are excluded.
 	//
 	// GET /v1/channels/discover
 	DiscoverChannels(ctx context.Context) (DiscoverChannelsRes, error)
@@ -224,6 +236,10 @@ type Handler interface {
 	//
 	// GET /v1/files/statistics/categories
 	GetFileCategoryStatistics(ctx context.Context) (GetFileCategoryStatisticsRes, error)
+	// GetFilePlaybackStatistics implements getFilePlaybackStatistics operation.
+	//
+	// GET /v1/files/{fileId}/playback/statistics
+	GetFilePlaybackStatistics(ctx context.Context, params GetFilePlaybackStatisticsParams) (GetFilePlaybackStatisticsRes, error)
 	// GetFileViewState implements getFileViewState operation.
 	//
 	// Return the authenticated user's synchronized viewer state for a file.
@@ -274,6 +290,12 @@ type Handler interface {
 	//
 	// GET /v1/uploads/statistics
 	GetUploadStatistics(ctx context.Context, params GetUploadStatisticsParams) (GetUploadStatisticsRes, error)
+	// GetUserPreferences implements getUserPreferences operation.
+	//
+	// Return the authenticated user's web UI preferences, with server defaults for unset values.
+	//
+	// GET /v1/me/preferences
+	GetUserPreferences(ctx context.Context) (GetUserPreferencesRes, error)
 	// HeadFile implements headFile operation.
 	//
 	// Return content metadata without streaming the file.
@@ -430,6 +452,18 @@ type Handler interface {
 	//
 	// POST /v1/casting/devices/{deviceId}/play
 	PlayOnCastingDevice(ctx context.Context, req *CastingStart, params PlayOnCastingDeviceParams) (PlayOnCastingDeviceRes, error)
+	// ProvisionBot implements provisionBot operation.
+	//
+	// Re-verify a saved bot and repair its access to the user's registered channels.
+	//
+	// POST /v1/bots/{botId}/provision
+	ProvisionBot(ctx context.Context, params ProvisionBotParams) (ProvisionBotRes, error)
+	// ProvisionBots implements provisionBots operation.
+	//
+	// Re-verify all saved bots, with one independent task per bot.
+	//
+	// POST /v1/bots/provision
+	ProvisionBots(ctx context.Context, params ProvisionBotsParams) (ProvisionBotsRes, error)
 	// PurgeFile implements purgeFile operation.
 	//
 	// Permanently delete a trashed file or folder from the catalog.
@@ -469,6 +503,12 @@ type Handler interface {
 	//
 	// POST /v1/auth/refresh
 	RefreshSession(ctx context.Context, req *RefreshTokenRequest) (RefreshSessionRes, error)
+	// RemoveFileBookmarks implements removeFileBookmarks operation.
+	//
+	// Remove bookmarks from selected files and folders.
+	//
+	// DELETE /v1/files/bookmarks
+	RemoveFileBookmarks(ctx context.Context, req *BookmarkFilesRequest) (RemoveFileBookmarksRes, error)
 	// ResetPeriodicJobs implements resetPeriodicJobs operation.
 	//
 	// POST /v1/periodic-jobs/reset
@@ -527,10 +567,10 @@ type Handler interface {
 	SelectChannel(ctx context.Context, params SelectChannelParams) (SelectChannelRes, error)
 	// SyncChannels implements syncChannels operation.
 	//
-	// Discover and upsert manageable Telegram channels without deleting missing rows.
+	// Register only chosen manageable broadcast channels, without deleting existing channels.
 	//
 	// POST /v1/channels/sync
-	SyncChannels(ctx context.Context, params SyncChannelsParams) (SyncChannelsRes, error)
+	SyncChannels(ctx context.Context, req *ChannelSyncRequest, params SyncChannelsParams) (SyncChannelsRes, error)
 	// TelegramLoginStart implements telegramLoginStart operation.
 	//
 	// Begin Telegram authentication and send a login code.
@@ -597,6 +637,12 @@ type Handler interface {
 	//
 	// PATCH /v1/shares/{shareId}
 	UpdateShare(ctx context.Context, req *ShareUpdateRequest, params UpdateShareParams) (UpdateShareRes, error)
+	// UpdateUserPreferences implements updateUserPreferences operation.
+	//
+	// Update a subset of the authenticated user's web UI preferences.
+	//
+	// PATCH /v1/me/preferences
+	UpdateUserPreferences(ctx context.Context, req *UserPreferencesUpdate) (UpdateUserPreferencesRes, error)
 }
 
 // RawHandler handles raw response operations described by OpenAPI v3 specification.

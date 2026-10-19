@@ -38,6 +38,16 @@ export function FileActionDialogs({
   previewFile?: FileEntry;
   onPreviewClose: () => void;
 }) {
+  const destinationTitle =
+    destinationAction == null
+      ? ""
+      : destinationAction.count === 1
+        ? t(destinationAction.mode === "move" ? "dialog.moveOne" : "dialog.copyOne", {
+            count: destinationAction.count,
+          })
+        : t(destinationAction.mode === "move" ? "dialog.moveMany" : "dialog.copyMany", {
+            count: destinationAction.count,
+          });
   return (
     <>
       <AppDialog
@@ -88,7 +98,7 @@ export function FileActionDialogs({
           onOpenChange={(open) => {
             if (!open) destinationAction.onClose();
           }}
-          title={`${destinationAction.mode === "move" ? t("Mover") : t("Copiar")} ${destinationAction.count} elemento${destinationAction.count === 1 ? "" : "s"}`}
+          title={destinationTitle}
           description={t("Elige la carpeta de destino.")}
           isDismissable={!pending}
           isCloseDisabled={pending}
@@ -100,7 +110,9 @@ export function FileActionDialogs({
           )}
           <FolderPicker
             initialPath="/"
-            confirmLabel={destinationAction.mode === "move" ? t("Mover aquí") : t("Copiar aquí")}
+            confirmLabel={t(
+              destinationAction.mode === "move" ? "picker.moveHere" : "picker.copyHere",
+            )}
             isDisabled={pending}
             onConfirm={(parentId) => destinationAction.onConfirm(parentId)}
           />

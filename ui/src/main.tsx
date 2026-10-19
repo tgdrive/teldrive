@@ -2,10 +2,10 @@ import { t } from "@/lib/localization";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { createRouter, RouterProvider } from "@tanstack/react-router";
 import ReactDOM from "react-dom/client";
-import { I18nProvider } from "react-aria-components";
 import { Toaster } from "sonner";
 import { ThemeProvider, useTheme } from "@/lib/theme";
-import { applyLanguage, getLanguage, languages } from "@/lib/localization";
+import { applyLanguage } from "@/lib/localization";
+import { LocaleProvider, AppI18nProvider } from "@/lib/locale";
 import { getQueryClient } from "./lib/queryClient";
 import { routeTree } from "./routeTree.gen";
 import "./styles/globals.css";
@@ -54,12 +54,12 @@ async function startApp() {
     const root = ReactDOM.createRoot(rootElement);
     root.render(
       <QueryClientProvider client={queryClient}>
-        <I18nProvider locale={languages.find((value) => value.id === getLanguage())!.locale}>
+        <LocaleProvider><AppI18nProvider>
           <ThemeProvider>
             <RouterProvider router={router} />
             <ThemeToaster />
           </ThemeProvider>
-        </I18nProvider>
+        </AppI18nProvider></LocaleProvider>
       </QueryClientProvider>,
     );
   }

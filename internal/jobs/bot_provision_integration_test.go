@@ -71,6 +71,9 @@ func TestBotProvisionFailuresAndRetries(t *testing.T) {
 			if err == nil || errors.As(err, &snooze) != fresh {
 				t.Fatalf("Work() = %v", err)
 			}
+			if fresh && snooze.Duration != time.Hour {
+				t.Fatalf("fresh admin retry delay = %v, want one hour", snooze.Duration)
+			}
 			if inviter.calls["bot778"] != 1 {
 				t.Fatal("later bot was not attempted")
 			}
@@ -79,6 +82,11 @@ func TestBotProvisionFailuresAndRetries(t *testing.T) {
 				t.Fatalf("failed bot enabled=%v, err=%v", enabled, err)
 			}
 			if fresh {
+				job.CreatedAt = time.Now().Add(-47*time.Hour - 30*time.Minute)
+				err = worker.Work(ctx, job)
+				if !errors.As(err, &snooze) || snooze.Duration > 30*time.Minute || snooze.Duration < 29*time.Minute {
+					t.Fatalf("retry exceeds remaining restriction window: %v", err)
+				}
 				job.CreatedAt = time.Now().Add(-49 * time.Hour)
 				err = worker.Work(ctx, job)
 				if err == nil || errors.As(err, &snooze) {
@@ -100,5 +108,55 @@ func TestBotProvisionFailuresAndRetries(t *testing.T) {
 				t.Fatalf("recovered bot enabled=%v, err=%v", enabled, err)
 			}
 		})
+	}
+}
+
+func TestBotReprovisionRepairsEnabledLegacyBot(t *testing.T) {
+	db := testpostgres.New(t)
+	ctx := context.Background()
+	if _, err := db.Pool.Exec(ctx, "INSERT INTO users (user_id) VALUES (1001); INSERT INTO channels (user_id, channel_id, name) VALUES (1001, 9001, 'storage')"); err != nil {
+		t.Fatal(err)
+	}
+	cipher, err := secureblob.NewWithKey(bytes.Repeat([]byte{2}, 32), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc, err := bots.NewService(db.Pool, cipher, provisionVerifier{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.InsertPending(ctx, 1001, []string{"777:secret"}); err != nil {
+		t.Fatal(err)
+	}
+	// Legacy migration imports enabled bots without usernames.
+	if _, err := db.Pool.Exec(ctx, "UPDATE bots SET enabled=true, username=NULL WHERE bot_id=777"); err != nil {
+		t.Fatal(err)
+	}
+	inviter := &provisionInviter{calls: map[string]int{}}
+	worker := jobs.NewBotProvisionWorker(db.Pool, svc, inviter)
+	job := &river.Job[jobs.BotProvisionArgs]{JobRow: &rivertype.JobRow{CreatedAt: time.Now()}, Args: jobs.BotProvisionArgs{UserID: 1001, BotIDs: []int64{777}}}
+	if err := worker.Work(ctx, job); err != nil {
+		t.Fatal(err)
+	}
+	if len(inviter.calls) != 0 {
+		t.Fatal("ordinary provisioning should skip an enabled bot")
+	}
+	job.Args.Force = true
+	if err := worker.Work(ctx, job); err != nil {
+		t.Fatal(err)
+	}
+	if inviter.calls["bot777"] != 1 {
+		t.Fatalf("manual provisioning invitations = %v", inviter.calls)
+	}
+	row, err := svc.Get(ctx, 1001, 777)
+	if err != nil || !row.Enabled || row.Username.String != "bot777" {
+		t.Fatalf("repaired bot=%v, err=%v", row, err)
+	}
+	job.Args.UserID = 2002
+	if err := worker.Work(ctx, job); err == nil {
+		t.Fatal("another user's bot must not be provisioned")
+	}
+	if inviter.calls["bot777"] != 1 {
+		t.Fatal("manual provisioning crossed user ownership boundary")
 	}
 }

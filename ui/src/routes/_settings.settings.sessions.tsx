@@ -9,6 +9,7 @@ import { userMessage } from "@/api/errors";
 import { ConfirmDialog } from "@/components/dialogs/confirm-dialog";
 import { SettingsPageHeader, SettingsRow, SettingsSection } from "@/components/settings-layout";
 import { getQueryClient } from "@/lib/queryClient";
+import { useDateTimeFormatter } from "@/lib/format";
 
 export const Route = createFileRoute("/_settings/settings/sessions")({
   component: SessionsSettings,
@@ -21,6 +22,8 @@ export const Route = createFileRoute("/_settings/settings/sessions")({
 
 function SessionsSettings() {
   const [revokeSessionId, setRevokeSessionId] = useState<string | null>(null);
+
+  const formatDateTime = useDateTimeFormatter();
   const query = $api.useSuspenseQuery(
     "get",
     "/v1/sessions",
@@ -56,11 +59,11 @@ function SessionsSettings() {
           query.data.items.map((session) => (
             <SettingsRow
               key={session.id}
-              label={session.current ? t("Sesión actual") : t("Teldrive session")}
-              description={t("Creada {0} · vence {1}", [
-                new Date(session.createdAt).toLocaleString(),
-                new Date(session.expiresAt).toLocaleString(),
-              ])}
+              label={t(session.current ? "sessions.current" : "sessions.other")}
+              description={t("Created {created} · expires {expires}", {
+                created: formatDateTime.format(new Date(session.createdAt)),
+                expires: formatDateTime.format(new Date(session.expiresAt)),
+              })}
             >
               <div className="flex items-center justify-end gap-2">
                 {session.current ? (

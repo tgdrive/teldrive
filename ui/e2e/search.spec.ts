@@ -1,3 +1,4 @@
+import { installPreferencesApi } from "./fixtures/preferences";
 import { expect, type Page, test } from "@playwright/test";
 
 const resultFile = {
@@ -41,8 +42,95 @@ async function installResults(page: Page) {
       return route.fulfill({ contentType: "text/plain", body: "Preview from search" });
     return route.fulfill({ status: 404, json: {} });
   });
+  await installPreferencesApi(page);
   return state;
 }
+
+test("search controls stay in the header while selection actions float without shrinking", async ({
+  page,
+}) => {
+  await installResults(page);
+  await page.setViewportSize({ width: 320, height: 740 });
+  await page.goto("/search?q=alpha");
+  const toolbar = page.getByTestId("file-browser-toolbar");
+  await expect(toolbar.getByRole("button", { name: "Filters", exact: true })).toBeVisible();
+  await expect(toolbar.getByRole("button", { name: "Sort files" })).toBeVisible();
+  await expect(toolbar.getByRole("button", { name: /Toggle sort order/ })).toHaveText("");
+  await toolbar.getByRole("button", { name: "Sort files" }).click();
+  await page.getByRole("menuitemradio", { name: "Size", exact: true }).click();
+  await expect(page).toHaveURL(/sort=size/);
+  await toolbar.getByRole("button", { name: /Toggle sort order/ }).click();
+  await expect(page).toHaveURL(/order=desc/);
+  await expect(toolbar.getByRole("region", { name: "Active filters" })).toBeVisible();
+  await expect(toolbar.getByRole("button", { name: /Remove .* filter/ })).toBeVisible();
+  await page
+    .getByRole("row", { name: /alpha\.txt/ })
+    .locator('[data-slot="checkbox-control"]')
+    .click();
+  const actions = page.getByRole("group", { name: "Selected file actions" });
+  await expect(actions).toBeVisible();
+  await expect(toolbar.getByRole("group", { name: "Selected file actions" })).toHaveCount(0);
+  await expect(toolbar.getByRole("button", { name: "Filters", exact: true })).toBeVisible();
+  for (const width of [320, 390, 1280]) {
+    await page.setViewportSize({ width, height: 740 });
+    await expect
+      .poll(() =>
+        toolbar.evaluate((element) => {
+          const header = element.getBoundingClientRect();
+          return [...element.querySelectorAll("button")].every((button) => {
+            const bounds = button.getBoundingClientRect();
+            return bounds.left >= header.left && bounds.right <= header.right;
+          });
+        }),
+      )
+      .toBe(true);
+    for (const button of await actions.getByRole("button").all()) {
+      await expect(button).toHaveCSS("flex-shrink", "0");
+      expect((await button.boundingBox())!.width).toBeGreaterThanOrEqual(28);
+    }
+    await expect
+      .poll(() =>
+        actions.evaluate((element) => {
+          const bounds = element.getBoundingClientRect();
+          return [...element.querySelectorAll("button")].every((button) => {
+            const rect = button.getBoundingClientRect();
+            return (
+              rect.left >= bounds.left &&
+              rect.right <= bounds.right &&
+              rect.top >= bounds.top &&
+              rect.bottom <= bounds.bottom
+            );
+          });
+        }),
+      )
+      .toBe(true);
+  }
+  await actions.getByRole("button", { name: "Clear selection" }).click();
+  await expect(toolbar.getByRole("button", { name: "Filters", exact: true })).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth))
+    .toBeLessThanOrEqual(1);
+});
+
+test("integrated search filters remain available in empty and invalid search states", async ({
+  page,
+}) => {
+  await installResults(page);
+  for (const url of [
+    "/search",
+    "/search?q=alpha&scope=recursive",
+    "/search?updatedAfter=2026-06-01&updatedBefore=2026-05-01",
+  ]) {
+    await page.goto(url);
+    const filters = page.getByTestId("file-browser-toolbar").getByRole("button", {
+      name: "Filters",
+      exact: true,
+    });
+    await filters.click();
+    await expect(page.getByRole("heading", { name: "Refine your search" })).toBeVisible();
+    await expect(page.locator("main").getByRole("progressbar")).toHaveCount(0);
+  }
+});
 
 test("header search submits and the routed query fetches drive results", async ({ page }) => {
   const requests: URL[] = [];
@@ -86,8 +174,9 @@ test("header search submits and the routed query fetches drive results", async (
     return route.fulfill({ status: 404, json: {} });
   });
 
+  await installPreferencesApi(page);
   await page.goto("/files");
-  const search = page.getByRole("textbox", { name: "Buscar archivos" });
+  const search = page.getByRole("textbox", { name: "Search files" });
   await search.fill("alpha");
   await search.press("Enter");
   await expect(page).toHaveURL(/\/search\?q=alpha/);
@@ -123,9 +212,10 @@ test("header submission carries the active folder context without sending a path
     }
     return route.fulfill({ status: 404, json: {} });
   });
+  await installPreferencesApi(page);
   await page.goto(`/files?path=%2FProjects%2FDesign&parentId=${folderId}`);
-  await page.getByRole("textbox", { name: "Buscar archivos" }).fill("brief");
-  await page.getByRole("textbox", { name: "Buscar archivos" }).press("Enter");
+  await page.getByRole("textbox", { name: "Search files" }).fill("brief");
+  await page.getByRole("textbox", { name: "Search files" }).press("Enter");
   await expect(page).toHaveURL(/folderPath=%2FProjects%2FDesign/);
   await expect(page).toHaveURL(new RegExp(`parentId=${folderId}`));
   await expect.poll(() => searchRequest?.searchParams.get("search")).toBe("brief");
@@ -154,10 +244,11 @@ test("search filters-only navigation serializes scope without leaking path", asy
     }
     return route.fulfill({ status: 404, json: {} });
   });
+  await installPreferencesApi(page);
   await page.goto(
     "/search?scope=recursive&parentId=11111111-1111-4111-8111-111111111111&kind=file",
   );
-  await expect(page.getByText("0 cargados")).toBeVisible();
+  await expect(page.getByText("0 loaded")).toBeVisible();
   expect(request?.searchParams.get("scope")).toBe("recursive");
   expect(request?.searchParams.get("parentId")).toBe("11111111-1111-4111-8111-111111111111");
   expect(request?.searchParams.has("path")).toBe(false);
@@ -186,18 +277,19 @@ test("search filters apply as a real form and keep canonical dates in URL and AP
     }
     return route.fulfill({ status: 404, json: {} });
   });
+  await installPreferencesApi(page);
   await page.goto("/search?q=report");
-  await page.getByRole("button", { name: "Filtros" }).click();
-  await page.getByRole("button", { name: /Tipo/ }).click();
-  await page.getByRole("option", { name: "Archivos", exact: true }).click();
-  await page.getByLabel("Modificado después de").fill("2026-05-10");
-  await page.getByRole("button", { name: "Aplicar filtros" }).click();
+  await page.getByRole("button", { name: "Filters" }).click();
+  await page.getByRole("button", { name: /Type/ }).click();
+  await page.getByRole("option", { name: "Files", exact: true }).click();
+  await page.getByLabel("Modified after").fill("2026-05-10");
+  await page.getByRole("button", { name: "Apply filters" }).click();
   await expect(page).toHaveURL(/kind=file/);
   await expect
     .poll(() => requests.at(-1)?.searchParams.get("updatedAfter"))
     .toBe("2026-05-10T00:00:00.000Z");
   await page.reload();
-  await expect(page.getByRole("button", { name: /Archivos/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Files/ })).toBeVisible();
 });
 
 test("recursive filter can choose a folder and sends only its id", async ({ page }) => {
@@ -228,14 +320,15 @@ test("recursive filter can choose a folder and sends only its id", async ({ page
     }
     return route.fulfill({ status: 404, json: {} });
   });
+  await installPreferencesApi(page);
   await page.goto("/search?q=notes");
-  await page.getByRole("button", { name: "Filtros" }).click();
-  await page.getByRole("button", { name: /Buscar en/ }).click();
-  await expect(page.getByRole("option", { name: "Carpeta y subcarpetas" })).toBeEnabled();
-  await page.getByRole("option", { name: "Carpeta y subcarpetas" }).click();
+  await page.getByRole("button", { name: "Filters" }).click();
+  await page.getByRole("button", { name: /Search in/ }).click();
+  await expect(page.getByRole("option", { name: "Folder and subfolders" })).toBeEnabled();
+  await page.getByRole("option", { name: "Folder and subfolders" }).click();
   await page.getByRole("row", { name: "Projects" }).click();
-  await page.getByRole("button", { name: "Usar esta carpeta" }).click();
-  await page.getByRole("button", { name: "Aplicar filtros" }).click();
+  await page.getByRole("button", { name: "Use this folder" }).click();
+  await page.getByRole("button", { name: "Apply filters" }).click();
   await expect(page).toHaveURL(/scope=recursive/);
   await expect.poll(() => request?.searchParams.get("parentId")).toBe(folderId);
   expect(request?.searchParams.has("path")).toBe(false);
@@ -264,9 +357,10 @@ test("a recursive URL without its folder is recoverable and never requests or sp
     }
     return route.fulfill({ status: 404, json: {} });
   });
+  await installPreferencesApi(page);
   await page.goto("/search?q=report&scope=recursive");
-  await expect(page.getByText("Elige una carpeta para buscar en su contenido")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Elegir carpeta" })).toBeVisible();
+  await expect(page.getByText("Choose a folder to search recursively")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Choose folder" })).toBeVisible();
   await expect(page.locator("main").getByRole("progressbar")).toHaveCount(0);
   expect(listCalls).toBe(0);
 });
@@ -292,10 +386,11 @@ test("live search debounces requests and browser history restores the input", as
     }
     return route.fulfill({ status: 404, json: {} });
   });
+  await installPreferencesApi(page);
   await page.goto("/files");
   await page.clock.install();
   await page.clock.pauseAt(new Date(Date.now() + 1_000));
-  const input = page.getByRole("textbox", { name: "Buscar archivos" });
+  const input = page.getByRole("textbox", { name: "Search files" });
   await input.fill("first");
   await input.press("Enter");
   await expect(page).toHaveURL(/q=first/);
@@ -356,8 +451,9 @@ test("mobile search results expose a working root location button", async ({ pag
       });
     return route.fulfill({ status: 404, json: {} });
   });
+  await installPreferencesApi(page);
   await page.goto("/search?q=root");
-  const location = page.getByRole("button", { name: "Abrir carpeta contenedora /" });
+  const location = page.getByRole("button", { name: "Open containing folder /" });
   await expect(location).toBeVisible();
   await location.click();
   await expect(page).toHaveURL(/\/files\?path=%2F/);
@@ -408,15 +504,16 @@ test("search selection exposes bounded actions and renames the selected result",
     }
     return route.fulfill({ status: 404, json: {} });
   });
+  await installPreferencesApi(page);
   await page.goto("/search?q=alpha");
   const row = page.getByRole("row", { name: /alpha\.txt/ });
   await row.click();
-  await expect(page.getByText("1 seleccionados", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Cortar elementos seleccionados" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Duplicar elemento seleccionado" })).toHaveCount(0);
-  await page.getByRole("button", { name: "Renombrar elemento seleccionado" }).click();
-  await page.getByRole("textbox", { name: "Nuevo nombre" }).fill("renamed.txt");
-  await page.getByRole("button", { name: "Renombrar", exact: true }).click();
+  await expect(page.getByText("1 selected", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Cut selected elements" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Duplicate selected item" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Rename selected item" }).click();
+  await page.getByRole("textbox", { name: "New name" }).fill("renamed.txt");
+  await page.getByRole("button", { name: "Rename", exact: true }).click();
   await expect.poll(() => renamed?.id).toBe(fileId);
   expect(renamed?.body).toEqual({ name: "renamed.txt" });
 });
@@ -446,13 +543,13 @@ test("failed copies retain retry context and pending confirmation cannot submit 
     .getByRole("row", { name: /alpha\.txt/ })
     .locator('[data-slot="checkbox-control"]')
     .click();
-  await page.getByRole("button", { name: "Copiar elementos seleccionados", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Copiar 1 elemento" });
-  const confirm = dialog.getByRole("button", { name: "Copiar aquí" });
+  await page.getByRole("button", { name: "Copy selected items", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Copy 1 item" });
+  const confirm = dialog.getByRole("button", { name: "Copy here" });
   await confirm.click();
-  await expect(dialog.getByRole("alert")).toContainText("No se pudieron copiar los elementos");
+  await expect(dialog.getByRole("alert")).toContainText("Items could not be copied");
   await expect(dialog).toBeVisible();
-  await expect(page.getByText("1 seleccionados", { exact: true })).toHaveCount(1);
+  await expect(page.getByText("1 selected", { exact: true })).toHaveCount(1);
   await confirm.click();
   await expect(confirm).toBeDisabled();
   await dialog.press("Escape");
@@ -465,7 +562,7 @@ test("failed copies retain retry context and pending confirmation cannot submit 
   release();
   await expect(dialog).toHaveCount(0);
   await expect.poll(searchRequests).toBeGreaterThan(before);
-  await expect(page.getByText("1 seleccionados", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("1 selected", { exact: true })).toHaveCount(0);
 });
 
 test("pagination preserves filters and selection; changing criteria starts a fresh page", async ({
@@ -516,9 +613,9 @@ test("pagination preserves filters and selection; changing criteria starts a fre
     .getByRole("row", { name: /alpha\.txt/ })
     .locator('[data-slot="checkbox-control"]')
     .click();
-  await expect(page.getByText("1 seleccionados", { exact: true })).toBeVisible();
+  await expect(page.getByText("1 selected", { exact: true })).toBeVisible();
   const continuation = requests.find((url) => url.searchParams.has("cursor"))!;
-  await page.getByRole("grid", { name: "Archivos y carpetas" }).focus();
+  await page.getByRole("grid", { name: "Files and folders" }).focus();
   await page.keyboard.press("Control+a");
   expect(continuation.searchParams.get("search")).toBe("alpha");
   expect(continuation.searchParams.getAll("category")).toEqual(["document", "image"]);
@@ -531,13 +628,13 @@ test("pagination preserves filters and selection; changing criteria starts a fre
     "aria-selected",
     "false",
   );
-  await expect(page.getByText("1 seleccionados", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Vista de cuadrícula" }).click();
-  await expect(page.getByText("1 seleccionados", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Filtros", exact: true }).click();
-  await page.getByRole("button", { name: /Tipo/ }).click();
-  await page.getByRole("option", { name: "Archivos", exact: true }).click();
-  await page.getByRole("button", { name: "Aplicar filtros" }).click();
+  await expect(page.getByText("1 selected", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Grid view" }).click();
+  await expect(page.getByText("1 selected", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Filters", exact: true }).click();
+  await page.getByRole("button", { name: /Type/ }).click();
+  await page.getByRole("option", { name: "Files", exact: true }).click();
+  await page.getByRole("button", { name: "Apply filters" }).click();
   await expect.poll(() => requests.at(-1)?.searchParams.get("kind")).toBe("file");
   expect(requests.at(-1)?.searchParams.has("cursor")).toBe(false);
   await expect(page.getByRole("row", { name: /alpha-second\.txt/ })).toHaveCount(0);
@@ -555,9 +652,9 @@ test("search previews preserve the route and nested location links open the cont
   const preview = page.getByRole("dialog", { name: "alpha.txt" });
   await expect(preview).toBeVisible();
   await expect(page).toHaveURL(/\/search\?q=alpha/);
-  await preview.getByRole("button", { name: "Cerrar visor" }).click();
+  await preview.getByRole("button", { name: "Close viewer" }).click();
   await page
-    .getByRole("button", { name: "Abrir carpeta contenedora /Documents" })
+    .getByRole("button", { name: "Open containing folder /Documents" })
     .filter({ visible: true })
     .click();
   await expect(page).toHaveURL(/\/files\?path=%2FDocuments/);
@@ -569,20 +666,20 @@ test("applying unrelated filters preserves precise dates and invalid saved range
 }) => {
   const state = await installResults(page);
   await page.goto("/search?q=alpha&updatedAfter=2026-05-10T12%3A34%3A56Z");
-  await page.getByRole("button", { name: "Filtros", exact: true }).click();
-  await page.getByRole("button", { name: /Tipo/ }).click();
-  await page.getByRole("option", { name: "Archivos", exact: true }).click();
-  await page.getByRole("button", { name: "Aplicar filtros" }).click();
+  await page.getByRole("button", { name: "Filters", exact: true }).click();
+  await page.getByRole("button", { name: /Type/ }).click();
+  await page.getByRole("option", { name: "Files", exact: true }).click();
+  await page.getByRole("button", { name: "Apply filters" }).click();
   await expect.poll(() => state.requests.at(-1)?.searchParams.get("kind")).toBe("file");
   expect(state.requests.at(-1)?.searchParams.get("updatedAfter")).toBe("2026-05-10T12:34:56.000Z");
 
   state.requests.length = 0;
   await page.goto("/search?q=alpha&updatedAfter=2026-05-10&updatedBefore=2026-05-10");
-  await expect(page.getByText("Revisa el intervalo de fechas", { exact: true })).toBeVisible();
+  await expect(page.getByText("Check the date range", { exact: true })).toBeVisible();
   expect(state.requests).toHaveLength(0);
-  await page.getByRole("button", { name: "Editar filtros" }).click();
-  await page.getByLabel("Modificado antes de").fill("2026-05-12");
-  await page.getByRole("button", { name: "Aplicar filtros" }).click();
+  await page.getByRole("button", { name: "Edit filters" }).click();
+  await page.getByLabel("Modified before").fill("2026-05-12");
+  await page.getByRole("button", { name: "Apply filters" }).click();
   await expect
     .poll(() => state.requests.at(-1)?.searchParams.get("updatedBefore"))
     .toBe("2026-05-12T00:00:00.000Z");
@@ -600,10 +697,10 @@ test("search error and empty states never claim that a folder is empty", async (
       : route.fulfill({ json: { items: [] } }),
   );
   await page.goto("/search?q=missing");
-  await expect(page.getByRole("alert")).toContainText("No se pudo completar la búsqueda");
-  await expect(page.getByText("Esta carpeta está vacía", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("alert")).toContainText("The search could not be completed.");
+  await expect(page.getByText("This folder is empty", { exact: true })).toHaveCount(0);
   fail = false;
-  await page.getByRole("button", { name: "Reintentar", exact: true }).click();
+  await page.getByRole("button", { name: "Retry", exact: true }).click();
   await expect(page.getByText("No matching files", { exact: true })).toBeVisible();
   await expect(page.getByRole("alert")).toHaveCount(0);
 });
@@ -613,7 +710,7 @@ test("search waits for IME composition to finish before changing the URL", async
   await page.goto("/search?q=alpha");
   await page.clock.install();
   await page.clock.pauseAt(new Date(Date.now() + 1_000));
-  const input = page.getByRole("textbox", { name: "Buscar archivos" });
+  const input = page.getByRole("textbox", { name: "Search files" });
   await input.evaluate((element) =>
     element.dispatchEvent(new CompositionEvent("compositionstart", { bubbles: true })),
   );
@@ -627,3 +724,5 @@ test("search waits for IME composition to finish before changing the URL", async
   await page.clock.runFor(300);
   await expect.poll(() => new URL(page.url()).searchParams.get("q")).toBe("報告");
 });
+
+test.beforeEach(async ({page}) => {await page.addInitScript(() => localStorage.setItem("teldrive-language", "en"));});
