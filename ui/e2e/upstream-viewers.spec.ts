@@ -204,7 +204,7 @@ async function openPdfWorkspace(page: Page, name = "reader-sample.pdf", content 
     }));
     throw new Error(`PDF canvas did not render: ${JSON.stringify(state)}`, { cause: error });
   }
-  await expect(dialog.getByRole("button", { name: "Next PDF page", exact: true })).toBeEnabled();
+  await expect(dialog.getByRole("button", { name: "Next page of PDF", exact: true })).toBeEnabled();
   return dialog;
 }
 
@@ -691,7 +691,7 @@ test("PDF annotation controls synchronize colors, font size, ink settings, undo,
   const downloaded = page.waitForEvent("download");
   await pdfTool(
     page,
-    (page.viewportSize()?.width || 0) >= 1280 ? "Save edited PDF copy" : "Save copy",
+    (page.viewportSize()?.width || 0) >= 1280 ? "Save edited copy of PDF" : "Save copy",
   );
   const download = await downloaded;
   const exported = readFileSync((await download.path())!).toString("latin1");
@@ -738,7 +738,7 @@ test("PDF outline renders a collapsible hierarchy", async ({ page }) => {
     await dialog.getByRole("button", { name: "Open PDF sidebar" }).click();
     await expect(sidebar).toBeVisible();
   }
-  await sidebar.getByRole("tab", { name: "Outline" }).click();
+  await sidebar.getByRole("tab", { name: "Index" }).click();
   const chapterOne = sidebar.getByRole("button", { name: "Chapter 1", exact: true });
   const sectionOne = sidebar.getByRole("button", { name: "Section 1.1", exact: true });
   const sectionTwo = sidebar.getByRole("button", { name: "Section 1.2", exact: true });
@@ -989,7 +989,7 @@ test("EPUB brightness is display-only and Auto theme follows the system", async 
     "style",
     /brightness\(1\.3\)/,
   );
-  await appearance.getByRole("button", { name: "Done" }).click();
+  await appearance.getByRole("button", { name: "Ready" }).click();
   await expect(appearance).toBeHidden();
 
   await page.emulateMedia({ colorScheme: "light" });
@@ -997,7 +997,7 @@ test("EPUB brightness is display-only and Auto theme follows the system", async 
   await page.emulateMedia({ colorScheme: "dark" });
   await expect(reader).toHaveAttribute("data-reader-theme", "night");
 
-  await dialog.getByRole("button", { name: "Close ebook reader", exact: true }).click();
+  await dialog.getByRole("button", { name: "Close book reader", exact: true }).click();
   await expect(dialog).toBeHidden();
   expect(writes).toEqual([]);
   expect(errors).toEqual([]);

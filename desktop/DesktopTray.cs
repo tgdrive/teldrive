@@ -13,6 +13,7 @@ internal sealed class DesktopTray : IDisposable
     private bool hidden;
     private bool temporary;
     private bool disposed;
+    private readonly Queue<Action> pending = new();
     private readonly System.Windows.Threading.Dispatcher dispatcher = System.Windows.Application.Current.Dispatcher;
     private readonly Forms.Timer notificationTimer = new() { Interval = 10000 };
     public DesktopTray(Action restore, Action advanced, Action togglePause, Action exit)
@@ -20,6 +21,7 @@ internal sealed class DesktopTray : IDisposable
         using var image = System.Windows.Application.GetResourceStream(new Uri("pack://application:,,,/Assets/Teldrive.ico")).Stream;
         cloud = new Drawing.Icon(image, 32, 32);
         menu = new Forms.ContextMenuStrip();
+        menu.Closed += (_, _) => { var actions = pending.ToArray(); pending.Clear(); foreach (var action in actions) Dispatch(action); };
         menu.Items.Add(L.T("Abrir Teldrive"), null, (_, _) => Dispatch(restore));
         menu.Items.Add(L.T("Opciones adicionales de rclone"), null, (_, _) => Dispatch(advanced));
         pause = new Forms.ToolStripMenuItem(L.T("Pausar cola"), null, (_, _) => Dispatch(togglePause)); menu.Items.Add(pause);
@@ -34,9 +36,10 @@ internal sealed class DesktopTray : IDisposable
     private void Dispatch(Action action)
     {
         if (disposed || dispatcher.HasShutdownStarted) return;
+        if (menu.Visible) { pending.Enqueue(action); return; }
         _ = dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.ContextIdle, new Action(() => {
             if (disposed) return;
-            if (menu.Visible) { Dispatch(action); return; }
+            if (menu.Visible) { pending.Enqueue(action); return; }
             try { action(); }
             catch (Exception error) { System.Windows.MessageBox.Show(error.Message, L.T("Teldrive Desktop v2")); }
         }));
@@ -62,5 +65,5 @@ internal sealed class DesktopTray : IDisposable
         if (temporary) { notificationTimer.Stop(); notificationTimer.Start(); }
         icon.ShowBalloonTip(5000, L.T("Teldrive · ") + item.StateDisplay, item.Name.Length > 180 ? item.Name[..180] : item.Name, item.State == "completed" ? Forms.ToolTipIcon.Info : Forms.ToolTipIcon.Warning);
     }
-    public void Dispose() { if (disposed) return; disposed = true; notificationTimer.Stop(); notificationTimer.Dispose(); icon.Visible = false; icon.Dispose(); menu.Dispose(); cloud.Dispose(); }
+    public void Dispose() { if (disposed) return; disposed = true; pending.Clear(); notificationTimer.Stop(); notificationTimer.Dispose(); icon.Visible = false; icon.Dispose(); menu.Dispose(); cloud.Dispose(); }
 }

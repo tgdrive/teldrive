@@ -317,11 +317,11 @@ test("adding bots supports independent provisioning task IDs", async ({ page }) 
   const bulk = page.getByRole("button", { name: "Provision all bots", exact: true });
   await expect(bulk).toBeDisabled();
   await page
-    .getByRole("textbox", { name: /Bot tokens/ })
+    .getByRole("textbox", { name: /Bot keys|Bot tokens/ })
     .fill("777:secret\n778:secret");
   await page.getByRole("button", { name: "Add bots", exact: true }).click();
   await expect(page.getByText("2 bots queued for verification", { exact: true })).toBeVisible();
-  await expect(page.getByRole("textbox", { name: /Bot tokens/ })).toHaveValue("");
+  await expect(page.getByRole("textbox", { name: /Bot keys|Bot tokens/ })).toHaveValue("");
   await expect(bulk).toBeEnabled();
 });
 
