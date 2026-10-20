@@ -844,6 +844,79 @@ test("React Aria file selection supports replacement, ranges, select all, and es
   await expect(page.getByText(/selected$/)).toBeHidden();
 });
 
+test("selection action tooltips label every button on hover and keyboard focus", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, "hover and keyboard interactions require a desktop pointer");
+  await page.goto("/files");
+  await page.getByRole("row", { name: /alpha\.txt/ }).click();
+
+  const toolbar = page.getByRole("group", { name: "Selected file actions" });
+  const labels = [
+    "Cut selected items",
+    "Copy selected items",
+    "Bookmark selected items",
+    "Rename selected item",
+    "Share selected item",
+    "Download selected file",
+    "Copy selected file download link",
+    "Move selected items",
+    "Move selected items to trash",
+    "Clear selection",
+  ];
+  await expect(toolbar.getByRole("button")).toHaveCount(labels.length);
+  for (const label of labels) {
+    await toolbar.getByRole("button", { name: label, exact: true }).hover();
+    await expect(page.getByRole("tooltip", { name: label, exact: true })).toBeVisible();
+  }
+  await page.mouse.move(0, 0);
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
+
+  await toolbar.getByRole("button", { name: labels[0], exact: true }).focus();
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Shift+Tab");
+  for (const label of labels) {
+    await expect(toolbar.getByRole("button", { name: label, exact: true })).toBeFocused();
+    await expect(page.getByRole("tooltip", { name: label, exact: true })).toBeVisible();
+    await page.keyboard.press("Tab");
+  }
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
+  await expect(page.getByRole("row", { name: /alpha\.txt/ })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+});
+
+test("selection tooltips follow bookmark state and multiple-file link labels", async ({
+  page,
+  isMobile,
+}) => {
+  test.skip(isMobile, "hover interactions require a desktop pointer");
+  await page.goto("/files");
+  await page.getByRole("row", { name: /alpha\.txt/ }).click();
+  await page.getByRole("button", { name: "Bookmark selected items", exact: true }).click();
+  await expect(page.getByText("1 item bookmarked", { exact: true })).toBeVisible();
+  await page.goto("/files?bookmarked=true");
+  await page.getByRole("row", { name: /alpha\.txt/ }).click();
+  const removeBookmark = page.getByRole("button", {
+    name: "Remove bookmarks from selected items",
+    exact: true,
+  });
+  await removeBookmark.hover();
+  await expect(
+    page.getByRole("tooltip", { name: "Remove bookmarks from selected items", exact: true }),
+  ).toBeVisible();
+
+  await page.goto("/files");
+  await page.getByRole("row", { name: /alpha\.txt/ }).click();
+  await page.getByRole("row", { name: /beta\.txt/ }).click({ modifiers: ["Control"] });
+  await page.getByRole("button", { name: "Copy selected files download links" }).hover();
+  await expect(
+    page.getByRole("tooltip", { name: "Copy selected files download links", exact: true }),
+  ).toBeVisible();
+});
+
 test("files and folders can be bookmarked from the shared file manager", async ({ page }) => {
   await page.goto("/files");
   await page.getByRole("row", { name: /alpha\.txt/ }).click();

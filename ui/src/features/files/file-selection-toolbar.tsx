@@ -1,5 +1,8 @@
-import { Button } from "@heroui/react";
+import { Button, Tooltip } from "@heroui/react";
+import type { ComponentProps } from "react";
+import { useAppLocale } from "@/lib/locale";
 import DownloadIcon from "~icons/gravity-ui/arrow-down-to-line";
+import BookmarkIcon from "~icons/gravity-ui/bookmark";
 import CopyIcon from "~icons/gravity-ui/copy";
 import CopyLinkIcon from "~icons/gravity-ui/copy-arrow-right";
 import MoveIcon from "~icons/gravity-ui/folder-arrow-right";
@@ -8,9 +11,16 @@ import PencilIcon from "~icons/gravity-ui/pencil";
 import CutIcon from "~icons/gravity-ui/scissors";
 import TrashIcon from "~icons/gravity-ui/trash-bin";
 import CloseIcon from "~icons/gravity-ui/xmark";
-import BookmarkIcon from "~icons/gravity-ui/bookmark";
-import { useAppLocale } from "@/lib/locale";
 import type { FileEntry } from "../../api/types";
+
+function SelectionActionButton(props: ComponentProps<typeof Button> & { "aria-label": string }) {
+  return (
+    <Tooltip delay={300}>
+      <Button {...props} />
+      <Tooltip.Content placement="top">{props["aria-label"]}</Tooltip.Content>
+    </Tooltip>
+  );
+}
 
 export function FileSelectionToolbar({
   selectedFiles,
@@ -57,7 +67,7 @@ export function FileSelectionToolbar({
           {t("selection.count", { count: selectedCount })}
         </span>
         {onCut ? (
-          <Button
+          <SelectionActionButton
             isIconOnly
             size="sm"
             variant="ghost"
@@ -66,10 +76,10 @@ export function FileSelectionToolbar({
             onPress={onCut}
           >
             <CutIcon className="size-4" />
-          </Button>
+          </SelectionActionButton>
         ) : null}
         {onCopy ? (
-          <Button
+          <SelectionActionButton
             isIconOnly
             size="sm"
             variant="ghost"
@@ -78,10 +88,10 @@ export function FileSelectionToolbar({
             onPress={onCopy}
           >
             <CopyIcon className="size-4" />
-          </Button>
+          </SelectionActionButton>
         ) : null}
         {onBookmark ? (
-          <Button
+          <SelectionActionButton
             isIconOnly
             size="sm"
             variant="ghost"
@@ -90,10 +100,10 @@ export function FileSelectionToolbar({
             onPress={onBookmark}
           >
             <BookmarkIcon className="size-4" />
-          </Button>
+          </SelectionActionButton>
         ) : null}
         {singleSelectedFile && onRename ? (
-          <Button
+          <SelectionActionButton
             isIconOnly
             size="sm"
             variant="ghost"
@@ -102,10 +112,10 @@ export function FileSelectionToolbar({
             onPress={onRename}
           >
             <PencilIcon className="size-4" />
-          </Button>
+          </SelectionActionButton>
         ) : null}
         {singleSelectedFile && onShare ? (
-          <Button
+          <SelectionActionButton
             isIconOnly
             size="sm"
             variant="ghost"
@@ -114,10 +124,10 @@ export function FileSelectionToolbar({
             onPress={onShare}
           >
             <LinkIcon className="size-4" />
-          </Button>
+          </SelectionActionButton>
         ) : null}
         {singleSelectedFile?.kind === "file" && onDownload ? (
-          <Button
+          <SelectionActionButton
             isIconOnly
             size="sm"
             variant="ghost"
@@ -126,10 +136,10 @@ export function FileSelectionToolbar({
             onPress={onDownload}
           >
             <DownloadIcon className="size-4" />
-          </Button>
+          </SelectionActionButton>
         ) : null}
         {selectedOnlyFiles && onCopyDownloadLinks ? (
-          <Button
+          <SelectionActionButton
             isIconOnly
             size="sm"
             variant="ghost"
@@ -140,10 +150,10 @@ export function FileSelectionToolbar({
             isDisabled={pending}
           >
             <CopyLinkIcon className="size-4" />
-          </Button>
+          </SelectionActionButton>
         ) : null}
         {onMove ? (
-          <Button
+          <SelectionActionButton
             isIconOnly
             size="sm"
             variant="ghost"
@@ -152,10 +162,10 @@ export function FileSelectionToolbar({
             onPress={onMove}
           >
             <MoveIcon className="size-4" />
-          </Button>
+          </SelectionActionButton>
         ) : null}
         {onTrash ? (
-          <Button
+          <SelectionActionButton
             isIconOnly
             size="sm"
             variant="danger"
@@ -164,10 +174,10 @@ export function FileSelectionToolbar({
             onPress={onTrash}
           >
             <TrashIcon className="size-4" />
-          </Button>
+          </SelectionActionButton>
         ) : null}
         {onClear ? (
-          <Button
+          <SelectionActionButton
             isIconOnly
             size="sm"
             variant="ghost"
@@ -176,7 +186,7 @@ export function FileSelectionToolbar({
             onPress={onClear}
           >
             <CloseIcon className="size-4" />
-          </Button>
+          </SelectionActionButton>
         ) : null}
       </fieldset>
     </div>
