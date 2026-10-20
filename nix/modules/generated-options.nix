@@ -371,6 +371,11 @@
     };
   };
   "uploads" = {
+    "encryption-required" = lib.mkOption {
+      type = lib.types.nullOr (lib.types.bool);
+      default = null;
+      description = "Require encryption for all new uploads and background imports, regardless of client preferences; requires an active encryption key (Default: false)";
+    };
     "session-ttl" = lib.mkOption {
       type = lib.types.nullOr (lib.types.str);
       default = null;

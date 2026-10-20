@@ -173,6 +173,8 @@ Defaults are runtime values, not production recommendations.
 
 ## Uploads
 
+<ConfigOption name={"uploads.encryption-required"} flag={"--uploads-encryption-required"} env={"TELDRIVE_UPLOADS_ENCRYPTION_REQUIRED"} defaultValue={"false"} description={"Require encryption for all new uploads and background imports, regardless of client preferences; requires an active encryption key"} />
+
 <ConfigOption name={"uploads.hashing-enabled"} flag={"--uploads-hashing-enabled"} env={"TELDRIVE_UPLOADS_HASHING_ENABLED"} defaultValue={"true"} description={"Compute and store BLAKE3 hashes for uploaded files"} />
 
 <ConfigOption name={"uploads.local-import-roots"} flag={"--uploads-local-import-roots"} env={"TELDRIVE_UPLOADS_LOCAL_IMPORT_ROOTS"} defaultValue={""} description={"Absolute server directories allowed as local background-upload sources; empty disables local imports"} />

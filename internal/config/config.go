@@ -101,9 +101,10 @@ type Events struct {
 }
 
 type Uploads struct {
-	SessionTTL       time.Duration `koanf:"session-ttl" default:"168h" validate:"gt=0" description:"Lifetime of resumable upload sessions"`
-	HashingEnabled   bool          `koanf:"hashing-enabled" default:"true" description:"Compute and store BLAKE3 hashes for uploaded files"`
-	LocalImportRoots []string      `koanf:"local-import-roots" default:"" description:"Absolute server directories allowed as local background-upload sources; empty disables local imports"`
+	EncryptionRequired bool          `koanf:"encryption-required" default:"false" description:"Require encryption for all new uploads and background imports, regardless of client preferences; requires an active encryption key"`
+	SessionTTL         time.Duration `koanf:"session-ttl" default:"168h" validate:"gt=0" description:"Lifetime of resumable upload sessions"`
+	HashingEnabled     bool          `koanf:"hashing-enabled" default:"true" description:"Compute and store BLAKE3 hashes for uploaded files"`
+	LocalImportRoots   []string      `koanf:"local-import-roots" default:"" description:"Absolute server directories allowed as local background-upload sources; empty disables local imports"`
 }
 
 type Jobs struct {
@@ -168,6 +169,9 @@ func (c Config) Validate() error {
 
 	if len(c.Encryption.Keys) > 0 && c.Encryption.ActiveKeyVersion == 0 {
 		problems = append(problems, "active encryption key version is required when encryption keys are configured")
+	}
+	if c.Uploads.EncryptionRequired && c.Encryption.ActiveKeyVersion <= 0 {
+		problems = append(problems, "uploads.encryption-required requires an active encryption key")
 	}
 	if c.Encryption.ActiveKeyVersion > 0 {
 		key, ok := c.Encryption.Keys[c.Encryption.ActiveKeyVersion]

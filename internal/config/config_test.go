@@ -48,6 +48,9 @@ func TestDefaultIncludesLegacyPublicTelegramClientIdentity(t *testing.T) {
 	if !cfg.Uploads.HashingEnabled {
 		t.Fatal("Uploads HashingEnabled = false, want true")
 	}
+	if cfg.Uploads.EncryptionRequired {
+		t.Fatal("Uploads EncryptionRequired = true, want false")
+	}
 	if !cfg.Jobs.RunWorkers {
 		t.Fatal("Jobs RunWorkers = false, want true")
 	}
@@ -90,6 +93,7 @@ func TestLoadFromAppliesEnvironment(t *testing.T) {
 		"TELDRIVE_ENCRYPTION_KEYS":                 "1:first-secret,2:second-secret",
 		"TELDRIVE_UPLOADS_SESSION_TTL":             "72h",
 		"TELDRIVE_UPLOADS_HASHING_ENABLED":         "false",
+		"TELDRIVE_UPLOADS_ENCRYPTION_REQUIRED":     "true",
 		"TELDRIVE_JOBS_RUN_WORKERS":                "false",
 		"TELDRIVE_LOGGING_LOG_LEVEL":               "debug",
 		"TELDRIVE_LOGGING_LOG_FORMAT":              "text",
@@ -120,7 +124,7 @@ func TestLoadFromAppliesEnvironment(t *testing.T) {
 	if cfg.Logging.LogLevel != "debug" || cfg.Logging.LogFormat != "text" || cfg.Logging.LogFile != values["TELDRIVE_LOGGING_LOG_FILE"] {
 		t.Fatalf("logging config = %#v", cfg.Logging)
 	}
-	if cfg.Uploads.SessionTTL != 72*time.Hour || cfg.Uploads.HashingEnabled {
+	if cfg.Uploads.SessionTTL != 72*time.Hour || cfg.Uploads.HashingEnabled || !cfg.Uploads.EncryptionRequired {
 		t.Fatalf("upload config = %#v", cfg.Uploads)
 	}
 	if cfg.Jobs.RunWorkers {
@@ -157,6 +161,32 @@ func TestValidateRequiresConfiguredActiveEncryptionKey(t *testing.T) {
 	cfg.Encryption.Keys = map[int32]string{2: "other"}
 	if err := cfg.Validate(); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("Validate() error = %v", err)
+	}
+}
+
+func TestValidateUploadEncryptionRequired(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		version int32
+		keys    map[int32]string
+		valid   bool
+	}{
+		{name: "no active key"},
+		{name: "missing key", version: 1},
+		{name: "blank key", version: 1, keys: map[int32]string{1: " "}},
+		{name: "valid key", version: 1, keys: map[int32]string{1: "secret"}, valid: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := validTestConfig()
+			cfg.Uploads.EncryptionRequired = true
+			cfg.Encryption.ActiveKeyVersion = tc.version
+			cfg.Encryption.Keys = tc.keys
+			err := cfg.Validate()
+			if tc.valid && err != nil || !tc.valid && !errors.Is(err, ErrInvalid) {
+				t.Fatalf("Validate() = %v, want valid=%t", err, tc.valid)
+			}
+		})
 	}
 }
 

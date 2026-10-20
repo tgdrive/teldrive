@@ -127,6 +127,15 @@ func TestUserPreferencesPersistPerUserWithPartialUpdates(t *testing.T) {
 	if status, _ := request("missing-token", http.MethodGet, ""); status != http.StatusUnauthorized {
 		t.Fatalf("unauthenticated status = %d", status)
 	}
+
+	// Server enforcement is independent of the saved UI preference and its API.
+	handler.UploadEncryptionRequired = true
+	if status, other := request("other-token", http.MethodGet, ""); status != http.StatusOK || other.Uploads.Encryption {
+		t.Fatalf("server policy changed UI defaults: %d %+v", status, other)
+	}
+	if status, updated := request("owner-token", http.MethodPatch, `{"uploads":{"encryption":false}}`); status != http.StatusOK || updated.Uploads.Encryption {
+		t.Fatalf("server policy changed saved UI preference: %d %+v", status, updated)
+	}
 }
 
 type tokenUserAuthenticator map[string]int64

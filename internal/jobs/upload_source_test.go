@@ -32,7 +32,7 @@ func TestUploadSourceWorkerDetectsMIME(t *testing.T) {
 			_, _ = w.Write([]byte("plain text content"))
 		}))
 		defer server.Close()
-		worker := NewUploadSourceWorker(nil, nil, nil, nil, server.Client(), 0)
+		worker := NewUploadSourceWorker(nil, nil, nil, nil, server.Client(), 0, false)
 		got, err := worker.detectSourceMIME(context.Background(), UploadFileSource{Type: "http", Location: server.URL, DestinationPath: "file.bin", MIMEType: "application/octet-stream"})
 		if err != nil || got != "text/plain" {
 			t.Fatalf("detectSourceMIME() = %q, %v", got, err)
@@ -44,7 +44,7 @@ func TestUploadSourceWorkerDetectsMIME(t *testing.T) {
 		if err := os.WriteFile(file, make([]byte, 512), 0o600); err != nil {
 			t.Fatal(err)
 		}
-		worker := NewUploadSourceWorker(nil, nil, nil, nil, nil, 0)
+		worker := NewUploadSourceWorker(nil, nil, nil, nil, nil, 0, false)
 		got, err := worker.detectSourceMIME(context.Background(), UploadFileSource{Type: "local", Location: file, DestinationPath: "video.mp4"})
 		if err != nil || got != "video/mp4" {
 			t.Fatalf("detectSourceMIME() = %q, %v", got, err)

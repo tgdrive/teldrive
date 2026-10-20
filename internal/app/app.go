@@ -199,7 +199,7 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 	healthService := health.NewService(dependencies.Version, pool)
 	jobRuntime, err := jobs.NewRuntimeWithServices(
 		pool, storage, cfg.Database.Schema, botService, secureCipher, cfg.Uploads.SessionTTL,
-		jobs.UploaderServices{Catalog: catalogService, Uploads: uploadService, Pipeline: uploadPipeline, ActiveKeyVersion: cfg.Encryption.ActiveKeyVersion, LocalImportRoots: cfg.Uploads.LocalImportRoots},
+		jobs.UploaderServices{Catalog: catalogService, Uploads: uploadService, Pipeline: uploadPipeline, ActiveKeyVersion: cfg.Encryption.ActiveKeyVersion, EncryptionRequired: cfg.Uploads.EncryptionRequired, LocalImportRoots: cfg.Uploads.LocalImportRoots},
 		fileService,
 	)
 	if err != nil {
@@ -210,6 +210,7 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 		cfg.Encryption.ActiveKeyVersion, eventService,
 	).ConfigureDomains(authService, botService, channelService, fileService, shareService, telegramAccount).
 		ConfigureJobs(jobRuntime)
+	handler.UploadEncryptionRequired = cfg.Uploads.EncryptionRequired
 	httpServer, err := api.NewServer(handler, api.NewSecurity(authenticator, eventService).WithPublicFileContent(cfg.Security.PublicFileContent))
 	if err != nil {
 		return nil, fmt.Errorf("create generated HTTP server: %w", err)

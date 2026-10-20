@@ -523,6 +523,7 @@ func (h *Handler) createUploadForOwner(ctx context.Context, ownerID int64, paren
 	if value, ok := req.Encryption.Get(); ok {
 		input.Encryption = value
 	}
+	input.Encryption = input.Encryption || h.UploadEncryptionRequired
 	if input.Encryption {
 		if h.ActiveEncryptionKeyVersion <= 0 {
 			return nil, mapServiceError(transfer.ErrEncryptionKey)

@@ -243,20 +243,21 @@ func (w *UploadBatchWorker) expand(ctx context.Context, source UploadSource, def
 
 type UploadSourceWorker struct {
 	river.WorkerDefaults[UploadSourceArgs]
-	pool             *pgxpool.Pool
-	queries          *sqlcgen.Queries
-	catalog          *catalog.Service
-	uploads          *uploads.Service
-	pipeline         *transfer.Pipeline
-	httpClient       *http.Client
-	activeKeyVersion int32
+	pool               *pgxpool.Pool
+	queries            *sqlcgen.Queries
+	catalog            *catalog.Service
+	uploads            *uploads.Service
+	pipeline           *transfer.Pipeline
+	httpClient         *http.Client
+	activeKeyVersion   int32
+	encryptionRequired bool
 }
 
-func NewUploadSourceWorker(pool *pgxpool.Pool, catalogService *catalog.Service, uploadService *uploads.Service, pipeline *transfer.Pipeline, httpClient *http.Client, activeKeyVersion int32) *UploadSourceWorker {
+func NewUploadSourceWorker(pool *pgxpool.Pool, catalogService *catalog.Service, uploadService *uploads.Service, pipeline *transfer.Pipeline, httpClient *http.Client, activeKeyVersion int32, encryptionRequired bool) *UploadSourceWorker {
 	if httpClient == nil {
 		httpClient = NewUploadHTTPClient()
 	}
-	return &UploadSourceWorker{pool: pool, queries: sqlcgen.New(pool), catalog: catalogService, uploads: uploadService, pipeline: pipeline, httpClient: httpClient, activeKeyVersion: activeKeyVersion}
+	return &UploadSourceWorker{pool: pool, queries: sqlcgen.New(pool), catalog: catalogService, uploads: uploadService, pipeline: pipeline, httpClient: httpClient, activeKeyVersion: activeKeyVersion, encryptionRequired: encryptionRequired}
 }
 
 func (w *UploadSourceWorker) Timeout(*river.Job[UploadSourceArgs]) time.Duration {
@@ -270,6 +271,7 @@ func (w *UploadSourceWorker) Work(ctx context.Context, job *river.Job[UploadSour
 	if job.Args.PartConcurrency <= 0 {
 		job.Args.PartConcurrency = 4
 	}
+	job.Args.Encryption = job.Args.Encryption || w.encryptionRequired
 	if job.Args.PartConcurrency > 16 {
 		return fmt.Errorf("%w: part concurrency exceeds 16", errInvalidUploadSource)
 	}

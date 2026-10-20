@@ -35,6 +35,7 @@ type Handler struct {
 	Shares                     *shares.Service
 	TelegramAccount            telegramstore.Account
 	ActiveEncryptionKeyVersion int32
+	UploadEncryptionRequired   bool
 }
 
 func NewHandler(catalogService *catalog.Service, uploadService *uploads.Service, uploadPipeline *transfer.Pipeline, downloader *transfer.Downloader, healthService *health.Service, activeEncryptionKeyVersion int32, eventService *events.Service) *Handler {
