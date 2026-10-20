@@ -18,16 +18,7 @@ export type FileTypeLike = {
 
 const ebookExtensions = [".epub", ".mobi", ".azw", ".azw3", ".fb2", ".fbz", ".cbz", ".cbr"];
 
-const archiveExtensions = [
-  ".zip",
-  ".rar",
-  ".7z",
-  ".tar",
-  ".gz",
-  ".tgz",
-  ".bz2",
-  ".xz",
-];
+const archiveExtensions = [".zip", ".rar", ".7z", ".tar", ".gz", ".tgz", ".bz2", ".xz"];
 
 const wordExtensions = [".doc", ".docx", ".odt", ".rtf"];
 const sheetExtensions = [".xls", ".xlsx", ".ods", ".csv"];

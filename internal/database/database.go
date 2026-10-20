@@ -122,22 +122,11 @@ func Migrate(ctx context.Context, cfg Config) error {
 	if err := cfg.validate(); err != nil {
 		return err
 	}
-	dsn := cfg.URL
-	if dsn == "" {
-		return errors.New("database URL is required")
-	}
-	connConfig, err := pgx.ParseConfig(dsn)
+	db, err := openMigrationDB(ctx, cfg)
 	if err != nil {
-		return fmt.Errorf("parse migration database URL: %w", err)
+		return err
 	}
-	db := stdlib.OpenDB(*connConfig)
 	defer db.Close()
-
-	pingCtx, cancel := context.WithTimeout(ctx, defaultConnectTimeout)
-	defer cancel()
-	if err := db.PingContext(pingCtx); err != nil {
-		return fmt.Errorf("ping migration database: %w", err)
-	}
 	legacy, err := hasLegacySchema(ctx, db)
 	if err != nil {
 		return fmt.Errorf("inspect database schema: %w", err)
@@ -155,7 +144,7 @@ func Migrate(ctx context.Context, cfg Config) error {
 		return err
 	}
 
-	poolConfig, err := pgxpool.ParseConfig(dsn)
+	poolConfig, err := pgxpool.ParseConfig(cfg.URL)
 	if err != nil {
 		return fmt.Errorf("parse River migration database URL: %w", err)
 	}
@@ -175,6 +164,48 @@ func Migrate(ctx context.Context, cfg Config) error {
 		}
 	}
 	return nil
+}
+
+// Rollback undoes one application migration in the configured schema. It must
+// run with the server stopped; starting the server applies pending migrations.
+// It deliberately does not downgrade River or RiverPro.
+func Rollback(ctx context.Context, cfg Config) error {
+	cfg = cfg.withDefaults()
+	if err := cfg.validate(); err != nil {
+		return err
+	}
+	db, err := openMigrationDB(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	var exists bool
+	if err := db.QueryRowContext(ctx, "SELECT to_regclass($1) IS NOT NULL", pgx.Identifier{cfg.Schema, "migrations"}.Sanitize()).Scan(&exists); err != nil {
+		return fmt.Errorf("inspect migration table: %w", err)
+	}
+	if !exists {
+		return fmt.Errorf("no application migrations found in schema %q", cfg.Schema)
+	}
+	return migrations.Down(ctx, db, cfg.Schema)
+}
+
+func openMigrationDB(ctx context.Context, cfg Config) (*sql.DB, error) {
+	connConfig, err := pgx.ParseConfig(cfg.URL)
+	if err != nil {
+		return nil, fmt.Errorf("parse migration database URL: %w", err)
+	}
+	db := stdlib.OpenDB(*connConfig)
+	timeout := cfg.ConnectTimeout
+	if timeout <= 0 {
+		timeout = defaultConnectTimeout
+	}
+	pingCtx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	if err := db.PingContext(pingCtx); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("ping migration database: %w", err)
+	}
+	return db, nil
 }
 
 func hasLegacySchema(ctx context.Context, db *sql.DB) (bool, error) {

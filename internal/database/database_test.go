@@ -63,3 +63,16 @@ func TestMigrateRejectsMissingURL(t *testing.T) {
 		t.Fatal("expected missing URL error")
 	}
 }
+
+func TestRollbackRejectsInvalidConfig(t *testing.T) {
+	t.Parallel()
+	for _, cfg := range []Config{
+		{},
+		{URL: "postgres://example", Schema: "bad;schema"},
+		{URL: "://bad"},
+	} {
+		if err := Rollback(context.Background(), cfg); err == nil {
+			t.Fatalf("invalid rollback config accepted: %+v", cfg)
+		}
+	}
+}

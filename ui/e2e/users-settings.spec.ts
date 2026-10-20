@@ -1,5 +1,5 @@
-import { installPreferencesApi } from "./fixtures/preferences";
 import { expect, type Route, test } from "@playwright/test";
+import { installPreferencesApi } from "./fixtures/preferences";
 
 test("QR login serializes slow polls and completes two-step password verification", async ({
   page,
@@ -416,18 +416,26 @@ test("language switch translates shell and persists across reloads", async ({ pa
   });
   await installPreferencesApi(page);
   await page.goto("/settings/appearance");
-  await expect(page.getByRole("heading", { name: "Appearance", exact: true, level: 1 })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Appearance", exact: true, level: 1 }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Español", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Apariencia", exact: true, level: 1 })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Apariencia", exact: true, level: 1 }),
+  ).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("lang", "es");
   await expect(page.getByPlaceholder("Buscar archivos")).toBeVisible();
   const openNav = page.getByRole("button", { name: "Abrir navegación", exact: true });
   if (await openNav.isVisible()) await openNav.click();
   await expect(page.getByRole("link", { name: "Archivos", exact: true })).toBeVisible();
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Apariencia", exact: true, level: 1 })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Apariencia", exact: true, level: 1 }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "English", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Appearance", exact: true, level: 1 })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Appearance", exact: true, level: 1 }),
+  ).toBeVisible();
 });
 
 test("users search is debounced and stays usable while results load", async ({ page }) => {

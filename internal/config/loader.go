@@ -20,6 +20,7 @@ import (
 	"github.com/spf13/pflag"
 	stdmaps "maps"
 
+	"github.com/tgdrive/teldrive/v2/internal/database"
 	"github.com/tgdrive/teldrive/v2/internal/size"
 )
 
@@ -64,6 +65,27 @@ func (l *Loader) RegisterFlags(flags *pflag.FlagSet) {
 // Load applies sources in the same precedence order as the original TelDrive:
 // defaults < config file < environment variables < explicitly changed flags.
 func (l *Loader) Load(flags *pflag.FlagSet) (Config, error) {
+	cfg, err := l.load(flags)
+	if err != nil {
+		return Config{}, err
+	}
+	if err := cfg.Validate(); err != nil {
+		return Config{}, err
+	}
+	return cfg, nil
+}
+
+// LoadDatabase uses normal config-file/environment/flag precedence without
+// requiring unrelated server secrets. Database operations validate this config.
+func (l *Loader) LoadDatabase(flags *pflag.FlagSet) (database.Config, error) {
+	cfg, err := l.load(flags)
+	if err != nil {
+		return database.Config{}, err
+	}
+	return cfg.Database, nil
+}
+
+func (l *Loader) load(flags *pflag.FlagSet) (Config, error) {
 	if l == nil || l.lookup == nil || l.homeDir == nil {
 		return Config{}, fmt.Errorf("%w: configuration loader is not initialized", ErrInvalid)
 	}
@@ -121,9 +143,6 @@ func (l *Loader) Load(flags *pflag.FlagSet) (Config, error) {
 	}
 	if cfg.Encryption.Keys == nil {
 		cfg.Encryption.Keys = map[int32]string{}
-	}
-	if err := cfg.Validate(); err != nil {
-		return Config{}, err
 	}
 	return cfg, nil
 }

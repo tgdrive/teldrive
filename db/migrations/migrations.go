@@ -26,9 +26,34 @@ var Files embed.FS
 // Up renders the configured schema into every migration and applies all pending
 // versions with explicit object qualification.
 func Up(ctx context.Context, db *sql.DB, schema string) error {
-	rendered, err := renderedFiles(schema)
+	provider, err := newProvider(db, schema)
 	if err != nil {
 		return err
+	}
+	if _, err := provider.Up(ctx); err != nil {
+		return fmt.Errorf("apply migrations: %w", err)
+	}
+	return nil
+}
+
+// Down rolls back exactly the most recently applied application migration.
+// River and RiverPro migrations are managed separately and are not rolled back.
+func Down(ctx context.Context, db *sql.DB, schema string) error {
+	provider, err := newProvider(db, schema)
+	if err != nil {
+		return err
+	}
+	if _, err := provider.Down(ctx); err != nil {
+		return fmt.Errorf("roll back migration: %w", err)
+	}
+	return nil
+}
+
+func newProvider(db *sql.DB, schema string) (*goose.Provider, error) {
+	schema = strings.TrimSpace(schema)
+	rendered, err := renderedFiles(schema)
+	if err != nil {
+		return nil, err
 	}
 	provider, err := goose.NewProvider(
 		goose.DialectPostgres,
@@ -37,12 +62,9 @@ func Up(ctx context.Context, db *sql.DB, schema string) error {
 		goose.WithTableName(schema+".migrations"),
 	)
 	if err != nil {
-		return fmt.Errorf("create migration provider: %w", err)
+		return nil, fmt.Errorf("create migration provider: %w", err)
 	}
-	if _, err := provider.Up(ctx); err != nil {
-		return fmt.Errorf("apply migrations: %w", err)
-	}
-	return nil
+	return provider, nil
 }
 
 func renderedFiles(schema string) (fs.FS, error) {

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/pressly/goose/v3"
 	"github.com/tgdrive/teldrive/v2/db/migrations"
 	"github.com/tgdrive/teldrive/v2/internal/database"
@@ -124,5 +125,81 @@ SELECT EXISTS (
 		if !exists {
 			t.Fatalf("expected table %s.%s", schema, table)
 		}
+	}
+}
+
+func TestRollbackOneMigrationAndReapply(t *testing.T) {
+	for _, schema := range []string{database.DefaultSchema, "tenant_rollback"} {
+		t.Run(schema, func(t *testing.T) {
+			db := testpostgres.New(t)
+			ctx := context.Background()
+			cfg := database.Config{URL: db.URL, Schema: schema}
+			if err := database.Migrate(ctx, cfg); err != nil {
+				t.Fatal(err)
+			}
+			table := pgx.Identifier{schema, "migrations"}.Sanitize()
+			var latest, previous int64
+			if err := db.Pool.QueryRow(ctx, "SELECT max(version_id) FROM "+table+" WHERE is_applied").Scan(&latest); err != nil {
+				t.Fatal(err)
+			}
+			if err := db.Pool.QueryRow(ctx, "SELECT max(version_id) FROM "+table+" WHERE is_applied AND version_id < $1", latest).Scan(&previous); err != nil {
+				t.Fatal(err)
+			}
+			var riverBefore int
+			if err := db.Pool.QueryRow(ctx, "SELECT count(*) FROM "+pgx.Identifier{schema, "river_migration"}.Sanitize()).Scan(&riverBefore); err != nil {
+				t.Fatal(err)
+			}
+			if err := database.Rollback(ctx, cfg); err != nil {
+				t.Fatal(err)
+			}
+			var after int64
+			if err := db.Pool.QueryRow(ctx, "SELECT max(version_id) FROM "+table+" WHERE is_applied").Scan(&after); err != nil {
+				t.Fatal(err)
+			}
+			if after != previous {
+				t.Fatalf("rollback version = %d, want exactly previous %d (was %d)", after, previous, latest)
+			}
+			var riverAfter int
+			if err := db.Pool.QueryRow(ctx, "SELECT count(*) FROM "+pgx.Identifier{schema, "river_migration"}.Sanitize()).Scan(&riverAfter); err != nil {
+				t.Fatal(err)
+			}
+			if riverAfter != riverBefore {
+				t.Fatalf("rollback changed River migrations: %d -> %d", riverBefore, riverAfter)
+			}
+			if schema != database.DefaultSchema {
+				var other int64
+				if err := db.Pool.QueryRow(ctx, "SELECT max(version_id) FROM teldrive.migrations WHERE is_applied").Scan(&other); err != nil {
+					t.Fatal(err)
+				}
+				if other != latest {
+					t.Fatalf("rollback affected another schema: %d", other)
+				}
+			}
+			if err := database.Migrate(ctx, cfg); err != nil {
+				t.Fatal(err)
+			}
+			if err := db.Pool.QueryRow(ctx, "SELECT max(version_id) FROM "+table+" WHERE is_applied").Scan(&after); err != nil {
+				t.Fatal(err)
+			}
+			if after != latest {
+				t.Fatalf("up version = %d, want %d", after, latest)
+			}
+		})
+	}
+}
+
+func TestRollbackMissingSchemaDoesNotCreateObjects(t *testing.T) {
+	db := testpostgres.New(t)
+	ctx := context.Background()
+	err := database.Rollback(ctx, database.Config{URL: db.URL, Schema: "not_migrated"})
+	if err == nil || !strings.Contains(err.Error(), "no application migrations") {
+		t.Fatalf("missing-schema rollback = %v", err)
+	}
+	var exists bool
+	if err := db.Pool.QueryRow(ctx, "SELECT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = 'not_migrated')").Scan(&exists); err != nil {
+		t.Fatal(err)
+	}
+	if exists {
+		t.Fatal("rollback created an unexpected schema")
 	}
 }

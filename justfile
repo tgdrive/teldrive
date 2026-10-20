@@ -159,6 +159,17 @@ image:
 test-unit:
     go test ./...
 
+# Apply all pending database migrations without starting the server.
+[positional-arguments]
+migrate-up *args:
+    go run ./cmd/teldrive migrate up "$@"
+
+# Undo one application migration. Stop the server first; rollback can delete data.
+# Server startup reapplies pending migrations. River migrations are not downgraded.
+[positional-arguments]
+migrate-down *args:
+    go run ./cmd/teldrive migrate down "$@"
+
 # Preview a stable SemVer release; pass --tag or --push to opt into mutation.
 release version *args:
     go run ./scripts/release.go {{quote(version)}} {{args}}
