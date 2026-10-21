@@ -181,6 +181,8 @@ function AudioTracksControl({ api }: { api: PluginAPI }) {
             position: "absolute",
             right: 0,
             bottom: "calc(100% + 0.5rem)",
+            // Room for a long track title next to its codec, without squeezing the player.
+            minWidth: "min(20rem, calc(100cqw - 1rem))",
             maxHeight,
             overflowY: "auto",
           }}
