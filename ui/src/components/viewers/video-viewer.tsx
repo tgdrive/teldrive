@@ -20,7 +20,8 @@ export function VideoViewer({ file, url }: { file: FileEntry; url: string }) {
 
   return (
     <div ref={rootRef} className="flex h-full w-full items-center justify-center bg-black">
-      <div className="w-full max-w-384">
+      {/* The player wraps itself in one div whose height is automatic; let it fill instead. */}
+      <div className="h-full w-full max-w-384 [&>div]:h-full!">
         <VideoPlayer
           src={url}
           type={previewMedia(file)?.type || file.mimeType}
@@ -28,7 +29,9 @@ export function VideoViewer({ file, url }: { file: FileEntry; url: string }) {
           autoPlay
           defaultHotkeys
           persistPreferences
-          className="w-full"
+          // Fill the window and letterbox the picture inside, instead of the player's own
+          // fixed 16:9 box, which left a small strip on a phone and overran a short window.
+          className="aspect-auto! h-full max-h-none! w-full"
         />
       </div>
     </div>
