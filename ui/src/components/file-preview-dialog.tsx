@@ -127,7 +127,9 @@ export function FilePreviewDialog({
       className="bg-background"
     >
       <Modal.Container size="full" scroll="inside" className="h-dvh max-h-dvh p-0">
-        <Modal.Dialog className="flex h-dvh max-h-dvh w-screen max-w-none flex-col overflow-hidden rounded-none bg-background text-foreground">
+        {/* Edge to edge, like the readers above. The `dark` scope keeps the viewer's header and
+            controls legible in a light theme: the header's glass style is a fixed dark tint. */}
+        <Modal.Dialog className="dark flex h-dvh max-h-dvh w-screen max-w-none flex-col overflow-hidden rounded-none bg-background p-0 text-foreground">
           <Modal.Header
             data-reader-header={isReader || undefined}
             className={cn(
@@ -165,7 +167,9 @@ export function FilePreviewDialog({
           </Modal.Header>
           <Modal.Body
             className={cn(
-              "relative min-h-0 flex-1 overflow-hidden p-0",
+              // The body's default negative margin (room for focus rings) would push it 3px past
+              // the window edge.
+              "relative m-0 min-h-0 flex-1 overflow-hidden p-0",
               isReader
                 ? "bg-background"
                 : "bg-[radial-gradient(circle_at_50%_20%,color-mix(in_oklch,var(--muted-background)_70%,transparent),var(--background)_65%)]",
