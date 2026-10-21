@@ -6,7 +6,8 @@ const now = "2026-10-18T12:00:00Z";
 const token = "tds_fixtureToken123";
 const folderId = "a1111111-1111-4111-8111-111111111111";
 const fileId = "a2222222-2222-4222-8222-222222222222";
-const fileName = "[Anime Time] Monster - 15.mkv";
+// A type without an in-browser preview, so a double-click still starts a download.
+const fileName = "[Anime Time] Monster - 15.zip";
 
 function entry(id: string, name: string, kind: "file" | "folder", parentId?: string) {
   return {
@@ -14,7 +15,7 @@ function entry(id: string, name: string, kind: "file" | "folder", parentId?: str
     parentId,
     name,
     kind,
-    mimeType: kind === "folder" ? "drive/folder" : "video/x-matroska",
+    mimeType: kind === "folder" ? "drive/folder" : "application/zip",
     size: kind === "folder" ? undefined : 11,
     encryption: false,
     status: "active",

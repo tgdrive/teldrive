@@ -30,6 +30,8 @@ import CloseIcon from "~icons/gravity-ui/xmark";
 export type EpubReaderProps = {
   file: FileEntry;
   url: string;
+  /** Download URL for the toolbar button; defaults to the signed-in file download. */
+  downloadUrl?: string;
   onClose: () => void;
 };
 
@@ -42,7 +44,7 @@ type TocItem = {
 
 type Location = { current?: number; total?: number };
 
-export function EpubReader({ file, url, onClose }: EpubReaderProps) {
+export function EpubReader({ file, url, downloadUrl, onClose }: EpubReaderProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<FoliateViewElement | undefined>(undefined);
   const activeRef = useRef(true);
@@ -357,7 +359,7 @@ export function EpubReader({ file, url, onClose }: EpubReaderProps) {
           variant="ghost"
           aria-label={t("reader.download")}
           className="hidden sm:inline-flex"
-          onPress={() => startFileDownload(file)}
+          onPress={() => startFileDownload(file, downloadUrl)}
         >
           <DownloadIcon className="size-4" />
         </Button>

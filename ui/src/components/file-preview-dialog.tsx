@@ -23,17 +23,28 @@ const EpubReader = lazy(() =>
   import("@/components/viewers/epub-reader").then((module) => ({ default: module.EpubReader })),
 );
 
+export type FilePreviewSource = {
+  /** URL the viewers load the file from. */
+  contentUrl: string;
+  /** URL of the header download link, which is a real anchor so its address can be copied. */
+  downloadUrl: string;
+};
+
 export function FilePreviewDialog({
   file,
+  source,
   onOpenChange,
 }: {
   file?: FileEntry;
+  /** Where to load and download the file from; defaults to the signed-in file endpoints. */
+  source?: FilePreviewSource;
   onOpenChange: (open: boolean) => void;
 }) {
   const closeFrame = useRef<number>(undefined);
   const { t } = useAppLocale();
   const formatBytes = useFormatBytes();
-  const contentUrl = file ? fileContentUrl(file) : "";
+  const contentUrl = file ? (source?.contentUrl ?? fileContentUrl(file)) : "";
+  const downloadUrl = file ? (source?.downloadUrl ?? fileContentUrl(file, true)) : "";
   const kind = file ? viewerKind(file) : undefined;
   const isReader = kind === "pdf" || kind === "ebook";
 
@@ -95,6 +106,7 @@ export function FilePreviewDialog({
                 key={file.id}
                 file={file}
                 url={contentUrl}
+                downloadUrl={downloadUrl}
                 onClose={() => changeOpen(false)}
               />
             </Suspense>
@@ -142,7 +154,7 @@ export function FilePreviewDialog({
             <Button
               variant={isReader ? "ghost" : "secondary"}
               size="sm"
-              onPress={() => startFileDownload(file)}
+              onPress={() => startFileDownload(file, downloadUrl)}
             >
               <DownloadIcon className="size-4" />
               <span className="hidden sm:inline">{t("preview.download")}</span>
