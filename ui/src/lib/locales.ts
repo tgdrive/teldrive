@@ -68,6 +68,12 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "appearance.languageLabel": "Language",
     "appearance.languageHint":
       "HeroUI components and system formatting follow the selected language.",
+    "appearance.playerTitle": "Video player",
+    "appearance.playerDescription": "How videos play in the web player.",
+    "appearance.embeddedTracksLabel": "Audio tracks and subtitles from the file",
+    "appearance.embeddedTracksHint":
+      "For .mkv and .webm videos, read the audio tracks and subtitles stored in the file so you can choose them in the player's settings menu. Off by default: while it is off, nothing extra is loaded or requested. Saved in this browser.",
+    "appearance.embeddedTracksSwitch": "Read tracks from the file",
     "settings.title": "Settings",
     "settings.description": "Configure Teldrive and this browser.",
     "settings.navLabel": "Settings navigation",
@@ -1063,6 +1069,12 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "appearance.languageLabel": "Idioma",
     "appearance.languageHint":
       "Los componentes HeroUI y el formato del sistema siguen el idioma seleccionado.",
+    "appearance.playerTitle": "Reproductor de vídeo",
+    "appearance.playerDescription": "Cómo se reproducen los vídeos en el reproductor web.",
+    "appearance.embeddedTracksLabel": "Pistas de audio y subtítulos del archivo",
+    "appearance.embeddedTracksHint":
+      "En vídeos .mkv y .webm, lee las pistas de audio y los subtítulos guardados en el archivo para que puedas elegirlos en el menú de ajustes del reproductor. Desactivado por defecto: mientras esté desactivado, no se carga ni se solicita nada adicional. Se guarda en este navegador.",
+    "appearance.embeddedTracksSwitch": "Leer las pistas del archivo",
     "settings.title": "Ajustes",
     "settings.description": "Configura Teldrive y este navegador.",
     "settings.navLabel": "Navegación de ajustes",
@@ -2059,6 +2071,12 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "appearance.languageLabel": "Idioma",
     "appearance.languageHint":
       "Os componentes HeroUI e a formatação do sistema seguem o idioma selecionado.",
+    "appearance.playerTitle": "Reprodutor de vídeo",
+    "appearance.playerDescription": "Como os vídeos são reproduzidos no reprodutor web.",
+    "appearance.embeddedTracksLabel": "Faixas de áudio e legendas do arquivo",
+    "appearance.embeddedTracksHint":
+      "Em vídeos .mkv e .webm, lê as faixas de áudio e as legendas guardadas no arquivo para você escolhê-las no menu de configurações do reprodutor. Desativado por padrão: enquanto estiver desativado, nada extra é carregado ou solicitado. Salvo neste navegador.",
+    "appearance.embeddedTracksSwitch": "Ler as faixas do arquivo",
     "settings.title": "Configurações",
     "settings.description": "Configure o Teldrive e este navegador.",
     "settings.navLabel": "Navegação das configurações",
@@ -3051,6 +3069,12 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "appearance.languageLabel": "Язык",
     "appearance.languageHint":
       "Компоненты HeroUI и системное форматирование следуют выбранному языку.",
+    "appearance.playerTitle": "Видеоплеер",
+    "appearance.playerDescription": "Как видео воспроизводится в веб-плеере.",
+    "appearance.embeddedTracksLabel": "Звуковые дорожки и субтитры из файла",
+    "appearance.embeddedTracksHint":
+      "Для видео .mkv и .webm читает звуковые дорожки и субтитры, сохранённые в файле, чтобы их можно было выбрать в меню настроек плеера. По умолчанию выключено: пока оно выключено, ничего дополнительно не загружается и не запрашивается. Сохраняется в этом браузере.",
+    "appearance.embeddedTracksSwitch": "Читать дорожки из файла",
     "settings.title": "Настройки",
     "settings.description": "Настройте Teldrive и этот браузер.",
     "settings.navLabel": "Навигация по настройкам",
@@ -4044,6 +4068,12 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "appearance.languageLabel": "Langue",
     "appearance.languageHint":
       "Les composants HeroUI et le formatage système suivent la langue sélectionnée.",
+    "appearance.playerTitle": "Lecteur vidéo",
+    "appearance.playerDescription": "Comment les vidéos sont lues dans le lecteur web.",
+    "appearance.embeddedTracksLabel": "Pistes audio et sous-titres du fichier",
+    "appearance.embeddedTracksHint":
+      "Pour les vidéos .mkv et .webm, lit les pistes audio et les sous-titres stockés dans le fichier afin de les choisir dans le menu des réglages du lecteur. Désactivé par défaut : tant qu'il est désactivé, rien de plus n'est chargé ni demandé. Enregistré dans ce navigateur.",
+    "appearance.embeddedTracksSwitch": "Lire les pistes du fichier",
     "settings.title": "Paramètres",
     "settings.description": "Configurez Teldrive et ce navigateur.",
     "settings.navLabel": "Navigation des paramètres",
@@ -5048,6 +5078,12 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
       "Die Auswahl wird in deinem Konto gespeichert und sofort angewendet.",
     "appearance.languageLabel": "Sprache",
     "appearance.languageHint": "HeroUI und Systemformatierung folgen der gewählten Sprache.",
+    "appearance.playerTitle": "Videoplayer",
+    "appearance.playerDescription": "Wie Videos im Web-Player abgespielt werden.",
+    "appearance.embeddedTracksLabel": "Tonspuren und Untertitel aus der Datei",
+    "appearance.embeddedTracksHint":
+      "Liest bei .mkv- und .webm-Videos die in der Datei gespeicherten Tonspuren und Untertitel, damit du sie im Einstellungsmenü des Players wählen kannst. Standardmäßig aus: Solange die Option aus ist, wird nichts zusätzlich geladen oder angefragt. Wird in diesem Browser gespeichert.",
+    "appearance.embeddedTracksSwitch": "Spuren aus der Datei lesen",
     "settings.title": "Einstellungen",
     "settings.description": "Richte Teldrive und diesen Browser ein.",
     "settings.navLabel": "Einstellungsnavigation",
@@ -6044,6 +6080,12 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "appearance.languageDescription": "选择保存到你的账户并立即生效。",
     "appearance.languageLabel": "语言",
     "appearance.languageHint": "HeroUI 和系统格式将跟随所选语言。",
+    "appearance.playerTitle": "视频播放器",
+    "appearance.playerDescription": "视频在网页播放器中的播放方式。",
+    "appearance.embeddedTracksLabel": "文件中的音轨和字幕",
+    "appearance.embeddedTracksHint":
+      "对于 .mkv 和 .webm 视频，读取文件中保存的音轨和字幕，以便在播放器的设置菜单中选择。默认关闭：关闭时不会额外加载或请求任何内容。保存在此浏览器中。",
+    "appearance.embeddedTracksSwitch": "读取文件中的轨道",
     "settings.title": "设置",
     "settings.description": "配置 Teldrive 和此浏览器。",
     "settings.navLabel": "设置导航",
