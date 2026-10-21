@@ -60,8 +60,22 @@ WHERE files.user_id = sqlc.arg(user_id)
   AND (sqlc.narg(kind)::/* TEMPLATE: schema */file_kind IS NULL OR files.kind = sqlc.narg(kind)::/* TEMPLATE: schema */file_kind)
   AND (
     sqlc.narg(search)::text IS NULL
-    OR files.name % sqlc.narg(search)::text
+    OR (sqlc.narg(search)::text !~ '[[:space:]]' AND files.name % sqlc.narg(search)::text)
     OR files.name ILIKE '%' || sqlc.narg(search)::text || '%'
+    OR (
+      -- Seed candidates through files_name_search_idx before checking every term.
+      files.name ILIKE (
+        SELECT '%' || term.value || '%'
+        FROM regexp_split_to_table(trim(sqlc.narg(search)::text), '[[:space:]]+') AS term(value)
+        ORDER BY length(term.value) DESC
+        LIMIT 1
+      )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM regexp_split_to_table(trim(sqlc.narg(search)::text), '[[:space:]]+') AS term(value)
+        WHERE files.name NOT ILIKE '%' || term.value || '%'
+      )
+    )
   )
   AND (
     sqlc.narg(after_name)::text IS NULL
@@ -281,8 +295,22 @@ WHERE f.user_id = sqlc.arg(user_id)
     OR (
       sqlc.arg(search_type)::text = 'text'
       AND (
-        f.name % sqlc.narg(search)::text
+        (sqlc.narg(search)::text !~ '[[:space:]]' AND f.name % sqlc.narg(search)::text)
         OR f.name ILIKE '%' || sqlc.narg(search)::text || '%'
+        OR (
+          -- Seed candidates through files_name_search_idx before checking every term.
+          f.name ILIKE (
+            SELECT '%' || term.value || '%'
+            FROM regexp_split_to_table(trim(sqlc.narg(search)::text), '[[:space:]]+') AS term(value)
+            ORDER BY length(term.value) DESC
+            LIMIT 1
+          )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM regexp_split_to_table(trim(sqlc.narg(search)::text), '[[:space:]]+') AS term(value)
+            WHERE f.name NOT ILIKE '%' || term.value || '%'
+          )
+        )
       )
     )
   )

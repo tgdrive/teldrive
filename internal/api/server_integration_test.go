@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+	varccache "github.com/tgdrive/varc/cache"
 
 	api "github.com/tgdrive/teldrive/v2/internal/api"
 	"github.com/tgdrive/teldrive/v2/internal/api/gen"
@@ -28,6 +29,11 @@ import (
 )
 
 func TestGeneratedServerUploadCompleteAndRangeDownload(t *testing.T) {
+	t.Run("uncached", func(t *testing.T) { testServerUploadCompleteAndRangeDownload(t, false) })
+	t.Run("cached", func(t *testing.T) { testServerUploadCompleteAndRangeDownload(t, true) })
+}
+
+func testServerUploadCompleteAndRangeDownload(t *testing.T, cached bool) {
 	db := testpostgres.New(t)
 	ctx := context.Background()
 	if _, err := db.Pool.Exec(ctx, "INSERT INTO users (user_id) VALUES (1001)"); err != nil {
@@ -42,6 +48,22 @@ func TestGeneratedServerUploadCompleteAndRangeDownload(t *testing.T) {
 	storage := &apiMemoryStorage{}
 	pipeline := transfer.NewPipeline(uploadService, apiFixedResolver(9001), storage, nil, transfer.Config{})
 	downloader := transfer.NewDownloader(catalogService, storage, nil)
+	var downloadCache *varccache.Cache
+	if cached {
+		options := varccache.DefaultOptions()
+		options.HandleCaching = 0
+		cache, err := varccache.New(ctx, t.TempDir(), options)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if err := cache.Close(); err != nil {
+				t.Error(err)
+			}
+		})
+		downloader.WithCache(cache)
+		downloadCache = cache
+	}
 	shareService, err := shares.NewService(db.Pool, catalogService)
 	if err != nil {
 		t.Fatal(err)
@@ -248,6 +270,17 @@ func TestGeneratedServerUploadCompleteAndRangeDownload(t *testing.T) {
 	})
 	if publicRange.Code != http.StatusPartialContent || publicRange.Body.String() != "bcde" {
 		t.Fatalf("public range = %d, %q", publicRange.Code, publicRange.Body.String())
+	}
+	if cached {
+		if items := downloadCache.Stats().Items; items != 1 {
+			t.Fatalf("direct and shared downloads created %d cache entries, want one", items)
+		}
+		storage.mu.Lock()
+		openCount := storage.openCount
+		storage.mu.Unlock()
+		if openCount != beforeHead {
+			t.Fatalf("shared download refetched cached origin bytes: before=%d after=%d", beforeHead, openCount)
+		}
 	}
 	if publicRange.Header().Get("Cache-Control") != "private, no-store" {
 		t.Fatal("cookie-authorized content must not be cached")

@@ -407,5 +407,72 @@
         description = "Global Ristretto memory cache size (e.g., 5MB, 10MB) (Default: 5MB) [validate: gt=0]";
       };
     };
+    "disk" = {
+      "directory" = lib.mkOption {
+        type = lib.types.nullOr (lib.types.str);
+        default = null;
+        description = "Private varc disk cache directory; empty disables caching; use a separate directory per Teldrive process (No default; upstream applies its own.)";
+      };
+      "max-size" = lib.mkOption {
+        type = lib.types.nullOr (lib.types.str);
+        default = null;
+        description = "Maximum cached bytes; zero means unlimited (not a hard disk quota) (Default: 10GB) [validate: gte=0]";
+      };
+      "min-free-space" = lib.mkOption {
+        type = lib.types.nullOr (lib.types.str);
+        default = null;
+        description = "Minimum free disk space targeted by cache eviction; zero disables the target (Default: 1GB) [validate: gte=0]";
+      };
+      "max-age" = lib.mkOption {
+        type = lib.types.nullOr (lib.types.str);
+        default = null;
+        description = "Evict unused cached files after this duration; zero disables age eviction (Default: 24h) [validate: gte=0]";
+      };
+      "poll-interval" = lib.mkOption {
+        type = lib.types.nullOr (lib.types.str);
+        default = null;
+        description = "Interval between disk cache eviction passes (Default: 1m) [validate: gt=0]";
+      };
+      "shard-depth" = lib.mkOption {
+        type = lib.types.nullOr (lib.types.int);
+        default = null;
+        description = "Number of two-character hash directories in the disk cache (Default: 1) [validate: min=0,max=16]";
+      };
+      "chunk-size" = lib.mkOption {
+        type = lib.types.nullOr (lib.types.str);
+        default = null;
+        description = "Initial origin range chunk size (Default: 64MB) [validate: gt=0]";
+      };
+      "chunk-size-limit" = lib.mkOption {
+        type = lib.types.nullOr (lib.types.str);
+        default = null;
+        description = "Maximum adaptive origin range chunk size (Default: 1GB) [validate: gt=0]";
+      };
+      "chunk-streams" = lib.mkOption {
+        type = lib.types.nullOr (lib.types.int);
+        default = null;
+        description = "Parallel origin range streams; zero or one uses sequential adaptive reads (Default: 0) [validate: min=0,max=32]";
+      };
+      "read-ahead" = lib.mkOption {
+        type = lib.types.nullOr (lib.types.str);
+        default = null;
+        description = "Additional bytes to fetch beyond requested ranges (Default: 0B) [validate: gte=0]";
+      };
+      "buffer-size" = lib.mkOption {
+        type = lib.types.nullOr (lib.types.str);
+        default = null;
+        description = "Asynchronous read buffer size per origin stream; zero disables buffering (Default: 16MB) [validate: gte=0]";
+      };
+      "handle-caching" = lib.mkOption {
+        type = lib.types.nullOr (lib.types.str);
+        default = null;
+        description = "Grace period before closing unused disk cache handles (Default: 5s) [validate: gte=0]";
+      };
+      "retries" = lib.mkOption {
+        type = lib.types.nullOr (lib.types.int);
+        default = null;
+        description = "Maximum low-level disk cache read attempts (Default: 10) [validate: min=1,max=100]";
+      };
+    };
   };
 }

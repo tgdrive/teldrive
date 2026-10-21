@@ -732,8 +732,22 @@ WHERE files.user_id = $1
   AND ($4::/* TEMPLATE: schema */file_kind IS NULL OR files.kind = $4::/* TEMPLATE: schema */file_kind)
   AND (
     $5::text IS NULL
-    OR files.name % $5::text
+    OR ($5::text !~ '[[:space:]]' AND files.name % $5::text)
     OR files.name ILIKE '%' || $5::text || '%'
+    OR (
+      -- Seed candidates through files_name_search_idx before checking every term.
+      files.name ILIKE (
+        SELECT '%' || term.value || '%'
+        FROM regexp_split_to_table(trim($5::text), '[[:space:]]+') AS term(value)
+        ORDER BY length(term.value) DESC
+        LIMIT 1
+      )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM regexp_split_to_table(trim($5::text), '[[:space:]]+') AS term(value)
+        WHERE files.name NOT ILIKE '%' || term.value || '%'
+      )
+    )
   )
   AND (
     $6::text IS NULL
@@ -857,8 +871,22 @@ WHERE f.user_id = $1
     OR (
       $8::text = 'text'
       AND (
-        f.name % $7::text
+        ($7::text !~ '[[:space:]]' AND f.name % $7::text)
         OR f.name ILIKE '%' || $7::text || '%'
+        OR (
+          -- Seed candidates through files_name_search_idx before checking every term.
+          f.name ILIKE (
+            SELECT '%' || term.value || '%'
+            FROM regexp_split_to_table(trim($7::text), '[[:space:]]+') AS term(value)
+            ORDER BY length(term.value) DESC
+            LIMIT 1
+          )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM regexp_split_to_table(trim($7::text), '[[:space:]]+') AS term(value)
+            WHERE f.name NOT ILIKE '%' || term.value || '%'
+          )
+        )
       )
     )
   )

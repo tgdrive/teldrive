@@ -42,81 +42,28 @@ http:
 
 For containerized Caddy, trust the actual container-network source CIDR instead.
 
-### Optional: `tgdrive/caddy` with varc
+### Optional: built-in download cache
 
-The [`tgdrive/caddy` image](https://github.com/tgdrive/docker-images/tree/main/caddy) includes [varc](https://github.com/tgdrive/varc), a sparse byte-range cache for large downloads and media seeking. Standard Caddy remains sufficient for HTTPS; caching is optional.
-
-Add Caddy to the same private Compose network as Teldrive:
+Teldrive embeds [varc](https://github.com/tgdrive/varc) for sparse byte-range caching of downloads and media seeking. Enable it in Teldrive, not in Caddy; standard Caddy with the `reverse_proxy` configuration above is sufficient.
 
 ```yaml
-services:
-  caddy:
-    image: ghcr.io/tgdrive/caddy
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-      - varc_cache:/var/cache/varc
-volumes:
-  caddy_data:
-  caddy_config:
-  varc_cache:
+cache:
+  disk:
+    directory: /var/cache/teldrive
+    max-size: 10GB
+    min-free-space: 1GB
+    max-age: 168h
+    chunk-size: 64MiB
+    chunk-size-limit: 64MiB
+    chunk-streams: 4
+    read-ahead: 384MiB
 ```
 
-Save this as `Caddyfile`, replacing the domain:
+Mount persistent storage at that path **in the Teldrive container**, writable by its user. Remove any old `varc` handler from Caddy to avoid maintaining two caches. See [Download cache](/configuration/download-cache) for container setup, tuning, and security considerations.
 
-```text
-drive.example.com {
-    @stream {
-        method GET HEAD
-        path_regexp stream ^/api/v1/files/([0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12})/content(?:/[^/]+)?$
-        not query download=1
-    }
+The built-in cache covers normal downloads, `?download=1`, and authorized public-share content. Authentication, ownership, share passwords, and download limits remain enforced before cached content is served. HEAD requests do not fetch file bytes.
 
-    handle @stream {
-        varc http://teldrive:8080{http.request.uri} {
-            cache_dir /var/cache/varc
-            key "{re.stream.1}"
-            max_size 100GiB
-            min_free_space 5GiB
-            max_age 24h
-            poll_interval 1m
-            chunk_size 64MiB
-            chunk_size_limit 1GiB
-            chunk_streams 4
-            read_ahead 256MiB
-            buffer_size 32MiB
-        }
-    }
-
-    handle {
-        reverse_proxy teldrive:8080
-    }
-}
-```
-
-Set Teldrive's listener to `0.0.0.0:8080` inside its container and trust only the private network used by Caddy. Do not publish Teldrive's port publicly.
-
-This caches GET/HEAD streaming requests to `/api/v1/files/{fileId}/content/{fileName}` and the legacy `/api/v1/files/{fileId}/content` URL. Requests with `download=1` bypass varc and use ordinary reverse proxying, as do all other routes—including login, uploads, shares, and live events. The dynamic upstream preserves query parameters. The regular expression captures the file ID as `{re.stream.1}`, so both URL forms (regardless of filename) use the same cache entry per file. Cache entries are shared across credentials; do not key on `Authorization` or `Cookie`, which would duplicate cached files for each token or cookie. Do not replace incoming credentials with a shared service token.
-
-With default authentication enabled, Varc opens the origin object before serving anything—even on a cache hit—and forwards the caller's own cookies/authorization with a metadata request to Teldrive. Rejected credentials cannot retrieve cached bytes. Test unauthenticated access and revoked credentials after warming the cache. Origin authentication errors may appear as cache-proxy errors rather than their original HTTP status.
-
-For direct playback in VLC, MPV, or similar players without credentials, administrators can explicitly set `security.public-file-content: true` (or `TELDRIVE_SECURITY_PUBLIC_FILE_CONTENT=true`). This disables authentication **only** for GET/HEAD file content requests (both legacy and filename URLs, including `?download=1`), not for listing or other APIs. **Warning:** anyone with a file ID can retrieve any active file on this instance, regardless of its owner or sharing settings; Varc's origin authorization check cannot protect these public files. Leave this option disabled unless you intend to expose all active file content.
-
-Adjust the disk limits to your host and keep this volume private. Use one cache directory per Caddy process. See [varc options](https://github.com/tgdrive/varc#caddy-module) for tuning.
-
-Validate and start:
-
-```bash
-docker compose run --rm caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
-docker compose up -d caddy
-docker compose logs --tail=100 caddy
-```
-
-This configuration requires a varc build with dynamic-upstream support. It is not covered by Teldrive's end-to-end tests. Validate the Caddyfile with the image you deploy, then test downloads, seeking, and authentication failures before enabling the cache for users.
+For direct playback without credentials, `security.public-file-content: true` remains an explicit opt-in. **Warning:** anyone with a file ID can retrieve any active file on the instance; enabling a cache does not make this setting safer. Leave it disabled unless you intend to expose all active file content.
 
 ## nginx
 

@@ -18,6 +18,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+	varccache "github.com/tgdrive/varc/cache"
 
 	api "github.com/tgdrive/teldrive/v2/internal/api"
 	"github.com/tgdrive/teldrive/v2/internal/authn"
@@ -60,6 +61,7 @@ type App struct {
 	events            *userevents.Service
 	telegramDownloads *telegramstore.DownloadClientPool
 	globalCache       cache.Cacher
+	downloadCache     *varccache.Cache
 
 	mu      sync.Mutex
 	running bool
@@ -187,7 +189,17 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 		UploadThreads: cfg.Telegram.UploadThreads, RandomizePartNames: cfg.Telegram.RandomizePartNames,
 		DisableHashing: !cfg.Uploads.HashingEnabled,
 	})
-	downloader := transfer.NewDownloader(catalogService, storage, keys)
+	downloadCache, err := newDownloadCache(cfg.Cache.Disk)
+	if err != nil {
+		return nil, err
+	}
+	cleanupDownloadCache := downloadCache != nil
+	defer func() {
+		if cleanupDownloadCache {
+			_ = downloadCache.Close()
+		}
+	}()
+	downloader := transfer.NewDownloader(catalogService, storage, keys).WithCache(downloadCache)
 	fileService, err := fileops.NewService(pool, catalogService, channelService, storage)
 	if err != nil {
 		return nil, fmt.Errorf("create file operations service: %w", err)
@@ -235,6 +247,7 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 		events:            eventService,
 		telegramDownloads: telegram.downloadClients,
 		globalCache:       globalCache,
+		downloadCache:     downloadCache,
 		http: &http.Server{
 			Addr:              cfg.HTTP.Address,
 			Handler:           mux,
@@ -247,6 +260,7 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 	cleanupPool = false
 	cleanupTelegramDownloads = false
 	cleanupGlobalCache = false
+	cleanupDownloadCache = false
 	return application, nil
 }
 
@@ -400,6 +414,10 @@ func (a *App) Shutdown(ctx context.Context) error {
 	}
 	if a.http != nil {
 		result = errors.Join(result, a.http.Shutdown(ctx))
+	}
+	// Stop cache fetchers before closing the Telegram clients they use.
+	if a.downloadCache != nil {
+		result = errors.Join(result, a.downloadCache.Close())
 	}
 	if a.telegramDownloads != nil {
 		result = errors.Join(result, a.telegramDownloads.Close(ctx))

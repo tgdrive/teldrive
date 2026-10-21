@@ -11,6 +11,32 @@ Defaults are runtime values, not production recommendations.
 
 ## Cache
 
+<ConfigOption name={"cache.disk.buffer-size"} flag={"--cache-disk-buffer-size"} env={"TELDRIVE_CACHE_DISK_BUFFER_SIZE"} defaultValue={"16MB"} description={"Asynchronous read buffer size per origin stream; zero disables buffering"} />
+
+<ConfigOption name={"cache.disk.chunk-size"} flag={"--cache-disk-chunk-size"} env={"TELDRIVE_CACHE_DISK_CHUNK_SIZE"} defaultValue={"64MB"} description={"Initial origin range chunk size"} />
+
+<ConfigOption name={"cache.disk.chunk-size-limit"} flag={"--cache-disk-chunk-size-limit"} env={"TELDRIVE_CACHE_DISK_CHUNK_SIZE_LIMIT"} defaultValue={"1GB"} description={"Maximum adaptive origin range chunk size"} />
+
+<ConfigOption name={"cache.disk.chunk-streams"} flag={"--cache-disk-chunk-streams"} env={"TELDRIVE_CACHE_DISK_CHUNK_STREAMS"} defaultValue={"0"} description={"Parallel origin range streams; zero or one uses sequential adaptive reads"} />
+
+<ConfigOption name={"cache.disk.directory"} flag={"--cache-disk-directory"} env={"TELDRIVE_CACHE_DISK_DIRECTORY"} defaultValue={""} description={"Private varc disk cache directory; empty disables caching; use a separate directory per Teldrive process"} />
+
+<ConfigOption name={"cache.disk.handle-caching"} flag={"--cache-disk-handle-caching"} env={"TELDRIVE_CACHE_DISK_HANDLE_CACHING"} defaultValue={"5s"} description={"Grace period before closing unused disk cache handles"} />
+
+<ConfigOption name={"cache.disk.max-age"} flag={"--cache-disk-max-age"} env={"TELDRIVE_CACHE_DISK_MAX_AGE"} defaultValue={"24h0m0s"} description={"Evict unused cached files after this duration; zero disables age eviction"} />
+
+<ConfigOption name={"cache.disk.max-size"} flag={"--cache-disk-max-size"} env={"TELDRIVE_CACHE_DISK_MAX_SIZE"} defaultValue={"10GB"} description={"Maximum cached bytes; zero means unlimited (not a hard disk quota)"} />
+
+<ConfigOption name={"cache.disk.min-free-space"} flag={"--cache-disk-min-free-space"} env={"TELDRIVE_CACHE_DISK_MIN_FREE_SPACE"} defaultValue={"1GB"} description={"Minimum free disk space targeted by cache eviction; zero disables the target"} />
+
+<ConfigOption name={"cache.disk.poll-interval"} flag={"--cache-disk-poll-interval"} env={"TELDRIVE_CACHE_DISK_POLL_INTERVAL"} defaultValue={"1m0s"} description={"Interval between disk cache eviction passes"} />
+
+<ConfigOption name={"cache.disk.read-ahead"} flag={"--cache-disk-read-ahead"} env={"TELDRIVE_CACHE_DISK_READ_AHEAD"} defaultValue={"0B"} description={"Additional bytes to fetch beyond requested ranges"} />
+
+<ConfigOption name={"cache.disk.retries"} flag={"--cache-disk-retries"} env={"TELDRIVE_CACHE_DISK_RETRIES"} defaultValue={"10"} description={"Maximum low-level disk cache read attempts"} />
+
+<ConfigOption name={"cache.disk.shard-depth"} flag={"--cache-disk-shard-depth"} env={"TELDRIVE_CACHE_DISK_SHARD_DEPTH"} defaultValue={"1"} description={"Number of two-character hash directories in the disk cache"} />
+
 <ConfigOption name={"cache.memory.size"} flag={"--cache-memory-size"} env={"TELDRIVE_CACHE_MEMORY_SIZE"} defaultValue={"5MB"} description={"Global Ristretto memory cache size (e.g., 5MB, 10MB)"} />
 
 ## Database

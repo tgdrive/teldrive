@@ -117,6 +117,23 @@ type MemoryCache struct {
 
 type Cache struct {
 	Memory MemoryCache `koanf:"memory"`
+	Disk   DiskCache   `koanf:"disk"`
+}
+
+type DiskCache struct {
+	Directory      string        `koanf:"directory" default:"" description:"Private varc disk cache directory; empty disables caching; use a separate directory per Teldrive process"`
+	MaxSize        size.Size     `koanf:"max-size" default:"10GB" validate:"gte=0" description:"Maximum cached bytes; zero means unlimited (not a hard disk quota)"`
+	MinFreeSpace   size.Size     `koanf:"min-free-space" default:"1GB" validate:"gte=0" description:"Minimum free disk space targeted by cache eviction; zero disables the target"`
+	MaxAge         time.Duration `koanf:"max-age" default:"24h" validate:"gte=0" description:"Evict unused cached files after this duration; zero disables age eviction"`
+	PollInterval   time.Duration `koanf:"poll-interval" default:"1m" validate:"gt=0" description:"Interval between disk cache eviction passes"`
+	ShardDepth     int           `koanf:"shard-depth" default:"1" validate:"min=0,max=16" description:"Number of two-character hash directories in the disk cache"`
+	ChunkSize      size.Size     `koanf:"chunk-size" default:"64MB" validate:"gt=0" description:"Initial origin range chunk size"`
+	ChunkSizeLimit size.Size     `koanf:"chunk-size-limit" default:"1GB" validate:"gt=0" description:"Maximum adaptive origin range chunk size"`
+	ChunkStreams   int           `koanf:"chunk-streams" default:"0" validate:"min=0,max=32" description:"Parallel origin range streams; zero or one uses sequential adaptive reads"`
+	ReadAhead      size.Size     `koanf:"read-ahead" default:"0B" validate:"gte=0" description:"Additional bytes to fetch beyond requested ranges"`
+	BufferSize     size.Size     `koanf:"buffer-size" default:"16MB" validate:"gte=0" description:"Asynchronous read buffer size per origin stream; zero disables buffering"`
+	HandleCaching  time.Duration `koanf:"handle-caching" default:"5s" validate:"gte=0" description:"Grace period before closing unused disk cache handles"`
+	Retries        int           `koanf:"retries" default:"10" validate:"min=1,max=100" description:"Maximum low-level disk cache read attempts"`
 }
 
 type Config struct {
@@ -148,6 +165,9 @@ func (c Config) Validate() error {
 
 	if c.Database.MinConnections > c.Database.MaxConnections {
 		problems = append(problems, "database min connections cannot exceed max connections")
+	}
+	if c.Cache.Disk.ChunkSizeLimit < c.Cache.Disk.ChunkSize {
+		problems = append(problems, "disk cache chunk size limit cannot be smaller than chunk size")
 	}
 	for _, proxy := range c.HTTP.TrustedProxies {
 		value := strings.TrimSpace(proxy)

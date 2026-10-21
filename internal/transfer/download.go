@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/google/uuid"
+	varccache "github.com/tgdrive/varc/cache"
 
 	"github.com/tgdrive/teldrive/v2/internal/contentcrypto"
 	"github.com/tgdrive/teldrive/v2/internal/db/sqlcgen"
@@ -40,10 +41,17 @@ type Downloader struct {
 	catalog FileCatalog
 	storage telegramstore.Storage
 	keys    KeyProvider
+	cache   *varccache.Cache
 }
 
 func NewDownloader(catalog FileCatalog, storage telegramstore.Storage, keys KeyProvider) *Downloader {
 	return &Downloader{catalog: catalog, storage: storage, keys: keys}
+}
+
+// WithCache configures an application-owned sparse read cache before serving requests.
+func (d *Downloader) WithCache(cache *varccache.Cache) *Downloader {
+	d.cache = cache
+	return d
 }
 
 type DownloadRequest struct {
@@ -76,6 +84,9 @@ func (d *Downloader) Open(ctx context.Context, request DownloadRequest) (*Downlo
 	}
 	if request.UserID <= 0 || request.FileID == uuid.Nil || request.Offset < 0 || request.Length < -1 {
 		return nil, ErrInvalidDownload
+	}
+	if d.cache != nil {
+		return d.openCached(ctx, request)
 	}
 	return d.openOrigin(ctx, request)
 }

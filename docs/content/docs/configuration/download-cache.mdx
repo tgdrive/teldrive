@@ -1,0 +1,95 @@
+---
+title: Download cache
+description: Built-in sparse byte-range caching with varc, without a custom reverse proxy.
+---
+
+Teldrive embeds [varc](https://github.com/tgdrive/varc) directly in its downloader. The optional disk cache stores requested file ranges, reuses them for overlapping requests and media seeks, and reloads cached-range metadata after a restart. It does not need a special Caddy build or a loopback HTTP proxy.
+
+## Enable
+
+The disk cache is **disabled by default** because its directory is empty. Set a directory to enable it; no separate enable flag is needed. Recommended media-streaming preset in `config.yaml`:
+
+```yaml
+cache:
+  disk:
+    directory: /var/cache/teldrive
+    max-size: 10GB
+    min-free-space: 1GB
+    max-age: 168h
+    poll-interval: 1m
+    chunk-size: 64MiB
+    chunk-size-limit: 64MiB
+    chunk-streams: 4
+    read-ahead: 384MiB
+```
+
+Or use environment variables:
+
+```bash
+TELDRIVE_CACHE_DISK_DIRECTORY=/var/cache/teldrive
+TELDRIVE_CACHE_DISK_MAX_SIZE=10GB
+TELDRIVE_CACHE_DISK_MIN_FREE_SPACE=1GB
+TELDRIVE_CACHE_DISK_MAX_AGE=168h
+TELDRIVE_CACHE_DISK_CHUNK_SIZE=64MiB
+TELDRIVE_CACHE_DISK_CHUNK_SIZE_LIMIT=64MiB
+TELDRIVE_CACHE_DISK_CHUNK_STREAMS=4
+TELDRIVE_CACHE_DISK_READ_AHEAD=384MiB
+```
+
+The directory is created at startup and must be writable by Teldrive. `~` is expanded to the service user's home directory. Cache initialization errors fail startup rather than silently disabling caching.
+
+This preset retains unused cached files for up to **7 days**, subject to disk-size and free-space eviction. Four parallel 64 MiB chunk streams and 384 MiB read-ahead favor sustained playback, but can fetch unused bytes after seeks and increase Telegram traffic and memory use. Built-in defaults remain more conservative: sequential streams, no extra read-ahead, and 24-hour retention.
+
+For Docker/Podman Compose, add a volume to the existing **Teldrive service**:
+
+```yaml
+services:
+  teldrive:
+    environment:
+      TELDRIVE_CACHE_DISK_DIRECTORY: /var/cache/teldrive
+      TELDRIVE_CACHE_DISK_MAX_AGE: 168h
+      TELDRIVE_CACHE_DISK_CHUNK_SIZE: 64MiB
+      TELDRIVE_CACHE_DISK_CHUNK_SIZE_LIMIT: 64MiB
+      TELDRIVE_CACHE_DISK_CHUNK_STREAMS: "4"
+      TELDRIVE_CACHE_DISK_READ_AHEAD: 384MiB
+    volumes:
+      - download_cache:/var/cache/teldrive
+
+volumes:
+  download_cache:
+```
+
+Ensure the mounted directory is writable by the container's non-root user. Keep the normal reverse-proxy configuration; remove any previous Caddy `varc` handler and its cache volume once you no longer need its contents.
+
+## Behavior and security
+
+- The cache key is the file ID only. File content, attachment downloads (`?download=1`), and authorized public-share downloads reuse the same entry. Owners, URL filenames, cookies, and share tokens do not create separate entries.
+- Authentication and share authorization still run before content is served. The downloader also checks current ownership and active file state on every open, including cache hits. Encrypted files still require their configured encryption key on cache hits.
+- File generation, size, content hash, and an encryption-key fingerprint validate the cached representation without changing its key. New versions invalidate old bytes, and a version change during an origin fetch fails that read rather than mixing versions.
+- HEAD requests do not fetch file bytes. Uploads, listings, events, and other APIs are not cached by varc.
+- **The cache stores plaintext file bytes, including decrypted content from encrypted uploads.** Keep it private, do not expose it through a static file server, and use encrypted local storage if required. Telegram upload encryption does not encrypt this cache.
+- Revoking access or deleting a file prevents subsequent authorized opens but does not securely erase its cached bytes. Unused entries remain until eviction; stop Teldrive before clearing the cache directory manually.
+- Use a separate cache directory per Teldrive process. Varc does not provide multi-process directory locking. Do not mount one writable cache directory into multiple replicas.
+
+## Tuning
+
+```yaml
+cache:
+  disk:
+    chunk-size: 64MB
+    chunk-size-limit: 1GB
+    chunk-streams: 0
+    read-ahead: 0B
+    buffer-size: 16MB
+    handle-caching: 5s
+    retries: 10
+    shard-depth: 1
+```
+
+These are the built-in defaults, not the media-streaming preset above. With `chunk-streams` set to `0` or `1`, varc uses sequential adaptive chunks, growing from `chunk-size` up to `chunk-size-limit`. Values above `1` enable parallel ranged origin reads. Use sequential mode on constrained hosts: Telegram already has its own chunk prefetch and concurrency settings, so additional streams can multiply memory use and Telegram requests.
+
+`read-ahead` fetches beyond the requested range; `0B` avoids additional read-ahead. `buffer-size` controls buffering per origin stream, and `handle-caching` retains idle local handles briefly for reuse. `shard-depth` controls hash-directory nesting and is migrated by varc at startup when changed.
+
+`max-size` counts cached ranges, not the apparent size of sparse files. Disk limits are eviction targets, **not hard quotas**; active reads and polling can temporarily exceed them. `min-free-space` requests eviction when available disk space falls below the target. `max-size: 0B` disables the size limit, `min-free-space: 0B` disables the free-space target, and `max-age: 0s` disables age eviction. Keep `poll-interval` positive.
+
+All settings support config files, `TELDRIVE_CACHE_DISK_*` environment variables, and `--cache-disk-*` flags. See the [full configuration reference](/configuration/reference#cache) for every option.
