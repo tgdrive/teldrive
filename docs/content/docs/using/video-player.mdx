@@ -1,0 +1,36 @@
+---
+title: Video player
+description: Play videos in the web UI, with audio tracks and embedded subtitles.
+---
+
+Double-click a video in **Files**, or open one from a [public share](/using/sharing), to play it in the web player. Files play straight from Teldrive with HTTP range requests, so seeking does not download the whole file.
+
+The player has speed, aspect ratio, picture-in-picture and screenshot controls, and can load a subtitle file (`.srt` or `.vtt`) from your computer.
+
+## Audio tracks and subtitles in Matroska files
+
+Many videos, `.mkv` files in particular, carry several audio tracks (for example Japanese and English) and subtitles inside the file. A browser plays only the first audio track and does not expose the rest, so the player reads them itself.
+
+- **Audio:** when a Matroska or WebM file has more than one audio track, an **Audio** button appears next to the settings button. Choose a track at any time; playback carries on from the same position. The language you chose is remembered for the next video.
+- **Subtitles:** embedded text subtitles (SRT, ASS/SSA and WebVTT) are listed in **Settings → Subtitles** next to the option to load a file, and are drawn with your caption appearance settings. The last choice, including *Off*, is remembered.
+
+Files with a single audio track the browser can play are played exactly as before. Other formats are not inspected.
+
+### How it works
+
+For a file with several audio tracks, the browser plays a repackaged copy of the video made on the fly in your browser (Media Source Extensions). The video is copied unchanged; only the chosen audio track is added. Audio that the browser cannot play, such as AC-3 and E-AC-3 (Dolby Digital), is converted to Opus in the browser so the video is not silent. Nothing changes on the server and nothing extra is stored.
+
+Subtitles are read only for the track you select, only ahead of the position you are watching, and only once that part has not been read already. This reads the same part of the file again in the background, so turning subtitles on adds some download traffic.
+
+### Limits
+
+- Image-based subtitles (PGS, VobSub) are listed but cannot be shown.
+- ASS/SSA subtitles are shown as plain text in your caption style. Fonts, colours, positions and animations from the file are not applied, and drawings (signs and typesetting) are skipped.
+- Whether a video codec plays depends on your browser and hardware. HEVC, for example, needs hardware decoding support. If the browser cannot play the video through Media Source Extensions, the player falls back to normal playback and the Audio button is not shown.
+- Converting E-AC-3 audio needs a secure context (HTTPS, or `localhost`) because it uses WebCodecs. Over plain HTTP such tracks are listed as not supported.
+- Each range request to a [share](/using/sharing) counts as a download if the share has a download limit, and the player makes several while playing.
+
+## Related
+
+- [Files and folders](/using/files-and-folders)
+- [Sharing](/using/sharing)
