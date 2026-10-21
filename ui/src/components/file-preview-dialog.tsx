@@ -1,7 +1,8 @@
 import { Button, cn, Modal, Spinner } from "@heroui/react";
+import { buttonVariants } from "@heroui/styles";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import type { FileEntry } from "@/api/types";
-import { fileContentUrl, startFileDownload } from "@/features/files/download";
+import { fileContentUrl } from "@/features/files/download";
 import { previewMedia, supportsCodePreview } from "@/features/files/preview-support";
 import { readerKind } from "@/features/files/reader-support";
 import { useAppLocale } from "@/lib/locale";
@@ -151,14 +152,16 @@ export function FilePreviewDialog({
                 {formatLabel(kind, t)} · {formatBytes(file.size || 0)}
               </p>
             </div>
-            <Button
-              variant={isReader ? "ghost" : "secondary"}
-              size="sm"
-              onPress={() => startFileDownload(file, downloadUrl)}
+            {/* A real link, not a button: right-click offers "Copy link address" and middle-click works. */}
+            <a
+              href={downloadUrl}
+              download={file.name}
+              aria-label={t("preview.download")}
+              className={buttonVariants({ variant: isReader ? "ghost" : "secondary", size: "sm" })}
             >
               <DownloadIcon className="size-4" />
               <span className="hidden sm:inline">{t("preview.download")}</span>
-            </Button>
+            </a>
           </Modal.Header>
           <Modal.Body
             className={cn(

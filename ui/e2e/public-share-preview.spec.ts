@@ -230,6 +230,34 @@ test.describe("public share previews", () => {
     );
   });
 
+  test("the preview's download control is a real link, so its address can be copied", async ({
+    page,
+    baseURL,
+  }) => {
+    await installShareApi(page);
+    if (!baseURL) throw new Error("Missing Playwright base URL");
+    const expected = `${contentPath(fixtures.webm)}?download=1`;
+    const server = await startDownloadServer(baseURL, expected);
+    try {
+      await page.goto(`${server.origin}/share/${token}`);
+      await page.getByTitle(fixtures.webm.name).dblclick();
+
+      const link = page.locator("[data-content-viewer]").getByRole("link", { name: /download/i });
+      await expect(link).toBeVisible();
+      await expect(link).toHaveAttribute("href", expected);
+      await expect(link).toHaveAttribute("download", fixtures.webm.name);
+
+      const download = page.waitForEvent("download");
+      await link.click();
+      const completed = await download;
+      expect(await completed.failure()).toBeNull();
+      expect(completed.suggestedFilename()).toBe(fixtures.webm.name);
+      expect(server.requests.map((request) => request.url)).toEqual([expected]);
+    } finally {
+      await server.close();
+    }
+  });
+
   test("a password-protected share opens a download session before the player loads", async ({
     page,
   }) => {
