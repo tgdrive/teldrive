@@ -3,9 +3,13 @@ import "@vplayer/react/player.css";
 import { useEffect, useRef } from "react";
 import type { FileEntry } from "@/api/types";
 import { previewMedia } from "@/features/files/preview-support";
+import { useEmbeddedTracks } from "@/lib/player-settings";
 
 export function VideoViewer({ file, url }: { file: FileEntry; url: string }) {
   const rootRef = useRef<HTMLDivElement>(null);
+  // Off unless it is turned on in Settings → Appearance; while it is off the player does not look
+  // inside the file at all.
+  const [embeddedTracks] = useEmbeddedTracks();
 
   useEffect(() => {
     const root = rootRef.current;
@@ -29,6 +33,7 @@ export function VideoViewer({ file, url }: { file: FileEntry; url: string }) {
           autoPlay
           defaultHotkeys
           persistPreferences
+          embeddedTracks={embeddedTracks}
           // Fill the window and letterbox the picture inside, instead of the player's own
           // fixed 16:9 box, which left a small strip on a phone and overran a short window.
           className="aspect-auto! h-full max-h-none! w-full"

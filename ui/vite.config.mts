@@ -107,6 +107,10 @@ export default defineConfig(() => {
     },
     optimizeDeps: {
       exclude: ["foliate-js"],
+      // Loaded on demand when "Audio tracks and subtitles from the file" is on and a Matroska/WebM
+      // video is opened; prebundling them keeps the dev server from reloading the page when it first
+      // finds them.
+      include: ["mediabunny", "@mediabunny/ac3"],
     },
     server: {
       cors: true,
