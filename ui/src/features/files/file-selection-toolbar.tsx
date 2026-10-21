@@ -13,7 +13,9 @@ import TrashIcon from "~icons/gravity-ui/trash-bin";
 import CloseIcon from "~icons/gravity-ui/xmark";
 import type { FileEntry } from "../../api/types";
 
-function SelectionActionButton(props: ComponentProps<typeof Button> & { "aria-label": string }) {
+export function SelectionActionButton(
+  props: ComponentProps<typeof Button> & { "aria-label": string },
+) {
   return (
     <Tooltip delay={300}>
       <Button {...props} />

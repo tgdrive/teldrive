@@ -285,3 +285,33 @@ test.describe("public share previews", () => {
     await expect(page.getByTitle(fixtures.zip.name)).toBeVisible();
   });
 });
+
+test.describe("public share selection toolbar", () => {
+  test("every action shows a tooltip on hover and keyboard focus", async ({ page, isMobile }) => {
+    test.skip(isMobile, "hover and keyboard interactions require a desktop pointer");
+    await installShareApi(page);
+    await page.goto(`/share/${token}`);
+    await page.getByTitle(fixtures.zip.name).click();
+
+    const toolbar = page.getByRole("group", { name: "Selected file actions" });
+    const labels = ["Download selected file", "Copy download link", "Clear selection"];
+    await expect(toolbar.getByRole("button")).toHaveCount(labels.length);
+    for (const label of labels) {
+      await toolbar.getByRole("button", { name: label, exact: true }).hover();
+      await expect(page.getByRole("tooltip", { name: label, exact: true })).toBeVisible();
+    }
+    await page.mouse.move(0, 0);
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
+
+    await toolbar.getByRole("button", { name: labels[0], exact: true }).focus();
+    await page.keyboard.press("Tab");
+    await page.keyboard.press("Shift+Tab");
+    for (const label of labels) {
+      await expect(toolbar.getByRole("button", { name: label, exact: true })).toBeFocused();
+      await expect(page.getByRole("tooltip", { name: label, exact: true })).toBeVisible();
+      await page.keyboard.press("Tab");
+    }
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
+    await expect(page.getByTitle(fixtures.zip.name)).toBeVisible();
+  });
+});

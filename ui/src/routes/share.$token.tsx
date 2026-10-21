@@ -11,6 +11,7 @@ import { FilePreviewDialog, isPreviewable } from "@/components/file-preview-dial
 import { Page, PageContent } from "@/components/page";
 import { copyText } from "@/features/files/download";
 import { FileBrowser, type FileBrowserView } from "@/features/files/file-browser";
+import { SelectionActionButton } from "@/features/files/file-selection-toolbar";
 import { newIdempotencyKey } from "@/features/shared/idempotency";
 import { useFormatBytes } from "@/lib/format";
 import { useAppLocale } from "@/lib/locale";
@@ -452,12 +453,15 @@ function PublicSharePage() {
                   selectionOverlay={
                     selectedFiles.length ? (
                       <div className="pointer-events-none absolute inset-x-0 bottom-4 z-30 flex justify-center px-4">
-                        <div className="pointer-events-auto flex min-w-0 max-w-full flex-wrap items-center justify-center gap-1.5 rounded-2xl border border-border bg-surface/95 p-1.5 shadow-xl backdrop-blur @2xl/file-browser:rounded-full [&>button]:shrink-0">
+                        <fieldset
+                          aria-label={t("selection.actions")}
+                          className="pointer-events-auto flex min-w-0 max-w-full flex-wrap items-center justify-center gap-1.5 rounded-2xl border border-border bg-surface/95 p-1.5 shadow-xl backdrop-blur @2xl/file-browser:rounded-full [&>button]:shrink-0"
+                        >
                           <span className="shrink-0 rounded-full bg-accent/10 px-3 py-2 text-sm font-medium text-accent">
                             {t("selection.count", { count: selectedFiles.length })}
                           </span>
                           {editable && singleSelected ? (
-                            <Button
+                            <SelectionActionButton
                               isIconOnly
                               size="sm"
                               variant="ghost"
@@ -468,10 +472,10 @@ function PublicSharePage() {
                               }}
                             >
                               <PencilIcon className="size-4" />
-                            </Button>
+                            </SelectionActionButton>
                           ) : null}
                           {singleSelected?.kind === "file" ? (
-                            <Button
+                            <SelectionActionButton
                               isIconOnly
                               size="sm"
                               variant="ghost"
@@ -479,10 +483,10 @@ function PublicSharePage() {
                               onPress={() => void download(singleSelected)}
                             >
                               <DownloadIcon className="size-4" />
-                            </Button>
+                            </SelectionActionButton>
                           ) : null}
                           {singleSelected?.kind === "file" ? (
-                            <Button
+                            <SelectionActionButton
                               isIconOnly
                               size="sm"
                               variant="ghost"
@@ -490,10 +494,10 @@ function PublicSharePage() {
                               onPress={() => void copyDownloadLink(singleSelected)}
                             >
                               <LinkIcon className="size-4" />
-                            </Button>
+                            </SelectionActionButton>
                           ) : null}
                           {editable ? (
-                            <Button
+                            <SelectionActionButton
                               isIconOnly
                               size="sm"
                               variant="danger"
@@ -501,9 +505,9 @@ function PublicSharePage() {
                               onPress={() => void trashSelected()}
                             >
                               <TrashIcon className="size-4" />
-                            </Button>
+                            </SelectionActionButton>
                           ) : null}
-                          <Button
+                          <SelectionActionButton
                             isIconOnly
                             size="sm"
                             variant="ghost"
@@ -511,8 +515,8 @@ function PublicSharePage() {
                             onPress={() => setSelectedKeys(new Set())}
                           >
                             <CloseIcon className="size-4" />
-                          </Button>
-                        </div>
+                          </SelectionActionButton>
+                        </fieldset>
                       </div>
                     ) : undefined
                   }
