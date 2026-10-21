@@ -7,9 +7,11 @@ import { apiFetch } from "@/api/client";
 import { ApiError, userMessage } from "@/api/errors";
 import type { FileEntry, PublicShare } from "@/api/types";
 import { AppDialog } from "@/components/dialogs/app-dialog";
+import { FilePreviewDialog, isPreviewable } from "@/components/file-preview-dialog";
 import { Page, PageContent } from "@/components/page";
 import { copyText } from "@/features/files/download";
 import { FileBrowser, type FileBrowserView } from "@/features/files/file-browser";
+import { SelectionActionButton } from "@/features/files/file-selection-toolbar";
 import { newIdempotencyKey } from "@/features/shared/idempotency";
 import { useFormatBytes } from "@/lib/format";
 import { useAppLocale } from "@/lib/locale";
@@ -46,6 +48,7 @@ function PublicSharePage() {
   const [folderName, setFolderName] = useState("");
   const [renameFile, setRenameFile] = useState<FileEntry>();
   const [renameName, setRenameName] = useState("");
+  const [previewFile, setPreviewFile] = useState<FileEntry>();
   const [uploading, setUploading] = useState(false);
   const { t } = useAppLocale();
   const formatBytes = useFormatBytes();
@@ -133,20 +136,28 @@ function PublicSharePage() {
       : `/v1/public/shares/${encodeURIComponent(token)}/files/${encodeURIComponent(file.id)}/content/${fileName}`;
   };
 
-  // Absolute, shareable URL (includes the "/api" prefix). Only for copying/linking, never pass it
-  // through apiFetch, which would prepend "/api" a second time.
+  // Same-origin URL for elements and links (includes the "/api" prefix). Never pass it through
+  // apiFetch, which would prepend "/api" a second time.
+  const publicContentHref = (file: FileEntry) => `/api${publicContentPath(file)}`;
+
+  // Absolute, shareable URL, for copying/linking.
   const publicContentUrl = (file: FileEntry) =>
-    new URL(`/api${publicContentPath(file)}`, window.location.origin).toString();
+    new URL(publicContentHref(file), window.location.origin).toString();
+
+  // Password-protected shares serve content through a short-lived cookie, because neither
+  // <video> nor <a download> can send the X-Share-Password header.
+  const authorizeContent = async () => {
+    if (!share?.passwordProtected) return;
+    await apiFetch(`/v1/public/shares/${encodeURIComponent(token)}/download-session`, {
+      method: "POST",
+      headers: shareHeaders(activePassword),
+    });
+  };
 
   const download = async (file: FileEntry) => {
     setError(undefined);
     try {
-      if (share?.passwordProtected) {
-        await apiFetch(`/v1/public/shares/${encodeURIComponent(token)}/download-session`, {
-          method: "POST",
-          headers: shareHeaders(activePassword),
-        });
-      }
+      await authorizeContent();
       const anchor = document.createElement("a");
       anchor.href = `${publicContentUrl(file)}?download=1`;
       anchor.download = file.name;
@@ -176,6 +187,14 @@ function PublicSharePage() {
       const nextPath = joinPath(path, file.name);
       setPathIds((current) => ({ ...current, [nextPath]: file.id }));
       setPath(nextPath);
+      return;
+    }
+    if (isPreviewable(file)) {
+      setError(undefined);
+      authorizeContent().then(
+        () => setPreviewFile(file),
+        (cause) => setError(userMessage(cause)),
+      );
       return;
     }
     void download(file);
@@ -434,12 +453,15 @@ function PublicSharePage() {
                   selectionOverlay={
                     selectedFiles.length ? (
                       <div className="pointer-events-none absolute inset-x-0 bottom-4 z-30 flex justify-center px-4">
-                        <div className="pointer-events-auto flex min-w-0 max-w-full flex-wrap items-center justify-center gap-1.5 rounded-2xl border border-border bg-surface/95 p-1.5 shadow-xl backdrop-blur @2xl/file-browser:rounded-full [&>button]:shrink-0">
+                        <fieldset
+                          aria-label={t("selection.actions")}
+                          className="pointer-events-auto flex min-w-0 max-w-full flex-wrap items-center justify-center gap-1.5 rounded-2xl border border-border bg-surface/95 p-1.5 shadow-xl backdrop-blur @2xl/file-browser:rounded-full [&>button]:shrink-0"
+                        >
                           <span className="shrink-0 rounded-full bg-accent/10 px-3 py-2 text-sm font-medium text-accent">
                             {t("selection.count", { count: selectedFiles.length })}
                           </span>
                           {editable && singleSelected ? (
-                            <Button
+                            <SelectionActionButton
                               isIconOnly
                               size="sm"
                               variant="ghost"
@@ -450,10 +472,10 @@ function PublicSharePage() {
                               }}
                             >
                               <PencilIcon className="size-4" />
-                            </Button>
+                            </SelectionActionButton>
                           ) : null}
                           {singleSelected?.kind === "file" ? (
-                            <Button
+                            <SelectionActionButton
                               isIconOnly
                               size="sm"
                               variant="ghost"
@@ -461,10 +483,10 @@ function PublicSharePage() {
                               onPress={() => void download(singleSelected)}
                             >
                               <DownloadIcon className="size-4" />
-                            </Button>
+                            </SelectionActionButton>
                           ) : null}
                           {singleSelected?.kind === "file" ? (
-                            <Button
+                            <SelectionActionButton
                               isIconOnly
                               size="sm"
                               variant="ghost"
@@ -472,10 +494,10 @@ function PublicSharePage() {
                               onPress={() => void copyDownloadLink(singleSelected)}
                             >
                               <LinkIcon className="size-4" />
-                            </Button>
+                            </SelectionActionButton>
                           ) : null}
                           {editable ? (
-                            <Button
+                            <SelectionActionButton
                               isIconOnly
                               size="sm"
                               variant="danger"
@@ -483,9 +505,9 @@ function PublicSharePage() {
                               onPress={() => void trashSelected()}
                             >
                               <TrashIcon className="size-4" />
-                            </Button>
+                            </SelectionActionButton>
                           ) : null}
-                          <Button
+                          <SelectionActionButton
                             isIconOnly
                             size="sm"
                             variant="ghost"
@@ -493,8 +515,8 @@ function PublicSharePage() {
                             onPress={() => setSelectedKeys(new Set())}
                           >
                             <CloseIcon className="size-4" />
-                          </Button>
-                        </div>
+                          </SelectionActionButton>
+                        </fieldset>
                       </div>
                     ) : undefined
                   }
@@ -510,6 +532,21 @@ function PublicSharePage() {
           </div>
         ) : null}
       </main>
+
+      <FilePreviewDialog
+        file={previewFile}
+        source={
+          previewFile
+            ? {
+                contentUrl: publicContentHref(previewFile),
+                downloadUrl: `${publicContentHref(previewFile)}?download=1`,
+              }
+            : undefined
+        }
+        onOpenChange={(open) => {
+          if (!open) setPreviewFile(undefined);
+        }}
+      />
 
       <AppDialog
         open={folderDialogOpen}

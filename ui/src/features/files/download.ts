@@ -5,9 +5,12 @@ export function fileContentUrl(file: Pick<FileEntry, "id" | "name">, download = 
   return download ? `${path}?download=1` : path;
 }
 
-export function startFileDownload(file: Pick<FileEntry, "id" | "name">) {
+export function startFileDownload(
+  file: Pick<FileEntry, "id" | "name">,
+  downloadUrl = fileContentUrl(file, true),
+) {
   const anchor = document.createElement("a");
-  anchor.href = fileContentUrl(file, true);
+  anchor.href = downloadUrl;
   anchor.download = file.name;
   anchor.click();
 }

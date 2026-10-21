@@ -965,6 +965,22 @@ test("selected file downloads and copies its attachment URL on an insecure host"
     .toBe(`${new URL(page.url()).origin}/api/v1/files/${alphaId}/content/alpha.txt?download=1`);
 });
 
+test("the preview's download control is a link whose address can be copied", async ({ page }) => {
+  await page.goto("/files");
+  await page.getByRole("row", { name: /alpha\.txt/ }).dblclick();
+
+  const link = page.locator("[data-content-viewer]").getByRole("link", { name: "Download" });
+  await expect(link).toHaveAttribute(
+    "href",
+    `/api/v1/files/${alphaId}/content/alpha.txt?download=1`,
+  );
+  await expect(link).toHaveAttribute("download", "alpha.txt");
+
+  const downloadPromise = page.waitForEvent("download");
+  await link.click();
+  expect((await downloadPromise).suggestedFilename()).toBe("alpha.txt");
+});
+
 for (const passwordProtected of [false, true]) {
   for (const folder of [false, true]) {
     test(`public ${folder ? "folder" : "file"} share downloads through the browser (${passwordProtected ? "password" : "no password"})`, async ({

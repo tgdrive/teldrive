@@ -1,7 +1,8 @@
 import { Button, cn, Modal, Spinner } from "@heroui/react";
+import { buttonVariants } from "@heroui/styles";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import type { FileEntry } from "@/api/types";
-import { fileContentUrl, startFileDownload } from "@/features/files/download";
+import { fileContentUrl } from "@/features/files/download";
 import { previewMedia, supportsCodePreview } from "@/features/files/preview-support";
 import { readerKind } from "@/features/files/reader-support";
 import { useAppLocale } from "@/lib/locale";
@@ -23,17 +24,28 @@ const EpubReader = lazy(() =>
   import("@/components/viewers/epub-reader").then((module) => ({ default: module.EpubReader })),
 );
 
+export type FilePreviewSource = {
+  /** URL the viewers load the file from. */
+  contentUrl: string;
+  /** URL of the header download link, which is a real anchor so its address can be copied. */
+  downloadUrl: string;
+};
+
 export function FilePreviewDialog({
   file,
+  source,
   onOpenChange,
 }: {
   file?: FileEntry;
+  /** Where to load and download the file from; defaults to the signed-in file endpoints. */
+  source?: FilePreviewSource;
   onOpenChange: (open: boolean) => void;
 }) {
   const closeFrame = useRef<number>(undefined);
   const { t } = useAppLocale();
   const formatBytes = useFormatBytes();
-  const contentUrl = file ? fileContentUrl(file) : "";
+  const contentUrl = file ? (source?.contentUrl ?? fileContentUrl(file)) : "";
+  const downloadUrl = file ? (source?.downloadUrl ?? fileContentUrl(file, true)) : "";
   const kind = file ? viewerKind(file) : undefined;
   const isReader = kind === "pdf" || kind === "ebook";
 
@@ -95,6 +107,7 @@ export function FilePreviewDialog({
                 key={file.id}
                 file={file}
                 url={contentUrl}
+                downloadUrl={downloadUrl}
                 onClose={() => changeOpen(false)}
               />
             </Suspense>
@@ -139,14 +152,16 @@ export function FilePreviewDialog({
                 {formatLabel(kind, t)} · {formatBytes(file.size || 0)}
               </p>
             </div>
-            <Button
-              variant={isReader ? "ghost" : "secondary"}
-              size="sm"
-              onPress={() => startFileDownload(file)}
+            {/* A real link, not a button: right-click offers "Copy link address" and middle-click works. */}
+            <a
+              href={downloadUrl}
+              download={file.name}
+              aria-label={t("preview.download")}
+              className={buttonVariants({ variant: isReader ? "ghost" : "secondary", size: "sm" })}
             >
               <DownloadIcon className="size-4" />
               <span className="hidden sm:inline">{t("preview.download")}</span>
-            </Button>
+            </a>
           </Modal.Header>
           <Modal.Body
             className={cn(
