@@ -47,14 +47,14 @@ test("settings content sits beside the navigation on desktop", async ({ page }) 
   await page.setViewportSize({ width: 1280, height: 800 });
   await installSettingsApi(page);
   await page.goto("/settings");
-  await expect(page.locator("main aside")).toBeVisible();
+  await expect(page.locator("[data-settings-nav]")).toBeVisible();
   const column = await contentColumn(page);
   expect(column.offset).toBeGreaterThanOrEqual(15 * REM);
   expect(column.width).toBeGreaterThan(500);
 });
 
 // The grid is `lg:grid-cols-[15rem_minmax(0,1fr)]` and <main> used to rely on auto-placement, so when
-// the nav <aside> was not displayed (for example hidden by a content blocker's cosmetic filter),
+// the settings navigation was not displayed (for example hidden by a content blocker's cosmetic filter),
 // <main> fell into the 15rem track and the whole page collapsed into a narrow column.
 test("settings content keeps the wide column when the navigation aside is not displayed", async ({
   page,
@@ -62,9 +62,25 @@ test("settings content keeps the wide column when the navigation aside is not di
   await page.setViewportSize({ width: 1280, height: 800 });
   await installSettingsApi(page);
   await page.goto("/settings");
-  await page.addStyleTag({ content: "main aside { display: none !important; }" });
-  await expect(page.locator("main aside")).toBeHidden();
+  await page.addStyleTag({ content: "[data-settings-nav] { display: none !important; }" });
+  await expect(page.locator("[data-settings-nav]")).toBeHidden();
   const column = await contentColumn(page);
   expect(column.offset).toBeGreaterThanOrEqual(15 * REM);
   expect(column.width).toBeGreaterThan(500);
+});
+
+// Content blockers commonly hide every <aside>. The settings navigation is the only way to move between
+// settings pages, so it must not be one (it appeared empty on the first visit in Brave, and came back
+// after a reload).
+test("settings navigation is not hidden by a rule that hides every aside element", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await installSettingsApi(page);
+  await page.goto("/settings");
+  await page.addStyleTag({ content: "aside { display: none !important; }" });
+  await expect(page.getByRole("navigation", { name: "Settings navigation" })).toBeVisible();
+  await expect(
+    page.locator("[data-settings-nav]").getByRole("link", { name: "Appearance" }),
+  ).toBeVisible();
 });
