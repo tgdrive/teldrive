@@ -23,7 +23,7 @@ func (q *Queries) EnsureUserPreferences(ctx context.Context, userID int64) error
 }
 
 const getUserPreferences = `-- name: GetUserPreferences :one
-SELECT user_id, upload_encryption, upload_conflict_policy, upload_concurrency, upload_part_size, file_sort, file_order, theme, locale, created_at, updated_at
+SELECT user_id, upload_encryption, upload_conflict_policy, upload_concurrency, upload_part_size, file_sort, file_order, theme, locale, created_at, updated_at, embedded_tracks, embedded_tracks_on_shares
 FROM /* TEMPLATE: schema */user_preferences
 WHERE user_id = $1
 `
@@ -43,6 +43,8 @@ func (q *Queries) GetUserPreferences(ctx context.Context, userID int64) (*UserPr
 		&i.Locale,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.EmbeddedTracks,
+		&i.EmbeddedTracksOnShares,
 	)
 	return &i, err
 }
@@ -57,21 +59,27 @@ SET upload_encryption = COALESCE($1::boolean, upload_encryption),
     file_order = COALESCE($6::text, file_order),
     theme = COALESCE($7::text, theme),
     locale = COALESCE($8::text, locale),
+    embedded_tracks = COALESCE($9::boolean, embedded_tracks),
+    -- Needs embedded_tracks: turning that off turns this off, and it cannot be turned on without it.
+    embedded_tracks_on_shares = COALESCE($10::boolean, embedded_tracks_on_shares)
+        AND COALESCE($9::boolean, embedded_tracks),
     updated_at = now()
-WHERE user_id = $9
-RETURNING user_id, upload_encryption, upload_conflict_policy, upload_concurrency, upload_part_size, file_sort, file_order, theme, locale, created_at, updated_at
+WHERE user_id = $11
+RETURNING user_id, upload_encryption, upload_conflict_policy, upload_concurrency, upload_part_size, file_sort, file_order, theme, locale, created_at, updated_at, embedded_tracks, embedded_tracks_on_shares
 `
 
 type UpdateUserPreferencesParams struct {
-	UploadEncryption     pgtype.Bool            `json:"upload_encryption"`
-	UploadConflictPolicy NullNameConflictPolicy `json:"upload_conflict_policy"`
-	UploadConcurrency    pgtype.Int4            `json:"upload_concurrency"`
-	UploadPartSize       pgtype.Int8            `json:"upload_part_size"`
-	FileSort             pgtype.Text            `json:"file_sort"`
-	FileOrder            pgtype.Text            `json:"file_order"`
-	Theme                pgtype.Text            `json:"theme"`
-	Locale               pgtype.Text            `json:"locale"`
-	UserID               int64                  `json:"user_id"`
+	UploadEncryption       pgtype.Bool            `json:"upload_encryption"`
+	UploadConflictPolicy   NullNameConflictPolicy `json:"upload_conflict_policy"`
+	UploadConcurrency      pgtype.Int4            `json:"upload_concurrency"`
+	UploadPartSize         pgtype.Int8            `json:"upload_part_size"`
+	FileSort               pgtype.Text            `json:"file_sort"`
+	FileOrder              pgtype.Text            `json:"file_order"`
+	Theme                  pgtype.Text            `json:"theme"`
+	Locale                 pgtype.Text            `json:"locale"`
+	EmbeddedTracks         pgtype.Bool            `json:"embedded_tracks"`
+	EmbeddedTracksOnShares pgtype.Bool            `json:"embedded_tracks_on_shares"`
+	UserID                 int64                  `json:"user_id"`
 }
 
 func (q *Queries) UpdateUserPreferences(ctx context.Context, arg UpdateUserPreferencesParams) (*UserPreference, error) {
@@ -84,6 +92,8 @@ func (q *Queries) UpdateUserPreferences(ctx context.Context, arg UpdateUserPrefe
 		arg.FileOrder,
 		arg.Theme,
 		arg.Locale,
+		arg.EmbeddedTracks,
+		arg.EmbeddedTracksOnShares,
 		arg.UserID,
 	)
 	var i UserPreference
@@ -99,6 +109,8 @@ func (q *Queries) UpdateUserPreferences(ctx context.Context, arg UpdateUserPrefe
 		&i.Locale,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.EmbeddedTracks,
+		&i.EmbeddedTracksOnShares,
 	)
 	return &i, err
 }

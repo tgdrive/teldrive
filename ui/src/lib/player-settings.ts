@@ -1,50 +1,67 @@
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback } from "react";
+import { fetchClient } from "@/api/client";
+import { unwrap } from "@/api/errors";
+import type { UserPreferences } from "@/api/types";
+import { getQueryClient } from "@/lib/queryClient";
+import { preferencesQueryKey, usePreferences, useUpdatePreferences } from "./preferences";
 
-// Settings of the web video player that are kept in this browser.
+// Settings of the web video player. They are account preferences, like the theme and the language,
+// so they follow the account across browsers and devices.
 //
 // "Embedded tracks" lets the player read the audio tracks and subtitles stored inside .mkv and
-// .webm files (see the vplayer `embeddedTracks` option). It is off unless the viewer turns it on,
-// and while it is off nothing about it is loaded or requested.
+// .webm files (see the vplayer `embeddedTracks` option). It is off unless it is turned on, and
+// while it is off nothing about it is loaded or requested.
 
-const EMBEDDED_TRACKS_KEY = "teldrive-player-embedded-tracks";
-
-function readEmbeddedTracks(): boolean {
-  try {
-    return window.localStorage.getItem(EMBEDDED_TRACKS_KEY) === "true";
-  } catch {
-    // Private mode and similar: the setting simply stays off.
-    return false;
-  }
-}
-
-const listeners = new Set<() => void>();
-
-function subscribe(listener: () => void) {
-  listeners.add(listener);
-  // Other tabs change the stored value without telling this one.
-  const onStorage = (event: StorageEvent) => {
-    if (event.key === EMBEDDED_TRACKS_KEY || event.key === null) listener();
-  };
-  window.addEventListener("storage", onStorage);
-  return () => {
-    listeners.delete(listener);
-    window.removeEventListener("storage", onStorage);
-  };
-}
-
-export function setEmbeddedTracks(enabled: boolean) {
-  try {
-    if (enabled) window.localStorage.setItem(EMBEDDED_TRACKS_KEY, "true");
-    else window.localStorage.removeItem(EMBEDDED_TRACKS_KEY);
-  } catch {
-    // The choice still applies until the page is reloaded.
-  }
-  for (const listener of listeners) listener();
-}
-
-/** Whether the player reads the tracks stored inside video files. Off by default. */
+/** Whether the player reads the tracks stored inside video files, and a way to change that. */
 export function useEmbeddedTracks(): [boolean, (enabled: boolean) => void] {
-  const enabled = useSyncExternalStore(subscribe, readEmbeddedTracks, () => false);
-  const set = useCallback((next: boolean) => setEmbeddedTracks(next), []);
+  // Cache-only read: the signed-in routes load the preferences before anything renders. A public
+  // share has none, and says what the owner allows on its own.
+  const enabled = usePreferences()?.appearance.embeddedTracks === true;
+  const { mutate } = useUpdatePreferences();
+  const set = useCallback(
+    (next: boolean) => mutate({ appearance: { embeddedTracks: next } }),
+    [mutate],
+  );
   return [enabled, set];
+}
+
+// Before this was an account setting it was kept in this browser only.
+const LEGACY_EMBEDDED_TRACKS_KEY = "teldrive-player-embedded-tracks";
+
+function readLegacy(): string | undefined {
+  try {
+    return window.localStorage.getItem(LEGACY_EMBEDDED_TRACKS_KEY) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function removeLegacy() {
+  try {
+    window.localStorage.removeItem(LEGACY_EMBEDDED_TRACKS_KEY);
+  } catch {
+    // Storage can be unavailable; nothing reads the key any more.
+  }
+}
+
+// One-time, per-browser pickup of the value this browser had, so turning it on is not lost. Runs
+// after the preferences load. A failure keeps the key so the next load tries again; it never blocks
+// the app.
+export async function importLegacyEmbeddedTracks(): Promise<void> {
+  const legacy = readLegacy();
+  if (legacy === undefined) return;
+  const queryClient = getQueryClient();
+  const current = queryClient.getQueryData<UserPreferences>(preferencesQueryKey);
+  if (!current) return;
+  if (legacy === "true" && !current.appearance.embeddedTracks) {
+    try {
+      const saved = await unwrap(
+        fetchClient.PATCH("/v1/me/preferences", { body: { appearance: { embeddedTracks: true } } }),
+      );
+      queryClient.setQueryData(preferencesQueryKey, saved);
+    } catch {
+      return;
+    }
+  }
+  removeLegacy();
 }

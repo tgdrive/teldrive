@@ -5,11 +5,21 @@ import type { FileEntry } from "@/api/types";
 import { previewMedia } from "@/features/files/preview-support";
 import { useEmbeddedTracks } from "@/lib/player-settings";
 
-export function VideoViewer({ file, url }: { file: FileEntry; url: string }) {
+export function VideoViewer({
+  file,
+  url,
+  embeddedTracks: shareAllows,
+}: {
+  file: FileEntry;
+  url: string;
+  /** Set on a public share: the owner's choice, which then replaces the browser setting. */
+  embeddedTracks?: boolean;
+}) {
   const rootRef = useRef<HTMLDivElement>(null);
-  // Off unless it is turned on in Settings → Appearance; while it is off the player does not look
-  // inside the file at all.
-  const [embeddedTracks] = useEmbeddedTracks();
+  // Off unless it is turned on in Settings → Appearance (in this browser, or by the owner for their
+  // public shares); while it is off the player does not look inside the file at all.
+  const [browserSetting] = useEmbeddedTracks();
+  const embeddedTracks = shareAllows ?? browserSetting;
 
   useEffect(() => {
     const root = rootRef.current;

@@ -18,6 +18,10 @@ SET upload_encryption = COALESCE(sqlc.narg(upload_encryption)::boolean, upload_e
     file_order = COALESCE(sqlc.narg(file_order)::text, file_order),
     theme = COALESCE(sqlc.narg(theme)::text, theme),
     locale = COALESCE(sqlc.narg(locale)::text, locale),
+    embedded_tracks = COALESCE(sqlc.narg(embedded_tracks)::boolean, embedded_tracks),
+    -- Needs embedded_tracks: turning that off turns this off, and it cannot be turned on without it.
+    embedded_tracks_on_shares = COALESCE(sqlc.narg(embedded_tracks_on_shares)::boolean, embedded_tracks_on_shares)
+        AND COALESCE(sqlc.narg(embedded_tracks)::boolean, embedded_tracks),
     updated_at = now()
 WHERE user_id = sqlc.arg(user_id)
 RETURNING *;

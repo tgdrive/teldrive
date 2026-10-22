@@ -3,13 +3,15 @@ import { expect, type Page, type Route, test } from "@playwright/test";
 import { installPreferencesApi } from "./fixtures/preferences";
 
 // The web player (vplayer) can read the audio tracks and subtitles stored in .mkv/.webm files, but
-// only when the viewer turns that on in Settings → Appearance. These tests drive the real player on a
-// public share page, which opens the same preview dialog and VideoViewer as the signed-in file manager.
+// only when that is turned on in Settings → Appearance: "Read tracks from the file" for the signed-in
+// file manager and "Also on shared links" for a public share, whose visitors have no settings of their
+// own. Both are saved on the account. These tests drive the real player on a public share page, which opens
+// the same preview dialog and VideoViewer as the signed-in file manager.
 
 const now = "2026-10-21T12:00:00Z";
 const token = "tds_trackToken123";
 const folderId = "a1111111-1111-4111-8111-111111111111";
-const SETTING = "teldrive-player-embedded-tracks";
+const LEGACY_SETTING = "teldrive-player-embedded-tracks";
 
 const bytes = (name: string) => readFileSync(new URL(`./fixtures/player/${name}`, import.meta.url));
 
@@ -67,7 +69,11 @@ function entry(id: string, name: string, kind: "file" | "folder", mimeType: stri
 /** Byte ranges the browser asked for, per file, to tell whether the player looked inside a file. */
 type Requests = Map<string, string[]>;
 
-async function installShare(page: Page): Promise<Requests> {
+/** `embeddedTracks` is the share owner's choice, as the public share API reports it. */
+async function installShare(
+  page: Page,
+  options: { embeddedTracks?: boolean } = {},
+): Promise<Requests> {
   const requests: Requests = new Map();
   const prefix = `/api/v1/public/shares/${token}`;
   const content = async (route: Route, item: Item) => {
@@ -101,6 +107,7 @@ async function installShare(page: Page): Promise<Requests> {
             file: entry(folderId, "Videos", "folder", "drive/folder"),
             passwordProtected: false,
             permission: "read",
+            embeddedTracks: options.embeddedTracks ?? false,
           },
         });
       }
@@ -124,9 +131,6 @@ async function installShare(page: Page): Promise<Requests> {
   await installPreferencesApi(page);
   return requests;
 }
-
-const enableEmbeddedTracks = (page: Page) =>
-  page.addInitScript((key) => window.localStorage.setItem(key, "true"), SETTING);
 
 async function openVideo(page: Page, name: string) {
   await page.goto(`/share/${token}`);
@@ -184,6 +188,25 @@ async function expectTone(page: Page, hz: number) {
     .toBe(true);
 }
 
+/** The signed-in account the settings pages need. */
+async function installAccount(page: Page) {
+  await page.route(
+    (url) => url.pathname === "/api/v1/me",
+    (route) =>
+      route.fulfill({
+        json: {
+          userId: 1,
+          displayName: "Settings User",
+          username: "settingsuser",
+          premium: false,
+          role: "owner",
+          capabilities: [],
+          createdAt: "2026-04-20T08:00:00Z",
+        },
+      }),
+  );
+}
+
 test.describe("embedded tracks setting", () => {
   test.skip(({ isMobile }) => isMobile, "these tests exercise desktop menus and audio");
 
@@ -212,50 +235,111 @@ test.describe("embedded tracks setting", () => {
     expect(requests.get(items.multi.name)?.length).toBeGreaterThan(0);
   });
 
-  test("can be turned on in Settings → Appearance, and stays on", async ({ page }) => {
+  test("the account setting alone does not turn it on for a share", async ({ page }) => {
+    // A share page shows what its owner allows on shared links, even to the owner when signed in.
+    await installShare(page, { embeddedTracks: false });
+    await installPreferencesApi(page, { appearance: { embeddedTracks: true } });
+
+    await openVideo(page, items.multi.name);
+    await expect.poll(() => currentTime(page)).toBeGreaterThan(0.2);
+    expect(await video(page).getAttribute("src")).not.toMatch(/^blob:/);
+    await openSettingsMenu(page);
+    await expect(page.getByText("Audio", { exact: true })).toHaveCount(0);
+  });
+
+  test("can be turned on in Settings → Appearance, saved on the account", async ({ page }) => {
     await installShare(page);
-    await page.route(
-      (url) => url.pathname === "/api/v1/me",
-      (route) =>
-        route.fulfill({
-          json: {
-            userId: 1,
-            displayName: "Settings User",
-            username: "settingsuser",
-            premium: false,
-            role: "owner",
-            capabilities: [],
-            createdAt: "2026-04-20T08:00:00Z",
-          },
-        }),
-    );
+    await installAccount(page);
+    const preferences = await installPreferencesApi(page);
     await page.goto("/settings/appearance");
     const toggle = page.getByRole("switch", { name: "Read tracks from the file" });
     // The input itself is visually hidden; people click the switch and its label.
     const label = page.getByText("Read tracks from the file", { exact: true });
     await expect(toggle).toBeVisible();
     await expect(toggle).not.toBeChecked();
-    expect(await page.evaluate((key) => window.localStorage.getItem(key), SETTING)).toBeNull();
+    expect(preferences.patches).toEqual([]);
 
     await label.click();
     await expect(toggle).toBeChecked();
-    expect(await page.evaluate((key) => window.localStorage.getItem(key), SETTING)).toBe("true");
+    expect(preferences.patches.at(-1)).toEqual({ appearance: { embeddedTracks: true } });
 
+    // On the account, so it is still on after a reload (and in any other browser).
     await page.reload();
     await expect(page.getByRole("switch", { name: "Read tracks from the file" })).toBeChecked();
 
     await page.getByText("Read tracks from the file", { exact: true }).click();
     await expect(page.getByRole("switch", { name: "Read tracks from the file" })).not.toBeChecked();
-    expect(await page.evaluate((key) => window.localStorage.getItem(key), SETTING)).toBeNull();
+    expect(preferences.patches.at(-1)).toEqual({ appearance: { embeddedTracks: false } });
+  });
+
+  test("a value this browser kept before is picked up once, then forgotten", async ({ page }) => {
+    await installShare(page);
+    await installAccount(page);
+    const preferences = await installPreferencesApi(page);
+    // Older builds kept the setting in this browser only; set it before the app first loads.
+    await page.addInitScript((key) => {
+      if (!window.sessionStorage.getItem("seeded")) {
+        window.localStorage.setItem(key, "true");
+        window.sessionStorage.setItem("seeded", "1");
+      }
+    }, LEGACY_SETTING);
+    await page.goto("/settings/appearance");
+    await expect(page.getByRole("switch", { name: "Read tracks from the file" })).toBeChecked();
+    expect(preferences.patches).toEqual([{ appearance: { embeddedTracks: true } }]);
+    expect(
+      await page.evaluate((key) => window.localStorage.getItem(key), LEGACY_SETTING),
+    ).toBeNull();
+    // Turning it off now is not undone by the old value on a later load.
+    await page.getByText("Read tracks from the file", { exact: true }).click();
+    await expect(page.getByRole("switch", { name: "Read tracks from the file" })).not.toBeChecked();
+    await page.reload();
+    await expect(page.getByRole("switch", { name: "Read tracks from the file" })).not.toBeChecked();
+    expect(preferences.patches.at(-1)).toEqual({ appearance: { embeddedTracks: false } });
+  });
+
+  test("'Also on shared links' needs the first option and is saved on the account", async ({
+    page,
+  }) => {
+    await installShare(page);
+    await installAccount(page);
+    // Registered last, so it wins over the one installShare added and records what is saved.
+    const preferences = await installPreferencesApi(page);
+    await page.goto("/settings/appearance");
+    const tracks = page.getByRole("switch", { name: "Read tracks from the file" });
+    const shares = page.getByRole("switch", { name: "Also on shared links" });
+    await expect(shares).toBeVisible();
+    await expect(shares).toBeDisabled();
+    await expect(shares).not.toBeChecked();
+
+    await page.getByText("Read tracks from the file", { exact: true }).click();
+    await expect(tracks).toBeChecked();
+    await expect(shares).toBeEnabled();
+
+    await page.locator('[data-slot="label"]', { hasText: "Also on shared links" }).click();
+    await expect(shares).toBeChecked();
+    expect(preferences.patches.at(-1)).toEqual({ appearance: { embeddedTracksOnShares: true } });
+    expect(preferences.current().appearance.embeddedTracksOnShares).toBe(true);
+
+    // Saved on the account, so it is still there after a reload.
+    await page.reload();
+    await expect(shares).toBeChecked();
+
+    // Turning the first option off turns this one off with it (the server enforces that).
+    await page.getByText("Read tracks from the file", { exact: true }).click();
+    await expect(tracks).not.toBeChecked();
+    await expect(shares).not.toBeChecked();
+    await expect(shares).toBeDisabled();
+    expect(preferences.patches.at(-1)).toEqual({ appearance: { embeddedTracks: false } });
+    expect(preferences.current().appearance.embeddedTracksOnShares).toBe(false);
   });
 });
 
-test.describe("embedded tracks in the web player (setting on)", () => {
+test.describe("embedded tracks in the web player (the owner allows it on the share)", () => {
   test.skip(({ isMobile }) => isMobile, "these tests exercise desktop menus and audio");
 
   test.beforeEach(async ({ page }) => {
-    await installShare(page);
-    await enableEmbeddedTracks(page);
+    // The visitor has no setting at all: the share itself says the owner allows it.
+    await installShare(page, { embeddedTracks: true });
   });
 
   test("lists the audio tracks and switches between them", async ({ page }) => {

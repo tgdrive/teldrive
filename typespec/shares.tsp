@@ -80,6 +80,9 @@ model PublicShare {
   passwordProtected: boolean;
   expiresAt?: utcDateTime;
   permission: SharePermission;
+
+  /** The owner allows the video player on this share to read the audio tracks and subtitles stored in the file. */
+  embeddedTracks: boolean;
 }
 
 model FileAccessGrantCreateRequest {

@@ -967,11 +967,21 @@ func (s *AppearancePreferences) encodeFields(e *jx.Encoder) {
 			s.Locale.Encode(e)
 		}
 	}
+	{
+		e.FieldStart("embeddedTracks")
+		e.Bool(s.EmbeddedTracks)
+	}
+	{
+		e.FieldStart("embeddedTracksOnShares")
+		e.Bool(s.EmbeddedTracksOnShares)
+	}
 }
 
-var jsonFieldsNameOfAppearancePreferences = [2]string{
+var jsonFieldsNameOfAppearancePreferences = [4]string{
 	0: "theme",
 	1: "locale",
+	2: "embeddedTracks",
+	3: "embeddedTracksOnShares",
 }
 
 // Decode decodes AppearancePreferences from json.
@@ -1003,6 +1013,30 @@ func (s *AppearancePreferences) Decode(d *jx.Decoder) error {
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"locale\"")
 			}
+		case "embeddedTracks":
+			requiredBitSet[0] |= 1 << 2
+			if err := func() error {
+				v, err := d.Bool()
+				s.EmbeddedTracks = bool(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"embeddedTracks\"")
+			}
+		case "embeddedTracksOnShares":
+			requiredBitSet[0] |= 1 << 3
+			if err := func() error {
+				v, err := d.Bool()
+				s.EmbeddedTracksOnShares = bool(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"embeddedTracksOnShares\"")
+			}
 		default:
 			return d.Skip()
 		}
@@ -1013,7 +1047,7 @@ func (s *AppearancePreferences) Decode(d *jx.Decoder) error {
 	// Validate required fields.
 	var failures []validate.FieldError
 	for i, mask := range [1]uint8{
-		0b00000001,
+		0b00001101,
 	} {
 		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
 			// Mask only required fields and check equality to mask using XOR.
@@ -1080,11 +1114,25 @@ func (s *AppearancePreferencesUpdate) encodeFields(e *jx.Encoder) {
 			s.Locale.Encode(e)
 		}
 	}
+	{
+		if s.EmbeddedTracks.Set {
+			e.FieldStart("embeddedTracks")
+			s.EmbeddedTracks.Encode(e)
+		}
+	}
+	{
+		if s.EmbeddedTracksOnShares.Set {
+			e.FieldStart("embeddedTracksOnShares")
+			s.EmbeddedTracksOnShares.Encode(e)
+		}
+	}
 }
 
-var jsonFieldsNameOfAppearancePreferencesUpdate = [2]string{
+var jsonFieldsNameOfAppearancePreferencesUpdate = [4]string{
 	0: "theme",
 	1: "locale",
+	2: "embeddedTracks",
+	3: "embeddedTracksOnShares",
 }
 
 // Decode decodes AppearancePreferencesUpdate from json.
@@ -1114,6 +1162,26 @@ func (s *AppearancePreferencesUpdate) Decode(d *jx.Decoder) error {
 				return nil
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"locale\"")
+			}
+		case "embeddedTracks":
+			if err := func() error {
+				s.EmbeddedTracks.Reset()
+				if err := s.EmbeddedTracks.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"embeddedTracks\"")
+			}
+		case "embeddedTracksOnShares":
+			if err := func() error {
+				s.EmbeddedTracksOnShares.Reset()
+				if err := s.EmbeddedTracksOnShares.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"embeddedTracksOnShares\"")
 			}
 		default:
 			return d.Skip()
@@ -20924,14 +20992,19 @@ func (s *PublicShare) encodeFields(e *jx.Encoder) {
 		e.FieldStart("permission")
 		s.Permission.Encode(e)
 	}
+	{
+		e.FieldStart("embeddedTracks")
+		e.Bool(s.EmbeddedTracks)
+	}
 }
 
-var jsonFieldsNameOfPublicShare = [5]string{
+var jsonFieldsNameOfPublicShare = [6]string{
 	0: "id",
 	1: "file",
 	2: "passwordProtected",
 	3: "expiresAt",
 	4: "permission",
+	5: "embeddedTracks",
 }
 
 // Decode decodes PublicShare from json.
@@ -20995,6 +21068,18 @@ func (s *PublicShare) Decode(d *jx.Decoder) error {
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"permission\"")
 			}
+		case "embeddedTracks":
+			requiredBitSet[0] |= 1 << 5
+			if err := func() error {
+				v, err := d.Bool()
+				s.EmbeddedTracks = bool(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"embeddedTracks\"")
+			}
 		default:
 			return d.Skip()
 		}
@@ -21005,7 +21090,7 @@ func (s *PublicShare) Decode(d *jx.Decoder) error {
 	// Validate required fields.
 	var failures []validate.FieldError
 	for i, mask := range [1]uint8{
-		0b00010111,
+		0b00110111,
 	} {
 		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
 			// Mask only required fields and check equality to mask using XOR.

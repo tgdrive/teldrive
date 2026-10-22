@@ -1697,6 +1697,17 @@ export interface components {
             theme: components["schemas"]["ThemePreference"];
             /** @description Interface language; absent until the user picks one, so clients fall back to browser detection. */
             locale?: components["schemas"]["InterfaceLocale"];
+            /**
+             * @description Whether the video player reads the audio tracks and subtitles stored inside .mkv and .webm
+             *     files. Off by default; while it is off nothing extra is loaded.
+             */
+            embeddedTracks: boolean;
+            /**
+             * @description Whether the video player on this account's public share links does that too. Visitors have no
+             *     settings of their own, so the owner decides. Needs `embeddedTracks`: it is always off while that
+             *     is off.
+             */
+            embeddedTracksOnShares: boolean;
         };
         /** @description Per-user web UI preferences shared by every browser and device. */
         UserPreferences: {
@@ -1727,6 +1738,8 @@ export interface components {
         AppearancePreferencesUpdate: {
             theme?: components["schemas"]["ThemePreference"];
             locale?: components["schemas"]["InterfaceLocale"];
+            embeddedTracks?: boolean;
+            embeddedTracksOnShares?: boolean;
         };
         /** @description Partial update; omitted groups and fields keep their stored values. */
         UserPreferencesUpdate: {
@@ -2236,6 +2249,8 @@ export interface components {
             /** Format: date-time */
             expiresAt?: string;
             permission: components["schemas"]["SharePermission"];
+            /** @description The owner allows the video player on this share to read the audio tracks and subtitles stored in the file. */
+            embeddedTracks: boolean;
         };
         JobPageMeta: {
             nextCursor?: components["schemas"]["Cursor"];

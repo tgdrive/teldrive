@@ -727,6 +727,14 @@ func (h *Handler) GetPublicShare(ctx context.Context, params gen.GetPublicShareP
 	if resolved.Share.ExpiresAt.Valid {
 		response.ExpiresAt = gen.NewOptDateTime(resolved.Share.ExpiresAt.Time)
 	}
+	// Visitors have no settings of their own, so the owner's choice decides whether the player on
+	// this share reads the audio tracks and subtitles inside the file. A failure to read it only
+	// leaves the feature off.
+	if h.Auth != nil {
+		if preferences, err := h.Auth.Preferences(ctx, resolved.Share.OwnerID); err == nil {
+			response.EmbeddedTracks = preferences.EmbeddedTracksOnShares
+		}
+	}
 	return &response, nil
 }
 
