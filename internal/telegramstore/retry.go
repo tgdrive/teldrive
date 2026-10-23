@@ -3,7 +3,9 @@ package telegramstore
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
+	"time"
 
 	"github.com/gotd/td/bin"
 	"github.com/gotd/td/telegram"
@@ -34,18 +36,53 @@ type retryMiddleware struct{ max int }
 func (m retryMiddleware) Handle(next tg.Invoker) telegram.InvokeFunc {
 	return func(ctx context.Context, input bin.Encoder, output bin.Decoder) error {
 		for attempt := 0; ; attempt++ {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			err := next.Invoke(ctx, input, output)
 			if err == nil {
 				return nil
 			}
-			if attempt >= m.max || !isTransientTelegramError(err) {
-				return err
-			}
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
+			if !isTransientTelegramError(err) {
+				return err
+			}
+			clientID, _ := ClientID(ctx)
+			if attempt >= m.max {
+				slog.WarnContext(ctx, "telegram.rpc_retry_exhausted",
+					"client_id", clientID, "rpc_type", fmt.Sprintf("%T", input),
+					"attempts", attempt+1, "max_retries", m.max, "error", err)
+				return err
+			}
+			delay := telegramRetryDelay(attempt)
+			slog.WarnContext(ctx, "telegram.rpc_retry",
+				"client_id", clientID, "rpc_type", fmt.Sprintf("%T", input),
+				"retry", attempt+1, "max_retries", m.max, "delay", delay, "error", err)
+			// Give the transport time to reconnect before resending this RPC.
+			// Retrying the entire upload would require rewinding its reader.
+			timer := time.NewTimer(delay)
+			select {
+			case <-ctx.Done():
+				timer.Stop()
+				return ctx.Err()
+			case <-timer.C:
+			}
 		}
 	}
+}
+
+func telegramRetryDelay(attempt int) time.Duration {
+	delay := 500 * time.Millisecond
+	const maxDelay = 10 * time.Second
+	for i := 0; i < attempt && delay < maxDelay; i++ {
+		delay *= 2
+	}
+	if delay > maxDelay {
+		return maxDelay
+	}
+	return delay
 }
 
 func isTransientTelegramError(err error) bool {
