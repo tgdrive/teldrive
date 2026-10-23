@@ -9,6 +9,7 @@ import (
 	"io"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -75,6 +76,127 @@ func TestUploadPipelinePlaintextAndRetry(t *testing.T) {
 	expectedFileHash := treehash.SumToHex(treehash.ComputeTreeHash(result.Part.BlockHashes))
 	if !file.HashValue.Valid || file.HashValue.String != expectedFileHash {
 		t.Fatalf("file hash = %#v, want %s", file.HashValue, expectedFileHash)
+	}
+}
+
+type observedBusyCatalog struct {
+	*uploads.Service
+	busy chan struct{}
+	once sync.Once
+}
+
+func (c *observedBusyCatalog) ClaimPart(ctx context.Context, in uploads.ClaimPartInput) (*uploads.ClaimPartResult, error) {
+	claim, err := c.Service.ClaimPart(ctx, in)
+	if errors.Is(err, uploads.ErrPartBusy) {
+		c.once.Do(func() { close(c.busy) })
+	}
+	return claim, err
+}
+
+func TestUploadPipelineOverlappingRetry(t *testing.T) {
+	for _, scenario := range []string{"stored and completed", "checksum conflict", "failed attempt", "cancelled waiter"} {
+		t.Run(scenario, func(t *testing.T) {
+			db := testpostgres.New(t)
+			seedTransferOwner(t, db.Pool, 1001, 9001)
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			catalog := &observedBusyCatalog{Service: uploads.NewService(db.Pool), busy: make(chan struct{})}
+			body := []byte("data")
+			session, err := catalog.Create(ctx, uploads.CreateInput{
+				UserID: 1001, Name: "overlap.bin", ExpectedSize: 4, PartSize: 4,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			uploadID, _ := dbtypes.GoogleUUID(session.ID)
+			original, err := catalog.Service.ClaimPart(ctx, uploads.ClaimPartInput{
+				UserID: 1001, UploadID: uploadID, PartNo: 1, ChannelID: 9001, PlainSize: 4,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			checksum := checksumFor(body)
+			requestChecksum := checksum
+			if scenario == "checksum conflict" {
+				requestChecksum = checksumFor([]byte("else"))
+			}
+			storage := &memoryStorage{}
+			pipeline := transfer.NewPipeline(catalog, &fixedResolver{channelID: 9001}, storage, nil, transfer.Config{})
+			type outcome struct {
+				result *transfer.UploadPartResult
+				err    error
+			}
+			done := make(chan outcome, 1)
+			waitCtx, stopWait := context.WithCancel(ctx)
+			defer stopWait()
+			go func() {
+				var reader io.Reader = panicReader{}
+				if scenario == "failed attempt" {
+					reader = bytes.NewReader(body)
+				}
+				result, err := pipeline.UploadPart(waitCtx, transfer.UploadPartRequest{
+					UserID: 1001, UploadID: uploadID, PartNo: 1, PlainSize: 4, Checksum: &requestChecksum, Body: reader,
+				})
+				done <- outcome{result, err}
+			}()
+			select {
+			case <-catalog.busy:
+			case <-ctx.Done():
+				t.Fatal("retry never observed the active lease")
+			}
+			switch scenario {
+			case "cancelled waiter":
+				stopWait()
+			case "failed attempt":
+				_, err = catalog.FailPart(ctx, uploads.FailPartInput{
+					UploadID: uploadID, PartNo: 1, LeaseToken: original.LeaseToken, ErrorCode: "telegram_upload_failed",
+				})
+			default:
+				hasher := treehash.NewBlockHasher()
+				_, _ = hasher.Write(body)
+				_, err = catalog.StorePart(ctx, uploads.StorePartInput{
+					UploadID: uploadID, PartNo: 1, LeaseToken: original.LeaseToken, MessageID: 101,
+					StoredSize: 4, Checksum: checksum, BlockHashes: hasher.Sum(),
+				})
+				if err == nil && scenario == "stored and completed" {
+					_, err = catalog.Complete(ctx, 1001, uploadID)
+				}
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got outcome
+			select {
+			case got = <-done:
+			case <-ctx.Done():
+				t.Fatal("retry did not finish")
+			}
+			switch scenario {
+			case "checksum conflict":
+				if !errors.Is(got.err, uploads.ErrPartConflict) {
+					t.Fatalf("retry error = %v, want metadata conflict", got.err)
+				}
+			case "cancelled waiter":
+				if !errors.Is(got.err, context.Canceled) {
+					t.Fatalf("retry error = %v, want cancellation", got.err)
+				}
+				part, err := catalog.GetPart(ctx, 1001, uploadID, 1)
+				if err != nil || part.State != sqlcgen.UploadPartStateUploading || part.LeaseToken != dbtypes.UUID(original.LeaseToken) {
+					t.Fatalf("waiter disturbed active lease: %+v, %v", part, err)
+				}
+			default:
+				if got.err != nil || got.result == nil || got.result.Existing != (scenario == "stored and completed") {
+					t.Fatalf("retry = %+v, %v", got.result, got.err)
+				}
+			}
+			wantUploads := 0
+			if scenario == "failed attempt" {
+				wantUploads = 1
+			}
+			if storage.uploadCount() != wantUploads {
+				t.Fatalf("Telegram uploads = %d, want %d", storage.uploadCount(), wantUploads)
+			}
+		})
 	}
 }
 

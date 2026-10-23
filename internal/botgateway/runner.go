@@ -232,7 +232,7 @@ func (r *UploadAwareRunner) runBot(ctx context.Context, userID int64, bot *sqlcg
 	if err != nil {
 		return fmt.Errorf("create client: %w", err)
 	}
-	err = client.Run(clientCtx, func(runCtx context.Context) error {
+	err = telegramstore.RunClientOperation(clientCtx, client.Run, func(runCtx context.Context) error {
 		connected.Store(true)
 		status, err := client.Auth().Status(runCtx)
 		if err != nil {

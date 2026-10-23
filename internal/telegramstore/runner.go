@@ -52,6 +52,36 @@ type ClientRunner struct {
 	Factory  *Factory
 }
 
+// RunClientOperation requires the callback to finish successfully before treating
+// a client run as successful. gotd's Client.Run can return nil on cancellation,
+// even when the callback failed or never ran. Its normal shutdown also cancels
+// the callback context, so that context alone cannot establish failure.
+func RunClientOperation(ctx context.Context, run func(context.Context, func(context.Context) error) error, fn func(context.Context) error) error {
+	if cause := context.Cause(ctx); cause != nil {
+		return cause
+	}
+	var callbackErr error
+	completed := false
+	err := run(ctx, func(runCtx context.Context) error {
+		callbackErr = fn(runCtx)
+		completed = callbackErr == nil
+		return callbackErr
+	})
+	if err != nil {
+		return err
+	}
+	if completed {
+		return nil
+	}
+	if cause := context.Cause(ctx); cause != nil {
+		return errors.Join(cause, callbackErr)
+	}
+	if callbackErr != nil {
+		return callbackErr
+	}
+	return ErrClientUnavailable
+}
+
 type PooledRunner interface {
 	RunPooled(ctx context.Context, userID int64, operation Operation, connections int, fn func(context.Context, *tg.Client) error) error
 }
@@ -75,7 +105,7 @@ func (r ClientRunner) run(ctx context.Context, userID int64, operation Operation
 	if client == nil {
 		return ErrClientUnavailable
 	}
-	if err := client.Run(ctx, func(runCtx context.Context) error {
+	if err := RunClientOperation(ctx, client.Run, func(runCtx context.Context) error {
 		status, err := client.Auth().Status(runCtx)
 		if err != nil {
 			return fmt.Errorf("get Telegram authorization status: %w", err)

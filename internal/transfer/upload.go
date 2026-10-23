@@ -129,7 +129,7 @@ func (p *Pipeline) UploadPart(ctx context.Context, request UploadPartRequest) (*
 	if err != nil {
 		return nil, err
 	}
-	claim, err := p.catalog.ClaimPart(ctx, uploads.ClaimPartInput{
+	claim, err := p.claimPart(ctx, uploads.ClaimPartInput{
 		UserID:    request.UserID,
 		UploadID:  request.UploadID,
 		PartNo:    request.PartNo,
@@ -248,6 +248,44 @@ func (p *Pipeline) UploadPart(ctx context.Context, request UploadPartRequest) (*
 	}
 	slog.DebugContext(ctx, "upload part completed", "upload_id", request.UploadID, "part_no", request.PartNo, "channel_id", stored.ChannelID, "message_id", stored.MessageID, "stored_size", stored.Size)
 	return &UploadPartResult{Part: part}, nil
+}
+
+// claimPart waits for an overlapping request instead of rejecting an otherwise
+// valid retry. The database lease remains authoritative across server instances:
+// never steal it, read the body, or upload bytes until this request owns the part.
+func (p *Pipeline) claimPart(ctx context.Context, in uploads.ClaimPartInput) (*uploads.ClaimPartResult, error) {
+	delay := 250 * time.Millisecond
+	for {
+		if cause := context.Cause(ctx); cause != nil {
+			return nil, cause
+		}
+		claim, err := p.catalog.ClaimPart(ctx, in)
+		if !errors.Is(err, uploads.ErrPartBusy) {
+			return claim, err
+		}
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return nil, context.Cause(ctx)
+		case <-timer.C:
+		}
+		// Completion may also have closed the session while we waited. Check
+		// stored metadata before trying to claim against the session state.
+		part, err := p.catalog.GetPart(ctx, in.UserID, in.UploadID, in.PartNo)
+		if err != nil && !errors.Is(err, uploads.ErrNotFound) {
+			return nil, err
+		}
+		if err == nil && part.State == sqlcgen.UploadPartStateStored {
+			if part.PlainSize != in.PlainSize || !checksumMatches(part.Checksum.String, part.Checksum.Valid, in.Checksum) {
+				return nil, uploads.ErrPartConflict
+			}
+			return &uploads.ClaimPartResult{Part: part, Existing: true}, nil
+		}
+		if delay < 2*time.Second {
+			delay *= 2
+		}
+	}
 }
 
 func (p *Pipeline) failPart(ctx context.Context, request UploadPartRequest, leaseToken uuid.UUID, code string, cause error) error {

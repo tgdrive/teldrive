@@ -79,7 +79,15 @@ func mapServiceError(err error) error {
 		return problem(http.StatusNotFound, "not_found", "resource was not found", err)
 	case errors.Is(err, uploads.ErrExpired), errors.Is(err, authn.ErrFlowNotFound), errors.Is(err, shares.ErrExpired):
 		return problem(http.StatusGone, "upload_expired", "upload session has expired", err)
-	case errors.Is(err, catalog.ErrConflict), errors.Is(err, catalog.ErrCycle), errors.Is(err, uploads.ErrNameConflict), errors.Is(err, uploads.ErrInvalidState), errors.Is(err, uploads.ErrPartBusy), errors.Is(err, uploads.ErrPartConflict), errors.Is(err, channels.ErrSelectedChannel), errors.Is(err, channels.ErrChannelInUse), errors.Is(err, channels.ErrChannelFull), errors.Is(err, channels.ErrChannelUnhealthy), errors.Is(err, fileops.ErrNotTrashed):
+	case errors.Is(err, uploads.ErrPartBusy):
+		return problem(http.StatusConflict, "upload_part_busy", "upload part is still being uploaded; retry after the active attempt finishes", err)
+	case errors.Is(err, uploads.ErrPartConflict):
+		return problem(http.StatusConflict, "upload_part_conflict", "upload part size or checksum differs from the stored part", err)
+	case errors.Is(err, uploads.ErrInvalidState):
+		return problem(http.StatusConflict, "upload_invalid_state", "upload session is no longer open", err)
+	case errors.Is(err, uploads.ErrNameConflict):
+		return problem(http.StatusConflict, "upload_name_conflict", "destination name already exists", err)
+	case errors.Is(err, catalog.ErrConflict), errors.Is(err, catalog.ErrCycle), errors.Is(err, channels.ErrSelectedChannel), errors.Is(err, channels.ErrChannelInUse), errors.Is(err, channels.ErrChannelFull), errors.Is(err, channels.ErrChannelUnhealthy), errors.Is(err, fileops.ErrNotTrashed):
 		return problem(http.StatusConflict, "conflict", "operation conflicts with current state", err)
 	case errors.Is(err, catalog.ErrPrecondition):
 		return problem(http.StatusPreconditionFailed, "precondition_failed", "resource generation does not match", err)

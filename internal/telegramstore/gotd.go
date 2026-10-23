@@ -134,7 +134,10 @@ func (s *GotdStorage) Upload(ctx context.Context, request UploadRequest) (Stored
 		return StoredPart{}, err
 	}
 	if stored.MessageID == 0 {
-		return StoredPart{}, ErrMessageNotFound
+		if cause := context.Cause(ctx); cause != nil {
+			return StoredPart{}, cause
+		}
+		return StoredPart{}, fmt.Errorf("Telegram upload ended without a stored document: %w", ErrClientUnavailable)
 	}
 	return stored, nil
 }
