@@ -308,6 +308,13 @@ type AppearancePreferences struct {
 	Theme ThemePreference `json:"theme"`
 	// Interface language; absent until the user picks one, so clients fall back to browser detection.
 	Locale OptInterfaceLocale `json:"locale"`
+	// Whether the video player reads the audio tracks and subtitles stored inside .mkv and .webm files.
+	// Off by default; while it is off nothing extra is loaded.
+	EmbeddedTracks bool `json:"embeddedTracks"`
+	// Whether the video player on this account's public share links does that too. Visitors have no
+	// settings of their own, so the owner decides. Needs `embeddedTracks`: it is always off while that is
+	// off.
+	EmbeddedTracksOnShares bool `json:"embeddedTracksOnShares"`
 }
 
 // GetTheme returns the value of Theme.
@@ -320,6 +327,16 @@ func (s *AppearancePreferences) GetLocale() OptInterfaceLocale {
 	return s.Locale
 }
 
+// GetEmbeddedTracks returns the value of EmbeddedTracks.
+func (s *AppearancePreferences) GetEmbeddedTracks() bool {
+	return s.EmbeddedTracks
+}
+
+// GetEmbeddedTracksOnShares returns the value of EmbeddedTracksOnShares.
+func (s *AppearancePreferences) GetEmbeddedTracksOnShares() bool {
+	return s.EmbeddedTracksOnShares
+}
+
 // SetTheme sets the value of Theme.
 func (s *AppearancePreferences) SetTheme(val ThemePreference) {
 	s.Theme = val
@@ -330,10 +347,22 @@ func (s *AppearancePreferences) SetLocale(val OptInterfaceLocale) {
 	s.Locale = val
 }
 
+// SetEmbeddedTracks sets the value of EmbeddedTracks.
+func (s *AppearancePreferences) SetEmbeddedTracks(val bool) {
+	s.EmbeddedTracks = val
+}
+
+// SetEmbeddedTracksOnShares sets the value of EmbeddedTracksOnShares.
+func (s *AppearancePreferences) SetEmbeddedTracksOnShares(val bool) {
+	s.EmbeddedTracksOnShares = val
+}
+
 // Ref: #/components/schemas/AppearancePreferencesUpdate
 type AppearancePreferencesUpdate struct {
-	Theme  OptThemePreference `json:"theme"`
-	Locale OptInterfaceLocale `json:"locale"`
+	Theme                  OptThemePreference `json:"theme"`
+	Locale                 OptInterfaceLocale `json:"locale"`
+	EmbeddedTracks         OptBool            `json:"embeddedTracks"`
+	EmbeddedTracksOnShares OptBool            `json:"embeddedTracksOnShares"`
 }
 
 // GetTheme returns the value of Theme.
@@ -346,6 +375,16 @@ func (s *AppearancePreferencesUpdate) GetLocale() OptInterfaceLocale {
 	return s.Locale
 }
 
+// GetEmbeddedTracks returns the value of EmbeddedTracks.
+func (s *AppearancePreferencesUpdate) GetEmbeddedTracks() OptBool {
+	return s.EmbeddedTracks
+}
+
+// GetEmbeddedTracksOnShares returns the value of EmbeddedTracksOnShares.
+func (s *AppearancePreferencesUpdate) GetEmbeddedTracksOnShares() OptBool {
+	return s.EmbeddedTracksOnShares
+}
+
 // SetTheme sets the value of Theme.
 func (s *AppearancePreferencesUpdate) SetTheme(val OptThemePreference) {
 	s.Theme = val
@@ -354,6 +393,16 @@ func (s *AppearancePreferencesUpdate) SetTheme(val OptThemePreference) {
 // SetLocale sets the value of Locale.
 func (s *AppearancePreferencesUpdate) SetLocale(val OptInterfaceLocale) {
 	s.Locale = val
+}
+
+// SetEmbeddedTracks sets the value of EmbeddedTracks.
+func (s *AppearancePreferencesUpdate) SetEmbeddedTracks(val OptBool) {
+	s.EmbeddedTracks = val
+}
+
+// SetEmbeddedTracksOnShares sets the value of EmbeddedTracksOnShares.
+func (s *AppearancePreferencesUpdate) SetEmbeddedTracksOnShares(val OptBool) {
+	s.EmbeddedTracksOnShares = val
 }
 
 type AuthorizePublicShareDownloadGone ErrorEnvelope
@@ -9853,6 +9902,9 @@ type PublicShare struct {
 	PasswordProtected bool            `json:"passwordProtected"`
 	ExpiresAt         OptDateTime     `json:"expiresAt"`
 	Permission        SharePermission `json:"permission"`
+	// The owner allows the video player on this share to read the audio tracks and subtitles stored in the
+	// file.
+	EmbeddedTracks bool `json:"embeddedTracks"`
 }
 
 // GetID returns the value of ID.
@@ -9880,6 +9932,11 @@ func (s *PublicShare) GetPermission() SharePermission {
 	return s.Permission
 }
 
+// GetEmbeddedTracks returns the value of EmbeddedTracks.
+func (s *PublicShare) GetEmbeddedTracks() bool {
+	return s.EmbeddedTracks
+}
+
 // SetID sets the value of ID.
 func (s *PublicShare) SetID(val UUID) {
 	s.ID = val
@@ -9903,6 +9960,11 @@ func (s *PublicShare) SetExpiresAt(val OptDateTime) {
 // SetPermission sets the value of Permission.
 func (s *PublicShare) SetPermission(val SharePermission) {
 	s.Permission = val
+}
+
+// SetEmbeddedTracks sets the value of EmbeddedTracks.
+func (s *PublicShare) SetEmbeddedTracks(val bool) {
+	s.EmbeddedTracks = val
 }
 
 func (*PublicShare) getPublicShareRes() {}

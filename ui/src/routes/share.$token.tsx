@@ -540,6 +540,7 @@ function PublicSharePage() {
             ? {
                 contentUrl: publicContentHref(previewFile),
                 downloadUrl: `${publicContentHref(previewFile)}?download=1`,
+                embeddedTracks: share?.embeddedTracks === true,
               }
             : undefined
         }

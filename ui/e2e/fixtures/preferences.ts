@@ -10,7 +10,12 @@ export type Preferences = {
     preferredPartSize: number;
   };
   files: { sort: "name" | "updatedAt" | "size"; order: "asc" | "desc" };
-  appearance: { theme: "system" | "light" | "dark"; locale?: string };
+  appearance: {
+    theme: "system" | "light" | "dark";
+    locale?: string;
+    embeddedTracks: boolean;
+    embeddedTracksOnShares: boolean;
+  };
   updatedAt?: string;
 };
 
@@ -37,7 +42,7 @@ function defaultPreferences(): Preferences {
       preferredPartSize: 512 * MiB,
     },
     files: { sort: "name", order: "asc" },
-    appearance: { theme: "system" },
+    appearance: { theme: "system", embeddedTracks: false, embeddedTracksOnShares: false },
   };
 }
 
@@ -64,6 +69,8 @@ export async function installPreferencesApi(
       state.uploads = { ...state.uploads, ...update.uploads };
       state.files = { ...state.files, ...update.files };
       state.appearance = { ...state.appearance, ...update.appearance };
+      // The server's rule: the option for shared links needs the one for the account.
+      if (!state.appearance.embeddedTracks) state.appearance.embeddedTracksOnShares = false;
       state.updatedAt = new Date().toISOString();
       return route.fulfill({ json: state });
     }

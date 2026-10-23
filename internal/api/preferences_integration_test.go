@@ -31,8 +31,10 @@ type preferencesResponse struct {
 		Order string `json:"order"`
 	} `json:"files"`
 	Appearance struct {
-		Theme  string  `json:"theme"`
-		Locale *string `json:"locale"`
+		Theme                  string  `json:"theme"`
+		Locale                 *string `json:"locale"`
+		EmbeddedTracks         bool    `json:"embeddedTracks"`
+		EmbeddedTracksOnShares bool    `json:"embeddedTracksOnShares"`
 	} `json:"appearance"`
 	UpdatedAt *time.Time `json:"updatedAt"`
 }
@@ -84,7 +86,7 @@ func TestUserPreferencesPersistPerUserWithPartialUpdates(t *testing.T) {
 	}
 	if defaults.Uploads.Encryption || defaults.Uploads.ConflictPolicy != "rename" || defaults.Uploads.Concurrency != 3 ||
 		defaults.Uploads.PreferredPartSize != 512<<20 || defaults.Files.Sort != "name" || defaults.Files.Order != "asc" ||
-		defaults.Appearance.Theme != "system" || defaults.Appearance.Locale != nil || defaults.UpdatedAt != nil {
+		defaults.Appearance.Theme != "system" || defaults.Appearance.Locale != nil || defaults.Appearance.EmbeddedTracks || defaults.Appearance.EmbeddedTracksOnShares || defaults.UpdatedAt != nil {
 		t.Fatalf("defaults = %+v", defaults)
 	}
 
@@ -106,6 +108,42 @@ func TestUserPreferencesPersistPerUserWithPartialUpdates(t *testing.T) {
 
 	if status, other := request("other-token", http.MethodGet, ""); status != http.StatusOK || other.Uploads.Encryption || other.UpdatedAt != nil {
 		t.Fatalf("other user preferences = %d %+v", status, other)
+	}
+
+	// Reading the audio tracks and subtitles inside files is an account setting, off by default, kept
+	// by updates of other fields, and separate per user.
+	if status, on := request("owner-token", http.MethodPatch, `{"appearance":{"embeddedTracks":true}}`); status != http.StatusOK ||
+		!on.Appearance.EmbeddedTracks || on.Appearance.EmbeddedTracksOnShares || on.Appearance.Theme != "dark" {
+		t.Fatalf("enable embedded tracks = %d %+v", status, on)
+	}
+	if status, kept := request("owner-token", http.MethodPatch, `{"appearance":{"theme":"light"}}`); status != http.StatusOK ||
+		!kept.Appearance.EmbeddedTracks || kept.Appearance.Theme != "light" {
+		t.Fatalf("unrelated update changed the setting = %d %+v", status, kept)
+	}
+	if status, other := request("other-token", http.MethodGet, ""); status != http.StatusOK || other.Appearance.EmbeddedTracks || other.Appearance.EmbeddedTracksOnShares {
+		t.Fatalf("another user's setting changed = %d %+v", status, other)
+	}
+	// Letting it work on the account's public shares needs the setting above, whatever order the
+	// requests come in: it cannot be turned on without it, and turning that off turns this off.
+	if status, shares := request("other-token", http.MethodPatch, `{"appearance":{"embeddedTracksOnShares":true}}`); status != http.StatusOK ||
+		shares.Appearance.EmbeddedTracksOnShares || shares.Appearance.EmbeddedTracks {
+		t.Fatalf("shares option turned on without the setting it needs = %d %+v", status, shares)
+	}
+	if status, shares := request("owner-token", http.MethodPatch, `{"appearance":{"embeddedTracksOnShares":true}}`); status != http.StatusOK ||
+		!shares.Appearance.EmbeddedTracks || !shares.Appearance.EmbeddedTracksOnShares {
+		t.Fatalf("enable on shares = %d %+v", status, shares)
+	}
+	if status, both := request("other-token", http.MethodPatch, `{"appearance":{"embeddedTracks":true,"embeddedTracksOnShares":true}}`); status != http.StatusOK ||
+		!both.Appearance.EmbeddedTracks || !both.Appearance.EmbeddedTracksOnShares {
+		t.Fatalf("both in one update = %d %+v", status, both)
+	}
+	if status, off := request("other-token", http.MethodPatch, `{"appearance":{"embeddedTracks":false}}`); status != http.StatusOK ||
+		off.Appearance.EmbeddedTracks || off.Appearance.EmbeddedTracksOnShares {
+		t.Fatalf("turning the setting off did not turn shares off = %d %+v", status, off)
+	}
+	if status, off := request("owner-token", http.MethodPatch, `{"appearance":{"embeddedTracksOnShares":false,"theme":"dark"}}`); status != http.StatusOK ||
+		!off.Appearance.EmbeddedTracks || off.Appearance.EmbeddedTracksOnShares {
+		t.Fatalf("disable on shares only = %d %+v", status, off)
 	}
 
 	for name, body := range map[string]string{

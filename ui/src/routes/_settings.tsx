@@ -82,7 +82,9 @@ function SettingsLayout() {
 
   return (
     <div className="mx-auto grid w-full max-w-7xl gap-6 lg:grid-cols-[15rem_minmax(0,1fr)]">
-      <aside className="hidden lg:col-start-1 lg:block">
+      {/* Not an <aside>: content blockers often hide every aside element, and this is the only way
+          to move between settings pages. */}
+      <div data-settings-nav className="hidden lg:col-start-1 lg:block">
         <div className="sticky top-0 flex max-h-[calc(100dvh-7rem)] flex-col gap-5 overflow-y-auto border-r border-border pr-5">
           <div>
             <Typography type="h2" className="text-lg font-semibold">
@@ -94,7 +96,7 @@ function SettingsLayout() {
           </div>
           <SettingsNavigation currentPath={location.pathname} groups={visibleGroups} />
         </div>
-      </aside>
+      </div>
       <main className="min-w-0 lg:col-start-2">
         <div className="mb-5 flex items-center justify-between border-b border-border pb-4 lg:hidden">
           <div>

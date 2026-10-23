@@ -66,6 +66,12 @@ func (h *Handler) UpdateUserPreferences(ctx context.Context, req *gen.UserPrefer
 			locale := string(value)
 			update.Locale = &locale
 		}
+		if value, ok := appearance.EmbeddedTracks.Get(); ok {
+			update.EmbeddedTracks = &value
+		}
+		if value, ok := appearance.EmbeddedTracksOnShares.Get(); ok {
+			update.EmbeddedTracksOnShares = &value
+		}
 	}
 	row, err := h.Auth.UpdatePreferences(ctx, userID, update)
 	if err != nil {
@@ -86,7 +92,11 @@ func userPreferences(row *sqlcgen.UserPreference) *gen.UserPreferences {
 			Sort:  gen.FileBrowserSort(row.FileSort),
 			Order: gen.SortOrder(row.FileOrder),
 		},
-		Appearance: gen.AppearancePreferences{Theme: gen.ThemePreference(row.Theme)},
+		Appearance: gen.AppearancePreferences{
+			Theme:                  gen.ThemePreference(row.Theme),
+			EmbeddedTracks:         row.EmbeddedTracks,
+			EmbeddedTracksOnShares: row.EmbeddedTracksOnShares,
+		},
 	}
 	if row.Locale.Valid {
 		result.Appearance.Locale = gen.NewOptInterfaceLocale(gen.InterfaceLocale(row.Locale.String))

@@ -6409,6 +6409,8 @@ components:
       type: object
       required:
         - theme
+        - embeddedTracks
+        - embeddedTracksOnShares
       properties:
         theme:
           $ref: "#/components/schemas/ThemePreference"
@@ -6417,6 +6419,23 @@ components:
             - $ref: "#/components/schemas/InterfaceLocale"
           description: Interface language; absent until the user picks one, so clients
             fall back to browser detection.
+        embeddedTracks:
+          type: boolean
+          description: >-
+            Whether the video player reads the audio tracks and subtitles stored
+            inside .mkv and .webm
+
+            files. Off by default; while it is off nothing extra is loaded.
+        embeddedTracksOnShares:
+          type: boolean
+          description: >-
+            Whether the video player on this account's public share links does
+            that too. Visitors have no
+
+            settings of their own, so the owner decides. Needs `embeddedTracks`:
+            it is always off while that
+
+            is off.
     UserPreferences:
       type: object
       required:
@@ -6469,6 +6488,10 @@ components:
           $ref: "#/components/schemas/ThemePreference"
         locale:
           $ref: "#/components/schemas/InterfaceLocale"
+        embeddedTracks:
+          type: boolean
+        embeddedTracksOnShares:
+          type: boolean
     UserPreferencesUpdate:
       type: object
       properties:
@@ -7558,6 +7581,7 @@ components:
         - file
         - passwordProtected
         - permission
+        - embeddedTracks
       properties:
         id:
           $ref: "#/components/schemas/Uuid"
@@ -7570,6 +7594,10 @@ components:
           format: date-time
         permission:
           $ref: "#/components/schemas/SharePermission"
+        embeddedTracks:
+          type: boolean
+          description: The owner allows the video player on this share to read the audio
+            tracks and subtitles stored in the file.
     JobPageMeta:
       type: object
       properties:

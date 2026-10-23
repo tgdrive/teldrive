@@ -193,11 +193,26 @@ model AppearancePreferences {
 
   /** Interface language; absent until the user picks one, so clients fall back to browser detection. */
   locale?: InterfaceLocale;
+
+  /**
+   * Whether the video player reads the audio tracks and subtitles stored inside .mkv and .webm
+   * files. Off by default; while it is off nothing extra is loaded.
+   */
+  embeddedTracks: boolean;
+
+  /**
+   * Whether the video player on this account's public share links does that too. Visitors have no
+   * settings of their own, so the owner decides. Needs `embeddedTracks`: it is always off while that
+   * is off.
+   */
+  embeddedTracksOnShares: boolean;
 }
 
 model AppearancePreferencesUpdate {
   theme?: ThemePreference;
   locale?: InterfaceLocale;
+  embeddedTracks?: boolean;
+  embeddedTracksOnShares?: boolean;
 }
 
 /** Per-user web UI preferences shared by every browser and device. */

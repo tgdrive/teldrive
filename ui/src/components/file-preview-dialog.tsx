@@ -29,6 +29,11 @@ export type FilePreviewSource = {
   contentUrl: string;
   /** URL of the header download link, which is a real anchor so its address can be copied. */
   downloadUrl: string;
+  /**
+   * Public shares only: whether the owner lets the video player read the audio tracks and subtitles
+   * stored in the file. Visitors have no settings of their own, so this replaces the browser setting.
+   */
+  embeddedTracks?: boolean;
 };
 
 export function FilePreviewDialog({
@@ -178,7 +183,7 @@ export function FilePreviewDialog({
             {kind === "image" ? <ImageViewer file={file} url={contentUrl} /> : null}
             {kind === "video" ? (
               <Suspense fallback={<ViewerLoading label={t("preview.loadingVideo")} />}>
-                <VideoViewer file={file} url={contentUrl} />
+                <VideoViewer file={file} url={contentUrl} embeddedTracks={source?.embeddedTracks} />
               </Suspense>
             ) : null}
             {kind === "audio" ? <AudioViewer file={file} url={contentUrl} /> : null}

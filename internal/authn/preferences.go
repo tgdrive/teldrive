@@ -23,6 +23,11 @@ type PreferencesUpdate struct {
 	FileOrder            *string
 	Theme                *string
 	Locale               *string
+	// EmbeddedTracks lets the player read the audio tracks and subtitles stored inside files.
+	EmbeddedTracks *bool
+	// EmbeddedTracksOnShares does the same on the user's public shares; the update keeps it off
+	// while EmbeddedTracks is off.
+	EmbeddedTracksOnShares *bool
 }
 
 func (u PreferencesUpdate) empty() bool {
@@ -70,6 +75,12 @@ func (s *Service) UpdatePreferences(ctx context.Context, userID int64, update Pr
 	}
 	if update.UploadEncryption != nil {
 		params.UploadEncryption = pgtype.Bool{Bool: *update.UploadEncryption, Valid: true}
+	}
+	if update.EmbeddedTracks != nil {
+		params.EmbeddedTracks = pgtype.Bool{Bool: *update.EmbeddedTracks, Valid: true}
+	}
+	if update.EmbeddedTracksOnShares != nil {
+		params.EmbeddedTracksOnShares = pgtype.Bool{Bool: *update.EmbeddedTracksOnShares, Valid: true}
 	}
 	if update.UploadConflictPolicy != nil {
 		params.UploadConflictPolicy = sqlcgen.NullNameConflictPolicy{NameConflictPolicy: *update.UploadConflictPolicy, Valid: true}
