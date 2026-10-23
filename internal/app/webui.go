@@ -34,7 +34,9 @@ func (h webUIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	w.Header().Set("Content-Security-Policy", "default-src 'self' blob:; script-src 'self'; style-src 'self' 'unsafe-inline' blob:; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self' data: blob:; connect-src 'self' data: blob:; worker-src 'self' blob:; frame-src blob: data:; object-src 'none'; base-uri 'self'; form-action 'self'")
+	// 'wasm-unsafe-eval' lets the page compile WebAssembly (the media player decodes E-AC-3/AC-3 audio
+	// with a WASM module). It does not allow eval() or other string-to-code, unlike 'unsafe-eval'.
+	w.Header().Set("Content-Security-Policy", "default-src 'self' blob:; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' blob:; img-src 'self' data: blob:; media-src 'self' blob:; font-src 'self' data: blob:; connect-src 'self' data: blob:; worker-src 'self' blob:; frame-src blob: data:; object-src 'none'; base-uri 'self'; form-action 'self'")
 	requested := strings.TrimPrefix(path.Clean("/"+r.URL.Path), "/")
 	if requested == "." || requested == "" {
 		requested = "index.html"

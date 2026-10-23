@@ -52,6 +52,16 @@ func TestWebUIHandlerServesAssetsAndHistoryFallback(t *testing.T) {
 			if test.status == http.StatusOK && !strings.Contains(result.Header.Get("Content-Security-Policy"), "script-src 'self'") {
 				t.Fatalf("GET %s CSP = %q", test.path, result.Header.Get("Content-Security-Policy"))
 			}
+			if test.status == http.StatusOK {
+				csp := result.Header.Get("Content-Security-Policy")
+				// WebAssembly may be compiled (the player's audio decoder), but string eval may not.
+				if !strings.Contains(csp, "'wasm-unsafe-eval'") {
+					t.Fatalf("GET %s CSP lacks 'wasm-unsafe-eval': %q", test.path, csp)
+				}
+				if strings.Contains(strings.ReplaceAll(csp, "'wasm-unsafe-eval'", ""), "'unsafe-eval'") {
+					t.Fatalf("GET %s CSP allows 'unsafe-eval': %q", test.path, csp)
+				}
+			}
 		})
 	}
 }
