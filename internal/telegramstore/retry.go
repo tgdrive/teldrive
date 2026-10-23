@@ -57,7 +57,7 @@ func (m retryMiddleware) Handle(next tg.Invoker) telegram.InvokeFunc {
 				return err
 			}
 			delay := telegramRetryDelay(attempt)
-			slog.WarnContext(ctx, "telegram.rpc_retry",
+			slog.DebugContext(ctx, "telegram.rpc_retry",
 				"client_id", clientID, "rpc_type", fmt.Sprintf("%T", input),
 				"retry", attempt+1, "max_retries", m.max, "delay", delay, "error", err)
 			// Give the transport time to reconnect before resending this RPC.
