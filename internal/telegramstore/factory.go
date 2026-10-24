@@ -173,8 +173,9 @@ func (f *Factory) NewWithUpdates(storage telegram.SessionStorage, handler telegr
 	return f.newClient(storage, 0, handler, nil)
 }
 
-// PooledAPI opens size connections on client and charges their requests to the
-// rate-limit budget of accountID.
+// PooledAPI opens up to size connections per DC and charges their requests to
+// the rate-limit budget of accountID. File redirects use authorized DC pools
+// without moving the client's primary session.
 func (f *Factory) PooledAPI(client *telegram.Client, accountID int64, size int) (*tg.Client, func() error, error) {
 	if f == nil || client == nil || accountID <= 0 || size < 1 {
 		return nil, nil, ErrTelegramConfiguration
@@ -183,7 +184,10 @@ func (f *Factory) PooledAPI(client *telegram.Client, accountID int64, size int) 
 	if err != nil {
 		return nil, nil, fmt.Errorf("create Telegram connection pool: %w", err)
 	}
-	return tg.NewClient(f.wrapInvoker(accountID, invoker)), invoker.Close, nil
+	router := newMigratingPool(invoker, func(ctx context.Context, dc int) (telegram.CloseInvoker, error) {
+		return client.DC(ctx, dc, int64(size))
+	}, func(invoker tg.Invoker) tg.Invoker { return f.wrapInvoker(accountID, invoker) })
+	return tg.NewClient(router), router.Close, nil
 }
 
 // accountMiddleware returns a fresh invoke middleware chain for one Telegram
