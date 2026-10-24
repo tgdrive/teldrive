@@ -5,9 +5,11 @@ import type { FileEntry } from "@/api/types";
 import { fileContentUrl } from "@/features/files/download";
 import { previewMedia, supportsCodePreview } from "@/features/files/preview-support";
 import { readerKind } from "@/features/files/reader-support";
-import { useAppLocale } from "@/lib/locale";
 import { useFormatBytes } from "@/lib/format";
+import { useAppLocale } from "@/lib/locale";
+
 type ViewerKind = "image" | "video" | "audio" | "pdf" | "ebook" | "text";
+
 import DownloadIcon from "~icons/gravity-ui/arrow-down-to-line";
 import RotateIcon from "~icons/gravity-ui/arrow-rotate-left";
 import ZoomOutIcon from "~icons/gravity-ui/magnifier-minus";
@@ -79,13 +81,17 @@ export function FilePreviewDialog({
         className="bg-background"
       >
         <Modal.Container size="full" scroll="inside" className="h-dvh max-h-dvh p-0">
-          <Modal.Dialog className="h-dvh max-h-dvh w-screen max-w-none overflow-hidden rounded-none bg-background p-0 text-foreground">
+          <Modal.Dialog
+            aria-label={file.name}
+            className="h-dvh max-h-dvh w-screen max-w-none overflow-hidden rounded-none bg-background p-0 text-foreground"
+          >
             <Modal.Heading className="sr-only">{file.name}</Modal.Heading>
             <Suspense fallback={<ViewerLoading label={t("preview.loadingPdf")} />}>
               <PdfReader
                 key={file.id}
                 file={file}
                 url={contentUrl}
+                downloadUrl={downloadUrl}
                 onClose={() => changeOpen(false)}
               />
             </Suspense>

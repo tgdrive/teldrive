@@ -1,29 +1,15 @@
+import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { readdir, readFile } from "node:fs/promises";
+import babel from "@rolldown/plugin-babel";
+import tailwindcss from "@tailwindcss/vite";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import react, { reactCompilerPreset } from "@vitejs/plugin-react";
-import tailwindcss from "@tailwindcss/vite";
 import Icons from "unplugin-icons/vite";
 import { defineConfig } from "vite";
-import babel from "@rolldown/plugin-babel";
 
-const pdfJsRoot = path.resolve(import.meta.dirname, "node_modules/pdfjs-dist");
-const pdfJsAssetDirectories = ["cmaps", "standard_fonts", "wasm", "iccs"] as const;
-
-async function assetFiles(directory: string): Promise<string[]> {
-  const entries = await readdir(directory, { withFileTypes: true });
-  const files = await Promise.all(
-    entries.map((entry) => {
-      const file = path.join(directory, entry.name);
-      return entry.isDirectory() ? assetFiles(file) : [file];
-    }),
-  );
-  return files.flat();
-}
-
-function pdfJsAssets() {
+function foliatePatches() {
   return {
-    name: "pdfjs-assets",
+    name: "foliate-patches",
     enforce: "pre" as const,
     transform(code: string, id: string) {
       if (id.includes("/foliate-js/view.js")) {
@@ -57,17 +43,26 @@ function pdfJsAssets() {
         return patched;
       }
     },
+  };
+}
+
+function embedPdfNotices() {
+  return {
+    name: "embedpdf-notices",
     async generateBundle() {
-      for (const directoryName of pdfJsAssetDirectories) {
-        const directory = path.join(pdfJsRoot, directoryName);
-        for (const file of await assetFiles(directory)) {
-          this.emitFile({
-            type: "asset",
-            fileName: `pdfjs/${directoryName}/${path.relative(directory, file).split(path.sep).join("/")}`,
-            source: await readFile(file),
-          });
-        }
-      }
+      this.emitFile({
+        type: "asset",
+        fileName: "licenses/embedpdf-LICENSE.txt",
+        source: await readFile(
+          path.resolve(import.meta.dirname, "node_modules/@embedpdf/engine-runtime-wasm32/LICENSE"),
+        ),
+      });
+      this.emitFile({
+        type: "asset",
+        fileName: "licenses/embedpdf-NOTICE.txt",
+        source:
+          "EmbedPDF 3.0.0-next.15 (Apache-2.0)\nhttps://github.com/embedpdf/embed-pdf-viewer\nPDFium WASM runtime: https://github.com/embedpdf/runtime\n",
+      });
     },
   };
 }
@@ -83,7 +78,8 @@ export default defineConfig(() => {
       "import.meta.env.VITE_APP_VERSION": JSON.stringify(process.env.VERSION?.trim() || "dev"),
     },
     plugins: [
-      pdfJsAssets(),
+      foliatePatches(),
+      embedPdfNotices(),
       tanstackRouter(),
       react(),
       babel({ presets: [reactCompilerPreset()] }),

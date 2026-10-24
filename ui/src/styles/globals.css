@@ -242,66 +242,23 @@ foliate-view::part(foot) {
     sans-serif;
 }
 
-/* ─── PDF workspace ─── */
-[data-pdf-reader] [data-pdf-viewer-container] {
-  scrollbar-gutter: stable;
-  overscroll-behavior: contain;
+/* ─── PDF reader: native app chrome, original document colors ─── */
+.pdf-reader {
+  --epdf-accent: var(--accent);
+  --epdf-page-background: #fff;
+  --epdf-page-shadow: 0 2px 12px rgb(0 0 0 / 0.14);
+  --epdf-text-selection: color-mix(in srgb, Highlight 35%, transparent);
+  --epdf-text-selection-handle: var(--accent);
+  --epdf-scrollbar-thumb: color-mix(in oklch, var(--muted) 45%, transparent);
 }
 
-[data-pdf-reader] .teldrive-pdf-viewer {
-  --page-border: 0;
-  --page-margin: 0 auto 24px;
-  padding: 0;
-  user-select: text;
+.pdf-stage {
+  background: var(--muted-background);
 }
 
-[data-pdf-reader] .teldrive-pdf-viewer.removePageBorders .page {
-  contain: layout;
-  overflow: hidden;
-  border: 0;
-  margin: 0 auto 16px;
-  border-radius: 3px;
-  background: white;
-  box-shadow:
-    0 1px 2px rgb(0 0 0 / 0.08),
-    0 12px 32px rgb(0 0 0 / 0.12);
-}
-
-[data-pdf-reader] .teldrive-pdf-viewer :is(.textLayer, .annotationLayer, .annotationEditorLayer) {
-  user-select: text;
-}
-
-/* Use the OS text-selection blue, not the application's orange accent.
-   PDF glyphs are already painted on the canvas underneath the text layer. */
-[data-pdf-reader] .teldrive-pdf-viewer .textLayer ::selection {
-  background: color-mix(in srgb, Highlight 35%, transparent);
-  color: transparent;
-}
-
-[data-pdf-reader] .teldrive-pdf-viewer .highlight {
-  border-radius: 2px;
-}
-
-@media (max-width: 640px) {
-  [data-pdf-reader] .teldrive-pdf-viewer {
-    --page-margin: 0 auto 14px;
-    padding: 0;
-  }
-}
-
-[data-pdf-reader][data-pdf-hand-active="true"] [data-pdf-viewer-container] {
-  cursor: grab;
-  touch-action: none;
-  user-select: none;
-}
-
-[data-pdf-reader][data-pdf-hand-active="true"] [data-pdf-viewer-container] * {
-  cursor: inherit;
-  user-select: none;
-}
-
-[data-pdf-reader][data-pdf-hand-active="true"] [data-pdf-viewer-container][data-dragging="true"] {
-  cursor: grabbing;
+.pdf-reader select option {
+  background: var(--overlay);
+  color: var(--foreground);
 }
 
 /* ─── Utilities ─── */
