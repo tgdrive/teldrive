@@ -1,5 +1,6 @@
 import { Button, Label, Switch } from "@heroui/react";
 import { createFileRoute } from "@tanstack/react-router";
+import { DocumentReaderSettings } from "@/components/document-reader-settings";
 import { SettingsPageHeader, SettingsRow, SettingsSection } from "@/components/settings-layout";
 import { APP_LOCALES, useAppLocale } from "@/lib/locale";
 import { useEmbeddedTracks } from "@/lib/player-settings";
@@ -71,6 +72,7 @@ function AppearanceSettings() {
           </div>
         </SettingsRow>
       </SettingsSection>
+      <DocumentReaderSettings />
       <SettingsSection
         title={t("appearance.playerTitle")}
         description={t("appearance.playerDescription")}

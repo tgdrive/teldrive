@@ -28,10 +28,13 @@ import {
   useStage,
   useStageState,
 } from "@embedpdf/react/stage";
-import { Button, cn, Spinner } from "@heroui/react";
+import { Button, cn, Popover, Spinner } from "@heroui/react";
 import { buttonVariants } from "@heroui/styles";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import type { FileEntry } from "@/api/types";
+import { PdfBrightnessSlider } from "@/components/pdf-brightness-slider";
+import { loadDocumentContent } from "@/features/files/document-cache";
+import { useDocumentSettings } from "@/lib/document-settings";
 import { useFormatBytes } from "@/lib/format";
 import { useAppLocale } from "@/lib/locale";
 import { useTheme } from "@/lib/theme";
@@ -44,6 +47,7 @@ import CopyIcon from "~icons/gravity-ui/copy";
 import SearchIcon from "~icons/gravity-ui/magnifier";
 import ZoomOutIcon from "~icons/gravity-ui/magnifier-minus";
 import ZoomInIcon from "~icons/gravity-ui/magnifier-plus";
+import SunIcon from "~icons/gravity-ui/sun";
 import CloseIcon from "~icons/gravity-ui/xmark";
 
 type PdfReaderProps = {
@@ -92,6 +96,7 @@ const createEngine = () => localEngine();
 export function PdfReader({ file, url, downloadUrl = url, onClose }: PdfReaderProps) {
   const { t } = useAppLocale();
   const { resolvedTheme } = useTheme();
+  const { pdfBrightness } = useDocumentSettings();
   const formatBytes = useFormatBytes();
   const [attempt, setAttempt] = useState(0);
   const initialDocuments = useMemo<InitialDocument[]>(
@@ -99,12 +104,11 @@ export function PdfReader({ file, url, downloadUrl = url, onClose }: PdfReaderPr
       {
         name: file.name,
         source: async (signal) => {
-          const response = await fetch(url, { signal });
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const content = await loadDocumentContent(file, url, signal);
           return {
             kind: "bytes",
             id: file.id,
-            bytes: new Uint8Array(await response.arrayBuffer()),
+            bytes: new Uint8Array(await content.arrayBuffer()),
           };
         },
       },
@@ -117,6 +121,8 @@ export function PdfReader({ file, url, downloadUrl = url, onClose }: PdfReaderPr
     <div
       data-pdf-reader
       data-reader-theme={resolvedTheme}
+      data-pdf-brightness={pdfBrightness}
+      style={{ "--pdf-brightness": pdfBrightness / 100 } as CSSProperties}
       className="pdf-reader flex h-full min-h-0 flex-col bg-background text-foreground"
     >
       <header
@@ -130,6 +136,19 @@ export function PdfReader({ file, url, downloadUrl = url, onClose }: PdfReaderPr
           <p className="truncate text-sm font-semibold">{file.name}</p>
           <p className="text-xs text-muted">PDF · {formatBytes(file.size || 0)}</p>
         </div>
+        <Popover>
+          <Button isIconOnly size="sm" variant="ghost" aria-label={t("pdf.brightness")}>
+            <SunIcon className="size-4" />
+          </Button>
+          <Popover.Content placement="bottom end" className="w-64">
+            <Popover.Dialog>
+              <Popover.Heading className="mb-4 text-sm font-medium">
+                {t("pdf.brightnessAria")}
+              </Popover.Heading>
+              <PdfBrightnessSlider />
+            </Popover.Dialog>
+          </Popover.Content>
+        </Popover>
         <a
           href={downloadUrl}
           download={file.name}
@@ -172,7 +191,9 @@ function PdfWorkspace({ onClose }: { onClose: () => void }) {
 
   useEffect(() => {
     function keydown(event: KeyboardEvent) {
+      if (event.defaultPrevented) return;
       const target = event.target;
+      if (target instanceof Element && target.closest('[data-slot="popover-dialog"]')) return;
       const editing =
         target instanceof HTMLElement &&
         (target.matches("input,textarea,select") || target.isContentEditable);
@@ -372,7 +393,9 @@ function PdfWorkspace({ onClose }: { onClose: () => void }) {
         >
           {(page) => (
             <div data-pdf-page={page.pageIndex + 1} className="absolute inset-0">
-              <RenderLayer />
+              <div data-pdf-page-content className="absolute inset-0">
+                <RenderLayer />
+              </div>
               <LinkLayer />
               <SearchLayer />
               <SelectionLayer />
@@ -418,7 +441,9 @@ function ThumbnailSidebar({ onNavigate }: { onNavigate: () => void }) {
               : "ring-1 ring-border hover:ring-accent",
           )}
         >
-          <RenderLayer tiles={false} />
+          <div data-pdf-page-content className="absolute inset-0">
+            <RenderLayer tiles={false} />
+          </div>
         </button>
       )}
     </Stage>

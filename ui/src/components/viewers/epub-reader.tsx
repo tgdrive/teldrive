@@ -12,15 +12,16 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { FileEntry } from "@/api/types";
+import { loadDocumentContent } from "@/features/files/document-cache";
 import { startFileDownload } from "@/features/files/download";
-import { useAppLocale } from "@/lib/locale";
-import { useFormatBytes } from "@/lib/format";
 import {
   applyPublicationAppearance,
   closePublication,
   openPublication,
   type ReaderPreferences,
 } from "@/features/files/foliate-reader";
+import { useFormatBytes } from "@/lib/format";
+import { useAppLocale } from "@/lib/locale";
 import DownloadIcon from "~icons/gravity-ui/arrow-down-to-line";
 import MenuIcon from "~icons/gravity-ui/bars";
 import LeftIcon from "~icons/gravity-ui/chevron-left";
@@ -124,6 +125,7 @@ export function EpubReader({ file, url, downloadUrl, onClose }: EpubReaderProps)
 
   useEffect(() => {
     activeRef.current = true;
+    const controller = new AbortController();
     const host = hostRef.current;
     if (!host) return;
 
@@ -149,7 +151,7 @@ export function EpubReader({ file, url, downloadUrl, onClose }: EpubReaderProps)
       loadedDocuments.add(doc);
       doc.addEventListener("keydown", onReaderKeyDown);
       const updateRenderedContent = () => {
-        const text = doc.body?.innerText.trim();
+        const text = doc.body?.textContent?.trim();
         const imageLabel = doc.querySelector("img")?.getAttribute("alt");
         if (text || imageLabel) element!.dataset.renderedContent = text || imageLabel || "";
         return Boolean(text || imageLabel);
@@ -181,9 +183,8 @@ export function EpubReader({ file, url, downloadUrl, onClose }: EpubReaderProps)
       host.replaceChildren(element);
       viewRef.current = element;
 
-      const response = await fetch(url);
-      if (!response.ok) throw new Error(t("reader.loadFailed", { status: response.status }));
-      const bookFile = new File([await response.blob()], file.name, { type: file.mimeType });
+      const content = await loadDocumentContent(file, url, controller.signal);
+      const bookFile = new File([content], file.name, { type: file.mimeType });
       if (!activeRef.current) return;
 
       await openPublication({
@@ -209,6 +210,7 @@ export function EpubReader({ file, url, downloadUrl, onClose }: EpubReaderProps)
     });
 
     return () => {
+      controller.abort();
       activeRef.current = false;
       const current = element;
       for (const doc of loadedDocuments) doc.removeEventListener("keydown", onReaderKeyDown);

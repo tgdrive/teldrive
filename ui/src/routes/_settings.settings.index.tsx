@@ -5,9 +5,10 @@ import { $api } from "@/api/client";
 import { userMessage } from "@/api/errors";
 import { useCurrentUser } from "@/auth/use-current-user";
 import { SettingsPageHeader, SettingsRow, SettingsSection } from "@/components/settings-layout";
-import { getQueryClient } from "@/lib/queryClient";
-import { useAppLocale } from "@/lib/locale";
+import { clearDocumentCache } from "@/features/files/document-cache";
 import { useCountFormatter, useDateTimeFormatter, useFormatBytes } from "@/lib/format";
+import { useAppLocale } from "@/lib/locale";
+import { getQueryClient } from "@/lib/queryClient";
 import LogoutIcon from "~icons/gravity-ui/arrow-right-from-square";
 
 export const Route = createFileRoute("/_settings/settings/")({
@@ -37,6 +38,7 @@ function AccountSettings() {
   const logOut = async () => {
     try {
       await logout.mutateAsync({});
+      await clearDocumentCache().catch(() => {});
       getQueryClient().clear();
       await navigate({ to: "/login", search: { redirect: "/files" }, replace: true });
     } catch (error) {

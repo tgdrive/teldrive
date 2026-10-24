@@ -22,6 +22,7 @@ import {
 } from "@tanstack/react-router";
 import { type Ref, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { clearDocumentCache } from "@/features/files/document-cache";
 import { useAppLocale } from "@/lib/locale";
 import { useTheme } from "@/lib/theme";
 import LogoutIcon from "~icons/gravity-ui/arrow-right-from-square";
@@ -110,6 +111,7 @@ function Sidebar({
   const signOut = async () => {
     try {
       await logout.mutateAsync({});
+      await clearDocumentCache().catch(() => {});
       getQueryClient().clear();
       onNavigate?.();
       await navigate({ to: "/login", search: { redirect: "/files" }, replace: true });

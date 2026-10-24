@@ -256,6 +256,10 @@ foliate-view::part(foot) {
   background: var(--muted-background);
 }
 
+.pdf-reader [data-pdf-page-content] {
+  filter: brightness(var(--pdf-brightness, 1));
+}
+
 .pdf-reader select option {
   background: var(--overlay);
   color: var(--foreground);

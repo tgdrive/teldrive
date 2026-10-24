@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Page, type Route, test } from "@playwright/test";
 import { strToU8, zipSync } from "fflate";
 import { installPreferencesApi } from "./fixtures/preferences";
 import { makeLargePdf } from "./fixtures/viewers/large-pdf";
@@ -304,6 +304,417 @@ test("PDF download link targets the untouched original and read-only interaction
   await page.keyboard.press("Escape");
   await expect(dialog).toBeHidden();
   expect(mutations).toEqual([]);
+});
+
+async function seedDocumentSettings(page: Page) {
+  await page.addInitScript(() => {
+    if (window === parent && !localStorage.getItem("teldrive.document-settings.v1")) {
+      localStorage.setItem(
+        "teldrive.document-settings.v1",
+        JSON.stringify({ cacheEnabled: true, cacheLimitMiB: 32, pdfBrightness: 100 }),
+      );
+    }
+  });
+}
+
+async function cachedDocuments(page: Page) {
+  return page.evaluate(async () => {
+    if (!(await indexedDB.databases()).some((db) => db.name === "teldrive-documents-v1")) return [];
+    return new Promise<Array<{ key: string; etag: string; size: number }>>((resolve, reject) => {
+      const request = indexedDB.open("teldrive-documents-v1", 1);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const db = request.result;
+        const tx = db.transaction("metadata");
+        const entries = tx.objectStore("metadata").getAll();
+        entries.onsuccess = () => resolve(entries.result);
+        entries.onerror = () => reject(entries.error);
+        tx.oncomplete = () => db.close();
+      };
+    });
+  });
+}
+
+async function openPreparedPdf(page: Page) {
+  await openFile(page, "reader-sample.pdf");
+  const dialog = page.getByRole("dialog", { name: "reader-sample.pdf", exact: true });
+  await expect(dialog.getByRole("button", { name: "Next PDF page", exact: true })).toBeEnabled({
+    timeout: 45_000,
+  });
+  return dialog;
+}
+
+test("PDF brightness dims only the page and persists without reopening the document", async ({
+  page,
+}) => {
+  let downloads = 0;
+  page.on("request", (request) => {
+    if (request.url().includes(`/files/${pdfId}/content/`)) downloads++;
+  });
+  const dialog = await openPdf(page);
+  const initialDownloads = downloads;
+  await dialog.getByRole("button", { name: "Next PDF page", exact: true }).click();
+  await dialog.getByRole("button", { name: "Brightness", exact: true }).click();
+  const slider = page.getByRole("slider", { name: "PDF page brightness", exact: true });
+  await slider.focus();
+  await slider.press("Home");
+  await expect(slider).toHaveValue("50");
+  await expect(dialog.locator("[data-pdf-reader]")).toHaveAttribute("data-pdf-brightness", "50");
+  await expect(dialog.locator("[data-pdf-page-content]").first()).toHaveCSS(
+    "filter",
+    "brightness(0.5)",
+  );
+  await expect(dialog.locator("[data-pdf-header]")).toHaveCSS("filter", "none");
+  await expect(dialog.locator("[data-pdf-toolbar]")).toHaveCSS("filter", "none");
+  await expect(dialog.getByRole("textbox", { name: "PDF page number", exact: true })).toHaveValue(
+    "2",
+  );
+  expect(downloads).toBe(initialDownloads);
+  await slider.press("Escape");
+  await expect(slider).toBeHidden();
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole("button", { name: "Close PDF reader", exact: true }).click();
+  await page.reload();
+  const reopened = await openPreparedPdf(page);
+  await expect(reopened.locator("[data-pdf-reader]")).toHaveAttribute("data-pdf-brightness", "50");
+});
+
+test("document content cache follows settings despite HTTP no-store, revalidates and replaces stale bytes", async ({
+  page,
+}) => {
+  await seedDocumentSettings(page);
+  await installViewerApi(page, []);
+  let etag = '"v1"';
+  let body = pdf;
+  let downloads = 0;
+  const conditionals: Array<string | undefined> = [];
+  await page.route(`**/files/${pdfId}/content/**`, (route) => {
+    const conditional = route.request().headers()["if-none-match"];
+    conditionals.push(conditional);
+    if (conditional === etag)
+      return route.fulfill({
+        status: 304,
+        headers: { ETag: etag, "Cache-Control": "private, no-store" },
+      });
+    downloads++;
+    return route.fulfill({
+      body,
+      contentType: "application/pdf",
+      headers: { ETag: etag, "Cache-Control": "private, no-store" },
+    });
+  });
+  await page.goto("/files?view=list");
+  let dialog = await openPreparedPdf(page);
+  expect(await cachedDocuments(page)).toHaveLength(1);
+  await dialog.getByRole("button", { name: "Close PDF reader", exact: true }).click();
+  await page.reload();
+  dialog = await openPreparedPdf(page);
+  expect(downloads).toBe(1);
+  expect(conditionals).toEqual([undefined, '"v1"']);
+  await dialog.getByRole("button", { name: "Close PDF reader", exact: true }).click();
+  // The file list deliberately still has its old generation. Server validation wins.
+  etag = '"v2"';
+  body = Buffer.from(pdf.toString().replace("TelDrive PDF Reader", "NewDrive PDF Reader"));
+  dialog = await openPreparedPdf(page);
+  expect(downloads).toBe(2);
+  await dialog.getByRole("button", { name: "Search in PDF", exact: true }).click();
+  await dialog.getByRole("textbox", { name: "Find in PDF", exact: true }).fill("NewDrive");
+  await expect(dialog.locator("[data-pdf-findbar] output")).toHaveText("1 / 1");
+  expect((await cachedDocuments(page))[0].etag).toBe('"v2"');
+});
+
+test("document content cache also reuses ebooks without redownloading them", async ({ page }) => {
+  await seedDocumentSettings(page);
+  await installViewerApi(page, []);
+  let downloads = 0;
+  await page.route(`**/files/${epubId}/content/**`, (route) => {
+    if (route.request().headers()["if-none-match"] === '"book-v1"')
+      return route.fulfill({ status: 304, headers: { ETag: '"book-v1"' } });
+    downloads++;
+    return route.fulfill({
+      body: epub,
+      contentType: "application/epub+zip",
+      headers: { ETag: '"book-v1"' },
+    });
+  });
+  await page.goto("/files?view=list");
+  for (let i = 0; i < 2; i++) {
+    await openFile(page, "reader-sample.epub");
+    const dialog = page.getByRole("dialog", { name: "reader-sample.epub", exact: true });
+    await expect(dialog.locator("foliate-view")).toHaveAttribute(
+      "data-rendered-content",
+      /A Quiet Beginning/,
+    );
+    await dialog.getByRole("button", { name: "Close ebook reader", exact: true }).click();
+    await expect(dialog).toBeHidden();
+  }
+  expect(downloads).toBe(1);
+  expect(await cachedDocuments(page)).toHaveLength(1);
+});
+
+test("document cache never serves cached bytes after access is revoked", async ({ page }) => {
+  await seedDocumentSettings(page);
+  await installViewerApi(page, []);
+  let denied = false;
+  await page.route(`**/files/${pdfId}/content/**`, (route) =>
+    denied
+      ? route.fulfill({ status: 403 })
+      : route.fulfill({
+          body: pdf,
+          contentType: "application/pdf",
+          headers: { ETag: '"private"' },
+        }),
+  );
+  await page.goto("/files?view=list");
+  const dialog = await openPreparedPdf(page);
+  await dialog.getByRole("button", { name: "Close PDF reader", exact: true }).click();
+  denied = true;
+  await openFile(page, "reader-sample.pdf");
+  await expect(page.getByRole("alert")).toContainText("HTTP 403");
+  await expect(page.locator("[data-pdf-page]")).toHaveCount(0);
+  expect(await cachedDocuments(page)).toHaveLength(0);
+});
+
+test("documents still open when browser storage is unavailable", async ({ page }) => {
+  await seedDocumentSettings(page);
+  await page.addInitScript(() => {
+    indexedDB.open = () => {
+      throw new Error("Storage disabled");
+    };
+  });
+  await installViewerApi(page, []);
+  await page.route(`**/files/${pdfId}/content/**`, (route) =>
+    route.fulfill({ body: pdf, contentType: "application/pdf", headers: { ETag: '"v1"' } }),
+  );
+  await page.goto("/files?view=list");
+  const dialog = await openPreparedPdf(page);
+  await expect(dialog.getByRole("alert")).toHaveCount(0);
+});
+
+test("documents still open when the browser document cache is full", async ({ page }) => {
+  await seedDocumentSettings(page);
+  await page.addInitScript(() => {
+    const put = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function (...args) {
+      if (this.name === "content") throw new DOMException("Cache full", "QuotaExceededError");
+      return put.apply(this, args);
+    };
+  });
+  await installViewerApi(page, []);
+  await page.route(`**/files/${pdfId}/content/**`, (route) =>
+    route.fulfill({ body: pdf, contentType: "application/pdf", headers: { ETag: '"v1"' } }),
+  );
+  await page.goto("/files?view=list");
+  const dialog = await openPreparedPdf(page);
+  await expect(dialog.getByRole("alert")).toHaveCount(0);
+  expect(await cachedDocuments(page)).toHaveLength(0);
+});
+
+test("document cache settings clear stored content and disabling stops caching", async ({
+  page,
+}) => {
+  await installViewerApi(page, []);
+  let downloads = 0;
+  await page.route(`**/files/${pdfId}/content/**`, (route) => {
+    downloads++;
+    return route.fulfill({ body: pdf, contentType: "application/pdf", headers: { ETag: '"v1"' } });
+  });
+  await page.goto("/settings/appearance");
+  const toggle = page.getByRole("switch", { name: "Keep documents in this browser", exact: true });
+  await expect(toggle).not.toBeChecked();
+  await toggle.focus();
+  await toggle.press("Space");
+  await expect(toggle).toBeChecked();
+  await page.getByRole("combobox", { name: "Document cache size", exact: true }).selectOption("32");
+  await page.goto("/files?view=list");
+  let dialog = await openPreparedPdf(page);
+  await dialog.getByRole("button", { name: "Close PDF reader", exact: true }).click();
+  await page.goto("/settings/appearance");
+  await expect(page.getByLabel("Cached documents", { exact: true })).toContainText("1 documents");
+  await page.getByRole("button", { name: "Clear document cache", exact: true }).click();
+  await expect(page.getByLabel("Cached documents", { exact: true })).toContainText("0 documents");
+  await expect(toggle).toBeEnabled();
+  await toggle.focus();
+  await toggle.press("Space");
+  await expect(toggle).not.toBeChecked();
+  await page.goto("/files?view=list");
+  dialog = await openPreparedPdf(page);
+  await dialog.getByRole("button", { name: "Close PDF reader", exact: true }).click();
+  await openPreparedPdf(page);
+  expect(downloads).toBe(3);
+  expect(await cachedDocuments(page)).toHaveLength(0);
+});
+
+test("clearing document cache in another tab prevents an in-flight fetch from restoring it", async ({
+  page,
+  context,
+}) => {
+  await seedDocumentSettings(page);
+  await installViewerApi(page, []);
+  let capture!: (route: Route) => void;
+  const pending = new Promise<Route>((resolve) => {
+    capture = resolve;
+  });
+  await page.route(`**/files/${pdfId}/content/**`, (route) => {
+    capture(route);
+  });
+  await page.goto("/files?view=list");
+  await openFile(page, "reader-sample.pdf");
+  const request = await pending;
+  const settings = await context.newPage();
+  await installViewerApi(settings, []);
+  await settings.goto("/settings/appearance");
+  await settings.getByRole("button", { name: "Clear document cache", exact: true }).click();
+  await expect(
+    settings.getByRole("button", { name: "Clear document cache", exact: true }),
+  ).toBeEnabled();
+  await expect(settings.getByLabel("Cached documents", { exact: true })).toContainText(
+    "0 documents",
+  );
+  await request.fulfill({ body: pdf, contentType: "application/pdf", headers: { ETag: '"v1"' } });
+  await expect(page.getByRole("button", { name: "Next PDF page", exact: true })).toBeEnabled({
+    timeout: 45_000,
+  });
+  expect(await cachedDocuments(page)).toHaveLength(0);
+  await settings.close();
+});
+
+test("document cache partitions accounts and logout clears all cached bytes", async ({ page }) => {
+  await seedDocumentSettings(page);
+  await installViewerApi(page, []);
+  let userId = 1;
+  let authenticated = true;
+  const conditionals: Array<string | undefined> = [];
+  await page.route("**/api/v1/me", (route) =>
+    authenticated
+      ? route.fulfill({
+          json: {
+            userId,
+            displayName: "Reader",
+            role: "user",
+            premium: true,
+            capabilities: ["files.read", "files.write"],
+            createdAt: now,
+          },
+        })
+      : route.fulfill({ status: 401 }),
+  );
+  await page.route("**/api/v1/auth/cookie/logout", (route) => {
+    authenticated = false;
+    return route.fulfill({ status: 204 });
+  });
+  await page.route(`**/files/${pdfId}/content/**`, (route) => {
+    conditionals.push(route.request().headers()["if-none-match"]);
+    return route.fulfill({ body: pdf, contentType: "application/pdf", headers: { ETag: '"v1"' } });
+  });
+  await page.goto("/files?view=list");
+  let dialog = await openPreparedPdf(page);
+  await dialog.getByRole("button", { name: "Close PDF reader", exact: true }).click();
+  userId = 2;
+  await page.reload();
+  dialog = await openPreparedPdf(page);
+  expect(conditionals).toEqual([undefined, undefined]);
+  await dialog.getByRole("button", { name: "Close PDF reader", exact: true }).click();
+  await page.goto("/settings");
+  await page.getByRole("button", { name: "Log out", exact: true }).click();
+  await expect(page).toHaveURL(/\/login/);
+  expect(await cachedDocuments(page)).toHaveLength(0);
+});
+
+test("document content without an ETag is not persisted", async ({ page }) => {
+  await seedDocumentSettings(page);
+  await installViewerApi(page, []);
+  const conditionals: Array<string | undefined> = [];
+  await page.route(`**/files/${pdfId}/content/**`, (route) => {
+    conditionals.push(route.request().headers()["if-none-match"]);
+    return route.fulfill({ body: pdf, contentType: "application/pdf" });
+  });
+  await page.goto("/files?view=list");
+  for (let i = 0; i < 2; i++) {
+    const dialog = await openPreparedPdf(page);
+    await dialog.getByRole("button", { name: "Close PDF reader", exact: true }).click();
+  }
+  expect(conditionals).toEqual([undefined, undefined]);
+  expect(await cachedDocuments(page)).toHaveLength(0);
+});
+
+test("document cache evicts least recently opened content when its size limit shrinks", async ({
+  page,
+}) => {
+  await seedDocumentSettings(page);
+  await installViewerApi(page, []);
+  await page.goto("/settings/appearance");
+  const limit = page.getByRole("combobox", { name: "Document cache size", exact: true });
+  await limit.selectOption("64");
+  await expect(limit).toBeEnabled();
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        const request = indexedDB.open("teldrive-documents-v1", 1);
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => {
+          const db = request.result;
+          const tx = db.transaction(["metadata", "content"], "readwrite");
+          const blob = new Blob([new Uint8Array(17 * 1024 * 1024)]);
+          for (const [key, usedAt] of [
+            ["old-document", 1],
+            ["recent-document", 2],
+          ] as const) {
+            tx.objectStore("metadata").put({ key, etag: '"v1"', size: blob.size, usedAt });
+            tx.objectStore("content").put(blob, key);
+          }
+          tx.oncomplete = () => {
+            db.close();
+            resolve();
+          };
+          tx.onerror = () => {
+            db.close();
+            reject(tx.error);
+          };
+        };
+      }),
+  );
+  await limit.selectOption("32");
+  await expect(limit).toBeEnabled();
+  await expect
+    .poll(async () => (await cachedDocuments(page)).map((entry) => entry.key))
+    .toEqual(["recent-document"]);
+});
+
+test("public-share PDF content never enters the signed-in document cache", async ({ page }) => {
+  await seedDocumentSettings(page);
+  await installViewerApi(page, []);
+  const token = "tds_cachePreview123";
+  const prefix = `/api/v1/public/shares/${token}`;
+  let downloads = 0;
+  await page.route(`**${prefix}**`, (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === prefix)
+      return route.fulfill({
+        json: { id: pdfId, file: files[0], passwordProtected: false, permission: "read" },
+      });
+    if (path.includes("/content/")) {
+      expect(route.request().headers()["if-none-match"]).toBeUndefined();
+      downloads++;
+      return route.fulfill({
+        body: pdf,
+        contentType: "application/pdf",
+        headers: { ETag: '"share-v1"' },
+      });
+    }
+    return route.fulfill({ status: 404 });
+  });
+  await page.goto(`/share/${token}`);
+  for (let i = 0; i < 2; i++) {
+    await page.getByTitle("reader-sample.pdf", { exact: true }).dblclick();
+    const dialog = page.getByRole("dialog", { name: "reader-sample.pdf", exact: true });
+    await expect(dialog.getByRole("button", { name: "Next PDF page", exact: true })).toBeEnabled({
+      timeout: 45_000,
+    });
+    await dialog.getByRole("button", { name: "Close PDF reader", exact: true }).click();
+  }
+  expect(downloads).toBe(2);
+  expect(await cachedDocuments(page)).toHaveLength(0);
 });
 
 test("EPUB brightness is display-only and Auto theme follows the system", async ({ page }) => {
