@@ -23,6 +23,11 @@ func TestEmbeddedTracksMigrationCanRunAgain(t *testing.T) {
 	}
 	up := strings.Split(strings.Split(string(data), "-- +goose Up")[1], "-- +goose Down")[0]
 	up = strings.ReplaceAll(up, "/* TEMPLATE: schema */", "")
+	// The current preferences table is JSONB-only. Recreate the historical
+	// columns in this isolated test before exercising migration 13's idempotency.
+	if _, err := db.Pool.Exec(ctx, up); err != nil {
+		t.Fatal(err)
+	}
 
 	if _, err := db.Pool.Exec(ctx, "INSERT INTO users (user_id) VALUES (1), (2), (3)"); err != nil {
 		t.Fatal(err)

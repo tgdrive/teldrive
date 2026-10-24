@@ -324,6 +324,70 @@ test("adding bots supports independent provisioning task IDs", async ({ page }) 
   await expect(bulk).toBeEnabled();
 });
 
+test("settings navigation separates appearance, reader and player controls", async ({
+  page,
+  isMobile,
+}) => {
+  await page.route("**/api/v1/**", (route) => {
+    if (new URL(route.request().url()).pathname === "/api/v1/me") {
+      return route.fulfill({
+        json: {
+          userId: 1,
+          displayName: "Reader",
+          role: "user",
+          capabilities: [],
+          premium: false,
+          createdAt: "2026-07-22T12:00:00Z",
+        },
+      });
+    }
+    return route.fulfill({ status: 404, json: {} });
+  });
+  await installPreferencesApi(page);
+  await page.goto("/settings/appearance");
+  await expect(page.getByRole("button", { name: "Light", exact: true })).toBeVisible();
+  await expect(page.getByRole("slider", { name: "PDF page brightness", exact: true })).toHaveCount(
+    0,
+  );
+  await expect(
+    page.getByRole("switch", { name: "Read tracks from the file", exact: true }),
+  ).toHaveCount(0);
+
+  async function navigate(name: string) {
+    if (isMobile)
+      await page.getByRole("button", { name: "Open settings navigation", exact: true }).click();
+    await page
+      .getByRole("navigation", { name: "Settings navigation", exact: true })
+      .getByRole("link", { name, exact: true })
+      .click();
+  }
+
+  await navigate("Reader");
+  await expect(page).toHaveURL(/\/settings\/reader$/);
+  const brightness = page.getByRole("slider", { name: "PDF page brightness", exact: true });
+  await expect(brightness).toBeVisible();
+  await expect(
+    page.getByRole("switch", { name: "Keep documents in this browser", exact: true }),
+  ).toBeVisible();
+  await brightness.focus();
+  await brightness.press("Home");
+  await page.reload();
+  await expect(brightness).toHaveValue("50");
+  await expect(
+    page.getByRole("switch", { name: "Read tracks from the file", exact: true }),
+  ).toHaveCount(0);
+
+  await navigate("Player");
+  await expect(page).toHaveURL(/\/settings\/player$/);
+  await expect(
+    page.getByRole("switch", { name: "Read tracks from the file", exact: true }),
+  ).toBeVisible();
+  await expect(brightness).toHaveCount(0);
+  await navigate("Appearance");
+  await expect(page).toHaveURL(/\/settings\/appearance$/);
+  await expect(page.getByRole("button", { name: "Light", exact: true })).toBeVisible();
+});
+
 test("appearance applies light tokens and persists across reloads", async ({ page }) => {
   await page.route("**/api/v1/**", async (route) => {
     if (new URL(route.request().url()).pathname === "/api/v1/me") {

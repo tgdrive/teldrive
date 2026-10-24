@@ -5,6 +5,8 @@ import { useState } from "react";
 import KeyIcon from "~icons/gravity-ui/key";
 import MenuIcon from "~icons/gravity-ui/bars";
 import PaletteIcon from "~icons/gravity-ui/palette";
+import BookIcon from "~icons/gravity-ui/book-open";
+import PlayIcon from "~icons/gravity-ui/play";
 import PersonIcon from "~icons/gravity-ui/person";
 import RobotIcon from "~icons/gravity-ui/layers";
 import SessionsIcon from "~icons/gravity-ui/list-ul";
@@ -47,6 +49,8 @@ const SETTINGS_GROUPS = [
     items: [
       { key: "uploads", path: "/settings/uploads", icon: UploadIcon },
       { key: "appearance", path: "/settings/appearance", icon: PaletteIcon },
+      { key: "reader", path: "/settings/reader", icon: BookIcon },
+      { key: "player", path: "/settings/player", icon: PlayIcon },
     ],
   },
   {

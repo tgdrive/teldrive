@@ -2638,6 +2638,786 @@ func (s *CancelJobUnauthorized) UnmarshalJSON(data []byte) error {
 }
 
 // Encode implements json.Marshaler.
+func (s *CaptionPreferences) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *CaptionPreferences) encodeFields(e *jx.Encoder) {
+	{
+		e.FieldStart("fontSize")
+		s.FontSize.Encode(e)
+	}
+	{
+		e.FieldStart("fontScale")
+		e.Float64(s.FontScale)
+	}
+	{
+		e.FieldStart("fontFamily")
+		s.FontFamily.Encode(e)
+	}
+	{
+		e.FieldStart("textColor")
+		e.Str(s.TextColor)
+	}
+	{
+		e.FieldStart("textOpacity")
+		e.Float64(s.TextOpacity)
+	}
+	{
+		e.FieldStart("backgroundColor")
+		e.Str(s.BackgroundColor)
+	}
+	{
+		e.FieldStart("backgroundOpacity")
+		e.Float64(s.BackgroundOpacity)
+	}
+	{
+		e.FieldStart("edgeStyle")
+		s.EdgeStyle.Encode(e)
+	}
+	{
+		e.FieldStart("edgeColor")
+		e.Str(s.EdgeColor)
+	}
+	{
+		e.FieldStart("position")
+		e.Float64(s.Position)
+	}
+	{
+		e.FieldStart("lineHeight")
+		e.Float64(s.LineHeight)
+	}
+	{
+		e.FieldStart("delay")
+		e.Float64(s.Delay)
+	}
+}
+
+var jsonFieldsNameOfCaptionPreferences = [12]string{
+	0:  "fontSize",
+	1:  "fontScale",
+	2:  "fontFamily",
+	3:  "textColor",
+	4:  "textOpacity",
+	5:  "backgroundColor",
+	6:  "backgroundOpacity",
+	7:  "edgeStyle",
+	8:  "edgeColor",
+	9:  "position",
+	10: "lineHeight",
+	11: "delay",
+}
+
+// Decode decodes CaptionPreferences from json.
+func (s *CaptionPreferences) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode CaptionPreferences to nil")
+	}
+	var requiredBitSet [2]uint8
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "fontSize":
+			requiredBitSet[0] |= 1 << 0
+			if err := func() error {
+				if err := s.FontSize.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"fontSize\"")
+			}
+		case "fontScale":
+			requiredBitSet[0] |= 1 << 1
+			if err := func() error {
+				v, err := d.Float64()
+				s.FontScale = float64(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"fontScale\"")
+			}
+		case "fontFamily":
+			requiredBitSet[0] |= 1 << 2
+			if err := func() error {
+				if err := s.FontFamily.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"fontFamily\"")
+			}
+		case "textColor":
+			requiredBitSet[0] |= 1 << 3
+			if err := func() error {
+				v, err := d.Str()
+				s.TextColor = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"textColor\"")
+			}
+		case "textOpacity":
+			requiredBitSet[0] |= 1 << 4
+			if err := func() error {
+				v, err := d.Float64()
+				s.TextOpacity = float64(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"textOpacity\"")
+			}
+		case "backgroundColor":
+			requiredBitSet[0] |= 1 << 5
+			if err := func() error {
+				v, err := d.Str()
+				s.BackgroundColor = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"backgroundColor\"")
+			}
+		case "backgroundOpacity":
+			requiredBitSet[0] |= 1 << 6
+			if err := func() error {
+				v, err := d.Float64()
+				s.BackgroundOpacity = float64(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"backgroundOpacity\"")
+			}
+		case "edgeStyle":
+			requiredBitSet[0] |= 1 << 7
+			if err := func() error {
+				if err := s.EdgeStyle.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"edgeStyle\"")
+			}
+		case "edgeColor":
+			requiredBitSet[1] |= 1 << 0
+			if err := func() error {
+				v, err := d.Str()
+				s.EdgeColor = string(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"edgeColor\"")
+			}
+		case "position":
+			requiredBitSet[1] |= 1 << 1
+			if err := func() error {
+				v, err := d.Float64()
+				s.Position = float64(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"position\"")
+			}
+		case "lineHeight":
+			requiredBitSet[1] |= 1 << 2
+			if err := func() error {
+				v, err := d.Float64()
+				s.LineHeight = float64(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"lineHeight\"")
+			}
+		case "delay":
+			requiredBitSet[1] |= 1 << 3
+			if err := func() error {
+				v, err := d.Float64()
+				s.Delay = float64(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"delay\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode CaptionPreferences")
+	}
+	// Validate required fields.
+	var failures []validate.FieldError
+	for i, mask := range [2]uint8{
+		0b11111111,
+		0b00001111,
+	} {
+		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
+			// Mask only required fields and check equality to mask using XOR.
+			//
+			// If XOR result is not zero, result is not equal to expected, so some fields are missed.
+			// Bits of fields which would be set are actually bits of missed fields.
+			missed := bits.OnesCount8(result)
+			for bitN := 0; bitN < missed; bitN++ {
+				bitIdx := bits.TrailingZeros8(result)
+				fieldIdx := i*8 + bitIdx
+				var name string
+				if fieldIdx < len(jsonFieldsNameOfCaptionPreferences) {
+					name = jsonFieldsNameOfCaptionPreferences[fieldIdx]
+				} else {
+					name = strconv.Itoa(fieldIdx)
+				}
+				failures = append(failures, validate.FieldError{
+					Name:  name,
+					Error: validate.ErrFieldRequired,
+				})
+				// Reset bit.
+				result &^= 1 << bitIdx
+			}
+		}
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *CaptionPreferences) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *CaptionPreferences) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes CaptionPreferencesEdgeStyle as json.
+func (s CaptionPreferencesEdgeStyle) Encode(e *jx.Encoder) {
+	e.Str(string(s))
+}
+
+// Decode decodes CaptionPreferencesEdgeStyle from json.
+func (s *CaptionPreferencesEdgeStyle) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode CaptionPreferencesEdgeStyle to nil")
+	}
+	v, err := d.StrBytes()
+	if err != nil {
+		return err
+	}
+	// Try to use constant string.
+	switch CaptionPreferencesEdgeStyle(v) {
+	case CaptionPreferencesEdgeStyleNone:
+		*s = CaptionPreferencesEdgeStyleNone
+	case CaptionPreferencesEdgeStyleShadow:
+		*s = CaptionPreferencesEdgeStyleShadow
+	case CaptionPreferencesEdgeStyleOutline:
+		*s = CaptionPreferencesEdgeStyleOutline
+	default:
+		*s = CaptionPreferencesEdgeStyle(v)
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s CaptionPreferencesEdgeStyle) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *CaptionPreferencesEdgeStyle) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes CaptionPreferencesFontFamily as json.
+func (s CaptionPreferencesFontFamily) Encode(e *jx.Encoder) {
+	e.Str(string(s))
+}
+
+// Decode decodes CaptionPreferencesFontFamily from json.
+func (s *CaptionPreferencesFontFamily) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode CaptionPreferencesFontFamily to nil")
+	}
+	v, err := d.StrBytes()
+	if err != nil {
+		return err
+	}
+	// Try to use constant string.
+	switch CaptionPreferencesFontFamily(v) {
+	case CaptionPreferencesFontFamilySans:
+		*s = CaptionPreferencesFontFamilySans
+	case CaptionPreferencesFontFamilySerif:
+		*s = CaptionPreferencesFontFamilySerif
+	case CaptionPreferencesFontFamilyMonospace:
+		*s = CaptionPreferencesFontFamilyMonospace
+	default:
+		*s = CaptionPreferencesFontFamily(v)
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s CaptionPreferencesFontFamily) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *CaptionPreferencesFontFamily) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes CaptionPreferencesFontSize as json.
+func (s CaptionPreferencesFontSize) Encode(e *jx.Encoder) {
+	e.Str(string(s))
+}
+
+// Decode decodes CaptionPreferencesFontSize from json.
+func (s *CaptionPreferencesFontSize) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode CaptionPreferencesFontSize to nil")
+	}
+	v, err := d.StrBytes()
+	if err != nil {
+		return err
+	}
+	// Try to use constant string.
+	switch CaptionPreferencesFontSize(v) {
+	case CaptionPreferencesFontSizeSmall:
+		*s = CaptionPreferencesFontSizeSmall
+	case CaptionPreferencesFontSizeMedium:
+		*s = CaptionPreferencesFontSizeMedium
+	case CaptionPreferencesFontSizeLarge:
+		*s = CaptionPreferencesFontSizeLarge
+	default:
+		*s = CaptionPreferencesFontSize(v)
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s CaptionPreferencesFontSize) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *CaptionPreferencesFontSize) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *CaptionPreferencesUpdate) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *CaptionPreferencesUpdate) encodeFields(e *jx.Encoder) {
+	{
+		if s.FontSize.Set {
+			e.FieldStart("fontSize")
+			s.FontSize.Encode(e)
+		}
+	}
+	{
+		if s.FontScale.Set {
+			e.FieldStart("fontScale")
+			s.FontScale.Encode(e)
+		}
+	}
+	{
+		if s.FontFamily.Set {
+			e.FieldStart("fontFamily")
+			s.FontFamily.Encode(e)
+		}
+	}
+	{
+		if s.TextColor.Set {
+			e.FieldStart("textColor")
+			s.TextColor.Encode(e)
+		}
+	}
+	{
+		if s.TextOpacity.Set {
+			e.FieldStart("textOpacity")
+			s.TextOpacity.Encode(e)
+		}
+	}
+	{
+		if s.BackgroundColor.Set {
+			e.FieldStart("backgroundColor")
+			s.BackgroundColor.Encode(e)
+		}
+	}
+	{
+		if s.BackgroundOpacity.Set {
+			e.FieldStart("backgroundOpacity")
+			s.BackgroundOpacity.Encode(e)
+		}
+	}
+	{
+		if s.EdgeStyle.Set {
+			e.FieldStart("edgeStyle")
+			s.EdgeStyle.Encode(e)
+		}
+	}
+	{
+		if s.EdgeColor.Set {
+			e.FieldStart("edgeColor")
+			s.EdgeColor.Encode(e)
+		}
+	}
+	{
+		if s.Position.Set {
+			e.FieldStart("position")
+			s.Position.Encode(e)
+		}
+	}
+	{
+		if s.LineHeight.Set {
+			e.FieldStart("lineHeight")
+			s.LineHeight.Encode(e)
+		}
+	}
+	{
+		if s.Delay.Set {
+			e.FieldStart("delay")
+			s.Delay.Encode(e)
+		}
+	}
+}
+
+var jsonFieldsNameOfCaptionPreferencesUpdate = [12]string{
+	0:  "fontSize",
+	1:  "fontScale",
+	2:  "fontFamily",
+	3:  "textColor",
+	4:  "textOpacity",
+	5:  "backgroundColor",
+	6:  "backgroundOpacity",
+	7:  "edgeStyle",
+	8:  "edgeColor",
+	9:  "position",
+	10: "lineHeight",
+	11: "delay",
+}
+
+// Decode decodes CaptionPreferencesUpdate from json.
+func (s *CaptionPreferencesUpdate) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode CaptionPreferencesUpdate to nil")
+	}
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "fontSize":
+			if err := func() error {
+				s.FontSize.Reset()
+				if err := s.FontSize.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"fontSize\"")
+			}
+		case "fontScale":
+			if err := func() error {
+				s.FontScale.Reset()
+				if err := s.FontScale.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"fontScale\"")
+			}
+		case "fontFamily":
+			if err := func() error {
+				s.FontFamily.Reset()
+				if err := s.FontFamily.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"fontFamily\"")
+			}
+		case "textColor":
+			if err := func() error {
+				s.TextColor.Reset()
+				if err := s.TextColor.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"textColor\"")
+			}
+		case "textOpacity":
+			if err := func() error {
+				s.TextOpacity.Reset()
+				if err := s.TextOpacity.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"textOpacity\"")
+			}
+		case "backgroundColor":
+			if err := func() error {
+				s.BackgroundColor.Reset()
+				if err := s.BackgroundColor.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"backgroundColor\"")
+			}
+		case "backgroundOpacity":
+			if err := func() error {
+				s.BackgroundOpacity.Reset()
+				if err := s.BackgroundOpacity.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"backgroundOpacity\"")
+			}
+		case "edgeStyle":
+			if err := func() error {
+				s.EdgeStyle.Reset()
+				if err := s.EdgeStyle.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"edgeStyle\"")
+			}
+		case "edgeColor":
+			if err := func() error {
+				s.EdgeColor.Reset()
+				if err := s.EdgeColor.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"edgeColor\"")
+			}
+		case "position":
+			if err := func() error {
+				s.Position.Reset()
+				if err := s.Position.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"position\"")
+			}
+		case "lineHeight":
+			if err := func() error {
+				s.LineHeight.Reset()
+				if err := s.LineHeight.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"lineHeight\"")
+			}
+		case "delay":
+			if err := func() error {
+				s.Delay.Reset()
+				if err := s.Delay.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"delay\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode CaptionPreferencesUpdate")
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *CaptionPreferencesUpdate) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *CaptionPreferencesUpdate) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes CaptionPreferencesUpdateEdgeStyle as json.
+func (s CaptionPreferencesUpdateEdgeStyle) Encode(e *jx.Encoder) {
+	e.Str(string(s))
+}
+
+// Decode decodes CaptionPreferencesUpdateEdgeStyle from json.
+func (s *CaptionPreferencesUpdateEdgeStyle) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode CaptionPreferencesUpdateEdgeStyle to nil")
+	}
+	v, err := d.StrBytes()
+	if err != nil {
+		return err
+	}
+	// Try to use constant string.
+	switch CaptionPreferencesUpdateEdgeStyle(v) {
+	case CaptionPreferencesUpdateEdgeStyleNone:
+		*s = CaptionPreferencesUpdateEdgeStyleNone
+	case CaptionPreferencesUpdateEdgeStyleShadow:
+		*s = CaptionPreferencesUpdateEdgeStyleShadow
+	case CaptionPreferencesUpdateEdgeStyleOutline:
+		*s = CaptionPreferencesUpdateEdgeStyleOutline
+	default:
+		*s = CaptionPreferencesUpdateEdgeStyle(v)
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s CaptionPreferencesUpdateEdgeStyle) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *CaptionPreferencesUpdateEdgeStyle) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes CaptionPreferencesUpdateFontFamily as json.
+func (s CaptionPreferencesUpdateFontFamily) Encode(e *jx.Encoder) {
+	e.Str(string(s))
+}
+
+// Decode decodes CaptionPreferencesUpdateFontFamily from json.
+func (s *CaptionPreferencesUpdateFontFamily) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode CaptionPreferencesUpdateFontFamily to nil")
+	}
+	v, err := d.StrBytes()
+	if err != nil {
+		return err
+	}
+	// Try to use constant string.
+	switch CaptionPreferencesUpdateFontFamily(v) {
+	case CaptionPreferencesUpdateFontFamilySans:
+		*s = CaptionPreferencesUpdateFontFamilySans
+	case CaptionPreferencesUpdateFontFamilySerif:
+		*s = CaptionPreferencesUpdateFontFamilySerif
+	case CaptionPreferencesUpdateFontFamilyMonospace:
+		*s = CaptionPreferencesUpdateFontFamilyMonospace
+	default:
+		*s = CaptionPreferencesUpdateFontFamily(v)
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s CaptionPreferencesUpdateFontFamily) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *CaptionPreferencesUpdateFontFamily) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes CaptionPreferencesUpdateFontSize as json.
+func (s CaptionPreferencesUpdateFontSize) Encode(e *jx.Encoder) {
+	e.Str(string(s))
+}
+
+// Decode decodes CaptionPreferencesUpdateFontSize from json.
+func (s *CaptionPreferencesUpdateFontSize) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode CaptionPreferencesUpdateFontSize to nil")
+	}
+	v, err := d.StrBytes()
+	if err != nil {
+		return err
+	}
+	// Try to use constant string.
+	switch CaptionPreferencesUpdateFontSize(v) {
+	case CaptionPreferencesUpdateFontSizeSmall:
+		*s = CaptionPreferencesUpdateFontSizeSmall
+	case CaptionPreferencesUpdateFontSizeMedium:
+		*s = CaptionPreferencesUpdateFontSizeMedium
+	case CaptionPreferencesUpdateFontSizeLarge:
+		*s = CaptionPreferencesUpdateFontSizeLarge
+	default:
+		*s = CaptionPreferencesUpdateFontSize(v)
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s CaptionPreferencesUpdateFontSize) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *CaptionPreferencesUpdateFontSize) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
 func (s *ChannelCreateRequest) Encode(e *jx.Encoder) {
 	e.ObjStart()
 	s.encodeFields(e)
@@ -18000,6 +18780,138 @@ func (s *OptBool) UnmarshalJSON(data []byte) error {
 	return s.Decode(d)
 }
 
+// Encode encodes CaptionPreferencesUpdate as json.
+func (o OptCaptionPreferencesUpdate) Encode(e *jx.Encoder) {
+	if !o.Set {
+		return
+	}
+	o.Value.Encode(e)
+}
+
+// Decode decodes CaptionPreferencesUpdate from json.
+func (o *OptCaptionPreferencesUpdate) Decode(d *jx.Decoder) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode OptCaptionPreferencesUpdate to nil")
+	}
+	o.Set = true
+	if err := o.Value.Decode(d); err != nil {
+		return err
+	}
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OptCaptionPreferencesUpdate) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OptCaptionPreferencesUpdate) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes CaptionPreferencesUpdateEdgeStyle as json.
+func (o OptCaptionPreferencesUpdateEdgeStyle) Encode(e *jx.Encoder) {
+	if !o.Set {
+		return
+	}
+	e.Str(string(o.Value))
+}
+
+// Decode decodes CaptionPreferencesUpdateEdgeStyle from json.
+func (o *OptCaptionPreferencesUpdateEdgeStyle) Decode(d *jx.Decoder) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode OptCaptionPreferencesUpdateEdgeStyle to nil")
+	}
+	o.Set = true
+	if err := o.Value.Decode(d); err != nil {
+		return err
+	}
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OptCaptionPreferencesUpdateEdgeStyle) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OptCaptionPreferencesUpdateEdgeStyle) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes CaptionPreferencesUpdateFontFamily as json.
+func (o OptCaptionPreferencesUpdateFontFamily) Encode(e *jx.Encoder) {
+	if !o.Set {
+		return
+	}
+	e.Str(string(o.Value))
+}
+
+// Decode decodes CaptionPreferencesUpdateFontFamily from json.
+func (o *OptCaptionPreferencesUpdateFontFamily) Decode(d *jx.Decoder) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode OptCaptionPreferencesUpdateFontFamily to nil")
+	}
+	o.Set = true
+	if err := o.Value.Decode(d); err != nil {
+		return err
+	}
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OptCaptionPreferencesUpdateFontFamily) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OptCaptionPreferencesUpdateFontFamily) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes CaptionPreferencesUpdateFontSize as json.
+func (o OptCaptionPreferencesUpdateFontSize) Encode(e *jx.Encoder) {
+	if !o.Set {
+		return
+	}
+	e.Str(string(o.Value))
+}
+
+// Decode decodes CaptionPreferencesUpdateFontSize from json.
+func (o *OptCaptionPreferencesUpdateFontSize) Decode(d *jx.Decoder) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode OptCaptionPreferencesUpdateFontSize to nil")
+	}
+	o.Set = true
+	if err := o.Value.Decode(d); err != nil {
+		return err
+	}
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OptCaptionPreferencesUpdateFontSize) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OptCaptionPreferencesUpdateFontSize) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
 // Encode encodes Checksum as json.
 func (o OptChecksum) Encode(e *jx.Encoder) {
 	if !o.Set {
@@ -18430,6 +19342,41 @@ func (s OptFileViewStateUpdatePreferences) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
 func (s *OptFileViewStateUpdatePreferences) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes float64 as json.
+func (o OptFloat64) Encode(e *jx.Encoder) {
+	if !o.Set {
+		return
+	}
+	e.Float64(float64(o.Value))
+}
+
+// Decode decodes float64 from json.
+func (o *OptFloat64) Decode(d *jx.Decoder) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode OptFloat64 to nil")
+	}
+	o.Set = true
+	v, err := d.Float64()
+	if err != nil {
+		return err
+	}
+	o.Value = float64(v)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OptFloat64) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OptFloat64) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
@@ -31227,6 +32174,10 @@ func (s *UserPreferences) encodeFields(e *jx.Encoder) {
 		s.Appearance.Encode(e)
 	}
 	{
+		e.FieldStart("captions")
+		s.Captions.Encode(e)
+	}
+	{
 		if s.UpdatedAt.Set {
 			e.FieldStart("updatedAt")
 			s.UpdatedAt.Encode(e, json.EncodeDateTime)
@@ -31234,11 +32185,12 @@ func (s *UserPreferences) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfUserPreferences = [4]string{
+var jsonFieldsNameOfUserPreferences = [5]string{
 	0: "uploads",
 	1: "files",
 	2: "appearance",
-	3: "updatedAt",
+	3: "captions",
+	4: "updatedAt",
 }
 
 // Decode decodes UserPreferences from json.
@@ -31280,6 +32232,16 @@ func (s *UserPreferences) Decode(d *jx.Decoder) error {
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"appearance\"")
 			}
+		case "captions":
+			requiredBitSet[0] |= 1 << 3
+			if err := func() error {
+				if err := s.Captions.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"captions\"")
+			}
 		case "updatedAt":
 			if err := func() error {
 				s.UpdatedAt.Reset()
@@ -31300,7 +32262,7 @@ func (s *UserPreferences) Decode(d *jx.Decoder) error {
 	// Validate required fields.
 	var failures []validate.FieldError
 	for i, mask := range [1]uint8{
-		0b00000111,
+		0b00001111,
 	} {
 		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
 			// Mask only required fields and check equality to mask using XOR.
@@ -31373,12 +32335,19 @@ func (s *UserPreferencesUpdate) encodeFields(e *jx.Encoder) {
 			s.Appearance.Encode(e)
 		}
 	}
+	{
+		if s.Captions.Set {
+			e.FieldStart("captions")
+			s.Captions.Encode(e)
+		}
+	}
 }
 
-var jsonFieldsNameOfUserPreferencesUpdate = [3]string{
+var jsonFieldsNameOfUserPreferencesUpdate = [4]string{
 	0: "uploads",
 	1: "files",
 	2: "appearance",
+	3: "captions",
 }
 
 // Decode decodes UserPreferencesUpdate from json.
@@ -31418,6 +32387,16 @@ func (s *UserPreferencesUpdate) Decode(d *jx.Decoder) error {
 				return nil
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"appearance\"")
+			}
+		case "captions":
+			if err := func() error {
+				s.Captions.Reset()
+				if err := s.Captions.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"captions\"")
 			}
 		default:
 			return d.Skip()

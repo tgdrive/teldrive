@@ -81,6 +81,7 @@ type Querier interface {
 	GetUser(ctx context.Context, userID int64) (*User, error)
 	GetUserEventCursorState(ctx context.Context, arg GetUserEventCursorStateParams) (*GetUserEventCursorStateRow, error)
 	GetUserPreferences(ctx context.Context, userID int64) (*UserPreference, error)
+	GetUserPreferencesForUpdate(ctx context.Context, userID int64) (*UserPreference, error)
 	HasShareDownloadSession(ctx context.Context, arg HasShareDownloadSessionParams) (bool, error)
 	IncrementShareDownloadCount(ctx context.Context, id pgtype.UUID) (*FileShare, error)
 	InsertAuditEvent(ctx context.Context, arg InsertAuditEventParams) (*AuditEvent, error)

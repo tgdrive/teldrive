@@ -734,6 +734,567 @@ type CancelJobUnauthorized ErrorEnvelope
 
 func (*CancelJobUnauthorized) cancelJobRes() {}
 
+// Account-wide subtitle styling and timing, independent of the browser player's local storage.
+// Ref: #/components/schemas/CaptionPreferences
+type CaptionPreferences struct {
+	FontSize          CaptionPreferencesFontSize   `json:"fontSize"`
+	FontScale         float64                      `json:"fontScale"`
+	FontFamily        CaptionPreferencesFontFamily `json:"fontFamily"`
+	TextColor         string                       `json:"textColor"`
+	TextOpacity       float64                      `json:"textOpacity"`
+	BackgroundColor   string                       `json:"backgroundColor"`
+	BackgroundOpacity float64                      `json:"backgroundOpacity"`
+	EdgeStyle         CaptionPreferencesEdgeStyle  `json:"edgeStyle"`
+	EdgeColor         string                       `json:"edgeColor"`
+	Position          float64                      `json:"position"`
+	LineHeight        float64                      `json:"lineHeight"`
+	Delay             float64                      `json:"delay"`
+}
+
+// GetFontSize returns the value of FontSize.
+func (s *CaptionPreferences) GetFontSize() CaptionPreferencesFontSize {
+	return s.FontSize
+}
+
+// GetFontScale returns the value of FontScale.
+func (s *CaptionPreferences) GetFontScale() float64 {
+	return s.FontScale
+}
+
+// GetFontFamily returns the value of FontFamily.
+func (s *CaptionPreferences) GetFontFamily() CaptionPreferencesFontFamily {
+	return s.FontFamily
+}
+
+// GetTextColor returns the value of TextColor.
+func (s *CaptionPreferences) GetTextColor() string {
+	return s.TextColor
+}
+
+// GetTextOpacity returns the value of TextOpacity.
+func (s *CaptionPreferences) GetTextOpacity() float64 {
+	return s.TextOpacity
+}
+
+// GetBackgroundColor returns the value of BackgroundColor.
+func (s *CaptionPreferences) GetBackgroundColor() string {
+	return s.BackgroundColor
+}
+
+// GetBackgroundOpacity returns the value of BackgroundOpacity.
+func (s *CaptionPreferences) GetBackgroundOpacity() float64 {
+	return s.BackgroundOpacity
+}
+
+// GetEdgeStyle returns the value of EdgeStyle.
+func (s *CaptionPreferences) GetEdgeStyle() CaptionPreferencesEdgeStyle {
+	return s.EdgeStyle
+}
+
+// GetEdgeColor returns the value of EdgeColor.
+func (s *CaptionPreferences) GetEdgeColor() string {
+	return s.EdgeColor
+}
+
+// GetPosition returns the value of Position.
+func (s *CaptionPreferences) GetPosition() float64 {
+	return s.Position
+}
+
+// GetLineHeight returns the value of LineHeight.
+func (s *CaptionPreferences) GetLineHeight() float64 {
+	return s.LineHeight
+}
+
+// GetDelay returns the value of Delay.
+func (s *CaptionPreferences) GetDelay() float64 {
+	return s.Delay
+}
+
+// SetFontSize sets the value of FontSize.
+func (s *CaptionPreferences) SetFontSize(val CaptionPreferencesFontSize) {
+	s.FontSize = val
+}
+
+// SetFontScale sets the value of FontScale.
+func (s *CaptionPreferences) SetFontScale(val float64) {
+	s.FontScale = val
+}
+
+// SetFontFamily sets the value of FontFamily.
+func (s *CaptionPreferences) SetFontFamily(val CaptionPreferencesFontFamily) {
+	s.FontFamily = val
+}
+
+// SetTextColor sets the value of TextColor.
+func (s *CaptionPreferences) SetTextColor(val string) {
+	s.TextColor = val
+}
+
+// SetTextOpacity sets the value of TextOpacity.
+func (s *CaptionPreferences) SetTextOpacity(val float64) {
+	s.TextOpacity = val
+}
+
+// SetBackgroundColor sets the value of BackgroundColor.
+func (s *CaptionPreferences) SetBackgroundColor(val string) {
+	s.BackgroundColor = val
+}
+
+// SetBackgroundOpacity sets the value of BackgroundOpacity.
+func (s *CaptionPreferences) SetBackgroundOpacity(val float64) {
+	s.BackgroundOpacity = val
+}
+
+// SetEdgeStyle sets the value of EdgeStyle.
+func (s *CaptionPreferences) SetEdgeStyle(val CaptionPreferencesEdgeStyle) {
+	s.EdgeStyle = val
+}
+
+// SetEdgeColor sets the value of EdgeColor.
+func (s *CaptionPreferences) SetEdgeColor(val string) {
+	s.EdgeColor = val
+}
+
+// SetPosition sets the value of Position.
+func (s *CaptionPreferences) SetPosition(val float64) {
+	s.Position = val
+}
+
+// SetLineHeight sets the value of LineHeight.
+func (s *CaptionPreferences) SetLineHeight(val float64) {
+	s.LineHeight = val
+}
+
+// SetDelay sets the value of Delay.
+func (s *CaptionPreferences) SetDelay(val float64) {
+	s.Delay = val
+}
+
+type CaptionPreferencesEdgeStyle string
+
+const (
+	CaptionPreferencesEdgeStyleNone    CaptionPreferencesEdgeStyle = "none"
+	CaptionPreferencesEdgeStyleShadow  CaptionPreferencesEdgeStyle = "shadow"
+	CaptionPreferencesEdgeStyleOutline CaptionPreferencesEdgeStyle = "outline"
+)
+
+// AllValues returns all CaptionPreferencesEdgeStyle values.
+func (CaptionPreferencesEdgeStyle) AllValues() []CaptionPreferencesEdgeStyle {
+	return []CaptionPreferencesEdgeStyle{
+		CaptionPreferencesEdgeStyleNone,
+		CaptionPreferencesEdgeStyleShadow,
+		CaptionPreferencesEdgeStyleOutline,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s CaptionPreferencesEdgeStyle) MarshalText() ([]byte, error) {
+	switch s {
+	case CaptionPreferencesEdgeStyleNone:
+		return []byte(s), nil
+	case CaptionPreferencesEdgeStyleShadow:
+		return []byte(s), nil
+	case CaptionPreferencesEdgeStyleOutline:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *CaptionPreferencesEdgeStyle) UnmarshalText(data []byte) error {
+	switch CaptionPreferencesEdgeStyle(data) {
+	case CaptionPreferencesEdgeStyleNone:
+		*s = CaptionPreferencesEdgeStyleNone
+		return nil
+	case CaptionPreferencesEdgeStyleShadow:
+		*s = CaptionPreferencesEdgeStyleShadow
+		return nil
+	case CaptionPreferencesEdgeStyleOutline:
+		*s = CaptionPreferencesEdgeStyleOutline
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+type CaptionPreferencesFontFamily string
+
+const (
+	CaptionPreferencesFontFamilySans      CaptionPreferencesFontFamily = "sans"
+	CaptionPreferencesFontFamilySerif     CaptionPreferencesFontFamily = "serif"
+	CaptionPreferencesFontFamilyMonospace CaptionPreferencesFontFamily = "monospace"
+)
+
+// AllValues returns all CaptionPreferencesFontFamily values.
+func (CaptionPreferencesFontFamily) AllValues() []CaptionPreferencesFontFamily {
+	return []CaptionPreferencesFontFamily{
+		CaptionPreferencesFontFamilySans,
+		CaptionPreferencesFontFamilySerif,
+		CaptionPreferencesFontFamilyMonospace,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s CaptionPreferencesFontFamily) MarshalText() ([]byte, error) {
+	switch s {
+	case CaptionPreferencesFontFamilySans:
+		return []byte(s), nil
+	case CaptionPreferencesFontFamilySerif:
+		return []byte(s), nil
+	case CaptionPreferencesFontFamilyMonospace:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *CaptionPreferencesFontFamily) UnmarshalText(data []byte) error {
+	switch CaptionPreferencesFontFamily(data) {
+	case CaptionPreferencesFontFamilySans:
+		*s = CaptionPreferencesFontFamilySans
+		return nil
+	case CaptionPreferencesFontFamilySerif:
+		*s = CaptionPreferencesFontFamilySerif
+		return nil
+	case CaptionPreferencesFontFamilyMonospace:
+		*s = CaptionPreferencesFontFamilyMonospace
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+type CaptionPreferencesFontSize string
+
+const (
+	CaptionPreferencesFontSizeSmall  CaptionPreferencesFontSize = "small"
+	CaptionPreferencesFontSizeMedium CaptionPreferencesFontSize = "medium"
+	CaptionPreferencesFontSizeLarge  CaptionPreferencesFontSize = "large"
+)
+
+// AllValues returns all CaptionPreferencesFontSize values.
+func (CaptionPreferencesFontSize) AllValues() []CaptionPreferencesFontSize {
+	return []CaptionPreferencesFontSize{
+		CaptionPreferencesFontSizeSmall,
+		CaptionPreferencesFontSizeMedium,
+		CaptionPreferencesFontSizeLarge,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s CaptionPreferencesFontSize) MarshalText() ([]byte, error) {
+	switch s {
+	case CaptionPreferencesFontSizeSmall:
+		return []byte(s), nil
+	case CaptionPreferencesFontSizeMedium:
+		return []byte(s), nil
+	case CaptionPreferencesFontSizeLarge:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *CaptionPreferencesFontSize) UnmarshalText(data []byte) error {
+	switch CaptionPreferencesFontSize(data) {
+	case CaptionPreferencesFontSizeSmall:
+		*s = CaptionPreferencesFontSizeSmall
+		return nil
+	case CaptionPreferencesFontSizeMedium:
+		*s = CaptionPreferencesFontSizeMedium
+		return nil
+	case CaptionPreferencesFontSizeLarge:
+		*s = CaptionPreferencesFontSizeLarge
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+// Ref: #/components/schemas/CaptionPreferencesUpdate
+type CaptionPreferencesUpdate struct {
+	FontSize          OptCaptionPreferencesUpdateFontSize   `json:"fontSize"`
+	FontScale         OptFloat64                            `json:"fontScale"`
+	FontFamily        OptCaptionPreferencesUpdateFontFamily `json:"fontFamily"`
+	TextColor         OptString                             `json:"textColor"`
+	TextOpacity       OptFloat64                            `json:"textOpacity"`
+	BackgroundColor   OptString                             `json:"backgroundColor"`
+	BackgroundOpacity OptFloat64                            `json:"backgroundOpacity"`
+	EdgeStyle         OptCaptionPreferencesUpdateEdgeStyle  `json:"edgeStyle"`
+	EdgeColor         OptString                             `json:"edgeColor"`
+	Position          OptFloat64                            `json:"position"`
+	LineHeight        OptFloat64                            `json:"lineHeight"`
+	Delay             OptFloat64                            `json:"delay"`
+}
+
+// GetFontSize returns the value of FontSize.
+func (s *CaptionPreferencesUpdate) GetFontSize() OptCaptionPreferencesUpdateFontSize {
+	return s.FontSize
+}
+
+// GetFontScale returns the value of FontScale.
+func (s *CaptionPreferencesUpdate) GetFontScale() OptFloat64 {
+	return s.FontScale
+}
+
+// GetFontFamily returns the value of FontFamily.
+func (s *CaptionPreferencesUpdate) GetFontFamily() OptCaptionPreferencesUpdateFontFamily {
+	return s.FontFamily
+}
+
+// GetTextColor returns the value of TextColor.
+func (s *CaptionPreferencesUpdate) GetTextColor() OptString {
+	return s.TextColor
+}
+
+// GetTextOpacity returns the value of TextOpacity.
+func (s *CaptionPreferencesUpdate) GetTextOpacity() OptFloat64 {
+	return s.TextOpacity
+}
+
+// GetBackgroundColor returns the value of BackgroundColor.
+func (s *CaptionPreferencesUpdate) GetBackgroundColor() OptString {
+	return s.BackgroundColor
+}
+
+// GetBackgroundOpacity returns the value of BackgroundOpacity.
+func (s *CaptionPreferencesUpdate) GetBackgroundOpacity() OptFloat64 {
+	return s.BackgroundOpacity
+}
+
+// GetEdgeStyle returns the value of EdgeStyle.
+func (s *CaptionPreferencesUpdate) GetEdgeStyle() OptCaptionPreferencesUpdateEdgeStyle {
+	return s.EdgeStyle
+}
+
+// GetEdgeColor returns the value of EdgeColor.
+func (s *CaptionPreferencesUpdate) GetEdgeColor() OptString {
+	return s.EdgeColor
+}
+
+// GetPosition returns the value of Position.
+func (s *CaptionPreferencesUpdate) GetPosition() OptFloat64 {
+	return s.Position
+}
+
+// GetLineHeight returns the value of LineHeight.
+func (s *CaptionPreferencesUpdate) GetLineHeight() OptFloat64 {
+	return s.LineHeight
+}
+
+// GetDelay returns the value of Delay.
+func (s *CaptionPreferencesUpdate) GetDelay() OptFloat64 {
+	return s.Delay
+}
+
+// SetFontSize sets the value of FontSize.
+func (s *CaptionPreferencesUpdate) SetFontSize(val OptCaptionPreferencesUpdateFontSize) {
+	s.FontSize = val
+}
+
+// SetFontScale sets the value of FontScale.
+func (s *CaptionPreferencesUpdate) SetFontScale(val OptFloat64) {
+	s.FontScale = val
+}
+
+// SetFontFamily sets the value of FontFamily.
+func (s *CaptionPreferencesUpdate) SetFontFamily(val OptCaptionPreferencesUpdateFontFamily) {
+	s.FontFamily = val
+}
+
+// SetTextColor sets the value of TextColor.
+func (s *CaptionPreferencesUpdate) SetTextColor(val OptString) {
+	s.TextColor = val
+}
+
+// SetTextOpacity sets the value of TextOpacity.
+func (s *CaptionPreferencesUpdate) SetTextOpacity(val OptFloat64) {
+	s.TextOpacity = val
+}
+
+// SetBackgroundColor sets the value of BackgroundColor.
+func (s *CaptionPreferencesUpdate) SetBackgroundColor(val OptString) {
+	s.BackgroundColor = val
+}
+
+// SetBackgroundOpacity sets the value of BackgroundOpacity.
+func (s *CaptionPreferencesUpdate) SetBackgroundOpacity(val OptFloat64) {
+	s.BackgroundOpacity = val
+}
+
+// SetEdgeStyle sets the value of EdgeStyle.
+func (s *CaptionPreferencesUpdate) SetEdgeStyle(val OptCaptionPreferencesUpdateEdgeStyle) {
+	s.EdgeStyle = val
+}
+
+// SetEdgeColor sets the value of EdgeColor.
+func (s *CaptionPreferencesUpdate) SetEdgeColor(val OptString) {
+	s.EdgeColor = val
+}
+
+// SetPosition sets the value of Position.
+func (s *CaptionPreferencesUpdate) SetPosition(val OptFloat64) {
+	s.Position = val
+}
+
+// SetLineHeight sets the value of LineHeight.
+func (s *CaptionPreferencesUpdate) SetLineHeight(val OptFloat64) {
+	s.LineHeight = val
+}
+
+// SetDelay sets the value of Delay.
+func (s *CaptionPreferencesUpdate) SetDelay(val OptFloat64) {
+	s.Delay = val
+}
+
+type CaptionPreferencesUpdateEdgeStyle string
+
+const (
+	CaptionPreferencesUpdateEdgeStyleNone    CaptionPreferencesUpdateEdgeStyle = "none"
+	CaptionPreferencesUpdateEdgeStyleShadow  CaptionPreferencesUpdateEdgeStyle = "shadow"
+	CaptionPreferencesUpdateEdgeStyleOutline CaptionPreferencesUpdateEdgeStyle = "outline"
+)
+
+// AllValues returns all CaptionPreferencesUpdateEdgeStyle values.
+func (CaptionPreferencesUpdateEdgeStyle) AllValues() []CaptionPreferencesUpdateEdgeStyle {
+	return []CaptionPreferencesUpdateEdgeStyle{
+		CaptionPreferencesUpdateEdgeStyleNone,
+		CaptionPreferencesUpdateEdgeStyleShadow,
+		CaptionPreferencesUpdateEdgeStyleOutline,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s CaptionPreferencesUpdateEdgeStyle) MarshalText() ([]byte, error) {
+	switch s {
+	case CaptionPreferencesUpdateEdgeStyleNone:
+		return []byte(s), nil
+	case CaptionPreferencesUpdateEdgeStyleShadow:
+		return []byte(s), nil
+	case CaptionPreferencesUpdateEdgeStyleOutline:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *CaptionPreferencesUpdateEdgeStyle) UnmarshalText(data []byte) error {
+	switch CaptionPreferencesUpdateEdgeStyle(data) {
+	case CaptionPreferencesUpdateEdgeStyleNone:
+		*s = CaptionPreferencesUpdateEdgeStyleNone
+		return nil
+	case CaptionPreferencesUpdateEdgeStyleShadow:
+		*s = CaptionPreferencesUpdateEdgeStyleShadow
+		return nil
+	case CaptionPreferencesUpdateEdgeStyleOutline:
+		*s = CaptionPreferencesUpdateEdgeStyleOutline
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+type CaptionPreferencesUpdateFontFamily string
+
+const (
+	CaptionPreferencesUpdateFontFamilySans      CaptionPreferencesUpdateFontFamily = "sans"
+	CaptionPreferencesUpdateFontFamilySerif     CaptionPreferencesUpdateFontFamily = "serif"
+	CaptionPreferencesUpdateFontFamilyMonospace CaptionPreferencesUpdateFontFamily = "monospace"
+)
+
+// AllValues returns all CaptionPreferencesUpdateFontFamily values.
+func (CaptionPreferencesUpdateFontFamily) AllValues() []CaptionPreferencesUpdateFontFamily {
+	return []CaptionPreferencesUpdateFontFamily{
+		CaptionPreferencesUpdateFontFamilySans,
+		CaptionPreferencesUpdateFontFamilySerif,
+		CaptionPreferencesUpdateFontFamilyMonospace,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s CaptionPreferencesUpdateFontFamily) MarshalText() ([]byte, error) {
+	switch s {
+	case CaptionPreferencesUpdateFontFamilySans:
+		return []byte(s), nil
+	case CaptionPreferencesUpdateFontFamilySerif:
+		return []byte(s), nil
+	case CaptionPreferencesUpdateFontFamilyMonospace:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *CaptionPreferencesUpdateFontFamily) UnmarshalText(data []byte) error {
+	switch CaptionPreferencesUpdateFontFamily(data) {
+	case CaptionPreferencesUpdateFontFamilySans:
+		*s = CaptionPreferencesUpdateFontFamilySans
+		return nil
+	case CaptionPreferencesUpdateFontFamilySerif:
+		*s = CaptionPreferencesUpdateFontFamilySerif
+		return nil
+	case CaptionPreferencesUpdateFontFamilyMonospace:
+		*s = CaptionPreferencesUpdateFontFamilyMonospace
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
+type CaptionPreferencesUpdateFontSize string
+
+const (
+	CaptionPreferencesUpdateFontSizeSmall  CaptionPreferencesUpdateFontSize = "small"
+	CaptionPreferencesUpdateFontSizeMedium CaptionPreferencesUpdateFontSize = "medium"
+	CaptionPreferencesUpdateFontSizeLarge  CaptionPreferencesUpdateFontSize = "large"
+)
+
+// AllValues returns all CaptionPreferencesUpdateFontSize values.
+func (CaptionPreferencesUpdateFontSize) AllValues() []CaptionPreferencesUpdateFontSize {
+	return []CaptionPreferencesUpdateFontSize{
+		CaptionPreferencesUpdateFontSizeSmall,
+		CaptionPreferencesUpdateFontSizeMedium,
+		CaptionPreferencesUpdateFontSizeLarge,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s CaptionPreferencesUpdateFontSize) MarshalText() ([]byte, error) {
+	switch s {
+	case CaptionPreferencesUpdateFontSizeSmall:
+		return []byte(s), nil
+	case CaptionPreferencesUpdateFontSizeMedium:
+		return []byte(s), nil
+	case CaptionPreferencesUpdateFontSizeLarge:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *CaptionPreferencesUpdateFontSize) UnmarshalText(data []byte) error {
+	switch CaptionPreferencesUpdateFontSize(data) {
+	case CaptionPreferencesUpdateFontSizeSmall:
+		*s = CaptionPreferencesUpdateFontSizeSmall
+		return nil
+	case CaptionPreferencesUpdateFontSizeMedium:
+		*s = CaptionPreferencesUpdateFontSizeMedium
+		return nil
+	case CaptionPreferencesUpdateFontSizeLarge:
+		*s = CaptionPreferencesUpdateFontSizeLarge
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
+}
+
 // Ref: #/components/schemas/ChannelCreateRequest
 type ChannelCreateRequest struct {
 	// Optional display name. Telegram may choose the final title.
@@ -7420,6 +7981,190 @@ func (o OptBool) Or(d bool) bool {
 	return d
 }
 
+// NewOptCaptionPreferencesUpdate returns new OptCaptionPreferencesUpdate with value set to v.
+func NewOptCaptionPreferencesUpdate(v CaptionPreferencesUpdate) OptCaptionPreferencesUpdate {
+	return OptCaptionPreferencesUpdate{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptCaptionPreferencesUpdate is optional CaptionPreferencesUpdate.
+type OptCaptionPreferencesUpdate struct {
+	Value CaptionPreferencesUpdate
+	Set   bool
+}
+
+// IsSet returns true if OptCaptionPreferencesUpdate was set.
+func (o OptCaptionPreferencesUpdate) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptCaptionPreferencesUpdate) Reset() {
+	var v CaptionPreferencesUpdate
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptCaptionPreferencesUpdate) SetTo(v CaptionPreferencesUpdate) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptCaptionPreferencesUpdate) Get() (v CaptionPreferencesUpdate, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptCaptionPreferencesUpdate) Or(d CaptionPreferencesUpdate) CaptionPreferencesUpdate {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptCaptionPreferencesUpdateEdgeStyle returns new OptCaptionPreferencesUpdateEdgeStyle with value set to v.
+func NewOptCaptionPreferencesUpdateEdgeStyle(v CaptionPreferencesUpdateEdgeStyle) OptCaptionPreferencesUpdateEdgeStyle {
+	return OptCaptionPreferencesUpdateEdgeStyle{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptCaptionPreferencesUpdateEdgeStyle is optional CaptionPreferencesUpdateEdgeStyle.
+type OptCaptionPreferencesUpdateEdgeStyle struct {
+	Value CaptionPreferencesUpdateEdgeStyle
+	Set   bool
+}
+
+// IsSet returns true if OptCaptionPreferencesUpdateEdgeStyle was set.
+func (o OptCaptionPreferencesUpdateEdgeStyle) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptCaptionPreferencesUpdateEdgeStyle) Reset() {
+	var v CaptionPreferencesUpdateEdgeStyle
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptCaptionPreferencesUpdateEdgeStyle) SetTo(v CaptionPreferencesUpdateEdgeStyle) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptCaptionPreferencesUpdateEdgeStyle) Get() (v CaptionPreferencesUpdateEdgeStyle, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptCaptionPreferencesUpdateEdgeStyle) Or(d CaptionPreferencesUpdateEdgeStyle) CaptionPreferencesUpdateEdgeStyle {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptCaptionPreferencesUpdateFontFamily returns new OptCaptionPreferencesUpdateFontFamily with value set to v.
+func NewOptCaptionPreferencesUpdateFontFamily(v CaptionPreferencesUpdateFontFamily) OptCaptionPreferencesUpdateFontFamily {
+	return OptCaptionPreferencesUpdateFontFamily{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptCaptionPreferencesUpdateFontFamily is optional CaptionPreferencesUpdateFontFamily.
+type OptCaptionPreferencesUpdateFontFamily struct {
+	Value CaptionPreferencesUpdateFontFamily
+	Set   bool
+}
+
+// IsSet returns true if OptCaptionPreferencesUpdateFontFamily was set.
+func (o OptCaptionPreferencesUpdateFontFamily) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptCaptionPreferencesUpdateFontFamily) Reset() {
+	var v CaptionPreferencesUpdateFontFamily
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptCaptionPreferencesUpdateFontFamily) SetTo(v CaptionPreferencesUpdateFontFamily) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptCaptionPreferencesUpdateFontFamily) Get() (v CaptionPreferencesUpdateFontFamily, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptCaptionPreferencesUpdateFontFamily) Or(d CaptionPreferencesUpdateFontFamily) CaptionPreferencesUpdateFontFamily {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptCaptionPreferencesUpdateFontSize returns new OptCaptionPreferencesUpdateFontSize with value set to v.
+func NewOptCaptionPreferencesUpdateFontSize(v CaptionPreferencesUpdateFontSize) OptCaptionPreferencesUpdateFontSize {
+	return OptCaptionPreferencesUpdateFontSize{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptCaptionPreferencesUpdateFontSize is optional CaptionPreferencesUpdateFontSize.
+type OptCaptionPreferencesUpdateFontSize struct {
+	Value CaptionPreferencesUpdateFontSize
+	Set   bool
+}
+
+// IsSet returns true if OptCaptionPreferencesUpdateFontSize was set.
+func (o OptCaptionPreferencesUpdateFontSize) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptCaptionPreferencesUpdateFontSize) Reset() {
+	var v CaptionPreferencesUpdateFontSize
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptCaptionPreferencesUpdateFontSize) SetTo(v CaptionPreferencesUpdateFontSize) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptCaptionPreferencesUpdateFontSize) Get() (v CaptionPreferencesUpdateFontSize, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptCaptionPreferencesUpdateFontSize) Or(d CaptionPreferencesUpdateFontSize) CaptionPreferencesUpdateFontSize {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
 // NewOptChecksum returns new OptChecksum with value set to v.
 func NewOptChecksum(v Checksum) OptChecksum {
 	return OptChecksum{
@@ -8380,6 +9125,52 @@ func (o OptFileViewStateUpdatePreferences) Get() (v FileViewStateUpdatePreferenc
 
 // Or returns value if set, or given parameter if does not.
 func (o OptFileViewStateUpdatePreferences) Or(d FileViewStateUpdatePreferences) FileViewStateUpdatePreferences {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptFloat64 returns new OptFloat64 with value set to v.
+func NewOptFloat64(v float64) OptFloat64 {
+	return OptFloat64{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptFloat64 is optional float64.
+type OptFloat64 struct {
+	Value float64
+	Set   bool
+}
+
+// IsSet returns true if OptFloat64 was set.
+func (o OptFloat64) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptFloat64) Reset() {
+	var v float64
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptFloat64) SetTo(v float64) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptFloat64) Get() (v float64, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptFloat64) Or(d float64) float64 {
 	if v, ok := o.Get(); ok {
 		return v
 	}
@@ -12898,6 +13689,7 @@ type UserPreferences struct {
 	Uploads    UploadPreferences      `json:"uploads"`
 	Files      FileBrowserPreferences `json:"files"`
 	Appearance AppearancePreferences  `json:"appearance"`
+	Captions   CaptionPreferences     `json:"captions"`
 	// Last explicit change; absent while every value is still the server default.
 	UpdatedAt OptDateTime `json:"updatedAt"`
 }
@@ -12915,6 +13707,11 @@ func (s *UserPreferences) GetFiles() FileBrowserPreferences {
 // GetAppearance returns the value of Appearance.
 func (s *UserPreferences) GetAppearance() AppearancePreferences {
 	return s.Appearance
+}
+
+// GetCaptions returns the value of Captions.
+func (s *UserPreferences) GetCaptions() CaptionPreferences {
+	return s.Captions
 }
 
 // GetUpdatedAt returns the value of UpdatedAt.
@@ -12937,6 +13734,11 @@ func (s *UserPreferences) SetAppearance(val AppearancePreferences) {
 	s.Appearance = val
 }
 
+// SetCaptions sets the value of Captions.
+func (s *UserPreferences) SetCaptions(val CaptionPreferences) {
+	s.Captions = val
+}
+
 // SetUpdatedAt sets the value of UpdatedAt.
 func (s *UserPreferences) SetUpdatedAt(val OptDateTime) {
 	s.UpdatedAt = val
@@ -12951,6 +13753,7 @@ type UserPreferencesUpdate struct {
 	Uploads    OptUploadPreferencesUpdate      `json:"uploads"`
 	Files      OptFileBrowserPreferencesUpdate `json:"files"`
 	Appearance OptAppearancePreferencesUpdate  `json:"appearance"`
+	Captions   OptCaptionPreferencesUpdate     `json:"captions"`
 }
 
 // GetUploads returns the value of Uploads.
@@ -12968,6 +13771,11 @@ func (s *UserPreferencesUpdate) GetAppearance() OptAppearancePreferencesUpdate {
 	return s.Appearance
 }
 
+// GetCaptions returns the value of Captions.
+func (s *UserPreferencesUpdate) GetCaptions() OptCaptionPreferencesUpdate {
+	return s.Captions
+}
+
 // SetUploads sets the value of Uploads.
 func (s *UserPreferencesUpdate) SetUploads(val OptUploadPreferencesUpdate) {
 	s.Uploads = val
@@ -12981,6 +13789,11 @@ func (s *UserPreferencesUpdate) SetFiles(val OptFileBrowserPreferencesUpdate) {
 // SetAppearance sets the value of Appearance.
 func (s *UserPreferencesUpdate) SetAppearance(val OptAppearancePreferencesUpdate) {
 	s.Appearance = val
+}
+
+// SetCaptions sets the value of Captions.
+func (s *UserPreferencesUpdate) SetCaptions(val OptCaptionPreferencesUpdate) {
+	s.Captions = val
 }
 
 // Ref: #/components/schemas/UserProfile

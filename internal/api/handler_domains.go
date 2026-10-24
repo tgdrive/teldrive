@@ -732,7 +732,7 @@ func (h *Handler) GetPublicShare(ctx context.Context, params gen.GetPublicShareP
 	// leaves the feature off.
 	if h.Auth != nil {
 		if preferences, err := h.Auth.Preferences(ctx, resolved.Share.OwnerID); err == nil {
-			response.EmbeddedTracks = preferences.EmbeddedTracksOnShares
+			response.EmbeddedTracks = preferences.Appearance.EmbeddedTracksOnShares
 		}
 	}
 	return &response, nil

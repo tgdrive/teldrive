@@ -13,7 +13,7 @@
         "@tanstack/react-form": "^1.33.5",
         "@tanstack/react-query": "^5.104.5",
         "@tanstack/react-router": "^1.170.46",
-        "@vplayer/react": "^0.4.3",
+        "@vplayer/react": "0.4.4",
         "foliate-js": "https://github.com/johnfactotum/foliate-js/archive/399248a67a8862ffb5e6463a33f9d52b317ca2eb.tar.gz",
         "openapi-fetch": "^0.17.0",
         "openapi-react-query": "^0.5.4",
@@ -503,9 +503,9 @@
 
     "@vitejs/plugin-react": ["@vitejs/plugin-react@6.1.2", "", { "dependencies": { "@rolldown/pluginutils": "^1.0.1" }, "peerDependencies": { "@rolldown/plugin-babel": "^0.1.7 || ^0.2.0", "babel-plugin-react-compiler": "^1.0.0", "oxc-transform-react": "^0.152.0", "vite": "^8.0.0" }, "optionalPeers": ["@rolldown/plugin-babel", "babel-plugin-react-compiler", "oxc-transform-react"] }, "sha512-fhJNGUdscQa4HkI0xFxwonWyhnVReCPDbXI7FH7jmzpnVCrFQI7PRrhWecO263610vOrs9tr2Y4xcf8uAdFxbw=="],
 
-    "@vplayer/core": ["@vplayer/core@0.4.3", "", { "dependencies": { "@mediabunny/ac3": "1.61.4", "@tanstack/store": "^0.11.1", "dashjs": "^5.2.1", "hls.js": "^1.7.1", "mediabunny": "1.61.4" } }, "sha512-xE7bItkynNoCP3LlvxazgZix/8a+BcbOnq5Jn4XB/kFcxXSeI1+tq66fSjXHZW3wNL8siuNta3OHos+mJF8/iw=="],
+    "@vplayer/core": ["@vplayer/core@0.4.4", "", { "dependencies": { "@mediabunny/ac3": "1.61.4", "@tanstack/store": "^0.11.1", "dashjs": "^5.2.1", "hls.js": "^1.7.1", "mediabunny": "1.61.4" } }, "sha512-Pv+Smly6JX3yyOhqvWHUlAvzXwvB/LopqIGqMEfs9FNTWV4v0nn9RjAefxDtYgXtAPox0h9fAkx44e7x5hPujw=="],
 
-    "@vplayer/react": ["@vplayer/react@0.4.3", "", { "dependencies": { "@ark-ui/react": "5.39.1", "@tanstack/react-store": "^0.11.1", "@tanstack/store": "^0.11.1", "@vplayer/core": "^0.4.3", "clsx": "^2.1.1" }, "peerDependencies": { "react": ">=18.3.0 || >=19.0.0", "react-dom": ">=18.3.0 || >=19.0.0" } }, "sha512-5SuAUZ7kAEUlahVr+wmoX1FnNon9tOcEPfCWRHELoLzI0PHlfqTt5ehy/87KlCEJP8i6V395sT7P6Pzfm50CBw=="],
+    "@vplayer/react": ["@vplayer/react@0.4.4", "", { "dependencies": { "@ark-ui/react": "5.39.1", "@tanstack/react-store": "^0.11.1", "@tanstack/store": "^0.11.1", "@vplayer/core": "^0.4.4", "clsx": "^2.1.1" }, "peerDependencies": { "react": ">=18.3.0 || >=19.0.0", "react-dom": ">=18.3.0 || >=19.0.0" } }, "sha512-Qn1dzL7w/coqs+Fr9fqmbDDvY0pgThS9aBM5PF0evzcgbw6pgPz84La9dnid2BGHm6lrNZPV5XLfEjBUfKLgWg=="],
 
     "@zag-js/accordion": ["@zag-js/accordion@1.43.3", "", { "dependencies": { "@zag-js/anatomy": "1.43.3", "@zag-js/core": "1.43.3", "@zag-js/dom-query": "1.43.3", "@zag-js/types": "1.43.3", "@zag-js/utils": "1.43.3" } }, "sha512-J6rGbMPXhYDa2dLgp66DPpwC3OcNAJH71kuGakz7SfCvQWiR9lIyB26G/QdSjJjf0rVARM8rN90e5PxZjYdWjA=="],
 

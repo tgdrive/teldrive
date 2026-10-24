@@ -306,6 +306,96 @@ test("PDF download link targets the untouched original and read-only interaction
   expect(mutations).toEqual([]);
 });
 
+test("caption settings save on the account and control the player instead of browser caption storage", async ({
+  page,
+}) => {
+  await installViewerApi(page, []);
+  const preferences = await installPreferencesApi(page);
+  const videoId = "73333333-3333-4333-8333-333333333333";
+  const clip = readFileSync(new URL("./fixtures/viewers/sample.webm", import.meta.url));
+  await page.route("**/api/v1/files?**", (route) =>
+    route.fulfill({
+      json: { items: [file(videoId, "caption-sample.webm", "video/webm", clip.length)] },
+    }),
+  );
+  await page.route(`**/api/v1/files/${videoId}/content/**`, (route) =>
+    route.fulfill({ body: clip, contentType: "video/webm" }),
+  );
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "vplayer:captionSettings",
+      JSON.stringify({ fontFamily: "monospace", fontScale: 180 }),
+    ),
+  );
+  await page.goto("/settings/player");
+  await page.getByRole("button", { name: / Font$/ }).click();
+  await page.getByRole("option", { name: "Serif", exact: true }).click();
+  await page.getByRole("button", { name: "Text color", exact: true }).click();
+  const colorField = page.getByRole("textbox", { name: "Text color", exact: true });
+  await colorField.fill("#00ff00");
+  await colorField.press("Enter");
+  await colorField.press("Escape");
+  const scale = page.getByRole("slider", { name: "Scale", exact: true });
+  await scale.focus();
+  for (let i = 0; i < 5; i++) await scale.press("ArrowRight");
+  await expect(scale).toHaveValue("125");
+  await expect(page.locator("[data-caption-preview]")).toHaveCSS("font-family", "Georgia, serif");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect
+    .poll(() => preferences.current().captions)
+    .toMatchObject({ fontFamily: "serif", fontScale: 125, textColor: "#00ff00" });
+  await page.reload();
+  await expect(page.getByRole("button", { name: / Font$/ })).toContainText("Serif");
+  await expect(scale).toHaveValue("125");
+  await page.goto("/files?view=list");
+  await openFile(page, "caption-sample.webm");
+  const player = page.locator(".vplayer");
+  await expect(player.locator("video")).toBeVisible({ timeout: 30_000 });
+  await player.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByText("Subtitles", { exact: true }).click();
+  await expect(page.getByText("Caption appearance", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Load subtitle file…", { exact: true })).toBeVisible();
+  await player.locator('input[type="file"]').setInputFiles({
+    name: "test.srt",
+    mimeType: "application/x-subrip",
+    buffer: Buffer.from("1\n00:00:00,000 --> 00:00:30,000\nAccount caption style"),
+  });
+  await expect(player.locator(".vplayer__caption-cue")).toHaveText("Account caption style");
+  await expect(player.locator(".vplayer__caption-cue")).toHaveCSS(
+    "font-family",
+    "Georgia, Cambria, serif",
+  );
+  await expect
+    .poll(() =>
+      player
+        .locator(".vplayer__captions")
+        .evaluate((el) => (el as HTMLElement).style.getPropertyValue("--vplayer-caption-size")),
+    )
+    .toContain("1.1875rem");
+});
+
+test("failed caption saves keep the account preferences unchanged and can be retried", async ({
+  page,
+}) => {
+  await installViewerApi(page, []);
+  const preferences = await installPreferencesApi(page);
+  await page.route("**/api/v1/me/preferences", (route) =>
+    route.request().method() === "PATCH"
+      ? route.fulfill({
+          status: 500,
+          json: { error: { code: "internal", message: "Save failed" } },
+        })
+      : route.fallback(),
+  );
+  await page.goto("/settings/player");
+  await page.getByRole("button", { name: / Font$/ }).click();
+  await page.getByRole("option", { name: "Serif", exact: true }).click();
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.locator('[data-sonner-toast][data-type="error"]')).toBeVisible();
+  expect(preferences.current().captions.fontFamily).toBe("sans");
+  await expect(page.getByRole("button", { name: "Save", exact: true })).toBeEnabled();
+});
+
 async function seedDocumentSettings(page: Page) {
   await page.addInitScript(() => {
     if (window === parent && !localStorage.getItem("teldrive.document-settings.v1")) {
@@ -519,7 +609,7 @@ test("document cache settings clear stored content and disabling stops caching",
     downloads++;
     return route.fulfill({ body: pdf, contentType: "application/pdf", headers: { ETag: '"v1"' } });
   });
-  await page.goto("/settings/appearance");
+  await page.goto("/settings/reader");
   const toggle = page.getByRole("switch", { name: "Keep documents in this browser", exact: true });
   await expect(toggle).not.toBeChecked();
   await toggle.focus();
@@ -529,7 +619,7 @@ test("document cache settings clear stored content and disabling stops caching",
   await page.goto("/files?view=list");
   let dialog = await openPreparedPdf(page);
   await dialog.getByRole("button", { name: "Close PDF reader", exact: true }).click();
-  await page.goto("/settings/appearance");
+  await page.goto("/settings/reader");
   await expect(page.getByLabel("Cached documents", { exact: true })).toContainText("1 documents");
   await page.getByRole("button", { name: "Clear document cache", exact: true }).click();
   await expect(page.getByLabel("Cached documents", { exact: true })).toContainText("0 documents");
@@ -563,7 +653,7 @@ test("clearing document cache in another tab prevents an in-flight fetch from re
   const request = await pending;
   const settings = await context.newPage();
   await installViewerApi(settings, []);
-  await settings.goto("/settings/appearance");
+  await settings.goto("/settings/reader");
   await settings.getByRole("button", { name: "Clear document cache", exact: true }).click();
   await expect(
     settings.getByRole("button", { name: "Clear document cache", exact: true }),
@@ -643,7 +733,7 @@ test("document cache evicts least recently opened content when its size limit sh
 }) => {
   await seedDocumentSettings(page);
   await installViewerApi(page, []);
-  await page.goto("/settings/appearance");
+  await page.goto("/settings/reader");
   const limit = page.getByRole("combobox", { name: "Document cache size", exact: true });
   await limit.selectOption("64");
   await expect(limit).toBeEnabled();

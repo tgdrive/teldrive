@@ -44,8 +44,7 @@ import { $api } from "../api/client";
 import { isUnauthorized, userMessage } from "../api/errors";
 import { currentUserQueryOptions } from "../auth/queries";
 import { UploadShelf } from "../components/upload-shelf";
-import { importLegacyEmbeddedTracks } from "../lib/player-settings";
-import { importLegacyPreferences, preferencesQueryOptions } from "../lib/preferences";
+import { preferencesQueryOptions } from "../lib/preferences";
 import { getQueryClient } from "../lib/queryClient";
 
 const mainNav = [
@@ -552,8 +551,6 @@ export const Route = createRootRouteWithContext<RouterContext>()({
         replace: true,
       });
     }
-    await importLegacyPreferences();
-    await importLegacyEmbeddedTracks();
   },
   component: Layout,
 });

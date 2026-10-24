@@ -713,7 +713,7 @@ test("account encryption default applies to settings, uploads, and URL imports",
   await expect(dialog.getByRole("switch", { name: "Encrypt uploaded files" })).toBeChecked();
 });
 
-test("legacy browser upload and sort settings import once into an account without preferences", async ({
+test("old browser upload and sort settings do not repopulate account preferences", async ({
   page,
 }) => {
   const preferences = await installPreferencesApi(page);
@@ -732,31 +732,16 @@ test("legacy browser upload and sort settings import once into an account withou
   });
 
   await page.goto("/files");
-  await expect
-    .poll(() => preferences.patches)
-    .toEqual([
-      {
-        uploads: {
-          encryption: true,
-          conflictPolicy: "fail",
-          concurrency: 5,
-          preferredPartSize: 528 * 1024 * 1024,
-        },
-        files: { sort: "size", order: "desc" },
-      },
-    ]);
-  await expect
-    .poll(() => page.evaluate(() => localStorage.getItem("teldrive.upload-settings.v2")))
-    .toBeNull();
-  await expect.poll(() => page.evaluate(() => localStorage.getItem("file-sort"))).toBeNull();
+  await expect(page.getByTestId("file-drop-zone")).toBeVisible();
+  expect(preferences.patches).toEqual([]);
   expect(preferences.current()).toMatchObject({
-    uploads: { encryption: true, conflictPolicy: "fail", concurrency: 5 },
-    files: { sort: "size", order: "desc" },
+    uploads: { encryption: false, conflictPolicy: "rename", concurrency: 3 },
+    files: { sort: "name", order: "asc" },
   });
 
   await page.reload();
   await expect(page.getByTestId("file-drop-zone")).toBeVisible();
-  expect(preferences.patches).toHaveLength(1);
+  expect(preferences.patches).toHaveLength(0);
 });
 
 test("another account on the same browser does not import the previous account's appearance", async ({

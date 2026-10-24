@@ -1,9 +1,11 @@
-import { VideoPlayer } from "@vplayer/react";
+import { DEFAULT_CAPTION_SETTINGS, VideoPlayer } from "@vplayer/react";
 import "@vplayer/react/player.css";
 import { useEffect, useRef } from "react";
 import type { FileEntry } from "@/api/types";
 import { previewMedia } from "@/features/files/preview-support";
+import { useAppLocale } from "@/lib/locale";
 import { useEmbeddedTracks } from "@/lib/player-settings";
+import { usePreferences } from "@/lib/preferences";
 
 export function VideoViewer({
   file,
@@ -16,7 +18,9 @@ export function VideoViewer({
   embeddedTracks?: boolean;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
-  // Off unless it is turned on in Settings → Appearance (in this browser, or by the owner for their
+  const { locale } = useAppLocale();
+  const captions = usePreferences()?.captions ?? DEFAULT_CAPTION_SETTINGS;
+  // Off unless it is turned on in Settings → Player (on the account, or by the owner for their
   // public shares); while it is off the player does not look inside the file at all.
   const [browserSetting] = useEmbeddedTracks();
   const embeddedTracks = shareAllows ?? browserSetting;
@@ -43,6 +47,9 @@ export function VideoViewer({
           autoPlay
           defaultHotkeys
           persistPreferences
+          lang={locale}
+          captionSettings={captions}
+          captionSettingsMenu={false}
           embeddedTracks={embeddedTracks}
           // Fill the window and letterbox the picture inside, instead of the player's own
           // fixed 16:9 box, which left a small strip on a phone and overran a short window.

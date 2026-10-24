@@ -1709,11 +1709,36 @@ export interface components {
              */
             embeddedTracksOnShares: boolean;
         };
+        /** @description Account-wide subtitle styling and timing, independent of the browser player's local storage. */
+        CaptionPreferences: {
+            /** @enum {string} */
+            fontSize: "small" | "medium" | "large";
+            /** Format: double */
+            fontScale: number;
+            /** @enum {string} */
+            fontFamily: "sans" | "serif" | "monospace";
+            textColor: string;
+            /** Format: double */
+            textOpacity: number;
+            backgroundColor: string;
+            /** Format: double */
+            backgroundOpacity: number;
+            /** @enum {string} */
+            edgeStyle: "none" | "shadow" | "outline";
+            edgeColor: string;
+            /** Format: double */
+            position: number;
+            /** Format: double */
+            lineHeight: number;
+            /** Format: double */
+            delay: number;
+        };
         /** @description Per-user web UI preferences shared by every browser and device. */
         UserPreferences: {
             uploads: components["schemas"]["UploadPreferences"];
             files: components["schemas"]["FileBrowserPreferences"];
             appearance: components["schemas"]["AppearancePreferences"];
+            captions: components["schemas"]["CaptionPreferences"];
             /**
              * Format: date-time
              * @description Last explicit change; absent while every value is still the server default.
@@ -1741,11 +1766,35 @@ export interface components {
             embeddedTracks?: boolean;
             embeddedTracksOnShares?: boolean;
         };
+        CaptionPreferencesUpdate: {
+            /** @enum {string} */
+            fontSize?: "small" | "medium" | "large";
+            /** Format: double */
+            fontScale?: number;
+            /** @enum {string} */
+            fontFamily?: "sans" | "serif" | "monospace";
+            textColor?: string;
+            /** Format: double */
+            textOpacity?: number;
+            backgroundColor?: string;
+            /** Format: double */
+            backgroundOpacity?: number;
+            /** @enum {string} */
+            edgeStyle?: "none" | "shadow" | "outline";
+            edgeColor?: string;
+            /** Format: double */
+            position?: number;
+            /** Format: double */
+            lineHeight?: number;
+            /** Format: double */
+            delay?: number;
+        };
         /** @description Partial update; omitted groups and fields keep their stored values. */
         UserPreferencesUpdate: {
             uploads?: components["schemas"]["UploadPreferencesUpdate"];
             files?: components["schemas"]["FileBrowserPreferencesUpdate"];
             appearance?: components["schemas"]["AppearancePreferencesUpdate"];
+            captions?: components["schemas"]["CaptionPreferencesUpdate"];
         };
         UserSearchResult: {
             /** Format: int64 */

@@ -6436,12 +6436,88 @@ components:
             it is always off while that
 
             is off.
+    CaptionPreferences:
+      type: object
+      required:
+        - fontSize
+        - fontScale
+        - fontFamily
+        - textColor
+        - textOpacity
+        - backgroundColor
+        - backgroundOpacity
+        - edgeStyle
+        - edgeColor
+        - position
+        - lineHeight
+        - delay
+      properties:
+        fontSize:
+          type: string
+          enum:
+            - small
+            - medium
+            - large
+        fontScale:
+          type: number
+          format: double
+          minimum: 50
+          maximum: 200
+        fontFamily:
+          type: string
+          enum:
+            - sans
+            - serif
+            - monospace
+        textColor:
+          type: string
+          pattern: ^#[0-9a-fA-F]{6}$
+        textOpacity:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+        backgroundColor:
+          type: string
+          pattern: ^#[0-9a-fA-F]{6}$
+        backgroundOpacity:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+        edgeStyle:
+          type: string
+          enum:
+            - none
+            - shadow
+            - outline
+        edgeColor:
+          type: string
+          pattern: ^#[0-9a-fA-F]{6}$
+        position:
+          type: number
+          format: double
+          minimum: -20
+          maximum: 30
+        lineHeight:
+          type: number
+          format: double
+          minimum: 1
+          maximum: 2
+        delay:
+          type: number
+          format: double
+          minimum: -10
+          maximum: 10
+      description: Account-wide subtitle styling and timing, independent of the
+        browser player's local storage.
     UserPreferences:
       type: object
       required:
         - uploads
         - files
         - appearance
+        - captions
       properties:
         uploads:
           $ref: "#/components/schemas/UploadPreferences"
@@ -6449,6 +6525,8 @@ components:
           $ref: "#/components/schemas/FileBrowserPreferences"
         appearance:
           $ref: "#/components/schemas/AppearancePreferences"
+        captions:
+          $ref: "#/components/schemas/CaptionPreferences"
         updatedAt:
           type: string
           format: date-time
@@ -6492,6 +6570,66 @@ components:
           type: boolean
         embeddedTracksOnShares:
           type: boolean
+    CaptionPreferencesUpdate:
+      type: object
+      properties:
+        fontSize:
+          type: string
+          enum:
+            - small
+            - medium
+            - large
+        fontScale:
+          type: number
+          format: double
+          minimum: 50
+          maximum: 200
+        fontFamily:
+          type: string
+          enum:
+            - sans
+            - serif
+            - monospace
+        textColor:
+          type: string
+          pattern: ^#[0-9a-fA-F]{6}$
+        textOpacity:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+        backgroundColor:
+          type: string
+          pattern: ^#[0-9a-fA-F]{6}$
+        backgroundOpacity:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 1
+        edgeStyle:
+          type: string
+          enum:
+            - none
+            - shadow
+            - outline
+        edgeColor:
+          type: string
+          pattern: ^#[0-9a-fA-F]{6}$
+        position:
+          type: number
+          format: double
+          minimum: -20
+          maximum: 30
+        lineHeight:
+          type: number
+          format: double
+          minimum: 1
+          maximum: 2
+        delay:
+          type: number
+          format: double
+          minimum: -10
+          maximum: 10
     UserPreferencesUpdate:
       type: object
       properties:
@@ -6501,6 +6639,8 @@ components:
           $ref: "#/components/schemas/FileBrowserPreferencesUpdate"
         appearance:
           $ref: "#/components/schemas/AppearancePreferencesUpdate"
+        captions:
+          $ref: "#/components/schemas/CaptionPreferencesUpdate"
       description: Partial update; omitted groups and fields keep their stored values.
     UserSearchResult:
       type: object

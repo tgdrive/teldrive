@@ -1,6 +1,7 @@
 import type { components } from "./schema";
 
 export type UserProfile = components["schemas"]["UserProfile"];
+export type CaptionPreferences = components["schemas"]["CaptionPreferences"];
 export type TokenPair = components["schemas"]["TokenPair"];
 export type FileEntry = components["schemas"]["FileEntry"];
 export type FileKind = components["schemas"]["FileKind"];

@@ -1,8 +1,11 @@
 import type { Page } from "@playwright/test";
+import { DEFAULT_CAPTION_SETTINGS } from "@vplayer/react";
+import type { CaptionPreferences } from "../../src/api/types";
 
 const MiB = 1024 * 1024;
 
 export type Preferences = {
+  captions: CaptionPreferences;
   uploads: {
     encryption: boolean;
     conflictPolicy: "fail" | "rename" | "replace";
@@ -20,6 +23,7 @@ export type Preferences = {
 };
 
 export type PreferencesUpdate = {
+  captions?: Partial<CaptionPreferences>;
   uploads?: Partial<Preferences["uploads"]>;
   files?: Partial<Preferences["files"]>;
   appearance?: Partial<Preferences["appearance"]>;
@@ -35,6 +39,7 @@ export type PreferencesApi = {
 // Defaults a fresh account sees: no updatedAt until the user changes something.
 function defaultPreferences(): Preferences {
   return {
+    captions: { ...DEFAULT_CAPTION_SETTINGS },
     uploads: {
       encryption: false,
       conflictPolicy: "rename",
@@ -54,6 +59,7 @@ export async function installPreferencesApi(
 ): Promise<PreferencesApi> {
   const defaults = defaultPreferences();
   const state: Preferences = {
+    captions: { ...defaults.captions, ...seed.captions },
     uploads: { ...defaults.uploads, ...seed.uploads },
     files: { ...defaults.files, ...seed.files },
     appearance: { ...defaults.appearance, ...seed.appearance },
@@ -69,6 +75,7 @@ export async function installPreferencesApi(
       state.uploads = { ...state.uploads, ...update.uploads };
       state.files = { ...state.files, ...update.files };
       state.appearance = { ...state.appearance, ...update.appearance };
+      state.captions = { ...state.captions, ...update.captions };
       // The server's rule: the option for shared links needs the one for the account.
       if (!state.appearance.embeddedTracks) state.appearance.embeddedTracksOnShares = false;
       state.updatedAt = new Date().toISOString();

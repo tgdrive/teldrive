@@ -12,6 +12,7 @@ import (
 )
 
 var regexMap = map[string]ogenregex.Regexp{
+	"^#[0-9a-fA-F]{6}$":     ogenregex.MustCompile("^#[0-9a-fA-F]{6}$"),
 	"^\\+[1-9][0-9]{7,14}$": ogenregex.MustCompile("^\\+[1-9][0-9]{7,14}$"),
 }
 

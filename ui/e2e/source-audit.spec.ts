@@ -1,14 +1,26 @@
-import { expect, test } from "@playwright/test";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
+import { expect, test } from "@playwright/test";
+import { APP_LOCALES, STRINGS } from "../src/lib/locales";
 
 const sourceRoot = join(process.cwd(), "src");
-const exactCopies = new Set([
-  "components/task-status-chip.tsx",
-  "routes/tasks.tsx",
-  "routes/tasks_.$id.tsx",
-  "routes/_settings.settings.periodic-jobs.tsx",
-]);
+const placeholders = (value: string) => (value.match(/\{\w+\}/g) ?? []).toSorted().join(",");
+
+test("every locale contains all English keys and matching placeholders", () => {
+  const englishKeys = Object.keys(STRINGS.en).toSorted();
+  for (const { code } of APP_LOCALES) {
+    const strings = STRINGS[code];
+    expect(Object.keys(strings).toSorted(), code).toEqual(englishKeys);
+    expect(
+      englishKeys.filter((key) => !strings[key].trim()),
+      `${code}: empty translations`,
+    ).toEqual([]);
+    expect(
+      englishKeys.filter((key) => placeholders(strings[key]) !== placeholders(STRINGS.en[key])),
+      `${code}: mismatched placeholders`,
+    ).toEqual([]);
+  }
+});
 
 function sourceFiles(directory: string): string[] {
   return readdirSync(directory).flatMap((entry) => {

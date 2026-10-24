@@ -743,6 +743,8 @@ test("all active routes render without runtime errors", async ({ page }) => {
     "/settings/periodic-jobs",
     "/tasks/42",
     "/settings/appearance",
+    "/settings/reader",
+    "/settings/player",
   ]) {
     await page.goto(route);
     await expect(page.locator("main").first()).toBeVisible();

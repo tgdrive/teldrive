@@ -318,6 +318,648 @@ func (s *BotCreateResponse) Validate() error {
 	return nil
 }
 
+func (s *CaptionPreferences) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if err := s.FontSize.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "fontSize",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if err := (validate.Float{
+			MinSet:        true,
+			Min:           50,
+			MaxSet:        true,
+			Max:           200,
+			MinExclusive:  false,
+			MaxExclusive:  false,
+			MultipleOfSet: false,
+			MultipleOf:    nil,
+			Pattern:       nil,
+		}).Validate(float64(s.FontScale)); err != nil {
+			return errors.Wrap(err, "float")
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "fontScale",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if err := s.FontFamily.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "fontFamily",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if err := (validate.String{
+			MinLength:     0,
+			MinLengthSet:  false,
+			MaxLength:     0,
+			MaxLengthSet:  false,
+			Email:         false,
+			Hostname:      false,
+			Regex:         regexMap["^#[0-9a-fA-F]{6}$"],
+			MinNumeric:    0,
+			MinNumericSet: false,
+			MaxNumeric:    0,
+			MaxNumericSet: false,
+		}).Validate(string(s.TextColor)); err != nil {
+			return errors.Wrap(err, "string")
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "textColor",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if err := (validate.Float{
+			MinSet:        true,
+			Min:           0,
+			MaxSet:        true,
+			Max:           1,
+			MinExclusive:  false,
+			MaxExclusive:  false,
+			MultipleOfSet: false,
+			MultipleOf:    nil,
+			Pattern:       nil,
+		}).Validate(float64(s.TextOpacity)); err != nil {
+			return errors.Wrap(err, "float")
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "textOpacity",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if err := (validate.String{
+			MinLength:     0,
+			MinLengthSet:  false,
+			MaxLength:     0,
+			MaxLengthSet:  false,
+			Email:         false,
+			Hostname:      false,
+			Regex:         regexMap["^#[0-9a-fA-F]{6}$"],
+			MinNumeric:    0,
+			MinNumericSet: false,
+			MaxNumeric:    0,
+			MaxNumericSet: false,
+		}).Validate(string(s.BackgroundColor)); err != nil {
+			return errors.Wrap(err, "string")
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "backgroundColor",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if err := (validate.Float{
+			MinSet:        true,
+			Min:           0,
+			MaxSet:        true,
+			Max:           1,
+			MinExclusive:  false,
+			MaxExclusive:  false,
+			MultipleOfSet: false,
+			MultipleOf:    nil,
+			Pattern:       nil,
+		}).Validate(float64(s.BackgroundOpacity)); err != nil {
+			return errors.Wrap(err, "float")
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "backgroundOpacity",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if err := s.EdgeStyle.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "edgeStyle",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if err := (validate.String{
+			MinLength:     0,
+			MinLengthSet:  false,
+			MaxLength:     0,
+			MaxLengthSet:  false,
+			Email:         false,
+			Hostname:      false,
+			Regex:         regexMap["^#[0-9a-fA-F]{6}$"],
+			MinNumeric:    0,
+			MinNumericSet: false,
+			MaxNumeric:    0,
+			MaxNumericSet: false,
+		}).Validate(string(s.EdgeColor)); err != nil {
+			return errors.Wrap(err, "string")
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "edgeColor",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if err := (validate.Float{
+			MinSet:        true,
+			Min:           -20,
+			MaxSet:        true,
+			Max:           30,
+			MinExclusive:  false,
+			MaxExclusive:  false,
+			MultipleOfSet: false,
+			MultipleOf:    nil,
+			Pattern:       nil,
+		}).Validate(float64(s.Position)); err != nil {
+			return errors.Wrap(err, "float")
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "position",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if err := (validate.Float{
+			MinSet:        true,
+			Min:           1,
+			MaxSet:        true,
+			Max:           2,
+			MinExclusive:  false,
+			MaxExclusive:  false,
+			MultipleOfSet: false,
+			MultipleOf:    nil,
+			Pattern:       nil,
+		}).Validate(float64(s.LineHeight)); err != nil {
+			return errors.Wrap(err, "float")
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "lineHeight",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if err := (validate.Float{
+			MinSet:        true,
+			Min:           -10,
+			MaxSet:        true,
+			Max:           10,
+			MinExclusive:  false,
+			MaxExclusive:  false,
+			MultipleOfSet: false,
+			MultipleOf:    nil,
+			Pattern:       nil,
+		}).Validate(float64(s.Delay)); err != nil {
+			return errors.Wrap(err, "float")
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "delay",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s CaptionPreferencesEdgeStyle) Validate() error {
+	switch s {
+	case "none":
+		return nil
+	case "shadow":
+		return nil
+	case "outline":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
+func (s CaptionPreferencesFontFamily) Validate() error {
+	switch s {
+	case "sans":
+		return nil
+	case "serif":
+		return nil
+	case "monospace":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
+func (s CaptionPreferencesFontSize) Validate() error {
+	switch s {
+	case "small":
+		return nil
+	case "medium":
+		return nil
+	case "large":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
+func (s *CaptionPreferencesUpdate) Validate() error {
+	if s == nil {
+		return validate.ErrNilPointer
+	}
+
+	var failures []validate.FieldError
+	if err := func() error {
+		if value, ok := s.FontSize.Get(); ok {
+			if err := func() error {
+				if err := value.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "fontSize",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.FontScale.Get(); ok {
+			if err := func() error {
+				if err := (validate.Float{
+					MinSet:        true,
+					Min:           50,
+					MaxSet:        true,
+					Max:           200,
+					MinExclusive:  false,
+					MaxExclusive:  false,
+					MultipleOfSet: false,
+					MultipleOf:    nil,
+					Pattern:       nil,
+				}).Validate(float64(value)); err != nil {
+					return errors.Wrap(err, "float")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "fontScale",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.FontFamily.Get(); ok {
+			if err := func() error {
+				if err := value.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "fontFamily",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.TextColor.Get(); ok {
+			if err := func() error {
+				if err := (validate.String{
+					MinLength:     0,
+					MinLengthSet:  false,
+					MaxLength:     0,
+					MaxLengthSet:  false,
+					Email:         false,
+					Hostname:      false,
+					Regex:         regexMap["^#[0-9a-fA-F]{6}$"],
+					MinNumeric:    0,
+					MinNumericSet: false,
+					MaxNumeric:    0,
+					MaxNumericSet: false,
+				}).Validate(string(value)); err != nil {
+					return errors.Wrap(err, "string")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "textColor",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.TextOpacity.Get(); ok {
+			if err := func() error {
+				if err := (validate.Float{
+					MinSet:        true,
+					Min:           0,
+					MaxSet:        true,
+					Max:           1,
+					MinExclusive:  false,
+					MaxExclusive:  false,
+					MultipleOfSet: false,
+					MultipleOf:    nil,
+					Pattern:       nil,
+				}).Validate(float64(value)); err != nil {
+					return errors.Wrap(err, "float")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "textOpacity",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.BackgroundColor.Get(); ok {
+			if err := func() error {
+				if err := (validate.String{
+					MinLength:     0,
+					MinLengthSet:  false,
+					MaxLength:     0,
+					MaxLengthSet:  false,
+					Email:         false,
+					Hostname:      false,
+					Regex:         regexMap["^#[0-9a-fA-F]{6}$"],
+					MinNumeric:    0,
+					MinNumericSet: false,
+					MaxNumeric:    0,
+					MaxNumericSet: false,
+				}).Validate(string(value)); err != nil {
+					return errors.Wrap(err, "string")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "backgroundColor",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.BackgroundOpacity.Get(); ok {
+			if err := func() error {
+				if err := (validate.Float{
+					MinSet:        true,
+					Min:           0,
+					MaxSet:        true,
+					Max:           1,
+					MinExclusive:  false,
+					MaxExclusive:  false,
+					MultipleOfSet: false,
+					MultipleOf:    nil,
+					Pattern:       nil,
+				}).Validate(float64(value)); err != nil {
+					return errors.Wrap(err, "float")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "backgroundOpacity",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.EdgeStyle.Get(); ok {
+			if err := func() error {
+				if err := value.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "edgeStyle",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.EdgeColor.Get(); ok {
+			if err := func() error {
+				if err := (validate.String{
+					MinLength:     0,
+					MinLengthSet:  false,
+					MaxLength:     0,
+					MaxLengthSet:  false,
+					Email:         false,
+					Hostname:      false,
+					Regex:         regexMap["^#[0-9a-fA-F]{6}$"],
+					MinNumeric:    0,
+					MinNumericSet: false,
+					MaxNumeric:    0,
+					MaxNumericSet: false,
+				}).Validate(string(value)); err != nil {
+					return errors.Wrap(err, "string")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "edgeColor",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.Position.Get(); ok {
+			if err := func() error {
+				if err := (validate.Float{
+					MinSet:        true,
+					Min:           -20,
+					MaxSet:        true,
+					Max:           30,
+					MinExclusive:  false,
+					MaxExclusive:  false,
+					MultipleOfSet: false,
+					MultipleOf:    nil,
+					Pattern:       nil,
+				}).Validate(float64(value)); err != nil {
+					return errors.Wrap(err, "float")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "position",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.LineHeight.Get(); ok {
+			if err := func() error {
+				if err := (validate.Float{
+					MinSet:        true,
+					Min:           1,
+					MaxSet:        true,
+					Max:           2,
+					MinExclusive:  false,
+					MaxExclusive:  false,
+					MultipleOfSet: false,
+					MultipleOf:    nil,
+					Pattern:       nil,
+				}).Validate(float64(value)); err != nil {
+					return errors.Wrap(err, "float")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "lineHeight",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.Delay.Get(); ok {
+			if err := func() error {
+				if err := (validate.Float{
+					MinSet:        true,
+					Min:           -10,
+					MaxSet:        true,
+					Max:           10,
+					MinExclusive:  false,
+					MaxExclusive:  false,
+					MultipleOfSet: false,
+					MultipleOf:    nil,
+					Pattern:       nil,
+				}).Validate(float64(value)); err != nil {
+					return errors.Wrap(err, "float")
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "delay",
+			Error: err,
+		})
+	}
+	if len(failures) > 0 {
+		return &validate.Error{Fields: failures}
+	}
+	return nil
+}
+
+func (s CaptionPreferencesUpdateEdgeStyle) Validate() error {
+	switch s {
+	case "none":
+		return nil
+	case "shadow":
+		return nil
+	case "outline":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
+func (s CaptionPreferencesUpdateFontFamily) Validate() error {
+	switch s {
+	case "sans":
+		return nil
+	case "serif":
+		return nil
+	case "monospace":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
+func (s CaptionPreferencesUpdateFontSize) Validate() error {
+	switch s {
+	case "small":
+		return nil
+	case "medium":
+		return nil
+	case "large":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
+}
+
 func (s *ChannelCreateRequest) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer
@@ -4067,6 +4709,17 @@ func (s *UserPreferences) Validate() error {
 			Error: err,
 		})
 	}
+	if err := func() error {
+		if err := s.Captions.Validate(); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "captions",
+			Error: err,
+		})
+	}
 	if len(failures) > 0 {
 		return &validate.Error{Fields: failures}
 	}
@@ -4130,6 +4783,24 @@ func (s *UserPreferencesUpdate) Validate() error {
 	}(); err != nil {
 		failures = append(failures, validate.FieldError{
 			Name:  "appearance",
+			Error: err,
+		})
+	}
+	if err := func() error {
+		if value, ok := s.Captions.Get(); ok {
+			if err := func() error {
+				if err := value.Validate(); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		failures = append(failures, validate.FieldError{
+			Name:  "captions",
 			Error: err,
 		})
 	}

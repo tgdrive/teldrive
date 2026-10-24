@@ -215,11 +215,43 @@ model AppearancePreferencesUpdate {
   embeddedTracksOnShares?: boolean;
 }
 
+/** Account-wide subtitle styling and timing, independent of the browser player's local storage. */
+model CaptionPreferences {
+  fontSize: "small" | "medium" | "large";
+  @minValue(50) @maxValue(200) fontScale: float64;
+  fontFamily: "sans" | "serif" | "monospace";
+  @pattern("^#[0-9a-fA-F]{6}$") textColor: string;
+  @minValue(0) @maxValue(1) textOpacity: float64;
+  @pattern("^#[0-9a-fA-F]{6}$") backgroundColor: string;
+  @minValue(0) @maxValue(1) backgroundOpacity: float64;
+  edgeStyle: "none" | "shadow" | "outline";
+  @pattern("^#[0-9a-fA-F]{6}$") edgeColor: string;
+  @minValue(-20) @maxValue(30) position: float64;
+  @minValue(1) @maxValue(2) lineHeight: float64;
+  @minValue(-10) @maxValue(10) delay: float64;
+}
+
+model CaptionPreferencesUpdate {
+  fontSize?: "small" | "medium" | "large";
+  @minValue(50) @maxValue(200) fontScale?: float64;
+  fontFamily?: "sans" | "serif" | "monospace";
+  @pattern("^#[0-9a-fA-F]{6}$") textColor?: string;
+  @minValue(0) @maxValue(1) textOpacity?: float64;
+  @pattern("^#[0-9a-fA-F]{6}$") backgroundColor?: string;
+  @minValue(0) @maxValue(1) backgroundOpacity?: float64;
+  edgeStyle?: "none" | "shadow" | "outline";
+  @pattern("^#[0-9a-fA-F]{6}$") edgeColor?: string;
+  @minValue(-20) @maxValue(30) position?: float64;
+  @minValue(1) @maxValue(2) lineHeight?: float64;
+  @minValue(-10) @maxValue(10) delay?: float64;
+}
+
 /** Per-user web UI preferences shared by every browser and device. */
 model UserPreferences {
   uploads: UploadPreferences;
   files: FileBrowserPreferences;
   appearance: AppearancePreferences;
+  captions: CaptionPreferences;
 
   /** Last explicit change; absent while every value is still the server default. */
   updatedAt?: utcDateTime;
@@ -230,6 +262,7 @@ model UserPreferencesUpdate {
   uploads?: UploadPreferencesUpdate;
   files?: FileBrowserPreferencesUpdate;
   appearance?: AppearancePreferencesUpdate;
+  captions?: CaptionPreferencesUpdate;
 }
 
 model ProfilePhotoResponse {

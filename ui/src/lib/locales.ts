@@ -72,12 +72,12 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "appearance.playerDescription": "How videos play in the web player.",
     "appearance.embeddedTracksLabel": "Audio tracks and subtitles from the file",
     "appearance.embeddedTracksHint":
-      "For .mkv and .webm videos, read the audio tracks and subtitles stored in the file so you can choose them in the player's settings menu. Off by default: while it is off, nothing extra is loaded or requested. Saved in this browser.",
+      "Choose audio tracks and subtitles embedded in MKV and WebM files.",
     "appearance.embeddedTracksSwitch": "Read tracks from the file",
     "settings.title": "Settings",
     "appearance.embeddedTracksSharesLabel": "Also on shared links",
     "appearance.embeddedTracksSharesHint":
-      "Let people who open your shared links choose audio tracks and subtitles stored in the file, whether or not they are signed in. Needs the option above. Saved on your account.",
+      "Enable embedded tracks for shared-link viewers. Requires the option above.",
     "appearance.embeddedTracksSharesSwitch": "Also on shared links",
     "settings.description": "Configure Teldrive and this browser.",
     "settings.navLabel": "Settings navigation",
@@ -99,6 +99,11 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "settings.item.apiKeys": "API keys",
     "settings.item.uploads": "Uploads",
     "settings.item.appearance": "Appearance",
+    "settings.item.reader": "Reader",
+    "settings.item.player": "Player",
+    "player.captionsDescription":
+      "Subtitle style and timing saved to your account across browsers and devices. Preview changes here, then save to apply them to the player.",
+    "readerSettings.description": "PDF brightness and document storage in this browser.",
     "settings.item.jobs": "Periodic Jobs",
     "login.kicker": "Teldrive",
     "login.heroTitle": "Your Telegram-backed cloud drive.",
@@ -465,19 +470,25 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "reader.colDouble": "Double",
     "login.qrSoon": "soon",
     "documents.title": "Documents in this browser",
-    "documents.description": "Local PDF and ebook preferences. These settings apply only to this browser.",
-    "documents.brightnessHint": "Dim PDF pages without changing the document or the reader controls.",
+    "documents.description":
+      "Local PDF and ebook preferences. These settings apply only to this browser.",
+    "documents.brightnessHint":
+      "Dim PDF pages without changing the document or the reader controls.",
     "documents.resetBrightness": "Reset to 100%",
     "documents.cacheLabel": "Cache document content",
     "documents.cacheSwitch": "Keep documents in this browser",
-    "documents.cacheHint": "Reopen PDFs and ebooks without downloading them again. Each open checks access and the latest version with the server. Public shares are not cached.",
+    "documents.cacheHint":
+      "Reopen PDFs and ebooks without downloading them again. Each open checks access and the latest version with the server. Public shares are not cached.",
     "documents.cacheLimit": "Document cache size",
-    "documents.cacheLimitHint": "Least recently opened documents are removed first. Larger files open normally without being cached.",
+    "documents.cacheLimitHint":
+      "Least recently opened documents are removed first. Larger files open normally without being cached.",
     "documents.cacheUsage": "Cached documents",
     "documents.cacheUsageValue": "{count} documents · {size}",
-    "documents.cachePrivacy": "Cached content is readable in this browser. Avoid shared devices. Disabling the cache or logging out clears it.",
+    "documents.cachePrivacy":
+      "Cached content is readable in this browser. Avoid shared devices. Disabling the cache or logging out clears it.",
     "documents.clearCache": "Clear document cache",
-    "documents.storageUnavailable": "Browser storage is unavailable. Documents can still open without caching.",
+    "documents.storageUnavailable":
+      "Browser storage is unavailable. Documents can still open without caching.",
     "pdf.openFailed": "This PDF could not be opened.",
     "pdf.saveFailed": "The edited PDF could not be saved. Try again.",
     "pdf.fitWidth": "Fit width",
@@ -1091,12 +1102,12 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "appearance.playerDescription": "Cómo se reproducen los vídeos en el reproductor web.",
     "appearance.embeddedTracksLabel": "Pistas de audio y subtítulos del archivo",
     "appearance.embeddedTracksHint":
-      "En vídeos .mkv y .webm, lee las pistas de audio y los subtítulos guardados en el archivo para que puedas elegirlos en el menú de ajustes del reproductor. Desactivado por defecto: mientras esté desactivado, no se carga ni se solicita nada adicional. Se guarda en este navegador.",
+      "Elige pistas de audio y subtítulos integrados en archivos MKV y WebM.",
     "appearance.embeddedTracksSwitch": "Leer las pistas del archivo",
     "settings.title": "Ajustes",
     "appearance.embeddedTracksSharesLabel": "También en enlaces compartidos",
     "appearance.embeddedTracksSharesHint":
-      "Permite que quien abra tus enlaces compartidos elija las pistas de audio y los subtítulos guardados en el archivo, haya iniciado sesión o no. Requiere la opción de arriba. Se guarda en tu cuenta.",
+      "Activa las pistas integradas en los enlaces compartidos. Requiere la opción de arriba.",
     "appearance.embeddedTracksSharesSwitch": "También en enlaces compartidos",
     "settings.description": "Configura Teldrive y este navegador.",
     "settings.navLabel": "Navegación de ajustes",
@@ -1118,6 +1129,11 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "settings.item.apiKeys": "Claves API",
     "settings.item.uploads": "Subidas",
     "settings.item.appearance": "Apariencia",
+    "settings.item.reader": "Lector",
+    "settings.item.player": "Reproductor",
+    "player.captionsDescription":
+      "El estilo y la sincronización de los subtítulos se guardan en tu cuenta. Previsualiza los cambios y guárdalos para aplicarlos al reproductor.",
+    "readerSettings.description": "Brillo de PDF y almacenamiento de documentos en este navegador.",
     "settings.item.jobs": "Trabajos periódicos",
     "login.kicker": "Teldrive",
     "login.heroTitle": "Tu unidad en la nube con Telegram.",
@@ -1485,6 +1501,26 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "reader.colDouble": "Doble",
     "login.qrSoon": "pronto",
     "pdf.openFailed": "No se pudo abrir este PDF.",
+    "documents.title": "Documentos en este navegador",
+    "documents.description":
+      "Preferencias locales de PDF y libros electrónicos. Solo se aplican a este navegador.",
+    "documents.brightnessHint":
+      "Atenúa las páginas del PDF sin modificar el documento ni los controles del lector.",
+    "documents.resetBrightness": "Restablecer al 100%",
+    "documents.cacheLabel": "Guardar contenido en caché",
+    "documents.cacheSwitch": "Conservar documentos en este navegador",
+    "documents.cacheHint":
+      "Reabre PDF y libros electrónicos sin volver a descargarlos. Cada apertura comprueba el acceso y la versión más reciente en el servidor. Los enlaces compartidos no se guardan en caché.",
+    "documents.cacheLimit": "Tamaño de la caché de documentos",
+    "documents.cacheLimitHint":
+      "Se eliminan primero los documentos que llevan más tiempo sin abrirse. Los archivos más grandes se abren sin guardarse en caché.",
+    "documents.cacheUsage": "Documentos en caché",
+    "documents.cacheUsageValue": "{count} documentos · {size}",
+    "documents.cachePrivacy":
+      "El contenido en caché se puede leer en este navegador. Evita los dispositivos compartidos. Desactivar la caché o cerrar sesión la vacía.",
+    "documents.clearCache": "Vaciar caché de documentos",
+    "documents.storageUnavailable":
+      "El almacenamiento del navegador no está disponible. Puedes seguir abriendo documentos sin caché.",
     "pdf.saveFailed": "No se pudo guardar el PDF editado. Inténtalo de nuevo.",
     "pdf.fitWidth": "Ajustar ancho",
     "pdf.fitPage": "Ajustar página",
@@ -2097,12 +2133,12 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "appearance.playerDescription": "Como os vídeos são reproduzidos no reprodutor web.",
     "appearance.embeddedTracksLabel": "Faixas de áudio e legendas do arquivo",
     "appearance.embeddedTracksHint":
-      "Em vídeos .mkv e .webm, lê as faixas de áudio e as legendas guardadas no arquivo para você escolhê-las no menu de configurações do reprodutor. Desativado por padrão: enquanto estiver desativado, nada extra é carregado ou solicitado. Salvo neste navegador.",
+      "Escolha faixas de áudio e legendas incorporadas em arquivos MKV e WebM.",
     "appearance.embeddedTracksSwitch": "Ler as faixas do arquivo",
     "settings.title": "Configurações",
     "appearance.embeddedTracksSharesLabel": "Também em links compartilhados",
     "appearance.embeddedTracksSharesHint":
-      "Permite que quem abrir seus links compartilhados escolha as faixas de áudio e as legendas guardadas no arquivo, esteja conectado ou não. Requer a opção acima. Salvo na sua conta.",
+      "Ative as faixas incorporadas nos links compartilhados. Requer a opção acima.",
     "appearance.embeddedTracksSharesSwitch": "Também em links compartilhados",
     "settings.description": "Configure o Teldrive e este navegador.",
     "settings.navLabel": "Navegação das configurações",
@@ -2124,6 +2160,11 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "settings.item.apiKeys": "Chaves de API",
     "settings.item.uploads": "Envios",
     "settings.item.appearance": "Aparência",
+    "settings.item.reader": "Leitor",
+    "settings.item.player": "Reprodutor",
+    "player.captionsDescription":
+      "O estilo e a sincronização das legendas são salvos na sua conta. Visualize as alterações e salve para aplicá-las ao reprodutor.",
+    "readerSettings.description": "Brilho de PDF e armazenamento de documentos neste navegador.",
     "settings.item.jobs": "Trabalhos periódicos",
     "login.kicker": "Teldrive",
     "login.heroTitle": "Seu disco em nuvem com Telegram.",
@@ -2490,6 +2531,26 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "reader.colDouble": "Dupla",
     "login.qrSoon": "em breve",
     "pdf.openFailed": "Não foi possível abrir este PDF.",
+    "documents.title": "Documentos neste navegador",
+    "documents.description":
+      "Preferências locais de PDF e ebooks. Aplicam-se apenas a este navegador.",
+    "documents.brightnessHint":
+      "Escureça as páginas do PDF sem alterar o documento nem os controles do leitor.",
+    "documents.resetBrightness": "Redefinir para 100%",
+    "documents.cacheLabel": "Armazenar conteúdo em cache",
+    "documents.cacheSwitch": "Manter documentos neste navegador",
+    "documents.cacheHint":
+      "Reabra PDFs e ebooks sem baixá-los novamente. Cada abertura verifica o acesso e a versão mais recente no servidor. Links compartilhados não são armazenados em cache.",
+    "documents.cacheLimit": "Tamanho do cache de documentos",
+    "documents.cacheLimitHint":
+      "Os documentos que estão há mais tempo sem serem abertos são removidos primeiro. Arquivos maiores abrem normalmente, sem serem armazenados em cache.",
+    "documents.cacheUsage": "Documentos em cache",
+    "documents.cacheUsageValue": "{count} documentos · {size}",
+    "documents.cachePrivacy":
+      "O conteúdo em cache pode ser lido neste navegador. Evite dispositivos compartilhados. Desativar o cache ou sair da conta limpa o conteúdo.",
+    "documents.clearCache": "Limpar cache de documentos",
+    "documents.storageUnavailable":
+      "O armazenamento do navegador está indisponível. Os documentos ainda podem ser abertos sem cache.",
     "pdf.saveFailed": "Não foi possível salvar o PDF editado. Tente de novo.",
     "pdf.fitWidth": "Ajustar largura",
     "pdf.fitPage": "Ajustar página",
@@ -3099,12 +3160,12 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "appearance.playerDescription": "Как видео воспроизводится в веб-плеере.",
     "appearance.embeddedTracksLabel": "Звуковые дорожки и субтитры из файла",
     "appearance.embeddedTracksHint":
-      "Для видео .mkv и .webm читает звуковые дорожки и субтитры, сохранённые в файле, чтобы их можно было выбрать в меню настроек плеера. По умолчанию выключено: пока оно выключено, ничего дополнительно не загружается и не запрашивается. Сохраняется в этом браузере.",
+      "Выбирайте встроенные аудиодорожки и субтитры в файлах MKV и WebM.",
     "appearance.embeddedTracksSwitch": "Читать дорожки из файла",
     "settings.title": "Настройки",
     "appearance.embeddedTracksSharesLabel": "Также по ссылкам для общего доступа",
     "appearance.embeddedTracksSharesHint":
-      "Позволяет тем, кто открывает ваши ссылки, выбирать звуковые дорожки и субтитры из файла, независимо от того, вошли ли они в аккаунт. Требуется параметр выше. Сохраняется в вашем аккаунте.",
+      "Включите встроенные дорожки по общим ссылкам. Требуется параметр выше.",
     "appearance.embeddedTracksSharesSwitch": "Также по ссылкам для общего доступа",
     "settings.description": "Настройте Teldrive и этот браузер.",
     "settings.navLabel": "Навигация по настройкам",
@@ -3126,6 +3187,11 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "settings.item.apiKeys": "API-ключи",
     "settings.item.uploads": "Загрузки",
     "settings.item.appearance": "Оформление",
+    "settings.item.reader": "Чтение",
+    "settings.item.player": "Проигрыватель",
+    "player.captionsDescription":
+      "Оформление и синхронизация субтитров сохраняются в вашей учётной записи. Просмотрите изменения и сохраните их для применения в плеере.",
+    "readerSettings.description": "Яркость PDF и хранение документов в этом браузере.",
     "settings.item.jobs": "Периодические задачи",
     "login.kicker": "Teldrive",
     "login.heroTitle": "Ваш облачный диск на базе Telegram.",
@@ -3492,6 +3558,26 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "reader.colDouble": "Две",
     "login.qrSoon": "скоро",
     "pdf.openFailed": "Не удалось открыть этот PDF.",
+    "documents.title": "Документы в этом браузере",
+    "documents.description":
+      "Локальные настройки PDF и электронных книг. Действуют только в этом браузере.",
+    "documents.brightnessHint":
+      "Уменьшайте яркость страниц PDF, не меняя документ и элементы управления.",
+    "documents.resetBrightness": "Сбросить до 100%",
+    "documents.cacheLabel": "Кэшировать содержимое документов",
+    "documents.cacheSwitch": "Хранить документы в этом браузере",
+    "documents.cacheHint":
+      "Открывайте PDF и электронные книги повторно без скачивания. При каждом открытии сервер проверяет доступ и актуальность версии. Документы по общим ссылкам не кэшируются.",
+    "documents.cacheLimit": "Размер кэша документов",
+    "documents.cacheLimitHint":
+      "Сначала удаляются документы, которые дольше всего не открывали. Более крупные файлы открываются без кэширования.",
+    "documents.cacheUsage": "Документы в кэше",
+    "documents.cacheUsageValue": "{count} документов · {size}",
+    "documents.cachePrivacy":
+      "Содержимое кэша можно прочитать в этом браузере. Избегайте общих устройств. Отключение кэша или выход из аккаунта очищает его.",
+    "documents.clearCache": "Очистить кэш документов",
+    "documents.storageUnavailable":
+      "Хранилище браузера недоступно. Документы по-прежнему можно открывать без кэширования.",
     "pdf.saveFailed": "Не удалось сохранить изменённый PDF. Попробуйте ещё раз.",
     "pdf.fitWidth": "По ширине",
     "pdf.fitPage": "Целиком",
@@ -4102,12 +4188,12 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "appearance.playerDescription": "Comment les vidéos sont lues dans le lecteur web.",
     "appearance.embeddedTracksLabel": "Pistes audio et sous-titres du fichier",
     "appearance.embeddedTracksHint":
-      "Pour les vidéos .mkv et .webm, lit les pistes audio et les sous-titres stockés dans le fichier afin de les choisir dans le menu des réglages du lecteur. Désactivé par défaut : tant qu'il est désactivé, rien de plus n'est chargé ni demandé. Enregistré dans ce navigateur.",
+      "Choisissez les pistes audio et sous-titres intégrés aux fichiers MKV et WebM.",
     "appearance.embeddedTracksSwitch": "Lire les pistes du fichier",
     "settings.title": "Paramètres",
     "appearance.embeddedTracksSharesLabel": "Aussi sur les liens partagés",
     "appearance.embeddedTracksSharesHint":
-      "Permet à toute personne qui ouvre vos liens partagés de choisir les pistes audio et les sous-titres stockés dans le fichier, connectée ou non. Nécessite l'option ci-dessus. Enregistré sur votre compte.",
+      "Activez les pistes intégrées sur les liens partagés. Nécessite l’option ci-dessus.",
     "appearance.embeddedTracksSharesSwitch": "Aussi sur les liens partagés",
     "settings.description": "Configurez Teldrive et ce navigateur.",
     "settings.navLabel": "Navigation des paramètres",
@@ -4129,6 +4215,12 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "settings.item.apiKeys": "Clés API",
     "settings.item.uploads": "Téléversements",
     "settings.item.appearance": "Apparence",
+    "settings.item.reader": "Lecture",
+    "settings.item.player": "Lecteur vidéo",
+    "player.captionsDescription":
+      "Le style et la synchronisation des sous-titres sont enregistrés dans votre compte. Prévisualisez les modifications, puis enregistrez-les pour les appliquer au lecteur.",
+    "readerSettings.description":
+      "Luminosité des PDF et stockage des documents dans ce navigateur.",
     "settings.item.jobs": "Tâches périodiques",
     "login.kicker": "Teldrive",
     "login.heroTitle": "Votre disque cloud basé sur Telegram.",
@@ -4499,6 +4591,26 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "reader.colDouble": "Double",
     "login.qrSoon": "bientôt",
     "pdf.openFailed": "Impossible d’ouvrir ce PDF.",
+    "documents.title": "Documents dans ce navigateur",
+    "documents.description":
+      "Préférences locales des PDF et livres numériques. Elles s’appliquent uniquement à ce navigateur.",
+    "documents.brightnessHint":
+      "Réduisez la luminosité des pages PDF sans modifier le document ni les commandes de lecture.",
+    "documents.resetBrightness": "Rétablir à 100%",
+    "documents.cacheLabel": "Mettre le contenu en cache",
+    "documents.cacheSwitch": "Conserver les documents dans ce navigateur",
+    "documents.cacheHint":
+      "Rouvrez les PDF et livres numériques sans les télécharger à nouveau. Chaque ouverture vérifie l’accès et la dernière version sur le serveur. Les liens partagés ne sont pas mis en cache.",
+    "documents.cacheLimit": "Taille du cache de documents",
+    "documents.cacheLimitHint":
+      "Les documents qui n’ont pas été ouverts depuis le plus longtemps sont supprimés en premier. Les fichiers plus volumineux s’ouvrent sans mise en cache.",
+    "documents.cacheUsage": "Documents en cache",
+    "documents.cacheUsageValue": "{count} documents · {size}",
+    "documents.cachePrivacy":
+      "Le contenu en cache est lisible dans ce navigateur. Évitez les appareils partagés. Désactiver le cache ou se déconnecter le vide.",
+    "documents.clearCache": "Vider le cache de documents",
+    "documents.storageUnavailable":
+      "Le stockage du navigateur est indisponible. Vous pouvez toujours ouvrir les documents sans cache.",
     "pdf.saveFailed": "Impossible d’enregistrer le PDF modifié. Réessayez.",
     "pdf.fitWidth": "Ajuster la largeur",
     "pdf.fitPage": "Ajuster la page",
@@ -5116,12 +5228,12 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "appearance.playerDescription": "Wie Videos im Web-Player abgespielt werden.",
     "appearance.embeddedTracksLabel": "Tonspuren und Untertitel aus der Datei",
     "appearance.embeddedTracksHint":
-      "Liest bei .mkv- und .webm-Videos die in der Datei gespeicherten Tonspuren und Untertitel, damit du sie im Einstellungsmenü des Players wählen kannst. Standardmäßig aus: Solange die Option aus ist, wird nichts zusätzlich geladen oder angefragt. Wird in diesem Browser gespeichert.",
+      "Wähle eingebettete Tonspuren und Untertitel in MKV- und WebM-Dateien.",
     "appearance.embeddedTracksSwitch": "Spuren aus der Datei lesen",
     "settings.title": "Einstellungen",
     "appearance.embeddedTracksSharesLabel": "Auch auf geteilten Links",
     "appearance.embeddedTracksSharesHint":
-      "Erlaubt allen, die deine geteilten Links öffnen, die in der Datei gespeicherten Tonspuren und Untertitel zu wählen, ob angemeldet oder nicht. Setzt die Option oben voraus. Wird in deinem Konto gespeichert.",
+      "Aktiviere eingebettete Spuren für geteilte Links. Benötigt die Option oben.",
     "appearance.embeddedTracksSharesSwitch": "Auch auf geteilten Links",
     "settings.description": "Richte Teldrive und diesen Browser ein.",
     "settings.navLabel": "Einstellungsnavigation",
@@ -5143,6 +5255,11 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "settings.item.apiKeys": "API-Schlüssel",
     "settings.item.uploads": "Uploads",
     "settings.item.appearance": "Darstellung",
+    "settings.item.reader": "Lesen",
+    "settings.item.player": "Player",
+    "player.captionsDescription":
+      "Untertitelstil und Synchronisierung werden in deinem Konto gespeichert. Prüfe die Vorschau und speichere die Änderungen, um sie im Player anzuwenden.",
+    "readerSettings.description": "PDF-Helligkeit und Dokumentenspeicherung in diesem Browser.",
     "settings.item.jobs": "Periodische Aufgaben",
     "login.kicker": "Teldrive",
     "login.heroTitle": "Dein Cloud-Speicher auf Telegram-Basis.",
@@ -5512,6 +5629,26 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "reader.colDouble": "Zweispaltig",
     "login.qrSoon": "bald",
     "pdf.openFailed": "Dieses PDF konnte nicht geöffnet werden.",
+    "documents.title": "Dokumente in diesem Browser",
+    "documents.description":
+      "Lokale Einstellungen für PDFs und E-Books. Sie gelten nur für diesen Browser.",
+    "documents.brightnessHint":
+      "Dimme PDF-Seiten, ohne das Dokument oder die Lesesteuerung zu verändern.",
+    "documents.resetBrightness": "Auf 100% zurücksetzen",
+    "documents.cacheLabel": "Dokumentinhalte zwischenspeichern",
+    "documents.cacheSwitch": "Dokumente in diesem Browser behalten",
+    "documents.cacheHint":
+      "Öffne PDFs und E-Books erneut, ohne sie nochmals herunterzuladen. Bei jedem Öffnen prüft der Server den Zugriff und die aktuelle Version. Geteilte Links werden nicht zwischengespeichert.",
+    "documents.cacheLimit": "Größe des Dokumentcaches",
+    "documents.cacheLimitHint":
+      "Am längsten nicht geöffnete Dokumente werden zuerst entfernt. Größere Dateien werden ohne Zwischenspeicherung geöffnet.",
+    "documents.cacheUsage": "Zwischengespeicherte Dokumente",
+    "documents.cacheUsageValue": "{count} Dokumente · {size}",
+    "documents.cachePrivacy":
+      "Zwischengespeicherte Inhalte sind in diesem Browser lesbar. Vermeide gemeinsam genutzte Geräte. Deaktivieren des Caches oder Abmelden leert ihn.",
+    "documents.clearCache": "Dokumentcache leeren",
+    "documents.storageUnavailable":
+      "Der Browserspeicher ist nicht verfügbar. Dokumente können weiterhin ohne Zwischenspeicherung geöffnet werden.",
     "pdf.saveFailed": "Das bearbeitete PDF konnte nicht gespeichert werden. Versuche es erneut.",
     "pdf.fitWidth": "Breite anpassen",
     "pdf.fitPage": "Seite anpassen",
@@ -6121,13 +6258,11 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "appearance.playerTitle": "视频播放器",
     "appearance.playerDescription": "视频在网页播放器中的播放方式。",
     "appearance.embeddedTracksLabel": "文件中的音轨和字幕",
-    "appearance.embeddedTracksHint":
-      "对于 .mkv 和 .webm 视频，读取文件中保存的音轨和字幕，以便在播放器的设置菜单中选择。默认关闭：关闭时不会额外加载或请求任何内容。保存在此浏览器中。",
+    "appearance.embeddedTracksHint": "选择 MKV 和 WebM 文件中的内嵌音轨和字幕。",
     "appearance.embeddedTracksSwitch": "读取文件中的轨道",
     "settings.title": "设置",
     "appearance.embeddedTracksSharesLabel": "也用于分享链接",
-    "appearance.embeddedTracksSharesHint":
-      "允许打开你分享链接的人选择文件中保存的音轨和字幕，无论是否已登录。需要先开启上方选项。保存在你的账户中。",
+    "appearance.embeddedTracksSharesHint": "为分享链接启用内嵌音轨和字幕。需先开启上方选项。",
     "appearance.embeddedTracksSharesSwitch": "也用于分享链接",
     "settings.description": "配置 Teldrive 和此浏览器。",
     "settings.navLabel": "设置导航",
@@ -6149,6 +6284,11 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "settings.item.apiKeys": "API 密钥",
     "settings.item.uploads": "上传",
     "settings.item.appearance": "外观",
+    "settings.item.reader": "阅读器",
+    "settings.item.player": "播放器",
+    "player.captionsDescription":
+      "字幕样式和时间设置会保存到你的账户，并在浏览器和设备间同步。预览更改后保存，即可应用到播放器。",
+    "readerSettings.description": "此浏览器中的 PDF 亮度和文档存储设置。",
     "settings.item.jobs": "定期任务",
     "login.kicker": "Teldrive",
     "login.heroTitle": "基于 Telegram 的云盘。",
@@ -6513,6 +6653,23 @@ export const STRINGS: Record<AppLocale, Record<string, string>> = {
     "reader.colDouble": "双栏",
     "login.qrSoon": "即将",
     "pdf.openFailed": "无法打开此 PDF。",
+    "documents.title": "此浏览器中的文档",
+    "documents.description": "PDF 和电子书的本地偏好设置，仅适用于此浏览器。",
+    "documents.brightnessHint": "调暗 PDF 页面，不改变文档或阅读器控件。",
+    "documents.resetBrightness": "重置为 100%",
+    "documents.cacheLabel": "缓存文档内容",
+    "documents.cacheSwitch": "在此浏览器中保留文档",
+    "documents.cacheHint":
+      "再次打开 PDF 和电子书时无需重新下载。每次打开都会向服务器检查访问权限和最新版本。分享链接中的文档不会被缓存。",
+    "documents.cacheLimit": "文档缓存大小",
+    "documents.cacheLimitHint":
+      "最久未打开的文档会先被移除。较大的文件仍可正常打开，但不会被缓存。",
+    "documents.cacheUsage": "已缓存的文档",
+    "documents.cacheUsageValue": "{count} 个文档 · {size}",
+    "documents.cachePrivacy":
+      "缓存内容可在此浏览器中读取。请避免使用共享设备。禁用缓存或退出登录会清空缓存。",
+    "documents.clearCache": "清空文档缓存",
+    "documents.storageUnavailable": "浏览器存储不可用。仍可在不使用缓存的情况下打开文档。",
     "pdf.saveFailed": "无法保存编辑后的 PDF。请重试。",
     "pdf.fitWidth": "适应宽度",
     "pdf.fitPage": "适应页面",

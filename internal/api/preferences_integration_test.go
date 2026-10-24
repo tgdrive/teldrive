@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"sync"
 	"testing"
 	"time"
 
@@ -20,7 +21,8 @@ import (
 )
 
 type preferencesResponse struct {
-	Uploads struct {
+	Captions authn.CaptionPreferences `json:"captions"`
+	Uploads  struct {
 		Encryption        bool   `json:"encryption"`
 		ConflictPolicy    string `json:"conflictPolicy"`
 		Concurrency       int    `json:"concurrency"`
@@ -89,6 +91,40 @@ func TestUserPreferencesPersistPerUserWithPartialUpdates(t *testing.T) {
 		defaults.Appearance.Theme != "system" || defaults.Appearance.Locale != nil || defaults.Appearance.EmbeddedTracks || defaults.Appearance.EmbeddedTracksOnShares || defaults.UpdatedAt != nil {
 		t.Fatalf("defaults = %+v", defaults)
 	}
+	if defaults.Captions.FontScale != 100 || defaults.Captions.TextColor != "#ffffff" || defaults.Captions.BackgroundOpacity != .75 {
+		t.Fatalf("caption defaults = %+v", defaults.Captions)
+	}
+	if _, err := db.Pool.Exec(ctx, `UPDATE user_preferences SET preferences = preferences || '{"future":{"precise":9007199254740993}}'::jsonb WHERE user_id=1001`); err != nil {
+		t.Fatal(err)
+	}
+	start := make(chan struct{})
+	errors := make(chan error, 2)
+	var writers sync.WaitGroup
+	scale, color := 125.0, "#00ff00"
+	for _, patch := range []authn.CaptionPreferencesUpdate{{FontScale: &scale}, {TextColor: &color}} {
+		writers.Add(1)
+		go func(patch authn.CaptionPreferencesUpdate) {
+			defer writers.Done()
+			<-start
+			_, err := authService.UpdatePreferences(ctx, 1001, authn.PreferencesUpdate{Captions: &patch})
+			errors <- err
+		}(patch)
+	}
+	close(start)
+	writers.Wait()
+	close(errors)
+	for err := range errors {
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if status, saved := request("owner-token", http.MethodGet, ""); status != http.StatusOK || saved.Captions.FontScale != scale || saved.Captions.TextColor != color || saved.Captions.FontFamily != "sans" {
+		t.Fatalf("concurrent captions = %d %+v", status, saved.Captions)
+	}
+	var precise string
+	if err := db.Pool.QueryRow(ctx, `SELECT preferences #>> '{future,precise}' FROM user_preferences WHERE user_id=1001`).Scan(&precise); err != nil || precise != "9007199254740993" {
+		t.Fatalf("future preference was lost: %q %v", precise, err)
+	}
 
 	status, updated := request("owner-token", http.MethodPatch, `{"uploads":{"encryption":true,"preferredPartSize":1073741824},"appearance":{"locale":"pt-BR"}}`)
 	if status != http.StatusOK || !updated.Uploads.Encryption || updated.Uploads.PreferredPartSize != 1<<30 ||
@@ -153,6 +189,11 @@ func TestUserPreferencesPersistPerUserWithPartialUpdates(t *testing.T) {
 		"unsupported sort":                `{"files":{"sort":"id"}}`,
 		"unsupported theme":               `{"appearance":{"theme":"sepia"}}`,
 		"unsupported locale":              `{"appearance":{"locale":"xx"}}`,
+		"caption scale above maximum":     `{"captions":{"fontScale":250}}`,
+		"caption opacity below minimum":   `{"captions":{"textOpacity":-1}}`,
+		"caption color is not hex":        `{"captions":{"textColor":"red"}}`,
+		"caption font is not supported":   `{"captions":{"fontFamily":"comic"}}`,
+		"caption delay above maximum":     `{"captions":{"delay":20}}`,
 	} {
 		if status, _ := request("owner-token", http.MethodPatch, body); status != http.StatusBadRequest && status != http.StatusUnprocessableEntity {
 			t.Fatalf("%s: status = %d, want 400 or 422", name, status)
