@@ -1,6 +1,5 @@
 .git
 bin
-coverage.out
 node_modules
 *.local
 .env

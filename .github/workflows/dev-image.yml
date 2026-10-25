@@ -5,10 +5,13 @@ on:
   push:
     branches:
       - main
-    paths-ignore:
-      - "docs/**"
-      - "**/*.md"
-      - "**/*.mdx"
+    paths:
+      - "**"
+      - "!docs/**"
+      - "!**/*.md"
+      - "!**/*.mdx"
+      - "!.github/workflows/**"
+      - ".github/workflows/dev-image.yml"
 
 concurrency:
   group: publish-dev-image

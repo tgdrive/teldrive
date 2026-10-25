@@ -15,7 +15,7 @@
 - Backend unit tests: `go test ./...`; focused package/test: `go test ./internal/transfer -run '^TestName$'`.
 - Integration tests must use the PostgreSQL harness: `scripts/test-postgres.sh go test -tags=integration ./internal/uploads`; use `just test-integration` for all packages. The harness prefers Podman and falls back to Docker only when Podman is not installed.
 - Race tests also require the PostgreSQL harness: `just test-race`.
-- Full project validation: `just check`. This regenerates artifacts and runs lint, UI checks/build, docs build, unit tests, and the PostgreSQL-harness-backed 80% core coverage gate; it is intentionally expensive.
+- Full project validation: `just check`. This regenerates artifacts and runs lint, UI checks/build, docs build, unit tests, and PostgreSQL-harness-backed integration tests; it is intentionally expensive.
 - UI checks: `just ui-check` (includes browser E2E with mocked API responses).
 - Documentation: edit pages in `docs/content/docs/`; use `just docs-dev` to preview or `just docs-build` to generate references and build the site.
 - Format only handwritten code with `just format`; generated Go directories are deliberately excluded.
