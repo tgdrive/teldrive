@@ -5,6 +5,7 @@ const externalBaseURL = process.env.PLAYWRIGHT_BASE_URL ?? process.env.TELDRIVE_
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
+  workers: process.env.CI ? 8 : undefined,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 2 : 0,
   timeout: 60_000,

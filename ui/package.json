@@ -9,7 +9,7 @@
     "lint": "biome lint --write --unsafe src",
     "format": "biome format --write src",
     "typecheck": "tsc",
-    "test": "playwright test e2e/viewers.spec.ts --workers=8 && playwright test e2e/file-manager.spec.ts e2e/source-audit.spec.ts e2e/users-settings.spec.ts e2e/search.spec.ts e2e/search-state.spec.ts",
+    "test": "playwright test e2e/viewers.spec.ts && playwright test e2e/file-manager.spec.ts e2e/source-audit.spec.ts e2e/users-settings.spec.ts e2e/search.spec.ts e2e/search-state.spec.ts",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui"
   },
