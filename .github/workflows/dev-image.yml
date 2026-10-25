@@ -24,6 +24,10 @@ permissions:
 jobs:
   publish:
     name: Build and publish dev image
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (!startsWith(github.event.head_commit.message, 'ci:') &&
+       !startsWith(github.event.head_commit.message, 'ci('))
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
