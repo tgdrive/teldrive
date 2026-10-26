@@ -19,6 +19,7 @@ import (
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/telegram/dcs"
 	"github.com/gotd/td/tg"
+	"github.com/gotd/td/transport"
 	"github.com/iyear/connectproxy"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -149,7 +150,34 @@ func resolverFromConfig(config FactoryConfig) (dcs.Resolver, error) {
 			dialer = contextDialer
 		}
 	}
-	return dcs.Plain(dcs.PlainOptions{Dial: dialer.DialContext}), nil
+	return ipv4Resolver{resolver: dcs.Plain(dcs.PlainOptions{Dial: dialer.DialContext})}, nil
+}
+
+// ipv4Resolver excludes IPv6 DCs before gotd races candidates. Disabling IPv6
+// on the local host cannot prevent HTTP/SOCKS proxies from dialing IPv6 targets.
+type ipv4Resolver struct {
+	resolver dcs.Resolver
+}
+
+func (r ipv4Resolver) Primary(ctx context.Context, dc int, list dcs.List) (transport.Conn, error) {
+	return r.resolver.Primary(ctx, dc, ipv4DCList(list))
+}
+
+func (r ipv4Resolver) MediaOnly(ctx context.Context, dc int, list dcs.List) (transport.Conn, error) {
+	return r.resolver.MediaOnly(ctx, dc, ipv4DCList(list))
+}
+
+func (r ipv4Resolver) CDN(ctx context.Context, dc int, list dcs.List) (transport.Conn, error) {
+	return r.resolver.CDN(ctx, dc, ipv4DCList(list))
+}
+
+func ipv4DCList(list dcs.List) dcs.List {
+	isIPv6 := func(option tg.DCOption) bool { return option.Ipv6 }
+	if slices.ContainsFunc(list.Options, isIPv6) {
+		// DC lists are shared across clients; never filter the original in place.
+		list.Options = slices.DeleteFunc(slices.Clone(list.Options), isIPv6)
+	}
+	return list
 }
 
 // New creates a client that is not bound to a known Telegram account, such as
