@@ -1,6 +1,7 @@
 import { localEngine } from "@embedpdf/engine";
 import { interactionPlugin } from "@embedpdf/react/interaction";
 import { LinkLayer, linkPlugin } from "@embedpdf/react/link";
+import { outlinePlugin } from "@embedpdf/react/outline";
 import { RenderLayer, renderPlugin } from "@embedpdf/react/render";
 import {
   createCapabilityToken,
@@ -25,14 +26,16 @@ import {
   Stage,
   type StageCapability,
   stagePlugin,
+  useScrollMetrics,
   useStage,
   useStageState,
 } from "@embedpdf/react/stage";
-import { Button, cn, Popover, Spinner } from "@heroui/react";
+import { Button, cn, Dropdown, Form, Input, Link, Popover, Spinner, Tabs } from "@heroui/react";
 import { buttonVariants } from "@heroui/styles";
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import type { FileEntry } from "@/api/types";
 import { PdfBrightnessSlider } from "@/components/pdf-brightness-slider";
+import { PreviewExpandButton } from "@/components/preview-presentation";
 import { loadDocumentContent } from "@/features/files/document-cache";
 import { useDocumentSettings } from "@/lib/document-settings";
 import { useFormatBytes } from "@/lib/format";
@@ -49,6 +52,7 @@ import ZoomOutIcon from "~icons/gravity-ui/magnifier-minus";
 import ZoomInIcon from "~icons/gravity-ui/magnifier-plus";
 import SunIcon from "~icons/gravity-ui/sun";
 import CloseIcon from "~icons/gravity-ui/xmark";
+import { PdfOutline } from "./pdf-outline";
 
 type PdfReaderProps = {
   file: FileEntry;
@@ -77,6 +81,7 @@ const plugins = [
   selectionPlugin(),
   searchPlugin(),
   linkPlugin(),
+  outlinePlugin(),
 ];
 
 // No annotation, form, page-edit or script plugins. The engine also refuses
@@ -126,6 +131,7 @@ export function PdfReader({ file, url, downloadUrl = url, onClose }: PdfReaderPr
       className="pdf-reader flex h-full min-h-0 flex-col bg-background text-foreground"
     >
       <header
+        data-preview-chrome="header"
         data-pdf-header
         className="flex h-16 shrink-0 items-center gap-3 border-b border-border bg-surface px-3 sm:px-5"
       >
@@ -136,6 +142,7 @@ export function PdfReader({ file, url, downloadUrl = url, onClose }: PdfReaderPr
           <p className="truncate text-sm font-semibold">{file.name}</p>
           <p className="text-xs text-muted">PDF · {formatBytes(file.size || 0)}</p>
         </div>
+        <PreviewExpandButton />
         <Popover>
           <Button isIconOnly size="sm" variant="ghost" aria-label={t("pdf.brightness")}>
             <SunIcon className="size-4" />
@@ -149,14 +156,14 @@ export function PdfReader({ file, url, downloadUrl = url, onClose }: PdfReaderPr
             </Popover.Dialog>
           </Popover.Content>
         </Popover>
-        <a
+        <Link
           href={downloadUrl}
           download={file.name}
           aria-label={t("pdf.downloadOriginal")}
           className={buttonVariants({ variant: "ghost", size: "sm", isIconOnly: true })}
         >
           <DownloadIcon className="size-4" />
-        </a>
+        </Link>
       </header>
       <Viewer
         key={attempt}
@@ -184,6 +191,7 @@ function PdfWorkspace({ onClose }: { onClose: () => void }) {
   const stage = useStage();
   const { currentPageIndex, pageCount, zoomLevel } = useStageState();
   const [sidebar, setSidebar] = useState(false);
+  const [sidebarTab, setSidebarTab] = useState("pages");
   const [find, setFind] = useState(false);
   const [page, setPage] = useState("");
   const root = useRef<HTMLDivElement>(null);
@@ -236,6 +244,7 @@ function PdfWorkspace({ onClose }: { onClose: () => void }) {
       <SelectionClipboard target={root} />
       <div
         data-pdf-toolbar
+        data-preview-chrome="pdf-toolbar"
         className="flex h-12 shrink-0 items-center justify-between gap-1 border-b border-border bg-surface px-2 sm:px-4"
       >
         <div className="flex items-center gap-1">
@@ -271,7 +280,7 @@ function PdfWorkspace({ onClose }: { onClose: () => void }) {
           >
             <LeftIcon />
           </Button>
-          <input
+          <Input
             aria-label={t("pdf.pageNumber")}
             inputMode="numeric"
             value={page}
@@ -308,30 +317,37 @@ function PdfWorkspace({ onClose }: { onClose: () => void }) {
           >
             <ZoomOutIcon />
           </Button>
-          <select
-            aria-label={t("pdf.zoomOptions")}
-            value=""
-            onChange={(event) => {
-              const value = event.target.value;
-              if (value === "width") stage.fitWidth();
-              else if (value === "page") stage.fitPage();
-              else if (value === "rotate") stage.rotateViewBy(90);
-              else stage.zoomTo(Number(value));
-            }}
-            className="h-8 max-w-20 rounded-md bg-transparent text-xs tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-focus sm:max-w-28"
-          >
-            <option value="" disabled>
+          <Dropdown>
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-label={t("pdf.zoomOptions")}
+              className="tabular-nums"
+            >
               {Math.round(zoomLevel * 100)}%
-            </option>
-            <option value="width">{t("pdf.fitWidth")}</option>
-            <option value="page">{t("pdf.fitPage")}</option>
-            {[0.5, 1, 1.5, 2, 3].map((value) => (
-              <option key={value} value={value}>
-                {value * 100}%
-              </option>
-            ))}
-            <option value="rotate">{t("pdf.rotate")}</option>
-          </select>
+            </Button>
+            <Dropdown.Popover>
+              <Dropdown.Menu
+                aria-label={t("pdf.zoomOptions")}
+                onAction={(key) => {
+                  const value = String(key);
+                  if (value === "width") stage.fitWidth();
+                  else if (value === "page") stage.fitPage();
+                  else if (value === "rotate") stage.rotateViewBy(90);
+                  else stage.zoomTo(Number(value));
+                }}
+              >
+                <Dropdown.Item id="width">{t("pdf.fitWidth")}</Dropdown.Item>
+                <Dropdown.Item id="page">{t("pdf.fitPage")}</Dropdown.Item>
+                {[0.5, 1, 1.5, 2, 3].map((value) => (
+                  <Dropdown.Item key={value} id={String(value)} textValue={`${value * 100}%`}>
+                    {value * 100}%
+                  </Dropdown.Item>
+                ))}
+                <Dropdown.Item id="rotate">{t("pdf.rotate")}</Dropdown.Item>
+              </Dropdown.Menu>
+            </Dropdown.Popover>
+          </Dropdown>
           <Button
             isIconOnly
             size="sm"
@@ -359,10 +375,13 @@ function PdfWorkspace({ onClose }: { onClose: () => void }) {
         {sidebar ? (
           <aside
             aria-label={t("pdf.docNav")}
-            className="absolute inset-y-0 left-0 z-20 w-40 border-r border-border bg-surface shadow-lg sm:relative sm:shrink-0 sm:shadow-none"
+            className={cn(
+              "absolute inset-y-0 left-0 z-20 flex flex-col border-r border-border bg-surface shadow-lg sm:relative sm:shrink-0 sm:shadow-none",
+              sidebarTab === "outline" ? "w-64" : "w-40",
+            )}
           >
             <div className="flex h-11 items-center justify-between border-b border-border px-3 text-xs font-medium">
-              {t("pdf.tabPages")}
+              {t("pdf.docNav")}
               <Button
                 isIconOnly
                 size="sm"
@@ -373,11 +392,38 @@ function PdfWorkspace({ onClose }: { onClose: () => void }) {
                 <CloseIcon className="size-3" />
               </Button>
             </div>
-            <ThumbnailSidebar
-              onNavigate={() => {
-                if (window.innerWidth < 640) setSidebar(false);
-              }}
-            />
+            <Tabs
+              selectedKey={sidebarTab}
+              onSelectionChange={(key) => setSidebarTab(String(key))}
+              className="flex min-h-0 flex-1 flex-col"
+            >
+              <Tabs.ListContainer>
+                <Tabs.List aria-label={t("pdf.sidebarAria")} className="w-full">
+                  <Tabs.Tab id="pages" className="flex-1 text-xs">
+                    {t("pdf.tabPages")}
+                  </Tabs.Tab>
+                  <Tabs.Tab id="outline" className="flex-1 text-xs">
+                    {t("pdf.tabOutline")}
+                  </Tabs.Tab>
+                </Tabs.List>
+              </Tabs.ListContainer>
+              <Tabs.Panel id="pages" className="min-h-0 flex-1">
+                <ThumbnailSidebar
+                  onNavigate={() => {
+                    if (window.innerWidth < 640) setSidebar(false);
+                  }}
+                />
+              </Tabs.Panel>
+              <Tabs.Panel id="outline" className="min-h-0 flex-1 overflow-y-auto">
+                {sidebarTab === "outline" ? (
+                  <PdfOutline
+                    onNavigate={() => {
+                      if (window.innerWidth < 640) setSidebar(false);
+                    }}
+                  />
+                ) : null}
+              </Tabs.Panel>
+            </Tabs>
           </aside>
         ) : null}
         <Stage
@@ -412,13 +458,17 @@ function ThumbnailSidebar({ onNavigate }: { onNavigate: () => void }) {
   const stage = useStage();
   const thumbs = useStage(Thumbnails);
   const { currentPageIndex } = useStageState();
+  const { clientWidth, clientHeight } = useScrollMetrics(Thumbnails);
   useEffect(() => {
+    // Tab panels mount before their stage has a measured viewport. Reveal again
+    // once it is laid out, rather than letting the first resize reset to page 1.
+    if (!clientWidth || !clientHeight) return;
     thumbs.reveal(currentPageIndex);
-  }, [thumbs, currentPageIndex]);
+  }, [thumbs, currentPageIndex, clientWidth, clientHeight]);
   return (
     <Stage
       token={Thumbnails}
-      className="h-[calc(100%_-_2.75rem)]"
+      className="h-full"
       pageChrome={(page) => (
         <span className="absolute inset-x-0 bottom-0 text-center text-[11px] leading-6 text-muted">
           {page.pageIndex + 1}
@@ -426,16 +476,17 @@ function ThumbnailSidebar({ onNavigate }: { onNavigate: () => void }) {
       )}
     >
       {(page) => (
-        <button
+        <Button
           type="button"
+          variant="ghost"
           aria-label={t("pdf.goToPage", { page: page.pageIndex + 1 })}
           aria-current={page.pageIndex === currentPageIndex ? "page" : undefined}
-          onClick={() => {
+          onPress={() => {
             stage.goToPage(page.ref);
             onNavigate();
           }}
           className={cn(
-            "absolute inset-0 outline-none",
+            "absolute inset-0 h-full w-full min-w-0 rounded-none p-0 outline-none",
             page.pageIndex === currentPageIndex
               ? "ring-2 ring-accent"
               : "ring-1 ring-border hover:ring-accent",
@@ -444,7 +495,7 @@ function ThumbnailSidebar({ onNavigate }: { onNavigate: () => void }) {
           <div data-pdf-page-content className="absolute inset-0">
             <RenderLayer tiles={false} />
           </div>
-        </button>
+        </Button>
       )}
     </Stage>
   );
@@ -469,10 +520,11 @@ function PdfSearch({ onClose }: { onClose: () => void }) {
   return (
     <div
       data-pdf-findbar
+      data-preview-chrome="pdf-findbar"
       className="flex min-h-12 shrink-0 items-center gap-2 border-b border-border bg-surface px-3 py-2 sm:px-5"
     >
       <SearchIcon className="size-4 shrink-0 text-muted" />
-      <input
+      <Input
         ref={input}
         aria-label={t("pdf.find")}
         placeholder={t("pdf.findPlaceholder")}
@@ -544,10 +596,11 @@ function PdfSelectionMenu() {
       <div className="rounded-lg border border-border bg-overlay p-1 shadow-lg">
         {/* EmbedPDF isolates pointerdown on this overlay with a native listener.
             A click handler still bubbles to React; HeroUI's onPress cannot start
-            its pointer gesture here. Keep the shared button styling. */}
-        <button
+             its pointer gesture here. Use onClick on the shared button. */}
+        <Button
           type="button"
-          className={buttonVariants({ size: "sm", variant: "ghost" })}
+          size="sm"
+          variant="ghost"
           onClick={() => {
             void copySelection(selection).catch((cause) =>
               setError(cause instanceof Error ? cause.message : t("manager.copyFailed")),
@@ -556,7 +609,7 @@ function PdfSelectionMenu() {
         >
           <CopyIcon className="size-4" />
           {t("share.copy")}
-        </button>
+        </Button>
         {error ? (
           <p role="alert" className="px-2 text-xs text-danger">
             {error}
@@ -603,7 +656,7 @@ function PdfPassword({ document }: { document: LockedDocumentInfo }) {
   const [pending, setPending] = useState(false);
   const [failed, setFailed] = useState(false);
   return (
-    <form
+    <Form
       className="m-auto flex w-full max-w-sm flex-col gap-4 p-6"
       onSubmit={(event) => {
         event.preventDefault();
@@ -619,7 +672,7 @@ function PdfPassword({ document }: { document: LockedDocumentInfo }) {
       <p className="text-sm text-muted">
         {t(document.passwordProvided || failed ? "pdf.badPassword" : "pdf.needPassword")}
       </p>
-      <input
+      <Input
         type="password"
         autoComplete="off"
         aria-label={t("pdf.passwordAria")}
@@ -630,6 +683,6 @@ function PdfPassword({ document }: { document: LockedDocumentInfo }) {
       <Button type="submit" variant="primary" isDisabled={pending}>
         {pending ? <Spinner size="sm" /> : t("pdf.unlock")}
       </Button>
-    </form>
+    </Form>
   );
 }

@@ -1,4 +1,4 @@
-import { Button, Label, Spinner, Switch } from "@heroui/react";
+import { Button, Label, ListBox, Select, Spinner, Switch } from "@heroui/react";
 import { useEffect, useState } from "react";
 import {
   clearDocumentCache,
@@ -9,7 +9,6 @@ import {
 import { useDocumentSettings } from "@/lib/document-settings";
 import { useFormatBytes } from "@/lib/format";
 import { useAppLocale } from "@/lib/locale";
-import { PdfBrightnessSlider } from "./pdf-brightness-slider";
 import { SettingsRow, SettingsSection } from "./settings-layout";
 
 export function DocumentReaderSettings() {
@@ -54,9 +53,6 @@ export function DocumentReaderSettings() {
 
   return (
     <SettingsSection title={t("documents.title")} description={t("documents.description")}>
-      <SettingsRow label={t("pdf.brightnessAria")} description={t("documents.brightnessHint")}>
-        <PdfBrightnessSlider />
-      </SettingsRow>
       <SettingsRow label={t("documents.cacheLabel")} description={t("documents.cacheHint")}>
         <Switch
           aria-label={t("documents.cacheSwitch")}
@@ -73,23 +69,33 @@ export function DocumentReaderSettings() {
         </Switch>
       </SettingsRow>
       <SettingsRow label={t("documents.cacheLimit")} description={t("documents.cacheLimitHint")}>
-        <select
+        <Select
           aria-label={t("documents.cacheLimit")}
-          value={settings.cacheLimitMiB}
-          disabled={busy || !settings.cacheEnabled}
-          onChange={(event) =>
-            void perform(() =>
-              configureDocumentCache({ cacheLimitMiB: Number(event.target.value) }),
-            )
-          }
-          className="h-10 w-full rounded-lg border border-field-border bg-field-background px-3 text-sm text-foreground disabled:opacity-50"
+          selectedKey={String(settings.cacheLimitMiB)}
+          isDisabled={busy || !settings.cacheEnabled}
+          onSelectionChange={(key) => {
+            if (key !== null)
+              void perform(() => configureDocumentCache({ cacheLimitMiB: Number(key) }));
+          }}
         >
-          {[32, 64, 128, 256, 512, 1024].map((size) => (
-            <option key={size} value={size}>
-              {formatBytes(size * 1024 * 1024)}
-            </option>
-          ))}
-        </select>
+          <Select.Trigger aria-label={t("documents.cacheLimit")}>
+            <Select.Value />
+            <Select.Indicator />
+          </Select.Trigger>
+          <Select.Popover>
+            <ListBox>
+              {[32, 64, 128, 256, 512, 1024].map((size) => (
+                <ListBox.Item
+                  key={size}
+                  id={String(size)}
+                  textValue={formatBytes(size * 1024 * 1024)}
+                >
+                  {formatBytes(size * 1024 * 1024)}
+                </ListBox.Item>
+              ))}
+            </ListBox>
+          </Select.Popover>
+        </Select>
       </SettingsRow>
       <SettingsRow label={t("documents.cacheUsage")} description={t("documents.cachePrivacy")}>
         <div className="flex items-center justify-between gap-3">

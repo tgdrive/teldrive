@@ -151,10 +151,12 @@ test("PDFium WASM opens a read-only reader with navigation, search, zoom and thu
   await input.fill("1");
   await input.press("Enter");
   await expect(input).toHaveValue("1");
-  const zoom = dialog.getByRole("combobox", { name: "PDF zoom options" });
-  await zoom.selectOption("1.5");
-  await expect(zoom.locator('option[value=""]')).toHaveText("150%");
-  await zoom.selectOption("width");
+  const zoom = dialog.getByRole("button", { name: "PDF zoom options" });
+  await zoom.click();
+  await page.getByRole("menuitem", { name: "150%", exact: true }).click();
+  await expect(zoom).toHaveText("150%");
+  await zoom.click();
+  await page.getByRole("menuitem", { name: "Fit width", exact: true }).click();
   await dialog.getByRole("button", { name: "Search in PDF", exact: true }).click();
   await dialog.getByRole("textbox", { name: "Find in PDF", exact: true }).fill("Second Page");
   await expect(dialog.locator("[data-pdf-findbar] output")).toHaveText("1 / 1", {
@@ -276,6 +278,205 @@ test("PDF thumbnails and main pages stay virtualized in a long document", async 
   await expect(dialog.getByRole("button", { name: "Go to page 240", exact: true })).toBeVisible();
   expect(await dialog.getByRole("button", { name: /^Go to page/ }).count()).toBeLessThan(20);
 });
+
+test("native PDF outline expands sections and navigates without replacing thumbnails", async ({
+  page,
+}) => {
+  await installViewerApi(page, []);
+  const outlinePdf = readFileSync(new URL("./fixtures/viewers/outline.pdf", import.meta.url));
+  let downloads = 0;
+  await page.route(`**/files/${pdfId}/content/**`, (route) => {
+    downloads++;
+    return route.fulfill({ body: outlinePdf, contentType: "application/pdf" });
+  });
+  await page.goto("/files?view=list");
+  await openFile(page, "reader-sample.pdf");
+  const dialog = page.getByRole("dialog", { name: "reader-sample.pdf", exact: true });
+  const input = dialog.getByRole("textbox", { name: "PDF page number", exact: true });
+  await expect(input).toHaveValue("1", { timeout: 45_000 });
+  const toggle = dialog.getByRole("button", { name: "Toggle PDF sidebar", exact: true }).first();
+  await toggle.click();
+  await expect(dialog.getByRole("button", { name: "Go to page 1", exact: true })).toBeVisible();
+  await dialog.getByRole("tab", { name: "Outline", exact: true }).click();
+  await expect(dialog.getByRole("button", { name: "Section 1.2", exact: true })).toBeVisible();
+  await dialog.getByRole("button", { name: "Collapse Chapter 1", exact: true }).click();
+  await expect(dialog.getByRole("button", { name: "Section 1.2", exact: true })).toHaveCount(0);
+  await dialog.getByRole("button", { name: "Expand Chapter 1", exact: true }).click();
+  await dialog.getByRole("button", { name: "Section 1.2", exact: true }).click();
+  await expect(input).toHaveValue("2");
+  if ((page.viewportSize()?.width ?? 0) < 640) {
+    await expect(dialog.getByRole("tab", { name: "Outline", exact: true })).toHaveCount(0);
+    await toggle.click();
+  }
+  await dialog.getByRole("tab", { name: "Pages", exact: true }).click();
+  await expect(dialog.getByRole("button", { name: "Go to page 2", exact: true })).toBeVisible();
+  expect(downloads).toBe(1);
+});
+
+test("native PDF outline shows an empty state without blocking the reader", async ({ page }) => {
+  const dialog = await openPdf(page);
+  await dialog.getByRole("button", { name: "Toggle PDF sidebar", exact: true }).first().click();
+  await dialog.getByRole("tab", { name: "Outline", exact: true }).click();
+  await expect(dialog.getByText("This PDF has no outline", { exact: true })).toBeVisible();
+  await dialog.getByRole("tab", { name: "Pages", exact: true }).click();
+  await expect(dialog.getByRole("button", { name: "Go to page 1", exact: true })).toBeVisible();
+});
+
+test("expanded PDF reuses its toolbar, preserves the page, and reveals controls without shifting content", async ({
+  page,
+}, testInfo) => {
+  const dialog = await openPdf(page);
+  await dialog.getByRole("button", { name: "Next PDF page", exact: true }).click();
+  const input = dialog.getByRole("textbox", { name: "PDF page number", exact: true });
+  await expect(input).toHaveValue("2");
+  await dialog.getByRole("button", { name: "Expand preview", exact: true }).click();
+  await expect(dialog).toHaveAttribute("data-preview-expanded", "true");
+  await expect(dialog.locator("[data-pdf-header]")).toHaveCount(1);
+  await expect(dialog.locator("[data-pdf-toolbar]")).toHaveCount(1);
+  expect(await page.evaluate(() => document.fullscreenElement === null)).toBe(true);
+  const stage = dialog.locator(".pdf-stage");
+  await stage.hover({ position: { x: 20, y: 200 } });
+  await expect(dialog).toHaveAttribute("data-preview-controls", "false", { timeout: 6000 });
+  const hiddenBox = await stage.boundingBox();
+  await expect(dialog.locator("[data-pdf-header]")).toHaveCSS("opacity", "0");
+  await page.mouse.move(40, 220);
+  await expect(dialog).toHaveAttribute("data-preview-controls", "true");
+  expect(await stage.boundingBox()).toEqual(hiddenBox);
+  await expect(input).toHaveValue("2");
+  await testInfo.attach("expanded-preview", {
+    body: await dialog.screenshot(),
+    contentType: "image/png",
+  });
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveAttribute("data-preview-expanded", "false");
+  await expect(dialog).toBeVisible();
+  await expect(input).toHaveValue("2");
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+});
+
+test("expanded preview keeps controls for open menus and keyboard focus", async ({ page }) => {
+  const dialog = await openPdf(page);
+  await dialog.getByRole("button", { name: "Expand preview", exact: true }).click();
+  await dialog.getByRole("button", { name: "Brightness", exact: true }).click();
+  const popover = page
+    .getByRole("dialog")
+    .filter({ has: page.getByRole("heading", { name: "PDF page brightness" }) });
+  await expect(popover).toBeVisible();
+  await page.mouse.move(30, 300);
+  await page.waitForTimeout(3000);
+  await expect(dialog).toHaveAttribute("data-preview-controls", "true");
+  await page.keyboard.press("Escape");
+  await expect(popover).toBeHidden();
+  await expect(dialog).toHaveAttribute("data-preview-expanded", "true");
+  await page.keyboard.press("Tab");
+  await dialog.getByRole("button", { name: "Restore preview", exact: true }).focus();
+  await page.waitForTimeout(3000);
+  await expect(dialog).toHaveAttribute("data-preview-controls", "true");
+  await page.keyboard.press("Enter");
+  await expect(dialog).toHaveAttribute("data-preview-expanded", "false");
+});
+
+test("expanded ebook reuses header and footer without reopening the publication", async ({
+  page,
+}, testInfo) => {
+  await installViewerApi(page, []);
+  await page.goto("/files?view=list");
+  await openFile(page, "reader-sample.epub");
+  const dialog = page.getByRole("dialog", { name: "reader-sample.epub" });
+  const foliate = dialog.locator("foliate-view");
+  await expect(foliate).toHaveAttribute("data-rendered-content", /A Quiet Beginning/);
+  await foliate.evaluate((element) => {
+    element.dataset.expansionProbe = "same-publication";
+  });
+  await dialog.getByRole("button", { name: "Expand preview", exact: true }).click();
+  await expect(dialog).toHaveAttribute("data-preview-expanded", "true");
+  await expect(dialog.locator("[data-epub-header]")).toHaveCount(1);
+  await expect(dialog.locator("[data-epub-footer]")).toHaveCount(1);
+  await page.mouse.move(10, 300);
+  await expect(dialog).toHaveAttribute("data-preview-controls", "false", { timeout: 6000 });
+  // Foliate's paginator has a closed shadow root; browser frames remain
+  // addressable even though a DOM iframe locator cannot cross that root.
+  const bookFrame = page.frames().find((frame) => frame.url().startsWith("blob:"));
+  expect(bookFrame).toBeTruthy();
+  const bookBody = bookFrame!.locator("body");
+  if (testInfo.project.name === "mobile") {
+    await bookBody.tap({ position: { x: 20, y: 100 } });
+    await expect(dialog).toHaveAttribute("data-preview-controls", "true");
+    await bookBody.tap({ position: { x: 20, y: 100 } });
+    await expect(dialog).toHaveAttribute("data-preview-controls", "false");
+  }
+  await bookBody.press("Shift");
+  await expect(dialog).toHaveAttribute("data-preview-controls", "true");
+  await bookBody.press("Escape");
+  await expect(dialog).toHaveAttribute("data-preview-expanded", "false");
+  await expect(foliate).toHaveAttribute("data-expansion-probe", "same-publication");
+  await expect(foliate).toHaveAttribute("data-rendered-content", /A Quiet Beginning/);
+  await bookBody.press("Escape");
+  await expect(dialog).toBeHidden();
+});
+
+for (const [extension, mime] of [
+  ["svg", "image/svg+xml"],
+  ["txt", "text/plain"],
+  ["wav", "audio/wav"],
+  ["webm", "video/webm"],
+] as const) {
+  test(`expanded ${extension} preview shares auto-hide and restore behavior`, async ({
+    page,
+  }, testInfo) => {
+    const name = `expanded.${extension}`;
+    const wav = Buffer.alloc(46);
+    wav.write("RIFF");
+    wav.writeUInt32LE(38, 4);
+    wav.write("WAVEfmt ", 8);
+    wav.writeUInt32LE(16, 16);
+    wav.writeUInt16LE(1, 20);
+    wav.writeUInt16LE(1, 22);
+    wav.writeUInt32LE(8000, 24);
+    wav.writeUInt32LE(16000, 28);
+    wav.writeUInt16LE(2, 32);
+    wav.writeUInt16LE(16, 34);
+    wav.write("data", 36);
+    wav.writeUInt32LE(2, 40);
+    const body =
+      extension === "svg"
+        ? Buffer.from(
+            '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect width="400" height="300" fill="teal"/></svg>',
+          )
+        : extension === "txt"
+          ? Buffer.from("Expanded text preview")
+          : extension === "wav"
+            ? wav
+            : readFileSync(new URL("./fixtures/viewers/sample.webm", import.meta.url));
+    await installViewerApi(page, []);
+    await page.route("**/api/v1/files?**", (route) =>
+      route.fulfill({ json: { items: [file(pdfId, name, mime, body.length)] } }),
+    );
+    await page.route(`**/files/${pdfId}/content/**`, (route) =>
+      route.fulfill({ body, contentType: mime }),
+    );
+    await page.goto("/files?view=list");
+    await openFile(page, name);
+    const dialog = page.getByRole("dialog", { name, exact: true });
+    await dialog.getByRole("button", { name: "Expand preview", exact: true }).click();
+    await page.mouse.move(10, 300);
+    await expect(dialog).toHaveAttribute("data-preview-controls", "false", { timeout: 6000 });
+    if (testInfo.project.name === "mobile" && extension !== "webm" && extension !== "wav") {
+      await page.touchscreen.tap(10, 300);
+      await expect(dialog).toHaveAttribute("data-preview-controls", "true");
+      await page.touchscreen.tap(10, 300);
+      await expect(dialog).toHaveAttribute("data-preview-controls", "false");
+    }
+    await page.keyboard.press("Shift");
+    await expect(dialog).toHaveAttribute("data-preview-controls", "true");
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveAttribute("data-preview-expanded", "false");
+    await expect(dialog).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+  });
+}
 
 test("PDF download link targets the untouched original and read-only interactions never upload", async ({
   page,
@@ -610,12 +811,16 @@ test("document cache settings clear stored content and disabling stops caching",
     return route.fulfill({ body: pdf, contentType: "application/pdf", headers: { ETag: '"v1"' } });
   });
   await page.goto("/settings/reader");
+  await expect(page.getByRole("slider", { name: "PDF page brightness", exact: true })).toHaveCount(
+    0,
+  );
   const toggle = page.getByRole("switch", { name: "Keep documents in this browser", exact: true });
   await expect(toggle).not.toBeChecked();
   await toggle.focus();
   await toggle.press("Space");
   await expect(toggle).toBeChecked();
-  await page.getByRole("combobox", { name: "Document cache size", exact: true }).selectOption("32");
+  await page.getByRole("button", { name: /Document cache size$/ }).click();
+  await page.getByRole("option", { name: "32.0 MB", exact: true }).click();
   await page.goto("/files?view=list");
   let dialog = await openPreparedPdf(page);
   await dialog.getByRole("button", { name: "Close PDF reader", exact: true }).click();
@@ -734,8 +939,9 @@ test("document cache evicts least recently opened content when its size limit sh
   await seedDocumentSettings(page);
   await installViewerApi(page, []);
   await page.goto("/settings/reader");
-  const limit = page.getByRole("combobox", { name: "Document cache size", exact: true });
-  await limit.selectOption("64");
+  const limit = page.getByRole("button", { name: /Document cache size$/ });
+  await limit.click();
+  await page.getByRole("option", { name: "64.0 MB", exact: true }).click();
   await expect(limit).toBeEnabled();
   await page.evaluate(
     () =>
@@ -764,7 +970,8 @@ test("document cache evicts least recently opened content when its size limit sh
         };
       }),
   );
-  await limit.selectOption("32");
+  await limit.click();
+  await page.getByRole("option", { name: "32.0 MB", exact: true }).click();
   await expect(limit).toBeEnabled();
   await expect
     .poll(async () => (await cachedDocuments(page)).map((entry) => entry.key))
