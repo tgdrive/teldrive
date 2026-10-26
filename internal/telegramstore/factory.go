@@ -19,6 +19,7 @@ import (
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/telegram/dcs"
 	"github.com/gotd/td/tg"
+	"github.com/iyear/connectproxy"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/net/proxy"
@@ -130,7 +131,9 @@ func resolverFromConfig(config FactoryConfig) (dcs.Resolver, error) {
 			return nil, fmt.Errorf("%w: parse proxy URL: %v", ErrTelegramConfiguration, err)
 		}
 		if parsed.Scheme == "http" || parsed.Scheme == "https" {
-			dialer, err = newHTTPConnectDialer(parsed, config.DialTimeout)
+			dialer, err = connectproxy.NewWithConfig(parsed, proxy.Direct, &connectproxy.Config{
+				DialTimeout: config.DialTimeout,
+			})
 			if err != nil {
 				return nil, fmt.Errorf("%w: create HTTP proxy dialer: %v", ErrTelegramConfiguration, err)
 			}

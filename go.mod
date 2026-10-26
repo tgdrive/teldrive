@@ -16,6 +16,7 @@ require (
 	github.com/gotd/contrib v0.25.0
 	github.com/gotd/log v0.1.0
 	github.com/gotd/td v0.162.0
+	github.com/iyear/connectproxy v0.1.1
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/knadh/koanf/maps v0.1.3
 	github.com/knadh/koanf/parsers/toml v0.1.0
