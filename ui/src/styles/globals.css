@@ -1,6 +1,52 @@
 @import "tailwindcss";
 @import "@heroui/styles";
 
+/* Expanded previews reuse their existing chrome as overlays. Its visibility
+   never changes document geometry, zoom, or the mounted viewer instance. */
+[data-preview-shell] {
+  position: relative;
+}
+
+[data-preview-expanded="true"] [data-preview-chrome] {
+  z-index: 40;
+  transition: opacity 160ms ease;
+}
+
+[data-preview-expanded="true"] [data-preview-chrome="header"],
+[data-preview-expanded="true"] [data-preview-chrome="pdf-toolbar"],
+[data-preview-expanded="true"] [data-preview-chrome="pdf-findbar"],
+[data-preview-expanded="true"] [data-preview-chrome="footer"] {
+  position: absolute;
+  inset-inline: 0;
+}
+
+[data-preview-expanded="true"] [data-preview-chrome="header"] {
+  top: 0;
+}
+
+[data-preview-expanded="true"] [data-preview-chrome="pdf-toolbar"] {
+  top: 4rem;
+}
+
+[data-preview-expanded="true"] [data-preview-chrome="pdf-findbar"] {
+  top: 7rem;
+}
+
+[data-preview-expanded="true"] [data-preview-chrome="footer"] {
+  bottom: 0;
+}
+
+[data-preview-expanded="true"][data-preview-controls="false"] [data-preview-chrome] {
+  opacity: 0;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-preview-expanded="true"] [data-preview-chrome] {
+    transition: none;
+  }
+}
+
 /* ─── Font ─── */
 @font-face {
   font-family: "Geist";

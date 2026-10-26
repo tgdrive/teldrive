@@ -6,6 +6,24 @@ import { APP_LOCALES, STRINGS } from "../src/lib/locales";
 const sourceRoot = join(process.cwd(), "src");
 const placeholders = (value: string) => (value.match(/\{\w+\}/g) ?? []).toSorted().join(",");
 
+test("PDF reading uses EmbedPDF without a second PDF.js engine", () => {
+  const manifest = JSON.parse(readFileSync(join(process.cwd(), "package.json"), "utf8"));
+  expect(manifest.dependencies["pdfjs-dist"]).toBeUndefined();
+  const reader = readFileSync(join(sourceRoot, "components/viewers/pdf-reader.tsx"), "utf8");
+  const outline = readFileSync(join(sourceRoot, "components/viewers/pdf-outline.tsx"), "utf8");
+  expect(reader).toContain("outlinePlugin()");
+  expect(outline).toContain('from "@embedpdf/react/outline"');
+  expect(outline).not.toMatch(/pdfjs|localEngine\(/);
+});
+
+test("UI controls use shared components instead of raw HTML controls", () => {
+  for (const path of sourceFiles(sourceRoot).filter((path) => path.endsWith(".tsx"))) {
+    expect(readFileSync(path, "utf8"), relative(sourceRoot, path)).not.toMatch(
+      /<(?:select|option|input|textarea|button)\b/,
+    );
+  }
+});
+
 test("every locale contains all English keys and matching placeholders", () => {
   const englishKeys = Object.keys(STRINGS.en).toSorted();
   for (const { code } of APP_LOCALES) {

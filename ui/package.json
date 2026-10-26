@@ -14,8 +14,8 @@
     "test:e2e:ui": "playwright test --ui"
   },
   "dependencies": {
-    "@embedpdf/engine": "3.0.0-next.15",
-    "@embedpdf/react": "3.0.0-next.15",
+    "@embedpdf/engine": "3.0.0-next.16",
+    "@embedpdf/react": "3.0.0-next.16",
     "@heroui/react": "^3.2.6",
     "@heroui/styles": "^3.2.6",
     "@tailwindcss/vite": "^4.3.3",

@@ -7,6 +7,11 @@ import { previewMedia, supportsCodePreview } from "@/features/files/preview-supp
 import { readerKind } from "@/features/files/reader-support";
 import { useFormatBytes } from "@/lib/format";
 import { useAppLocale } from "@/lib/locale";
+import {
+  PreviewExpandButton,
+  PreviewPresentation,
+  usePreviewPresentation,
+} from "./preview-presentation";
 
 type ViewerKind = "image" | "video" | "audio" | "pdf" | "ebook" | "text";
 
@@ -38,7 +43,20 @@ export type FilePreviewSource = {
   embeddedTracks?: boolean;
 };
 
-export function FilePreviewDialog({
+export function FilePreviewDialog(props: {
+  file?: FileEntry;
+  source?: FilePreviewSource;
+  onOpenChange: (open: boolean) => void;
+}) {
+  if (!props.file || !viewerKind(props.file)) return null;
+  return (
+    <PreviewPresentation key={props.file.id}>
+      <FilePreviewContent {...props} />
+    </PreviewPresentation>
+  );
+}
+
+function FilePreviewContent({
   file,
   source,
   onOpenChange,
@@ -49,6 +67,7 @@ export function FilePreviewDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const closeFrame = useRef<number>(undefined);
+  const { rootProps } = usePreviewPresentation();
   const { t } = useAppLocale();
   const formatBytes = useFormatBytes();
   const contentUrl = file ? (source?.contentUrl ?? fileContentUrl(file)) : "";
@@ -82,6 +101,7 @@ export function FilePreviewDialog({
       >
         <Modal.Container size="full" scroll="inside" className="h-dvh max-h-dvh p-0">
           <Modal.Dialog
+            {...rootProps}
             aria-label={file.name}
             className="h-dvh max-h-dvh w-screen max-w-none overflow-hidden rounded-none bg-background p-0 text-foreground"
           >
@@ -111,7 +131,10 @@ export function FilePreviewDialog({
         className="bg-background"
       >
         <Modal.Container size="full" scroll="inside" className="h-dvh max-h-dvh p-0">
-          <Modal.Dialog className="h-dvh max-h-dvh w-screen max-w-none overflow-hidden rounded-none bg-background p-0 text-foreground">
+          <Modal.Dialog
+            {...rootProps}
+            className="h-dvh max-h-dvh w-screen max-w-none overflow-hidden rounded-none bg-background p-0 text-foreground"
+          >
             <Modal.Heading className="sr-only">{file.name}</Modal.Heading>
             <Suspense fallback={<ViewerLoading label={t("preview.loadingEpub")} />}>
               <EpubReader
@@ -140,8 +163,12 @@ export function FilePreviewDialog({
       <Modal.Container size="full" scroll="inside" className="h-dvh max-h-dvh p-0">
         {/* Edge to edge, like the readers above. The `dark` scope keeps the viewer's header and
             controls legible in a light theme: the header's glass style is a fixed dark tint. */}
-        <Modal.Dialog className="dark flex h-dvh max-h-dvh w-screen max-w-none flex-col overflow-hidden rounded-none bg-background p-0 text-foreground">
+        <Modal.Dialog
+          {...rootProps}
+          className="dark flex h-dvh max-h-dvh w-screen max-w-none flex-col overflow-hidden rounded-none bg-background p-0 text-foreground"
+        >
           <Modal.Header
+            data-preview-chrome="header"
             data-reader-header={isReader || undefined}
             className={cn(
               "relative z-30 flex h-16 shrink-0 flex-row items-center gap-3 border-x-0 border-t-0 px-3 py-0 sm:px-5",
@@ -165,6 +192,7 @@ export function FilePreviewDialog({
                 {formatLabel(kind, t)} · {formatBytes(file.size || 0)}
               </p>
             </div>
+            <PreviewExpandButton />
             {/* A real link, not a button: right-click offers "Copy link address" and middle-click works. */}
             <a
               href={downloadUrl}
@@ -214,7 +242,10 @@ function ImageViewer({ file, url }: { file: FileEntry; url: string }) {
         className="max-h-full max-w-full select-none object-contain shadow-2xl transition-transform duration-200"
         style={{ transform: `scale(${zoom}) rotate(${rotation}deg)` }}
       />
-      <div className="glass-panel absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full p-1.5">
+      <div
+        data-preview-chrome="image-tools"
+        className="glass-panel absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full p-1.5"
+      >
         <Button
           isIconOnly
           size="sm"

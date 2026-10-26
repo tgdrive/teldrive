@@ -12,6 +12,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { FileEntry } from "@/api/types";
+import { PreviewExpandButton, usePreviewPresentation } from "@/components/preview-presentation";
 import { loadDocumentContent } from "@/features/files/document-cache";
 import { startFileDownload } from "@/features/files/download";
 import {
@@ -46,12 +47,15 @@ type TocItem = {
 type Location = { current?: number; total?: number };
 
 export function EpubReader({ file, url, downloadUrl, onClose }: EpubReaderProps) {
+  const { activity, restore, pointerDown, pointerMove, pointerUp, pointerCancel } =
+    usePreviewPresentation();
   const hostRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<FoliateViewElement | undefined>(undefined);
   const activeRef = useRef(true);
   const navigationTasksRef = useRef(new Set<Promise<unknown>>());
   const preferencesRef = useRef<ReaderPreferences | undefined>(undefined);
   const onCloseRef = useRef(onClose);
+  const requestCloseRef = useRef<() => void>(() => {});
   const openingRef = useRef<Promise<void> | undefined>(undefined);
   const loadedDocumentsRef = useRef(new Set<Document>());
   const closingRef = useRef(false);
@@ -133,6 +137,16 @@ export function EpubReader({ file, url, downloadUrl, onClose }: EpubReaderProps)
     const loadedDocuments = loadedDocumentsRef.current;
 
     const onReaderKeyDown = (event: KeyboardEvent) => {
+      activity();
+      if (event.key === "Escape") {
+        const restored = restore();
+        if (restored || !isEditableTarget(event.target)) {
+          event.preventDefault();
+          event.stopPropagation();
+          if (!restored) requestCloseRef.current();
+        }
+        return;
+      }
       if (isEditableTarget(event.target)) return;
       if (event.key === "ArrowLeft" || event.key === "PageUp") {
         event.preventDefault();
@@ -150,6 +164,10 @@ export function EpubReader({ file, url, downloadUrl, onClose }: EpubReaderProps)
       const doc = event.detail.doc;
       loadedDocuments.add(doc);
       doc.addEventListener("keydown", onReaderKeyDown);
+      doc.addEventListener("pointerdown", pointerDown);
+      doc.addEventListener("pointermove", pointerMove);
+      doc.addEventListener("pointerup", pointerUp);
+      doc.addEventListener("pointercancel", pointerCancel);
       const updateRenderedContent = () => {
         const text = doc.body?.textContent?.trim();
         const imageLabel = doc.querySelector("img")?.getAttribute("alt");
@@ -213,12 +231,30 @@ export function EpubReader({ file, url, downloadUrl, onClose }: EpubReaderProps)
       controller.abort();
       activeRef.current = false;
       const current = element;
-      for (const doc of loadedDocuments) doc.removeEventListener("keydown", onReaderKeyDown);
+      for (const doc of loadedDocuments) {
+        doc.removeEventListener("keydown", onReaderKeyDown);
+        doc.removeEventListener("pointerdown", pointerDown);
+        doc.removeEventListener("pointermove", pointerMove);
+        doc.removeEventListener("pointerup", pointerUp);
+        doc.removeEventListener("pointercancel", pointerCancel);
+      }
       current?.removeEventListener("load", onLoad as EventListener);
       current?.removeEventListener("relocate", onRelocate as EventListener);
       if (closedRef.current) current?.remove();
     };
-  }, [file.id, file.mimeType, file.name, trackNavigation, url]);
+  }, [
+    file.id,
+    file.mimeType,
+    file.name,
+    trackNavigation,
+    url,
+    activity,
+    restore,
+    pointerDown,
+    pointerMove,
+    pointerUp,
+    pointerCancel,
+  ]);
 
   const requestClose = useCallback(() => {
     if (closingRef.current) return;
@@ -262,6 +298,7 @@ export function EpubReader({ file, url, downloadUrl, onClose }: EpubReaderProps)
 
     void finishClose();
   }, [drawerState]);
+  requestCloseRef.current = requestClose;
 
   useEffect(() => {
     const view = viewRef.current;
@@ -283,7 +320,8 @@ export function EpubReader({ file, url, downloadUrl, onClose }: EpubReaderProps)
   // and portalled overlays (role=dialog outside the reader root) own Escape.
   useEffect(() => {
     const onEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || isEditableTarget(event.target)) return;
+      if (event.defaultPrevented || event.key !== "Escape" || isEditableTarget(event.target))
+        return;
       const overlay =
         event.target instanceof HTMLElement ? event.target.closest('[role="dialog"]') : null;
       if (overlay && !overlay.querySelector("[data-epub-reader]")) return;
@@ -291,11 +329,12 @@ export function EpubReader({ file, url, downloadUrl, onClose }: EpubReaderProps)
       event.stopPropagation();
       if (settingsOpen) setSettingsOpen(false);
       else if (drawerState.isOpen) drawerState.close();
+      else if (restore()) return;
       else requestClose();
     };
     window.addEventListener("keydown", onEscape, true);
     return () => window.removeEventListener("keydown", onEscape, true);
-  }, [drawerState, requestClose, settingsOpen]);
+  }, [drawerState, requestClose, settingsOpen, restore]);
 
   const navigation = (
     <EpubNavigation file={file} toc={toc} activeChapter={chapter} onNavigate={goTo} />
@@ -310,6 +349,7 @@ export function EpubReader({ file, url, downloadUrl, onClose }: EpubReaderProps)
       className="reader-shell flex h-dvh min-h-0 flex-col overflow-hidden"
     >
       <header
+        data-preview-chrome="header"
         data-epub-header
         className="reader-chrome z-20 flex h-14 shrink-0 items-center gap-2 border-b px-2 sm:h-16 sm:px-3"
       >
@@ -330,6 +370,7 @@ export function EpubReader({ file, url, downloadUrl, onClose }: EpubReaderProps)
           </p>
         </div>
 
+        <PreviewExpandButton />
         <div className="hidden min-w-28 text-center text-[11px] text-(--reader-muted) md:block">
           {locationText}
         </div>
@@ -418,6 +459,7 @@ export function EpubReader({ file, url, downloadUrl, onClose }: EpubReaderProps)
       </div>
 
       <footer
+        data-preview-chrome="footer"
         data-epub-footer
         className="reader-chrome z-20 grid h-12 shrink-0 grid-cols-[1fr_auto_1fr] items-center border-t px-2 sm:px-4"
       >
