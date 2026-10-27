@@ -2,6 +2,8 @@
 
 Telegram-backed file storage with a web interface, an HTTP API, and rclone integration.
 
+[![Join Discord](https://img.shields.io/badge/Discord-Join%20the%20community-5865F2?logo=discord&logoColor=white)](https://discord.gg/8QAeCvTK7G)
+
 ## Install
 
 Teldrive requires PostgreSQL and a Telegram account. Choose a deployment method:
