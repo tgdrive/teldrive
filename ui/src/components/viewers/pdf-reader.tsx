@@ -131,7 +131,7 @@ export function PdfReader({ file, url, downloadUrl = url, onClose }: PdfReaderPr
       className="pdf-reader flex h-full min-h-0 flex-col bg-background text-foreground"
     >
       <header
-        data-preview-chrome="header"
+        data-preview-chrome="top"
         data-pdf-header
         className="flex h-16 shrink-0 items-center gap-3 border-b border-border bg-surface px-3 sm:px-5"
       >
@@ -191,7 +191,7 @@ function PdfWorkspace({ onClose }: { onClose: () => void }) {
   const stage = useStage();
   const { currentPageIndex, pageCount, zoomLevel } = useStageState();
   const [sidebar, setSidebar] = useState(false);
-  const [sidebarTab, setSidebarTab] = useState("pages");
+  const [sidebarTab, setSidebarTab] = useState("outline");
   const [find, setFind] = useState(false);
   const [page, setPage] = useState("");
   const root = useRef<HTMLDivElement>(null);
@@ -244,7 +244,8 @@ function PdfWorkspace({ onClose }: { onClose: () => void }) {
       <SelectionClipboard target={root} />
       <div
         data-pdf-toolbar
-        data-preview-chrome="pdf-toolbar"
+        data-preview-chrome="top"
+        style={{ "--preview-chrome-offset": "4rem" } as CSSProperties}
         className="flex h-12 shrink-0 items-center justify-between gap-1 border-b border-border bg-surface px-2 sm:px-4"
       >
         <div className="flex items-center gap-1">
@@ -375,10 +376,7 @@ function PdfWorkspace({ onClose }: { onClose: () => void }) {
         {sidebar ? (
           <aside
             aria-label={t("pdf.docNav")}
-            className={cn(
-              "absolute inset-y-0 left-0 z-20 flex flex-col border-r border-border bg-surface shadow-lg sm:relative sm:shrink-0 sm:shadow-none",
-              sidebarTab === "outline" ? "w-64" : "w-40",
-            )}
+            className="absolute inset-y-0 left-0 z-20 flex w-64 max-w-[calc(100vw-2rem)] min-w-0 flex-col overflow-hidden border-r border-border bg-surface shadow-lg sm:relative sm:shrink-0 sm:shadow-none"
           >
             <div className="flex h-11 items-center justify-between border-b border-border px-3 text-xs font-medium">
               {t("pdf.docNav")}
@@ -395,26 +393,25 @@ function PdfWorkspace({ onClose }: { onClose: () => void }) {
             <Tabs
               selectedKey={sidebarTab}
               onSelectionChange={(key) => setSidebarTab(String(key))}
-              className="flex min-h-0 flex-1 flex-col"
+              className="flex min-h-0 min-w-0 flex-1 flex-col"
             >
-              <Tabs.ListContainer>
-                <Tabs.List aria-label={t("pdf.sidebarAria")} className="w-full">
-                  <Tabs.Tab id="pages" className="flex-1 text-xs">
-                    {t("pdf.tabPages")}
-                  </Tabs.Tab>
-                  <Tabs.Tab id="outline" className="flex-1 text-xs">
+              <Tabs.ListContainer className="w-full min-w-0 shrink-0">
+                <Tabs.List
+                  aria-label={t("pdf.sidebarAria")}
+                  className="grid w-full min-w-0 grid-cols-2"
+                >
+                  <Tabs.Tab id="outline" className="min-w-0 px-2 text-xs">
                     {t("pdf.tabOutline")}
+                  </Tabs.Tab>
+                  <Tabs.Tab id="pages" className="min-w-0 px-2 text-xs">
+                    {t("pdf.tabPages")}
                   </Tabs.Tab>
                 </Tabs.List>
               </Tabs.ListContainer>
-              <Tabs.Panel id="pages" className="min-h-0 flex-1">
-                <ThumbnailSidebar
-                  onNavigate={() => {
-                    if (window.innerWidth < 640) setSidebar(false);
-                  }}
-                />
-              </Tabs.Panel>
-              <Tabs.Panel id="outline" className="min-h-0 flex-1 overflow-y-auto">
+              <Tabs.Panel
+                id="outline"
+                className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto"
+              >
                 {sidebarTab === "outline" ? (
                   <PdfOutline
                     onNavigate={() => {
@@ -422,6 +419,13 @@ function PdfWorkspace({ onClose }: { onClose: () => void }) {
                     }}
                   />
                 ) : null}
+              </Tabs.Panel>
+              <Tabs.Panel id="pages" className="min-h-0 min-w-0 flex-1 overflow-hidden">
+                <ThumbnailSidebar
+                  onNavigate={() => {
+                    if (window.innerWidth < 640) setSidebar(false);
+                  }}
+                />
               </Tabs.Panel>
             </Tabs>
           </aside>
@@ -520,7 +524,8 @@ function PdfSearch({ onClose }: { onClose: () => void }) {
   return (
     <div
       data-pdf-findbar
-      data-preview-chrome="pdf-findbar"
+      data-preview-chrome="top"
+      style={{ "--preview-chrome-offset": "7rem" } as CSSProperties}
       className="flex min-h-12 shrink-0 items-center gap-2 border-b border-border bg-surface px-3 py-2 sm:px-5"
     >
       <SearchIcon className="size-4 shrink-0 text-muted" />
@@ -594,14 +599,13 @@ function PdfSelectionMenu() {
   return (
     <SelectionMenu>
       <div className="rounded-lg border border-border bg-overlay p-1 shadow-lg">
-        {/* EmbedPDF isolates pointerdown on this overlay with a native listener.
-            A click handler still bubbles to React; HeroUI's onPress cannot start
-             its pointer gesture here. Use onClick on the shared button. */}
+        {/* EmbedPDF stops pointerdown before it reaches React. Handle the click
+            during capture, before HeroUI rejects a click without a press gesture. */}
         <Button
           type="button"
           size="sm"
           variant="ghost"
-          onClick={() => {
+          onClickCapture={() => {
             void copySelection(selection).catch((cause) =>
               setError(cause instanceof Error ? cause.message : t("manager.copyFailed")),
             );

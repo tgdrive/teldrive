@@ -122,7 +122,7 @@ VALUES
 	if err != nil {
 		t.Fatalf("StorageDashboard() error = %v", err)
 	}
-	if dashboard.Summary.LogicalBytes != 30 || dashboard.Summary.TrashBytes != 30 || len(dashboard.Growth) != 30 {
+	if dashboard.Summary.LogicalBytes != 30 || dashboard.Summary.TrashBytes != 30 || len(dashboard.Growth) != 90 {
 		t.Fatalf("StorageDashboard() = %#v", dashboard)
 	}
 	if _, err := svc.StorageDashboard(ctx, 0); !errors.Is(err, catalog.ErrInvalidOwner) {
@@ -133,6 +133,66 @@ VALUES
 	}
 	if _, err := svc.DriveStatistics(ctx, 0); !errors.Is(err, catalog.ErrInvalidOwner) {
 		t.Fatalf("invalid drive owner error = %v", err)
+	}
+}
+
+func TestStorageGrowthCovers90Days(t *testing.T) {
+	db := testpostgres.New(t)
+	ctx := context.Background()
+	if _, err := db.Pool.Exec(ctx, `
+INSERT INTO users (user_id) VALUES (1001), (1002);
+INSERT INTO files (id, user_id, name, kind, size, status, created_at, mod_time)
+VALUES
+    (gen_random_uuid(), 1001, 'baseline', 'file', 100, 'active', date_trunc('day', now()) - interval '90 days', now()),
+    (gen_random_uuid(), 1001, 'first-day', 'file', 20, 'active', date_trunc('day', now()) - interval '89 days', now()),
+    (gen_random_uuid(), 1001, 'middle', 'file', 30, 'active', date_trunc('day', now()) - interval '45 days', now()),
+    (gen_random_uuid(), 1001, 'today', 'file', 40, 'active', date_trunc('day', now()), now()),
+    (gen_random_uuid(), 1002, 'other-user', 'file', 999, 'active', now(), now());
+`); err != nil {
+		t.Fatal(err)
+	}
+	svc := catalog.NewService(db.Pool, nil)
+	dashboard, err := svc.StorageDashboard(ctx, 1001)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(dashboard.Growth) != 90 {
+		t.Fatalf("got %d days, want 90", len(dashboard.Growth))
+	}
+	for index, point := range dashboard.Growth {
+		wantAdded := int64(0)
+		switch index {
+		case 0:
+			wantAdded = 20
+		case 44:
+			wantAdded = 30
+		case 89:
+			wantAdded = 40
+		}
+		if point.AddedBytes != wantAdded {
+			t.Errorf("day %d: added = %d, want %d", index, point.AddedBytes, wantAdded)
+		}
+		if index > 0 && !point.Day.Equal(dashboard.Growth[index-1].Day.AddDate(0, 0, 1)) {
+			t.Errorf("day %d is not consecutive", index)
+		}
+	}
+	if dashboard.Growth[0].LogicalBytes != 120 || dashboard.Growth[89].LogicalBytes != 190 {
+		t.Fatalf("baseline or total incorrect: %#v", dashboard.Growth)
+	}
+	if _, err := db.Pool.Exec(ctx, "INSERT INTO users (user_id) VALUES (1003)"); err != nil {
+		t.Fatal(err)
+	}
+	empty, err := svc.StorageDashboard(ctx, 1003)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(empty.Growth) != 90 {
+		t.Fatalf("empty account: got %d days, want 90", len(empty.Growth))
+	}
+	for index, point := range empty.Growth {
+		if point.AddedBytes != 0 || point.LogicalBytes != 0 {
+			t.Errorf("empty account day %d: %#v", index, point)
+		}
 	}
 }
 

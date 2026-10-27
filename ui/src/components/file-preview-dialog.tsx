@@ -168,7 +168,7 @@ function FilePreviewContent({
           className="dark flex h-dvh max-h-dvh w-screen max-w-none flex-col overflow-hidden rounded-none bg-background p-0 text-foreground"
         >
           <Modal.Header
-            data-preview-chrome="header"
+            data-preview-chrome="top"
             data-reader-header={isReader || undefined}
             className={cn(
               "relative z-30 flex h-16 shrink-0 flex-row items-center gap-3 border-x-0 border-t-0 px-3 py-0 sm:px-5",
@@ -243,7 +243,7 @@ function ImageViewer({ file, url }: { file: FileEntry; url: string }) {
         style={{ transform: `scale(${zoom}) rotate(${rotation}deg)` }}
       />
       <div
-        data-preview-chrome="image-tools"
+        data-preview-chrome="floating"
         className="glass-panel absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full p-1.5"
       >
         <Button
