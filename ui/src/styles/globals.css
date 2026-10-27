@@ -12,28 +12,18 @@
   transition: opacity 160ms ease;
 }
 
-[data-preview-expanded="true"] [data-preview-chrome="header"],
-[data-preview-expanded="true"] [data-preview-chrome="pdf-toolbar"],
-[data-preview-expanded="true"] [data-preview-chrome="pdf-findbar"],
-[data-preview-expanded="true"] [data-preview-chrome="footer"] {
+[data-preview-expanded="true"] [data-preview-chrome="top"],
+[data-preview-expanded="true"] [data-preview-chrome="bottom"] {
   position: absolute;
   inset-inline: 0;
 }
 
-[data-preview-expanded="true"] [data-preview-chrome="header"] {
-  top: 0;
+[data-preview-expanded="true"] [data-preview-chrome="top"] {
+  top: var(--preview-chrome-offset, 0);
 }
 
-[data-preview-expanded="true"] [data-preview-chrome="pdf-toolbar"] {
-  top: 4rem;
-}
-
-[data-preview-expanded="true"] [data-preview-chrome="pdf-findbar"] {
-  top: 7rem;
-}
-
-[data-preview-expanded="true"] [data-preview-chrome="footer"] {
-  bottom: 0;
+[data-preview-expanded="true"] [data-preview-chrome="bottom"] {
+  bottom: var(--preview-chrome-offset, 0);
 }
 
 [data-preview-expanded="true"][data-preview-controls="false"] [data-preview-chrome] {

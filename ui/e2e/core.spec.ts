@@ -148,8 +148,8 @@ async function installApi(page: Page) {
             trashedFiles: 327,
             trashBytes: 927712935,
           },
-          growth: Array.from({ length: 30 }, (_, index) => ({
-            day: `2026-07-${String(index + 1).padStart(2, "0")}`,
+          growth: Array.from({ length: 90 }, (_, index) => ({
+            day: new Date(Date.UTC(2026, 4, 2 + index)).toISOString().slice(0, 10),
             addedBytes: 10485760 + index * 524288,
             logicalBytes: 2147483648 + index * 18874368,
           })),
@@ -512,7 +512,7 @@ test("tasks uses RiverPro job data", async ({ page }) => {
 test("storage dashboard shows usage, distribution, cleanup, and activity", async ({ page }) => {
   await page.goto("/storage");
   await expect(page.getByRole("heading", { name: "Storage", exact: true })).toBeVisible();
-  await expect(page.getByText("Storage growth", { exact: true })).toBeVisible();
+  await expect(page.getByText("Data added per day", { exact: true })).toBeVisible();
   await expect(page.getByText("Storage composition", { exact: true })).toBeVisible();
   await expect(page.getByText("Telegram channel distribution", { exact: true })).toBeVisible();
   await expect(page.getByText("Cleanup opportunities", { exact: true })).toBeVisible();
@@ -522,6 +522,77 @@ test("storage dashboard shows usage, distribution, cleanup, and activity", async
   await expect(page.getByText("Largest items", { exact: true })).toHaveCount(0);
   await expect(page.getByText("Maintenance jobs", { exact: true })).toHaveCount(0);
 });
+
+test("storage chart defaults to 60 days and supports 7, 30, and 90 days", async ({ page }) => {
+  await page.goto("/storage");
+  const ranges = page.getByRole("group", { name: "Chart date range", exact: true });
+  await expect(ranges.getByRole("button", { name: "60 days", exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  for (const days of [60, 90, 30, 7]) {
+    await ranges.getByRole("button", { name: `${days} days`, exact: true }).click();
+    const chart = page.getByRole("group", {
+      name: `Daily data added over the last ${days} days`,
+      exact: true,
+    });
+    await expect(chart.getByRole("button")).toHaveCount(days);
+    await expect(chart.getByRole("button").last()).toHaveAttribute("aria-label", /54\.5.*added/);
+    await chart.getByRole("button").first().focus();
+    await expect(chart.getByRole("button").first()).toHaveAttribute("aria-pressed", "true");
+    await expect(chart.locator("text").first()).toHaveText("0 byte");
+  }
+});
+
+for (const scenario of ["empty", "zero", "single"] as const) {
+  test(`storage chart handles ${scenario} history`, async ({ page }) => {
+    await page.route("**/v1/storage/stats", (route) =>
+      route.fulfill({
+        json: {
+          summary: {
+            logicalBytes: 0,
+            activeFiles: 0,
+            activeFolders: 0,
+            trashedFiles: 0,
+            trashBytes: 0,
+          },
+          growth: Array.from(
+            { length: scenario === "empty" ? 0 : scenario === "single" ? 1 : 90 },
+            (_, index) => ({
+              day: new Date(Date.UTC(2026, 4, 2 + index)).toISOString().slice(0, 10),
+              addedBytes: scenario === "single" ? 1024 : 0,
+              logicalBytes: scenario === "single" ? 1024 : 0,
+            }),
+          ),
+          categories: [],
+          channels: [],
+          activity: [],
+          cleanup: {
+            trashBytes: 0,
+            staleUploadBytes: 0,
+            staleUploads: 0,
+            totalReclaimableBytes: 0,
+          },
+        },
+      }),
+    );
+    await page.goto("/storage");
+    if (scenario === "empty") {
+      await expect(page.getByText("No storage history is available.")).toBeVisible();
+      await page.getByRole("button", { name: "90 days", exact: true }).click();
+      await expect(page.getByText("No storage history is available.")).toBeVisible();
+    } else {
+      const chart = page.getByRole("group", {
+        name: "Daily data added over the last 60 days",
+        exact: true,
+      });
+      await expect(chart.getByRole("button")).toHaveCount(scenario === "single" ? 1 : 60);
+      await expect(chart.locator("path")).not.toHaveAttribute("d", /NaN|Infinity/);
+      await chart.getByRole("button").last().click();
+      await expect(chart.getByRole("button").last()).toHaveAttribute("aria-pressed", "true");
+    }
+  });
+}
 
 test("settings exposes all Teldrive areas", async ({ page, isMobile }) => {
   await page.goto("/settings");

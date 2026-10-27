@@ -1,4 +1,5 @@
-import { Card, Chip, Spinner, Typography } from "@heroui/react";
+import { Button, Card, Chip, Spinner, Typography } from "@heroui/react";
+import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import ChannelIcon from "~icons/gravity-ui/database";
 import CleanupIcon from "~icons/gravity-ui/trash-bin";
@@ -121,20 +122,7 @@ function StoragePage() {
         />
       </div>
 
-      <Card className="gap-5 p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <Typography type="h2" className="text-base font-semibold">
-              {t("storage.growth")}
-            </Typography>
-            <Typography.Paragraph className="text-sm text-muted">
-              {t("storage.growthDesc")}
-            </Typography.Paragraph>
-          </div>
-          <Chip variant="tertiary">{t("storage.days")}</Chip>
-        </div>
-        <StorageGrowthChart points={data.growth} />
-      </Card>
+      <StorageGrowthChart points={data.growth} />
 
       <div className="grid gap-4 xl:grid-cols-2">
         <Card className="gap-5 p-5">
@@ -346,17 +334,19 @@ function StorageGrowthChart({ points }: { points: StorageGrowthPoint[] }) {
   const { t } = useAppLocale();
   const formatBytes = useFormatBytes();
   const formatDateOnly = useDateOnlyFormatter();
-  if (points.length === 0) return <EmptyCopy>{t("storage.noHistory")}</EmptyCopy>;
+  const [days, setDays] = useState(60);
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const visiblePoints = points.slice(-days);
+  const selected = visiblePoints.find((point) => point.day === selectedDay) ?? visiblePoints.at(-1);
   const width = 960;
-  const height = 220;
-  const padding = 18;
-  const values = points.map((point) => point.logicalBytes);
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = Math.max(1, max - min);
-  const coordinates = points.map((point, index) => {
-    const x = padding + (index / Math.max(1, points.length - 1)) * (width - padding * 2);
-    const y = height - padding - ((point.logicalBytes - min) / range) * (height - padding * 2);
+  const height = 260;
+  const padding = { left: 90, right: 24, top: 20, bottom: 40 };
+  const plotWidth = width - padding.left - padding.right;
+  const plotHeight = height - padding.top - padding.bottom;
+  const max = Math.max(4, ...visiblePoints.map((point) => point.addedBytes));
+  const coordinates = visiblePoints.map((point, index) => {
+    const x = padding.left + (index / Math.max(1, visiblePoints.length - 1)) * plotWidth;
+    const y = padding.top + plotHeight - (point.addedBytes / max) * plotHeight;
     return [x, y] as const;
   });
   const path = coordinates
@@ -364,50 +354,151 @@ function StorageGrowthChart({ points }: { points: StorageGrowthPoint[] }) {
     .join(" ");
 
   return (
-    <div className="grid gap-3">
-      <div className="overflow-hidden rounded-xl border border-border bg-surface-secondary/40 p-3">
-        <svg
-          viewBox={`0 0 ${width} ${height}`}
-          role="img"
-          aria-label={t("storage.chartAria")}
-          className="h-56 w-full"
-        >
-          <title>{t("storage.chartAria")}</title>
-          {[0.25, 0.5, 0.75].map((ratio) => (
-            <line
-              key={ratio}
-              x1={padding}
-              x2={width - padding}
-              y1={height * ratio}
-              y2={height * ratio}
-              className="stroke-border"
-              strokeWidth="1"
-            />
+    <Card className="gap-5 p-5">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <Typography type="h2" className="text-base font-semibold">
+            {t("storage.growth")}
+          </Typography>
+          <Typography.Paragraph className="max-w-prose text-sm text-muted">
+            {t("storage.growthDesc")}
+          </Typography.Paragraph>
+        </div>
+        <fieldset aria-label={t("storage.range")} className="flex flex-wrap gap-1">
+          {[7, 30, 60, 90].map((range) => (
+            <Button
+              key={range}
+              size="sm"
+              variant={days === range ? "primary" : "tertiary"}
+              aria-pressed={days === range}
+              onPress={() => {
+                setDays(range);
+                setSelectedDay(null);
+              }}
+            >
+              {t("storage.days", { count: range })}
+            </Button>
           ))}
-          <path
-            d={path}
-            fill="none"
-            className="stroke-accent"
-            strokeWidth="3"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          {coordinates.at(-1) && (
-            <circle
-              cx={coordinates.at(-1)?.[0]}
-              cy={coordinates.at(-1)?.[1]}
-              r="5"
-              className="fill-accent"
-            />
-          )}
-        </svg>
+        </fieldset>
       </div>
-      <div className="flex items-center justify-between text-xs text-muted">
-        <span>{formatDateOnly.format(new Date(points[0].day))}</span>
-        <span>{formatBytes(points.at(-1)?.logicalBytes ?? 0)}</span>
-        <span>{formatDateOnly.format(new Date(points.at(-1)?.day ?? points[0].day))}</span>
-      </div>
-    </div>
+      {visiblePoints.length === 0 ? (
+        <EmptyCopy>{t("storage.noHistory")}</EmptyCopy>
+      ) : (
+        <>
+          <div
+            className="flex flex-wrap items-baseline justify-between gap-2 text-sm"
+            aria-live="polite"
+            aria-atomic="true"
+          >
+            <span className="text-muted">
+              {selected && formatDateOnly.format(new Date(`${selected.day}T00:00:00`))}
+            </span>
+            <span className="font-semibold">
+              {t("storage.dailyAdded", { bytes: formatBytes(selected?.addedBytes ?? 0) })}
+            </span>
+          </div>
+          <fieldset
+            aria-label={t("storage.chartAria", { count: days })}
+            className="min-w-0 overflow-x-auto rounded-xl border border-border bg-surface-secondary/40 p-3"
+          >
+            <svg
+              viewBox={`0 0 ${width} ${height}`}
+              className="h-auto min-w-[600px] w-full text-muted"
+            >
+              <title>{t("storage.chartAria", { count: days })}</title>
+              {[0, 0.25, 0.5, 0.75, 1].map((ratio) => (
+                <g key={ratio}>
+                  <line
+                    x1={padding.left}
+                    x2={width - padding.right}
+                    y1={padding.top + plotHeight * (1 - ratio)}
+                    y2={padding.top + plotHeight * (1 - ratio)}
+                    className="stroke-border"
+                    strokeWidth="1"
+                  />
+                  <text
+                    x={padding.left - 12}
+                    y={padding.top + plotHeight * (1 - ratio)}
+                    textAnchor="end"
+                    dominantBaseline="middle"
+                    fill="currentColor"
+                    fontSize="12"
+                  >
+                    {formatBytes(Math.round(max * ratio))}
+                  </text>
+                </g>
+              ))}
+              <path
+                d={path}
+                fill="none"
+                className="stroke-accent"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              {visiblePoints.map((point, index) => {
+                const [x, y] = coordinates[index];
+                const label = `${formatDateOnly.format(new Date(`${point.day}T00:00:00`))}: ${t("storage.dailyAdded", { bytes: formatBytes(point.addedBytes) })}`;
+                return (
+                  <g key={point.day}>
+                    <circle
+                      cx={x}
+                      cy={y}
+                      r={selected?.day === point.day ? 5 : 2}
+                      className="fill-accent"
+                    />
+                    {/* biome-ignore lint/a11y/useSemanticElements: SVG hit targets cannot use HTML buttons. */}
+                    <rect
+                      x={x - plotWidth / Math.max(1, visiblePoints.length - 1) / 2}
+                      y={padding.top}
+                      width={Math.max(8, plotWidth / Math.max(1, visiblePoints.length - 1))}
+                      height={plotHeight}
+                      fill="transparent"
+                      role="button"
+                      tabIndex={0}
+                      aria-label={label}
+                      aria-pressed={selected?.day === point.day}
+                      className="cursor-crosshair focus:stroke-accent focus:outline-none"
+                      onPointerEnter={() => setSelectedDay(point.day)}
+                      onFocus={() => setSelectedDay(point.day)}
+                      onClick={() => setSelectedDay(point.day)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          setSelectedDay(point.day);
+                        }
+                      }}
+                    >
+                      <title>{label}</title>
+                    </rect>
+                  </g>
+                );
+              })}
+              {[
+                ...new Set([
+                  0,
+                  Math.floor((visiblePoints.length - 1) / 2),
+                  visiblePoints.length - 1,
+                ]),
+              ].map((index) => (
+                <text
+                  key={index}
+                  x={coordinates[index][0]}
+                  y={height - 10}
+                  fill="currentColor"
+                  fontSize="12"
+                  textAnchor={
+                    index === 0 ? "start" : index === visiblePoints.length - 1 ? "end" : "middle"
+                  }
+                >
+                  {formatDateOnly.format(new Date(`${visiblePoints[index].day}T00:00:00`))}
+                </text>
+              ))}
+            </svg>
+          </fieldset>
+        </>
+      )}
+    </Card>
   );
 }
 

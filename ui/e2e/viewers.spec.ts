@@ -164,6 +164,7 @@ test("PDFium WASM opens a read-only reader with navigation, search, zoom and thu
   });
   await dialog.getByRole("button", { name: "Close PDF search", exact: true }).click();
   await dialog.getByRole("button", { name: "Toggle PDF sidebar", exact: true }).first().click();
+  await dialog.getByRole("tab", { name: "Pages", exact: true }).click();
   await dialog.getByRole("button", { name: "Go to page 1", exact: true }).click();
   await expect(input).toHaveValue("1");
   await testInfo.attach("pdf-reader", {
@@ -275,6 +276,7 @@ test("PDF thumbnails and main pages stay virtualized in a long document", async 
   });
   expect(await dialog.locator("[data-pdf-page]").count()).toBeLessThan(15);
   await dialog.getByRole("button", { name: "Toggle PDF sidebar", exact: true }).first().click();
+  await dialog.getByRole("tab", { name: "Pages", exact: true }).click();
   await expect(dialog.getByRole("button", { name: "Go to page 240", exact: true })).toBeVisible();
   expect(await dialog.getByRole("button", { name: /^Go to page/ }).count()).toBeLessThan(20);
 });
@@ -296,8 +298,21 @@ test("native PDF outline expands sections and navigates without replacing thumbn
   await expect(input).toHaveValue("1", { timeout: 45_000 });
   const toggle = dialog.getByRole("button", { name: "Toggle PDF sidebar", exact: true }).first();
   await toggle.click();
-  await expect(dialog.getByRole("button", { name: "Go to page 1", exact: true })).toBeVisible();
-  await dialog.getByRole("tab", { name: "Outline", exact: true }).click();
+  const sidebar = dialog.getByRole("complementary");
+  const tabs = sidebar.getByRole("tab");
+  await expect(tabs).toHaveText(["Outline", "Pages"]);
+  await expect(tabs.first()).toHaveAttribute("aria-selected", "true");
+  const outlineBox = await sidebar.boundingBox();
+  expect(outlineBox).not.toBeNull();
+  await expect(sidebar).toBeVisible();
+  expect(await sidebar.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+    true,
+  );
+  for (const tab of await tabs.all()) {
+    const box = (await tab.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(outlineBox!.x);
+    expect(box.x + box.width).toBeLessThanOrEqual(outlineBox!.x + outlineBox!.width);
+  }
   await expect(dialog.getByRole("button", { name: "Section 1.2", exact: true })).toBeVisible();
   await dialog.getByRole("button", { name: "Collapse Chapter 1", exact: true }).click();
   await expect(dialog.getByRole("button", { name: "Section 1.2", exact: true })).toHaveCount(0);
@@ -309,6 +324,10 @@ test("native PDF outline expands sections and navigates without replacing thumbn
     await toggle.click();
   }
   await dialog.getByRole("tab", { name: "Pages", exact: true }).click();
+  expect((await sidebar.boundingBox())!.width).toBe(outlineBox!.width);
+  expect(await sidebar.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
+    true,
+  );
   await expect(dialog.getByRole("button", { name: "Go to page 2", exact: true })).toBeVisible();
   expect(downloads).toBe(1);
 });
@@ -330,6 +349,9 @@ test("expanded PDF reuses its toolbar, preserves the page, and reveals controls 
   const input = dialog.getByRole("textbox", { name: "PDF page number", exact: true });
   await expect(input).toHaveValue("2");
   await dialog.getByRole("button", { name: "Expand preview", exact: true }).click();
+  await expect(dialog).toHaveAttribute("data-preview-controls", "false", { timeout: 500 });
+  await expect(dialog.locator("[data-pdf-header]")).toHaveCSS("opacity", "0");
+  await expect(dialog.locator("[data-pdf-toolbar]")).toHaveCSS("opacity", "0");
   await expect(dialog).toHaveAttribute("data-preview-expanded", "true");
   await expect(dialog.locator("[data-pdf-header]")).toHaveCount(1);
   await expect(dialog.locator("[data-pdf-toolbar]")).toHaveCount(1);
@@ -341,12 +363,19 @@ test("expanded PDF reuses its toolbar, preserves the page, and reveals controls 
   await expect(dialog.locator("[data-pdf-header]")).toHaveCSS("opacity", "0");
   await page.mouse.move(40, 220);
   await expect(dialog).toHaveAttribute("data-preview-controls", "true");
+  await expect(dialog.locator("[data-pdf-header]")).toHaveCSS("top", "0px");
+  await expect(dialog.locator("[data-pdf-toolbar]")).toHaveCSS("top", "64px");
   expect(await stage.boundingBox()).toEqual(hiddenBox);
   await expect(input).toHaveValue("2");
   await testInfo.attach("expanded-preview", {
     body: await dialog.screenshot(),
     contentType: "image/png",
   });
+  await dialog.getByRole("button", { name: "Search in PDF", exact: true }).click();
+  await expect(dialog.locator("[data-pdf-findbar]")).toHaveCSS("top", "112px");
+  await expect(dialog.locator("[data-pdf-findbar]")).toHaveCSS("opacity", "1");
+  expect(await stage.boundingBox()).toEqual(hiddenBox);
+  await dialog.getByRole("button", { name: "Close PDF search", exact: true }).click();
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveAttribute("data-preview-expanded", "false");
   await expect(dialog).toBeVisible();
@@ -358,6 +387,8 @@ test("expanded PDF reuses its toolbar, preserves the page, and reveals controls 
 test("expanded preview keeps controls for open menus and keyboard focus", async ({ page }) => {
   const dialog = await openPdf(page);
   await dialog.getByRole("button", { name: "Expand preview", exact: true }).click();
+  await page.mouse.move(30, 300);
+  await expect(dialog).toHaveAttribute("data-preview-controls", "true");
   await dialog.getByRole("button", { name: "Brightness", exact: true }).click();
   const popover = page
     .getByRole("dialog")
@@ -390,6 +421,9 @@ test("expanded ebook reuses header and footer without reopening the publication"
     element.dataset.expansionProbe = "same-publication";
   });
   await dialog.getByRole("button", { name: "Expand preview", exact: true }).click();
+  await expect(dialog).toHaveAttribute("data-preview-controls", "false", { timeout: 500 });
+  await expect(dialog.locator("[data-epub-header]")).toHaveCSS("opacity", "0");
+  await expect(dialog.locator("[data-epub-footer]")).toHaveCSS("opacity", "0");
   await expect(dialog).toHaveAttribute("data-preview-expanded", "true");
   await expect(dialog.locator("[data-epub-header]")).toHaveCount(1);
   await expect(dialog.locator("[data-epub-footer]")).toHaveCount(1);
@@ -460,6 +494,8 @@ for (const [extension, mime] of [
     await openFile(page, name);
     const dialog = page.getByRole("dialog", { name, exact: true });
     await dialog.getByRole("button", { name: "Expand preview", exact: true }).click();
+    await expect(dialog).toHaveAttribute("data-preview-controls", "false", { timeout: 500 });
+    await expect(dialog.locator('[data-preview-chrome="top"]')).toHaveCSS("opacity", "0");
     await page.mouse.move(10, 300);
     await expect(dialog).toHaveAttribute("data-preview-controls", "false", { timeout: 6000 });
     if (testInfo.project.name === "mobile" && extension !== "webm" && extension !== "wav") {

@@ -349,7 +349,7 @@ export function EpubReader({ file, url, downloadUrl, onClose }: EpubReaderProps)
       className="reader-shell flex h-dvh min-h-0 flex-col overflow-hidden"
     >
       <header
-        data-preview-chrome="header"
+        data-preview-chrome="top"
         data-epub-header
         className="reader-chrome z-20 flex h-14 shrink-0 items-center gap-2 border-b px-2 sm:h-16 sm:px-3"
       >
@@ -459,7 +459,7 @@ export function EpubReader({ file, url, downloadUrl, onClose }: EpubReaderProps)
       </div>
 
       <footer
-        data-preview-chrome="footer"
+        data-preview-chrome="bottom"
         data-epub-footer
         className="reader-chrome z-20 grid h-12 shrink-0 grid-cols-[1fr_auto_1fr] items-center border-t px-2 sm:px-4"
       >

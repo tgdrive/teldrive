@@ -197,7 +197,7 @@ func (q *Queries) ListStorageChannelStatistics(ctx context.Context, userID int64
 const listStorageGrowth = `-- name: ListStorageGrowth :many
 WITH days AS (
     SELECT generate_series(
-        date_trunc('day', now()) - interval '29 days',
+        date_trunc('day', now()) - interval '89 days',
         date_trunc('day', now()),
         interval '1 day'
     )::date AS day
@@ -209,7 +209,7 @@ WITH days AS (
     WHERE f.user_id = $1
       AND f.kind = 'file'
       AND f.status = 'active'
-      AND f.created_at >= date_trunc('day', now()) - interval '29 days'
+      AND f.created_at >= date_trunc('day', now()) - interval '89 days'
     GROUP BY f.created_at::date
 ), baseline AS (
     SELECT COALESCE(sum(f.size), 0)::bigint AS bytes
@@ -217,7 +217,7 @@ WITH days AS (
     WHERE f.user_id = $1
       AND f.kind = 'file'
       AND f.status = 'active'
-      AND f.created_at < date_trunc('day', now()) - interval '29 days'
+      AND f.created_at < date_trunc('day', now()) - interval '89 days'
 )
 SELECT
     days.day,

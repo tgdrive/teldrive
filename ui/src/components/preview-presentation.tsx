@@ -75,8 +75,11 @@ function usePresentationState() {
     if (restore()) return;
     expandedRef.current = true;
     setExpanded(true);
-    activity();
-  }, [activity, restore]);
+    // Enter presentation without waiting for the idle timer or leaving the
+    // toolbar visible under the pointer that pressed Expand (notably in PDF).
+    clearTimer();
+    show(false);
+  }, [clearTimer, restore, show]);
 
   const tap = useCallback(
     (event: PointerEvent, wasVisible: boolean) => {
