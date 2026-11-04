@@ -46,6 +46,49 @@ async function installResults(page: Page) {
   return state;
 }
 
+test("Recent keeps modified time and folder location in list and grid views", async ({
+  page,
+  isMobile,
+}) => {
+  const state = await installResults(page);
+  state.items = [
+    {
+      ...resultFile,
+      createdAt: "2026-06-01T08:00:00Z",
+      updatedAt: "2026-08-03T15:30:00Z",
+    },
+  ];
+  await page.goto("/files");
+  const normalTime = await page
+    .getByRole("row", { name: /alpha\.txt/ })
+    .locator("time")
+    .textContent();
+
+  for (const view of ["list", "grid"]) {
+    await page.goto(`/files?recent=true&view=${view}`);
+    const row = page.getByRole("row", { name: /alpha\.txt/ });
+    await expect(row).toBeVisible();
+    const location = row.getByRole("button", {
+      name: "Open containing folder /Documents",
+      exact: true,
+    });
+    await expect(location).toBeVisible();
+    const modified = row.locator("time");
+    await expect(modified).toHaveAttribute("datetime", resultFile.modTime);
+    if (view === "list") {
+      await expect(modified).toHaveText(normalTime!);
+      if (isMobile) await expect(modified).toBeHidden();
+      else await expect(modified).toBeVisible();
+    } else {
+      await expect(modified).toBeVisible();
+      await expect(modified).toHaveText("7/22/2026");
+    }
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth))
+      .toBeLessThanOrEqual(1);
+  }
+});
+
 test("search controls stay in the header while selection actions float without shrinking", async ({
   page,
 }) => {

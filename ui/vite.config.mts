@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises";
 import path from "node:path";
 import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
@@ -46,27 +45,6 @@ function foliatePatches() {
   };
 }
 
-function embedPdfNotices() {
-  return {
-    name: "embedpdf-notices",
-    async generateBundle() {
-      this.emitFile({
-        type: "asset",
-        fileName: "licenses/embedpdf-LICENSE.txt",
-        source: await readFile(
-          path.resolve(import.meta.dirname, "node_modules/@embedpdf/engine-runtime-wasm32/LICENSE"),
-        ),
-      });
-      this.emitFile({
-        type: "asset",
-        fileName: "licenses/embedpdf-NOTICE.txt",
-        source:
-          "EmbedPDF 3.0.0-next.15 (Apache-2.0)\nhttps://github.com/embedpdf/embed-pdf-viewer\nPDFium WASM runtime: https://github.com/embedpdf/runtime\n",
-      });
-    },
-  };
-}
-
 export default defineConfig(() => {
   const backendAddress = process.env.TELDRIVE_HTTP_ADDRESS ?? "127.0.0.1:8080";
   const backendHost = backendAddress.startsWith("0.0.0.0:")
@@ -79,7 +57,6 @@ export default defineConfig(() => {
     },
     plugins: [
       foliatePatches(),
-      embedPdfNotices(),
       tanstackRouter(),
       react(),
       babel({ presets: [reactCompilerPreset()] }),

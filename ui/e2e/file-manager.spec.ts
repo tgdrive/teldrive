@@ -1394,3 +1394,148 @@ test("touch opens items and exposes an explicit multi-selection control", async 
     .poll(() => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth))
     .toBeLessThanOrEqual(1);
 });
+
+test.describe("compact file grid", () => {
+  // Exercise hover motion even though the rest of the suite requests reduced motion.
+  test.use({ reducedMotion: "no-preference" });
+
+  test("tiles stay compact and stationary on hover and selection", async ({ page, isMobile }) => {
+    await page.goto("/files?view=grid");
+    const alpha = page.getByRole("row", { name: /alpha\.txt/ });
+    await expect(alpha).toBeVisible();
+    const before = await alpha.boundingBox();
+    expect(before).not.toBeNull();
+    expect(before!.width).toBeGreaterThanOrEqual(144);
+    expect(before!.width).toBeLessThanOrEqual(208);
+    expect(before!.height).toBeGreaterThanOrEqual(140);
+    expect(before!.height).toBeLessThanOrEqual(225);
+
+    const preview = await alpha.getByTestId("file-grid-preview").boundingBox();
+    expect(preview).not.toBeNull();
+    expect(preview!.width / preview!.height).toBeCloseTo(16 / 11, 2);
+    await expect(alpha.locator("time")).toHaveAttribute("datetime", now);
+    await expect(alpha.locator("time")).toBeVisible();
+    const filename = await alpha.locator('p[title="alpha.txt"]').boundingBox();
+    const metadata = await alpha.locator("time").boundingBox();
+    expect(filename!.height).toBe(20);
+    expect(metadata!.y - (filename!.y + filename!.height)).toBeLessThanOrEqual(5);
+
+    const icon = alpha.getByTestId("file-grid-preview").locator("svg");
+    const iconBefore = await icon.boundingBox();
+    expect(iconBefore).not.toBeNull();
+    expect(
+      Math.abs(iconBefore!.x + iconBefore!.width / 2 - (before!.x + before!.width / 2)),
+    ).toBeLessThanOrEqual(1);
+
+    if (!isMobile) await alpha.hover();
+    await expect(alpha).toHaveCSS("transform", "none");
+    await expect(alpha).toHaveCSS("translate", "none");
+    await expect(alpha).toHaveCSS("scale", "none");
+    await expect(alpha).toHaveCSS("box-shadow", "none");
+    const checkbox = alpha.locator('[data-slot="checkbox-control"]');
+    if (isMobile) await checkbox.tap();
+    else await checkbox.click();
+    await expect(alpha).toHaveAttribute("aria-selected", "true");
+    const after = await alpha.boundingBox();
+    const iconAfter = await icon.boundingBox();
+    expect(after).toEqual(before);
+    expect(iconAfter).toEqual(iconBefore);
+    await expect(alpha).toHaveCSS("transform", "none");
+    await expect(alpha).toHaveCSS("translate", "none");
+    await expect(alpha).toHaveCSS("scale", "none");
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth))
+      .toBeLessThanOrEqual(1);
+
+    if (!isMobile) {
+      await alpha.focus();
+      await page.keyboard.press("ArrowRight");
+      await expect(page.getByRole("row", { name: /beta\.txt/ })).toBeFocused();
+    }
+  });
+
+  test("long filenames wrap without changing tile size in both themes", async ({ page }) => {
+    const longName = "Photographs from summer vacation in the mountains 2026.jpg";
+    await page.route(/\/api\/v1\/files(?:\?.*)?$/, (route) =>
+      route.fulfill({
+        json: {
+          items: [
+            file({ id: rootId, name: "Destination", kind: "folder" }),
+            file({ id: alphaId, name: longName, kind: "file", mimeType: "image/jpeg", size: 1024 }),
+            file({ id: betaId, name: "beta.txt", kind: "file", mimeType: "text/plain", size: 20 }),
+          ],
+        },
+      }),
+    );
+    await page.goto("/files?view=grid");
+    const row = page.getByRole("row", { name: new RegExp(longName) });
+    const name = row.locator("[title]", { hasText: longName });
+    await expect(name).toBeVisible();
+    await expect(name).toHaveCSS("-webkit-line-clamp", "2");
+    await expect(name).toHaveCSS("overflow", "hidden");
+    await expect
+      .poll(() => name.evaluate((element) => element.scrollHeight > element.clientHeight))
+      .toBe(true);
+    await expect(name).toHaveAttribute("title", longName);
+    await expect(row).toContainText("1.0 kB");
+    await expect(row.locator("time")).toHaveAttribute("datetime", now);
+    await expect(row.locator("time")).toContainText("7/22/2026");
+    await expect(page.getByRole("row", { name: /Destination/ })).toContainText("Folder");
+    for (const theme of ["light", "dark"]) {
+      await page.evaluate((theme) => {
+        document.documentElement.classList.toggle("dark", theme === "dark");
+        document.documentElement.classList.toggle("light", theme === "light");
+        document.documentElement.dataset.theme = theme;
+      }, theme);
+      const bounds = await row.boundingBox();
+      expect(bounds!.height).toBeGreaterThanOrEqual(140);
+      expect(bounds!.height).toBeLessThanOrEqual(225);
+      expect(bounds!.width).toBeLessThanOrEqual(208);
+      expect((await name.boundingBox())?.height).toBe(40);
+      const preview = await row.getByTestId("file-grid-preview").boundingBox();
+      expect(preview!.width / preview!.height).toBeCloseTo(16 / 11, 2);
+      const date = await row.locator("time").boundingBox();
+      const filename = await name.boundingBox();
+      expect(date!.y - (filename!.y + filename!.height)).toBeLessThanOrEqual(5);
+      expect(date!.y + date!.height).toBeLessThanOrEqual(bounds!.y + bounds!.height);
+      await page.screenshot({ path: test.info().outputPath(`file-grid-${theme}.png`) });
+    }
+  });
+
+  test("grid virtualization scrolls and switches back to list view", async ({ page }) => {
+    await page.route(/\/api\/v1\/files(?:\?.*)?$/, (route) =>
+      route.fulfill({
+        json: {
+          items: Array.from({ length: 80 }, (_, index) =>
+            file({
+              id: `44444444-4444-4444-8444-${String(index).padStart(12, "0")}`,
+              name: `Photo ${String(index + 1).padStart(2, "0")}.jpg`,
+              kind: "file",
+              mimeType: "image/jpeg",
+              size: 1024,
+            }),
+          ),
+        },
+      }),
+    );
+    await page.goto("/files?view=grid");
+    const grid = page.getByRole("grid", { name: "Files and folders", exact: true });
+    await expect(page.getByRole("row", { name: /Photo 01/ })).toBeVisible();
+    await grid.evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+    });
+    const last = page.getByRole("row", { name: /Photo 80/ });
+    await expect(last).toBeVisible();
+    await expect(last.locator("time")).toBeVisible();
+    const previous = await page.getByRole("row", { name: /Photo 79/ }).boundingBox();
+    const final = await last.boundingBox();
+    if (Math.abs(previous!.y - final!.y) > 1) {
+      expect(previous!.y + previous!.height).toBeLessThanOrEqual(final!.y);
+    } else {
+      expect(previous!.x + previous!.width).toBeLessThanOrEqual(final!.x);
+    }
+    await page.getByRole("button", { name: "List view", exact: true }).click();
+    await expect(page.getByTestId("file-grid-preview")).toHaveCount(0);
+    await expect(grid.getByRole("row").first()).toBeVisible();
+  });
+});

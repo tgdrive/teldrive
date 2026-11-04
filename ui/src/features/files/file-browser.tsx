@@ -1,5 +1,5 @@
 import { Button, Card, Checkbox, Spinner } from "@heroui/react";
-import type { ReactNode } from "react";
+import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 import {
   Collection,
   GridLayout,
@@ -8,11 +8,12 @@ import {
   GridListLoadMoreItem,
   ListLayout,
   type Selection,
+  Size,
   Virtualizer,
 } from "react-aria-components";
 import type { FileEntry } from "@/api/types";
 import { useAppLocale } from "@/lib/locale";
-import { useDateTimeFormatter, useFormatBytes } from "@/lib/format";
+import { useDateOnlyFormatter, useDateTimeFormatter, useFormatBytes } from "@/lib/format";
 import BackIcon from "~icons/gravity-ui/arrow-left";
 import UpIcon from "~icons/gravity-ui/chevron-up";
 import FolderIcon from "~icons/gravity-ui/folder";
@@ -21,6 +22,20 @@ import ListIcon from "~icons/gravity-ui/list-ul";
 import { FileTypeIcon } from "./file-type-icon";
 
 export type FileBrowserView = "list" | "grid";
+
+const fileGridLayoutOptions = {
+  // Estimate a single-line filename; the virtualizer measures wrapped names.
+  minItemSize: new Size(144, 160),
+  maxItemSize: new Size(208, 204),
+  minSpace: new Size(12, 12),
+  maxHorizontalSpace: 12,
+};
+
+const locatedFileGridLayoutOptions = {
+  ...fileGridLayoutOptions,
+  minItemSize: new Size(144, 180),
+  maxItemSize: new Size(208, 224),
+};
 
 type FileBrowserProps = {
   files: FileEntry[];
@@ -217,107 +232,130 @@ function FileCollection({
   const { t } = useAppLocale();
   const selectedKeys = selection?.selectedKeys ?? new Set<React.Key>();
   const hasSelection = selection ? selectedKeys === "all" || selectedKeys.size > 0 : false;
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [gridWidth, setGridWidth] = useState(0);
 
-  return (
-    <Virtualizer key={view} layout={grid ? GridLayout : ListLayout}>
-      <GridList
-        aria-label={t("browser.files")}
-        layout={grid ? "grid" : "stack"}
-        selectionMode={selection ? "multiple" : "none"}
-        selectionBehavior="replace"
-        selectedKeys={selection?.selectedKeys}
-        onSelectionChange={selection?.onSelectionChange}
-        disabledKeys={selectionDisabled ? files.map((file) => file.id) : undefined}
-        disabledBehavior="selection"
-        onClick={(event) => {
-          if (!selection) return;
-          const target = event.target as HTMLElement;
-          if (!target.closest('[role="row"]')) selection.onClearSelection();
-        }}
-        onAction={(key) => {
-          const file = files.find((item) => item.id === key);
-          if (file) onOpen(file);
-        }}
-        renderEmptyState={() => (
-          <div className="flex min-h-80 flex-col items-center justify-center px-6 text-center">
-            <div className="mb-3 flex size-11 items-center justify-center rounded-xl bg-default/30 text-muted">
-              <FolderIcon className="size-5" />
-            </div>
-            <p className="text-sm font-medium">{emptyTitle}</p>
-            <p className="mt-1 text-xs text-muted">{emptyHint}</p>
+  useLayoutEffect(() => {
+    const element = gridRef.current;
+    if (!grid || !element) return;
+    setGridWidth(element.clientWidth);
+    const observer = new ResizeObserver(() => setGridWidth(element.clientWidth));
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [grid]);
+
+  const collection = (
+    <GridList
+      ref={gridRef}
+      aria-label={t("browser.files")}
+      layout={grid ? "grid" : "stack"}
+      selectionMode={selection ? "multiple" : "none"}
+      selectionBehavior="replace"
+      selectedKeys={selection?.selectedKeys}
+      onSelectionChange={selection?.onSelectionChange}
+      disabledKeys={selectionDisabled ? files.map((file) => file.id) : undefined}
+      disabledBehavior="selection"
+      onClick={(event) => {
+        if (!selection) return;
+        const target = event.target as HTMLElement;
+        if (!target.closest('[role="row"]')) selection.onClearSelection();
+      }}
+      onAction={(key) => {
+        const file = files.find((item) => item.id === key);
+        if (file) onOpen(file);
+      }}
+      renderEmptyState={() => (
+        <div className="flex min-h-80 flex-col items-center justify-center px-6 text-center">
+          <div className="mb-3 flex size-11 items-center justify-center rounded-xl bg-default/30 text-muted">
+            <FolderIcon className="size-5" />
           </div>
-        )}
-        className={
-          grid
-            ? `grid h-full min-h-0 grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-2 overflow-x-hidden overflow-y-auto p-2 outline-none sm:grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] sm:gap-3 sm:p-4 ${hasSelection ? "pb-24 sm:pb-24" : ""}`
-            : `h-full min-h-0 overflow-x-hidden overflow-y-auto outline-none ${hasSelection ? "pb-24" : ""}`
-        }
-      >
-        <Collection items={files} dependencies={[dimmedIds, showLocations, onOpenContainingFolder]}>
-          {(file) => (
-            <GridListItem
-              id={file.id}
-              textValue={file.name}
-              className={(state) =>
-                grid
-                  ? [
-                      "group flex min-h-36 cursor-default flex-col justify-between rounded-xl border border-border bg-background/35 p-3 outline-none transition",
-                      "hover:-translate-y-0.5 hover:border-accent/30 hover:shadow-md",
-                      state.isSelected && "border-accent bg-accent/10",
+          <p className="text-sm font-medium">{emptyTitle}</p>
+          <p className="mt-1 text-xs text-muted">{emptyHint}</p>
+        </div>
+      )}
+      className={`h-full min-h-0 overflow-x-hidden overflow-y-auto outline-none ${hasSelection ? "pb-24" : ""}`}
+    >
+      <Collection items={files} dependencies={[dimmedIds, showLocations, onOpenContainingFolder]}>
+        {(file) => (
+          <GridListItem
+            id={file.id}
+            textValue={file.name}
+            className={(state) =>
+              grid
+                ? [
+                    "group relative flex min-w-0 cursor-default flex-col rounded-md border border-transparent p-2 outline-none",
+                    state.isSelected ? "border-accent/40 bg-accent/10" : "hover:bg-default/20",
 
-                      dimmedIds?.has(file.id) && "opacity-45",
-                      state.isFocusVisible && "ring-2 ring-accent/30",
-                    ]
-                      .filter(Boolean)
-                      .join(" ")
-                  : [
-                      "group grid min-h-14 cursor-default grid-cols-[minmax(0,1fr)] items-center gap-2 border-b border-border px-3 outline-none transition last:border-b-0 sm:grid-cols-[minmax(0,1fr)_6rem] sm:px-4 lg:grid-cols-[minmax(0,1fr)_8rem_10rem] lg:gap-4",
-                      "hover:bg-default/20",
-                      state.isSelected && "bg-accent/10",
+                    dimmedIds?.has(file.id) && "opacity-45",
+                    state.isFocusVisible && "ring-2 ring-inset ring-accent",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")
+                : [
+                    "group grid min-h-14 cursor-default grid-cols-[minmax(0,1fr)] items-center gap-2 border-b border-border px-3 outline-none transition-colors last:border-b-0 sm:grid-cols-[minmax(0,1fr)_6rem] sm:px-4 lg:grid-cols-[minmax(0,1fr)_8rem_10rem] lg:gap-4",
+                    "hover:bg-default/20",
+                    state.isSelected && "bg-accent/10",
 
-                      dimmedIds?.has(file.id) && "opacity-45",
-                      state.isFocusVisible && "ring-2 ring-inset ring-accent/30",
-                    ]
-                      .filter(Boolean)
-                      .join(" ")
-              }
-            >
-              {(state) =>
-                grid ? (
-                  <GridFile
-                    file={file}
-                    selectable={Boolean(selection)}
-                    showCheckbox={state.isHovered || state.isFocusVisible || state.isSelected}
-                    location={showLocations ? file.parentPath : undefined}
-                    onOpenContainingFolder={
-                      onOpenContainingFolder ? () => onOpenContainingFolder(file) : undefined
-                    }
-                  />
-                ) : (
-                  <ListFile
-                    file={file}
-                    selectable={Boolean(selection)}
-                    showCheckbox={state.isHovered || state.isFocusVisible || state.isSelected}
-                    location={showLocations ? file.parentPath : undefined}
-                    onOpenContainingFolder={
-                      onOpenContainingFolder ? () => onOpenContainingFolder(file) : undefined
-                    }
-                  />
-                )
-              }
-            </GridListItem>
-          )}
-        </Collection>
-        {hasNextPage ? (
-          <GridListLoadMoreItem
-            onLoadMore={() => onLoadMore?.()}
-            isLoading={isLoadingMore}
-            className="flex min-h-14 items-center justify-center p-4"
+                    dimmedIds?.has(file.id) && "opacity-45",
+                    state.isFocusVisible && "ring-2 ring-inset ring-accent/30",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")
+            }
           >
-            <Spinner size="sm" />
-          </GridListLoadMoreItem>
-        ) : null}
-      </GridList>
+            {(state) =>
+              grid ? (
+                <GridFile
+                  file={file}
+                  selectable={Boolean(selection)}
+                  showCheckbox={state.isHovered || state.isFocusVisible || state.isSelected}
+                  location={showLocations ? file.parentPath : undefined}
+                  onOpenContainingFolder={
+                    onOpenContainingFolder ? () => onOpenContainingFolder(file) : undefined
+                  }
+                />
+              ) : (
+                <ListFile
+                  file={file}
+                  selectable={Boolean(selection)}
+                  showCheckbox={state.isHovered || state.isFocusVisible || state.isSelected}
+                  location={showLocations ? file.parentPath : undefined}
+                  onOpenContainingFolder={
+                    onOpenContainingFolder ? () => onOpenContainingFolder(file) : undefined
+                  }
+                />
+              )
+            }
+          </GridListItem>
+        )}
+      </Collection>
+      {hasNextPage ? (
+        <GridListLoadMoreItem
+          onLoadMore={() => onLoadMore?.()}
+          isLoading={isLoadingMore}
+          className="flex min-h-14 items-center justify-center p-4"
+        >
+          <Spinner size="sm" />
+        </GridListLoadMoreItem>
+      ) : null}
+    </GridList>
+  );
+
+  return grid ? (
+    <Virtualizer
+      key="grid"
+      layout={GridLayout}
+      layoutOptions={{
+        ...(showLocations ? locatedFileGridLayoutOptions : fileGridLayoutOptions),
+        // Prefer ~196px cards, while allowing two smaller tiles in narrow panes.
+        maxColumns: Math.max(2, Math.floor((gridWidth + 12) / 208)),
+      }}
+    >
+      {collection}
+    </Virtualizer>
+  ) : (
+    <Virtualizer key="list" layout={ListLayout}>
+      {collection}
     </Virtualizer>
   );
 }
@@ -359,30 +397,51 @@ function GridFile({
 }) {
   const { t } = useAppLocale();
   const formatBytes = useFormatBytes();
+  const formatDate = useDateOnlyFormatter();
+  const formatDateTime = useDateTimeFormatter();
+  const modified = new Date(file.modTime);
   return (
     <>
-      <div className="flex items-start gap-2">
-        {selectable ? <SelectionCheckbox file={file} isVisible={showCheckbox} /> : null}
-        <div className="flex size-11 items-center justify-center rounded-xl bg-accent/10 text-accent">
-          {file.kind === "folder" ? (
-            <FolderIcon className="size-5" />
-          ) : (
-            <FileTypeIcon file={file} className="size-5" />
-          )}
+      {selectable ? (
+        <div className="absolute start-3 top-3 z-10">
+          <SelectionCheckbox file={file} isVisible={showCheckbox} />
         </div>
-      </div>
-      <div className="min-w-0">
-        <p className="truncate text-sm font-medium group-hover:text-accent">{file.name}</p>
-        {location && (
-          <LocationButton location={location} onPress={onOpenContainingFolder} className="mt-1" />
+      ) : null}
+      <div
+        className="flex aspect-[16/11] w-full shrink-0 items-center justify-center rounded-md bg-default/25"
+        aria-hidden="true"
+        data-testid="file-grid-preview"
+      >
+        {file.kind === "folder" ? (
+          <FolderIcon className="size-12 text-accent" />
+        ) : (
+          <FileTypeIcon file={file} className="size-12 text-muted" />
         )}
-        <p className="mt-1 text-[11px] text-muted">
+      </div>
+      <p
+        className="mt-2 line-clamp-2 shrink-0 text-sm leading-5 [overflow-wrap:anywhere]"
+        title={file.name}
+      >
+        {file.name}
+      </p>
+      {location && (
+        <LocationButton
+          location={location}
+          onPress={onOpenContainingFolder}
+          className="mt-1 h-4 shrink-0"
+        />
+      )}
+      <div className="mt-1 flex min-w-0 items-center justify-between gap-2 text-[11px] leading-4 text-muted">
+        <time className="truncate" dateTime={file.modTime} title={formatDateTime.format(modified)}>
+          {formatDate.format(modified)}
+        </time>
+        <span className="shrink-0 text-end">
           {file.kind === "folder"
             ? file.size != null
               ? formatBytes(file.size)
               : t("browser.folderKind")
             : formatBytes(file.size ?? 0)}
-        </p>
+        </span>
       </div>
     </>
   );
@@ -423,11 +482,7 @@ function ListFile({
             {file.name}
           </span>
           {location ? (
-            <LocationButton
-              location={location}
-              onPress={onOpenContainingFolder}
-              className="lg:hidden"
-            />
+            <LocationButton location={location} onPress={onOpenContainingFolder} />
           ) : null}
         </div>
       </div>
@@ -438,13 +493,9 @@ function ListFile({
             : t("browser.folderKind")
           : formatBytes(file.size ?? 0)}
       </span>
-      <span className="hidden min-w-0 text-xs text-muted lg:block">
-        {location ? (
-          <LocationButton location={location} onPress={onOpenContainingFolder} />
-        ) : (
-          formatDateTime.format(new Date(file.modTime))
-        )}
-      </span>
+      <time className="hidden min-w-0 text-xs text-muted lg:block" dateTime={file.modTime}>
+        {formatDateTime.format(new Date(file.modTime))}
+      </time>
     </>
   );
 }
