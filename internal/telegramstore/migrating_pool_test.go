@@ -78,7 +78,15 @@ func TestMigratingPoolConcurrentReadsReuseTarget(t *testing.T) {
 }
 
 func TestMigratingPoolDoesNotRerouteOtherErrors(t *testing.T) {
-	for _, rpcErr := range []error{nil, tgerr.New(400, "FILE_REFERENCE_EXPIRED"), tgerr.New(303, "PHONE_MIGRATE_4"), tgerr.New(303, "FILE_MIGRATE_0")} {
+	for _, rpcErr := range []error{
+		nil,
+		tgerr.New(400, "FILE_REFERENCE_EXPIRED"),
+		tgerr.New(303, "PHONE_MIGRATE_4"),
+		tgerr.New(303, "USER_MIGRATE_4"),
+		tgerr.New(303, "NETWORK_MIGRATE_4"),
+		tgerr.New(303, "FILE_MIGRATE_0"),
+		tgerr.New(303, "STATS_MIGRATE_0"),
+	} {
 		t.Run(fmt.Sprint(rpcErr), func(t *testing.T) {
 			home := &testDCPool{InvokeFunc: func(context.Context, bin.Encoder, bin.Decoder) error { return rpcErr }}
 			router := newMigratingPool(home, func(context.Context, int) (telegram.CloseInvoker, error) {

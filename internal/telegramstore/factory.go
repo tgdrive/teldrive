@@ -24,6 +24,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/net/proxy"
+	"golang.org/x/sync/semaphore"
 	"golang.org/x/time/rate"
 
 	"github.com/tgdrive/teldrive/v2/internal/db/sqlcgen"
@@ -61,6 +62,9 @@ type Factory struct {
 
 	limitersMu sync.Mutex
 	limiters   map[int64]*ratelimit.RateLimiter
+
+	transfersMu sync.Mutex
+	transfers   map[int64]*semaphore.Weighted
 }
 
 func NewFactory(config FactoryConfig) (*Factory, error) {
@@ -100,6 +104,7 @@ func NewFactory(config FactoryConfig) (*Factory, error) {
 		config: config, resolver: resolver,
 		middleware: []telegram.Middleware{floodwait.NewSimpleWaiter(), retry},
 		limiters:   make(map[int64]*ratelimit.RateLimiter),
+		transfers:  make(map[int64]*semaphore.Weighted),
 	}, nil
 }
 
@@ -204,18 +209,29 @@ func (f *Factory) NewWithUpdates(storage telegram.SessionStorage, handler telegr
 	return f.newClient(storage, 0, handler, nil)
 }
 
+type dcPoolClient interface {
+	Pool(max int64) (telegram.CloseInvoker, error)
+	DC(ctx context.Context, dc int, max int64) (telegram.CloseInvoker, error)
+}
+
 // PooledAPI opens up to size connections per DC and charges their requests to
-// the rate-limit budget of accountID. File redirects use authorized DC pools
-// without moving the client's primary session.
+// the rate-limit budget of accountID. File/stats redirects follow gotd's
+// invokeDirect/invokeSub flow with size connections instead of one.
 func (f *Factory) PooledAPI(client *telegram.Client, accountID int64, size int) (*tg.Client, func() error, error) {
 	if f == nil || client == nil || accountID <= 0 || size < 1 {
 		return nil, nil, ErrTelegramConfiguration
 	}
+	return f.pooledAPI(client, accountID, size)
+}
+
+func (f *Factory) pooledAPI(client dcPoolClient, accountID int64, size int) (*tg.Client, func() error, error) {
 	invoker, err := client.Pool(int64(size))
 	if err != nil {
 		return nil, nil, fmt.Errorf("create Telegram connection pool: %w", err)
 	}
 	router := newMigratingPool(invoker, func(ctx context.Context, dc int) (telegram.CloseInvoker, error) {
+		// DC uses gotd's own connection setup and authorization transfer, the
+		// same path as invokeSub, but preserves our multi-connection pool size.
 		return client.DC(ctx, dc, int64(size))
 	}, func(invoker tg.Invoker) tg.Invoker { return f.wrapInvoker(accountID, invoker) })
 	return tg.NewClient(router), router.Close, nil
@@ -253,6 +269,36 @@ func (f *Factory) wrapInvoker(accountID int64, invoker tg.Invoker) tg.Invoker {
 	return invoker
 }
 
+// authTransferHandler serializes the entire export/import pair across clients
+// for an account. Concurrent exports can invalidate bytes that another client
+// is about to import, resulting in AUTH_BYTES_INVALID. A pool-local lock is not
+// enough: downloads may use separate clients for the same user or bot.
+func (f *Factory) authTransferHandler(accountID int64) telegram.AuthTransferHandler {
+	return func(ctx context.Context, client *telegram.Client, transfer func(context.Context) error) error {
+		id := accountID
+		if id <= 0 {
+			// Login/token-verification clients do not have a known account yet.
+			self, err := client.Self(ctx)
+			if err != nil {
+				return fmt.Errorf("identify Telegram account for authorization transfer: %w", err)
+			}
+			id = self.ID
+		}
+		f.transfersMu.Lock()
+		lock, ok := f.transfers[id]
+		if !ok {
+			lock = semaphore.NewWeighted(1)
+			f.transfers[id] = lock
+		}
+		f.transfersMu.Unlock()
+		if err := lock.Acquire(ctx, 1); err != nil {
+			return err
+		}
+		defer lock.Release(1)
+		return transfer(ctx)
+	}
+}
+
 func (f *Factory) AppCredentials() (int, string, bool) {
 	if f == nil || f.config.AppID <= 0 || strings.TrimSpace(f.config.AppHash) == "" {
 		return 0, "", false
@@ -282,6 +328,7 @@ func (f *Factory) newClient(storage telegram.SessionStorage, accountID int64, ha
 			return value
 		},
 		OnConnectionState: onConnectionState,
+		OnTransfer:        f.authTransferHandler(accountID),
 	}
 	return telegram.NewClient(f.config.AppID, f.config.AppHash, options), nil
 }

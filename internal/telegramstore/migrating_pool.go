@@ -21,7 +21,9 @@ type dcPoolEntry struct {
 	err   error
 }
 
-// migratingPool follows file redirects without migrating the primary session.
+// migratingPool mirrors gotd's invokeDirect/invokeSub handling for file and
+// stats redirects without migrating the primary session. Unlike invokeSub's
+// single-connection pool, target pools retain the configured connection count.
 // Each request starts on the home DC: different files may live on different DCs.
 type migratingPool struct {
 	home   telegram.CloseInvoker
@@ -46,14 +48,19 @@ func (p *migratingPool) Invoke(ctx context.Context, input bin.Encoder, output bi
 	}
 	err := p.api.Invoke(ctx, input, output)
 	rpcErr, ok := tgerr.As(err)
-	if !ok || rpcErr.Type != "FILE_MIGRATE" || rpcErr.Argument <= 0 {
+	if !ok || !rpcErr.IsOneOf("FILE_MIGRATE", "STATS_MIGRATE") || rpcErr.Argument <= 0 {
 		return err
 	}
-	api, openErr := p.target(ctx, rpcErr.Argument)
+	return p.invokeSub(ctx, rpcErr.Argument, input, output)
+}
+
+func (p *migratingPool) invokeSub(ctx context.Context, dc int, input bin.Encoder, output bin.Decoder) error {
+	api, openErr := p.target(ctx, dc)
 	if openErr != nil {
-		return fmt.Errorf("open Telegram file DC %d: %w", rpcErr.Argument, openErr)
+		return fmt.Errorf("open Telegram target DC %d: %w", dc, openErr)
 	}
-	// Retry once, not recursively: malformed redirects must not loop forever.
+	// Like gotd's invokeSub, invoke directly on the authorized target rather
+	// than recursively redirecting or changing the primary session.
 	return api.Invoke(ctx, input, output)
 }
 
