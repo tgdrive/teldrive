@@ -179,6 +179,10 @@ Defaults are runtime values, not production recommendations.
 
 <ConfigOption name={"telegram.mtproxy.secret"} flag={"--telegram-mtproxy-secret"} env={"TELDRIVE_TELEGRAM_MTPROXY_SECRET"} defaultValue={""} description={"MTProto proxy secret in hexadecimal form"} />
 
+<ConfigOption name={"telegram.ntp"} flag={"--telegram-ntp"} env={"TELDRIVE_TELEGRAM_NTP"} defaultValue={"false"} description={"Use an NTP-adjusted clock for Telegram without changing the system clock"} />
+
+<ConfigOption name={"telegram.ntp-server"} flag={"--telegram-ntp-server"} env={"TELDRIVE_TELEGRAM_NTP_SERVER"} defaultValue={"pool.ntp.org"} description={"NTP server queried once when the Telegram client factory starts; requires outbound UDP"} />
+
 <ConfigOption name={"telegram.proxy"} flag={"--telegram-proxy"} env={"TELDRIVE_TELEGRAM_PROXY"} defaultValue={""} description={"HTTP, HTTPS, or SOCKS5 proxy URL"} />
 
 <ConfigOption name={"telegram.randomize-part-names"} flag={"--telegram-randomize-part-names"} env={"TELDRIVE_TELEGRAM_RANDOMIZE_PART_NAMES"} defaultValue={"true"} description={"Randomize Telegram document names"} />

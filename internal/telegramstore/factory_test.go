@@ -8,10 +8,77 @@ import (
 	"time"
 
 	"github.com/gotd/td/bin"
+	"github.com/gotd/td/clock"
+	"github.com/gotd/td/session"
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/tg"
 	"github.com/gotd/td/tgerr"
 )
+
+func TestFactoryNTPIsOptInAndShared(t *testing.T) {
+	t.Parallel()
+	for _, enabled := range []bool{false, true} {
+		t.Run(fmt.Sprintf("enabled=%t", enabled), func(t *testing.T) {
+			calls := 0
+			corrected := &fixedTelegramClock{Clock: clock.System, now: time.Now().Add(time.Hour)}
+			factory, err := newFactory(FactoryConfig{
+				AppID: 1, AppHash: "test", NTP: enabled, NTPServer: "time.example.org",
+			}, func(hosts ...string) (clock.Clock, error) {
+				calls++
+				if len(hosts) != 1 || hosts[0] != "time.example.org" {
+					t.Fatalf("NTP hosts = %v", hosts)
+				}
+				return corrected, nil
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if enabled {
+				if factory.clock != corrected || !factory.clock.Now().Equal(corrected.now) {
+					t.Fatal("factory did not retain the NTP-corrected clock")
+				}
+			} else if factory.clock != clock.System {
+				t.Fatal("disabled NTP must use the system clock")
+			}
+			for range 2 {
+				if _, err := factory.New(new(session.StorageMemory)); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := factory.NewForAccount(new(session.StorageMemory), 42, nil); err != nil {
+					t.Fatal(err)
+				}
+			}
+			wantCalls := 0
+			if enabled {
+				wantCalls = 1
+			}
+			if calls != wantCalls {
+				t.Fatalf("NTP queries = %d, want %d", calls, wantCalls)
+			}
+		})
+	}
+}
+
+type fixedTelegramClock struct {
+	clock.Clock
+	now time.Time
+}
+
+func (c *fixedTelegramClock) Now() time.Time { return c.now }
+
+func TestFactoryNTPDefaultServerAndFailure(t *testing.T) {
+	t.Parallel()
+	wantErr := errors.New("NTP unreachable")
+	factory, err := newFactory(FactoryConfig{AppID: 1, AppHash: "test", NTP: true}, func(hosts ...string) (clock.Clock, error) {
+		if len(hosts) != 1 || hosts[0] != "pool.ntp.org" {
+			t.Fatalf("default NTP hosts = %v", hosts)
+		}
+		return nil, wantErr
+	})
+	if factory != nil || !errors.Is(err, wantErr) {
+		t.Fatalf("factory = %v, error = %v; want NTP failure", factory, err)
+	}
+}
 
 func TestFactoryRateLimitsEachTelegramAccountSeparately(t *testing.T) {
 	t.Parallel()

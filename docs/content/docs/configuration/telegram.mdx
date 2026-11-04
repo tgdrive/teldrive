@@ -20,6 +20,20 @@ telegram:
 
 Keep rate limiting enabled unless you have a specific reason to change it. The limit applies to each Telegram account separately: your user account and every bot each get their own `rate-interval`/`rate-burst` budget, so adding bots adds request capacity.
 
+## NTP clock
+
+NTP is **disabled by default**. Enable it explicitly if the server clock is incorrect and Telegram rejects messages:
+
+```yaml
+telegram:
+  ntp: true
+  ntp-server: pool.ntp.org
+```
+
+Or set `TELDRIVE_TELEGRAM_NTP=true` and optionally `TELDRIVE_TELEGRAM_NTP_SERVER`.
+
+The remote Telegram backend queries the server once when its client factory starts and shares the resulting time offset across clients. It does not change the system clock or periodically resynchronize; restart Teldrive to refresh the offset. If the initial NTP query fails, startup fails rather than silently using the system clock. NTP requires direct outbound UDP (normally port 123); it does not use the Telegram proxy. The filesystem backend does not query NTP.
+
 ## Uploads
 
 ```yaml

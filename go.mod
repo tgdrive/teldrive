@@ -42,6 +42,7 @@ require (
 
 require (
 	github.com/andybalholm/brotli v1.2.6 // indirect
+	github.com/beevik/ntp v1.5.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/coder/websocket v1.8.15 // indirect
 	github.com/dlclark/regexp2 v1.12.0 // indirect

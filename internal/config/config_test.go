@@ -15,6 +15,9 @@ func TestDefaultIncludesLegacyPublicTelegramClientIdentity(t *testing.T) {
 	t.Parallel()
 
 	cfg := Default()
+	if cfg.Telegram.NTP || cfg.Telegram.NTPServer != "pool.ntp.org" {
+		t.Fatalf("Telegram NTP defaults = enabled %t, server %q", cfg.Telegram.NTP, cfg.Telegram.NTPServer)
+	}
 	if cfg.Security.PublicFileContent {
 		t.Fatal("PublicFileContent should default to false")
 	}
@@ -59,6 +62,22 @@ func TestDefaultIncludesLegacyPublicTelegramClientIdentity(t *testing.T) {
 	}
 }
 
+func TestValidateNTPRequiresServerOnlyWhenEnabled(t *testing.T) {
+	t.Parallel()
+	for _, enabled := range []bool{false, true} {
+		cfg := validTestConfig()
+		cfg.Telegram.NTP = enabled
+		cfg.Telegram.NTPServer = ""
+		err := cfg.Validate()
+		if enabled && !errors.Is(err, ErrInvalid) {
+			t.Fatalf("enabled NTP with empty server: %v", err)
+		}
+		if !enabled && err != nil {
+			t.Fatalf("disabled NTP with empty server: %v", err)
+		}
+	}
+}
+
 func TestValidateRejectsInvalidTrustedProxy(t *testing.T) {
 	t.Parallel()
 	cfg := validTestConfig()
@@ -89,6 +108,8 @@ func TestLoadFromAppliesEnvironment(t *testing.T) {
 		"TELDRIVE_TELEGRAM_AUTO_CHANNEL_CREATE":    "false",
 		"TELDRIVE_TELEGRAM_CHANNEL_PART_LIMIT":     "12345",
 		"TELDRIVE_TELEGRAM_CLIENT_LOGGING":         "true",
+		"TELDRIVE_TELEGRAM_NTP":                    "true",
+		"TELDRIVE_TELEGRAM_NTP_SERVER":             "time.example.org",
 		"TELDRIVE_ENCRYPTION_ACTIVE_KEY_VERSION":   "2",
 		"TELDRIVE_ENCRYPTION_KEYS":                 "1:first-secret,2:second-secret",
 		"TELDRIVE_UPLOADS_SESSION_TTL":             "72h",
@@ -120,6 +141,9 @@ func TestLoadFromAppliesEnvironment(t *testing.T) {
 	}
 	if cfg.Encryption.ActiveKeyVersion != 2 || cfg.Encryption.Keys[2] != "second-secret" {
 		t.Fatalf("encryption config = %#v", cfg.Encryption)
+	}
+	if !cfg.Telegram.NTP || cfg.Telegram.NTPServer != "time.example.org" {
+		t.Fatalf("Telegram NTP environment config = enabled %t, server %q", cfg.Telegram.NTP, cfg.Telegram.NTPServer)
 	}
 	if cfg.Logging.LogLevel != "debug" || cfg.Logging.LogFormat != "text" || cfg.Logging.LogFile != values["TELDRIVE_LOGGING_LOG_FILE"] {
 		t.Fatalf("logging config = %#v", cfg.Logging)

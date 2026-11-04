@@ -64,6 +64,8 @@ func newRemoteTelegramFactory(cfg config.Config, logger *slog.Logger) (*telegram
 		RateInterval: cfg.Telegram.RateInterval, RateBurst: cfg.Telegram.RateBurst,
 		Proxy: cfg.Telegram.Proxy, MTProxyAddress: cfg.Telegram.MTProxy.Address,
 		MTProxySecret: cfg.Telegram.MTProxy.Secret,
+		NTP:           cfg.Telegram.NTP,
+		NTPServer:     cfg.Telegram.NTPServer,
 		Logger:        gotdLogger,
 	})
 	if err != nil {

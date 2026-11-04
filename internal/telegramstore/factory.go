@@ -13,9 +13,11 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
+	contribclock "github.com/gotd/contrib/clock"
 	"github.com/gotd/contrib/middleware/floodwait"
 	"github.com/gotd/contrib/middleware/ratelimit"
 	"github.com/gotd/log"
+	"github.com/gotd/td/clock"
 	"github.com/gotd/td/telegram"
 	"github.com/gotd/td/telegram/dcs"
 	"github.com/gotd/td/tg"
@@ -50,6 +52,8 @@ type FactoryConfig struct {
 	MTProxyAddress   string
 	MTProxySecret    string
 	Logger           log.Logger
+	NTP              bool
+	NTPServer        string
 }
 
 // Factory creates unstarted gotd clients. Each caller must execute the client
@@ -58,6 +62,7 @@ type FactoryConfig struct {
 type Factory struct {
 	config     FactoryConfig
 	resolver   dcs.Resolver
+	clock      clock.Clock
 	middleware []telegram.Middleware
 
 	limitersMu sync.Mutex
@@ -68,6 +73,10 @@ type Factory struct {
 }
 
 func NewFactory(config FactoryConfig) (*Factory, error) {
+	return newFactory(config, contribclock.NewNTP)
+}
+
+func newFactory(config FactoryConfig, newNTP func(...string) (clock.Clock, error)) (*Factory, error) {
 	if config.AppID <= 0 || strings.TrimSpace(config.AppHash) == "" {
 		return nil, ErrTelegramConfiguration
 	}
@@ -100,8 +109,20 @@ func NewFactory(config FactoryConfig) (*Factory, error) {
 	if config.RateLimit && (config.RateInterval <= 0 || config.RateBurst < 1) {
 		return nil, fmt.Errorf("%w: rate interval and burst must be positive", ErrTelegramConfiguration)
 	}
+	var clientClock clock.Clock = clock.System
+	if config.NTP {
+		config.NTPServer = strings.TrimSpace(config.NTPServer)
+		if config.NTPServer == "" {
+			config.NTPServer = "pool.ntp.org"
+		}
+		clientClock, err = newNTP(config.NTPServer)
+		if err != nil {
+			return nil, fmt.Errorf("create Telegram NTP clock: %w", err)
+		}
+	}
 	return &Factory{
 		config: config, resolver: resolver,
+		clock:      clientClock,
 		middleware: []telegram.Middleware{floodwait.NewSimpleWaiter(), retry},
 		limiters:   make(map[int64]*ratelimit.RateLimiter),
 		transfers:  make(map[int64]*semaphore.Weighted),
@@ -319,6 +340,7 @@ func (f *Factory) newClient(storage telegram.SessionStorage, accountID int64, ha
 		Resolver:       f.resolver,
 		Middlewares:    f.accountMiddleware(accountID),
 		Logger:         f.config.Logger,
+		Clock:          f.clock,
 		RetryInterval:  2 * time.Second,
 		ReconnectionBackoff: func() backoff.BackOff {
 			value := backoff.NewExponentialBackOff()

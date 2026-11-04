@@ -196,6 +196,16 @@
       default = null;
       description = "Enable verbose gotd Telegram client logs through the application logger (Default: false)";
     };
+    "ntp" = lib.mkOption {
+      type = lib.types.nullOr (lib.types.bool);
+      default = null;
+      description = "Use an NTP-adjusted clock for Telegram without changing the system clock (Default: false)";
+    };
+    "ntp-server" = lib.mkOption {
+      type = lib.types.nullOr (lib.types.str);
+      default = null;
+      description = "NTP server queried once when the Telegram client factory starts; requires outbound UDP (Default: pool.ntp.org) [validate: required_if=NTP true]";
+    };
     "upload-threads" = lib.mkOption {
       type = lib.types.nullOr (lib.types.int);
       default = null;

@@ -53,6 +53,8 @@ type Telegram struct {
 	Proxy                string          `koanf:"proxy" default:"" description:"HTTP, HTTPS, or SOCKS5 proxy URL"`
 	MTProxy              TelegramMTProxy `koanf:"mtproxy"`
 	ClientLogging        bool            `koanf:"client-logging" default:"false" description:"Enable verbose gotd Telegram client logs through the application logger"`
+	NTP                  bool            `koanf:"ntp" default:"false" description:"Use an NTP-adjusted clock for Telegram without changing the system clock"`
+	NTPServer            string          `koanf:"ntp-server" default:"pool.ntp.org" validate:"required_if=NTP true" description:"NTP server queried once when the Telegram client factory starts; requires outbound UDP"`
 	UploadThreads        int             `koanf:"upload-threads" default:"8" validate:"min=1,max=32" description:"Concurrent Telegram upload workers"`
 	DownloadBots         int             `koanf:"download-bots" default:"0" validate:"min=0,max=32" description:"Maximum enabled bots used for download rotation; zero uses the authenticated user"`
 	DownloadClientPool   bool            `koanf:"download-client-pool" default:"false" description:"Keep authenticated Telegram download clients warm between HTTP requests"`
