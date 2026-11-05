@@ -514,6 +514,84 @@ for (const [extension, mime] of [
   });
 }
 
+test("the mouse cursor hides together with the video controls and returns on movement", async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name === "mobile", "touch screens have no mouse cursor");
+  const videoId = "74444444-4444-4444-8444-444444444444";
+  const name = "cursor-sample.webm";
+  const clip = readFileSync(new URL("./fixtures/viewers/sample.webm", import.meta.url));
+  await installViewerApi(page, []);
+  await page.route("**/api/v1/files?**", (route) =>
+    route.fulfill({ json: { items: [file(videoId, name, "video/webm", clip.length)] } }),
+  );
+  await page.route(`**/api/v1/files/${videoId}/content/**`, (route) =>
+    route.fulfill({ body: clip, contentType: "video/webm" }),
+  );
+  await page.goto("/files?view=list");
+  await openFile(page, name);
+  const player = page.locator(".vplayer");
+  const video = player.locator("video");
+  await expect(video).toBeVisible({ timeout: 30_000 });
+  // The clip is 3 s, shorter than the time the controls take to hide: keep it playing.
+  await video.evaluate((el: HTMLVideoElement) => {
+    el.loop = true;
+    return el.play();
+  });
+  await expect.poll(() => video.evaluate((el: HTMLVideoElement) => !el.paused)).toBe(true);
+
+  /** The cursor the browser shows for the element under the pointer: what the user actually sees. */
+  const cursorUnderPointer = async (point: { x: number; y: number }) =>
+    page.evaluate(({ x, y }) => {
+      const element = document.elementFromPoint(x, y);
+      return element ? getComputedStyle(element).cursor : "no element";
+    }, point);
+  const pointerInsidePlayer = async () => {
+    const box = await player.boundingBox();
+    if (!box) throw new Error("player has no box");
+    return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  };
+  const hidden = /vplayer--controls-hidden/;
+
+  async function expectCursorFollowsControls() {
+    const point = await pointerInsidePlayer();
+    await page.mouse.move(point.x, point.y);
+    await page.mouse.move(point.x + 4, point.y + 4);
+    await expect(player).not.toHaveClass(hidden);
+    expect(await cursorUnderPointer(point)).not.toBe("none");
+
+    // Same moment as the control bar: nothing else is needed for the cursor to disappear.
+    await expect(player).toHaveClass(hidden, { timeout: 8000 });
+    await expect.poll(() => cursorUnderPointer(point)).toBe("none");
+    // And it stays hidden while the mouse is still.
+    await page.waitForTimeout(1500);
+    await expect(player).toHaveClass(hidden);
+    expect(await cursorUnderPointer(point)).toBe("none");
+
+    await page.mouse.move(point.x + 30, point.y + 10);
+    await expect(player).not.toHaveClass(hidden);
+    expect(await cursorUnderPointer(point)).not.toBe("none");
+  }
+
+  await expectCursorFollowsControls();
+
+  // Full screen is the player's own container, so it must behave the same.
+  await player.focus();
+  await page.keyboard.press("f");
+  await expect.poll(() => page.evaluate(() => Boolean(document.fullscreenElement))).toBe(true);
+  await expectCursorFollowsControls();
+  await page.evaluate(() => document.exitFullscreen());
+  await expect.poll(() => page.evaluate(() => Boolean(document.fullscreenElement))).toBe(false);
+
+  // Paused: the controls stay up, so the cursor must too.
+  const point = await pointerInsidePlayer();
+  await page.mouse.move(point.x, point.y);
+  await video.evaluate((el: HTMLVideoElement) => el.pause());
+  await page.waitForTimeout(4000);
+  await expect(player).not.toHaveClass(hidden);
+  expect(await cursorUnderPointer(point)).not.toBe("none");
+});
+
 test("PDF download link targets the untouched original and read-only interactions never upload", async ({
   page,
 }) => {
