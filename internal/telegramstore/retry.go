@@ -2,6 +2,7 @@ package telegramstore
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -35,20 +36,22 @@ type retryMiddleware struct{ max int }
 
 func (m retryMiddleware) Handle(next tg.Invoker) telegram.InvokeFunc {
 	return func(ctx context.Context, input bin.Encoder, output bin.Decoder) error {
+		var last error // the transient Telegram error being retried
 		for attempt := 0; ; attempt++ {
 			if err := ctx.Err(); err != nil {
-				return err
+				return deadlineWithCause(err, last)
 			}
 			err := next.Invoke(ctx, input, output)
 			if err == nil {
 				return nil
 			}
 			if ctx.Err() != nil {
-				return ctx.Err()
+				return deadlineWithCause(ctx.Err(), last)
 			}
 			if !isTransientTelegramError(err) {
 				return err
 			}
+			last = err
 			clientID, _ := ClientID(ctx)
 			if attempt >= m.max {
 				slog.WarnContext(ctx, "telegram.rpc_retry_exhausted",
@@ -66,12 +69,32 @@ func (m retryMiddleware) Handle(next tg.Invoker) telegram.InvokeFunc {
 			select {
 			case <-ctx.Done():
 				timer.Stop()
-				return ctx.Err()
+				return deadlineWithCause(ctx.Err(), err)
 			case <-timer.C:
 			}
 		}
 	}
 }
+
+// deadlineWithCause keeps the Telegram error that was being retried when the caller's deadline
+// ran out, so "Timeout" (-503) and friends aren't reported as a bare context deadline. A cancel
+// stays a plain cancel: nobody is waiting for the reason.
+func deadlineWithCause(ctxErr, last error) error {
+	if errors.Is(ctxErr, context.DeadlineExceeded) && last != nil {
+		return &retryDeadlineError{last: last, deadline: ctxErr}
+	}
+	return ctxErr
+}
+
+// retryDeadlineError is a deadline that ran out while a Telegram error was being retried: it
+// reads as that error and matches both (errors.Is context.DeadlineExceeded, tgerr.As).
+type retryDeadlineError struct{ last, deadline error }
+
+func (e *retryDeadlineError) Error() string {
+	return e.last.Error() + " (retried until the deadline)"
+}
+
+func (e *retryDeadlineError) Unwrap() []error { return []error{e.deadline, e.last} }
 
 func telegramRetryDelay(attempt int) time.Duration {
 	delay := 500 * time.Millisecond

@@ -170,7 +170,7 @@ func (d *Downloader) resolveMissingPartSizes(ctx context.Context, session telegr
 			UserID: userID, ChannelID: part.ChannelID, MessageID: part.MessageID,
 		})
 		if err != nil {
-			return fmt.Errorf("resolve Telegram part %d metadata: %w", part.PartNo, err)
+			return fmt.Errorf("resolve Telegram part %d (message %d) metadata: %w", part.PartNo, part.MessageID, err)
 		}
 		plainSize := stored.Size
 		if file.Encryption {
@@ -428,7 +428,7 @@ func (r *downloadReader) openPartReader(segment downloadSegment, partOffset, spa
 		})
 	}
 	if err != nil {
-		return nil, fmt.Errorf("open Telegram part %d: %w", segment.part.PartNo, err)
+		return nil, fmt.Errorf("open Telegram part %d (message %d): %w", segment.part.PartNo, segment.part.MessageID, err)
 	}
 	return reader, nil
 }
