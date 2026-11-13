@@ -12,11 +12,13 @@ import (
 	"syscall"
 
 	"github.com/google/uuid"
+	"github.com/gotd/td/tgerr"
 
 	"github.com/tgdrive/teldrive/v2/internal/api/gen"
 	"github.com/tgdrive/teldrive/v2/internal/db/sqlcgen"
 	"github.com/tgdrive/teldrive/v2/internal/dbtypes"
 	"github.com/tgdrive/teldrive/v2/internal/shares"
+	"github.com/tgdrive/teldrive/v2/internal/telegramstore"
 	"github.com/tgdrive/teldrive/v2/internal/transfer"
 )
 
@@ -143,9 +145,29 @@ func (h *RawHandler) streamFile(ctx context.Context, w http.ResponseWriter, user
 		UserID: userID, FileID: fileID, Offset: rangeSpec.Offset, Length: rangeSpec.Length,
 	})
 	if err != nil {
+		if isTelegramPartGone(err) {
+			// Opening asks Telegram for part sizes older uploads didn't record.
+			slog.WarnContext(ctx, "api.stream_unreadable", "file_id", fileID, "offset", rangeSpec.Offset, "length", rangeSpec.Length, "error", err)
+			return mapStreamError(err)
+		}
 		return mapServiceError(err)
 	}
 	defer download.Reader.Close()
+
+	// Read the first bytes before committing the status line: when Telegram can't serve the
+	// part, the client gets a 502 instead of a 206 that ends early with nothing in it.
+	first := make([]byte, min(rangeSpec.Length, streamFirstRead))
+	firstN := 0
+	if len(first) > 0 {
+		firstN, err = io.ReadAtLeast(download.Reader, first, 1)
+		if firstN == 0 {
+			if isExpectedStreamEnd(ctx, err) {
+				return ctx.Err()
+			}
+			slog.WarnContext(ctx, "api.stream_unreadable", "file_id", fileID, "offset", rangeSpec.Offset, "length", rangeSpec.Length, "error", err)
+			return mapStreamError(err)
+		}
+	}
 
 	status := http.StatusOK
 	if partial {
@@ -160,13 +182,45 @@ func (h *RawHandler) streamFile(ctx context.Context, w http.ResponseWriter, user
 	w.Header().Set("Last-Modified", file.ModTime.Time.UTC().Format(http.TimeFormat))
 	w.Header().Set("X-Accel-Buffering", "no")
 	w.WriteHeader(status)
-	_, err = io.CopyN(w, download.Reader, rangeSpec.Length)
+	_, err = w.Write(first[:firstN])
+	if err == nil {
+		_, err = io.CopyN(w, download.Reader, rangeSpec.Length-int64(firstN))
+	}
 	if err != nil && !isExpectedStreamEnd(ctx, err) {
 		// Headers are already committed, so a JSON error response cannot replace
 		// this stream. The Content-Length mismatch tells the client it was truncated.
 		slog.ErrorContext(ctx, "api.stream_failed", "file_id", fileID, "offset", rangeSpec.Offset, "length", rangeSpec.Length, "error", err)
 	}
 	return nil
+}
+
+// streamFirstRead is how much of a stream is read before the response status is sent.
+const streamFirstRead = 64 << 10
+
+// mapStreamError is the response for a stream that failed before its first byte: errors with
+// their own status keep it, anything else is Telegram (the storage behind the request) failing.
+// The details, which name Telegram messages, stay in the log.
+func mapStreamError(err error) error {
+	if isTelegramPartGone(err) {
+		return problem(http.StatusBadGateway, "telegram_part_unavailable", "Telegram could not serve a part of this file", err)
+	}
+	mapped := mapServiceError(err)
+	var p *Problem
+	if errors.As(mapped, &p) && p.Status == http.StatusInternalServerError {
+		return problem(http.StatusBadGateway, "telegram_read_failed", "reading this file from Telegram failed", err)
+	}
+	return mapped
+}
+
+// isTelegramPartGone: Telegram answered, but can't serve the part: its message or document is
+// gone, or -503 "Timeout" (the file DC couldn't read it), also when that was still being retried
+// as the deadline ran out.
+func isTelegramPartGone(err error) bool {
+	if errors.Is(err, telegramstore.ErrMessageNotFound) || errors.Is(err, telegramstore.ErrDocumentNotFound) {
+		return true
+	}
+	var rpc *tgerr.Error
+	return errors.As(err, &rpc) && rpc.Code == -503
 }
 
 func isExpectedStreamEnd(ctx context.Context, err error) bool {
