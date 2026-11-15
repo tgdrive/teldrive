@@ -1,3 +1,4 @@
+import path from "node:path";
 import { expect, type Page, test } from "@playwright/test";
 import { startDownloadServer } from "./fixtures/download-server";
 import {
@@ -607,6 +608,55 @@ test("upload menu preserves folder hierarchy and exposes byte-weighted tree prog
   await expect(shelf).toHaveScreenshot("upload-tree-expanded.png");
   await page.getByRole("button", { name: "Collapse uploads" }).click();
   await expect(shelf).toHaveScreenshot("upload-tree-collapsed.png");
+});
+
+// A real drop cannot be built from JavaScript: a synthetic DataTransferItem has
+// no filesystem entry behind it. Chromium's DevTools protocol can hand the page
+// a drag backed by real paths, which is what a folder drop needs.
+async function dropPaths(page: Page, paths: string[]) {
+  const zone = page.getByTestId("file-drop-zone");
+  const box = await zone.boundingBox();
+  if (!box) throw new Error("the drop zone is not visible");
+  const client = await page.context().newCDPSession(page);
+  const data = { items: [], files: paths, dragOperationsMask: 1 };
+  const x = Math.round(box.x + box.width / 2);
+  const y = Math.round(box.y + box.height / 2);
+  try {
+    for (const type of ["dragEnter", "dragOver", "drop"] as const) {
+      await client.send("Input.dispatchDragEvent", { type, x, y, data });
+    }
+  } finally {
+    await client.detach();
+  }
+}
+
+test("dropping a folder uploads it with its hierarchy", async ({ page, isMobile }) => {
+  test.skip(isMobile, "drag and drop is a desktop interaction");
+
+  const folderRequests: Array<{ name: string; parentId?: string }> = [];
+  const uploadRequests: Array<{ name: string; parentId?: string }> = [];
+  page.on("request", (request) => {
+    if (request.method() !== "POST") return;
+    const pathname = new URL(request.url()).pathname;
+    if (pathname.endsWith("/api/v1/folders")) folderRequests.push(request.postDataJSON());
+    if (pathname.endsWith("/api/v1/uploads")) uploadRequests.push(request.postDataJSON());
+  });
+
+  await page.goto("/files");
+  await dropPaths(page, [path.resolve("e2e/fixtures/Destination")]);
+
+  const tree = page.getByRole("treegrid", { name: "Upload queue" });
+  await expect(tree).toBeVisible();
+  await expect(tree.getByRole("row", { name: /Destination/ })).toBeVisible();
+  await expect(tree.getByText("2026", { exact: true })).toBeVisible();
+  await expect(tree.getByText("cover.jpg", { exact: true })).toBeVisible();
+  await expect(tree.getByText("detail.jpg", { exact: true })).toBeVisible();
+  await expect.poll(() => uploadRequests.length).toBe(2);
+
+  expect(folderRequests.map((request) => request.name)).toEqual(["Destination", "2026"]);
+  expect(folderRequests[1].parentId).toBeTruthy();
+  expect(uploadRequests.map((request) => request.name).sort()).toEqual(["cover.jpg", "detail.jpg"]);
+  expect(uploadRequests.every((request) => Boolean(request.parentId))).toBe(true);
 });
 
 test("upload queue is ephemeral across a browser reload", async ({ page }) => {
