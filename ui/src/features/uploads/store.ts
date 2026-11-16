@@ -36,9 +36,19 @@ export type UploadTask = {
   createdAt: number;
 };
 
+// UploadItem is a file to upload, together with the path it should take inside
+// the target directory. A folder picker sets webkitRelativePath on every file,
+// but a dropped folder carries no such path, so a caller that walks a drop
+// passes the path explicitly.
+export type UploadItem = { file: File; relativePath: string };
+
+// UploadSource is either a plain File, whose path comes from webkitRelativePath,
+// or an UploadItem that names the path itself.
+export type UploadSource = File | UploadItem;
+
 type UploadState = {
   tasks: UploadTask[];
-  enqueue: (files: File[], parentId?: string, path?: string) => void;
+  enqueue: (sources: UploadSource[], parentId?: string, path?: string) => void;
   retry: (taskId: string) => void;
   pause: (taskId: string) => void;
   cancel: (taskId: string) => Promise<void>;
@@ -62,20 +72,25 @@ function discardLegacyPersistedTasks() {
 }
 discardLegacyPersistedTasks();
 
+function normalizeUploadSource(source: UploadSource): UploadItem {
+  if ("file" in source) return source;
+  return { file: source, relativePath: source.webkitRelativePath || source.name };
+}
+
 export const useUploadStore = create<UploadState>((set, get) => ({
   tasks: [],
   enqueue(input, parentId, path = "/") {
     const batchId = newClientId();
-    const relativePaths = input.map((file) => file.webkitRelativePath || file.name);
+    const sources = input.map(normalizeUploadSource);
+    const relativePaths = sources.map((source) => source.relativePath);
     const rootNames = new Set(relativePaths.map((relativePath) => relativePath.split("/")[0]));
     const isDirectory = relativePaths.some((relativePath) => relativePath.includes("/"));
     const batchName =
       isDirectory && rootNames.size === 1
         ? relativePaths[0].split("/")[0]
-        : `${input.length} ${input.length === 1 ? "file" : "files"}`;
-    const added = input.map<UploadTask>((file) => {
+        : `${sources.length} ${sources.length === 1 ? "file" : "files"}`;
+    const added = sources.map<UploadTask>(({ file, relativePath }) => {
       const id = newClientId();
-      const relativePath = file.webkitRelativePath || file.name;
       files.set(id, file);
       return {
         id,

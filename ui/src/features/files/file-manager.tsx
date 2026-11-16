@@ -12,6 +12,7 @@ import { BackgroundUploadDialog } from "@/components/background-upload-dialog";
 import { AppDialog } from "@/components/dialogs/app-dialog";
 import { isPreviewable } from "@/components/file-preview-dialog";
 import { Page, PageContent } from "@/components/page";
+import { collectDroppedSources } from "@/features/uploads/drop";
 import { useUploadStore } from "@/features/uploads/store";
 import PasteIcon from "~icons/gravity-ui/arrow-right-to-square";
 import UploadIcon from "~icons/gravity-ui/arrow-up-from-line";
@@ -920,10 +921,26 @@ export function FileManagerPage({
           getDropOperation={() => "copy"}
           className="flex min-h-0 min-w-0 flex-1 flex-col overflow-x-hidden outline-none"
           onDrop={async (event) => {
-            const dropped = await Promise.all(
-              event.items.filter((item) => item.kind === "file").map((item) => item.getFile()),
-            );
-            if (dropped.length) enqueue(dropped, location.parentId, location.path);
+            // collectDroppedSources reads every entry defensively, so a
+            // rejection here means an unexpected failure; report it rather than
+            // let the drop vanish. Queueing is outside the guard, so it can
+            // never be misreported as a read failure.
+            const collected = await collectDroppedSources(event.items).catch(() => null);
+            if (!collected) {
+              toast.error(t("manager.dropFailed"));
+              return;
+            }
+            const { sources, skipped } = collected;
+            if (sources.length) enqueue(sources, location.parentId, location.path);
+            if (skipped > 0) {
+              toast.error(
+                t(skipped === 1 ? "manager.dropSkippedOne" : "manager.dropSkippedMany", {
+                  count: skipped,
+                }),
+              );
+            } else if (!sources.length && event.items.some((item) => item.kind === "directory")) {
+              toast.info(t("manager.dropEmpty"));
+            }
           }}
         >
           {({ isDropTarget }) => (
