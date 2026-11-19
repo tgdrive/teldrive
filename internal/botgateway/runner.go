@@ -178,12 +178,15 @@ func (r *UploadAwareRunner) acquireBot(ctx context.Context, userID int64, operat
 	case telegramstore.OperationUpload:
 		bots, err = r.queries.ListUploadEligibleBots(ctx, userID)
 	case telegramstore.OperationDownload:
-		if r.downloadBots == 0 {
+		if telegramstore.IsAttachmentDownload(ctx) {
+			bots, err = r.queries.ListUploadEligibleBots(ctx, userID)
+		} else if r.downloadBots == 0 {
 			return nil, nil
+		} else {
+			bots, err = r.queries.ListDownloadEligibleBots(ctx, sqlcgen.ListDownloadEligibleBotsParams{
+				UserID: userID, DownloadBots: int32(r.downloadBots),
+			})
 		}
-		bots, err = r.queries.ListDownloadEligibleBots(ctx, sqlcgen.ListDownloadEligibleBotsParams{
-			UserID: userID, DownloadBots: int32(r.downloadBots),
-		})
 	default:
 		return nil, nil
 	}

@@ -96,6 +96,20 @@ INSERT INTO bots (bot_id, user_id, token_ciphertext, enabled) VALUES ($1, 1001, 
 	if fallback.calls != 1 || fallback.operations[0] != telegramstore.OperationDownload {
 		t.Fatalf("disabled download bot fallback = %d, %v", fallback.calls, fallback.operations)
 	}
+
+	for _, limit := range []int{0, 1, 2} {
+		runner.downloadBots = limit
+		selected = nil
+		for range 3 {
+			if err := runner.Run(telegramstore.WithAttachmentDownload(context.Background()), 1001, telegramstore.OperationDownload, callback); err != nil {
+				t.Fatal(err)
+			}
+		}
+		slices.Sort(selected)
+		if !slices.Equal(selected, []int64{101, 102, 103}) {
+			t.Fatalf("attachment bots with limit %d = %v, want all eligible bots", limit, selected)
+		}
+	}
 }
 
 func TestUploadAwareRunnerSkipsBusyBots(t *testing.T) {

@@ -55,10 +55,11 @@ func (d *Downloader) WithCache(cache *varccache.Cache) *Downloader {
 }
 
 type DownloadRequest struct {
-	UserID int64
-	FileID uuid.UUID
-	Offset int64
-	Length int64 // -1 means through end of file.
+	Attachment bool
+	UserID     int64
+	FileID     uuid.UUID
+	Offset     int64
+	Length     int64 // -1 means through end of file.
 }
 
 type Download struct {
@@ -85,13 +86,16 @@ func (d *Downloader) Open(ctx context.Context, request DownloadRequest) (*Downlo
 	if request.UserID <= 0 || request.FileID == uuid.Nil || request.Offset < 0 || request.Length < -1 {
 		return nil, ErrInvalidDownload
 	}
-	if d.cache != nil {
+	if d.cache != nil && !request.Attachment {
 		return d.openCached(ctx, request)
 	}
 	return d.openOrigin(ctx, request)
 }
 
 func (d *Downloader) openOrigin(ctx context.Context, request DownloadRequest) (*Download, error) {
+	if request.Attachment {
+		ctx = telegramstore.WithAttachmentDownload(ctx)
+	}
 	file, err := d.catalog.Get(ctx, request.UserID, request.FileID)
 	if err != nil {
 		return nil, err

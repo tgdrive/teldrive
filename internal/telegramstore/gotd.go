@@ -252,7 +252,7 @@ func (s *GotdStorage) OpenDownloadSession(ctx context.Context, userID int64) (Do
 	if s == nil || s.runner == nil || userID <= 0 {
 		return nil, ErrInvalidRequest
 	}
-	if s.downloadPool != nil {
+	if s.downloadPool != nil && !IsAttachmentDownload(ctx) {
 		return s.downloadPool.OpenDownloadSession(ctx, userID)
 	}
 	sessionCtx, cancel := context.WithCancel(ctx)

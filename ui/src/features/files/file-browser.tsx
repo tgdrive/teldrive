@@ -408,14 +408,14 @@ function GridFile({
         </div>
       ) : null}
       <div
-        className="flex aspect-[16/11] w-full shrink-0 items-center justify-center rounded-md bg-default/25"
+        className="flex aspect-[16/11] w-full shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent"
         aria-hidden="true"
         data-testid="file-grid-preview"
       >
         {file.kind === "folder" ? (
-          <FolderIcon className="size-12 text-accent" />
+          <FolderIcon className="size-12" />
         ) : (
-          <FileTypeIcon file={file} className="size-12 text-muted" />
+          <FileTypeIcon file={file} className="size-12" />
         )}
       </div>
       <p

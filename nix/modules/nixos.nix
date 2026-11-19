@@ -32,13 +32,13 @@ in
     user = lib.mkOption {
       type = lib.types.str;
       default = "teldrive";
-      description = "User the service runs as.";
+      description = "User account to provision. The service does not set User=; override systemd.services.teldrive.serviceConfig.User to run as this account.";
     };
 
     group = lib.mkOption {
       type = lib.types.str;
       default = "teldrive";
-      description = "Group the service runs as.";
+      description = "Group account to provision. The service does not set Group=; override systemd.services.teldrive.serviceConfig.Group to run as this group.";
     };
   };
 
@@ -63,8 +63,6 @@ in
       serviceConfig =
         {
           ExecStart = "${cfg.package}/bin/teldrive run";
-          User = cfg.user;
-          Group = cfg.group;
           StateDirectory = "teldrive";
           WorkingDirectory = "/var/lib/teldrive";
           Restart = "on-failure";

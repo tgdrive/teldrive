@@ -63,7 +63,8 @@ Ensure the mounted directory is writable by the container's non-root user. Keep 
 
 ## Behavior and security
 
-- The cache key is the file ID only. File content, attachment downloads (`?download=1`), and authorized public-share downloads reuse the same entry. Owners, URL filenames, cookies, and share tokens do not create separate entries.
+- The cache key is the file ID only. File previews/streams and authorized public-share streams reuse the same entry. Owners, URL filenames, cookies, and share tokens do not create separate entries.
+- Explicit attachment downloads (`?download=1`), including public-share downloads, bypass the disk cache entirely: they neither read cached bytes nor populate the streaming cache.
 - Authentication and share authorization still run before content is served. The downloader also checks current ownership and active file state on every open, including cache hits. Encrypted files still require their configured encryption key on cache hits.
 - File generation, size, content hash, and an encryption-key fingerprint validate the cached representation without changing its key. New versions invalidate old bytes, and a version change during an origin fetch fails that read rather than mixing versions.
 - HEAD requests do not fetch file bytes. Uploads, listings, events, and other APIs are not cached by varc.

@@ -1449,6 +1449,23 @@ test.describe("compact file grid", () => {
   // Exercise hover motion even though the rest of the suite requests reduced motion.
   test.use({ reducedMotion: "no-preference" });
 
+  test("grid and list icons share accent colors", async ({ page }) => {
+    await page.goto("/files?view=list");
+    const row = page.getByRole("row", { name: /alpha\.txt/ });
+    const listColors = await row.locator(".size-9 > svg").evaluate((icon) => ({
+      color: getComputedStyle(icon).color,
+      background: getComputedStyle(icon.parentElement!).backgroundColor,
+    }));
+    await page.goto("/files?view=grid");
+    const preview = page.getByRole("row", { name: /alpha\.txt/ }).getByTestId("file-grid-preview");
+    await expect(preview).toBeVisible();
+    const gridColors = await preview.locator("svg").evaluate((icon) => ({
+      color: getComputedStyle(icon).color,
+      background: getComputedStyle(icon.parentElement!).backgroundColor,
+    }));
+    expect(gridColors).toEqual(listColors);
+  });
+
   test("tiles stay compact and stationary on hover and selection", async ({ page, isMobile }) => {
     await page.goto("/files?view=grid");
     const alpha = page.getByRole("row", { name: /alpha\.txt/ });

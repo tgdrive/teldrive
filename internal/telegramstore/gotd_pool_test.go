@@ -67,6 +67,26 @@ func TestGotdDownloadSessionUsesConnectionPool(t *testing.T) {
 	}
 }
 
+func TestAttachmentDownloadBypassesWarmPoolAndKeepsParallelism(t *testing.T) {
+	runner := &recordingPooledRunner{}
+	// A closed warm pool would reject the request if attachment policy did
+	// not bypass it.
+	pool := &DownloadClientPool{closed: true}
+	storage := NewGotdStorage(runner, nil, WithDownloadReadParallel(8), WithDownloadClientPool(pool))
+	for range 2 {
+		session, err := storage.OpenDownloadSession(WithAttachmentDownload(context.Background()), 42)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := session.Close(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if runner.pooledCalls != 2 || runner.connections != 8 {
+		t.Fatalf("fresh calls=%d connections=%d, want 2 and 8", runner.pooledCalls, runner.connections)
+	}
+}
+
 func TestRunWithConnectionsFallsBackToRegularRunner(t *testing.T) {
 	t.Parallel()
 	runner := &sessionCountingRunner{}

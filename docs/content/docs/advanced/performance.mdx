@@ -46,6 +46,15 @@ telegram:
 
 Use bots only after normal user-client downloads work correctly.
 
+Explicit attachment downloads (`?download=1`), including public-share downloads,
+use fresh Telegram clients rather than the warm client pool. They select one
+least-loaded bot per origin session from all enabled, eligible bots, regardless
+of `download-bots`; if none are eligible, they use the owner's user account.
+Chunk parallelism and buffering still follow `download-read-parallel` and
+`download-read-buffers`. Preview/streaming requests retain the configured bot
+limit and warm-client policy. Only previews/streaming use and populate the disk
+cache; explicit attachment downloads bypass it entirely.
+
 ## PostgreSQL
 
 ```yaml

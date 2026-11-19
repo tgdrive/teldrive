@@ -140,7 +140,8 @@ func (h *RawHandler) streamFile(ctx context.Context, w http.ResponseWriter, user
 	}
 
 	download, err := h.handler.Downloader.Open(ctx, transfer.DownloadRequest{
-		UserID: userID, FileID: fileID, Offset: rangeSpec.Offset, Length: rangeSpec.Length,
+		Attachment: attachment,
+		UserID:     userID, FileID: fileID, Offset: rangeSpec.Offset, Length: rangeSpec.Length,
 	})
 	if err != nil {
 		return mapServiceError(err)

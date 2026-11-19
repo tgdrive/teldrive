@@ -286,15 +286,19 @@ func (c *downloadCatalog) UpdatePartSizes(_ context.Context, _ uuid.UUID, partNo
 }
 
 type downloadStorage struct {
-	data          map[int64][]byte
-	metadataCalls int
-	sessionOpens  atomic.Int32
-	sessionCloses atomic.Int32
-	rangeCalls    atomic.Int32
+	data               map[int64][]byte
+	metadataCalls      int
+	sessionOpens       atomic.Int32
+	sessionCloses      atomic.Int32
+	rangeCalls         atomic.Int32
+	attachmentSessions atomic.Int32
 }
 
-func (s *downloadStorage) OpenDownloadSession(context.Context, int64) (telegramstore.DownloadSession, error) {
+func (s *downloadStorage) OpenDownloadSession(ctx context.Context, _ int64) (telegramstore.DownloadSession, error) {
 	s.sessionOpens.Add(1)
+	if telegramstore.IsAttachmentDownload(ctx) {
+		s.attachmentSessions.Add(1)
+	}
 	return &downloadStorageSession{storage: s}, nil
 }
 

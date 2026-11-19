@@ -122,6 +122,25 @@ func TestDownloadCacheReusesRangesAndPersists(t *testing.T) {
 	}
 }
 
+func TestAttachmentPolicyReachesOriginWithAndWithoutCache(t *testing.T) {
+	for _, cached := range []bool{false, true} {
+		for _, attachment := range []bool{false, true} {
+			catalog, storage, request := cachedDownloadFixture()
+			request.Attachment = attachment
+			downloader := NewDownloader(catalog, storage, nil)
+			if cached {
+				downloader.WithCache(newTestDownloadCache(t, t.TempDir()))
+			}
+			readCachedDownload(t, downloader, request, "abcdefghij")
+			opens := storage.sessionOpens.Load()
+			marked := storage.attachmentSessions.Load()
+			if opens == 0 || (attachment && marked != opens) || (!attachment && marked != 0) {
+				t.Fatalf("cached=%v attachment=%v: origin sessions=%d marked=%d", cached, attachment, opens, marked)
+			}
+		}
+	}
+}
+
 func TestDownloadCacheFetchesSparseRanges(t *testing.T) {
 	catalog, storage, request := cachedDownloadFixture()
 	cache := newTestDownloadCache(t, t.TempDir())
@@ -130,6 +149,40 @@ func TestDownloadCacheFetchesSparseRanges(t *testing.T) {
 	readCachedDownload(t, downloader, request, "ef")
 	if cached := cache.Stats().CachedBytes; cached < 2 || cached >= 10 {
 		t.Fatalf("cached bytes = %d, want only a sparse portion of the file", cached)
+	}
+}
+
+func TestAttachmentDownloadDoesNotReadOrPopulateDiskCache(t *testing.T) {
+	catalog, storage, request := cachedDownloadFixture()
+	cache := newTestDownloadCache(t, t.TempDir())
+	downloader := NewDownloader(catalog, storage, nil).WithCache(cache)
+
+	request.Attachment = true
+	readCachedDownload(t, downloader, request, "abcdefghij")
+	if stats := cache.Stats(); stats.CachedBytes != 0 || stats.Items != 0 {
+		t.Fatalf("attachment populated disk cache: %+v", stats)
+	}
+	calls := storage.rangeCalls.Load()
+
+	request.Attachment = false
+	readCachedDownload(t, downloader, request, "abcdefghij")
+	if storage.rangeCalls.Load() <= calls {
+		t.Fatal("stream reused attachment bytes instead of fetching origin")
+	}
+	calls = storage.rangeCalls.Load()
+	readCachedDownload(t, downloader, request, "abcdefghij")
+	if storage.rangeCalls.Load() != calls {
+		t.Fatal("stream failed to reuse its warm cache")
+	}
+	cachedBytes := cache.Stats().CachedBytes
+
+	request.Attachment = true
+	readCachedDownload(t, downloader, request, "abcdefghij")
+	if storage.rangeCalls.Load() <= calls {
+		t.Fatal("attachment read warm disk cache instead of origin")
+	}
+	if cache.Stats().CachedBytes != cachedBytes {
+		t.Fatal("attachment changed streaming cache contents")
 	}
 }
 

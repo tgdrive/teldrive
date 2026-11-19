@@ -61,7 +61,7 @@ cache:
 
 Mount persistent storage at that path **in the Teldrive container**, writable by its user. Remove any old `varc` handler from Caddy to avoid maintaining two caches. See [Download cache](/configuration/download-cache) for container setup, tuning, and security considerations.
 
-The built-in cache covers normal downloads, `?download=1`, and authorized public-share content. Authentication, ownership, share passwords, and download limits remain enforced before cached content is served. HEAD requests do not fetch file bytes.
+The built-in cache covers previews/streams and authorized public-share streams. Explicit attachment downloads (`?download=1`) bypass cache reads and writes. Authentication, ownership, share passwords, and download limits remain enforced before cached content is served. HEAD requests do not fetch file bytes.
 
 For direct playback without credentials, `security.public-file-content: true` remains an explicit opt-in. **Warning:** anyone with a file ID can retrieve any active file on the instance; enabling a cache does not make this setting safer. Leave it disabled unless you intend to expose all active file content.
 
