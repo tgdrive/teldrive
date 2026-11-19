@@ -89,6 +89,33 @@ test("Recent keeps modified time and folder location in list and grid views", as
   }
 });
 
+test("category dropdown supports multiple selections and removing categories", async ({ page }) => {
+  await installResults(page);
+  await page.goto("/search?q=alpha");
+  await page.getByRole("button", { name: "Filters", exact: true }).click();
+  const categories = page.getByRole("button", { name: /Categories/ });
+  await categories.click();
+  await page.getByRole("option", { name: "document", exact: true }).click();
+  await page.getByRole("option", { name: "image", exact: true }).click();
+  await expect(page.getByRole("option", { name: "document", exact: true })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await page.getByRole("listbox").press("Escape");
+  await page.getByRole("button", { name: "Apply filters" }).click();
+  await expect
+    .poll(() => JSON.parse(new URL(page.url()).searchParams.get("category") ?? "[]"))
+    .toEqual(["document", "image"]);
+
+  await page.getByRole("button", { name: "Filters", exact: true }).click();
+  await categories.click();
+  await page.getByRole("option", { name: "document", exact: true }).click();
+  await page.getByRole("option", { name: "image", exact: true }).click();
+  await page.getByRole("listbox").press("Escape");
+  await page.getByRole("button", { name: "Apply filters" }).click();
+  await expect.poll(() => JSON.parse(new URL(page.url()).searchParams.get("category") ?? "[]")).toEqual([]);
+});
+
 test("search controls stay in the header while selection actions float without shrinking", async ({
   page,
 }) => {

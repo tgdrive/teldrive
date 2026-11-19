@@ -1,4 +1,4 @@
-import { Button, Checkbox, Input, Label, ListBox, Popover, Select, TextField } from "@heroui/react";
+import { Button, Input, Label, ListBox, Popover, Select, TextField } from "@heroui/react";
 import { useEffect, useState } from "react";
 import { useAppLocale } from "@/lib/locale";
 import { FolderPicker } from "./folder-picker";
@@ -115,28 +115,38 @@ export function SearchControls({
                     { value: "folder", label: t("search.typeFolder") },
                   ]}
                 />
-                <fieldset className="grid grid-cols-2 gap-2">
-                  <legend className="mb-2 text-sm">{t("search.categories")}</legend>
-                  {searchCategories.map((category) => (
-                    <Checkbox
-                      key={category}
-                      isSelected={draft.category?.includes(category) ?? false}
-                      onChange={(checked) =>
-                        setFilter(
-                          "category",
-                          checked
-                            ? [...(draft.category ?? []), category]
-                            : draft.category?.filter((value) => value !== category),
-                        )
-                      }
-                    >
-                      <Checkbox.Control>
-                        <Checkbox.Indicator />
-                      </Checkbox.Control>
-                      <Label className="capitalize">{category}</Label>
-                    </Checkbox>
-                  ))}
-                </fieldset>
+                <Select
+                  className="w-full"
+                  selectionMode="multiple"
+                  value={draft.category ?? []}
+                  onChange={(keys) =>
+                    setFilter(
+                      "category",
+                      searchCategories.filter((category) => keys.includes(category)),
+                    )
+                  }
+                >
+                  <Label className="text-sm">{t("search.categories")}</Label>
+                  <Select.Trigger>
+                    <Select.Value className="capitalize" />
+                    <Select.Indicator />
+                  </Select.Trigger>
+                  <Select.Popover>
+                    <ListBox>
+                      {searchCategories.map((category) => (
+                        <ListBox.Item
+                          key={category}
+                          id={category}
+                          textValue={category}
+                          className="capitalize"
+                        >
+                          {category}
+                          <ListBox.ItemIndicator />
+                        </ListBox.Item>
+                      ))}
+                    </ListBox>
+                  </Select.Popover>
+                </Select>
                 <div className="grid grid-cols-2 gap-3">
                   <TextField
                     value={draft.updatedAfter?.slice(0, 10) ?? ""}
