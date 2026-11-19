@@ -214,7 +214,7 @@
     "download-bots" = lib.mkOption {
       type = lib.types.nullOr (lib.types.int);
       default = null;
-      description = "Maximum enabled bots used for download rotation; zero uses the authenticated user (Default: 0) [validate: min=0,max=32]";
+      description = "Maximum enabled bots used for download rotation; zero uses the authenticated user (Default: 0) [validate: min=0]";
     };
     "download-client-pool" = lib.mkOption {
       type = lib.types.nullOr (lib.types.bool);

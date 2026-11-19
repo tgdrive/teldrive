@@ -223,6 +223,19 @@ func TestValidateRequiresActiveVersionWhenEncryptionKeysConfigured(t *testing.T)
 	}
 }
 
+func TestValidateAllowsMoreThan32DownloadBots(t *testing.T) {
+	t.Parallel()
+	cfg := validTestConfig()
+	cfg.Telegram.DownloadBots = 49
+	if err := cfg.Validate(); err != nil {
+		t.Fatalf("Validate() rejected 49 download bots: %v", err)
+	}
+	cfg.Telegram.DownloadBots = -1
+	if err := cfg.Validate(); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("Validate() error = %v, want ErrInvalid for negative download bots", err)
+	}
+}
+
 func TestParseEncryptionKeysRejectsDuplicates(t *testing.T) {
 	t.Parallel()
 	if _, err := parseEncryptionKeys("1:first,1:second"); !errors.Is(err, ErrInvalid) {

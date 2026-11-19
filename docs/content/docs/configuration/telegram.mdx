@@ -53,7 +53,7 @@ telegram:
   download-read-parallel: 4
 ```
 
-- `download-bots`: `0` uses the authenticated user; up to `32` enables the first N enabled bots (by bot ID) for downloads.
+- `download-bots`: `0` uses the authenticated user; any positive value enables the first N enabled bots (by bot ID) for downloads.
 - `download-client-pool`: keeps one authenticated download client warm per download bot (or the user account) when enabled. Each download still goes to the least-loaded bot; idle warm clients do not count as load.
 - `download-read-buffers`: prefetched chunks per stream, range `1`–`256`.
 - `download-read-parallel`: concurrent chunk fetches per stream, range `1`–`32`.
