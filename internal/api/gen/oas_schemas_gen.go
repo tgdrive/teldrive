@@ -6978,6 +6978,7 @@ func (*Job) createJobRes()          {}
 func (*Job) createUploadImportRes() {}
 func (*Job) getJobRes()             {}
 func (*Job) retryJobRes()           {}
+func (*Job) runPeriodicJobRes()     {}
 
 type JobArgs map[string]jx.Raw
 
@@ -11058,6 +11059,18 @@ func (*RevokeShareNotFound) revokeShareRes() {}
 type RevokeShareUnauthorized ErrorEnvelope
 
 func (*RevokeShareUnauthorized) revokeShareRes() {}
+
+type RunPeriodicJobForbidden ErrorEnvelope
+
+func (*RunPeriodicJobForbidden) runPeriodicJobRes() {}
+
+type RunPeriodicJobNotFound ErrorEnvelope
+
+func (*RunPeriodicJobNotFound) runPeriodicJobRes() {}
+
+type RunPeriodicJobUnauthorized ErrorEnvelope
+
+func (*RunPeriodicJobUnauthorized) runPeriodicJobRes() {}
 
 type SearchUsersOKApplicationJSON []UserSearchResult
 

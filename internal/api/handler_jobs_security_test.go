@@ -5,8 +5,17 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/tgdrive/teldrive/v2/internal/api/gen"
 	"github.com/tgdrive/teldrive/v2/internal/principal"
 )
+
+func TestRunPeriodicJobRequiresAdmin(t *testing.T) {
+	handler := &Handler{}
+	ctx := principal.WithIdentity(context.Background(), principal.Identity{UserID: 1001, Roles: []string{"user"}})
+	if _, err := handler.RunPeriodicJob(ctx, gen.RunPeriodicJobParams{PeriodicJobId: "cleanup"}); err == nil {
+		t.Fatal("non-admin was allowed to run a periodic job")
+	}
+}
 
 func TestRedactJobArgs(t *testing.T) {
 	input := map[string]json.RawMessage{

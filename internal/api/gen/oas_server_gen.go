@@ -491,6 +491,10 @@ type Handler interface {
 	//
 	// DELETE /v1/shares/{shareId}
 	RevokeShare(ctx context.Context, params RevokeShareParams) (RevokeShareRes, error)
+	// RunPeriodicJob implements runPeriodicJob operation.
+	//
+	// POST /v1/periodic-jobs/{periodicJobId}/run
+	RunPeriodicJob(ctx context.Context, params RunPeriodicJobParams) (RunPeriodicJobRes, error)
 	// SearchUsers implements searchUsers operation.
 	//
 	// GET /v1/users/search

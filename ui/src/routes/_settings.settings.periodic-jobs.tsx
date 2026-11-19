@@ -7,9 +7,10 @@ import {
   ListBox,
   NumberField,
   Select,
+  Tooltip,
   Typography,
-  toast,
 } from "@heroui/react";
+import { toast } from "sonner";
 import { useStore } from "@tanstack/react-form";
 import { useEffect, useMemo, useState } from "react";
 import AddIcon from "~icons/gravity-ui/plus";
@@ -99,7 +100,7 @@ function PeriodicJobsPage() {
       setEditorOpen(false);
       void invalidate();
     },
-    onError: () => toast.danger(t("jobs.createFailed")),
+    onError: () => toast.error(t("jobs.createFailed")),
   });
   const updateJob = api.useMutation("put", "/v1/periodic-jobs/{periodicJobId}", {
     onSuccess: () => {
@@ -107,7 +108,7 @@ function PeriodicJobsPage() {
       setEditorOpen(false);
       void invalidate();
     },
-    onError: () => toast.danger(t("jobs.updateFailed")),
+    onError: () => toast.error(t("jobs.updateFailed")),
   });
   const deleteMutation = api.useMutation("delete", "/v1/periodic-jobs/{periodicJobId}", {
     onSuccess: () => {
@@ -115,21 +116,21 @@ function PeriodicJobsPage() {
       setDeleteJob(null);
       void invalidate();
     },
-    onError: () => toast.danger(t("jobs.deleteFailed")),
+    onError: () => toast.error(t("jobs.deleteFailed")),
   });
   const pauseMutation = api.useMutation("post", "/v1/periodic-jobs/{periodicJobId}/pause", {
     onSuccess: () => {
       toast.success(t("jobs.paused"));
       void invalidate();
     },
-    onError: () => toast.danger(t("jobs.pauseFailed")),
+    onError: () => toast.error(t("jobs.pauseFailed")),
   });
   const resumeMutation = api.useMutation("post", "/v1/periodic-jobs/{periodicJobId}/resume", {
     onSuccess: () => {
       toast.success(t("jobs.resumed"));
       void invalidate();
     },
-    onError: () => toast.danger(t("jobs.resumeFailed")),
+    onError: () => toast.error(t("jobs.resumeFailed")),
   });
   const resetMutation = api.useMutation("post", "/v1/periodic-jobs/reset", {
     onSuccess: () => {
@@ -139,7 +140,7 @@ function PeriodicJobsPage() {
         queryKey: api.queryOptions("get", "/v1/periodic-jobs").queryKey,
       });
     },
-    onError: () => toast.danger(t("jobs.resetFailed")),
+    onError: () => toast.error(t("jobs.resetFailed")),
   });
 
   const openCreate = () => {
@@ -287,6 +288,15 @@ function PeriodicJobCard({
   onToggle: () => void;
 }) {
   const { t } = useAppLocale();
+  const runMutation = api.useMutation("post", "/v1/periodic-jobs/{periodicJobId}/run", {
+    onSuccess: () => {
+      toast.success(t("jobs.runQueued"));
+      void queryClient.invalidateQueries({
+        queryKey: api.queryOptions("get", "/v1/jobs").queryKey,
+      });
+    },
+    onError: () => toast.error(t("jobs.runFailed")),
+  });
   return (
     <Card className="border border-border bg-surface p-4 shadow-none">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -317,6 +327,19 @@ function PeriodicJobCard({
           </div>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2 lg:justify-end">
+          <Tooltip delay={300}>
+            <Button
+              isIconOnly
+              size="sm"
+              variant="tertiary"
+              aria-label={t("jobs.runNow")}
+              isPending={runMutation.isPending}
+              onPress={() => runMutation.mutate({ params: { path: { periodicJobId: job.id } } })}
+            >
+              <PlayIcon className="size-4" />
+            </Button>
+            <Tooltip.Content>{t("jobs.runNow")}</Tooltip.Content>
+          </Tooltip>
           <Button
             isIconOnly
             size="sm"

@@ -294,7 +294,7 @@ test.describe("public share selection toolbar", () => {
     await page.getByTitle(fixtures.zip.name).click();
 
     const toolbar = page.getByRole("group", { name: "Selected file actions" });
-    const labels = ["Download selected file", "Copy download link", "Clear selection"];
+    const labels = ["Download", "Copy download link", "Clear selection"];
     await expect(toolbar.getByRole("button")).toHaveCount(labels.length);
     for (const label of labels) {
       await toolbar.getByRole("button", { name: label, exact: true }).hover();

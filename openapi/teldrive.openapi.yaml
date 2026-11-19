@@ -5804,6 +5804,47 @@ paths:
         - BearerAuth: []
         - CookieAuth: []
         - ExternalApiKeyAuth: []
+  /v1/periodic-jobs/{periodicJobId}/run:
+    post:
+      operationId: runPeriodicJob
+      parameters:
+        - name: periodicJobId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "201":
+          description: The request has succeeded and a new resource has been created as a
+            result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "401":
+          description: Access is unauthorized.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "403":
+          description: Access is forbidden.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+        "404":
+          description: The server cannot find the requested resource.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+      tags:
+        - Periodic Jobs
+      security:
+        - BearerAuth: []
+        - CookieAuth: []
+        - ExternalApiKeyAuth: []
   /v1/periodic-jobs/{periodicJobId}/pause:
     post:
       operationId: pausePeriodicJob

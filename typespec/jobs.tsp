@@ -298,6 +298,15 @@ namespace PeriodicJobs {
     | ErrorResponse<404>;
 
   @post
+  @route("/{periodicJobId}/run")
+  @operationId("runPeriodicJob")
+  op run(@path periodicJobId: string):
+    | JsonResponse<201, Job>
+    | ErrorResponse<401>
+    | ErrorResponse<403>
+    | ErrorResponse<404>;
+
+  @post
   @route("/{periodicJobId}/pause")
   @operationId("pausePeriodicJob")
   op pause(@path periodicJobId: string):

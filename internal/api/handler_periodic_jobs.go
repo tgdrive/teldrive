@@ -97,6 +97,18 @@ func (h *Handler) PausePeriodicJob(ctx context.Context, params gen.PausePeriodic
 	return &response, nil
 }
 
+func (h *Handler) RunPeriodicJob(ctx context.Context, params gen.RunPeriodicJobParams) (gen.RunPeriodicJobRes, error) {
+	if !HasAdminRole(ctx) {
+		return nil, problem(http.StatusForbidden, "forbidden", "administrator access is required", nil)
+	}
+	item, err := h.Jobs.RunPeriodicJob(ctx, params.PeriodicJobId)
+	if err != nil {
+		return nil, mapPeriodicJobError(err)
+	}
+	response := jobResponse(item)
+	return &response, nil
+}
+
 func (h *Handler) ResumePeriodicJob(ctx context.Context, params gen.ResumePeriodicJobParams) (gen.ResumePeriodicJobRes, error) {
 	item, err := h.Jobs.ResumePeriodicJob(ctx, params.PeriodicJobId)
 	if err != nil {

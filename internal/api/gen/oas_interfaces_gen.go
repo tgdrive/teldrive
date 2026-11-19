@@ -405,6 +405,10 @@ type RevokeShareRes interface {
 	revokeShareRes()
 }
 
+type RunPeriodicJobRes interface {
+	runPeriodicJobRes()
+}
+
 type SearchUsersRes interface {
 	searchUsersRes()
 }

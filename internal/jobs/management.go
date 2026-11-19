@@ -427,6 +427,25 @@ func (r *Runtime) DeletePeriodicJob(ctx context.Context, id string) error {
 	return err
 }
 
+// RunPeriodicJob enqueues one occurrence without resuming or rescheduling it.
+func (r *Runtime) RunPeriodicJob(ctx context.Context, id string) (Job, error) {
+	if r == nil || r.client == nil {
+		return Job{}, ErrRuntimeNotConfigured
+	}
+	row, err := r.client.PeriodicJobGet(ctx, id)
+	if err != nil {
+		return Job{}, err
+	}
+	result, err := r.client.Insert(ctx, rawPeriodicJobArgs{kind: row.Kind, raw: row.Args}, &river.InsertOpts{
+		Queue: row.Queue, Priority: row.Priority, MaxAttempts: row.MaxAttempts,
+		Tags: append([]string(nil), row.Tags...),
+	})
+	if err != nil {
+		return Job{}, fmt.Errorf("run periodic job %q: %w", id, err)
+	}
+	return jobFromRiver(result.Job), nil
+}
+
 func (r *Runtime) PausePeriodicJob(ctx context.Context, id string) (PeriodicJob, error) {
 	if r == nil || r.client == nil {
 		return PeriodicJob{}, ErrRuntimeNotConfigured

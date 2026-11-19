@@ -630,12 +630,25 @@ test("periodic jobs appears in settings with the editor", async ({ page }) => {
 });
 
 test("periodic job controls are icon buttons with row-scoped pending state", async ({ page }) => {
+  let paused = false;
+  // Refetches after mutation must reflect the pause, not the static base fixture.
+  await page.route("**/api/v1/periodic-jobs", (route) =>
+    route.fulfill({
+      json: {
+        jobs: [
+          { id: "teldrive-upload-cleanup", kind: "teldrive_upload_cleanup", paused },
+          { id: "custom-periodic-job", kind: "teldrive_upload_cleanup", paused: false },
+        ],
+      },
+    }),
+  );
   let releasePause!: () => void;
   const pauseResponse = new Promise<void>((resolve) => {
     releasePause = resolve;
   });
   await page.route("**/api/v1/periodic-jobs/teldrive-upload-cleanup/pause", async (route) => {
     await pauseResponse;
+    paused = true;
     await route.fulfill({
       json: {
         id: "teldrive-upload-cleanup",
@@ -666,6 +679,48 @@ test("periodic job controls are icon buttons with row-scoped pending state", asy
   await expect(secondPause).toBeEnabled();
   releasePause();
   await expect(page.getByRole("button", { name: "Resume teldrive-upload-cleanup" })).toBeVisible();
+});
+
+test("periodic jobs can run now with row-scoped pending and retry after failure", async ({
+  page,
+}) => {
+  let calls = 0;
+  let release!: () => void;
+  const pending = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/api/v1/periodic-jobs/teldrive-upload-cleanup/run", async (route) => {
+    expect(route.request().method()).toBe("POST");
+    calls++;
+    if (calls === 1) {
+      await pending;
+      await route.fulfill({
+        status: 500,
+        json: { error: { code: "internal", message: "Failed" } },
+      });
+    } else {
+      await route.fulfill({ status: 201, json: { id: "42", status: "available" } });
+    }
+  });
+  await page.goto("/settings/periodic-jobs");
+  const card = page
+    .locator('[data-slot="card"]')
+    .filter({ has: page.getByRole("heading", { name: "teldrive-upload-cleanup", exact: true }) });
+  const run = card.getByRole("button", { name: "Run now", exact: true });
+  await expect(run.locator("svg")).toBeVisible();
+  await expect(run).toHaveText("");
+  await run.focus();
+  await expect(page.getByRole("tooltip", { name: "Run now", exact: true })).toBeVisible();
+  await run.click();
+  await expect(run).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Run now", exact: true }).last()).toBeEnabled();
+  release();
+  await expect(page.getByText("Could not queue job", { exact: true })).toBeVisible();
+  await expect(run).toBeEnabled();
+  await run.click();
+  await expect(page.getByText("Job queued", { exact: true })).toBeVisible();
+  expect(calls).toBe(2);
+  await expect(card.getByRole("button", { name: "Pause teldrive-upload-cleanup" })).toBeVisible();
 });
 
 test("tasks retain monitoring without a manual task launcher", async ({ page }) => {

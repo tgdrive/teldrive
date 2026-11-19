@@ -108,6 +108,7 @@ const (
 	RevokeFileAccessGrantOperation             OperationName = "RevokeFileAccessGrant"
 	RevokeSessionOperation                     OperationName = "RevokeSession"
 	RevokeShareOperation                       OperationName = "RevokeShare"
+	RunPeriodicJobOperation                    OperationName = "RunPeriodicJob"
 	SearchUsersOperation                       OperationName = "SearchUsers"
 	SelectChannelOperation                     OperationName = "SelectChannel"
 	StreamEventsOperation                      OperationName = "StreamEvents"

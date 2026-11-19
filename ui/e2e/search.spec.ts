@@ -579,11 +579,11 @@ test("search selection exposes bounded actions and renames the selected result",
   const row = page.getByRole("row", { name: /alpha\.txt/ });
   await row.click();
   await expect(page.getByText("1 selected", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Cut selected items" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Cut", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Duplicate selected item" })).toHaveCount(0);
-  await page.getByRole("button", { name: "Rename selected item" }).click();
-  await page.getByRole("textbox", { name: "New name" }).fill("renamed.txt");
   await page.getByRole("button", { name: "Rename", exact: true }).click();
+  await page.getByRole("textbox", { name: "New name" }).fill("renamed.txt");
+  await page.getByRole("dialog").getByRole("button", { name: "Rename", exact: true }).click();
   await expect.poll(() => renamed?.id).toBe(fileId);
   expect(renamed?.body).toEqual({ name: "renamed.txt" });
 });
@@ -613,7 +613,7 @@ test("failed copies retain retry context and pending confirmation cannot submit 
     .getByRole("row", { name: /alpha\.txt/ })
     .locator('[data-slot="checkbox-control"]')
     .click();
-  await page.getByRole("button", { name: "Copy selected items", exact: true }).click();
+  await page.getByRole("button", { name: "Copy", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Copy 1 item" });
   const confirm = dialog.getByRole("button", { name: "Copy here" });
   await confirm.click();
