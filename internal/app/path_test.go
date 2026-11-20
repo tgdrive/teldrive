@@ -14,6 +14,7 @@ import (
 func TestExpandHomePath(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home)
 
 	got, err := expandHomePath("~/cache")
 	if err != nil {

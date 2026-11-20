@@ -160,3 +160,42 @@ func TestRetryMiddlewareRetriesConnectionResetByPeer(t *testing.T) {
 		t.Fatalf("calls = %d, want 2", got)
 	}
 }
+
+func TestRetryMiddlewareKeepsTelegramErrorWhenDeadlineEnds(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		refusal := tgerr.New(-503, "Timeout")
+		invoke := retryMiddleware{max: 10}.Handle(telegram.InvokeFunc(func(context.Context, bin.Encoder, bin.Decoder) error {
+			return refusal
+		}))
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		err := invoke(ctx, &tg.UploadGetFileRequest{}, &tg.UploadFileBox{})
+		if !errors.Is(err, context.DeadlineExceeded) {
+			t.Fatalf("error = %v, want the deadline", err)
+		}
+		if rpc, ok := tgerr.As(err); !ok || rpc.Code != -503 {
+			t.Fatalf("error = %v, want Telegram's -503 kept with it", err)
+		}
+
+		// A cancel stays a plain cancel.
+		ctx, cancel = context.WithCancel(context.Background())
+		time.AfterFunc(time.Second, cancel)
+		err = invoke(ctx, &tg.UploadGetFileRequest{}, &tg.UploadFileBox{})
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("error = %v, want canceled", err)
+		}
+		if _, ok := tgerr.As(err); ok {
+			t.Fatalf("a cancel carried the Telegram error: %v", err)
+		}
+	})
+}
+
+func TestRetryDeadlineErrorReadsAsTheTelegramError(t *testing.T) {
+	err := deadlineWithCause(context.DeadlineExceeded, tgerr.New(-503, "Timeout"))
+	if got, want := err.Error(), "rpc error code -503: Timeout (retried until the deadline)"; got != want {
+		t.Fatalf("Error() = %q, want %q", got, want)
+	}
+	if got := deadlineWithCause(context.Canceled, tgerr.New(-503, "Timeout")); got != context.Canceled {
+		t.Fatalf("cancel = %v, want the plain cancel", got)
+	}
+}

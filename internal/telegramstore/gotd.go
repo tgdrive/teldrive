@@ -165,6 +165,22 @@ func (s *GotdStorage) Metadata(ctx context.Context, request MetadataRequest) (St
 	return stored, nil
 }
 
+func (s *GotdStorage) BatchMetadata(ctx context.Context, userID, channelID int64, messageIDs []int64) (map[int64]int64, error) {
+	if s.runner == nil || userID <= 0 || channelID == 0 || len(messageIDs) == 0 {
+		return map[int64]int64{}, nil
+	}
+	var sizes map[int64]int64
+	err := s.runner.Run(ctx, userID, OperationDownload, func(runCtx context.Context, api *tg.Client) error {
+		var err error
+		sizes, err = batchDocumentSizes(runCtx, api, channelID, messageIDs)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return sizes, nil
+}
+
 func (s *GotdStorage) OpenRange(ctx context.Context, request RangeRequest) (io.ReadCloser, error) {
 	if s.runner == nil || request.UserID <= 0 || request.ChannelID == 0 || request.MessageID <= 0 || request.Offset < 0 || request.Length < -1 {
 		return nil, ErrInvalidRequest
@@ -305,6 +321,22 @@ func (s *gotdDownloadSession) Metadata(ctx context.Context, request MetadataRequ
 		return StoredPart{}, err
 	}
 	return StoredPart{ChannelID: request.ChannelID, MessageID: request.MessageID, Size: size}, nil
+}
+
+func (s *gotdDownloadSession) BatchMetadata(ctx context.Context, channelID int64, messageIDs []int64) (map[int64]int64, error) {
+	if len(messageIDs) == 0 {
+		return map[int64]int64{}, nil
+	}
+	api, err := s.client()
+	if err != nil {
+		return nil, err
+	}
+	ctx = WithClientID(ctx, s.clientID)
+	sizes, err := batchDocumentSizes(ctx, api, channelID, messageIDs)
+	if err != nil {
+		return nil, err
+	}
+	return sizes, nil
 }
 
 func (s *gotdDownloadSession) OpenRange(ctx context.Context, request RangeRequest) (io.ReadCloser, error) {
@@ -960,6 +992,44 @@ func documentLocation(ctx context.Context, api *tg.Client, channelID, messageID 
 		return nil, 0, ErrDocumentNotFound
 	}
 	return document.AsInputDocumentFileLocation(""), document.Size, nil
+}
+
+func batchDocumentSizes(ctx context.Context, api *tg.Client, channelID int64, messageIDs []int64) (map[int64]int64, error) {
+	if len(messageIDs) == 0 {
+		return map[int64]int64{}, nil
+	}
+	channel, err := inputChannel(ctx, api, channelID)
+	if err != nil {
+		return nil, err
+	}
+	inputIDs := make([]tg.InputMessageClass, len(messageIDs))
+	for i, id := range messageIDs {
+		inputIDs[i] = &tg.InputMessageID{ID: int(id)}
+	}
+	response, err := api.ChannelsGetMessages(ctx, &tg.ChannelsGetMessagesRequest{
+		Channel: channel,
+		ID:      inputIDs,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get Telegram messages: %w", err)
+	}
+	modified, ok := response.AsModified()
+	if !ok {
+		return nil, ErrMessageNotFound
+	}
+	sizes := make(map[int64]int64, len(modified.GetMessages()))
+	for _, m := range modified.GetMessages() {
+		msg, ok := m.(*tg.Message)
+		if !ok {
+			continue
+		}
+		document, ok := messageDocument(msg)
+		if !ok {
+			continue
+		}
+		sizes[int64(msg.ID)] = document.Size
+	}
+	return sizes, nil
 }
 
 func messageDocument(msg *tg.Message) (*tg.Document, bool) {

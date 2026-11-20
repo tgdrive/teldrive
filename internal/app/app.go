@@ -62,6 +62,8 @@ type App struct {
 	telegramDownloads *telegramstore.DownloadClientPool
 	globalCache       cache.Cacher
 	downloadCache     *varccache.Cache
+	storage           telegramstore.Storage
+	catalog           *catalog.Service
 
 	mu      sync.Mutex
 	running bool
@@ -248,6 +250,8 @@ func New(ctx context.Context, cfg config.Config, dependencies Dependencies) (*Ap
 		telegramDownloads: telegram.downloadClients,
 		globalCache:       globalCache,
 		downloadCache:     downloadCache,
+		storage:           storage,
+		catalog:           catalogService,
 		http: &http.Server{
 			Addr:              cfg.HTTP.Address,
 			Handler:           mux,

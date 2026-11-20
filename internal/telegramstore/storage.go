@@ -90,6 +90,18 @@ type DownloadSession interface {
 	Close() error
 }
 
+// BatchMetadataSession is optionally implemented by download sessions that can resolve
+// multiple message document sizes in a single Telegram RPC.
+type BatchMetadataSession interface {
+	BatchMetadata(ctx context.Context, channelID int64, messageIDs []int64) (map[int64]int64, error)
+}
+
+// BatchMetadataStorage is optionally implemented by storage engines that can resolve
+// multiple message document sizes in a single Telegram RPC.
+type BatchMetadataStorage interface {
+	BatchMetadata(ctx context.Context, userID, channelID int64, messageIDs []int64) (map[int64]int64, error)
+}
+
 // DownloadSessionOpener is implemented by production storage. Storage fakes and
 // local implementations can continue using the base methods through an adapter.
 type DownloadSessionOpener interface {

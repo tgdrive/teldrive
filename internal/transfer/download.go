@@ -174,7 +174,7 @@ func (d *Downloader) resolveMissingPartSizes(ctx context.Context, session telegr
 			UserID: userID, ChannelID: part.ChannelID, MessageID: part.MessageID,
 		})
 		if err != nil {
-			return fmt.Errorf("resolve Telegram part %d metadata: %w", part.PartNo, err)
+			return fmt.Errorf("resolve Telegram part %d (message %d) metadata: %w", part.PartNo, part.MessageID, err)
 		}
 		plainSize := stored.Size
 		if file.Encryption {
@@ -205,10 +205,13 @@ func (d *Downloader) openDownloadSession(ctx context.Context, userID int64) (tel
 	if opener, ok := d.storage.(telegramstore.DownloadSessionOpener); ok {
 		return opener.OpenDownloadSession(ctx, userID)
 	}
-	return storageDownloadSession{storage: d.storage}, nil
+	return storageDownloadSession{storage: d.storage, userID: userID}, nil
 }
 
-type storageDownloadSession struct{ storage telegramstore.Storage }
+type storageDownloadSession struct {
+	storage telegramstore.Storage
+	userID  int64
+}
 
 func (s storageDownloadSession) Metadata(ctx context.Context, request telegramstore.MetadataRequest) (telegramstore.StoredPart, error) {
 	metadata, ok := s.storage.(telegramstore.MetadataReader)
@@ -216,6 +219,13 @@ func (s storageDownloadSession) Metadata(ctx context.Context, request telegramst
 		return telegramstore.StoredPart{}, ErrDownloadNotConfigured
 	}
 	return metadata.Metadata(ctx, request)
+}
+
+func (s storageDownloadSession) BatchMetadata(ctx context.Context, channelID int64, messageIDs []int64) (map[int64]int64, error) {
+	if batchStorage, ok := s.storage.(telegramstore.BatchMetadataStorage); ok {
+		return batchStorage.BatchMetadata(ctx, s.userID, channelID, messageIDs)
+	}
+	return nil, errors.New("batch metadata not supported by storage")
 }
 
 func (s storageDownloadSession) OpenRange(ctx context.Context, request telegramstore.RangeRequest) (io.ReadCloser, error) {
@@ -432,7 +442,7 @@ func (r *downloadReader) openPartReader(segment downloadSegment, partOffset, spa
 		})
 	}
 	if err != nil {
-		return nil, fmt.Errorf("open Telegram part %d: %w", segment.part.PartNo, err)
+		return nil, fmt.Errorf("open Telegram part %d (message %d): %w", segment.part.PartNo, segment.part.MessageID, err)
 	}
 	return reader, nil
 }
