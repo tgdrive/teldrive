@@ -2537,6 +2537,8 @@ export interface components {
         "FileContentRequestOptions.ifNoneMatch": components["schemas"]["ETag"];
         /** @description Force a browser download instead of inline display. */
         "FileContentRequestOptions.download": "1";
+        /** @description Alias for download=1. */
+        "FileContentRequestOptions.d": "1";
         "UploadPartHeaders.contentLength": number;
         /** @description BLAKE3 checksum of the plaintext part. */
         "UploadPartHeaders.checksum": components["schemas"]["Checksum"];
@@ -5114,6 +5116,8 @@ export interface operations {
             query?: {
                 /** @description Force a browser download instead of inline display. */
                 download?: components["parameters"]["FileContentRequestOptions.download"];
+                /** @description Alias for download=1. */
+                d?: components["parameters"]["FileContentRequestOptions.d"];
             };
             header?: {
                 Range?: components["parameters"]["FileContentRequestOptions.range"];
@@ -5259,6 +5263,8 @@ export interface operations {
             query?: {
                 /** @description Force a browser download instead of inline display. */
                 download?: components["parameters"]["FileContentRequestOptions.download"];
+                /** @description Alias for download=1. */
+                d?: components["parameters"]["FileContentRequestOptions.d"];
             };
             header?: {
                 Range?: components["parameters"]["FileContentRequestOptions.range"];
@@ -7019,6 +7025,8 @@ export interface operations {
             query?: {
                 /** @description Force a browser download instead of inline display. */
                 download?: components["parameters"]["FileContentRequestOptions.download"];
+                /** @description Alias for download=1. */
+                d?: components["parameters"]["FileContentRequestOptions.d"];
             };
             header?: {
                 "X-Share-Password"?: components["parameters"]["SharePasswordHeader"];
@@ -7209,6 +7217,8 @@ export interface operations {
             query?: {
                 /** @description Force a browser download instead of inline display. */
                 download?: components["parameters"]["FileContentRequestOptions.download"];
+                /** @description Alias for download=1. */
+                d?: components["parameters"]["FileContentRequestOptions.d"];
             };
             header?: {
                 "X-Share-Password"?: components["parameters"]["SharePasswordHeader"];
@@ -7397,6 +7407,8 @@ export interface operations {
             query?: {
                 /** @description Force a browser download instead of inline display. */
                 download?: components["parameters"]["FileContentRequestOptions.download"];
+                /** @description Alias for download=1. */
+                d?: components["parameters"]["FileContentRequestOptions.d"];
             };
             header?: {
                 "X-Share-Password"?: components["parameters"]["SharePasswordHeader"];
@@ -7585,6 +7597,8 @@ export interface operations {
             query?: {
                 /** @description Force a browser download instead of inline display. */
                 download?: components["parameters"]["FileContentRequestOptions.download"];
+                /** @description Alias for download=1. */
+                d?: components["parameters"]["FileContentRequestOptions.d"];
             };
             header?: {
                 "X-Share-Password"?: components["parameters"]["SharePasswordHeader"];

@@ -154,6 +154,16 @@ func testServerUploadCompleteAndRangeDownload(t *testing.T, cached bool) {
 	}
 	fileIDPath := "/v1/files/" + uuid.UUID(file.ID).String() + "/content"
 	for _, path := range []string{fileIDPath, downloadPath} {
+		for _, query := range []string{"download=1", "d=1", "download=1&d=1"} {
+			attachment := performRequest(t, server, http.MethodGet, path+"?"+query, nil, map[string]string{"Authorization": "Bearer test-token"})
+			if attachment.Code != http.StatusOK || attachment.Body.String() != "abcdefghij" || attachment.Header().Get("Content-Disposition") != `attachment; filename=api.bin` {
+				t.Fatalf("attachment %s?%s: status %d, disposition %q, body %q", path, query, attachment.Code, attachment.Header().Get("Content-Disposition"), attachment.Body.String())
+			}
+		}
+		invalid := performRequest(t, server, http.MethodGet, path+"?d=0", nil, map[string]string{"Authorization": "Bearer test-token"})
+		if invalid.Code != http.StatusBadRequest {
+			t.Fatalf("invalid alias %s: status %d", path, invalid.Code)
+		}
 		unauthorized := performRequest(t, server, http.MethodGet, path, nil, nil)
 		if unauthorized.Code != http.StatusUnauthorized {
 			t.Fatalf("default auth %s: status %d", path, unauthorized.Code)

@@ -2183,6 +2183,7 @@ paths:
         - $ref: "#/components/parameters/FileContentRequestOptions.range"
         - $ref: "#/components/parameters/FileContentRequestOptions.ifNoneMatch"
         - $ref: "#/components/parameters/FileContentRequestOptions.download"
+        - $ref: "#/components/parameters/FileContentRequestOptions.d"
         - name: fileId
           in: path
           required: true
@@ -2371,6 +2372,7 @@ paths:
         - $ref: "#/components/parameters/FileContentRequestOptions.range"
         - $ref: "#/components/parameters/FileContentRequestOptions.ifNoneMatch"
         - $ref: "#/components/parameters/FileContentRequestOptions.download"
+        - $ref: "#/components/parameters/FileContentRequestOptions.d"
         - name: fileId
           in: path
           required: true
@@ -3950,6 +3952,7 @@ paths:
         - $ref: "#/components/parameters/FileContentRequestOptions.range"
         - $ref: "#/components/parameters/FileContentRequestOptions.ifNoneMatch"
         - $ref: "#/components/parameters/FileContentRequestOptions.download"
+        - $ref: "#/components/parameters/FileContentRequestOptions.d"
         - name: token
           in: path
           required: true
@@ -4170,6 +4173,7 @@ paths:
         - $ref: "#/components/parameters/FileContentRequestOptions.range"
         - $ref: "#/components/parameters/FileContentRequestOptions.ifNoneMatch"
         - $ref: "#/components/parameters/FileContentRequestOptions.download"
+        - $ref: "#/components/parameters/FileContentRequestOptions.d"
         - name: token
           in: path
           required: true
@@ -4380,6 +4384,7 @@ paths:
         - $ref: "#/components/parameters/FileContentRequestOptions.range"
         - $ref: "#/components/parameters/FileContentRequestOptions.ifNoneMatch"
         - $ref: "#/components/parameters/FileContentRequestOptions.download"
+        - $ref: "#/components/parameters/FileContentRequestOptions.d"
         - name: token
           in: path
           required: true
@@ -4590,6 +4595,7 @@ paths:
         - $ref: "#/components/parameters/FileContentRequestOptions.range"
         - $ref: "#/components/parameters/FileContentRequestOptions.ifNoneMatch"
         - $ref: "#/components/parameters/FileContentRequestOptions.download"
+        - $ref: "#/components/parameters/FileContentRequestOptions.d"
         - name: token
           in: path
           required: true
@@ -6125,6 +6131,16 @@ components:
       in: query
       required: false
       description: Force a browser download instead of inline display.
+      schema:
+        type: string
+        enum:
+          - "1"
+      explode: false
+    FileContentRequestOptions.d:
+      name: d
+      in: query
+      required: false
+      description: Alias for download=1.
       schema:
         type: string
         enum:

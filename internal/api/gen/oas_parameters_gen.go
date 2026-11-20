@@ -2358,6 +2358,8 @@ type DownloadFileParams struct {
 	IfNoneMatch OptETag   `json:",omitempty,omitzero"`
 	// Force a browser download instead of inline display.
 	Download OptFileContentRequestOptionsDownload `json:",omitempty,omitzero"`
+	// Alias for download=1.
+	D        OptFileContentRequestOptionsD `json:",omitempty,omitzero"`
 	FileId   UUID
 	FileName string
 }
@@ -2388,6 +2390,15 @@ func unpackDownloadFileParams(packed middleware.Parameters) (params DownloadFile
 		}
 		if v, ok := packed[key]; ok {
 			params.Download = v.(OptFileContentRequestOptionsDownload)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "d",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.D = v.(OptFileContentRequestOptionsD)
 		}
 	}
 	{
@@ -2551,6 +2562,62 @@ func decodeDownloadFileParams(args [2]string, argsEscaped bool, r *http.Request)
 			Err:  err,
 		}
 	}
+	// Decode query: d.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "d",
+			Style:   uri.QueryStyleForm,
+			Explode: false,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotDVal FileContentRequestOptionsD
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotDVal = FileContentRequestOptionsD(c)
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.D.SetTo(paramsDotDVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+			if err := func() error {
+				if value, ok := params.D.Get(); ok {
+					if err := func() error {
+						if err := value.Validate(); err != nil {
+							return err
+						}
+						return nil
+					}(); err != nil {
+						return err
+					}
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "d",
+			In:   "query",
+			Err:  err,
+		}
+	}
 	// Decode path: fileId.
 	if err := func() error {
 		param := args[0]
@@ -2657,7 +2724,9 @@ type DownloadFileLegacyParams struct {
 	IfNoneMatch OptETag   `json:",omitempty,omitzero"`
 	// Force a browser download instead of inline display.
 	Download OptFileContentRequestOptionsDownload `json:",omitempty,omitzero"`
-	FileId   UUID
+	// Alias for download=1.
+	D      OptFileContentRequestOptionsD `json:",omitempty,omitzero"`
+	FileId UUID
 }
 
 func unpackDownloadFileLegacyParams(packed middleware.Parameters) (params DownloadFileLegacyParams) {
@@ -2686,6 +2755,15 @@ func unpackDownloadFileLegacyParams(packed middleware.Parameters) (params Downlo
 		}
 		if v, ok := packed[key]; ok {
 			params.Download = v.(OptFileContentRequestOptionsDownload)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "d",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.D = v.(OptFileContentRequestOptionsD)
 		}
 	}
 	{
@@ -2842,6 +2920,62 @@ func decodeDownloadFileLegacyParams(args [1]string, argsEscaped bool, r *http.Re
 			Err:  err,
 		}
 	}
+	// Decode query: d.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "d",
+			Style:   uri.QueryStyleForm,
+			Explode: false,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotDVal FileContentRequestOptionsD
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotDVal = FileContentRequestOptionsD(c)
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.D.SetTo(paramsDotDVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+			if err := func() error {
+				if value, ok := params.D.Get(); ok {
+					if err := func() error {
+						if err := value.Validate(); err != nil {
+							return err
+						}
+						return nil
+					}(); err != nil {
+						return err
+					}
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "d",
+			In:   "query",
+			Err:  err,
+		}
+	}
 	// Decode path: fileId.
 	if err := func() error {
 		param := args[0]
@@ -2905,6 +3039,8 @@ type DownloadPublicShareParams struct {
 	IfNoneMatch           OptETag   `json:",omitempty,omitzero"`
 	// Force a browser download instead of inline display.
 	Download OptFileContentRequestOptionsDownload `json:",omitempty,omitzero"`
+	// Alias for download=1.
+	D        OptFileContentRequestOptionsD `json:",omitempty,omitzero"`
 	Token    string
 	FileName string
 }
@@ -2953,6 +3089,15 @@ func unpackDownloadPublicShareParams(packed middleware.Parameters) (params Downl
 		}
 		if v, ok := packed[key]; ok {
 			params.Download = v.(OptFileContentRequestOptionsDownload)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "d",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.D = v.(OptFileContentRequestOptionsD)
 		}
 	}
 	{
@@ -3195,6 +3340,62 @@ func decodeDownloadPublicShareParams(args [2]string, argsEscaped bool, r *http.R
 			Err:  err,
 		}
 	}
+	// Decode query: d.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "d",
+			Style:   uri.QueryStyleForm,
+			Explode: false,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotDVal FileContentRequestOptionsD
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotDVal = FileContentRequestOptionsD(c)
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.D.SetTo(paramsDotDVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+			if err := func() error {
+				if value, ok := params.D.Get(); ok {
+					if err := func() error {
+						if err := value.Validate(); err != nil {
+							return err
+						}
+						return nil
+					}(); err != nil {
+						return err
+					}
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "d",
+			In:   "query",
+			Err:  err,
+		}
+	}
 	// Decode path: token.
 	if err := func() error {
 		param := args[0]
@@ -3296,6 +3497,8 @@ type DownloadPublicShareFileParams struct {
 	IfNoneMatch           OptETag   `json:",omitempty,omitzero"`
 	// Force a browser download instead of inline display.
 	Download OptFileContentRequestOptionsDownload `json:",omitempty,omitzero"`
+	// Alias for download=1.
+	D        OptFileContentRequestOptionsD `json:",omitempty,omitzero"`
 	Token    string
 	FileId   UUID
 	FileName string
@@ -3345,6 +3548,15 @@ func unpackDownloadPublicShareFileParams(packed middleware.Parameters) (params D
 		}
 		if v, ok := packed[key]; ok {
 			params.Download = v.(OptFileContentRequestOptionsDownload)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "d",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.D = v.(OptFileContentRequestOptionsD)
 		}
 	}
 	{
@@ -3594,6 +3806,62 @@ func decodeDownloadPublicShareFileParams(args [3]string, argsEscaped bool, r *ht
 			Err:  err,
 		}
 	}
+	// Decode query: d.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "d",
+			Style:   uri.QueryStyleForm,
+			Explode: false,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotDVal FileContentRequestOptionsD
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotDVal = FileContentRequestOptionsD(c)
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.D.SetTo(paramsDotDVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+			if err := func() error {
+				if value, ok := params.D.Get(); ok {
+					if err := func() error {
+						if err := value.Validate(); err != nil {
+							return err
+						}
+						return nil
+					}(); err != nil {
+						return err
+					}
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "d",
+			In:   "query",
+			Err:  err,
+		}
+	}
 	// Decode path: token.
 	if err := func() error {
 		param := args[0]
@@ -3747,8 +4015,10 @@ type DownloadPublicShareFileLegacyParams struct {
 	IfNoneMatch           OptETag   `json:",omitempty,omitzero"`
 	// Force a browser download instead of inline display.
 	Download OptFileContentRequestOptionsDownload `json:",omitempty,omitzero"`
-	Token    string
-	FileId   UUID
+	// Alias for download=1.
+	D      OptFileContentRequestOptionsD `json:",omitempty,omitzero"`
+	Token  string
+	FileId UUID
 }
 
 func unpackDownloadPublicShareFileLegacyParams(packed middleware.Parameters) (params DownloadPublicShareFileLegacyParams) {
@@ -3795,6 +4065,15 @@ func unpackDownloadPublicShareFileLegacyParams(packed middleware.Parameters) (pa
 		}
 		if v, ok := packed[key]; ok {
 			params.Download = v.(OptFileContentRequestOptionsDownload)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "d",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.D = v.(OptFileContentRequestOptionsD)
 		}
 	}
 	{
@@ -4037,6 +4316,62 @@ func decodeDownloadPublicShareFileLegacyParams(args [2]string, argsEscaped bool,
 			Err:  err,
 		}
 	}
+	// Decode query: d.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "d",
+			Style:   uri.QueryStyleForm,
+			Explode: false,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotDVal FileContentRequestOptionsD
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotDVal = FileContentRequestOptionsD(c)
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.D.SetTo(paramsDotDVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+			if err := func() error {
+				if value, ok := params.D.Get(); ok {
+					if err := func() error {
+						if err := value.Validate(); err != nil {
+							return err
+						}
+						return nil
+					}(); err != nil {
+						return err
+					}
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "d",
+			In:   "query",
+			Err:  err,
+		}
+	}
 	// Decode path: token.
 	if err := func() error {
 		param := args[0]
@@ -4145,7 +4480,9 @@ type DownloadPublicShareLegacyParams struct {
 	IfNoneMatch           OptETag   `json:",omitempty,omitzero"`
 	// Force a browser download instead of inline display.
 	Download OptFileContentRequestOptionsDownload `json:",omitempty,omitzero"`
-	Token    string
+	// Alias for download=1.
+	D     OptFileContentRequestOptionsD `json:",omitempty,omitzero"`
+	Token string
 }
 
 func unpackDownloadPublicShareLegacyParams(packed middleware.Parameters) (params DownloadPublicShareLegacyParams) {
@@ -4192,6 +4529,15 @@ func unpackDownloadPublicShareLegacyParams(packed middleware.Parameters) (params
 		}
 		if v, ok := packed[key]; ok {
 			params.Download = v.(OptFileContentRequestOptionsDownload)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "d",
+			In:   "query",
+		}
+		if v, ok := packed[key]; ok {
+			params.D = v.(OptFileContentRequestOptionsD)
 		}
 	}
 	{
@@ -4423,6 +4769,62 @@ func decodeDownloadPublicShareLegacyParams(args [1]string, argsEscaped bool, r *
 	}(); err != nil {
 		return params, &ogenerrors.DecodeParamError{
 			Name: "download",
+			In:   "query",
+			Err:  err,
+		}
+	}
+	// Decode query: d.
+	if err := func() error {
+		cfg := uri.QueryParameterDecodingConfig{
+			Name:    "d",
+			Style:   uri.QueryStyleForm,
+			Explode: false,
+		}
+
+		if err := q.HasParam(cfg); err == nil {
+			if err := q.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotDVal FileContentRequestOptionsD
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotDVal = FileContentRequestOptionsD(c)
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.D.SetTo(paramsDotDVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+			if err := func() error {
+				if value, ok := params.D.Get(); ok {
+					if err := func() error {
+						if err := value.Validate(); err != nil {
+							return err
+						}
+						return nil
+					}(); err != nil {
+						return err
+					}
+				}
+				return nil
+			}(); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "d",
 			In:   "query",
 			Err:  err,
 		}

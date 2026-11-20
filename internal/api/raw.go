@@ -42,12 +42,12 @@ func (h *RawHandler) DownloadFile(ctx context.Context, params gen.DownloadFilePa
 	if err != nil {
 		return mapServiceError(err)
 	}
-	return h.streamFile(ctx, w, file.UserID, fileID, file, params.Range, params.IfNoneMatch, params.Download.IsSet())
+	return h.streamFile(ctx, w, file.UserID, fileID, file, params.Range, params.IfNoneMatch, params.Download.IsSet() || params.D.IsSet())
 }
 
 func (h *RawHandler) DownloadFileLegacy(ctx context.Context, params gen.DownloadFileLegacyParams, w http.ResponseWriter) error {
 	return h.DownloadFile(ctx, gen.DownloadFileParams{
-		Range: params.Range, IfNoneMatch: params.IfNoneMatch, Download: params.Download, FileId: params.FileId,
+		Range: params.Range, IfNoneMatch: params.IfNoneMatch, Download: params.Download, D: params.D, FileId: params.FileId,
 	}, w)
 }
 
@@ -79,14 +79,14 @@ func (h *RawHandler) DownloadPublicShare(ctx context.Context, params gen.Downloa
 	if !ok {
 		return mapServiceError(transfer.ErrInvalidDownload)
 	}
-	return h.streamFile(ctx, w, resolved.Share.OwnerID, fileID, file, params.Range, params.IfNoneMatch, params.Download.IsSet())
+	return h.streamFile(ctx, w, resolved.Share.OwnerID, fileID, file, params.Range, params.IfNoneMatch, params.Download.IsSet() || params.D.IsSet())
 }
 
 func (h *RawHandler) DownloadPublicShareLegacy(ctx context.Context, params gen.DownloadPublicShareLegacyParams, w http.ResponseWriter) error {
 	return h.DownloadPublicShare(ctx, gen.DownloadPublicShareParams{
 		XSharePassword: params.XSharePassword, Range: params.Range, IfNoneMatch: params.IfNoneMatch,
 		TeldriveShareDownload: params.TeldriveShareDownload,
-		Download:              params.Download, Token: params.Token,
+		Download:              params.Download, D: params.D, Token: params.Token,
 	}, w)
 }
 
@@ -114,14 +114,14 @@ func (h *RawHandler) DownloadPublicShareFile(ctx context.Context, params gen.Dow
 	if err != nil {
 		return mapServiceError(err)
 	}
-	return h.streamFile(ctx, w, resolved.Share.OwnerID, fileID, resolved.File, params.Range, params.IfNoneMatch, params.Download.IsSet())
+	return h.streamFile(ctx, w, resolved.Share.OwnerID, fileID, resolved.File, params.Range, params.IfNoneMatch, params.Download.IsSet() || params.D.IsSet())
 }
 
 func (h *RawHandler) DownloadPublicShareFileLegacy(ctx context.Context, params gen.DownloadPublicShareFileLegacyParams, w http.ResponseWriter) error {
 	return h.DownloadPublicShareFile(ctx, gen.DownloadPublicShareFileParams{
 		XSharePassword: params.XSharePassword, Range: params.Range, IfNoneMatch: params.IfNoneMatch,
 		TeldriveShareDownload: params.TeldriveShareDownload,
-		Download:              params.Download, Token: params.Token, FileId: params.FileId,
+		Download:              params.Download, D: params.D, Token: params.Token, FileId: params.FileId,
 	}, w)
 }
 

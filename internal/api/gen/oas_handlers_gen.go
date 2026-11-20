@@ -5073,6 +5073,10 @@ func (s *Server) handleDownloadFileRequest(args [2]string, argsEscaped bool, w h
 					In:   "query",
 				}: params.Download,
 				{
+					Name: "d",
+					In:   "query",
+				}: params.D,
+				{
 					Name: "fileId",
 					In:   "path",
 				}: params.FileId,
@@ -5243,6 +5247,10 @@ func (s *Server) handleDownloadFileLegacyRequest(args [1]string, argsEscaped boo
 					In:   "query",
 				}: params.Download,
 				{
+					Name: "d",
+					In:   "query",
+				}: params.D,
+				{
 					Name: "fileId",
 					In:   "path",
 				}: params.FileId,
@@ -5334,6 +5342,10 @@ func (s *Server) handleDownloadPublicShareRequest(args [2]string, argsEscaped bo
 					Name: "download",
 					In:   "query",
 				}: params.Download,
+				{
+					Name: "d",
+					In:   "query",
+				}: params.D,
 				{
 					Name: "token",
 					In:   "path",
@@ -5430,6 +5442,10 @@ func (s *Server) handleDownloadPublicShareFileRequest(args [3]string, argsEscape
 					Name: "download",
 					In:   "query",
 				}: params.Download,
+				{
+					Name: "d",
+					In:   "query",
+				}: params.D,
 				{
 					Name: "token",
 					In:   "path",
@@ -5531,6 +5547,10 @@ func (s *Server) handleDownloadPublicShareFileLegacyRequest(args [2]string, args
 					In:   "query",
 				}: params.Download,
 				{
+					Name: "d",
+					In:   "query",
+				}: params.D,
+				{
 					Name: "token",
 					In:   "path",
 				}: params.Token,
@@ -5626,6 +5646,10 @@ func (s *Server) handleDownloadPublicShareLegacyRequest(args [1]string, argsEsca
 					Name: "download",
 					In:   "query",
 				}: params.Download,
+				{
+					Name: "d",
+					In:   "query",
+				}: params.D,
 				{
 					Name: "token",
 					In:   "path",

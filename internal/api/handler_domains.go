@@ -751,7 +751,7 @@ func (h *Handler) HeadPublicShare(ctx context.Context, params gen.HeadPublicShar
 		return nil, mapServiceError(transfer.ErrInvalidDownload)
 	}
 	return &gen.HeadPublicShareOK{
-		AcceptRanges: gen.HeadPublicShareOKAcceptRanges("bytes"), ContentDisposition: contentDisposition(file.Name, false),
+		AcceptRanges: "bytes", ContentDisposition: contentDisposition(file.Name, false),
 		ContentLength: file.Size.Int64, Etag: contentETag(file), LastModified: file.ModTime.Time,
 	}, nil
 }
@@ -769,7 +769,7 @@ func (h *Handler) HeadPublicShareLegacy(ctx context.Context, params gen.HeadPubl
 		return nil, mapServiceError(transfer.ErrInvalidDownload)
 	}
 	return &gen.HeadPublicShareLegacyOK{
-		AcceptRanges: gen.HeadPublicShareLegacyOKAcceptRanges("bytes"), ContentDisposition: contentDisposition(file.Name, false),
+		AcceptRanges: "bytes", ContentDisposition: contentDisposition(file.Name, false),
 		ContentLength: file.Size.Int64, Etag: contentETag(file), LastModified: file.ModTime.Time,
 	}, nil
 }
@@ -788,7 +788,7 @@ func (h *Handler) HeadPublicShareFile(ctx context.Context, params gen.HeadPublic
 		return nil, mapServiceError(transfer.ErrInvalidDownload)
 	}
 	return &gen.HeadPublicShareFileOK{
-		AcceptRanges: gen.HeadPublicShareFileOKAcceptRanges("bytes"), ContentDisposition: contentDisposition(file.Name, false),
+		AcceptRanges: "bytes", ContentDisposition: contentDisposition(file.Name, false),
 		ContentLength: file.Size.Int64, Etag: contentETag(file), LastModified: file.ModTime.Time,
 	}, nil
 }
@@ -807,7 +807,7 @@ func (h *Handler) HeadPublicShareFileLegacy(ctx context.Context, params gen.Head
 		return nil, mapServiceError(transfer.ErrInvalidDownload)
 	}
 	return &gen.HeadPublicShareFileLegacyOK{
-		AcceptRanges: gen.HeadPublicShareFileLegacyOKAcceptRanges("bytes"), ContentDisposition: contentDisposition(file.Name, false),
+		AcceptRanges: "bytes", ContentDisposition: contentDisposition(file.Name, false),
 		ContentLength: file.Size.Int64, Etag: contentETag(file), LastModified: file.ModTime.Time,
 	}, nil
 }

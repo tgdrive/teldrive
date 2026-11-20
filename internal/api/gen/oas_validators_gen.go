@@ -1224,15 +1224,6 @@ func (s *DownloadFileLegacyOKHeaders) Validate() error {
 	return nil
 }
 
-func (s DownloadFileLegacyPartialContentAcceptRanges) Validate() error {
-	switch s {
-	case "bytes":
-		return nil
-	default:
-		return errors.Errorf("invalid value: %v", s)
-	}
-}
-
 func (s *DownloadFileLegacyPartialContentHeaders) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer
@@ -1254,15 +1245,6 @@ func (s *DownloadFileLegacyPartialContentHeaders) Validate() error {
 		return &validate.Error{Fields: failures}
 	}
 	return nil
-}
-
-func (s DownloadFileOKAcceptRanges) Validate() error {
-	switch s {
-	case "bytes":
-		return nil
-	default:
-		return errors.Errorf("invalid value: %v", s)
-	}
 }
 
 func (s *DownloadFileOKHeaders) Validate() error {
@@ -1288,15 +1270,6 @@ func (s *DownloadFileOKHeaders) Validate() error {
 	return nil
 }
 
-func (s DownloadFilePartialContentAcceptRanges) Validate() error {
-	switch s {
-	case "bytes":
-		return nil
-	default:
-		return errors.Errorf("invalid value: %v", s)
-	}
-}
-
 func (s *DownloadFilePartialContentHeaders) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer
@@ -1318,15 +1291,6 @@ func (s *DownloadFilePartialContentHeaders) Validate() error {
 		return &validate.Error{Fields: failures}
 	}
 	return nil
-}
-
-func (s DownloadPublicShareFileLegacyOKAcceptRanges) Validate() error {
-	switch s {
-	case "bytes":
-		return nil
-	default:
-		return errors.Errorf("invalid value: %v", s)
-	}
 }
 
 func (s *DownloadPublicShareFileLegacyOKHeaders) Validate() error {
@@ -1352,15 +1316,6 @@ func (s *DownloadPublicShareFileLegacyOKHeaders) Validate() error {
 	return nil
 }
 
-func (s DownloadPublicShareFileLegacyPartialContentAcceptRanges) Validate() error {
-	switch s {
-	case "bytes":
-		return nil
-	default:
-		return errors.Errorf("invalid value: %v", s)
-	}
-}
-
 func (s *DownloadPublicShareFileLegacyPartialContentHeaders) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer
@@ -1382,15 +1337,6 @@ func (s *DownloadPublicShareFileLegacyPartialContentHeaders) Validate() error {
 		return &validate.Error{Fields: failures}
 	}
 	return nil
-}
-
-func (s DownloadPublicShareFileOKAcceptRanges) Validate() error {
-	switch s {
-	case "bytes":
-		return nil
-	default:
-		return errors.Errorf("invalid value: %v", s)
-	}
 }
 
 func (s *DownloadPublicShareFileOKHeaders) Validate() error {
@@ -1416,15 +1362,6 @@ func (s *DownloadPublicShareFileOKHeaders) Validate() error {
 	return nil
 }
 
-func (s DownloadPublicShareFilePartialContentAcceptRanges) Validate() error {
-	switch s {
-	case "bytes":
-		return nil
-	default:
-		return errors.Errorf("invalid value: %v", s)
-	}
-}
-
 func (s *DownloadPublicShareFilePartialContentHeaders) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer
@@ -1446,15 +1383,6 @@ func (s *DownloadPublicShareFilePartialContentHeaders) Validate() error {
 		return &validate.Error{Fields: failures}
 	}
 	return nil
-}
-
-func (s DownloadPublicShareLegacyOKAcceptRanges) Validate() error {
-	switch s {
-	case "bytes":
-		return nil
-	default:
-		return errors.Errorf("invalid value: %v", s)
-	}
 }
 
 func (s *DownloadPublicShareLegacyOKHeaders) Validate() error {
@@ -1480,15 +1408,6 @@ func (s *DownloadPublicShareLegacyOKHeaders) Validate() error {
 	return nil
 }
 
-func (s DownloadPublicShareLegacyPartialContentAcceptRanges) Validate() error {
-	switch s {
-	case "bytes":
-		return nil
-	default:
-		return errors.Errorf("invalid value: %v", s)
-	}
-}
-
 func (s *DownloadPublicShareLegacyPartialContentHeaders) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer
@@ -1512,15 +1431,6 @@ func (s *DownloadPublicShareLegacyPartialContentHeaders) Validate() error {
 	return nil
 }
 
-func (s DownloadPublicShareOKAcceptRanges) Validate() error {
-	switch s {
-	case "bytes":
-		return nil
-	default:
-		return errors.Errorf("invalid value: %v", s)
-	}
-}
-
 func (s *DownloadPublicShareOKHeaders) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer
@@ -1542,15 +1452,6 @@ func (s *DownloadPublicShareOKHeaders) Validate() error {
 		return &validate.Error{Fields: failures}
 	}
 	return nil
-}
-
-func (s DownloadPublicSharePartialContentAcceptRanges) Validate() error {
-	switch s {
-	case "bytes":
-		return nil
-	default:
-		return errors.Errorf("invalid value: %v", s)
-	}
 }
 
 func (s *DownloadPublicSharePartialContentHeaders) Validate() error {
@@ -1938,6 +1839,15 @@ func (s *FileCategoryStatistics) Validate() error {
 		return &validate.Error{Fields: failures}
 	}
 	return nil
+}
+
+func (s FileContentRequestOptionsD) Validate() error {
+	switch s {
+	case "1":
+		return nil
+	default:
+		return errors.Errorf("invalid value: %v", s)
+	}
 }
 
 func (s FileContentRequestOptionsDownload) Validate() error {
@@ -2499,15 +2409,6 @@ func (s *HeadFileLegacyOK) Validate() error {
 	return nil
 }
 
-func (s HeadFileLegacyOKAcceptRanges) Validate() error {
-	switch s {
-	case "bytes":
-		return nil
-	default:
-		return errors.Errorf("invalid value: %v", s)
-	}
-}
-
 func (s *HeadFileOK) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer
@@ -2529,15 +2430,6 @@ func (s *HeadFileOK) Validate() error {
 		return &validate.Error{Fields: failures}
 	}
 	return nil
-}
-
-func (s HeadFileOKAcceptRanges) Validate() error {
-	switch s {
-	case "bytes":
-		return nil
-	default:
-		return errors.Errorf("invalid value: %v", s)
-	}
 }
 
 func (s *HeadPublicShareFileLegacyOK) Validate() error {
@@ -2563,15 +2455,6 @@ func (s *HeadPublicShareFileLegacyOK) Validate() error {
 	return nil
 }
 
-func (s HeadPublicShareFileLegacyOKAcceptRanges) Validate() error {
-	switch s {
-	case "bytes":
-		return nil
-	default:
-		return errors.Errorf("invalid value: %v", s)
-	}
-}
-
 func (s *HeadPublicShareFileOK) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer
@@ -2593,15 +2476,6 @@ func (s *HeadPublicShareFileOK) Validate() error {
 		return &validate.Error{Fields: failures}
 	}
 	return nil
-}
-
-func (s HeadPublicShareFileOKAcceptRanges) Validate() error {
-	switch s {
-	case "bytes":
-		return nil
-	default:
-		return errors.Errorf("invalid value: %v", s)
-	}
 }
 
 func (s *HeadPublicShareLegacyOK) Validate() error {
@@ -2627,15 +2501,6 @@ func (s *HeadPublicShareLegacyOK) Validate() error {
 	return nil
 }
 
-func (s HeadPublicShareLegacyOKAcceptRanges) Validate() error {
-	switch s {
-	case "bytes":
-		return nil
-	default:
-		return errors.Errorf("invalid value: %v", s)
-	}
-}
-
 func (s *HeadPublicShareOK) Validate() error {
 	if s == nil {
 		return validate.ErrNilPointer
@@ -2657,15 +2522,6 @@ func (s *HeadPublicShareOK) Validate() error {
 		return &validate.Error{Fields: failures}
 	}
 	return nil
-}
-
-func (s HeadPublicShareOKAcceptRanges) Validate() error {
-	switch s {
-	case "bytes":
-		return nil
-	default:
-		return errors.Errorf("invalid value: %v", s)
-	}
 }
 
 func (s *HealthStatus) Validate() error {

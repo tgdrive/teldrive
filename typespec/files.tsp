@@ -257,6 +257,10 @@ model FileContentRequestOptions {
   /** Force a browser download instead of inline display. */
   @query
   download?: "1";
+
+  /** Alias for download=1. */
+  @query
+  d?: "1";
 }
 
 model FileContentResponse {

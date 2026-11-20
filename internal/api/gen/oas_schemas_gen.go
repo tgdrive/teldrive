@@ -2209,43 +2209,9 @@ func (s DownloadFileLegacyPartialContent) Read(p []byte) (n int, err error) {
 	return s.Data.Read(p)
 }
 
-type DownloadFileLegacyPartialContentAcceptRanges string
-
-const (
-	DownloadFileLegacyPartialContentAcceptRangesBytes DownloadFileLegacyPartialContentAcceptRanges = "bytes"
-)
-
-// AllValues returns all DownloadFileLegacyPartialContentAcceptRanges values.
-func (DownloadFileLegacyPartialContentAcceptRanges) AllValues() []DownloadFileLegacyPartialContentAcceptRanges {
-	return []DownloadFileLegacyPartialContentAcceptRanges{
-		DownloadFileLegacyPartialContentAcceptRangesBytes,
-	}
-}
-
-// MarshalText implements encoding.TextMarshaler.
-func (s DownloadFileLegacyPartialContentAcceptRanges) MarshalText() ([]byte, error) {
-	switch s {
-	case DownloadFileLegacyPartialContentAcceptRangesBytes:
-		return []byte(s), nil
-	default:
-		return nil, errors.Errorf("invalid value: %q", s)
-	}
-}
-
-// UnmarshalText implements encoding.TextUnmarshaler.
-func (s *DownloadFileLegacyPartialContentAcceptRanges) UnmarshalText(data []byte) error {
-	switch DownloadFileLegacyPartialContentAcceptRanges(data) {
-	case DownloadFileLegacyPartialContentAcceptRangesBytes:
-		*s = DownloadFileLegacyPartialContentAcceptRangesBytes
-		return nil
-	default:
-		return errors.Errorf("invalid value: %q", data)
-	}
-}
-
 // DownloadFileLegacyPartialContentHeaders wraps DownloadFileLegacyPartialContent with response headers.
 type DownloadFileLegacyPartialContentHeaders struct {
-	AcceptRanges       DownloadFileLegacyPartialContentAcceptRanges
+	AcceptRanges       DownloadFileLegacyOKAcceptRanges
 	ContentDisposition string
 	ContentLength      int64
 	ContentRange       string
@@ -2255,7 +2221,7 @@ type DownloadFileLegacyPartialContentHeaders struct {
 }
 
 // GetAcceptRanges returns the value of AcceptRanges.
-func (s *DownloadFileLegacyPartialContentHeaders) GetAcceptRanges() DownloadFileLegacyPartialContentAcceptRanges {
+func (s *DownloadFileLegacyPartialContentHeaders) GetAcceptRanges() DownloadFileLegacyOKAcceptRanges {
 	return s.AcceptRanges
 }
 
@@ -2290,7 +2256,7 @@ func (s *DownloadFileLegacyPartialContentHeaders) GetResponse() DownloadFileLega
 }
 
 // SetAcceptRanges sets the value of AcceptRanges.
-func (s *DownloadFileLegacyPartialContentHeaders) SetAcceptRanges(val DownloadFileLegacyPartialContentAcceptRanges) {
+func (s *DownloadFileLegacyPartialContentHeaders) SetAcceptRanges(val DownloadFileLegacyOKAcceptRanges) {
 	s.AcceptRanges = val
 }
 
@@ -2380,43 +2346,9 @@ func (s DownloadFileOK) Read(p []byte) (n int, err error) {
 	return s.Data.Read(p)
 }
 
-type DownloadFileOKAcceptRanges string
-
-const (
-	DownloadFileOKAcceptRangesBytes DownloadFileOKAcceptRanges = "bytes"
-)
-
-// AllValues returns all DownloadFileOKAcceptRanges values.
-func (DownloadFileOKAcceptRanges) AllValues() []DownloadFileOKAcceptRanges {
-	return []DownloadFileOKAcceptRanges{
-		DownloadFileOKAcceptRangesBytes,
-	}
-}
-
-// MarshalText implements encoding.TextMarshaler.
-func (s DownloadFileOKAcceptRanges) MarshalText() ([]byte, error) {
-	switch s {
-	case DownloadFileOKAcceptRangesBytes:
-		return []byte(s), nil
-	default:
-		return nil, errors.Errorf("invalid value: %q", s)
-	}
-}
-
-// UnmarshalText implements encoding.TextUnmarshaler.
-func (s *DownloadFileOKAcceptRanges) UnmarshalText(data []byte) error {
-	switch DownloadFileOKAcceptRanges(data) {
-	case DownloadFileOKAcceptRangesBytes:
-		*s = DownloadFileOKAcceptRangesBytes
-		return nil
-	default:
-		return errors.Errorf("invalid value: %q", data)
-	}
-}
-
 // DownloadFileOKHeaders wraps DownloadFileOK with response headers.
 type DownloadFileOKHeaders struct {
-	AcceptRanges       DownloadFileOKAcceptRanges
+	AcceptRanges       DownloadFileLegacyOKAcceptRanges
 	ContentDisposition string
 	ContentLength      int64
 	Etag               ETag
@@ -2425,7 +2357,7 @@ type DownloadFileOKHeaders struct {
 }
 
 // GetAcceptRanges returns the value of AcceptRanges.
-func (s *DownloadFileOKHeaders) GetAcceptRanges() DownloadFileOKAcceptRanges {
+func (s *DownloadFileOKHeaders) GetAcceptRanges() DownloadFileLegacyOKAcceptRanges {
 	return s.AcceptRanges
 }
 
@@ -2455,7 +2387,7 @@ func (s *DownloadFileOKHeaders) GetResponse() DownloadFileOK {
 }
 
 // SetAcceptRanges sets the value of AcceptRanges.
-func (s *DownloadFileOKHeaders) SetAcceptRanges(val DownloadFileOKAcceptRanges) {
+func (s *DownloadFileOKHeaders) SetAcceptRanges(val DownloadFileLegacyOKAcceptRanges) {
 	s.AcceptRanges = val
 }
 
@@ -2515,43 +2447,9 @@ func (s DownloadFilePartialContent) Read(p []byte) (n int, err error) {
 	return s.Data.Read(p)
 }
 
-type DownloadFilePartialContentAcceptRanges string
-
-const (
-	DownloadFilePartialContentAcceptRangesBytes DownloadFilePartialContentAcceptRanges = "bytes"
-)
-
-// AllValues returns all DownloadFilePartialContentAcceptRanges values.
-func (DownloadFilePartialContentAcceptRanges) AllValues() []DownloadFilePartialContentAcceptRanges {
-	return []DownloadFilePartialContentAcceptRanges{
-		DownloadFilePartialContentAcceptRangesBytes,
-	}
-}
-
-// MarshalText implements encoding.TextMarshaler.
-func (s DownloadFilePartialContentAcceptRanges) MarshalText() ([]byte, error) {
-	switch s {
-	case DownloadFilePartialContentAcceptRangesBytes:
-		return []byte(s), nil
-	default:
-		return nil, errors.Errorf("invalid value: %q", s)
-	}
-}
-
-// UnmarshalText implements encoding.TextUnmarshaler.
-func (s *DownloadFilePartialContentAcceptRanges) UnmarshalText(data []byte) error {
-	switch DownloadFilePartialContentAcceptRanges(data) {
-	case DownloadFilePartialContentAcceptRangesBytes:
-		*s = DownloadFilePartialContentAcceptRangesBytes
-		return nil
-	default:
-		return errors.Errorf("invalid value: %q", data)
-	}
-}
-
 // DownloadFilePartialContentHeaders wraps DownloadFilePartialContent with response headers.
 type DownloadFilePartialContentHeaders struct {
-	AcceptRanges       DownloadFilePartialContentAcceptRanges
+	AcceptRanges       DownloadFileLegacyOKAcceptRanges
 	ContentDisposition string
 	ContentLength      int64
 	ContentRange       string
@@ -2561,7 +2459,7 @@ type DownloadFilePartialContentHeaders struct {
 }
 
 // GetAcceptRanges returns the value of AcceptRanges.
-func (s *DownloadFilePartialContentHeaders) GetAcceptRanges() DownloadFilePartialContentAcceptRanges {
+func (s *DownloadFilePartialContentHeaders) GetAcceptRanges() DownloadFileLegacyOKAcceptRanges {
 	return s.AcceptRanges
 }
 
@@ -2596,7 +2494,7 @@ func (s *DownloadFilePartialContentHeaders) GetResponse() DownloadFilePartialCon
 }
 
 // SetAcceptRanges sets the value of AcceptRanges.
-func (s *DownloadFilePartialContentHeaders) SetAcceptRanges(val DownloadFilePartialContentAcceptRanges) {
+func (s *DownloadFilePartialContentHeaders) SetAcceptRanges(val DownloadFileLegacyOKAcceptRanges) {
 	s.AcceptRanges = val
 }
 
@@ -2694,43 +2592,9 @@ func (s DownloadPublicShareFileLegacyOK) Read(p []byte) (n int, err error) {
 	return s.Data.Read(p)
 }
 
-type DownloadPublicShareFileLegacyOKAcceptRanges string
-
-const (
-	DownloadPublicShareFileLegacyOKAcceptRangesBytes DownloadPublicShareFileLegacyOKAcceptRanges = "bytes"
-)
-
-// AllValues returns all DownloadPublicShareFileLegacyOKAcceptRanges values.
-func (DownloadPublicShareFileLegacyOKAcceptRanges) AllValues() []DownloadPublicShareFileLegacyOKAcceptRanges {
-	return []DownloadPublicShareFileLegacyOKAcceptRanges{
-		DownloadPublicShareFileLegacyOKAcceptRangesBytes,
-	}
-}
-
-// MarshalText implements encoding.TextMarshaler.
-func (s DownloadPublicShareFileLegacyOKAcceptRanges) MarshalText() ([]byte, error) {
-	switch s {
-	case DownloadPublicShareFileLegacyOKAcceptRangesBytes:
-		return []byte(s), nil
-	default:
-		return nil, errors.Errorf("invalid value: %q", s)
-	}
-}
-
-// UnmarshalText implements encoding.TextUnmarshaler.
-func (s *DownloadPublicShareFileLegacyOKAcceptRanges) UnmarshalText(data []byte) error {
-	switch DownloadPublicShareFileLegacyOKAcceptRanges(data) {
-	case DownloadPublicShareFileLegacyOKAcceptRangesBytes:
-		*s = DownloadPublicShareFileLegacyOKAcceptRangesBytes
-		return nil
-	default:
-		return errors.Errorf("invalid value: %q", data)
-	}
-}
-
 // DownloadPublicShareFileLegacyOKHeaders wraps DownloadPublicShareFileLegacyOK with response headers.
 type DownloadPublicShareFileLegacyOKHeaders struct {
-	AcceptRanges       DownloadPublicShareFileLegacyOKAcceptRanges
+	AcceptRanges       DownloadFileLegacyOKAcceptRanges
 	ContentDisposition string
 	ContentLength      int64
 	Etag               ETag
@@ -2739,7 +2603,7 @@ type DownloadPublicShareFileLegacyOKHeaders struct {
 }
 
 // GetAcceptRanges returns the value of AcceptRanges.
-func (s *DownloadPublicShareFileLegacyOKHeaders) GetAcceptRanges() DownloadPublicShareFileLegacyOKAcceptRanges {
+func (s *DownloadPublicShareFileLegacyOKHeaders) GetAcceptRanges() DownloadFileLegacyOKAcceptRanges {
 	return s.AcceptRanges
 }
 
@@ -2769,7 +2633,7 @@ func (s *DownloadPublicShareFileLegacyOKHeaders) GetResponse() DownloadPublicSha
 }
 
 // SetAcceptRanges sets the value of AcceptRanges.
-func (s *DownloadPublicShareFileLegacyOKHeaders) SetAcceptRanges(val DownloadPublicShareFileLegacyOKAcceptRanges) {
+func (s *DownloadPublicShareFileLegacyOKHeaders) SetAcceptRanges(val DownloadFileLegacyOKAcceptRanges) {
 	s.AcceptRanges = val
 }
 
@@ -2829,43 +2693,9 @@ func (s DownloadPublicShareFileLegacyPartialContent) Read(p []byte) (n int, err 
 	return s.Data.Read(p)
 }
 
-type DownloadPublicShareFileLegacyPartialContentAcceptRanges string
-
-const (
-	DownloadPublicShareFileLegacyPartialContentAcceptRangesBytes DownloadPublicShareFileLegacyPartialContentAcceptRanges = "bytes"
-)
-
-// AllValues returns all DownloadPublicShareFileLegacyPartialContentAcceptRanges values.
-func (DownloadPublicShareFileLegacyPartialContentAcceptRanges) AllValues() []DownloadPublicShareFileLegacyPartialContentAcceptRanges {
-	return []DownloadPublicShareFileLegacyPartialContentAcceptRanges{
-		DownloadPublicShareFileLegacyPartialContentAcceptRangesBytes,
-	}
-}
-
-// MarshalText implements encoding.TextMarshaler.
-func (s DownloadPublicShareFileLegacyPartialContentAcceptRanges) MarshalText() ([]byte, error) {
-	switch s {
-	case DownloadPublicShareFileLegacyPartialContentAcceptRangesBytes:
-		return []byte(s), nil
-	default:
-		return nil, errors.Errorf("invalid value: %q", s)
-	}
-}
-
-// UnmarshalText implements encoding.TextUnmarshaler.
-func (s *DownloadPublicShareFileLegacyPartialContentAcceptRanges) UnmarshalText(data []byte) error {
-	switch DownloadPublicShareFileLegacyPartialContentAcceptRanges(data) {
-	case DownloadPublicShareFileLegacyPartialContentAcceptRangesBytes:
-		*s = DownloadPublicShareFileLegacyPartialContentAcceptRangesBytes
-		return nil
-	default:
-		return errors.Errorf("invalid value: %q", data)
-	}
-}
-
 // DownloadPublicShareFileLegacyPartialContentHeaders wraps DownloadPublicShareFileLegacyPartialContent with response headers.
 type DownloadPublicShareFileLegacyPartialContentHeaders struct {
-	AcceptRanges       DownloadPublicShareFileLegacyPartialContentAcceptRanges
+	AcceptRanges       DownloadFileLegacyOKAcceptRanges
 	ContentDisposition string
 	ContentLength      int64
 	ContentRange       string
@@ -2875,7 +2705,7 @@ type DownloadPublicShareFileLegacyPartialContentHeaders struct {
 }
 
 // GetAcceptRanges returns the value of AcceptRanges.
-func (s *DownloadPublicShareFileLegacyPartialContentHeaders) GetAcceptRanges() DownloadPublicShareFileLegacyPartialContentAcceptRanges {
+func (s *DownloadPublicShareFileLegacyPartialContentHeaders) GetAcceptRanges() DownloadFileLegacyOKAcceptRanges {
 	return s.AcceptRanges
 }
 
@@ -2910,7 +2740,7 @@ func (s *DownloadPublicShareFileLegacyPartialContentHeaders) GetResponse() Downl
 }
 
 // SetAcceptRanges sets the value of AcceptRanges.
-func (s *DownloadPublicShareFileLegacyPartialContentHeaders) SetAcceptRanges(val DownloadPublicShareFileLegacyPartialContentAcceptRanges) {
+func (s *DownloadPublicShareFileLegacyPartialContentHeaders) SetAcceptRanges(val DownloadFileLegacyOKAcceptRanges) {
 	s.AcceptRanges = val
 }
 
@@ -3002,43 +2832,9 @@ func (s DownloadPublicShareFileOK) Read(p []byte) (n int, err error) {
 	return s.Data.Read(p)
 }
 
-type DownloadPublicShareFileOKAcceptRanges string
-
-const (
-	DownloadPublicShareFileOKAcceptRangesBytes DownloadPublicShareFileOKAcceptRanges = "bytes"
-)
-
-// AllValues returns all DownloadPublicShareFileOKAcceptRanges values.
-func (DownloadPublicShareFileOKAcceptRanges) AllValues() []DownloadPublicShareFileOKAcceptRanges {
-	return []DownloadPublicShareFileOKAcceptRanges{
-		DownloadPublicShareFileOKAcceptRangesBytes,
-	}
-}
-
-// MarshalText implements encoding.TextMarshaler.
-func (s DownloadPublicShareFileOKAcceptRanges) MarshalText() ([]byte, error) {
-	switch s {
-	case DownloadPublicShareFileOKAcceptRangesBytes:
-		return []byte(s), nil
-	default:
-		return nil, errors.Errorf("invalid value: %q", s)
-	}
-}
-
-// UnmarshalText implements encoding.TextUnmarshaler.
-func (s *DownloadPublicShareFileOKAcceptRanges) UnmarshalText(data []byte) error {
-	switch DownloadPublicShareFileOKAcceptRanges(data) {
-	case DownloadPublicShareFileOKAcceptRangesBytes:
-		*s = DownloadPublicShareFileOKAcceptRangesBytes
-		return nil
-	default:
-		return errors.Errorf("invalid value: %q", data)
-	}
-}
-
 // DownloadPublicShareFileOKHeaders wraps DownloadPublicShareFileOK with response headers.
 type DownloadPublicShareFileOKHeaders struct {
-	AcceptRanges       DownloadPublicShareFileOKAcceptRanges
+	AcceptRanges       DownloadFileLegacyOKAcceptRanges
 	ContentDisposition string
 	ContentLength      int64
 	Etag               ETag
@@ -3047,7 +2843,7 @@ type DownloadPublicShareFileOKHeaders struct {
 }
 
 // GetAcceptRanges returns the value of AcceptRanges.
-func (s *DownloadPublicShareFileOKHeaders) GetAcceptRanges() DownloadPublicShareFileOKAcceptRanges {
+func (s *DownloadPublicShareFileOKHeaders) GetAcceptRanges() DownloadFileLegacyOKAcceptRanges {
 	return s.AcceptRanges
 }
 
@@ -3077,7 +2873,7 @@ func (s *DownloadPublicShareFileOKHeaders) GetResponse() DownloadPublicShareFile
 }
 
 // SetAcceptRanges sets the value of AcceptRanges.
-func (s *DownloadPublicShareFileOKHeaders) SetAcceptRanges(val DownloadPublicShareFileOKAcceptRanges) {
+func (s *DownloadPublicShareFileOKHeaders) SetAcceptRanges(val DownloadFileLegacyOKAcceptRanges) {
 	s.AcceptRanges = val
 }
 
@@ -3137,43 +2933,9 @@ func (s DownloadPublicShareFilePartialContent) Read(p []byte) (n int, err error)
 	return s.Data.Read(p)
 }
 
-type DownloadPublicShareFilePartialContentAcceptRanges string
-
-const (
-	DownloadPublicShareFilePartialContentAcceptRangesBytes DownloadPublicShareFilePartialContentAcceptRanges = "bytes"
-)
-
-// AllValues returns all DownloadPublicShareFilePartialContentAcceptRanges values.
-func (DownloadPublicShareFilePartialContentAcceptRanges) AllValues() []DownloadPublicShareFilePartialContentAcceptRanges {
-	return []DownloadPublicShareFilePartialContentAcceptRanges{
-		DownloadPublicShareFilePartialContentAcceptRangesBytes,
-	}
-}
-
-// MarshalText implements encoding.TextMarshaler.
-func (s DownloadPublicShareFilePartialContentAcceptRanges) MarshalText() ([]byte, error) {
-	switch s {
-	case DownloadPublicShareFilePartialContentAcceptRangesBytes:
-		return []byte(s), nil
-	default:
-		return nil, errors.Errorf("invalid value: %q", s)
-	}
-}
-
-// UnmarshalText implements encoding.TextUnmarshaler.
-func (s *DownloadPublicShareFilePartialContentAcceptRanges) UnmarshalText(data []byte) error {
-	switch DownloadPublicShareFilePartialContentAcceptRanges(data) {
-	case DownloadPublicShareFilePartialContentAcceptRangesBytes:
-		*s = DownloadPublicShareFilePartialContentAcceptRangesBytes
-		return nil
-	default:
-		return errors.Errorf("invalid value: %q", data)
-	}
-}
-
 // DownloadPublicShareFilePartialContentHeaders wraps DownloadPublicShareFilePartialContent with response headers.
 type DownloadPublicShareFilePartialContentHeaders struct {
-	AcceptRanges       DownloadPublicShareFilePartialContentAcceptRanges
+	AcceptRanges       DownloadFileLegacyOKAcceptRanges
 	ContentDisposition string
 	ContentLength      int64
 	ContentRange       string
@@ -3183,7 +2945,7 @@ type DownloadPublicShareFilePartialContentHeaders struct {
 }
 
 // GetAcceptRanges returns the value of AcceptRanges.
-func (s *DownloadPublicShareFilePartialContentHeaders) GetAcceptRanges() DownloadPublicShareFilePartialContentAcceptRanges {
+func (s *DownloadPublicShareFilePartialContentHeaders) GetAcceptRanges() DownloadFileLegacyOKAcceptRanges {
 	return s.AcceptRanges
 }
 
@@ -3218,7 +2980,7 @@ func (s *DownloadPublicShareFilePartialContentHeaders) GetResponse() DownloadPub
 }
 
 // SetAcceptRanges sets the value of AcceptRanges.
-func (s *DownloadPublicShareFilePartialContentHeaders) SetAcceptRanges(val DownloadPublicShareFilePartialContentAcceptRanges) {
+func (s *DownloadPublicShareFilePartialContentHeaders) SetAcceptRanges(val DownloadFileLegacyOKAcceptRanges) {
 	s.AcceptRanges = val
 }
 
@@ -3316,43 +3078,9 @@ func (s DownloadPublicShareLegacyOK) Read(p []byte) (n int, err error) {
 	return s.Data.Read(p)
 }
 
-type DownloadPublicShareLegacyOKAcceptRanges string
-
-const (
-	DownloadPublicShareLegacyOKAcceptRangesBytes DownloadPublicShareLegacyOKAcceptRanges = "bytes"
-)
-
-// AllValues returns all DownloadPublicShareLegacyOKAcceptRanges values.
-func (DownloadPublicShareLegacyOKAcceptRanges) AllValues() []DownloadPublicShareLegacyOKAcceptRanges {
-	return []DownloadPublicShareLegacyOKAcceptRanges{
-		DownloadPublicShareLegacyOKAcceptRangesBytes,
-	}
-}
-
-// MarshalText implements encoding.TextMarshaler.
-func (s DownloadPublicShareLegacyOKAcceptRanges) MarshalText() ([]byte, error) {
-	switch s {
-	case DownloadPublicShareLegacyOKAcceptRangesBytes:
-		return []byte(s), nil
-	default:
-		return nil, errors.Errorf("invalid value: %q", s)
-	}
-}
-
-// UnmarshalText implements encoding.TextUnmarshaler.
-func (s *DownloadPublicShareLegacyOKAcceptRanges) UnmarshalText(data []byte) error {
-	switch DownloadPublicShareLegacyOKAcceptRanges(data) {
-	case DownloadPublicShareLegacyOKAcceptRangesBytes:
-		*s = DownloadPublicShareLegacyOKAcceptRangesBytes
-		return nil
-	default:
-		return errors.Errorf("invalid value: %q", data)
-	}
-}
-
 // DownloadPublicShareLegacyOKHeaders wraps DownloadPublicShareLegacyOK with response headers.
 type DownloadPublicShareLegacyOKHeaders struct {
-	AcceptRanges       DownloadPublicShareLegacyOKAcceptRanges
+	AcceptRanges       DownloadFileLegacyOKAcceptRanges
 	ContentDisposition string
 	ContentLength      int64
 	Etag               ETag
@@ -3361,7 +3089,7 @@ type DownloadPublicShareLegacyOKHeaders struct {
 }
 
 // GetAcceptRanges returns the value of AcceptRanges.
-func (s *DownloadPublicShareLegacyOKHeaders) GetAcceptRanges() DownloadPublicShareLegacyOKAcceptRanges {
+func (s *DownloadPublicShareLegacyOKHeaders) GetAcceptRanges() DownloadFileLegacyOKAcceptRanges {
 	return s.AcceptRanges
 }
 
@@ -3391,7 +3119,7 @@ func (s *DownloadPublicShareLegacyOKHeaders) GetResponse() DownloadPublicShareLe
 }
 
 // SetAcceptRanges sets the value of AcceptRanges.
-func (s *DownloadPublicShareLegacyOKHeaders) SetAcceptRanges(val DownloadPublicShareLegacyOKAcceptRanges) {
+func (s *DownloadPublicShareLegacyOKHeaders) SetAcceptRanges(val DownloadFileLegacyOKAcceptRanges) {
 	s.AcceptRanges = val
 }
 
@@ -3451,43 +3179,9 @@ func (s DownloadPublicShareLegacyPartialContent) Read(p []byte) (n int, err erro
 	return s.Data.Read(p)
 }
 
-type DownloadPublicShareLegacyPartialContentAcceptRanges string
-
-const (
-	DownloadPublicShareLegacyPartialContentAcceptRangesBytes DownloadPublicShareLegacyPartialContentAcceptRanges = "bytes"
-)
-
-// AllValues returns all DownloadPublicShareLegacyPartialContentAcceptRanges values.
-func (DownloadPublicShareLegacyPartialContentAcceptRanges) AllValues() []DownloadPublicShareLegacyPartialContentAcceptRanges {
-	return []DownloadPublicShareLegacyPartialContentAcceptRanges{
-		DownloadPublicShareLegacyPartialContentAcceptRangesBytes,
-	}
-}
-
-// MarshalText implements encoding.TextMarshaler.
-func (s DownloadPublicShareLegacyPartialContentAcceptRanges) MarshalText() ([]byte, error) {
-	switch s {
-	case DownloadPublicShareLegacyPartialContentAcceptRangesBytes:
-		return []byte(s), nil
-	default:
-		return nil, errors.Errorf("invalid value: %q", s)
-	}
-}
-
-// UnmarshalText implements encoding.TextUnmarshaler.
-func (s *DownloadPublicShareLegacyPartialContentAcceptRanges) UnmarshalText(data []byte) error {
-	switch DownloadPublicShareLegacyPartialContentAcceptRanges(data) {
-	case DownloadPublicShareLegacyPartialContentAcceptRangesBytes:
-		*s = DownloadPublicShareLegacyPartialContentAcceptRangesBytes
-		return nil
-	default:
-		return errors.Errorf("invalid value: %q", data)
-	}
-}
-
 // DownloadPublicShareLegacyPartialContentHeaders wraps DownloadPublicShareLegacyPartialContent with response headers.
 type DownloadPublicShareLegacyPartialContentHeaders struct {
-	AcceptRanges       DownloadPublicShareLegacyPartialContentAcceptRanges
+	AcceptRanges       DownloadFileLegacyOKAcceptRanges
 	ContentDisposition string
 	ContentLength      int64
 	ContentRange       string
@@ -3497,7 +3191,7 @@ type DownloadPublicShareLegacyPartialContentHeaders struct {
 }
 
 // GetAcceptRanges returns the value of AcceptRanges.
-func (s *DownloadPublicShareLegacyPartialContentHeaders) GetAcceptRanges() DownloadPublicShareLegacyPartialContentAcceptRanges {
+func (s *DownloadPublicShareLegacyPartialContentHeaders) GetAcceptRanges() DownloadFileLegacyOKAcceptRanges {
 	return s.AcceptRanges
 }
 
@@ -3532,7 +3226,7 @@ func (s *DownloadPublicShareLegacyPartialContentHeaders) GetResponse() DownloadP
 }
 
 // SetAcceptRanges sets the value of AcceptRanges.
-func (s *DownloadPublicShareLegacyPartialContentHeaders) SetAcceptRanges(val DownloadPublicShareLegacyPartialContentAcceptRanges) {
+func (s *DownloadPublicShareLegacyPartialContentHeaders) SetAcceptRanges(val DownloadFileLegacyOKAcceptRanges) {
 	s.AcceptRanges = val
 }
 
@@ -3623,43 +3317,9 @@ func (s DownloadPublicShareOK) Read(p []byte) (n int, err error) {
 	return s.Data.Read(p)
 }
 
-type DownloadPublicShareOKAcceptRanges string
-
-const (
-	DownloadPublicShareOKAcceptRangesBytes DownloadPublicShareOKAcceptRanges = "bytes"
-)
-
-// AllValues returns all DownloadPublicShareOKAcceptRanges values.
-func (DownloadPublicShareOKAcceptRanges) AllValues() []DownloadPublicShareOKAcceptRanges {
-	return []DownloadPublicShareOKAcceptRanges{
-		DownloadPublicShareOKAcceptRangesBytes,
-	}
-}
-
-// MarshalText implements encoding.TextMarshaler.
-func (s DownloadPublicShareOKAcceptRanges) MarshalText() ([]byte, error) {
-	switch s {
-	case DownloadPublicShareOKAcceptRangesBytes:
-		return []byte(s), nil
-	default:
-		return nil, errors.Errorf("invalid value: %q", s)
-	}
-}
-
-// UnmarshalText implements encoding.TextUnmarshaler.
-func (s *DownloadPublicShareOKAcceptRanges) UnmarshalText(data []byte) error {
-	switch DownloadPublicShareOKAcceptRanges(data) {
-	case DownloadPublicShareOKAcceptRangesBytes:
-		*s = DownloadPublicShareOKAcceptRangesBytes
-		return nil
-	default:
-		return errors.Errorf("invalid value: %q", data)
-	}
-}
-
 // DownloadPublicShareOKHeaders wraps DownloadPublicShareOK with response headers.
 type DownloadPublicShareOKHeaders struct {
-	AcceptRanges       DownloadPublicShareOKAcceptRanges
+	AcceptRanges       DownloadFileLegacyOKAcceptRanges
 	ContentDisposition string
 	ContentLength      int64
 	Etag               ETag
@@ -3668,7 +3328,7 @@ type DownloadPublicShareOKHeaders struct {
 }
 
 // GetAcceptRanges returns the value of AcceptRanges.
-func (s *DownloadPublicShareOKHeaders) GetAcceptRanges() DownloadPublicShareOKAcceptRanges {
+func (s *DownloadPublicShareOKHeaders) GetAcceptRanges() DownloadFileLegacyOKAcceptRanges {
 	return s.AcceptRanges
 }
 
@@ -3698,7 +3358,7 @@ func (s *DownloadPublicShareOKHeaders) GetResponse() DownloadPublicShareOK {
 }
 
 // SetAcceptRanges sets the value of AcceptRanges.
-func (s *DownloadPublicShareOKHeaders) SetAcceptRanges(val DownloadPublicShareOKAcceptRanges) {
+func (s *DownloadPublicShareOKHeaders) SetAcceptRanges(val DownloadFileLegacyOKAcceptRanges) {
 	s.AcceptRanges = val
 }
 
@@ -3758,43 +3418,9 @@ func (s DownloadPublicSharePartialContent) Read(p []byte) (n int, err error) {
 	return s.Data.Read(p)
 }
 
-type DownloadPublicSharePartialContentAcceptRanges string
-
-const (
-	DownloadPublicSharePartialContentAcceptRangesBytes DownloadPublicSharePartialContentAcceptRanges = "bytes"
-)
-
-// AllValues returns all DownloadPublicSharePartialContentAcceptRanges values.
-func (DownloadPublicSharePartialContentAcceptRanges) AllValues() []DownloadPublicSharePartialContentAcceptRanges {
-	return []DownloadPublicSharePartialContentAcceptRanges{
-		DownloadPublicSharePartialContentAcceptRangesBytes,
-	}
-}
-
-// MarshalText implements encoding.TextMarshaler.
-func (s DownloadPublicSharePartialContentAcceptRanges) MarshalText() ([]byte, error) {
-	switch s {
-	case DownloadPublicSharePartialContentAcceptRangesBytes:
-		return []byte(s), nil
-	default:
-		return nil, errors.Errorf("invalid value: %q", s)
-	}
-}
-
-// UnmarshalText implements encoding.TextUnmarshaler.
-func (s *DownloadPublicSharePartialContentAcceptRanges) UnmarshalText(data []byte) error {
-	switch DownloadPublicSharePartialContentAcceptRanges(data) {
-	case DownloadPublicSharePartialContentAcceptRangesBytes:
-		*s = DownloadPublicSharePartialContentAcceptRangesBytes
-		return nil
-	default:
-		return errors.Errorf("invalid value: %q", data)
-	}
-}
-
 // DownloadPublicSharePartialContentHeaders wraps DownloadPublicSharePartialContent with response headers.
 type DownloadPublicSharePartialContentHeaders struct {
-	AcceptRanges       DownloadPublicSharePartialContentAcceptRanges
+	AcceptRanges       DownloadFileLegacyOKAcceptRanges
 	ContentDisposition string
 	ContentLength      int64
 	ContentRange       string
@@ -3804,7 +3430,7 @@ type DownloadPublicSharePartialContentHeaders struct {
 }
 
 // GetAcceptRanges returns the value of AcceptRanges.
-func (s *DownloadPublicSharePartialContentHeaders) GetAcceptRanges() DownloadPublicSharePartialContentAcceptRanges {
+func (s *DownloadPublicSharePartialContentHeaders) GetAcceptRanges() DownloadFileLegacyOKAcceptRanges {
 	return s.AcceptRanges
 }
 
@@ -3839,7 +3465,7 @@ func (s *DownloadPublicSharePartialContentHeaders) GetResponse() DownloadPublicS
 }
 
 // SetAcceptRanges sets the value of AcceptRanges.
-func (s *DownloadPublicSharePartialContentHeaders) SetAcceptRanges(val DownloadPublicSharePartialContentAcceptRanges) {
+func (s *DownloadPublicSharePartialContentHeaders) SetAcceptRanges(val DownloadFileLegacyOKAcceptRanges) {
 	s.AcceptRanges = val
 }
 
@@ -4697,6 +4323,40 @@ func (s *FileCategoryStatistics) SetTotalFiles(val int64) {
 // SetTotalSize sets the value of TotalSize.
 func (s *FileCategoryStatistics) SetTotalSize(val int64) {
 	s.TotalSize = val
+}
+
+type FileContentRequestOptionsD string
+
+const (
+	FileContentRequestOptionsD1 FileContentRequestOptionsD = "1"
+)
+
+// AllValues returns all FileContentRequestOptionsD values.
+func (FileContentRequestOptionsD) AllValues() []FileContentRequestOptionsD {
+	return []FileContentRequestOptionsD{
+		FileContentRequestOptionsD1,
+	}
+}
+
+// MarshalText implements encoding.TextMarshaler.
+func (s FileContentRequestOptionsD) MarshalText() ([]byte, error) {
+	switch s {
+	case FileContentRequestOptionsD1:
+		return []byte(s), nil
+	default:
+		return nil, errors.Errorf("invalid value: %q", s)
+	}
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler.
+func (s *FileContentRequestOptionsD) UnmarshalText(data []byte) error {
+	switch FileContentRequestOptionsD(data) {
+	case FileContentRequestOptionsD1:
+		*s = FileContentRequestOptionsD1
+		return nil
+	default:
+		return errors.Errorf("invalid value: %q", data)
+	}
 }
 
 type FileContentRequestOptionsDownload string
@@ -5954,7 +5614,7 @@ func (*HeadFileLegacyNotFound) headFileLegacyRes() {}
 
 // HeadFileLegacyOK is response for HeadFileLegacy operation.
 type HeadFileLegacyOK struct {
-	AcceptRanges       HeadFileLegacyOKAcceptRanges
+	AcceptRanges       DownloadFileLegacyOKAcceptRanges
 	ContentDisposition string
 	ContentLength      int64
 	Etag               ETag
@@ -5962,7 +5622,7 @@ type HeadFileLegacyOK struct {
 }
 
 // GetAcceptRanges returns the value of AcceptRanges.
-func (s *HeadFileLegacyOK) GetAcceptRanges() HeadFileLegacyOKAcceptRanges {
+func (s *HeadFileLegacyOK) GetAcceptRanges() DownloadFileLegacyOKAcceptRanges {
 	return s.AcceptRanges
 }
 
@@ -5987,7 +5647,7 @@ func (s *HeadFileLegacyOK) GetLastModified() time.Time {
 }
 
 // SetAcceptRanges sets the value of AcceptRanges.
-func (s *HeadFileLegacyOK) SetAcceptRanges(val HeadFileLegacyOKAcceptRanges) {
+func (s *HeadFileLegacyOK) SetAcceptRanges(val DownloadFileLegacyOKAcceptRanges) {
 	s.AcceptRanges = val
 }
 
@@ -6013,40 +5673,6 @@ func (s *HeadFileLegacyOK) SetLastModified(val time.Time) {
 
 func (*HeadFileLegacyOK) headFileLegacyRes() {}
 
-type HeadFileLegacyOKAcceptRanges string
-
-const (
-	HeadFileLegacyOKAcceptRangesBytes HeadFileLegacyOKAcceptRanges = "bytes"
-)
-
-// AllValues returns all HeadFileLegacyOKAcceptRanges values.
-func (HeadFileLegacyOKAcceptRanges) AllValues() []HeadFileLegacyOKAcceptRanges {
-	return []HeadFileLegacyOKAcceptRanges{
-		HeadFileLegacyOKAcceptRangesBytes,
-	}
-}
-
-// MarshalText implements encoding.TextMarshaler.
-func (s HeadFileLegacyOKAcceptRanges) MarshalText() ([]byte, error) {
-	switch s {
-	case HeadFileLegacyOKAcceptRangesBytes:
-		return []byte(s), nil
-	default:
-		return nil, errors.Errorf("invalid value: %q", s)
-	}
-}
-
-// UnmarshalText implements encoding.TextUnmarshaler.
-func (s *HeadFileLegacyOKAcceptRanges) UnmarshalText(data []byte) error {
-	switch HeadFileLegacyOKAcceptRanges(data) {
-	case HeadFileLegacyOKAcceptRangesBytes:
-		*s = HeadFileLegacyOKAcceptRangesBytes
-		return nil
-	default:
-		return errors.Errorf("invalid value: %q", data)
-	}
-}
-
 type HeadFileLegacyUnauthorized ErrorEnvelope
 
 func (*HeadFileLegacyUnauthorized) headFileLegacyRes() {}
@@ -6057,7 +5683,7 @@ func (*HeadFileNotFound) headFileRes() {}
 
 // HeadFileOK is response for HeadFile operation.
 type HeadFileOK struct {
-	AcceptRanges       HeadFileOKAcceptRanges
+	AcceptRanges       DownloadFileLegacyOKAcceptRanges
 	ContentDisposition string
 	ContentLength      int64
 	Etag               ETag
@@ -6065,7 +5691,7 @@ type HeadFileOK struct {
 }
 
 // GetAcceptRanges returns the value of AcceptRanges.
-func (s *HeadFileOK) GetAcceptRanges() HeadFileOKAcceptRanges {
+func (s *HeadFileOK) GetAcceptRanges() DownloadFileLegacyOKAcceptRanges {
 	return s.AcceptRanges
 }
 
@@ -6090,7 +5716,7 @@ func (s *HeadFileOK) GetLastModified() time.Time {
 }
 
 // SetAcceptRanges sets the value of AcceptRanges.
-func (s *HeadFileOK) SetAcceptRanges(val HeadFileOKAcceptRanges) {
+func (s *HeadFileOK) SetAcceptRanges(val DownloadFileLegacyOKAcceptRanges) {
 	s.AcceptRanges = val
 }
 
@@ -6116,40 +5742,6 @@ func (s *HeadFileOK) SetLastModified(val time.Time) {
 
 func (*HeadFileOK) headFileRes() {}
 
-type HeadFileOKAcceptRanges string
-
-const (
-	HeadFileOKAcceptRangesBytes HeadFileOKAcceptRanges = "bytes"
-)
-
-// AllValues returns all HeadFileOKAcceptRanges values.
-func (HeadFileOKAcceptRanges) AllValues() []HeadFileOKAcceptRanges {
-	return []HeadFileOKAcceptRanges{
-		HeadFileOKAcceptRangesBytes,
-	}
-}
-
-// MarshalText implements encoding.TextMarshaler.
-func (s HeadFileOKAcceptRanges) MarshalText() ([]byte, error) {
-	switch s {
-	case HeadFileOKAcceptRangesBytes:
-		return []byte(s), nil
-	default:
-		return nil, errors.Errorf("invalid value: %q", s)
-	}
-}
-
-// UnmarshalText implements encoding.TextUnmarshaler.
-func (s *HeadFileOKAcceptRanges) UnmarshalText(data []byte) error {
-	switch HeadFileOKAcceptRanges(data) {
-	case HeadFileOKAcceptRangesBytes:
-		*s = HeadFileOKAcceptRangesBytes
-		return nil
-	default:
-		return errors.Errorf("invalid value: %q", data)
-	}
-}
-
 type HeadFileUnauthorized ErrorEnvelope
 
 func (*HeadFileUnauthorized) headFileRes() {}
@@ -6168,7 +5760,7 @@ func (*HeadPublicShareFileLegacyNotFound) headPublicShareFileLegacyRes() {}
 
 // HeadPublicShareFileLegacyOK is response for HeadPublicShareFileLegacy operation.
 type HeadPublicShareFileLegacyOK struct {
-	AcceptRanges       HeadPublicShareFileLegacyOKAcceptRanges
+	AcceptRanges       DownloadFileLegacyOKAcceptRanges
 	ContentDisposition string
 	ContentLength      int64
 	Etag               ETag
@@ -6176,7 +5768,7 @@ type HeadPublicShareFileLegacyOK struct {
 }
 
 // GetAcceptRanges returns the value of AcceptRanges.
-func (s *HeadPublicShareFileLegacyOK) GetAcceptRanges() HeadPublicShareFileLegacyOKAcceptRanges {
+func (s *HeadPublicShareFileLegacyOK) GetAcceptRanges() DownloadFileLegacyOKAcceptRanges {
 	return s.AcceptRanges
 }
 
@@ -6201,7 +5793,7 @@ func (s *HeadPublicShareFileLegacyOK) GetLastModified() time.Time {
 }
 
 // SetAcceptRanges sets the value of AcceptRanges.
-func (s *HeadPublicShareFileLegacyOK) SetAcceptRanges(val HeadPublicShareFileLegacyOKAcceptRanges) {
+func (s *HeadPublicShareFileLegacyOK) SetAcceptRanges(val DownloadFileLegacyOKAcceptRanges) {
 	s.AcceptRanges = val
 }
 
@@ -6227,40 +5819,6 @@ func (s *HeadPublicShareFileLegacyOK) SetLastModified(val time.Time) {
 
 func (*HeadPublicShareFileLegacyOK) headPublicShareFileLegacyRes() {}
 
-type HeadPublicShareFileLegacyOKAcceptRanges string
-
-const (
-	HeadPublicShareFileLegacyOKAcceptRangesBytes HeadPublicShareFileLegacyOKAcceptRanges = "bytes"
-)
-
-// AllValues returns all HeadPublicShareFileLegacyOKAcceptRanges values.
-func (HeadPublicShareFileLegacyOKAcceptRanges) AllValues() []HeadPublicShareFileLegacyOKAcceptRanges {
-	return []HeadPublicShareFileLegacyOKAcceptRanges{
-		HeadPublicShareFileLegacyOKAcceptRangesBytes,
-	}
-}
-
-// MarshalText implements encoding.TextMarshaler.
-func (s HeadPublicShareFileLegacyOKAcceptRanges) MarshalText() ([]byte, error) {
-	switch s {
-	case HeadPublicShareFileLegacyOKAcceptRangesBytes:
-		return []byte(s), nil
-	default:
-		return nil, errors.Errorf("invalid value: %q", s)
-	}
-}
-
-// UnmarshalText implements encoding.TextUnmarshaler.
-func (s *HeadPublicShareFileLegacyOKAcceptRanges) UnmarshalText(data []byte) error {
-	switch HeadPublicShareFileLegacyOKAcceptRanges(data) {
-	case HeadPublicShareFileLegacyOKAcceptRangesBytes:
-		*s = HeadPublicShareFileLegacyOKAcceptRangesBytes
-		return nil
-	default:
-		return errors.Errorf("invalid value: %q", data)
-	}
-}
-
 type HeadPublicShareFileLegacyServiceUnavailable ErrorEnvelope
 
 func (*HeadPublicShareFileLegacyServiceUnavailable) headPublicShareFileLegacyRes() {}
@@ -6279,7 +5837,7 @@ func (*HeadPublicShareFileNotFound) headPublicShareFileRes() {}
 
 // HeadPublicShareFileOK is response for HeadPublicShareFile operation.
 type HeadPublicShareFileOK struct {
-	AcceptRanges       HeadPublicShareFileOKAcceptRanges
+	AcceptRanges       DownloadFileLegacyOKAcceptRanges
 	ContentDisposition string
 	ContentLength      int64
 	Etag               ETag
@@ -6287,7 +5845,7 @@ type HeadPublicShareFileOK struct {
 }
 
 // GetAcceptRanges returns the value of AcceptRanges.
-func (s *HeadPublicShareFileOK) GetAcceptRanges() HeadPublicShareFileOKAcceptRanges {
+func (s *HeadPublicShareFileOK) GetAcceptRanges() DownloadFileLegacyOKAcceptRanges {
 	return s.AcceptRanges
 }
 
@@ -6312,7 +5870,7 @@ func (s *HeadPublicShareFileOK) GetLastModified() time.Time {
 }
 
 // SetAcceptRanges sets the value of AcceptRanges.
-func (s *HeadPublicShareFileOK) SetAcceptRanges(val HeadPublicShareFileOKAcceptRanges) {
+func (s *HeadPublicShareFileOK) SetAcceptRanges(val DownloadFileLegacyOKAcceptRanges) {
 	s.AcceptRanges = val
 }
 
@@ -6337,40 +5895,6 @@ func (s *HeadPublicShareFileOK) SetLastModified(val time.Time) {
 }
 
 func (*HeadPublicShareFileOK) headPublicShareFileRes() {}
-
-type HeadPublicShareFileOKAcceptRanges string
-
-const (
-	HeadPublicShareFileOKAcceptRangesBytes HeadPublicShareFileOKAcceptRanges = "bytes"
-)
-
-// AllValues returns all HeadPublicShareFileOKAcceptRanges values.
-func (HeadPublicShareFileOKAcceptRanges) AllValues() []HeadPublicShareFileOKAcceptRanges {
-	return []HeadPublicShareFileOKAcceptRanges{
-		HeadPublicShareFileOKAcceptRangesBytes,
-	}
-}
-
-// MarshalText implements encoding.TextMarshaler.
-func (s HeadPublicShareFileOKAcceptRanges) MarshalText() ([]byte, error) {
-	switch s {
-	case HeadPublicShareFileOKAcceptRangesBytes:
-		return []byte(s), nil
-	default:
-		return nil, errors.Errorf("invalid value: %q", s)
-	}
-}
-
-// UnmarshalText implements encoding.TextUnmarshaler.
-func (s *HeadPublicShareFileOKAcceptRanges) UnmarshalText(data []byte) error {
-	switch HeadPublicShareFileOKAcceptRanges(data) {
-	case HeadPublicShareFileOKAcceptRangesBytes:
-		*s = HeadPublicShareFileOKAcceptRangesBytes
-		return nil
-	default:
-		return errors.Errorf("invalid value: %q", data)
-	}
-}
 
 type HeadPublicShareFileServiceUnavailable ErrorEnvelope
 
@@ -6398,7 +5922,7 @@ func (*HeadPublicShareLegacyNotFound) headPublicShareLegacyRes() {}
 
 // HeadPublicShareLegacyOK is response for HeadPublicShareLegacy operation.
 type HeadPublicShareLegacyOK struct {
-	AcceptRanges       HeadPublicShareLegacyOKAcceptRanges
+	AcceptRanges       DownloadFileLegacyOKAcceptRanges
 	ContentDisposition string
 	ContentLength      int64
 	Etag               ETag
@@ -6406,7 +5930,7 @@ type HeadPublicShareLegacyOK struct {
 }
 
 // GetAcceptRanges returns the value of AcceptRanges.
-func (s *HeadPublicShareLegacyOK) GetAcceptRanges() HeadPublicShareLegacyOKAcceptRanges {
+func (s *HeadPublicShareLegacyOK) GetAcceptRanges() DownloadFileLegacyOKAcceptRanges {
 	return s.AcceptRanges
 }
 
@@ -6431,7 +5955,7 @@ func (s *HeadPublicShareLegacyOK) GetLastModified() time.Time {
 }
 
 // SetAcceptRanges sets the value of AcceptRanges.
-func (s *HeadPublicShareLegacyOK) SetAcceptRanges(val HeadPublicShareLegacyOKAcceptRanges) {
+func (s *HeadPublicShareLegacyOK) SetAcceptRanges(val DownloadFileLegacyOKAcceptRanges) {
 	s.AcceptRanges = val
 }
 
@@ -6457,40 +5981,6 @@ func (s *HeadPublicShareLegacyOK) SetLastModified(val time.Time) {
 
 func (*HeadPublicShareLegacyOK) headPublicShareLegacyRes() {}
 
-type HeadPublicShareLegacyOKAcceptRanges string
-
-const (
-	HeadPublicShareLegacyOKAcceptRangesBytes HeadPublicShareLegacyOKAcceptRanges = "bytes"
-)
-
-// AllValues returns all HeadPublicShareLegacyOKAcceptRanges values.
-func (HeadPublicShareLegacyOKAcceptRanges) AllValues() []HeadPublicShareLegacyOKAcceptRanges {
-	return []HeadPublicShareLegacyOKAcceptRanges{
-		HeadPublicShareLegacyOKAcceptRangesBytes,
-	}
-}
-
-// MarshalText implements encoding.TextMarshaler.
-func (s HeadPublicShareLegacyOKAcceptRanges) MarshalText() ([]byte, error) {
-	switch s {
-	case HeadPublicShareLegacyOKAcceptRangesBytes:
-		return []byte(s), nil
-	default:
-		return nil, errors.Errorf("invalid value: %q", s)
-	}
-}
-
-// UnmarshalText implements encoding.TextUnmarshaler.
-func (s *HeadPublicShareLegacyOKAcceptRanges) UnmarshalText(data []byte) error {
-	switch HeadPublicShareLegacyOKAcceptRanges(data) {
-	case HeadPublicShareLegacyOKAcceptRangesBytes:
-		*s = HeadPublicShareLegacyOKAcceptRangesBytes
-		return nil
-	default:
-		return errors.Errorf("invalid value: %q", data)
-	}
-}
-
 type HeadPublicShareLegacyServiceUnavailable ErrorEnvelope
 
 func (*HeadPublicShareLegacyServiceUnavailable) headPublicShareLegacyRes() {}
@@ -6509,7 +5999,7 @@ func (*HeadPublicShareNotFound) headPublicShareRes() {}
 
 // HeadPublicShareOK is response for HeadPublicShare operation.
 type HeadPublicShareOK struct {
-	AcceptRanges       HeadPublicShareOKAcceptRanges
+	AcceptRanges       DownloadFileLegacyOKAcceptRanges
 	ContentDisposition string
 	ContentLength      int64
 	Etag               ETag
@@ -6517,7 +6007,7 @@ type HeadPublicShareOK struct {
 }
 
 // GetAcceptRanges returns the value of AcceptRanges.
-func (s *HeadPublicShareOK) GetAcceptRanges() HeadPublicShareOKAcceptRanges {
+func (s *HeadPublicShareOK) GetAcceptRanges() DownloadFileLegacyOKAcceptRanges {
 	return s.AcceptRanges
 }
 
@@ -6542,7 +6032,7 @@ func (s *HeadPublicShareOK) GetLastModified() time.Time {
 }
 
 // SetAcceptRanges sets the value of AcceptRanges.
-func (s *HeadPublicShareOK) SetAcceptRanges(val HeadPublicShareOKAcceptRanges) {
+func (s *HeadPublicShareOK) SetAcceptRanges(val DownloadFileLegacyOKAcceptRanges) {
 	s.AcceptRanges = val
 }
 
@@ -6567,40 +6057,6 @@ func (s *HeadPublicShareOK) SetLastModified(val time.Time) {
 }
 
 func (*HeadPublicShareOK) headPublicShareRes() {}
-
-type HeadPublicShareOKAcceptRanges string
-
-const (
-	HeadPublicShareOKAcceptRangesBytes HeadPublicShareOKAcceptRanges = "bytes"
-)
-
-// AllValues returns all HeadPublicShareOKAcceptRanges values.
-func (HeadPublicShareOKAcceptRanges) AllValues() []HeadPublicShareOKAcceptRanges {
-	return []HeadPublicShareOKAcceptRanges{
-		HeadPublicShareOKAcceptRangesBytes,
-	}
-}
-
-// MarshalText implements encoding.TextMarshaler.
-func (s HeadPublicShareOKAcceptRanges) MarshalText() ([]byte, error) {
-	switch s {
-	case HeadPublicShareOKAcceptRangesBytes:
-		return []byte(s), nil
-	default:
-		return nil, errors.Errorf("invalid value: %q", s)
-	}
-}
-
-// UnmarshalText implements encoding.TextUnmarshaler.
-func (s *HeadPublicShareOKAcceptRanges) UnmarshalText(data []byte) error {
-	switch HeadPublicShareOKAcceptRanges(data) {
-	case HeadPublicShareOKAcceptRangesBytes:
-		*s = HeadPublicShareOKAcceptRangesBytes
-		return nil
-	default:
-		return errors.Errorf("invalid value: %q", data)
-	}
-}
 
 type HeadPublicShareServiceUnavailable ErrorEnvelope
 
@@ -8574,6 +8030,52 @@ func (o OptFileBulkMoveRequestConflictPolicy) Get() (v FileBulkMoveRequestConfli
 
 // Or returns value if set, or given parameter if does not.
 func (o OptFileBulkMoveRequestConflictPolicy) Or(d FileBulkMoveRequestConflictPolicy) FileBulkMoveRequestConflictPolicy {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptFileContentRequestOptionsD returns new OptFileContentRequestOptionsD with value set to v.
+func NewOptFileContentRequestOptionsD(v FileContentRequestOptionsD) OptFileContentRequestOptionsD {
+	return OptFileContentRequestOptionsD{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptFileContentRequestOptionsD is optional FileContentRequestOptionsD.
+type OptFileContentRequestOptionsD struct {
+	Value FileContentRequestOptionsD
+	Set   bool
+}
+
+// IsSet returns true if OptFileContentRequestOptionsD was set.
+func (o OptFileContentRequestOptionsD) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptFileContentRequestOptionsD) Reset() {
+	var v FileContentRequestOptionsD
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptFileContentRequestOptionsD) SetTo(v FileContentRequestOptionsD) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptFileContentRequestOptionsD) Get() (v FileContentRequestOptionsD, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptFileContentRequestOptionsD) Or(d FileContentRequestOptionsD) FileContentRequestOptionsD {
 	if v, ok := o.Get(); ok {
 		return v
 	}
