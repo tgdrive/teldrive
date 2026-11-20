@@ -535,12 +535,6 @@ func (s *Service) ListSessions(ctx context.Context, in ListSessionsInput) ([]*sq
 	if in.UserID <= 0 {
 		return nil, ErrInvalidInput
 	}
-	if in.Limit <= 0 {
-		in.Limit = 100
-	}
-	if in.Limit > 200 {
-		in.Limit = 200
-	}
 	rows, err := s.queries.ListSessions(ctx, sqlcgen.ListSessionsParams{
 		UserID: in.UserID, AfterCreatedAt: dbtypes.OptionalTime(in.AfterCreatedAt),
 		AfterID: dbtypes.OptionalUUID(in.AfterID), PageSize: in.Limit,
@@ -593,12 +587,6 @@ func (s *Service) CreateAPIKey(ctx context.Context, userID int64, name string, e
 func (s *Service) ListAPIKeys(ctx context.Context, in ListAPIKeysInput) ([]*sqlcgen.ApiKey, error) {
 	if in.UserID <= 0 {
 		return nil, ErrInvalidInput
-	}
-	if in.Limit <= 0 {
-		in.Limit = 100
-	}
-	if in.Limit > 200 {
-		in.Limit = 200
 	}
 	rows, err := s.queries.ListAPIKeys(ctx, sqlcgen.ListAPIKeysParams{
 		UserID: in.UserID, AfterCreatedAt: dbtypes.OptionalTime(in.AfterCreatedAt),

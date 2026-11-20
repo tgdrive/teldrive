@@ -31,7 +31,7 @@ func (h *Handler) ListJobs(ctx context.Context, params gen.ListJobsParams) (gen.
 	kind, _ := params.Type.Get()
 	queue, _ := params.Queue.Get()
 	items, next, err := h.Jobs.List(ctx, jobs.ListInput{
-		UserID: userID, Cursor: string(cursor), Limit: params.Limit.Or(100), State: string(status), Kind: kind, Queue: queue,
+		UserID: userID, Cursor: string(cursor), Limit: params.Limit.Value, State: string(status), Kind: kind, Queue: queue,
 	})
 	if err != nil {
 		if errors.Is(err, jobs.ErrInvalidCursor) {

@@ -95,8 +95,8 @@ func TestBotCRUDEncryptsTokenAgainstRealPostgres(t *testing.T) {
 		t.Fatalf("Create(second) error = %v", err)
 	}
 	defaultRows, err := service.List(ctx, ListInput{UserID: 1001})
-	if err != nil || len(defaultRows) != 2 {
-		t.Fatalf("List(default) = %#v, %v", defaultRows, err)
+	if err != nil || len(defaultRows) != 0 {
+		t.Fatalf("List(zero limit) = %#v, %v", defaultRows, err)
 	}
 	rows, err := service.List(ctx, ListInput{UserID: 1001, Limit: 10})
 	if err != nil || len(rows) != 2 {

@@ -67,7 +67,7 @@ VALUES ($1,2002,'private.txt','file',1,false,'active',now())`, foreignID); err !
 	if err := service.BookmarkFiles(ctx, 1001, []uuid.UUID{foreignID}); !errors.Is(err, catalog.ErrNotFound) {
 		t.Fatalf("bookmark another user's file error = %v", err)
 	}
-	rows, err := service.List(ctx, catalog.ListInput{UserID: 1001, Bookmarked: true})
+	rows, err := service.List(ctx, catalog.ListInput{UserID: 1001, Bookmarked: true, Limit: 100})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +77,7 @@ VALUES ($1,2002,'private.txt','file',1,false,'active',now())`, foreignID); err !
 	if err := service.RemoveFileBookmarks(ctx, 1001, []uuid.UUID{folder.ID.Bytes}); err != nil {
 		t.Fatal(err)
 	}
-	rows, err = service.List(ctx, catalog.ListInput{UserID: 1001, Bookmarked: true})
+	rows, err = service.List(ctx, catalog.ListInput{UserID: 1001, Bookmarked: true, Limit: 100})
 	if err != nil || len(rows) != 1 || rows[0].ID.Bytes != fileID {
 		t.Fatalf("bookmarks after remove = %#v, %v", rows, err)
 	}

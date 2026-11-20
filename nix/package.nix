@@ -14,7 +14,7 @@ buildGoModule {
         "test-results"
       ]);
   };
-  vendorHash = "sha256-iOvpFB++eBfImiLSPaqav6VBbDybrE82ymeqH7yjttA=";
+  vendorHash = "sha256-SRnMKUE24oiVegZgBvHO7vtaHeXGDjosLdNWA0+HK58=";
   subPackages = [ "cmd/teldrive" ];
   env.CGO_ENABLED = "0";
   ldflags = [

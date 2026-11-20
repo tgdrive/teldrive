@@ -138,8 +138,8 @@ VALUES ($1,1001,'shared.bin','file','application/octet-stream',4,false,'active',
 		t.Fatalf("Create(second) error = %v", err)
 	}
 	defaultRows, err := service.List(ctx, ListInput{OwnerID: 1001, FileID: fileID})
-	if err != nil || len(defaultRows) != 2 {
-		t.Fatalf("List(default) = %#v, %v", defaultRows, err)
+	if err != nil || len(defaultRows) != 0 {
+		t.Fatalf("List(zero limit) = %#v, %v", defaultRows, err)
 	}
 	rows, err := service.List(ctx, ListInput{OwnerID: 1001, FileID: fileID, Limit: 10})
 	if err != nil || len(rows) != 2 {

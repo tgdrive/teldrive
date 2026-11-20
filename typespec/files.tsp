@@ -335,7 +335,7 @@ namespace Files {
   /** List one folder or search within the authenticated user's drive. */
   @get
   @operationId("listFiles")
-  op list(...CursorQuery, ...FileListQuery):
+  op list(...FileCursorQuery, ...FileListQuery):
     | JsonResponse<200, CursorPage<FileEntry>>
     | ErrorResponse<401>
     | ErrorResponse<404>

@@ -7093,7 +7093,7 @@ func decodeListFilesParams(args [0]string, argsEscaped bool, r *http.Request) (p
 	}
 	// Set default value for query: limit.
 	{
-		val := int32(100)
+		val := int32(200)
 		params.Limit.SetTo(val)
 	}
 	// Decode query: limit.
@@ -7135,7 +7135,7 @@ func decodeListFilesParams(args [0]string, argsEscaped bool, r *http.Request) (p
 							MinSet:        true,
 							Min:           1,
 							MaxSet:        true,
-							Max:           500,
+							Max:           2000,
 							MinExclusive:  false,
 							MaxExclusive:  false,
 							MultipleOfSet: false,
@@ -8383,7 +8383,7 @@ func decodeListPublicShareFilesParams(args [1]string, argsEscaped bool, r *http.
 	}
 	// Set default value for query: limit.
 	{
-		val := int32(100)
+		val := int32(200)
 		params.Limit.SetTo(val)
 	}
 	// Decode query: limit.
@@ -8425,7 +8425,7 @@ func decodeListPublicShareFilesParams(args [1]string, argsEscaped bool, r *http.
 							MinSet:        true,
 							Min:           1,
 							MaxSet:        true,
-							Max:           500,
+							Max:           2000,
 							MinExclusive:  false,
 							MaxExclusive:  false,
 							MultipleOfSet: false,

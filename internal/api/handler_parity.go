@@ -200,7 +200,7 @@ func (h *Handler) ListPublicShareFiles(ctx context.Context, params gen.ListPubli
 	if err := decodeCursor(params.Cursor, &cursor); err != nil {
 		return nil, mapServiceError(shares.ErrInvalidInput)
 	}
-	limit := params.Limit.Or(100)
+	limit := params.Limit.Value
 	input := shares.PublicListInput{
 		Token: params.Token, Password: params.XSharePassword.Or(""), Path: params.Path.Or(""),
 		Search: params.Search.Or(""), Limit: limit,

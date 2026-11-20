@@ -82,7 +82,7 @@ FROM generate_series(1, 3000) i;`)
 				{`The\.Terminal`, "regex", 1},
 			} {
 				t.Run(tc.search+"/"+tc.searchType, func(t *testing.T) {
-					items, err := svc.List(ctx, catalog.ListInput{UserID: 1001, Scope: scope, Search: tc.search, SearchType: tc.searchType})
+					items, err := svc.List(ctx, catalog.ListInput{UserID: 1001, Scope: scope, Search: tc.search, SearchType: tc.searchType, Limit: 100})
 					if err != nil {
 						t.Fatal(err)
 					}

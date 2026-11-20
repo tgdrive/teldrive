@@ -157,8 +157,8 @@ func TestLoginRefreshAPIKeyAndLogoutAgainstRealPostgres(t *testing.T) {
 		t.Fatalf("CreateAPIKey(second) error = %v", err)
 	}
 	defaultKeys, err := service.ListAPIKeys(ctx, ListAPIKeysInput{UserID: 1001})
-	if err != nil || len(defaultKeys) != 2 {
-		t.Fatalf("ListAPIKeys(default) = %#v, %v", defaultKeys, err)
+	if err != nil || len(defaultKeys) != 0 {
+		t.Fatalf("ListAPIKeys(zero limit) = %#v, %v", defaultKeys, err)
 	}
 	keys, err := service.ListAPIKeys(ctx, ListAPIKeysInput{UserID: 1001, Limit: 10})
 	if err != nil || len(keys) != 2 {
@@ -181,7 +181,7 @@ func TestLoginRefreshAPIKeyAndLogoutAgainstRealPostgres(t *testing.T) {
 	if _, err := service.AuthenticateAPIKey(ctx, createdKey.Secret); !errors.Is(err, ErrInvalidCredential) {
 		t.Fatalf("revoked API key error = %v", err)
 	}
-	if remaining, err := service.ListAPIKeys(ctx, ListAPIKeysInput{UserID: 1001}); err != nil || len(remaining) != 1 || remaining[0].ID == createdKey.Row.ID {
+	if remaining, err := service.ListAPIKeys(ctx, ListAPIKeysInput{UserID: 1001, Limit: 100}); err != nil || len(remaining) != 1 || remaining[0].ID == createdKey.Row.ID {
 		t.Fatalf("ListAPIKeys(after revoke) = %#v, %v", remaining, err)
 	}
 	secondKeyID, _ := dbtypes.GoogleUUID(secondKey.Row.ID)

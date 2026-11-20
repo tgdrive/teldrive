@@ -2514,6 +2514,8 @@ export interface components {
         RefreshCookie: string;
         "CursorQuery.cursor": components["schemas"]["Cursor"];
         "CursorQuery.limit": number;
+        "FileCursorQuery.cursor": components["schemas"]["Cursor"];
+        "FileCursorQuery.limit": number;
         "FileListQuery.scope": components["schemas"]["FileListScope"];
         "FileListQuery.parentId": components["schemas"]["Uuid"];
         /** @description Resolve the listing root relative to the user's drive root. */
@@ -4529,8 +4531,8 @@ export interface operations {
     listFiles: {
         parameters: {
             query?: {
-                cursor?: components["parameters"]["CursorQuery.cursor"];
-                limit?: components["parameters"]["CursorQuery.limit"];
+                cursor?: components["parameters"]["FileCursorQuery.cursor"];
+                limit?: components["parameters"]["FileCursorQuery.limit"];
                 scope?: components["parameters"]["FileListQuery.scope"];
                 parentId?: components["parameters"]["FileListQuery.parentId"];
                 /** @description Resolve the listing root relative to the user's drive root. */
@@ -6937,8 +6939,8 @@ export interface operations {
     listPublicShareFiles: {
         parameters: {
             query?: {
-                cursor?: components["parameters"]["CursorQuery.cursor"];
-                limit?: components["parameters"]["CursorQuery.limit"];
+                cursor?: components["parameters"]["FileCursorQuery.cursor"];
+                limit?: components["parameters"]["FileCursorQuery.limit"];
                 /** @description Folder path relative to the shared folder root. */
                 path?: components["parameters"]["PublicShareListQuery.path"];
                 search?: components["parameters"]["PublicShareListQuery.search"];

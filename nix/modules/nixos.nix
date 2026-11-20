@@ -59,7 +59,9 @@ in
       description = "Teldrive Telegram-backed cloud storage server";
       wantedBy = [ "multi-user.target" ];
       after = [ "network.target" ];
-      environment = toEnv cfg.settings;
+      environment = (toEnv cfg.settings) // {
+        HOME = "/var/lib/teldrive";
+      };
       serviceConfig =
         {
           ExecStart = "${cfg.package}/bin/teldrive run";

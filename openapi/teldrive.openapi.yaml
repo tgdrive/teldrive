@@ -1676,8 +1676,8 @@ paths:
       operationId: listFiles
       description: List one folder or search within the authenticated user's drive.
       parameters:
-        - $ref: "#/components/parameters/CursorQuery.cursor"
-        - $ref: "#/components/parameters/CursorQuery.limit"
+        - $ref: "#/components/parameters/FileCursorQuery.cursor"
+        - $ref: "#/components/parameters/FileCursorQuery.limit"
         - $ref: "#/components/parameters/FileListQuery.scope"
         - $ref: "#/components/parameters/FileListQuery.parentId"
         - $ref: "#/components/parameters/FileListQuery.path"
@@ -3882,8 +3882,8 @@ paths:
       description: List children within a publicly shared folder.
       parameters:
         - $ref: "#/components/parameters/SharePasswordHeader"
-        - $ref: "#/components/parameters/CursorQuery.cursor"
-        - $ref: "#/components/parameters/CursorQuery.limit"
+        - $ref: "#/components/parameters/FileCursorQuery.cursor"
+        - $ref: "#/components/parameters/FileCursorQuery.limit"
         - $ref: "#/components/parameters/PublicShareListQuery.path"
         - $ref: "#/components/parameters/PublicShareListQuery.search"
         - name: token
@@ -5970,6 +5970,24 @@ components:
         minimum: 1
         maximum: 500
         default: 100
+      explode: false
+    FileCursorQuery.cursor:
+      name: cursor
+      in: query
+      required: false
+      schema:
+        $ref: "#/components/schemas/Cursor"
+      explode: false
+    FileCursorQuery.limit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+        maximum: 2000
+        default: 200
       explode: false
     FileListQuery.scope:
       name: scope

@@ -256,7 +256,7 @@ namespace PublicShares {
   @operationId("listPublicShareFiles")
   op listFiles(
     ...SharePasswordHeader,
-    ...CursorQuery,
+    ...FileCursorQuery,
     ...PublicShareListQuery,
     @path token: string,
   ):

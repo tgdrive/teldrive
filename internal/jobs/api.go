@@ -85,9 +85,6 @@ func (r *Runtime) List(ctx context.Context, input ListInput) ([]Job, string, err
 	if r == nil || r.client == nil {
 		return nil, "", ErrRuntimeNotConfigured
 	}
-	if input.Limit <= 0 || input.Limit > 200 {
-		input.Limit = 100
-	}
 	beforeID, err := decodeCursor(input.Cursor)
 	if err != nil {
 		return nil, "", err

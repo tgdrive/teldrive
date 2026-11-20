@@ -71,6 +71,16 @@ model CursorQuery {
   limit?: int32 = 100;
 }
 
+model FileCursorQuery {
+  @query
+  cursor?: Cursor;
+
+  @query
+  @minValue(1)
+  @maxValue(2000)
+  limit?: int32 = 200;
+}
+
 model GenerationHeader {
   /** Optimistic concurrency precondition. */
   @header("If-Match")

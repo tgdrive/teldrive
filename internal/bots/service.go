@@ -250,12 +250,6 @@ func (s *Service) List(ctx context.Context, in ListInput) ([]*sqlcgen.Bot, error
 	if in.UserID <= 0 {
 		return nil, ErrInvalidInput
 	}
-	if in.Limit <= 0 {
-		in.Limit = 100
-	}
-	if in.Limit > 200 {
-		in.Limit = 200
-	}
 	var afterID pgtype.Int8
 	if in.AfterBotID != nil {
 		afterID = dbtypes.Int8(*in.AfterBotID)

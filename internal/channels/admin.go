@@ -30,12 +30,6 @@ func (s *Service) List(ctx context.Context, in ListInput) ([]*sqlcgen.Channel, e
 	if in.UserID <= 0 {
 		return nil, ErrInvalidOwner
 	}
-	if in.Limit <= 0 {
-		in.Limit = 100
-	}
-	if in.Limit > 200 {
-		in.Limit = 200
-	}
 	var afterID pgtype.Int8
 	if in.AfterChannelID != nil {
 		afterID = dbtypes.Int8(*in.AfterChannelID)

@@ -195,12 +195,6 @@ func (s *Service) List(ctx context.Context, in ListInput) ([]*sqlcgen.FileShare,
 	if _, err := s.catalog.Get(ctx, in.OwnerID, in.FileID); err != nil {
 		return nil, err
 	}
-	if in.Limit <= 0 {
-		in.Limit = 100
-	}
-	if in.Limit > 200 {
-		in.Limit = 200
-	}
 	rows, err := s.queries.ListFileShares(ctx, sqlcgen.ListFileSharesParams{
 		OwnerID: in.OwnerID, FileID: dbtypes.UUID(in.FileID),
 		AfterCreatedAt: dbtypes.OptionalTime(in.AfterCreatedAt), AfterID: dbtypes.OptionalUUID(in.AfterID),

@@ -22,12 +22,13 @@ let
     # Update with: just update-ui-deps-hash
     outputHashMode = "recursive";
     outputHashAlgo = "sha256";
-    outputHash = "sha256-S4arAot+s4I1IhbW08t4UdmxW7KAe1eXhKBuZ3smyyg=";
+    outputHash = "sha256-v1o3YUmhptuwUwYtxMc3Xl2PGOWLbiYaG8n8ysCuayU=";
     # FOD outputs must not reference /nix/store. Keep vendored files
     # byte-identical to upstream: no shebang rewrites, no ELF patching
     # of prebuilt NAPI binaries (tailwind oxide, rolldown, biome).
     dontPatchShebangs = true;
     dontPatchELF = true;
+    dontFixup = true;
     buildPhase = ''
       runHook preBuild
       export HOME=$TMPDIR

@@ -245,6 +245,67 @@ INSERT INTO files (id,user_id,parent_id,name,kind,mime_type,size,status,mod_time
 
 type listingAuthenticator struct{}
 
+func TestFileListingPageSize(t *testing.T) {
+	db := testpostgres.New(t)
+	ctx := context.Background()
+	if _, err := db.Pool.Exec(ctx, `INSERT INTO users (user_id) VALUES (2002);
+INSERT INTO files (id,user_id,name,kind,mime_type,size,status,mod_time,updated_at)
+SELECT gen_random_uuid(),2002,'file-' || lpad(n::text,4,'0'),'file','text/plain',1,'active',now(),now()
+FROM generate_series(1,2001) AS n`); err != nil {
+		t.Fatal(err)
+	}
+	handler := api.NewHandler(catalog.NewService(db.Pool, nil), uploads.NewService(db.Pool), nil, nil, health.NewService("test", db.Pool), 0, nil)
+	server, err := api.NewServer(handler, api.NewSecurity(listingAuthenticator{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, scope := range []string{"folder", "drive"} {
+		t.Run(scope, func(t *testing.T) {
+			request := func(limit, cursor string) *httptest.ResponseRecorder {
+				params := url.Values{"scope": {scope}, "sort": {"name"}, "order": {"asc"}}
+				if limit != "" {
+					params.Set("limit", limit)
+				}
+				if cursor != "" {
+					params.Set("cursor", cursor)
+				}
+				return performRequest(t, server, http.MethodGet, "/v1/files?"+params.Encode(), nil, map[string]string{"Authorization": "Bearer user-2002"})
+			}
+			type page struct {
+				Items      []struct{ Name string } `json:"items"`
+				NextCursor string                  `json:"nextCursor"`
+			}
+			decode := func(response *httptest.ResponseRecorder) page {
+				t.Helper()
+				if response.Code != http.StatusOK {
+					t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+				}
+				var result page
+				if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
+					t.Fatal(err)
+				}
+				return result
+			}
+			if got := decode(request("", "")); len(got.Items) != 200 {
+				t.Fatalf("default count=%d, want 200", len(got.Items))
+			}
+			first := decode(request("2000", ""))
+			if len(first.Items) != 2000 || first.NextCursor == "" {
+				t.Fatalf("first page count=%d cursor=%q", len(first.Items), first.NextCursor)
+			}
+			last := decode(request("2000", first.NextCursor))
+			if len(last.Items) != 1 || last.Items[0].Name != "file-2001" {
+				t.Fatalf("last page=%+v", last)
+			}
+			for _, limit := range []string{"0", "-1", "2001"} {
+				if response := request(limit, ""); response.Code < 400 || response.Code >= 500 {
+					t.Fatalf("limit=%s status=%d body=%s", limit, response.Code, response.Body.String())
+				}
+			}
+		})
+	}
+}
+
 func (listingAuthenticator) AuthenticateBearer(_ context.Context, token string) (api.Identity, error) {
 	switch token {
 	case "user-2001":

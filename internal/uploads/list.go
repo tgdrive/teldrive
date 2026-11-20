@@ -24,12 +24,6 @@ func (s *Service) List(ctx context.Context, in ListInput) ([]*sqlcgen.UploadSess
 	if in.UserID <= 0 {
 		return nil, ErrInvalidInput
 	}
-	if in.Limit <= 0 {
-		in.Limit = 100
-	}
-	if in.Limit > 200 {
-		in.Limit = 200
-	}
 	var state sqlcgen.NullUploadState
 	if in.State != nil {
 		state = sqlcgen.NullUploadState{UploadState: *in.State, Valid: true}
@@ -60,12 +54,6 @@ func (s *Service) ListParts(ctx context.Context, in ListPartsInput) ([]*sqlcgen.
 	}
 	if _, err := s.Get(ctx, in.UserID, in.UploadID); err != nil {
 		return nil, err
-	}
-	if in.Limit <= 0 {
-		in.Limit = 100
-	}
-	if in.Limit > 200 {
-		in.Limit = 200
 	}
 	var after pgtype.Int4
 	if in.AfterPartNo != nil {
